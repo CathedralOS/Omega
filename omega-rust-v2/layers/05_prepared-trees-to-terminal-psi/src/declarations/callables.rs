@@ -6,26 +6,56 @@
 //! its transparent alias. Every use of one alias application shares that
 //! contract. Distinct applications of a generic alias keep the alias site but
 //! remain distinct structural contracts.
-use super::type_expression::type_expression;
 use crate::lowering::types::{TypeError, scalar_carrier};
 use crate::{CallableContractId, LoweringError, TemplateCallable};
-use omega_typed::{CallableType, PauseEffects, ValueType};
+use omega_prepared::PreparedTrees;
+use omega_typed::{CallableType, ValueType};
 
-/// Lowering admits only contracts whose every obligation Psi can state:
-/// a closed runtime contract with empty service and crash ceilings, no pause,
-/// no structural predicates or requirement identity, and scalar copy formals
-/// and result. Loans, nested callables and open rows refuse.
+/// The descriptor carries its contract's complete argument and result shapes.
+/// A direct borrowed result additionally needs a public lifetime relation;
+/// its implementation still owes backing and access at each return.
 pub(crate) fn supported(callable: &CallableType) -> bool {
-    let scalar = |ty: &ValueType| scalar_carrier(ty).is_ok();
     callable.closed_runtime
         && callable.requirement.is_none()
-        && !callable.requires
-        && !callable.has_guarantee
         && callable.reach.as_ref().is_some_and(Vec::is_empty)
         && callable.crash_ceiling.as_ref().is_some_and(Vec::is_empty)
-        && callable.pause == PauseEffects::default()
-        && callable.parameters.iter().all(scalar)
-        && (callable.result == ValueType::NoResult || scalar(&callable.result))
+        && !callable.pause.block
+        && callable.parameters.iter().all(supported_formal)
+        && (callable.result == ValueType::NoResult
+            || scalar_carrier(&callable.result).is_ok()
+            || result_lifetime_input(&callable.result, callable.parameters.iter()).is_some())
+}
+
+pub(crate) fn supported_formal(ty: &ValueType) -> bool {
+    use omega_typed::Access::{Mut, Shared};
+    scalar_carrier(ty).is_ok()
+        || matches!(ty, ValueType::Reference(Shared | Mut, inner) if scalar_carrier(inner).is_ok() || matches!(inner.as_ref(), ValueType::Nominal(_)))
+}
+
+/// With one direct scalar reference among otherwise scalar inputs, elision
+/// relates a shared scalar reference result to that input. An aggregate or
+/// open input would need its entire reference frontier. An explicit lifetime
+/// is a distinct typed constructor and never enters this rule.
+pub(super) fn result_lifetime_input<'a>(
+    result: &ValueType,
+    inputs: impl Iterator<Item = &'a ValueType>,
+) -> Option<usize> {
+    if !matches!(result, ValueType::Reference(omega_typed::Access::Shared, inner) if scalar_carrier(inner).is_ok()) {
+        return None;
+    }
+    let mut input = None;
+    for (index, ty) in inputs.enumerate() {
+        if scalar_carrier(ty).is_ok() {
+            continue;
+        }
+        if !matches!(ty, ValueType::Reference(omega_typed::Access::Shared | omega_typed::Access::Mut, inner) if scalar_carrier(inner).is_ok())
+            || input.is_some()
+        {
+            return None;
+        }
+        input = Some(index);
+    }
+    input
 }
 
 /// Collect each distinct runtime callable carrier. A contract is identified by
@@ -66,28 +96,21 @@ pub(crate) fn find(
     CallableContractId::from_index(start + index).ok_or_else(missing)
 }
 
-/// The independent Psi declaration of one admitted contract.
-pub(crate) fn contract(callable: &CallableType) -> Result<TemplateCallable, LoweringError> {
+/// The independent Psi declaration of one admitted contract. Its predicates
+/// come from the signature that declares the contract, through the same
+/// interface lowering an alias expansion uses, so a contract and its alias
+/// never publish different obligations.
+pub(crate) fn contract(
+    prepared: &PreparedTrees<'_>,
+    callable: &CallableType,
+) -> Result<TemplateCallable, LoweringError> {
     let site = &callable.contract;
     if !supported(callable) {
         return Err(LoweringError::new(site, "runtime callable contract requires unsupported obligation lowering"));
     }
-    Ok(TemplateCallable {
-        parameters: callable
-            .parameters
-            .iter()
-            .map(|ty| type_expression(ty, site))
-            .collect::<Result<_, _>>()?,
-        result: (callable.result != ValueType::NoResult)
-            .then(|| type_expression(&callable.result, site))
-            .transpose()?,
-        requires: Vec::new(),
-        ensures: Vec::new(),
-        reach: Some(Vec::new()),
-        crash_ceiling: callable.crash_ceiling.clone(),
-        crash_routes: Vec::new(),
-        pause: callable.pause,
-        terminates: callable.terminates,
-        site: site.clone(),
-    })
+    let (origin, node) = prepared
+        .typed()
+        .callable_origin(site)
+        .ok_or_else(|| LoweringError::new(site, "runtime callable contract lacks its checked structural signature"))?;
+    super::type_expression::callable_interface(prepared, &origin, node, callable)
 }

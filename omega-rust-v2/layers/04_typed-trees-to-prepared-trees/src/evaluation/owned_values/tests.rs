@@ -111,10 +111,9 @@ fn construction_uses_evidence_for_its_exact_fields_and_typed_occurrence() {
     evaluator.nominal.establishments.push(proof);
     let value = evaluator.evaluate_value_request(find("ALLOWED"), None).unwrap();
     assert!(matches!(&value, PreparedValue::Record { fields, .. } if fields.as_ref() == [PreparedValue::Integer(3.into())]));
-    assert!(
-        evaluator
-            .canonical_identity(&value, &StaticValueDemand::Closed(find("ALLOWED").clone()))
-            .is_none()
+    assert_eq!(
+        evaluator.canonical_identity(&value, &StaticValueDemand::Closed(find("ALLOWED").clone())),
+        Err(PreparationReason::NoCanonicalIndexIdentity)
     );
     for constant in ["OTHER_OCCURRENCE", "FALSE"] {
         assert!(matches!(
@@ -183,6 +182,31 @@ fn a_constructor_proof_replays_its_target_dependency() {
         evaluator.evaluate_value_request(request, None),
         Err(EvaluationError::Refused(RefusalCause::Preparation(NEEDS_CONSTRUCTION_PROOF), None))
     ));
+    assert!(evaluator.observations.borrow().is_empty());
+    // No target: the same establishment waits for target selection instead
+    // of reporting a missing proof.
+    evaluator.target = None;
+    assert!(matches!(
+        evaluator.evaluate_value_request(request, None),
+        Err(EvaluationError::Refused(RefusalCause::Preparation(PreparationReason::ProofNeedsTarget), None))
+    ));
+    // Freezing the package keeps ALLOWED as a recipe at its initializer.
+    let mut freezing = ConstantEvaluation::new(&trees, &[]);
+    freezing
+        .nominal
+        .establishments
+        .push(evaluator.nominal.establishments.pop().unwrap());
+    assert!(freezing.finish().unwrap().is_empty());
+    let retained = &freezing.open_target_constants[&trees.constants[0].declaration];
+    assert_eq!((&retained.file, retained.span), (&request.expression.file, request.expression.span));
+    assert_eq!(
+        retained.message,
+        "static evaluation cannot admit this invocation: the checked proof depends on target input and no target is selected"
+    );
+    evaluator
+        .nominal
+        .establishments
+        .push(freezing.nominal.establishments.pop().unwrap());
     assert!(evaluator.observations.borrow().is_empty());
     evaluator.target = Some(&original);
     assert!(evaluator.evaluate_value_request(request, None).is_ok());
@@ -268,6 +292,44 @@ fn constrained_index_requires_a_verified_identity_at_the_exact_demand() {
             "static evaluation cannot admit this invocation: the prepared value has no canonical static index identity"
         );
     }
+    // The exact identity checked against a target: before target selection
+    // the index demand waits for that target instead of refusing.
+    let observation = TargetObservation::FloatRealization {
+        target: crate::TargetIdentity {
+            profile: "test".into(),
+            semantics_version: 1,
+            realization: (&b"ieee arithmetic"[..]).into(),
+        },
+        realization: crate::FloatRealization {
+            format: crate::FloatFormat::Binary32,
+            operation: crate::FloatOperation::Equal,
+            semantics: crate::FloatSemantics::Ieee754NearestEvenV1,
+        },
+    };
+    let targeted = CheckedCanonicalIdentity {
+        target_dependencies: vec![observation],
+        ..identity(3)
+    };
+    let evidence = CheckedPreparationEvidence::default()
+        .with_data_establishment(establishment())
+        .with_canonical_identity(targeted);
+    let crate::PreparationAnswers::OpenTarget { demands, answers } = crate::prepare_typing_pass_with_cause(round.typing(), &[], None, evidence)
+        .unwrap()
+        .answers
+    else {
+        panic!("the index waits for target selection")
+    };
+    assert!(answers.is_empty());
+    let [open] = demands.as_slice() else { panic!("one open index") };
+    assert_eq!(&open.demand, demand);
+    spec_corpus::assert_preparation_cause!(
+        open,
+        RefusalCause::Preparation(PreparationReason::ProofNeedsTarget),
+        "app",
+        "main.omg",
+        index,
+        "static evaluation cannot admit this invocation: the checked proof depends on target input and no target is selected"
+    );
 
     let expected = StaticValue::Record {
         owner: owner.as_ref().clone(),

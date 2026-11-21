@@ -201,6 +201,27 @@ fn line_comment_with_crlf_keeps_the_carriage_return() {
     spec_corpus::observe_handoff!("line-comments/crlf-product", assert_eq!(observed, expected));
 }
 
+#[test]
+fn a_block_comment_can_close_at_the_last_byte() {
+    for source in [b"x /* c */".as_slice(), b"x /* a /* b */ c */"] {
+        let tokens = lex(source).unwrap();
+        let actual: Vec<_> = tokens
+            .iter()
+            .map(|token| (token.get_kind(), token.get_span()))
+            .collect();
+        assert_eq!(
+            actual,
+            [
+                (TokenKind::Word, SourceSpan::new(0, 1)),
+                (TokenKind::Whitespace, SourceSpan::new(1, 2)),
+                (TokenKind::BlockComment, SourceSpan::new(2, source.len())),
+            ]
+        );
+        let truncated = &source[..source.len() - 1];
+        expect_error(truncated, LexErrorKind::UnterminatedBlockComment, SourceSpan::new(2, truncated.len()));
+    }
+}
+
 // R12 and R13
 
 #[test]

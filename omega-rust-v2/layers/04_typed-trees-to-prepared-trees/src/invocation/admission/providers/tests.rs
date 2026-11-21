@@ -353,6 +353,40 @@ fn selected_literal_provider_retains_the_exact_plan_even_without_a_projection() 
             .is_empty()
     );
 
+    // No target: the same checked provider waits for the target it names, so
+    // USED keeps its recipe while DIRECT, which never reaches the slot, freezes.
+    let waiting = crate::prepare_typing_pass_with_cause(
+        &progress,
+        std::slice::from_ref(&slot),
+        None,
+        CheckedPreparationEvidence::default().with_provider(check()),
+    )
+    .unwrap();
+    let PreparationAnswers::Frozen {
+        constants,
+        open_target_constants,
+    } = waiting.answers
+    else {
+        panic!("a missing target does not refuse the package")
+    };
+    let [used, direct] = [0, 1].map(|index| &trees.constants[index].declaration);
+    assert_eq!((used.path.as_str(), direct.path.as_str()), ("USED", "DIRECT"));
+    assert_eq!(constants.get(used), None);
+    assert_eq!(constants[direct], PreparedValue::Integer(7.into()));
+    let retained = &open_target_constants[used];
+    assert_eq!(retained.span.slice(SOURCE.as_bytes()), Some(b"Reading::read()".as_slice()));
+    assert_eq!(
+        retained.message,
+        format!("{ADMISSION}the checked proof depends on target input and no target is selected\ncall chain: via -> Reading::read")
+    );
+    assert!(waiting.target_observations.is_empty());
+    // Without a checked provider the slot is unselected, with or without a target.
+    let unproved = match crate::prepare_typing_pass_with_cause(&progress, std::slice::from_ref(&slot), None, CheckedPreparationEvidence::default()) {
+        Err(refusal) => refusal,
+        Ok(_) => panic!("an unproved slot cannot execute"),
+    };
+    assert_provider_refusal(&unproved, PreparationReason::UnselectedBoundarySlot, UNSELECTED, SOURCE, "Reading::read()");
+
     let rejected = refuse(&progress, std::slice::from_ref(&slot), &unselected, vec![check()]);
     assert_provider_refusal(&rejected, PreparationReason::ProviderTargetPlanMismatch, WRONG_PLAN, SOURCE, "Reading::read()");
     let rejected = refuse(&progress, std::slice::from_ref(&slot), &capsule, vec![]);
@@ -420,11 +454,10 @@ fn missing_implementation_signature_prevents_certification_and_replay() {
     let TypingProgress::Complete(other) = other else { panic!("expected complete forest") };
     let resolved = other.resolved().clone();
     let mut facts = other.into_facts();
-    let first_local = facts.obligations.iter().take_while(|o| o.site.package != "app").count();
     let before = facts.signatures.len();
     facts.signatures.retain(|signature| signature.machine != proof.binding.implementation);
     assert_eq!(before - facts.signatures.len(), 1);
-    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, first_local));
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
     assert!(check_literal_provider(frozen_trees(&changed), &same_slot, &target).is_none());
     // Neither the unchanged target plan nor the original check authorizes
     // looking up the implementation in a different pass.

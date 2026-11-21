@@ -89,16 +89,51 @@ pub(crate) fn lower_routes(
     Ok(routes)
 }
 
+/// Join L3's three coordinates before accepting a binder contribution. Each
+/// supplying execution of this *exact application* must associate this local
+/// invocation with every route of its selected contract, in published order.
+/// Keep the row identities so other (e.g. forwarded or library) rows at a
+/// supplier cannot be accidentally credited to the same instance.
+pub(crate) fn closed_callback_routes(
+    typed: &TypedStage,
+    app: &omega_typed::MachineApplication,
+    binding: &crate::lowering::callbacks::Callback<'_>,
+    call: &omega_typed::IndirectCall,
+) -> Result<(std::ops::Range<usize>, Vec<usize>), LoweringError> {
+    let bad = || LoweringError::new(&call.site, "selected callback lacks exact local invocation route coverage");
+    if call.use_site != CallUse::Execution || call.contract.crash_ceiling.is_some() {
+        return Err(bad());
+    }
+    let invocation = typed.indirect_calls.iter().position(|edge| std::ptr::eq(edge, call)).ok_or_else(bad)?;
+    let expected = published(typed, &binding.selection.site);
+    let mut retained = Vec::new();
+    for (supplier, _) in typed.calls.iter().enumerate().filter(|(_, c)| {
+        c.use_site == CallUse::Execution && c.caller.is_some() && c.machine == *app.machine
+            && c.type_arguments == app.arguments && c.enclosing_arguments == app.enclosing_arguments && c.evidence.is_none()
+    }) {
+        let rows = typed.guarded_calls.iter().enumerate().filter_map(|(i, row)| match *row {
+            GuardedCall::Indirect { call: omega_typed::GuardedInvocationRef::Local(edge), specialization: Some(s), route }
+                if edge == invocation && s == supplier => Some((i, route)),
+            _ => None,
+        });
+        let (indices, routes): (Vec<_>, Vec<_>) = rows.unzip();
+        if routes != expected { return Err(bad()); }
+        retained.extend(indices);
+    }
+    if retained.is_empty() { return Err(bad()); }
+    Ok((0..expected.len(), retained))
+}
+
 /// The caller owes coverage of each cause its callee publishes, once, at this
 /// exact call. The Psi call keeps the callee and its ordered arguments, and the
 /// callee contract keeps each route's guard over its formals, so the coverage
 /// question survives with its operands. L5 does not answer it.
 pub(crate) fn check_call_coverage(
     site: &Site,
-    callee: &TypedSignature,
+    declared: Option<&[CrashCause]>,
     coverage: &[CrashCause],
 ) -> Result<(), LoweringError> {
-    if coverage != callee.crash_ceiling.as_deref().unwrap_or_default() {
+    if coverage != declared.unwrap_or_default() {
         return Err(LoweringError::new(site, "call crash coverage disagrees with its callee's published routes"));
     }
     Ok(())
@@ -106,13 +141,13 @@ pub(crate) fn check_call_coverage(
 
 /// Check the typed invocation rows owned by `caller`. Each direct call must
 /// name every published route of its callee exactly once, in route order. A
-/// crash route reaching a callback has no Psi call that retains the selected
-/// callee's guard and operands, so the caller is refused.
+/// closed callback row is retained only by its matching instance dependency.
 pub(crate) fn check_invocations(
     prepared: &PreparedTrees<'_>,
     caller: &TypedSignature,
+    retained: &std::collections::HashSet<usize>,
 ) -> Result<(), LoweringError> {
-    check_routed_invocations(prepared.typed(), caller, false)
+    check_routed_invocations(prepared.typed(), caller, false, retained)
 }
 
 /// A template call keeps its exact callee declaration or binder and its
@@ -122,15 +157,16 @@ pub(crate) fn check_template_invocations(
     prepared: &PreparedTrees<'_>,
     template: &TypedSignature,
 ) -> Result<(), LoweringError> {
-    check_routed_invocations(prepared.typed(), template, true)
+    check_routed_invocations(prepared.typed(), template, true, &Default::default())
 }
 
 fn check_routed_invocations(
     typed: &TypedStage,
     caller: &TypedSignature,
     bound_routes_retained: bool,
+    retained: &std::collections::HashSet<usize>,
 ) -> Result<(), LoweringError> {
-    check_callbacks(typed, &caller.machine, bound_routes_retained)?;
+    check_callbacks(typed, &caller.machine, bound_routes_retained, retained)?;
     for (index, call) in typed.calls.iter().enumerate() {
         if call.caller.as_ref() != Some(&caller.machine) {
             continue;
@@ -165,8 +201,10 @@ fn check_callbacks(
     typed: &TypedStage,
     caller: &DeclarationId,
     bound_routes_retained: bool,
+    retained: &std::collections::HashSet<usize>,
 ) -> Result<(), LoweringError> {
-    for row in &typed.guarded_calls {
+    for (index, row) in typed.guarded_calls.iter().enumerate() {
+        if retained.contains(&index) { continue; }
         let GuardedCall::Indirect { call, specialization, .. } = *row else {
             continue;
         };

@@ -11,11 +11,13 @@ use crate::{BlockId, EdgeId, LoweringError, MachineBody, OperationResult, Place,
 
 use crate::{BlockTerminator, BranchBlock, CallArgument, SuccessorEdge};
 
+pub(super) mod value_patterns;
+
 #[derive(Clone, Copy)]
 pub(crate) struct BooleanArm {
     pattern: usize,
     pub(crate) expression: usize,
-    sense: Option<bool>,
+    pub(crate) sense: Option<bool>,
 }
 
 /// Reserves identities before emitting edges that name them. Only the active
@@ -24,7 +26,11 @@ pub(crate) struct BlockFlow {
     reserved: usize,
     active: BlockId,
     operation_start: usize,
+    // Binder identities, not spellings: only uses resolved in the successful arm
+    // can refer to its backing, including in nested expression/terminal dispatch.
+    pub(super) payload_bindings: std::collections::BTreeMap<usize, value_patterns::PayloadPlace>,
     parameter: Option<crate::Parameter>,
+    scalar_domain_invariants: Vec<crate::ScalarDomainInvariant>,
 }
 
 impl BlockFlow {
@@ -40,7 +46,9 @@ impl BlockFlow {
             reserved: 1,
             active: BlockId(next_id(0)),
             operation_start: 0,
+            payload_bindings: Default::default(),
             parameter: None,
+            scalar_domain_invariants: Vec::new(),
         }
     }
 
@@ -59,6 +67,7 @@ impl BlockFlow {
         self.active = id;
         self.operation_start = body.operations.len();
         self.parameter = parameter;
+        self.scalar_domain_invariants.clear();
     }
 
     pub(super) fn close(
@@ -68,6 +77,7 @@ impl BlockFlow {
     ) {
         body.blocks.push(BranchBlock {
             id: self.active,
+            scalar_domain_invariants: self.scalar_domain_invariants.clone(),
             scalar_parameters: match self.parameter {
                 Some(crate::Parameter::Scalar(value)) => vec![value],
                 _ => Vec::new(),
@@ -123,20 +133,31 @@ impl BlockFlow {
         self.close(body, BlockTerminator::Jump(edge));
     }
 
-    pub(crate) fn change_scalar_qualification(
+    pub(super) fn change_scalar_qualification(
         &mut self,
         body: &mut MachineBody,
         source: ValueId,
         target_type: TypeId,
-        direction: crate::QualificationDirection,
+        change: super::casts::ScalarChange,
         site: Site,
     ) -> ValueId {
         let target = self.reserve();
         let mut edge = successor(body, target, vec![source], site);
-        edge.scalar_qualification_changes
-            .push(crate::ScalarQualificationChange { argument_index: 0, direction });
+        match change {
+            super::casts::ScalarChange::Ordinary(direction) => {
+                edge.scalar_qualification_changes.push(crate::ScalarQualificationChange { argument_index: 0, direction });
+            }
+            super::casts::ScalarChange::Completion(domains) => {
+                edge.domain_completions.extend(domains.into_iter().map(|(domain, origin)| crate::DomainCompletion { argument_index: 0, domain, origin }));
+            }
+        }
+        // Only a proved origin owes a predicate; the arrival binds it, with the atom's
+        // arguments, to the fresh parameter.
+        let proved: Vec<_> = edge.domain_completions.iter().filter(|c| c.origin == crate::CompletionOrigin::Proved).map(|c| c.domain.clone()).collect();
         self.close(body, BlockTerminator::Jump(edge));
-        self.open_scalar_join(body, target, target_type)
+        let subject = self.open_scalar_join(body, target, target_type);
+        self.scalar_domain_invariants.extend(proved.into_iter().map(|domain| crate::ScalarDomainInvariant { subject, domain }));
+        subject
     }
 
     pub(crate) fn open_scalar_join(
@@ -214,10 +235,10 @@ pub(crate) fn lower_tail_dispatch(
                     .semantics_at(ungrouped)
                     .any(|record| matches!(record, NodeSemantics::Call(_))))
         {
-            let (callee, arguments, requirement_count, pause) = expressions.lower_terminal_call(arm.expression, body, flow)?;
+            let (callee, arguments, owed, pause) = expressions.lower_terminal_call(arm.expression, body, flow)?;
             let id = push_edge_site(body, site_at(file, arm.expression));
             super::calls::record_acknowledgement(body, crate::CallSite::Edge(id), pause);
-            let requirements = crate::declarations::contracts::call_requirements(crate::CallSite::Edge(id), requirement_count);
+            let requirements = super::calls::owe(body, crate::CallSite::Edge(id), owed);
             flow.close(
                 body,
                 BlockTerminator::TerminalCall {
@@ -263,10 +284,22 @@ fn enqueue_dispatch(
             _ => return Err(unsupported_node(file, dispatch, "expected a terminal Boolean dispatch")),
         }
     }
-    let targets = if let Some(targets) = super::references::dispatch_cases(expressions, dispatch, body, flow)? {
-        targets
-    } else if has_guards(file, dispatch) {
+    let tested = tested_dispatch(file, dispatch);
+    let targets = if let Some(TestedDispatch::Literal { subject }) = tested {
+        let captured = match value_patterns::plan(expressions, subject, body)? {
+            value_patterns::SubjectPlan::EvaluateInteger(carrier) => {
+                let OperationResult::Scalar(value) = expressions.lower(subject, carrier, body, flow)? else {
+                    return Err(unsupported_node(file, subject, "integer pattern needs a scalar subject"));
+                };
+                value_patterns::Subject::Integer(value, carrier)
+            }
+            value_patterns::SubjectPlan::Captured(subject) => subject,
+        };
+        value_patterns::lower(expressions, dispatch, captured, body, flow)?
+    } else if let Some(TestedDispatch::Guards) = tested {
         lower_guards(expressions, dispatch, body, flow)?
+    } else if let Some(targets) = super::references::dispatch_cases(expressions, dispatch, body, flow)? {
+        targets
     } else {
         let (subject, arms) = boolean_dispatch(tree, dispatch)?;
         let condition = lower_condition(expressions, subject, body, flow)?;
@@ -287,14 +320,43 @@ fn enqueue_dispatch(
     Ok(())
 }
 
+/// Both authored guards and literal patterns need a Boolean test carrier,
+/// even in a machine with no Boolean expression in its source.
 pub(crate) fn has_guards(
     file: &IndexedSource<'_>,
     node: usize,
 ) -> bool {
-    file.nodes[node]
-        .children
-        .first()
-        .is_some_and(|&first| file.nodes[first].kind == NodeKind::Arm)
+    tested_dispatch(file, node).is_some()
+}
+
+pub(super) enum TestedDispatch {
+    Guards,
+    Literal { subject: usize },
+}
+
+pub(super) fn tested_dispatch(file: &IndexedSource<'_>, node: usize) -> Option<TestedDispatch> {
+    let (&subject, arms) = file.nodes[node].children.split_first()?;
+    if file.nodes[subject].kind == NodeKind::Arm {
+        Some(TestedDispatch::Guards)
+    } else {
+        value_patterns::has_literal_test(file, arms).then_some(TestedDispatch::Literal { subject })
+    }
+}
+
+/// Classification only needs the shape; lowering also checks every wrapper for unhandled records.
+fn ungroup_pattern(
+    file: &IndexedSource<'_>,
+    mut pattern: usize,
+    mut check_group: impl FnMut(usize) -> Result<(), LoweringError>,
+) -> Result<usize, LoweringError> {
+    while file.nodes[pattern].kind == NodeKind::ParenPattern {
+        check_group(pattern)?;
+        let [inner] = file.nodes[pattern].children[..] else {
+            return Err(unsupported_node(file, pattern, "expected one grouped pattern"));
+        };
+        pattern = inner;
+    }
+    Ok(pattern)
 }
 
 pub(crate) fn lower_guards(
@@ -313,11 +375,7 @@ pub(crate) fn lower_guards(
         let [pattern, expression] = *file.nodes[arm].children.as_slice() else {
             return Err(unsupported_node(file, arm, "guard arm requires a condition and a result"));
         };
-        let mut guard = pattern;
-        while let (NodeKind::ParenPattern, [inner]) = (file.nodes[guard].kind, file.nodes[guard].children.as_slice()) {
-            check_container(tree, guard)?;
-            guard = *inner;
-        }
+        let guard = ungroup_pattern(file, pattern, |group| check_container(tree, group))?;
         guards.push(guard);
         targets.push((flow.reserve(), expression));
     }
@@ -474,28 +532,23 @@ pub(crate) fn boolean_dispatch(
 
 fn boolean_pattern(
     tree: &LoweringTree<'_>,
-    mut pattern: usize,
+    pattern: usize,
 ) -> Result<Option<bool>, LoweringError> {
     let resolved = tree.resolved();
     let file = resolved.file;
-    loop {
-        check_container(tree, pattern)?;
-        let node = &file.nodes[pattern];
-        match (node.kind, node.children.as_slice()) {
-            (NodeKind::ParenPattern, [inner]) => pattern = *inner,
-            (NodeKind::WildcardPattern, []) => return Ok(None),
-            (NodeKind::BindingPattern, []) => {
-                if let Some(Symbol::Builtin(name)) = resolved.symbol(pattern)
-                    && matches!(name.as_str(), "true" | "false")
-                {
-                    return Ok(Some(name == "true"));
-                }
-                break;
-            }
-            _ => break,
+    let pattern = ungroup_pattern(file, pattern, |group| check_container(tree, group))?;
+    check_container(tree, pattern)?;
+    let node = &file.nodes[pattern];
+    match (node.kind, node.children.as_slice()) {
+        (NodeKind::WildcardPattern, []) => Ok(None),
+        (NodeKind::BindingPattern, [])
+            if let Some(Symbol::Builtin(name)) = resolved.symbol(pattern)
+                && matches!(name.as_str(), "true" | "false") =>
+        {
+            Ok(Some(name == "true"))
         }
+        _ => Err(unsupported_node(file, pattern, "expected an exact Boolean pattern")),
     }
-    Err(unsupported_node(file, pattern, "expected an exact Boolean pattern"))
 }
 
 pub(super) fn successor(
@@ -511,6 +564,7 @@ pub(super) fn successor(
         target,
         arguments,
         scalar_qualification_changes: Vec::new(),
+        domain_completions: Vec::new(),
         structural_arguments: Vec::new(),
         cleanup: Vec::new(),
     }

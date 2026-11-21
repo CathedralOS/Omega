@@ -24,15 +24,13 @@ pub(crate) fn read(
         .get(owner)
         .map_or(&[][..], Vec::as_slice);
     let own = trees.generic_parameters.get(owner);
-    if !own
-        .into_iter()
-        .chain(
-            captured
-                .iter()
-                .filter_map(|id| trees.generic_parameters.get(id)),
-        )
-        .any(needs_template)
-    {
+    let scopes = || own.into_iter().chain(captured.iter().filter_map(|id| trees.generic_parameters.get(id)));
+    let indexed = scopes().any(|scope| !scope.parameters.is_empty()) && scopes().all(|scope| {
+        scope.equations.is_empty() && scope.witness_count == 0 && scope.parameters.iter().all(|p| {
+            p.kind == NodeKind::ConstParam && matches!(p.carrier.as_deref(), Some(ValueType::Integer { width: Some(1..), .. }))
+        })
+    });
+    if !indexed && !scopes().any(needs_template) {
         return Ok(None);
     }
     let fields = trees
@@ -85,7 +83,7 @@ pub(crate) fn read(
                 }
                 cases.push(TemplateCase {
                     declaration: crate::identity::declaration(case, &site_at(tree, child))?,
-                    fields: template_fields(prepared, tree, child, case, &payload)?,
+                    fields: template_fields(prepared, tree, child, case, &payload, indexed)?,
                     numbering: trees.schema_numbering.get(case).cloned(),
                     site: site_at(tree, child),
                 });
@@ -135,7 +133,7 @@ pub(crate) fn read(
             }
         }
     }
-    let fields = template_fields(prepared, tree, node, owner, &field_nodes)?;
+    let fields = template_fields(prepared, tree, node, owner, &field_nodes, indexed)?;
     if !fields.is_empty() && !cases.is_empty() {
         return Err(LoweringError::new(&site, "typed data mixes record fields and sum cases"));
     }
@@ -150,6 +148,9 @@ pub(crate) fn read(
     let properties = properties.unwrap_or_default();
     Ok(Some(DataTemplate {
         declaration: crate::identity::declaration(owner, &site)?,
+        formation: if indexed {
+            super::data_formation::read(tree, node, owner)?
+        } else { vec![] },
         parameters,
         equations,
         witness_count,
@@ -170,13 +171,14 @@ fn template_fields(
     node: usize,
     owner: &omega_resolved::DeclarationId,
     field_nodes: &[usize],
+    indexed: bool,
 ) -> Result<Vec<TemplateField>, LoweringError> {
     super::data::checked_fields(prepared.typed(), tree, node, owner, field_nodes)?
         .iter()
         .map(|f| {
             Ok(TemplateField {
                 declaration: crate::identity::declaration(&f.declaration, &f.site)?,
-                ty: field_type(prepared, &f.ty, &f.site)?,
+                ty: field_type(prepared, tree, &f.ty, &f.site, indexed)?,
                 site: f.site.clone(),
             })
         })
@@ -195,11 +197,45 @@ fn needs_template(params: &omega_typed::GenericParameters) -> bool {
 }
 fn field_type(
     prepared: &omega_prepared::PreparedTrees<'_>,
+    tree: &TypedTree<'_>,
     ty: &ValueType,
     site: &omega_typed::Site,
+    indexed: bool,
 ) -> Result<crate::TypeExpression, LoweringError> {
+    // A deferred field extent names the checked static expression, not an
+    // answer at one representative application. Preserve that expression for
+    // the template; the concrete schema below it uses L3's resumed shape.
+    if indexed && let ValueType::IndexedArray(element, extent) = ty
+        && let ValueType::StaticFormula { term: omega_typed::IntegerIndex::Deferred { template, arguments }, .. } = extent.as_ref()
+    {
+        let request = template.request();
+        let mut terms = type_expression(element, site)?.0;
+        let mut work = vec![(request.node, false)];
+        while let Some((id, emit)) = work.pop() {
+            if id.node >= tree.resolved().file.nodes.len() || tree.resolved().file.node_id(id.node) != id { return Err(LoweringError::new(site, "field extent needs its owning expression")); }
+            let mut calls = tree.semantics_at(id.node).filter_map(|row| match row { omega_typed::NodeSemantics::Call(c) => Some(c), _ => None });
+            if let Some(call) = calls.next() {
+                if calls.next().is_some() || call.machine.package != site.package || call.operands.iter().any(|op| op.node.file != id.file || op.node.node <= id.node || op.node.node >= tree.resolved().file.nodes[id.node].end) || !call.type_arguments.is_empty() || !call.enclosing_arguments.is_empty() || call.evidence.is_some() || call.layout_query.is_some() {
+                    return Err(LoweringError::new(site, "static field call requires its complete selected application"));
+                }
+                if emit {
+                    terms.push(crate::TypeExpressionStep::StaticCall { machine: crate::identity::declaration(&call.machine, &call.site)?, operands: call.operands.len(), site: call.site.clone() });
+                } else {
+                    work.push((id, true));
+                    work.extend(call.operands.iter().rev().map(|op| (op.node, false)));
+                }
+            } else {
+                let binder = tree.semantics_at(id.node).find_map(|row| match row {
+                    omega_typed::NodeSemantics::Expression(e) => e.static_argument_slot.and_then(|i| arguments.get(i)), _ => None,
+                }).ok_or_else(|| LoweringError::new(site, "static field operand requires its checked owner argument"))?;
+                terms.extend(type_expression(binder, site)?.0);
+            }
+        }
+        terms.push(crate::TypeExpressionStep::IndexedArray);
+        return Ok(crate::TypeExpression(terms));
+    }
     let ValueType::Callable(callable) = ty else {
-        return type_expression(ty, site);
+        return if indexed { super::type_expression::indexed_expression(ty, site) } else { type_expression(ty, site) };
     };
     if !callable.closed_runtime {
         return Err(LoweringError::new(site, "stored callable requires a closed structural interface"));

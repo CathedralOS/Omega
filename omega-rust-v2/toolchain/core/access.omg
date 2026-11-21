@@ -6,4 +6,10 @@ public machine new_plan<'t>(schema: @TypeSchema<'t>, issuance: Issuance<'t>) -> 
     ensures result.field_count == 0
     ensures result.reader_count == 0
     ensures result.writer_count == 0
-    ensures result.reach.service_count == 0;
+    ensures result.reach.service_count == 0
+{
+    // An ordinary checked body (resources/access.md: the plan constructors are
+    // ordinary machines of this module). Omitted capacity zeroes to empty slots,
+    // zero counts and empty reach.
+    AccessPlan::<'t> { schema: $schema, issuance: issuance, .. }
+}

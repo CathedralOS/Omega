@@ -2,7 +2,7 @@
 //! requirement only. A same-spelled ordinary declaration stays an ordinary call.
 #[path = "support/source.rs"]
 mod source;
-use omega_lowering::{BlockTerminator, CallArgument, ExternalCompletionKind, MemberRealization, Parameter};
+use omega_lowering::{BlockTerminator, CallArgument, ExternalCompletionKind, MemberRealization, OperationResult, Parameter, ReturnEdge};
 
 #[test]
 fn the_canonical_requirement_lowers_to_a_terminal_exit_with_its_exact_operand() {
@@ -37,6 +37,10 @@ fn the_canonical_requirement_lowers_to_a_terminal_exit_with_its_exact_operand() 
         assert_eq!(exit.kind, ExternalCompletionKind::ProcessExit);
         assert_eq!(exit.owner.package, "@omega/toolchain");
         assert_eq!(exit.owner.path, "language\\core\\ProcessExit");
+        let [service] = quit.contract.realized_reach.as_slice() else {
+            panic!("the terminal invocation realizes exactly one service demand")
+        };
+        assert_eq!(service.declaration, exit.owner);
         assert_eq!(exit.requirement.package, "@omega/toolchain");
         assert_eq!(exit.requirement.path, "language\\core\\ProcessExit::exit_process");
         let Parameter::Scalar(selected) = quit.body.parameters[index] else {
@@ -82,5 +86,11 @@ fn a_same_spelled_local_requirement_is_an_ordinary_boundary_call() {
         panic!("one scalar parameter")
     };
     assert_eq!(arguments, &[CallArgument::Scalar(*code)]);
-    assert!(matches!(stop.body.blocks.last().unwrap().terminator, BlockTerminator::Return { .. }));
+    let OperationResult::Scalar(value) = call.result else {
+        panic!("the ordinary call produces an i32")
+    };
+    let BlockTerminator::Return { result, .. } = stop.body.blocks.last().unwrap().terminator else {
+        panic!("the local call returns normally")
+    };
+    assert_eq!(result, ReturnEdge::Scalar(value));
 }

@@ -1,7 +1,7 @@
 //! `read_file` lexes and parses one file. `check_files` resolves the package, runs the requested stage and formats its diagnostics.
 
 use omega_lexer::{LineIndex, SourceSpan};
-use std::{fmt, fs, path::Path};
+use std::{fmt, fs, path::Path, sync::Arc};
 
 fn diagnostic(
     path: impl fmt::Display,
@@ -33,13 +33,20 @@ pub(crate) fn parse_file(path: &Path) -> Result<(), String> {
 }
 
 struct ParsedFile {
-    bytes: Vec<u8>,
+    bytes: Arc<[u8]>,
     tokens: Vec<omega_lexer::Token>,
     tree: omega_parser::SyntaxTree,
 }
 
 fn read_file(path: &Path) -> Result<ParsedFile, String> {
     let bytes = fs::read(path).map_err(|error| format!("{}: could not read source: {error}", path.display()))?;
+    parse_bytes(path, Arc::from(bytes))
+}
+
+fn parse_bytes(
+    path: &Path,
+    bytes: Arc<[u8]>,
+) -> Result<ParsedFile, String> {
     let tokens = omega_lexer::lex(&bytes).map_err(|e| diagnostic(path.display(), Some(&bytes), e.get_span(), "lexer", e.get_kind().get_message()))?;
     let tree = omega_parser::parse_file(&bytes, &tokens)
         .map_err(|e| diagnostic(path.display(), Some(&bytes), e.get_span(), "parser", e.get_kind().get_message(e.get_expected())))?;
@@ -53,7 +60,10 @@ pub(crate) enum Stage {
     Lower,
 }
 
-fn read_package_file(path: &Path) -> Result<(String, ParsedFile), String> {
+fn read_package_file(
+    path: &Path,
+    build: Option<&omega_toolchain::DefaultBuild>,
+) -> Result<(String, ParsedFile), String> {
     use std::path::Component;
     let mut components = Vec::new();
     for part in path.components() {
@@ -66,17 +76,31 @@ fn read_package_file(path: &Path) -> Result<(String, ParsedFile), String> {
             _ => return Err(format!("{}: expected a path within the current package", path.display())),
         }
     }
-    Ok((components.join("/"), read_file(path)?))
+    let logical_path = components.join("/");
+    let file = match build {
+        Some(build) => {
+            let bytes = build
+                .source_bytes(Path::new(&logical_path))
+                .map_err(|error| format!("{logical_path}: could not read source: {error}"))?;
+            parse_bytes(path, bytes)?
+        }
+        None => read_file(path)?,
+    };
+    Ok((logical_path, file))
 }
 
 pub(crate) fn check_files(
     paths: &[std::ffi::OsString],
     stage: Stage,
+    root: Option<&Path>,
 ) -> Result<(), String> {
+    let build = root
+        .map(|root| omega_toolchain::DefaultBuild::capture(root).map_err(|error| format!("{}: Build: {error}", root.display())))
+        .transpose()?;
     let mut inputs = Vec::new();
     let mut file_errors = Vec::new();
     for path in paths.iter().map(Path::new) {
-        match read_package_file(path) {
+        match read_package_file(path, build.as_ref()) {
             Ok(input) => inputs.push(input),
             Err(error) => file_errors.push(error),
         }
@@ -89,7 +113,7 @@ pub(crate) fn check_files(
     for (logical_path, file) in &inputs {
         let text = std::str::from_utf8(&file.bytes).map_err(|error| format!("{logical_path}: {error}"))?;
         sources.push(omega_resolver::StageSource {
-            package: "root",
+            package: omega_toolchain::DEFAULT_ROOT_PACKAGE,
             source: omega_resolver::ParsedSource {
                 logical_path,
                 text,
@@ -112,7 +136,10 @@ pub(crate) fn check_files(
             diagnostic(path, bytes, span, layer, message)
         }
     };
-    let resolved = omega_toolchain::resolve_source_package(&sources).map_err(|e| stage_error("resolver", &e.package, &e.file, e.span, e.message))?;
+    let mut resolved = omega_toolchain::resolve_source_package(&sources).map_err(|e| stage_error("resolver", &e.package, &e.file, e.span, e.message))?;
+    if let Some(build) = &build {
+        resolved.bind_package_key(omega_toolchain::DEFAULT_ROOT_PACKAGE, build.package_key())?;
+    }
     match stage {
         Stage::Resolve => {}
         Stage::Type => {

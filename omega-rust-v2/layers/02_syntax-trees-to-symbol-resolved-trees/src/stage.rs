@@ -38,6 +38,30 @@ fn callable(kind: NodeKind) -> bool {
     matches!(kind, NodeKind::Machine | NodeKind::AsmMachine | NodeKind::MathLet)
 }
 
+fn valid_domain_attachment(export: &InterfaceExport, local_path: &str) -> bool {
+    let applied = !export.id.domain_carrier_arguments.is_empty();
+    let Some((written, _)) = local_path.rsplit_once("::").filter(|_| export.id.kind == NodeKind::Domain) else {
+        return !applied && export.domain_carrier.is_none();
+    };
+    if builtin(written) {
+        return matches!(&export.domain_carrier, Some(DomainCarrier::Builtin(name)) if name == written);
+    }
+    if applied {
+        return false; // Only builtin carrier applications contribute arguments to the identity.
+    }
+    let bare = !written.contains(['\\', ':']);
+    let owner = match &export.domain_carrier {
+        Some(DomainCarrier::Generic) => return bare,
+        Some(DomainCarrier::Bound { alternative, .. }) if bare => alternative,
+        Some(DomainCarrier::Named(owner)) => owner,
+        _ => return false,
+    };
+    // Definition-site lookup can change the package and containing path, but
+    // imports expose declarations under their final segment, never a new leaf.
+    matches!(owner.kind, NodeKind::Data | NodeKind::Domain)
+        && owner.path.rsplit(['\\', ':']).next() == written.rsplit(['\\', ':']).next()
+}
+
 fn in_subject_predicate(
     file: &File<'_>,
     node: usize,
@@ -203,11 +227,7 @@ pub fn resolve_stage_with_exports<'text>(
                 .and_then(|rest| rest.strip_prefix('\\'))
                 .ok_or_else(|| error(NameErrorKind::CompiledExportOutsideModule, "compiled export is outside its defining module"))?
         };
-        if export.domain_carrier.is_some() != (id.kind == NodeKind::Domain && local_path.contains("::"))
-            || (!id.domain_carrier_arguments.is_empty()
-                && !matches!(&export.domain_carrier, Some(DomainCarrier::Builtin(name))
-                    if builtin(name) && local_path.rsplit_once("::").is_some_and(|(carrier, _)| carrier == name)))
-        {
+        if !valid_domain_attachment(export, local_path) {
             return Err(error(
                 NameErrorKind::CompiledDomainAttachmentMismatch,
                 "compiled domain attachment does not match its declaration",

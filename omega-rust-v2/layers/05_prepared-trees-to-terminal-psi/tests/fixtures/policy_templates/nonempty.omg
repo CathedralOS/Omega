@@ -1,0 +1,10 @@
+use omega\language\core;
+use omega\language\core\reflect;
+use omega\language\core\access;
+domain i32::Locked access Rule;
+machine pick() -> bool { true }
+Rule satisfies AccessPolicy {
+    machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {
+        new_plan::<'t>(@schema, Issuance::Only{routes:[reflect\callable(pick)]})
+    }
+}

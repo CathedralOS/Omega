@@ -167,21 +167,32 @@ fn a_consumer_walks_both_typed_arms_without_parser_inputs() {
     assert!(!view.semantics_at(tail).any(read_precondition));
 }
 
+/// Library obligations stay in the library's forest, at their own nodes; the importer's
+/// list holds only rows sited in its own files.
 #[test]
-fn imported_library_obligations_belong_to_the_library_tree() {
-    use omega_typer::ObligationKind;
+fn library_obligations_stay_in_the_library_tree() {
     let typed = type_package(RENDER, READ, FILE_ORDERS[0]).unwrap();
     let library = typed.library.unwrap();
-    let obligation = typed
-        .obligations
-        .iter()
-        .find(|obligation| matches!(obligation.kind, ObligationKind::VerifyLibraryImplementation(_)))
-        .unwrap();
-    let defining_tree = library.trees().nth(obligation.node.file).unwrap();
+    assert!(!library.obligations.is_empty(), "the library's checked bodies owe obligations");
+    for obligation in &library.obligations {
+        let defining_tree = library.trees().nth(obligation.node.file).unwrap();
+        let file = defining_tree.resolved().file;
+        assert_eq!((&*obligation.site.package, &*obligation.site.file), (file.package, file.path));
+        assert!(
+            defining_tree
+                .semantics_at(obligation.node.node)
+                .any(|fact| matches!(fact, NodeSemantics::Obligation(found) if found == obligation))
+        );
+    }
+    let local: std::collections::BTreeSet<_> = typed
+        .trees()
+        .map(|tree| (tree.resolved().file.package, tree.resolved().file.path))
+        .collect();
     assert!(
-        defining_tree
-            .semantics_at(obligation.node.node)
-            .any(|fact| matches!(fact, NodeSemantics::Obligation(found) if found == obligation))
+        typed
+            .obligations
+            .iter()
+            .all(|o| local.contains(&(o.site.package.as_str(), o.site.file.as_str())))
     );
     for tree in typed.trees() {
         let file = tree.resolved().file;

@@ -98,8 +98,7 @@ fn plan(kind: ParseErrorKind) -> Plan {
         },
         K::SourceTooLarge => {
             return Plan::Unmeasured(
-                "needs more than u32::MAX tokens in one file (over 4 GiB of source plus its token list); \
-                 only the L1 unit test token_indices_report_the_first_unrepresentable_position reaches it",
+                "no oversized CLI input; the L1 unit test checks the production conversion at token indices u32::MAX and u32::MAX + 1",
             );
         }
     };
@@ -147,10 +146,14 @@ fn expected(
     if actual.get_kind() != kind || actual_range != span || actual.get_expected() != phrase || actual.get_kind().get_message(actual.get_expected()) != reason {
         return Err(format!("expected {kind:?} ({phrase}) at {span}: {reason}; parser returned {actual:?}"));
     }
+    let expected_api = format!("{reason} (bytes {span})");
+    if actual.to_string() != expected_api {
+        return Err(format!("parser API rendered {actual:?} as {actual}, expected {expected_api:?}"));
+    }
     let (start, end) = span.split_once("..").ok_or("invalid golden range")?;
     let start = start.parse().map_err(|_| "invalid golden start")?;
     let end = end.parse().map_err(|_| "invalid golden end")?;
-    Ok((format!("{file}:{location}: parser: {reason} (bytes {span})\n"), start..end))
+    Ok((format!("{file}:{location}: parser: {expected_api}\n"), start..end))
 }
 
 fn omega(
@@ -203,7 +206,7 @@ fn measure(
     write(bad.as_str())?;
     let prepared = omega(directory, "prepare", &file)?;
     let lowered = omega(directory, "lower", &file)?;
-    let rendered = String::from_utf8_lossy(&prepared.stderr).into_owned();
+    let rendered = std::str::from_utf8(&prepared.stderr).map_err(|e| format!("non-UTF-8 parser diagnostic: {e}"))?;
     if prepared.status.code() != Some(1) || !prepared.stdout.is_empty() || rendered != expected {
         return Err(format!("source prepare gave {} with {rendered:?}, expected {expected:?}", prepared.status));
     }
@@ -217,7 +220,7 @@ fn measure(
     let observed = refusal.get_kind();
     let field = spec_corpus::diagnostic_field;
     Ok(format!(
-        "OMEGA_DIAGNOSTIC_KIND\tL1\t{kind:?}\t{observed:?}\t{}\t{}\t{}",
+        "OMEGA_DIAGNOSTIC_KIND\tL1\t{kind:?}\t{observed:?}\t{}\t{}\t{}\t{}",
         field(
             expected
                 .strip_suffix('\n')
@@ -228,6 +231,7 @@ fn measure(
                 .strip_suffix('\n')
                 .ok_or("parser diagnostic has no line terminator")?
         ),
+        field(&refusal.to_string()),
         diagnostic_occurrence::fields(&file, bad.as_bytes(), range.start, spelling),
     ))
 }

@@ -252,6 +252,31 @@ fn a_data_carrier_cannot_qualify_a_top_level_machine() {
     );
 }
 
+#[test]
+fn an_ambiguous_machine_owner_identifies_both_domain_imports() {
+    let left = ("left/domain.omg", "public domain u8::Ready;");
+    let right = ("right/domain.omg", "public domain u16::Ready;");
+    // Both imports are legal. Only qualifying the machine makes them compete.
+    // Import in reverse identity order so the reported sites must follow their owners.
+    check_resolver(
+        NameErrorKind::AmbiguousMachineOwner,
+        Case {
+            layer: "L2",
+            producer: "resolver",
+            good: &[("main.omg", "use right; use left; machine run() {}"), right, left],
+            bad: &[("main.omg", "use right; use left; machine Ready::run() {}"), right, left],
+            file: "main.omg",
+            occurrence: "Ready",
+            reason: concat!(
+                r"ambiguous machine owner Ready: competing declarations: root\left\u8::Ready, root\right\u16::Ready",
+                r" (root\left\u8::Ready on u8, import main.omg@15..19)",
+                r" (root\right\u16::Ready on u16, import main.omg@4..9)",
+            ),
+            rule: "Visibility",
+        },
+    );
+}
+
 const LABEL_USE: &str = "machine keep(x: u8 in Label<2>) -> u8 in Label<2> { x }\n";
 
 #[test]

@@ -440,6 +440,10 @@ impl ConstantEvaluation<'_, '_> {
                 return Err(UNSUPPORTED_CONTRACT.into());
             };
             let selected = selected_boolean_operation(tree, node)?;
+            if let Some(value) = crate::evaluation::exact_comparisons::value(tree, selected) {
+                execution.values.push(PreparedValue::Bool(value));
+                return Ok(());
+            }
             let [left_type, right_type] = selected.operands.as_slice() else {
                 return Err(UNSUPPORTED_CONTRACT.into());
             };
@@ -531,8 +535,9 @@ impl ConstantEvaluation<'_, '_> {
             let PreparedValue::Integer(value) = value else {
                 return Err(UNSUPPORTED_BODY.into());
             };
-            return fits(value.clone(), carrier)
-                .ok_or_else(|| EvaluationError::from(PreparationReason::FrozenConstantOutsideCarrier).at_node(resolved.file.node_id(node)));
+            // materialize checks the value at freeze; constant_reference checks
+            // that this read uses the very same initializer carrier.
+            return Ok(value.clone());
         }
         if let Some(argument) = self.specialized_argument(tree, node, carrier, scope)? {
             let ValueType::StaticInteger { value, carrier: actual } = argument else {

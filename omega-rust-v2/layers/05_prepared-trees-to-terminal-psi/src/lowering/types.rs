@@ -1,11 +1,30 @@
-use crate::declarations::domains::DomainSchema;
+use crate::declarations::domains::{DomainDeclaration, DomainSchema};
 use omega_resolved::DeclarationId;
-use omega_typed::ValueType;
+use omega_typed::{DomainApplication, ValueType};
 
 use crate::DataId;
 use std::fmt;
 
 use crate::{DomainSetId, ScalarType, TypeId, TypeShape};
+
+type AtomKey = (DeclarationId, Vec<ScalarDomainArgument>);
+type IndexedReferent = (omega_psi::DeclarationId, Vec<(ScalarType, num_bigint::BigInt)>);
+
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+enum ScalarDomainArgument {
+    Integer { carrier: ScalarType, value: num_bigint::BigInt },
+    Boolean(bool),
+}
+
+impl From<ScalarDomainArgument> for omega_psi::DeclarationTerm {
+    fn from(value: ScalarDomainArgument) -> Self {
+        match value {
+            ScalarDomainArgument::Integer { carrier, value } => Self::StaticInteger { carrier, value },
+            ScalarDomainArgument::Boolean(b) => Self::StaticBoolean(b),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TypeError {
     MissingIntegerWidth { signed: bool },
@@ -42,13 +61,25 @@ impl fmt::Display for TypeError {
 
 impl std::error::Error for TypeError {}
 
+/// The parts of a domain declaration that decide its origin when a cast adds it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct DomainEstablishment {
+    /// The declaration has `requires` clauses, including `requires true`.
+    pub predicate: bool,
+    /// The domain's subject carries a parent domain, so membership needs that parent.
+    pub requires_parent: bool,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LoweringTypes {
     rows: Vec<TypeShape>,
     data_declarations: Vec<DeclarationId>,
     applied_data: std::collections::HashMap<ValueType, DataId>,
-    domain_sets: Vec<Vec<DeclarationId>>,
-    predicate_domains: Vec<DeclarationId>,
+    domain_sets: Vec<Vec<AtomKey>>,
+    domain_cleanups: std::collections::BTreeMap<DeclarationId, crate::MachineId>,
+    indexed_referents: Vec<IndexedReferent>,
+    /// What adding each local domain declaration must establish at a cast.
+    domain_establishments: std::collections::BTreeMap<DeclarationId, DomainEstablishment>,
     /// Runtime callable contracts in declaration-site order; see `crate::declarations::callables`.
     callables: Vec<omega_typed::CallableType>,
 }
@@ -62,16 +93,20 @@ impl LoweringTypes {
     ) -> Result<Self, (usize, TypeError)> {
         let mut sets = std::collections::BTreeSet::new();
         for (index, carrier) in carriers.clone().enumerate() {
-            if matches!(array_leaf(carrier), ValueType::Qualified(..)) {
-                let members = local_scalar_members(carrier, domains).ok_or_else(|| (index, TypeError::UnsupportedCarrier(array_leaf(carrier).to_string())))?;
-                sets.insert(members.iter().map(|m| &m.declaration).collect::<Vec<_>>());
+            let subject = match carrier {
+                ValueType::Reference(omega_typed::Access::Shared, inner) => inner.as_ref(),
+                _ => carrier,
+            };
+            if matches!(array_leaf(subject), ValueType::Qualified(..)) {
+                let members = local_domain_members(subject, domains).ok_or_else(|| (index, TypeError::UnsupportedCarrier(array_leaf(carrier).to_string())))?;
+                sets.insert(atom_keys(members).ok_or_else(|| (index, TypeError::UnsupportedCarrier(carrier.to_string())))?);
             }
         }
-        let domain_sets = sets
-            .into_iter()
-            .map(|members| members.into_iter().cloned().collect())
-            .collect();
+        let domain_sets = sets.into_iter().collect();
         let callables = crate::declarations::callables::collect(carriers.clone())?;
+        let indexed_owners: std::collections::HashSet<_> = applications.iter().filter_map(ValueType::nominal_parts).filter_map(|(id, _)| crate::identity::portable(id)).collect();
+        let indexed_referents = carriers.clone().filter_map(shared_indexed_target).filter(|(id, _)| indexed_owners.contains(id))
+            .collect::<std::collections::BTreeSet<_>>().into_iter().collect();
         let applied_data = applications
             .into_iter()
             .enumerate()
@@ -79,11 +114,16 @@ impl LoweringTypes {
             .collect();
         Self {
             applied_data,
+            indexed_referents,
             domain_sets,
-            predicate_domains: domains
+            domain_cleanups: Default::default(),
+            domain_establishments: domains
                 .iter()
-                .filter(|d| d.predicates().is_some_and(|p| !p.is_empty()))
-                .map(|d| d.declaration.clone())
+                // An indexed family's predicate binds its index; it still owes proof at addition.
+                .map(|d| (d.declaration.clone(), DomainEstablishment {
+                    predicate: d.has_predicates(),
+                    requires_parent: !d.carrier.domains().is_empty(),
+                }))
                 .collect(),
             rows: Vec::new(),
             data_declarations,
@@ -156,14 +196,37 @@ impl LoweringTypes {
     }
     pub(crate) fn finish(
         self,
-        identities: &std::collections::HashMap<&DeclarationId, omega_psi::DeclarationId>,
-    ) -> omega_psi::TypeTable {
-        let domain_sets = self
-            .domain_sets
-            .iter()
-            .map(|set| set.iter().map(|id| identities[id].clone()).collect())
-            .collect();
-        omega_psi::TypeTable::new(self.rows, domain_sets)
+        declarations: &std::collections::BTreeMap<&DeclarationId, DomainDeclaration>,
+    ) -> Result<omega_psi::TypeTable, crate::LoweringError> {
+        let mut sets = Vec::with_capacity(self.domain_sets.len());
+        for set in self.domain_sets {
+            let mut atoms = Vec::with_capacity(set.len());
+            for (id, arguments) in set {
+                // local_domain_members has already checked every identity against this catalog.
+                let domain = match &declarations[&id] {
+                    DomainDeclaration::Named(d) => d,
+                    DomainDeclaration::Alias(a) => return Err(crate::LoweringError::new(&a.site, "a scalar qualification requires expanded named domains")),
+                };
+                // Each atom supplies one closed argument per head index. Entry and result
+                // contracts bind the specialized predicate (`append_domain_predicates`), so
+                // the catalog's `requires` and `index_binders` describe each application.
+                if !arguments.is_empty() && arguments.len() != domain.index_binders.len() {
+                    return Err(crate::LoweringError::new(
+                        &domain.site,
+                        "applied scalar qualification requires a closed argument for each domain index",
+                    ));
+                }
+                atoms.push(omega_psi::DomainAtom {
+                    declaration: domain.declaration.clone(),
+                    arguments: arguments.into_iter().map(Into::into).collect(),
+                });
+            }
+            sets.push(atoms);
+        }
+        let targets = self.indexed_referents.into_iter().map(|(id, args)| {
+            (id, args.into_iter().map(|(carrier, value)| omega_psi::DataArgument::Integer { carrier, value }).collect())
+        }).collect();
+        Ok(omega_psi::TypeTable::with_domain_atoms(self.rows, sets).with_indexed_referents(targets))
     }
     fn intern_frontier(
         &mut self,
@@ -193,7 +256,10 @@ impl LoweringTypes {
     ) -> bool {
         // Copying preserves every membership of the existing value. Copying a
         // descriptor preserves its selected application and contract.
-        supports_value_copy(carrier) || matches!(array_leaf(carrier), ValueType::Qualified(..) | ValueType::Callable(_)) && self.id_for(carrier).is_ok()
+        let leaf = array_leaf(carrier);
+        supports_value_copy(carrier)
+            || (matches!(leaf, ValueType::Qualified(base, _) if stored_scalar(base).is_ok()) || matches!(leaf, ValueType::Callable(_)))
+                && self.id_for(carrier).is_ok()
     }
 
     /// The interned contract of a runtime callable carrier.
@@ -208,11 +274,48 @@ impl LoweringTypes {
         &self.callables
     }
 
-    pub(crate) fn has_domain_predicate(
-        &self,
-        declaration: &DeclarationId,
-    ) -> bool {
-        self.predicate_domains.binary_search(declaration).is_ok()
+    pub(crate) fn register_domain_cleanup(&mut self, domain: &DeclarationId, machine: crate::MachineId) {
+        self.domain_cleanups.insert(domain.clone(), machine);
+    }
+
+    pub(crate) fn domain_cleanup(&self, domain: &DeclarationId) -> Option<crate::MachineId> {
+        self.domain_cleanups.get(domain).copied()
+    }
+
+    /// Typing checks that all applicable selections agree, including the default
+    /// selection on the data. A bare occurrence receives only the default.
+    pub(crate) fn cleanup_target(&self, subject: TypeId, data: &[crate::LoweredData]) -> Option<crate::MachineId> {
+        match self.get(subject)? {
+            TypeShape::Nominal(id) => data[id.get() - 1].cleanup_target,
+            TypeShape::QualifiedNominal { data: id, domains } => self.domain_sets[domains.0.get() - 1].iter()
+                .find_map(|(decl, _)| self.domain_cleanup(decl)).or(data[id.get() - 1].cleanup_target),
+            _ => None,
+        }
+    }
+
+    pub(crate) fn domain_establishment(&self, declaration: &DeclarationId) -> Option<DomainEstablishment> {
+        self.domain_establishments.get(declaration).copied()
+    }
+
+    /// The Psi atom of one scalar domain application, with the same closed arguments
+    /// the interned qualification set stores for it (`finish` checks their count).
+    pub(crate) fn domain_atom(
+        application: &DomainApplication,
+        site: &omega_typed::Site,
+    ) -> Result<omega_psi::DomainAtom, crate::LoweringError> {
+        let (_, arguments) = atom_keys(std::slice::from_ref(application))
+            .and_then(|mut keys| keys.pop())
+            .ok_or_else(|| crate::LoweringError::new(site, "scalar domain application requires closed integer or Boolean arguments"))?;
+        Ok(omega_psi::DomainAtom {
+            declaration: crate::identity::declaration(&application.declaration, site)?,
+            arguments: arguments.into_iter().map(Into::into).collect(),
+        })
+    }
+
+    fn domain_set_id(&self, carrier: &ValueType, members: &[DomainApplication]) -> Result<DomainSetId, TypeError> {
+        let key = atom_keys(members).ok_or_else(|| TypeError::UnsupportedCarrier(carrier.to_string()))?;
+        let index = self.domain_sets.binary_search(&key).map_err(|_| TypeError::UnsupportedCarrier(carrier.to_string()))?;
+        Ok(DomainSetId(std::num::NonZeroUsize::new(index + 1).expect("domain set belongs to this table")))
     }
 
     fn id_for_shape(
@@ -234,6 +337,9 @@ impl LoweringTypes {
             lengths.push(*length);
             carrier = element;
         }
+        if lengths.is_empty() && let Some(key) = shared_indexed_target(carrier) && let Ok(i) = self.indexed_referents.binary_search(&key) {
+            return Ok(TypeShape::IndexedSharedReference(omega_psi::IndexedReferentId(i)));
+        }
         if lengths.is_empty()
             && let Some((access, referent)) = nominal_reference(carrier)
         {
@@ -248,9 +354,15 @@ impl LoweringTypes {
         }
         if lengths.is_empty()
             && let Some((access, inner)) = place_reference(carrier)
-            && let Ok(referent) = scalar_carrier(inner)
+            && let Ok(referent) = stored_scalar(inner)
         {
             return Ok(TypeShape::ScalarReference { access, referent });
+        }
+        if lengths.is_empty()
+            && let ValueType::Reference(omega_typed::Access::Shared, inner) = carrier
+            && let ValueType::Qualified(base, members) = inner.as_ref()
+        {
+            return Ok(TypeShape::SharedQualifiedScalarReference { referent: stored_scalar(base)?, domains: self.domain_set_id(inner, members)? });
         }
         if let ValueType::Callable(callable) = carrier {
             if !lengths.is_empty() {
@@ -261,34 +373,32 @@ impl LoweringTypes {
         if lengths.is_empty() && is_shared_byte_view(carrier) {
             return Ok(TypeShape::SharedByteView);
         }
-        if lengths.is_empty()
-            && let Some(element) = shared_element_view(carrier)
-        {
-            return Ok(TypeShape::SharedElementView { element });
-        }
-        if lengths.is_empty()
-            && let Some(element) = mutable_element_view(carrier)
-        {
-            let index = self
-                .data_declarations
-                .binary_search(element)
-                .map_err(|_| TypeError::UnsupportedCarrier(carrier.to_string()))?;
-            return Ok(TypeShape::MutableElementView {
-                element: DataId::from_index(index),
-            });
+        if lengths.is_empty() {
+            let view = if let Some((access, scalar)) = scalar_element_view(carrier) {
+                Some((access, crate::ViewElement::Scalar(scalar)))
+            } else if let Some((access, declaration)) = nominal_element_view(carrier) {
+                let index = self.data_declarations.binary_search(declaration)
+                    .map_err(|_| TypeError::UnsupportedCarrier(carrier.to_string()))?;
+                Some((access, crate::ViewElement::Nominal(DataId::from_index(index))))
+            } else {
+                None
+            };
+            if let Some((access, element)) = view {
+                return Ok(if *access == omega_typed::Access::Mut {
+                    TypeShape::MutableElementView { element }
+                } else {
+                    TypeShape::SharedElementView { element }
+                });
+            }
         }
         if let ValueType::Qualified(base, members) = carrier {
-            if members.iter().any(|m| !m.arguments.is_empty()) {
-                return Err(TypeError::UnsupportedCarrier(carrier.to_string()));
+            let domains = self.domain_set_id(carrier, members)?;
+            if let ValueType::Nominal(declaration) = base.as_ref() {
+                let index = self.data_declarations.binary_search(declaration)
+                    .map_err(|_| TypeError::UnsupportedCarrier(carrier.to_string()))?;
+                return Ok(TypeShape::QualifiedNominal { data: DataId::from_index(index), domains });
             }
-            let index = self
-                .domain_sets
-                .binary_search_by(|set| set.iter().cmp(members.iter().map(|m| &m.declaration)))
-                .map_err(|_| TypeError::UnsupportedCarrier(carrier.to_string()))?;
-            return Ok(TypeShape::QualifiedScalar {
-                carrier: scalar_carrier(base)?,
-                domains: DomainSetId(std::num::NonZeroUsize::new(index + 1).expect("domain set belongs to this table")),
-            });
+            return Ok(TypeShape::QualifiedScalar { carrier: stored_scalar(base)?, domains });
         }
         if let Some(&id) = self.applied_data.get(carrier) {
             return Ok(TypeShape::Nominal(id));
@@ -300,31 +410,70 @@ impl LoweringTypes {
                 .map_err(|_| TypeError::UnsupportedCarrier(carrier.to_string()))?;
             Ok(TypeShape::Nominal(DataId::from_index(index)))
         } else {
-            scalar_carrier(carrier).map(TypeShape::PrimitiveScalar)
+            stored_scalar(carrier).map(TypeShape::PrimitiveScalar)
         }
     }
 }
 
-pub(crate) fn local_scalar_members<'a>(
+pub(crate) fn local_domain_members<'a>(
     ty: &'a ValueType,
     domains: &[DomainSchema<'_>],
 ) -> Option<&'a [omega_typed::DomainApplication]> {
     let ValueType::Qualified(base, members) = array_leaf(ty) else { return None };
-    (scalar_carrier(base).is_ok()
+    ((stored_scalar(base).is_ok() || matches!(base.as_ref(), ValueType::Nominal(_)))
         && !members.is_empty()
         && members.iter().all(|m| {
             let Ok(index) = domains.binary_search_by(|d| d.declaration.cmp(&m.declaration)) else {
                 return false;
             };
             let domain = &domains[index];
-            // Array contracts cannot yet express a predicate over every element.
-            m.arguments.is_empty()
-                && domain.carrier == base.as_ref()
+            if matches!(ty, ValueType::Array(..)) {
+                // The element TypeId refers to the named scalar's complete theory.
+                // Selecting an existing element is transport, not a domain cast.
+                return m.arguments.is_empty() && domain.carrier == base.as_ref() && domain.predicates().is_some();
+            }
+            domain.carrier.carrier() == base.as_ref()
                 && domain
-                    .predicates()
-                    .is_some_and(|p| p.is_empty() || !matches!(ty, ValueType::Array(..)))
+                    .carrier
+                    .domains()
+                    .iter()
+                    .all(|parent| members.contains(parent))
+                && (domain.predicates().is_some() || !m.arguments.is_empty() && m.arguments.iter().all(|arg| scalar_argument(arg).is_some()))
         }))
     .then_some(members)
+}
+
+fn scalar_argument(arg: &ValueType) -> Option<ScalarDomainArgument> {
+    match arg {
+        ValueType::StaticInteger { carrier, value } => Some(ScalarDomainArgument::Integer {
+            carrier: scalar_carrier(carrier)
+                .ok()
+                .filter(|c| matches!(c, ScalarType::Integer { .. }))?,
+            value: value.clone(),
+        }),
+        ValueType::StaticValue {
+            carrier,
+            value: omega_typed::StaticValue::Bool(b),
+        } if **carrier == ValueType::Bool => Some(ScalarDomainArgument::Boolean(*b)),
+        _ => None,
+    }
+}
+
+fn shared_indexed_target(carrier: &ValueType) -> Option<IndexedReferent> {
+    let ValueType::Reference(omega_typed::Access::Shared, inner) = carrier else { return None };
+    let ValueType::Applied(owner, args) = inner.as_ref() else { return None };
+    let arguments = args.iter().map(|arg| match arg {
+        ValueType::StaticInteger { carrier, value } => Some((scalar_carrier(carrier).ok()?, value.clone())),
+        _ => None,
+    }).collect::<Option<_>>()?;
+    Some((crate::identity::portable(owner)?, arguments))
+}
+
+fn atom_keys(members: &[DomainApplication]) -> Option<Vec<AtomKey>> {
+    members
+        .iter()
+        .map(|m| Some((m.declaration.clone(), m.arguments.iter().map(scalar_argument).collect::<Option<_>>()?)))
+        .collect()
 }
 
 /// A value made entirely of scalar bits cannot carry a loan across a return.
@@ -333,7 +482,7 @@ pub(crate) fn has_only_scalar_payload(carrier: &ValueType) -> bool {
 }
 
 pub(crate) fn contains_nominal_value(carrier: &ValueType) -> bool {
-    array_leaf(carrier).nominal_parts().is_some()
+    array_leaf(carrier).carrier().nominal_parts().is_some()
 }
 
 fn array_leaf(mut carrier: &ValueType) -> &ValueType {
@@ -351,13 +500,18 @@ pub(crate) fn nominal_reference(carrier: &ValueType) -> Option<(crate::Reference
 
 pub(crate) fn place_reference(carrier: &ValueType) -> Option<(crate::ReferenceAccess, &ValueType)> {
     let ValueType::Reference(access, inner) = carrier else { return None };
-    if !matches!(inner.as_ref(), ValueType::Nominal(_)) && scalar_carrier(inner).is_err() {
+    // A shared reference to a closed const-indexed application names its
+    // referent's identity without that referent's layout. It forms, forwards
+    // and reborrows like any shared place reference; only a step that needs
+    // the referent's schema refuses it.
+    let shared_qualified = *access == omega_typed::Access::Shared && matches!(inner.as_ref(), ValueType::Qualified(base, _) if stored_scalar(base).is_ok());
+    if !matches!(inner.as_ref(), ValueType::Nominal(_)) && stored_scalar(inner).is_err() && !shared_qualified && shared_indexed_target(carrier).is_none() {
         return None;
     }
     let access = match access {
         omega_typed::Access::Shared => crate::ReferenceAccess::Shared,
         omega_typed::Access::Mut => crate::ReferenceAccess::Mutable,
-        omega_typed::Access::Write => return None,
+        omega_typed::Access::Write => crate::ReferenceAccess::WriteOnly,
     };
     Some((access, inner))
 }
@@ -375,42 +529,86 @@ pub(crate) fn byte_view_access(carrier: &ValueType) -> Option<&omega_typed::Acce
     }
 }
 
-/// The scalar element of a shared non-byte slice view. `@[u8]` remains a byte
-/// view; mutable, qualified, bounded and structured elements are not admitted.
-pub(crate) fn shared_element_view(carrier: &ValueType) -> Option<ScalarType> {
-    let ValueType::Reference(omega_typed::Access::Shared, slice) = carrier else {
+/// Readable unqualified scalar elements, indexed in elements rather than bytes.
+/// The descriptor retains its declared access even for a shared read.
+pub(crate) fn scalar_element_view(carrier: &ValueType) -> Option<(&omega_typed::Access, ScalarType)> {
+    let ValueType::Reference(access @ (omega_typed::Access::Shared | omega_typed::Access::Mut), slice) = carrier else {
         return None;
     };
     let ValueType::Slice(element) = slice.as_ref() else { return None };
     if matches!(element.as_ref(), ValueType::Integer { signed: false, width: Some(8) }) {
         return None;
     }
-    scalar_carrier(element).ok()
+    Some((access, scalar_carrier(element).ok()?))
 }
 
-/// The nominal element of an exclusive element view `@mut [T]`. It is not a
-/// copyable or forwardable descriptor: only its loan's element places lower.
-pub(crate) fn mutable_element_view(carrier: &ValueType) -> Option<&DeclarationId> {
-    let ValueType::Reference(omega_typed::Access::Mut, slice) = carrier else {
-        return None;
-    };
+pub(crate) fn element_view_access(carrier: &ValueType) -> Option<&omega_typed::Access> {
+    scalar_element_view(carrier).map(|(access, _)| access)
+        .or_else(|| nominal_element_view(carrier).map(|(access, _)| access))
+}
+
+pub(crate) fn is_shared_element_view(carrier: &ValueType) -> bool {
+    element_view_access(carrier) == Some(&omega_typed::Access::Shared)
+}
+
+pub(crate) fn nominal_element_view(carrier: &ValueType) -> Option<(&omega_typed::Access, &DeclarationId)> {
+    let ValueType::Reference(access @ (omega_typed::Access::Shared | omega_typed::Access::Mut), slice) = carrier else { return None };
     let ValueType::Slice(element) = slice.as_ref() else { return None };
     let ValueType::Nominal(id) = element.as_ref() else { return None };
-    Some(&**id)
+    Some((access, id))
+}
+
+/// An exclusive place reference: `@mut T` or `@write T`. A write-only loan is
+/// exclusive too (language/ownership.md#borrows-and-aliases), and exclusive
+/// descriptors never gain copy permission
+/// (terminal-psi/structural_access.md#write-only-authority).
+pub(crate) fn is_exclusive_reference(carrier: &ValueType) -> bool {
+    matches!(
+        place_reference(carrier),
+        Some((crate::ReferenceAccess::Mutable | crate::ReferenceAccess::WriteOnly, _))
+    )
+}
+
+/// An exclusive loan carrier: a `@mut T` or `@write T` reference or a
+/// `@mut [T]` element view. It is affine, so a state edge transfers it rather
+/// than copying it (terminal-psi/byte_views.md#calls-and-control-transfers).
+pub(crate) fn is_exclusive_descriptor(carrier: &ValueType) -> bool {
+    is_exclusive_reference(carrier) || is_exclusive_element_view(carrier)
+}
+
+/// A `@mut [T]` element view of scalar or nominal elements. Like every other
+/// descriptor it lives in a structural place, but it is never copied.
+pub(crate) fn is_exclusive_element_view(carrier: &ValueType) -> bool {
+    element_view_access(carrier) == Some(&omega_typed::Access::Mut)
 }
 
 pub(crate) fn is_reference_descriptor(carrier: &ValueType) -> bool {
-    is_shared_byte_view(carrier) || shared_element_view(carrier).is_some() || place_reference(carrier).is_some()
+    is_shared_byte_view(carrier) || is_shared_element_view(carrier) || place_reference(carrier).is_some()
 }
 
 pub(crate) fn uses_structural_place(carrier: &ValueType) -> bool {
-    matches!(carrier, ValueType::Array(..) | ValueType::Nominal(_) | ValueType::Applied(..)) || is_reference_descriptor(carrier)
+    matches!(carrier.carrier(), ValueType::Array(..) | ValueType::Nominal(_) | ValueType::Applied(..))
+        || is_reference_descriptor(carrier)
+        || is_exclusive_element_view(carrier)
 }
 
 pub(crate) fn supports_value_copy(carrier: &ValueType) -> bool {
     is_shared_byte_view(carrier)
-        || shared_element_view(carrier).is_some()
-        || matches!(array_leaf(carrier), ValueType::Bool | ValueType::Integer { width: Some(1..), .. })
+        || is_shared_element_view(carrier)
+        || matches!(
+            array_leaf(carrier),
+            ValueType::Bool | ValueType::Integer { width: Some(1..), .. } | ValueType::Float32 | ValueType::Float64
+        )
+}
+
+/// A scalar that Psi can store, copy, borrow or view without computing on it.
+/// IEEE floats keep their exact bits when carrying or erasing a qualification.
+pub(crate) fn stored_scalar(carrier: &ValueType) -> Result<ScalarType, TypeError> {
+    match carrier {
+        ValueType::Float32 => Ok(ScalarType::IeeeFloat(omega_psi::IeeeFloatFormat::Binary32)),
+        ValueType::Float64 => Ok(ScalarType::IeeeFloat(omega_psi::IeeeFloatFormat::Binary64)),
+        other => scalar_carrier(other),
+    }
 }
 
 pub(crate) fn scalar_carrier(carrier: &ValueType) -> Result<ScalarType, TypeError> {

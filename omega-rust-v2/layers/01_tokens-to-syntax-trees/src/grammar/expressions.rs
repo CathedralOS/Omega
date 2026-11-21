@@ -214,7 +214,7 @@ impl SyntaxParser<'_> {
             self.bump();
 
             if !self.at_cast_entry() {
-                self.parse_type(TypePosition::Cast)?;
+                self.parse_type(TypePosition::Cast(context))?;
             }
 
             while self.at_cast_entry() {
@@ -259,8 +259,7 @@ impl SyntaxParser<'_> {
 
                 self.bump();
 
-                // An access word is a marker only if an operand follows it; otherwise it is the name being borrowed.
-                if (self.at_keyword("mut") || self.at_keyword("write")) && self.nth_can_start_expression(1) {
+                if self.at_borrow_access_marker(context) {
                     self.bump();
                 }
 

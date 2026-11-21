@@ -1,4 +1,4 @@
-use omega_psi::{EmbeddedLoanOrigin, LoweredPackage, OwnedCustody, Parameter, PlaceProjection, ReferenceAccess, TypeShape};
+use omega_psi::{EmbeddedLoanOrigin, EmbeddedLoanSource, LoweredPackage, OwnedCustody, Parameter, PlaceProjection, ReferenceAccess, TypeShape};
 
 /// Follow the declared fields of each incoming owner independently of the suspension rows.
 pub fn check_incoming_fields(
@@ -53,18 +53,54 @@ pub fn check_incoming_fields(
             ) || loan.path != path
                 || loan.ty != ty
                 || loan.access != ReferenceAccess::Shared
-                || loan.origin
-                    != (EmbeddedLoanOrigin {
+                || loan.origins
+                    != [EmbeddedLoanOrigin {
+                        arrival: Vec::new(),
                         reborrows: Vec::new(),
-                        formal,
-                        path,
-                    })
+                        source: EmbeddedLoanSource::Formal { formal, path },
+                    }]
             {
                 return Err("wrong embedded loan");
             }
         }
     }
     Ok(())
+}
+
+/// Read the loan in the *destination* of the whole store, not the temporary
+/// moved into it. Compare the origin separately with the authored formal.
+pub fn parked_replacement_origin(package: &LoweredPackage) -> Option<&EmbeddedLoanOrigin> {
+    use omega_psi::{CallSite, CallTarget, OperationKind, OperationResult};
+    let body = &super::machine(package, "forward")?.body;
+    let [_, rhs, store, call] = body.operations.as_slice() else { return None };
+    let OperationKind::StructuralStore { destination, value, .. } = &store.kind else {
+        return None;
+    };
+    let [site] = body.suspension_sites.as_slice() else { return None };
+    let [owner] = site.retained_owners.as_slice() else { return None };
+    let [loan] = owner.embedded_loans.as_slice() else { return None };
+    let [origin] = loan.origins.as_slice() else { return None };
+    let holder = package.data.iter().find(|d| d.declaration.path == "Holder")?;
+    let [field] = holder.fields.as_slice() else { return None };
+    let wait = CallTarget::Machine(super::machine(package, "wait")?.id);
+    if rhs.result != OperationResult::Structural(*value)
+        || !destination.path.is_empty()
+        || body.mutable_homes != [destination.root]
+        || owner.place != destination.root
+        || owner.ty != holder.carrier
+        || !matches!(&call.kind, OperationKind::Call { callee, arguments, .. } if *callee == wait && arguments.is_empty())
+        || (site.call, site.callee) != (CallSite::Operation(call.id), wait)
+        || !site.retained_loans.is_empty()
+        || !owner.moved.is_empty()
+        || owner.custody != OwnedCustody::Caller
+        || field.declaration.path != "Holder::r"
+        || loan.path != [PlaceProjection::Field(field.declaration.clone())]
+        || loan.ty != field.carrier
+        || loan.access != ReferenceAccess::Shared
+    {
+        return None;
+    }
+    Some(origin)
 }
 
 /// Read a constructed field's actual operand and compare it with the parked occurrence.
@@ -104,14 +140,66 @@ pub fn check_constructed_field(
     if loan.path != [PlaceProjection::Field(field.field.clone())]
         || loan.ty != body.places[formal.index()].ty
         || loan.access != ReferenceAccess::Shared
-        || loan.origin
-            != (EmbeddedLoanOrigin {
+        || loan.origins
+            != [EmbeddedLoanOrigin {
+                arrival: Vec::new(),
                 reborrows: Vec::new(),
-                formal: *formal,
-                path: vec![],
-            })
+                source: EmbeddedLoanSource::Formal { formal: *formal, path: vec![] },
+            }]
     {
         return Err("wrong initializer origin");
     }
     Ok(())
+}
+
+/// Read how a machine's single normal return ends the loans stored in its one
+/// owned record. Discarding a loan carrier ends only that loan, so the record
+/// must be discarded whole and no cleanup machine may run for any referent.
+/// Returns the access of each stored loan field in declaration order.
+pub fn discarded_loan_fields<'a>(
+    package: &'a LoweredPackage,
+    name: &str,
+) -> Result<Vec<(&'a str, ReferenceAccess)>, &'static str> {
+    use omega_psi::{BlockTerminator, CleanupAction};
+    let body = &super::machine(package, name).ok_or("missing machine")?.body;
+    let [Parameter::Structural(formal)] = body.parameters[..] else {
+        return Err("expected one owned record");
+    };
+    let mut returns = body.blocks.iter().filter_map(|block| match &block.terminator {
+        BlockTerminator::Return { cleanup, .. } => Some(cleanup.as_slice()),
+        _ => None,
+    });
+    let (Some(cleanup), None) = (returns.next(), returns.next()) else {
+        return Err("expected one normal return");
+    };
+    if cleanup != [CleanupAction::DiscardRoot(formal)] {
+        return Err("the record is not discarded whole");
+    }
+    let invokes = |actions: &[CleanupAction]| {
+        actions
+            .iter()
+            .any(|action| matches!(action, CleanupAction::Invoke { .. }))
+    };
+    if body.blocks.iter().any(|block| match &block.terminator {
+        BlockTerminator::Return { cleanup, .. } | BlockTerminator::TerminalCall { cleanup, .. } => invokes(cleanup),
+        BlockTerminator::Jump(edge) => invokes(&edge.cleanup),
+        BlockTerminator::Conditional { when_true, when_false, .. } => invokes(&when_true.cleanup) || invokes(&when_false.cleanup),
+        BlockTerminator::ExternalExit(_) => false,
+    }) {
+        return Err("a referent's cleanup machine runs");
+    }
+    let Some(TypeShape::Nominal(id)) = package.types.get(body.places[formal.index()].ty) else {
+        return Err("expected record");
+    };
+    let mut loans = Vec::new();
+    for field in &package.data[id.get() - 1].fields {
+        let access = match package.types.get(field.carrier) {
+            Some(TypeShape::ScalarReference { access, .. } | TypeShape::NominalReference { access, .. }) => *access,
+            Some(TypeShape::MutableElementView { .. }) => ReferenceAccess::Mutable,
+            Some(TypeShape::SharedElementView { .. } | TypeShape::SharedByteView) => ReferenceAccess::Shared,
+            _ => continue,
+        };
+        loans.push((field.declaration.path.as_str(), access));
+    }
+    Ok(loans)
 }

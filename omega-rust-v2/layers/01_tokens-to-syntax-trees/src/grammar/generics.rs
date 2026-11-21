@@ -116,7 +116,7 @@ impl SyntaxParser<'_> {
         }
 
         if self.generic_arg_is_type() {
-            self.parse_type_in(TypePosition::Plain)?;
+            self.parse_type_in(TypePosition::Qualified)?;
         } else {
             self.parse_expression(ExpressionContext::INSIDE_ANGLES)?;
         }

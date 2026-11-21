@@ -1,0 +1,168 @@
+{
+ "source": "target/layer-readiness/20261121T122154Z-tg8nywyw/evidence.json; fixture_index renumbered from 233 to 0.., every other value verbatim",
+ "last_layer": "L5",
+ "measurement_errors": [],
+ "cases": {
+  "handoff/access plan evaluation at its domain": {
+   "cohort": "handoff",
+   "stage": "L5",
+   "status": "open gap",
+   "detail": "Typing selects Rule::plan, but preparation has not supplied its evaluated result on the domain schema. Observed unsupported domain member: Access at access_plan.omg: access Rule",
+   "target": "tests\\formation_handoff.rs",
+   "test": "an_access_plan_stops_at_its_own_policy_clause",
+   "after_static_evaluation": false,
+   "later_layers_not_reached": [],
+   "fixture_locations": [
+    {
+     "package": "app",
+     "occurrence": "access Rule",
+     "file": "access_plan.omg",
+     "byte_start": 163,
+     "byte_end": 174,
+     "line": 4,
+     "byte_column": 38
+    }
+   ],
+   "refusal_reason": "unsupported domain member: Access"
+  }
+ },
+ "package_fixtures": [
+  {
+   "target": "tests\\formation_handoff.rs",
+   "test": "an_access_plan_stops_at_its_own_policy_clause",
+   "files": "access_plan.omg",
+   "obligations": {
+    "Borrow": 1,
+    "EvaluateAccessPlan": 1,
+    "RefineRequirement": 1,
+    "ReturnBorrow": 1,
+    "Termination": 1,
+    "VerifyLibraryImplementation": 1
+   },
+   "outcome": "refused: unsupported domain member: Access at access_plan.omg",
+   "location": {
+    "package": "app",
+    "occurrence": "access Rule",
+    "file": "access_plan.omg",
+    "byte_start": 163,
+    "byte_end": 174,
+    "line": 4,
+    "byte_column": 38
+   },
+   "reported_compiler_site": {
+    "path": "layers/05_prepared-trees-to-terminal-psi/src/declarations/domains.rs",
+    "line": 230,
+    "column": 32
+   },
+   "replay": {
+    "entry": "prepared",
+    "message": "unsupported domain member: Access",
+    "root_message": "unsupported domain member: Access",
+    "files": [
+     [
+      "access_plan.omg",
+      "use omega\\language\\core;\n                  use omega\\language\\core\\reflect;\n                  use omega\\language\\core\\access;\n                  domain i32::Locked access Rule;\n                  Rule satisfies AccessPolicy {\n                      machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {\n                          new_plan::<'t>(@schema, Issuance::Unrestricted{})\n                      }\n                  }"
+     ]
+    ],
+    "expected_refusal": {
+     "file": "access_plan.omg",
+     "byte_start": 163,
+     "byte_end": 174,
+     "message": "unsupported domain member: Access",
+     "cli_message": "unsupported domain member: Access"
+    },
+    "obligation_sites": [
+     {
+      "kind": "VerifyLibraryImplementation",
+      "package": "@omega/toolchain",
+      "file": "language/core/access/access.omg",
+      "byte_start": 47,
+      "byte_end": 337
+     },
+     {
+      "kind": "RefineRequirement",
+      "package": "app",
+      "file": "access_plan.omg",
+      "byte_start": 246,
+      "byte_end": 440
+     },
+     {
+      "kind": "Termination",
+      "package": "app",
+      "file": "access_plan.omg",
+      "byte_start": 328,
+      "byte_end": 338
+     },
+     {
+      "kind": "Borrow",
+      "package": "app",
+      "file": "access_plan.omg",
+      "byte_start": 382,
+      "byte_end": 389
+     },
+     {
+      "kind": "ReturnBorrow",
+      "package": "app",
+      "file": "access_plan.omg",
+      "byte_start": 367,
+      "byte_end": 416
+     },
+     {
+      "kind": "EvaluateAccessPlan",
+      "package": "app",
+      "file": "access_plan.omg",
+      "byte_start": 163,
+      "byte_end": 174
+     }
+    ]
+   },
+   "obligation_sites_observed": true,
+   "origin_status": "observed"
+  }
+ ],
+ "lowering_cli": {
+  "results": [
+   {
+    "fixture_index": 0,
+    "target": "tests\\formation_handoff.rs",
+    "test": "an_access_plan_stops_at_its_own_policy_clause",
+    "entry": "prepared",
+    "origin_status": "observed",
+    "message_changed_with_package_identity": false,
+    "prepare": {
+     "args": [
+      "C:\\Development\\Omega-V2\\target\\debug\\omega.exe",
+      "source",
+      "prepare",
+      "--",
+      "access_plan.omg"
+     ],
+     "expected_exit": 0,
+     "expected_stdout": "",
+     "expected_stderr": "",
+     "matched": true,
+     "exit": 0,
+     "stdout": "",
+     "stderr": ""
+    },
+    "lower": {
+     "args": [
+      "C:\\Development\\Omega-V2\\target\\debug\\omega.exe",
+      "source",
+      "lower",
+      "--",
+      "access_plan.omg"
+     ],
+     "expected_exit": 1,
+     "expected_stdout": "",
+     "expected_stderr": "access_plan.omg:4:38: lowering: unsupported domain member: Access (bytes 163..174)\n",
+     "matched": true,
+     "exit": 1,
+     "stdout": "",
+     "stderr": "access_plan.omg:4:38: lowering: unsupported domain member: Access (bytes 163..174)\n"
+    },
+    "status": "verified"
+   }
+  ]
+ }
+}

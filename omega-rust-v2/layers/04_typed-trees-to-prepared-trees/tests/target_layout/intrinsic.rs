@@ -58,8 +58,7 @@ fn intrinsic_layout_checks_the_declaration_projection_and_result_before_freezing
         assert_eq!(call.type_arguments.as_slice(), std::slice::from_ref(&subject));
         let target = identity("selected");
         let capsule = TargetSemantics::new(target.clone(), [layout(&target, subject, LayoutExtent::Fixed(256), Some(1))], []).unwrap();
-        let first_local = facts.obligations.iter().position(|o| o.site.package == "app").unwrap_or(facts.obligations.len());
-        let progress = TypingProgress::Complete(TypedTrees::new(resolved, facts, first_local));
+        let progress = TypingProgress::Complete(TypedTrees::new(resolved, facts));
         let result = prepare_typing_pass_with_cause(&progress, &[], Some(&capsule), CheckedPreparationEvidence::default());
         let Original(expected) = selection else {
             let Err(error) = result else { panic!("expected refusal at {occurrence}") };

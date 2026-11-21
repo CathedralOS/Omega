@@ -12,3 +12,9 @@ omega-lexer = { path = "../layers/00_bytes-to-tokens" }
 omega-parser = { path = "../layers/01_tokens-to-syntax-trees" }
 omega-resolver = { path = "../layers/02_syntax-trees-to-symbol-resolved-trees" }
 omega-program-contracts = { path = "../contracts/program" }
+sha2 = "0.10.9"
+cap-fs-ext = "4.0.3"
+cap-std = "4.0.3"
+
+[target.'cfg(windows)'.dependencies]
+cap-primitives = "4.0.3"

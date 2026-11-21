@@ -196,19 +196,20 @@ class RecordedCliRuleFaults(unittest.TestCase):
                 self.replay(lines, victim, [(borrowed, victim)])
 
 
-    def test_removing_a_real_preparation_cause_cannot_borrow_another_calls_cause(self):
+    def preparation_evidence(self, cli):
         layer_log = (Path(os.environ["OMEGA_FAULT_EVIDENCE"]) / "L4.log").read_text(encoding="utf-8")
-        case = "discarded_operand_still_refuses_its_failed_precondition"
-        def observe(cli):
-            report = {"measurement_errors": [], "cases": {}, "expected": {}, "obligations": {},
-                      "package_fixtures": [], "suites": {}, "rule_diagnostics": self.results}
-            for suite, log in (("L4", layer_log), ("CLI", cli)):
-                tests, _ = collect(log, suite, report)
-                report["suites"][suite] = {"tests": tests}
-            measured = preparation_reason_evidence.measure(report)
-            return measured["reasons"]["IntegerPreconditionFalse"], report["measurement_errors"]
+        report = {"measurement_errors": [], "cases": {}, "expected": {}, "obligations": {},
+                  "package_fixtures": [], "suites": {}, "rule_diagnostics": self.results}
+        for suite, log in (("L4", layer_log), ("CLI", cli)):
+            tests, _ = collect(log, suite, report)
+            report["suites"][suite] = {"tests": tests}
+        result = preparation_reason_evidence.measure(report)
+        return result, report["measurement_errors"]
 
-        row, errors = observe(self.log)
+    def test_removing_a_real_preparation_cause_cannot_borrow_another_calls_cause(self):
+        case = "discarded_operand_still_refuses_its_failed_precondition"
+        measured, errors = self.preparation_evidence(self.log)
+        row = measured["reasons"]["IntegerPreconditionFalse"]
         self.assertFalse(errors, errors)
         self.assertIn(case, [site["test"] for site in row["witnesses"]])
         index = self.lines.index(f"---- {case} stdout ----")
@@ -217,10 +218,42 @@ class RecordedCliRuleFaults(unittest.TestCase):
             index += 1
             self.assertNotEqual(records[index], "")
         del records[index]
-        row, errors = observe("\n".join(records))
+        measured, errors = self.preparation_evidence("\n".join(records))
+        row = measured["reasons"]["IntegerPreconditionFalse"]
         self.assertEqual(row["state"], "verified")
         self.assertNotIn(case, [site["test"] for site in row["witnesses"]])
         self.assertIn(f"CLI::{case}: missing typed preparation cause for the verified package refusal", errors)
+
+
+    def test_a_forwarded_cause_must_preserve_its_owner_payload_and_source(self):
+        test = "a_forwarded_integer_refusal_identifies_the_nested_call_in_its_defining_file"
+        baseline, errors = self.preparation_evidence(self.log)
+        self.assertFalse(errors, errors)
+        self.assertFalse(baseline["missing_package_tests"])
+        start = self.lines.index(f"---- {test} stdout ----") + 1
+        record = next(line for line in self.lines[start:] if line.startswith("OMEGA_PREPARATION_FORWARDED\t"))
+        tag, owner, original, package, path, first, last, length, text = record.split("\t")
+        self.assertEqual((owner, path), ("IntegerPrimitive", "helpers.omg"))
+        self.assertIn("%0Acall chain: via -> shift", text)
+        self.assertEqual(self.log.count(record), 1)
+        for fault, replacement in {
+            "missing": "",
+            "other owner": record.replace("\tIntegerPrimitive\t", "\tTargetLayout\t", 1),
+            "different original payload": record.replace(original, "unrelated primitive error", 1),
+            "caller file instead of failing invocation": record.replace("\thelpers.omg\t", "\tuse.omg\t", 1),
+            "chain removed": "\t".join([tag, owner, original, package, path, first, last,
+                                         str(len(text.split("%0A")[0].encode())), text.split("%0A")[0]]),
+        }.items():
+            with self.subTest(fault=fault):
+                measured, errors = self.preparation_evidence(self.log.replace(record, replacement))
+                self.assertTrue(errors)
+                self.assertEqual(measured["missing_package_tests"], [test])
+                self.assertTrue(preparation_reason_evidence.blocks(measured))
+                self.assertTrue(any(r["suite"] == "CLI" and r["cause"] == owner for r in measured["forwarded"]))
+                rule = {"rule": "Every refusal L4 renders carries its typed cause.", "consumer": []}
+                handoff_evidence.preparation_diagnostic_consumers({"preparation_reasons": measured, "handoff_rules": {"L4": [rule]}})
+                self.assertTrue(rule["consumer"])
+                self.assertFalse(any(test in credit for credit in rule["consumer"]))
 
 
 if __name__ == "__main__":

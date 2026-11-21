@@ -25,14 +25,16 @@ fn refusal(
 
 #[test]
 fn identical_open_template_messages_retain_distinct_decisions() {
-    // A type binder has no callback bounds; an integer const binder has no
-    // callable bound for its slot. These branches used to share one `bad` closure.
+    // A type binder's formal has no scalar template operand; an array const
+    // binder has no template binder form and no callable bound for its slot.
+    // These branches used to share one `bad` closure.
     let reason = "open generic machine requires a closed application before lowering";
     // Equal byte extents in the same logical file make even Site equality uninformative.
-    let type_only = "machine relay<T>(x:T)->T{              x}";
-    let integer = "machine relay<const N:u64>(x:u64)->u64{x}";
+    let type_only = "machine relay<T>(x:T)->T{               x}";
+    let array = "machine relay<const N:[u8;2]>(x:u8)->u8{x}";
+    assert_eq!(type_only.len(), array.len());
     let a = refusal(type_only, 0, type_only.len(), reason);
-    let b = refusal(integer, 0, integer.len(), reason);
+    let b = refusal(array, 0, array.len(), reason);
 
     for origin in [a, b] {
         assert!(
@@ -48,8 +50,9 @@ fn identical_open_template_messages_retain_distinct_decisions() {
 
 #[test]
 fn a_carrier_failure_is_located_where_it_becomes_a_lowering_refusal() {
-    let text = "machine get(items:@mut [u32],i:u64)->u32 { items[i] }";
-    let origin = refusal(text, 12, 17, "no Psi lowering for carrier @mut [u32]");
+    // Mutable byte views have a separate carrier; scalar element reads now lower.
+    let text = "machine get(items:@mut [u8],i:u64)->u8 { items[i] }";
+    let origin = refusal(text, 12, 17, "no Psi lowering for carrier @mut [u8]");
     assert!(
         origin
             .file()
@@ -60,16 +63,18 @@ fn a_carrier_failure_is_located_where_it_becomes_a_lowering_refusal() {
 
 #[test]
 fn unsupported_node_preserves_its_callers_origin_through_package_lowering() {
-    let text = "machine choose(value: u8) -> u8 { match value {0u8 -> 1u8, _ -> 2u8,} }";
-    let origin = refusal(text, 47, 50, "expected an exact Boolean pattern: ValuePattern");
+    // Multiple literal tests are still refused; a compound binding use is not.
+    let repaired = "data Choice {case A(code:u8, value:u8); case B;} machine first(x:@Choice)->u8 {match x {Choice::A {code:1u8, value} -> value +% 1u8, _ -> 0u8,}}";
+    let text = repaired.replace("value} -> value +% 1u8", "value:2u8} -> 4u8");
+    let field = source::unique_span(&text, "value:2u8");
+    let origin = refusal(&text, field.start, field.end, "payload requires one literal test and direct value bindings: FieldPattern");
     assert!(
         origin
             .file()
             .replace('\\', "/")
-            .ends_with("src/machines/branches.rs")
+            .ends_with("src/machines/branches/value_patterns.rs")
     );
-    let repaired = "machine choose(value: bool) -> u8 { match value {true -> 1u8, _ -> 2u8,} }";
-    source::lower(&[("main.omg", repaired)]).expect("exact Boolean alternatives lower");
+    source::lower(&[("main.omg", repaired)]).expect("the compound payload binding lowers");
 }
 
 #[test]

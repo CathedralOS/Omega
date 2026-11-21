@@ -179,6 +179,9 @@ impl<'a> ResolvedSourceFile<'a> {
                     }
                     use super::declaration_catalog::{PendingParameter, PendingSignature};
                     let indices = &catalog.types.indices;
+                    // Operators select their home at the token when indexing the binding.
+                    let home_ready = source.child(node_index, OperatorToken).is_some()
+                        || indices.ready_annotation(id, self.check_machine_qualifier(node_index, &catalog.types))?.is_some();
                     let mut params = Vec::new();
                     let mut partial = Vec::new();
                     for (name, annotation) in source.parameters(node_index) {
@@ -203,7 +206,7 @@ impl<'a> ResolvedSourceFile<'a> {
                         .result_annotation(node_index)
                         .map_or(Ok(ValueType::NoResult), |ty| self.runtime_annotation(ty, &catalog.types));
                     let result = indices.ready_annotation(id, result)?;
-                    if result.is_none() || !partial.is_empty() {
+                    if !home_ready || result.is_none() || !partial.is_empty() {
                         partial.extend(params.into_iter().map(|(_, ty)| PendingParameter::Complete(ty)));
                         catalog.pending_signatures.insert(id, PendingSignature { parameters: partial, result });
                         continue;
@@ -221,11 +224,13 @@ impl<'a> ResolvedSourceFile<'a> {
                         }
                     }
                     family.push(id);
-                    if node.kind != AsmMachine
-                        && source.child(node_index, Body).is_none()
-                        && !node.parent.is_some_and(|p| source.nodes[p].kind == Trait)
-                        && !supplied.is_some_and(|core| core.supplies(id))
-                    {
+                    // Supply is either the checked body or the closed catalog (language/machines.md#supply).
+                    let catalog_entry = supplied.is_some_and(|core| core.supplies(id));
+                    let bodyless = source.child(node_index, Body).is_none();
+                    if catalog_entry && !bodyless {
+                        return Err(TypeError::at(source, node_index, "closed-catalog machine cannot also declare a checked body"));
+                    }
+                    if node.kind != AsmMachine && bodyless && !node.parent.is_some_and(|p| source.nodes[p].kind == Trait) && !catalog_entry {
                         return Err(TypeError::at(source, node_index, "bodyless machine has no authorized supply"));
                     }
                     catalog.local_machines.push(id);

@@ -49,9 +49,10 @@ impl ComparisonReport {
     }
 
     pub fn print(&self) {
+        let comparable = self.differing_output_key().is_none();
         for key in self.get_keys() {
             match ResultLine::is_higher_better(&key) {
-                Some(is_higher_better) => self.print_number_table(&key, is_higher_better),
+                Some(is_higher_better) => self.print_number_table(&key, is_higher_better, comparable),
                 None => println!("{}\n", self.describe_text_key(&key)),
             }
         }
@@ -61,6 +62,9 @@ impl ComparisonReport {
 
     /// One sentence on the first number the tool reports, which a tool should make its headline.
     pub fn describe_verdict(&self) -> String {
+        if let Some(key) = self.differing_output_key() {
+            return format!("verdict: results are not comparable because `{key}` differs or is missing.");
+        }
         let Some((primary_key, is_higher_better)) = self
             .get_keys()
             .into_iter()
@@ -99,19 +103,29 @@ impl ComparisonReport {
         }
     }
 
-    /// The keys in the order the tool printed them, taken from the first run that was recorded.
+    /// Keep the first run's headline order and include keys reported only by later runs.
     fn get_keys(&self) -> Vec<String> {
-        self.recorded_runs
-            .first()
-            .map(|recorded_run| {
-                recorded_run
-                    .result_line
-                    .get_entries()
-                    .iter()
-                    .map(|(entry_key, _)| entry_key.clone())
-                    .collect()
-            })
-            .unwrap_or_default()
+        let mut keys = Vec::new();
+        for run in &self.recorded_runs {
+            for (key, _) in run.result_line.get_entries() {
+                if !keys.contains(key) {
+                    keys.push(key.clone());
+                }
+            }
+        }
+        keys
+    }
+
+    fn differing_output_key(&self) -> Option<String> {
+        self.get_keys().into_iter().find(|key| {
+            ResultLine::is_higher_better(key).is_none() && self.common_text(key).is_none()
+        })
+    }
+
+    fn common_text(&self, key: &str) -> Option<&str> {
+        let mut values = self.recorded_runs.iter().map(|run| run.result_line.get_value(key));
+        let first = values.next()??;
+        values.all(|next| next == Some(first)).then_some(first)
     }
 
     /// The best value one version reached under one setting, over all rounds.
@@ -167,6 +181,7 @@ impl ComparisonReport {
         &self,
         key: &str,
         is_higher_better: bool,
+        comparable: bool,
     ) {
         let direction_text = if is_higher_better { "higher is better" } else { "lower is better" };
 
@@ -176,7 +191,8 @@ impl ComparisonReport {
         for build_setting in BuildSetting::ALL {
             let baseline_value = self.get_best_value(&self.baseline_label, build_setting, key, is_higher_better);
             let candidate_value = self.get_best_value(&self.candidate_label, build_setting, key, is_higher_better);
-            let change_text = match self.get_change_percent(key, build_setting, is_higher_better) {
+            let change = if comparable { self.get_change_percent(key, build_setting, is_higher_better) } else { None };
+            let change_text = match change {
                 Some(change_percent) if change_percent >= 0.0 => format!("{change_percent:.1}% faster"),
                 Some(change_percent) => format!("{:.1}% slower", -change_percent),
                 None => String::from("not comparable"),
@@ -202,12 +218,11 @@ impl ComparisonReport {
         &self,
         key: &str,
     ) -> String {
-        let baseline_values = self.get_distinct_text_values(&self.baseline_label, key);
-        let candidate_values = self.get_distinct_text_values(&self.candidate_label, key);
-
-        if baseline_values.len() == 1 && baseline_values == candidate_values {
-            format!("{key}: the same in all {} runs ({})", self.recorded_runs.len(), baseline_values[0])
+        if let Some(value) = self.common_text(key) {
+            format!("{key}: the same in all {} runs ({value})", self.recorded_runs.len())
         } else {
+            let baseline_values = self.get_distinct_text_values(&self.baseline_label, key);
+            let candidate_values = self.get_distinct_text_values(&self.candidate_label, key);
             format!(
                 "{key}: DIFFERENT. The {} printed {} and the {} printed {}. The two versions do not produce the same output, so a speed difference between them is not like for like.",
                 self.baseline_label,
@@ -227,7 +242,7 @@ impl ComparisonReport {
             .recorded_runs
             .iter()
             .filter(|recorded_run| recorded_run.version_label == version_label)
-            .filter_map(|recorded_run| recorded_run.result_line.get_value(key))
+            .map(|recorded_run| recorded_run.result_line.get_value(key).unwrap_or("<missing>"))
             .map(str::to_string)
             .collect();
 
@@ -267,6 +282,21 @@ mod tests {
         }
 
         comparison_report
+    }
+
+    #[test]
+    fn incompatible_or_missing_output_fingerprints_prevent_a_speed_verdict() {
+        let report = build_report("lex_mbs", [100.0; 3], [120.0; 3], "different");
+        assert!(report.describe_verdict().contains("not comparable because `fingerprint`"));
+
+        for first in [true, false] {
+            let mut report = build_report("lex_mbs", [100.0; 3], [120.0; 3], "aaaa");
+            let mut timings_only = ResultLine::new();
+            timings_only.add_number("lex_mbs", 120.0);
+            let index = if first { 0 } else { report.recorded_runs.len() - 1 };
+            report.recorded_runs[index].result_line = timings_only;
+            assert!(report.describe_verdict().contains("not comparable because `fingerprint`"));
+        }
     }
 
     #[test]

@@ -1,0 +1,21 @@
+data Reader = machine(x: u32) -> u8
+    requires x < 100
+    ensures result < 50
+    reaches none crashes none;
+
+data Strict = machine(x: u32) -> u8
+    requires x < 1000
+    ensures result < 5
+    reaches none crashes none;
+
+data Loose = machine(x: u32) -> u8
+    requires x < 100
+    ensures result < 50
+    reaches none crashes none;
+
+machine choose(flag: bool, a: Strict, b: Loose, x: u32) -> u8
+requires x < 100
+{
+    let chosen: Reader = match flag {true -> a, false -> b,};
+    chosen(x)
+}

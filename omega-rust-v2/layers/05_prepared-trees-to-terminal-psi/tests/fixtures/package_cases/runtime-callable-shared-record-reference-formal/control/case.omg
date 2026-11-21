@@ -1,0 +1,1 @@
+data Counter {n:u64;} data CounterValue = machine(counter: @u64) -> u64 reaches none crashes none terminates; machine keep(f:CounterValue) {}

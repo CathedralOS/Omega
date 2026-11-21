@@ -1,6 +1,6 @@
 //! A closed application has its own data identity. Member identities remain those
 //! of the checked declaration, while L3 supplies the substituted storage types.
-use crate::{DataId, DataTemplate, LoweredCase, LoweredData, LoweredField, LoweringError, LoweringTypes, Site, TemplateField, TypeId};
+use crate::{DataId, DataTemplate, LoweredCase, LoweredData, LoweredField, LoweringError, LoweringTypes, Site, TemplateField};
 use omega_typed::{StaticDataShape, TypedTrees, ValueType};
 use std::collections::HashMap;
 
@@ -21,27 +21,41 @@ pub(super) fn collect<'a>(
         let ValueType::Applied(owner, arguments) = carrier else { continue };
         let Some(key) = arguments
             .iter()
-            .map(|arg| super::types::scalar_carrier(arg).ok())
+            .map(|arg| match arg {
+                ValueType::StaticInteger { carrier, value } => Some((super::types::scalar_carrier(carrier).ok()?, Some(value))),
+                _ => Some((super::types::scalar_carrier(arg).ok()?, None)),
+            })
             .collect::<Option<Vec<_>>>()
         else {
             continue;
         };
         let Some(id) = crate::identity::portable(owner) else { continue };
         let Some(&template) = by_declaration.get(&id) else { continue };
+        let indexed = key.iter().any(|(_, n)| n.is_some());
+        if indexed && key.iter().any(|(_, n)| n.is_none()) {
+            // Mixed type and const telescopes need one joint instantiation plan.
+            continue;
+        }
         let mut scopes = template
             .enclosing_parameters
             .iter()
             .map(|outer| by_declaration.get(outer).copied())
             .chain(std::iter::once(Some(template)));
-        let type_arity = scopes.try_fold(0usize, |n, scope| {
+        let type_arity = scopes.try_fold(0usize, |mut n, scope| {
             let scope = scope?;
-            (scope.witness_count == 0
-                && scope.equations.is_empty()
-                && scope
-                    .parameters
-                    .iter()
-                    .all(|p| matches!(p, crate::TemplateBinder::Type { .. })))
-            .then_some(n + scope.parameters.len())
+            if scope.witness_count != 0 || !scope.equations.is_empty() || indexed && !scope.requires.is_empty() {
+                return None;
+            }
+            for binder in &scope.parameters {
+                let (carrier, value) = key.get(n)?;
+                match binder {
+                    crate::TemplateBinder::Type { .. } if value.is_none() => {},
+                    crate::TemplateBinder::Const(bound) if value.is_some() && bound.0 == [crate::TypeExpressionStep::Scalar(*carrier)] => {},
+                    _ => return None,
+                }
+                n += 1;
+            }
+            Some(n)
         });
         if type_arity != Some(arguments.len()) {
             continue;
@@ -69,9 +83,12 @@ impl<'a> Application<'a> {
         &self,
         carriers: &mut Vec<(&'a ValueType, Site)>,
     ) {
+        if !self.shape.cases.is_empty() {
+            carriers.push((&ValueType::Bool, self.template.site.clone()));
+        }
         carriers.extend(
             std::iter::once(self.carrier)
-                .chain(self.arguments)
+                .chain(self.arguments.iter().filter(|a| !matches!(a, ValueType::StaticInteger { .. })))
                 .chain(&self.shape.fields)
                 .chain(self.shape.cases.iter().flat_map(|(_, fields)| fields))
                 .map(|ty| (ty, self.template.site.clone())),
@@ -101,7 +118,7 @@ impl<'a> Application<'a> {
                         declaration: field.declaration.clone(),
                         site: field.site.clone(),
                         lifetime: None,
-                        carrier: id_for(ty)?,
+                        carrier: types.id_for(ty).map_err(|e| LoweringError::new(&field.site, e.to_string()))?,
                     })
                 })
                 .collect::<Result<Vec<_>, LoweringError>>()
@@ -130,13 +147,20 @@ impl<'a> Application<'a> {
         Ok(LoweredData {
             id,
             cleanup_target: None,
+            write_only_cleanup: None,
             declaration: template.declaration.clone(),
             carrier: id_for(self.carrier)?,
             type_arguments: self
                 .arguments
                 .iter()
-                .map(id_for)
-                .collect::<Result<Vec<TypeId>, _>>()?,
+                .map(|arg| match arg {
+                    ValueType::StaticInteger { carrier, value } => Ok(omega_psi::DataArgument::Integer {
+                        carrier: super::types::scalar_carrier(carrier).map_err(|e| LoweringError::new(&template.site, e.to_string()))?,
+                        value: value.clone(),
+                    }),
+                    ty => id_for(ty).map(omega_psi::DataArgument::Type),
+                })
+                .collect::<Result<_, LoweringError>>()?,
             public: template.public,
             multiplicity: template.multiplicity,
             lifetime_count: 0,

@@ -11,7 +11,7 @@ use omega_syntax::NodeKind;
 use omega_typed::{CallUse, NodeSemantics, ObligationKind, Site, TypedCall, TypedSignature, TypedTree, TypedTrees, ValueType};
 use std::collections::HashMap;
 
-fn slot(
+pub(super) fn slot(
     id: &DeclarationId,
     arguments: &[ValueType],
     site: &Site,
@@ -43,13 +43,11 @@ pub(crate) fn reach(
     Ok(rows)
 }
 
-pub(crate) fn evidence_argument(
+pub(crate) fn evidence_bound(
     typed: &TypedTrees<'_>,
     instance: &MachineInstance<'_>,
     index: usize,
-    selected: &DeclarationId,
-) -> Result<crate::StaticArgument, LoweringError> {
-    let site = &instance.signature.site;
+) -> Result<Box<omega_typed::RequirementSlot>, LoweringError> {
     let bound = typed
         .generic_parameters
         .get(instance.application.machine.as_ref())
@@ -58,8 +56,19 @@ pub(crate) fn evidence_argument(
         .and_then(|p| p.carrier.as_deref())
         .map(|v| instance.application.instantiate(v));
     let Some(ValueType::Evidence(bound)) = bound else {
-        return Err(LoweringError::new(site, "selected conformance lacks its declared evidence bound"));
+        return Err(LoweringError::new(&instance.signature.site, "selected conformance lacks its declared evidence bound"));
     };
+    Ok(bound)
+}
+
+pub(crate) fn evidence_argument(
+    typed: &TypedTrees<'_>,
+    instance: &MachineInstance<'_>,
+    index: usize,
+    selected: &DeclarationId,
+) -> Result<crate::StaticArgument, LoweringError> {
+    let site = &instance.signature.site;
+    let bound = evidence_bound(typed, instance, index)?;
     if !typed.conformance_targets.contains_key(selected) {
         return Err(LoweringError::new(site, "selected conformance lacks its checked trait application"));
     }
@@ -123,6 +132,7 @@ pub(crate) fn conformance(
 
 #[derive(Eq, PartialEq, Hash, Clone)]
 pub(crate) struct Key {
+    restriction: Option<DeclarationId>,
     owner: DeclarationId,
     requirement: DeclarationId,
     receiver: Vec<ValueType>,
@@ -131,8 +141,10 @@ pub(crate) struct Key {
 }
 impl Key {
     pub(crate) fn from_call(call: &TypedCall) -> Option<Self> {
-        let [(owner, receiver)] = call.enclosing_arguments.as_slice() else {
-            return None;
+        let (restriction, (owner, receiver)) = match call.enclosing_arguments.as_slice() {
+            [base] => (None, base),
+            [(bound, args), base] if bound.kind == NodeKind::Trait && args.is_empty() && call.evidence.is_some() => (Some(bound.clone()), base),
+            _ => return None,
         };
         if owner.kind != NodeKind::Trait {
             return None;
@@ -143,6 +155,7 @@ impl Key {
             _ => return None,
         };
         Some(Self {
+            restriction,
             owner: owner.clone(),
             requirement: call.machine.clone(),
             receiver: receiver.clone(),
@@ -221,6 +234,7 @@ impl Key {
 struct Plan {
     key: Key,
     signature: TypedSignature,
+    view_lifetime: Option<crate::BoundaryResultLifetime>,
     implementation: Option<DeclarationId>,
     direction: Option<BoundaryDirection>,
 }
@@ -276,7 +290,8 @@ pub(crate) fn plan(
                 .get(&key.requirement)
                 .ok_or_else(|| LoweringError::new(&call.site, "member call needs its packaged requirement"))?;
             let file = trees[sig.node.file].resolved().file;
-            if file.generic_parameters(sig.node.node).count() != key.arguments.len() {
+            let binders = file.generic_parameters(sig.node.node).count();
+            if binders != key.arguments.len() {
                 return Err(LoweringError::new(&call.site, "member call needs one static argument per requirement binder"));
             }
             if key
@@ -296,12 +311,48 @@ pub(crate) fn plan(
             plans.push(Plan {
                 key,
                 signature,
+                // Use the declaration, not a convenient shape after substitution.
+                view_lifetime: boundary_view_lifetime(sig, binders),
                 implementation,
                 direction,
             });
         }
     }
     Ok(MemberPlans(plans))
+}
+
+/// Elided shared-view result: exactly one reference in the declared input
+/// frontier relates the result to that input. With only primitive scalar
+/// inputs and no binders, each caller chooses the lifetime
+/// (`wiki/spec/language/lifetimes.md#caller-chosen-result-lifetimes`). Do not
+/// treat a borrow-carrying aggregate or a generic input as a scalar, or an
+/// explicit result lifetime as elision. More general relations need their
+/// own path/lifetime correspondence and publish no relation.
+fn boundary_view_lifetime(
+    sig: &TypedSignature,
+    binders: usize,
+) -> Option<crate::BoundaryResultLifetime> {
+    use crate::lowering::types::{is_shared_byte_view, is_shared_element_view, scalar_carrier};
+    let shared_view = |ty| is_shared_byte_view(ty) || is_shared_element_view(ty);
+    if !shared_view(&sig.result) {
+        return None;
+    }
+    let mut anchor = None;
+    for (position, (_, ty)) in sig.parameters.iter().enumerate() {
+        if scalar_carrier(ty).is_ok() {
+            continue;
+        }
+        if !shared_view(ty) || anchor.is_some() {
+            return None;
+        }
+        anchor = Some(position);
+    }
+    match anchor {
+        Some(position) => Some(crate::BoundaryResultLifetime::Input(position)),
+        // A binder may name the result lifetime; this lowering does not read it.
+        None if binders == 0 => Some(crate::BoundaryResultLifetime::CallerChosen),
+        None => None,
+    }
 }
 
 impl MemberPlans {
@@ -395,8 +446,20 @@ impl MemberPlans {
                     .id_for(v)
                     .map_err(|e| LoweringError::new(site, e.to_string()))
             };
-            callees.members.insert(key.clone(), (result.len(), sig, count));
+            let restriction = key.restriction.as_ref().map(|id| slot(id, &[], site)).transpose()?;
+            let mut pause = sig.pause.declared();
+            if let Some(bound) = &restriction {
+                let narrowed = traits.iter().find(|t| t.declaration == bound.declaration)
+                    .and_then(|t| t.restriction.as_ref()).filter(|r| r.base == owner)
+                    .ok_or_else(|| LoweringError::new(site, "member call needs its exact transparent base"))?;
+                for row in &narrowed.all_members {
+                    pause.block &= !row.prohibits_block;
+                    pause.suspend &= !row.prohibits_suspend;
+                }
+            }
+            callees.members.insert(key.clone(), (result.len(), sig, count, pause));
             result.push(MemberCallSelection {
+                restriction,
                 owner,
                 requirement,
                 static_arguments,
@@ -412,6 +475,10 @@ impl MemberPlans {
                 result: (sig.result != ValueType::NoResult)
                     .then(|| id_for(&sig.result))
                     .transpose()?,
+                boundary_result_lifetime: match target {
+                    MemberRealization::Boundary { .. } => p.view_lifetime,
+                    _ => None,
+                },
                 target,
             });
         }

@@ -324,6 +324,49 @@ fn an_inbound_slot_counts_as_entry_and_an_outbound_provider_propagates_entries()
 }
 
 #[test]
+fn direct_boundary_entry_checks_the_callers_invocation_ceiling() {
+    use omega_typer::{BoundarySlot, RequirementSlot, Site, SlotDirection, TypingEnvironment, type_stage_in_environment};
+
+    let source = "trait Host{machine enter();} trait Other{machine tick();} machine direct() invokes Other {Host::enter()}";
+    let file = "slot.omg";
+    let tokens = omega_lexer::lex(source.as_bytes()).unwrap();
+    let tree = omega_parser::parse_file(source.as_bytes(), &tokens).unwrap();
+    let sources = [StageSource {
+        package: "app",
+        source: ParsedSource { logical_path: file, text: source, tokens: &tokens, tree: &tree },
+    }];
+    let names = omega_resolver::resolve_stage(&sources, &[]).unwrap();
+    let outbound = BoundarySlot {
+        requirement: RequirementSlot {
+            declaration: names.declarations.iter().find(|id| id.path == "Host::enter").unwrap().clone(),
+            trait_arguments: vec![],
+        },
+        arguments: vec![],
+        direction: SlotDirection::ProgramToProvider,
+    };
+    let inbound = BoundarySlot { direction: SlotDirection::EnvironmentToProgram, ..outbound.clone() };
+    let run = |slots: &[BoundarySlot]| type_stage_in_environment(&names, &TypingEnvironment { boundary_slots: slots, ..Default::default() });
+    let call = "Host::enter()";
+    let start = source.find(call).unwrap();
+    let end = start + call.len();
+    let site = Site { package: "app".into(), file: file.into(), span: omega_lexer::SourceSpan::new(start, end) };
+
+    // The outbound control must match the applied slot, not merely type as an ordinary call.
+    let stage = run(std::slice::from_ref(&outbound)).unwrap();
+    assert_eq!(stage.boundary_calls, [(site.clone(), outbound.clone())]);
+
+    let refused = |slots: &[BoundarySlot], message: &str| {
+        let error = run(slots).expect_err("the boundary call must be refused");
+        assert!(!error.waiting_for_static_value());
+        assert_eq!((&*error.package, &*error.file, error.span, &*error.message), ("app", file, site.span, message));
+        #[cfg(feature = "diagnostic-origins")]
+        diagnostic_origin::report_return(&error, "", Some(("app", file, start, end, message)));
+    };
+    refused(std::slice::from_ref(&inbound), "call exceeds the declared synchronous invocation ceiling");
+    refused(&[outbound, inbound], "competing directions for an applied boundary slot");
+}
+
+#[test]
 fn raw_stages_cannot_define_sealed_toolchain_operations() {
     let text = "machine read() {}";
     let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
@@ -441,12 +484,9 @@ fn core_interfaces_supply_checked_types_without_adding_source_bodies() {
         ]
     );
     assert_eq!(typed_predicates(library, core.id("BoundaryReach"), Requires), ["self.service_count<=32"]);
-    assert!(
-        stage
-            .obligations
-            .iter()
-            .any(|o| o.site == machine.site && matches!(&o.kind, omega_typer::ObligationKind::VerifyLibraryImplementation(id) if id == &machine.machine))
-    );
+    // The body's guarantees stay in the library forest; the empty importer owes nothing.
+    assert!(stage.obligations.is_empty(), "{:?}", stage.obligations);
+    assert_eq!(guarantee_rows(library, &machine.machine).len(), 4);
 }
 
 #[test]
@@ -876,4 +916,594 @@ fn symbolic_queries_check_the_operand_and_cannot_escape_as_callbacks() {
     }
     check(r"machine field(n:u8)->u8{n} machine use_field()->u8{field(1)}").unwrap();
     check(r"use omega\language\core\reflect; machine shadow(field:u8)->u8{field}").unwrap();
+}
+
+/// The access policy program of the L5 access-plan tests, byte for byte. `Rule::plan`
+/// calls the toolchain's `new_plan`, so it really selects that library machine.
+const ACCESS_PLAN: &str = "use omega\\language\\core;
+                  use omega\\language\\core\\reflect;
+                  use omega\\language\\core\\access;
+                  domain i32::Locked access Rule;
+                  Rule satisfies AccessPolicy {
+                      machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {
+                          new_plan::<'t>(@schema, Issuance::Unrestricted{})
+                      }
+                  }";
+
+/// A caller whose own precondition is discharged only by `new_plan`'s first guarantee
+/// (`target/l5-loop-01/integration/core-owner-integration/run/relies/policy.omg`, byte for byte).
+const RELIES: &str = "use omega\\language\\core;
+use omega\\language\\core\\reflect;
+use omega\\language\\core\\access;
+machine need_empty(count: u64) requires count == 0 reaches none crashes none terminates {}
+Rule satisfies AccessPolicy {
+    machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {
+        let made: AccessPlan<'t> = new_plan::<'t>(@schema, Issuance::Unrestricted{});
+        need_empty(made.field_count);
+        made
+    }
+}
+";
+
+/// The toolchain's own source of the library declaration.
+const CORE_ACCESS: &str = include_str!("../../../toolchain/core/access.omg");
+
+/// Type one `app` package through the standard profile.
+fn check_files(files: &[(&str, &str)]) -> Result<TypedStage, omega_typer::TypeError> {
+    let lexed: Vec<_> = files
+        .iter()
+        .map(|(path, text)| {
+            let tokens = omega_lexer::lex(text.as_bytes()).expect("the package must lex");
+            let tree = omega_parser::parse_file(text.as_bytes(), &tokens).expect("the package must parse");
+            (*path, *text, tokens, tree)
+        })
+        .collect();
+    let inputs: Vec<_> = lexed
+        .iter()
+        .map(|(path, text, tokens, tree)| StageSource {
+            package: "app",
+            source: ParsedSource {
+                logical_path: path,
+                text,
+                tokens,
+                tree,
+            },
+        })
+        .collect();
+    let resolved = resolve_source_package(&inputs).expect("the package must resolve");
+    type_source_package(&resolved).map(|trees| trees.into_facts())
+}
+
+/// Rows in an importer's obligation list whose site lies in the toolchain package.
+fn library_rows(obligations: &[omega_typer::TypingObligation]) -> Vec<&omega_typer::TypingObligation> {
+    obligations
+        .iter()
+        .filter(|o| o.site.package == omega_toolchain::TOOLCHAIN_PACKAGE)
+        .collect()
+}
+
+/// `ProveGuarantee` rows that name `machine`, in a forest's own obligation list.
+fn guarantee_rows<'a>(
+    forest: &'a TypedStage,
+    machine: &omega_resolver::DeclarationId,
+) -> Vec<&'a omega_typer::TypingObligation> {
+    forest
+        .obligations
+        .iter()
+        .filter(|o| matches!(&o.kind, omega_typer::ObligationKind::ProveGuarantee { machine: owner, .. } if owner == machine))
+        .collect()
+}
+
+fn spelled<'a>(
+    text: &'a str,
+    site: &omega_typer::Site,
+) -> &'a str {
+    std::str::from_utf8(site.span.slice(text.as_bytes()).expect("site inside its file")).unwrap()
+}
+
+/// The `new_plan` signature as the toolchain file spells it, without its body.
+fn core_signature() -> &'static str {
+    let start = CORE_ACCESS.find("public machine new_plan").unwrap();
+    let end = CORE_ACCESS[start..].find("\n{").unwrap() + start;
+    &CORE_ACCESS[start..end]
+}
+
+/// The complete `new_plan` declaration, body included.
+fn core_declaration() -> &'static str {
+    CORE_ACCESS[CORE_ACCESS.find("public machine new_plan").unwrap()..].trim_end()
+}
+
+fn calls_from<'a>(
+    stage: &'a TypedStage,
+    caller: &str,
+) -> Vec<&'a omega_resolver::DeclarationId> {
+    stage
+        .calls
+        .iter()
+        .filter(|c| c.caller.as_ref().is_some_and(|m| m.path == caller))
+        .map(|c| &c.machine)
+        .collect()
+}
+
+/// `new_plan` owes its four guarantees as `ProveGuarantee` rows of its own body, sited in the
+/// toolchain file and kept in the library forest. A normal package that selects it and one
+/// that never calls it import none of those rows: the selecting package's dependency is the
+/// call, which names the library declaration. Copying a library row into an importer, as the
+/// baseline did, is visible to the same reader.
+#[test]
+fn a_library_constructor_keeps_its_guarantees_in_its_defining_forest() {
+    let core = omega_toolchain::core_interface();
+    let selected = core.id("access\\new_plan");
+    let selecting = check_files(&[("policy.omg", ACCESS_PLAN)]).unwrap();
+    let (prefix, _) = ACCESS_PLAN.split_once(" access Rule;").unwrap();
+    let unused = check_files(&[("policy.omg", &format!("{prefix};"))]).unwrap();
+    let library = selecting.library.expect("admitted library");
+
+    let rows = guarantee_rows(library, selected);
+    assert_eq!(
+        rows.iter()
+            .map(|o| (o.site.package.as_str(), o.site.file.as_str(), spelled(CORE_ACCESS, &o.site)))
+            .collect::<Vec<_>>(),
+        [
+            (omega_toolchain::TOOLCHAIN_PACKAGE, "language/core/access/access.omg", "result.field_count == 0"),
+            (
+                omega_toolchain::TOOLCHAIN_PACKAGE,
+                "language/core/access/access.omg",
+                "result.reader_count == 0"
+            ),
+            (
+                omega_toolchain::TOOLCHAIN_PACKAGE,
+                "language/core/access/access.omg",
+                "result.writer_count == 0"
+            ),
+            (
+                omega_toolchain::TOOLCHAIN_PACKAGE,
+                "language/core/access/access.omg",
+                "result.reach.service_count == 0"
+            ),
+        ]
+    );
+    let tree = library.trees().nth(rows[0].node.file).unwrap();
+    for row in &rows {
+        assert!(
+            tree.semantics_at(row.node.node)
+                .any(|fact| matches!(fact, omega_typer::NodeSemantics::Obligation(found) if found == *row))
+        );
+    }
+    assert!(
+        !library
+            .obligations
+            .iter()
+            .any(|o| matches!(&o.kind, omega_typer::ObligationKind::VerifyLibraryImplementation(owner) if owner == selected)),
+        "a checked body is not a bodyless library implementation"
+    );
+    assert!(!unused.calls.iter().any(|c| &c.machine == selected));
+    spec_corpus::observe_handoff!(
+        "library-definition-guarantees/producer",
+        assert_eq!(
+            (
+                calls_from(&selecting, "Rule::plan"),
+                rows.len(),
+                library_rows(&selecting.obligations).len(),
+                library_rows(&unused.obligations).len()
+            ),
+            (vec![selected], 4, 0, 0)
+        )
+    );
+    // Corrupt control: the baseline's import put the library row first in every importer.
+    let mut copied = unused.obligations.clone();
+    copied.insert(0, rows[0].clone());
+    assert_eq!(library_rows(&copied), [rows[0]]);
+}
+
+/// The link dependency that must survive. `need_empty(made.field_count)` owes its own
+/// precondition at the caller; its only evidence is `new_plan`'s `ensures result.field_count
+/// == 0`, which the library body owes in its own forest. The caller owes no copy of that
+/// guarantee; its call names the library declaration whose checked definition it relies on.
+#[test]
+fn a_caller_relying_on_a_library_guarantee_owes_only_its_own_precondition() {
+    use omega_typer::ObligationKind::{CallPrecondition, ProveGuarantee};
+    let core = omega_toolchain::core_interface();
+    let selected = core.id("access\\new_plan");
+    let stage = check_files(&[("policy.omg", RELIES)]).unwrap();
+    let need = &stage
+        .signatures
+        .iter()
+        .find(|s| s.machine.path == "need_empty")
+        .unwrap()
+        .machine;
+    let local: Vec<_> = stage
+        .obligations
+        .iter()
+        .filter(|o| matches!(&o.kind, CallPrecondition(id) if id == need))
+        .map(|o| (o.site.package.as_str(), o.site.file.as_str(), spelled(RELIES, &o.site)))
+        .collect();
+    assert_eq!(local, [("app", "policy.omg", "need_empty(made.field_count)")]);
+    assert!(
+        !stage
+            .obligations
+            .iter()
+            .any(|o| matches!(&o.kind, ProveGuarantee { machine, .. } if machine == selected))
+    );
+    assert!(library_rows(&stage.obligations).is_empty());
+    assert_eq!(calls_from(&stage, "Rule::plan"), [selected, need]);
+    let library = stage.library.unwrap();
+    assert!(
+        guarantee_rows(library, selected)
+            .iter()
+            .any(|o| spelled(CORE_ACCESS, &o.site) == "result.field_count == 0")
+    );
+}
+
+/// The same declaration bytes at the toolchain's logical path, but in the `app` package,
+/// differ from the library machine only by package. Without its body (the signature/bodyless
+/// twin) L3 refuses it at its declaration. With the toolchain's own body it is an ordinary
+/// `app` machine that owes its own guarantees; no library row enters the package.
+#[test]
+fn a_same_path_copy_in_another_package_cannot_acquire_library_supply() {
+    let core = omega_toolchain::core_interface();
+    let selected = core.id("access\\new_plan");
+    let path = "language/core/access/access.omg";
+    let header = "use omega\\language\\core;\nuse omega\\language\\core\\reflect;\n\n";
+    let declaration = format!("{};", core_signature());
+    let copy = format!("{header}{declaration}\n");
+    let error = check_files(&[(path, &copy)]).expect_err("an app declaration cannot use the toolchain's supply");
+    let at = copy.find(&declaration).unwrap();
+    spec_corpus::observe_handoff!(
+        "library-definition-guarantees/refusal",
+        assert_eq!(
+            (
+                error.package.as_str(),
+                error.file.as_str(),
+                error.span.get_start_offset()..error.span.get_end_offset(),
+                error.message.as_str()
+            ),
+            ("app", path, at..at + declaration.len(), "bodyless machine has no authorized supply")
+        ),
+    );
+    #[cfg(feature = "diagnostic-origins")]
+    diagnostic_origin::report_return(
+        &error,
+        "",
+        Some(("app", path, at, at + declaration.len(), "bodyless machine has no authorized supply")),
+    );
+
+    let with_body = format!("{header}{}\n", core_declaration());
+    let checked = check_files(&[(path, &with_body)]).unwrap();
+    let local = &checked
+        .signatures
+        .iter()
+        .find(|s| s.machine.package == "app")
+        .unwrap()
+        .machine;
+    assert_eq!((local.package.as_str(), local.path.as_str()), ("app", selected.path.as_str()));
+    assert_ne!(local, selected);
+    assert!(!core.supplies(local));
+    let own: Vec<_> = guarantee_rows(&checked, local)
+        .iter()
+        .map(|o| (o.site.package.as_str(), spelled(&with_body, &o.site)))
+        .collect();
+    assert_eq!(
+        own,
+        [
+            ("app", "result.field_count == 0"),
+            ("app", "result.reader_count == 0"),
+            ("app", "result.writer_count == 0"),
+            ("app", "result.reach.service_count == 0")
+        ]
+    );
+    assert!(library_rows(&checked.obligations).is_empty());
+
+    let other = check_files(&[(path, "public machine new_plan(x: u8) -> u8 { x }")]).unwrap();
+    assert!(other.obligations.is_empty(), "{:?}", other.obligations);
+}
+
+/// Each forest indexes its own files from zero, in path order. A three-file importer whose last file holds
+/// the toolchain's `new_plan` declaration uses the same file index (2) as the library's
+/// `access.omg`, so `TreeNodeId`s of the two forests coincide. A reader must keep rows with
+/// their forest: the importer's list holds exactly its own copy's rows, the library's list
+/// holds the library's, and no record appears in both.
+#[test]
+fn identical_node_indices_in_two_forests_are_counted_once_each() {
+    use omega_typer::NodeSemantics;
+    let core = omega_toolchain::core_interface();
+    let selected = core.id("access\\new_plan");
+    let header = "use omega\\language\\core;\nuse omega\\language\\core\\reflect;\n\n";
+    let copy = format!("{header}{}\n", core_declaration());
+    let files = [
+        ("a.omg", "machine a(){}"),
+        ("b.omg", "machine b(){}"),
+        ("language/core/access/access.omg", copy.as_str()),
+    ];
+    with_typed(&files, |stage| {
+        let library = stage.library.unwrap();
+        let local = &stage
+            .signatures
+            .iter()
+            .find(|s| s.machine.package == "app" && s.machine.path.ends_with("new_plan"))
+            .unwrap()
+            .machine;
+        let mine = guarantee_rows(stage, local);
+        let theirs = guarantee_rows(library, selected);
+        assert_eq!((mine.len(), theirs.len()), (4, 4));
+        assert_eq!(
+            mine[0].node.file, theirs[0].node.file,
+            "both forests index access.omg at the same file position"
+        );
+        for row in &stage.obligations {
+            assert_eq!(row.site.package, "app");
+            assert!(!library.obligations.contains(row), "{row:?}");
+        }
+        // Per-node lookup in each forest returns only that forest's rows.
+        for (forest, row, package) in [
+            (stage, mine[0], "app"),
+            (library, theirs[0], omega_toolchain::TOOLCHAIN_PACKAGE),
+        ] {
+            let tree = forest.trees().nth(row.node.file).unwrap();
+            let at_node: Vec<_> = tree
+                .semantics_at(row.node.node)
+                .filter_map(|fact| match fact {
+                    NodeSemantics::Obligation(found) => Some(found),
+                    _ => None,
+                })
+                .collect();
+            assert!(
+                at_node.contains(&row) && at_node.iter().all(|found| found.site.package == package),
+                "{at_node:?}"
+            );
+        }
+    });
+}
+
+/// Type one `app` package and hand its typed forest to `inspect`.
+fn with_typed<R>(
+    files: &[(&str, &str)],
+    inspect: impl FnOnce(&omega_typer::TypedTrees<'_>) -> R,
+) -> R {
+    let lexed: Vec<_> = files
+        .iter()
+        .map(|(path, text)| {
+            let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
+            let tree = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap();
+            (*path, *text, tokens, tree)
+        })
+        .collect();
+    let inputs: Vec<_> = lexed
+        .iter()
+        .map(|(path, text, tokens, tree)| StageSource {
+            package: "app",
+            source: ParsedSource {
+                logical_path: path,
+                text,
+                tokens,
+                tree,
+            },
+        })
+        .collect();
+    let resolved = resolve_source_package(&inputs).unwrap();
+    inspect(&type_source_package(&resolved).unwrap())
+}
+
+/// Whether the zero of `ty` holds a borrowed reference. A record zeroes every
+/// field; a sum zeroes only its first declared case's payload
+/// (language/data_and_literals.md). The walk reads the declarations L3 published.
+fn zero_holds_reference(
+    library: &omega_typer::TypedTrees<'_>,
+    ty: &omega_typer::ValueType,
+) -> bool {
+    use omega_typer::ValueType::*;
+    match ty {
+        Reference(..) => true,
+        Array(element, count) => *count > 0 && zero_holds_reference(library, element),
+        Tuple(items) => items.iter().any(|item| zero_holds_reference(library, item)),
+        AtLifetime(inner, _) | Qualified(inner, _) => zero_holds_reference(library, inner),
+        Nominal(owner) | Applied(owner, _) => {
+            let first_case = library
+                .trees()
+                .flat_map(|tree| {
+                    tree.resolved()
+                        .declaration_nodes()
+                        .map(|(_, id)| id.clone())
+                        .collect::<Vec<_>>()
+                })
+                .find(|id| library.case_owners.get(id) == Some(owner.as_ref()));
+            let shape = first_case.as_ref().unwrap_or(owner.as_ref());
+            library.record_fields.get(shape).is_some_and(|fields| {
+                fields
+                    .iter()
+                    .any(|field| zero_holds_reference(library, &field.ty))
+            })
+        }
+        _ => false,
+    }
+}
+
+/// The omitted fields of each `..` construction whose owner is `owner`, in field order.
+fn zeroed_fields<'a>(
+    obligations: &'a [omega_typer::TypingObligation],
+    owner: &str,
+) -> Vec<(&'a str, &'a omega_typer::ValueType)> {
+    obligations
+        .iter()
+        .filter_map(|o| match &o.kind {
+            omega_typer::ObligationKind::ZeroField { field, ty } => field
+                .path
+                .strip_prefix(owner)
+                .and_then(|name| name.strip_prefix("::"))
+                .map(|name| (name, ty)),
+            _ => None,
+        })
+        .collect()
+}
+
+/// `access\new_plan` is an ordinary core machine (resources/access.md#plans-and-admitted-supply),
+/// so its supply is a checked body, not the closed catalog. The body omits the
+/// plan's capacity with `..`, and every zero it asks for is reference-free: the
+/// slot sums zero to their payload-free first case. The same body over the old
+/// slot storage (`[AccessFieldEntry<'t>; 32]`) would zero a byte view, which `..`
+/// never supplies. Its guarantees become ordinary `ensures` of that body, and
+/// linking still needs the library implementation verified.
+#[test]
+fn the_plan_constructor_is_a_checked_core_body_that_zeroes_no_reference() {
+    use omega_typer::{NodeSemantics, ObligationKind};
+    let core = omega_toolchain::core_interface();
+    let constructor = core.id("access\\new_plan");
+    assert!(!core.supplies(constructor), "an ordinary core machine is not a catalog entry");
+
+    let stage = check("machine idle(){}").unwrap();
+    let library = stage.library.expect("admitted library");
+    let (tree, declaration) = library
+        .trees()
+        .find_map(|tree| {
+            tree.resolved()
+                .declaration_nodes()
+                .find(|(_, id)| *id == constructor)
+                .map(|(node, _)| (tree, node))
+        })
+        .unwrap();
+    let file = tree.resolved().file;
+    let body = file
+        .child(declaration, omega_parser::NodeKind::Body)
+        .expect("checked body");
+    let inside = body..file.nodes[body].end;
+    let zero_rows: Vec<_> = library
+        .obligations
+        .iter()
+        .filter(|o| matches!(o.kind, ObligationKind::ZeroField { .. }) && o.node.file == file_index(library, constructor))
+        .filter(|o| inside.contains(&o.node.node))
+        .cloned()
+        .collect();
+    let plan = &core.id("AccessPlan").path;
+    let zeroed = zeroed_fields(&zero_rows, plan);
+    assert_eq!(
+        zeroed.iter().map(|(name, _)| *name).collect::<Vec<_>>(),
+        [
+            "fields",
+            "field_count",
+            "readers",
+            "reader_count",
+            "writers",
+            "writer_count",
+            "reach"
+        ]
+    );
+    let construction = zero_rows[0].node.node;
+    assert_eq!(
+        &tree
+            .construction(construction)
+            .expect("plan construction")
+            .owner,
+        core.id("AccessPlan")
+    );
+    assert!(zero_rows.iter().all(|o| o.node.node == construction));
+    spec_corpus::observe_handoff!(
+        "access-plan-constructor-supply/producer",
+        assert!(zeroed.iter().all(|(_, ty)| !zero_holds_reference(library, ty)), "{zeroed:?}"),
+    );
+    for slot in ["AccessFieldSlot", "AccessRuleSlot"] {
+        let empty = core.id(&format!("{slot}::Empty"));
+        assert_eq!(library.case_owners.get(empty), Some(core.id(slot)));
+        assert!(
+            library
+                .record_fields
+                .get(empty)
+                .is_none_or(|fields| fields.is_empty()),
+            "{slot}::Empty has no payload"
+        );
+    }
+    assert!(
+        tree.semantics_at(construction)
+            .any(|s| matches!(s, NodeSemantics::Obligation(o) if o.kind == ObligationKind::EstablishData(core.id("AccessPlan").clone())))
+    );
+    // These rows, and the body's four guarantees, stay in the defining forest.
+    assert_eq!(guarantee_rows(library, constructor).len(), 4);
+    assert!(stage.obligations.is_empty(), "{:?}", stage.obligations);
+
+    // Contrast: the same body over a local copy of the old storage zeroes `FieldInfo` byte views.
+    let old = "use omega\\language\\core; use omega\\language\\core\\reflect;
+        data OldPlan<'t> { schema: TypeSchema<'t>; issuance: Issuance<'t>; fields: [AccessFieldEntry<'t>; 32]; field_count: u64; }
+        machine make<'t>(schema: @TypeSchema<'t>, issuance: Issuance<'t>) -> OldPlan<'t> reaches none crashes none terminates {
+            OldPlan::<'t> { schema: $schema, issuance: issuance, .. }
+        }";
+    let old_stage = check(old).unwrap();
+    let old_zeroed = zeroed_fields(&old_stage.obligations, "OldPlan");
+    assert_eq!(old_zeroed.iter().map(|(name, _)| *name).collect::<Vec<_>>(), ["fields", "field_count"]);
+    assert!(zero_holds_reference(old_stage.library.unwrap(), old_zeroed[0].1));
+    assert!(!zero_holds_reference(old_stage.library.unwrap(), old_zeroed[1].1));
+}
+
+fn file_index(
+    library: &omega_typer::TypedTrees<'_>,
+    machine: &omega_resolver::DeclarationId,
+) -> usize {
+    library
+        .trees()
+        .position(|tree| tree.resolved().declaration_nodes().any(|(_, id)| id == machine))
+        .unwrap()
+}
+
+/// `target/l5owner/policy/empty/access_plan.omg`, byte for byte.
+const EMPTY_ROUTES: &str = r"use omega\language\core;
+                  use omega\language\core\reflect;
+                  use omega\language\core\access;
+                  domain i32::Locked access Rule;
+                  Rule satisfies AccessPolicy {
+                      machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {
+                          new_plan::<'t>(@schema, Issuance::Only{routes: []})
+                      }
+                  }";
+
+/// The type L3 publishes for the expression spelled exactly at `start..end`.
+fn expression_at(
+    stage: &TypedStage,
+    start: usize,
+    end: usize,
+) -> omega_typer::ValueType {
+    let mut found = stage
+        .expressions
+        .iter()
+        .filter(|e| e.site.file == "app.omg" && (e.site.span.get_start_offset(), e.site.span.get_end_offset()) == (start, end));
+    let ty = found
+        .next()
+        .unwrap_or_else(|| panic!("no expression at bytes {start}..{end}"))
+        .ty
+        .clone();
+    assert!(found.next().is_none(), "two expressions at bytes {start}..{end}");
+    ty
+}
+
+/// resources/access.md spells `Issuance::Only { routes: [] }` for a policy that
+/// admits nobody. The `[]` builds the owned `[CallableInfo<'t>]` field itself,
+/// with the element identity of the constructed `Issuance<'t>`: the same `'t`
+/// that `Rule::plan` passes to `new_plan`, not a fresh inferred lifetime.
+#[test]
+fn an_explicit_empty_route_list_lands_at_the_declared_routes_field() {
+    use omega_typer::ValueType::{Applied, Slice};
+    assert_eq!((EMPTY_ROUTES.len(), &EMPTY_ROUTES[414..416]), (462, "[]"));
+    let stage = check(EMPTY_ROUTES).unwrap();
+    let construction = "Issuance::Only{routes: []}";
+    let start = EMPTY_ROUTES.find(construction).unwrap();
+    let Applied(issuance, arguments) = expression_at(&stage, start, start + construction.len()) else {
+        panic!("Issuance::Only must publish its applied data type")
+    };
+    assert_eq!(
+        (issuance.package.as_str(), issuance.path.as_str()),
+        ("@omega/toolchain", r"language\core\Issuance")
+    );
+    let [lifetime] = arguments.as_slice() else {
+        panic!("Issuance takes one lifetime")
+    };
+    assert!(!matches!(lifetime, omega_typer::ValueType::InferredLifetime { .. }), "{lifetime:?}");
+    let Slice(element) = expression_at(&stage, 414, 416) else {
+        panic!("the routes literal must publish the owned [CallableInfo<'t>] field type")
+    };
+    let Applied(info, element_arguments) = *element else {
+        panic!("routes holds CallableInfo")
+    };
+    assert_eq!(
+        (info.package.as_str(), info.path.as_str()),
+        ("@omega/toolchain", r"language\core\reflect\CallableInfo")
+    );
+    assert_eq!(element_arguments.as_slice(), std::slice::from_ref(lifetime));
+    assert_eq!(stage.access_policies.len(), 1);
 }

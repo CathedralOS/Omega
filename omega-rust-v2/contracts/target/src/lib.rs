@@ -15,6 +15,15 @@ pub trait LayoutSubject: Clone + Eq + std::hash::Hash {
     fn has_data_layout(&self) -> bool;
 }
 
+/// Subject eligibility is known before a target supplies size or alignment.
+pub fn validate_layout_query_subject(subject: &impl LayoutSubject) -> Result<(), &'static str> {
+    if subject.has_data_layout() {
+        Ok(())
+    } else {
+        Err("the selected layout query needs a data type with runtime storage")
+    }
+}
+
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct RequirementSlot<S, D> {
     pub declaration: D,
@@ -294,9 +303,7 @@ impl<S: LayoutSubject, D: Clone + Eq> TargetSemantics<S, D> {
         projection: LayoutQuery,
         subject: &S,
     ) -> Result<(u64, TargetObservation<S, D>), &'static str> {
-        if !subject.has_data_layout() {
-            return Err("the selected layout query needs a data type with runtime storage");
-        }
+        validate_layout_query_subject(subject)?;
         let layout = self
             .layouts
             .get(subject)

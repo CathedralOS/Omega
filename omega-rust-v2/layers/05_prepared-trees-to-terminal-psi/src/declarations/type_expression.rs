@@ -9,6 +9,14 @@ pub(super) fn type_expression(
     ty: &ValueType,
     site: &Site,
 ) -> Result<TypeExpression, LoweringError> {
+    expression(ty, site, false)
+}
+
+pub(super) fn indexed_expression(ty: &ValueType, site: &Site) -> Result<TypeExpression, LoweringError> {
+    expression(ty, site, true)
+}
+
+fn expression(ty: &ValueType, site: &Site, indexed: bool) -> Result<TypeExpression, LoweringError> {
     use TypeExpressionStep as Term;
     enum Work<'a> {
         Visit(&'a ValueType),
@@ -20,8 +28,30 @@ pub(super) fn type_expression(
         let step = match item {
             Work::Emit(step) => step,
             Work::Visit(ty) => match ty {
+                ValueType::IndexedInteger { signed, width } if indexed => {
+                    pending.extend([Work::Emit(Term::IndexedInteger { signed: *signed }), Work::Visit(width)]);
+                    continue;
+                }
+                ValueType::StaticInteger { carrier, value } if indexed => Term::StaticInteger {
+                    carrier: crate::lowering::types::scalar_carrier(carrier).map_err(|e| LoweringError::new(site, e.to_string()))?, value: value.clone(),
+                },
+                ValueType::StaticFormula { carrier, term: omega_typed::IntegerIndex::Add(inputs) } if indexed => {
+                    let carrier = crate::lowering::types::scalar_carrier(carrier).map_err(|e| LoweringError::new(site, e.to_string()))?;
+                    for input in inputs {
+                        result.push(match input {
+                            omega_typed::IntegerIndex::Binder { owner, index } => Term::GenericParameter { owner: crate::identity::declaration(owner, site)?, index: *index },
+                            omega_typed::IntegerIndex::Value(n) => Term::StaticInteger { carrier, value: n.clone() },
+                            _ => return Err(LoweringError::new(site, "unsupported operand of a static index sum")),
+                        });
+                    }
+                    Term::IndexSum { carrier, operands: inputs.len() }
+                }
                 ValueType::LevelKind => Term::LevelKind,
                 ValueType::Level(n) => Term::Level(n.clone()),
+                ValueType::LevelOf(inner) => {
+                    pending.extend([Work::Emit(Term::LevelOf), Work::Visit(inner)]);
+                    continue;
+                }
                 ValueType::Bool => Term::Scalar(ScalarType::Boolean),
                 ValueType::Integer {
                     signed,
@@ -261,6 +291,7 @@ pub(crate) fn callable_interface(
     Ok(crate::TemplateCallable {
         parameters,
         result,
+        result_lifetime_input: super::callables::result_lifetime_input(&callable.result, callable.parameters.iter()),
         requires,
         ensures,
         reach,

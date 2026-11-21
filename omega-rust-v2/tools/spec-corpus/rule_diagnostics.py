@@ -132,6 +132,6 @@ def summary(report):
         return []
     return ["", "## Diagnostics from resolution through preparation", "", *lines, "",
             "L3 has no complete inventory of typing reasons. L4 measures each declared failure phase and each owned preparation reason separately. "
-            "Forwarded target-layout and integer-primitive causes are listed but not counted.",
+            "The forwarded-cause table identifies which original reasons were observed through the diagnosed API and the package commands.",
             "[Source locations and uncovered rules](rule-diagnostics.md) · [Preparation reasons](rule-diagnostics.md#preparation-reasons) · "
             "[Preparation phases](frontend-diagnostics.md#preparation-failure-phases)"]

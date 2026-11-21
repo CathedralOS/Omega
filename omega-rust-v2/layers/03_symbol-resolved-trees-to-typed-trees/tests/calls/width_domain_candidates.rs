@@ -45,6 +45,72 @@ fn compact_paths_select_the_same_domain_id_when_another_applied_width_is_visible
 }
 
 #[test]
+fn explicit_operator_homes_select_by_written_width_in_either_order() {
+    let narrow = "domain u<8>::Ready; machine + u8::Ready::add(a:u8 in u8::Ready,b:u8 in u8::Ready)->u8 in u8::Ready{a}";
+    let wide = "domain u<16>::Ready; machine + u16::Ready::add(a:u16 in u16::Ready,b:u16 in u16::Ready)->u16 in u16::Ready{b}";
+    let calls = "machine f(x:u8 in u8::Ready)->u8 in u8::Ready{x+x} machine g(y:u16 in u16::Ready)->u16 in u16::Ready{y+y}";
+    for definitions in [format!("{narrow} {wide}"), format!("{wide} {narrow}")] {
+        let stage = check(&[("ops.omg", &definitions), ("use.omg", calls)]).unwrap();
+        for (width, path, expression) in [(8, "u8::Ready::add", "x+x"), (16, "u16::Ready::add", "y+y")] {
+            // The two domain IDs have the same path `u::Ready`. Compare full IDs.
+            let carrier = ValueType::Integer { signed: false, width: Some(width) };
+            let (owner, _) = stage.domain_carriers.iter().find(|(_, ty)| **ty == carrier).unwrap();
+            let signature = stage.signatures.iter().find(|s| s.machine.path == path).unwrap();
+            assert_eq!(signature.operator.as_ref().unwrap().home.as_ref(), Some(owner));
+            let call = stage
+                .calls
+                .iter()
+                .find(|c| c.site.file == "use.omg" && c.site.span.slice(calls.as_bytes()) == Some(expression.as_bytes()))
+                .unwrap();
+            assert_eq!(call.machine, signature.machine);
+        }
+    }
+}
+
+#[test]
+fn singleton_operator_home_must_match_the_written_carrier() {
+    let source = "machine + u8::Ready::add(a:u8,b:u8)->u8{a}";
+    let typed = check(&[("defs.omg", "domain u<8>::Ready;"), ("op.omg", source)]).unwrap();
+    let [signature] = typed.signatures.as_slice() else {
+        panic!("expected one operator")
+    };
+    let home = signature.operator.as_ref().unwrap().home.as_ref().unwrap();
+    assert_eq!(home.path, "u::Ready");
+    assert_eq!(typed.domain_carriers[home], ValueType::Integer { signed: false, width: Some(8) });
+
+    let error = check(&[("defs.omg", "domain u<16>::Ready;"), ("op.omg", source)]).unwrap_err();
+    assert_eq!(error.file, "op.omg");
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"+".as_slice()));
+    assert_eq!(error.message, "no visible domain on the written carrier");
+}
+
+#[test]
+fn explicit_operator_home_does_not_fall_back_to_the_operand_domain() {
+    let defs = "domain u<8>::Ready; domain u<16>::Ready;";
+    let source = "machine + u32::Ready::add(a:u8 in u8::Ready,b:u8 in u8::Ready){}";
+    let error = check(&[("defs.omg", defs), ("ops.omg", source)]).unwrap_err();
+    assert_eq!(error.file, "ops.omg");
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"+".as_slice()));
+    assert_eq!(error.message, "no visible domain on the written carrier");
+}
+
+#[test]
+fn explicit_operator_home_still_reports_two_matches_on_the_written_width() {
+    let source = "use east; use west; machine + u8::Ready::add(a:u8,b:u8)->u8{a}";
+    let error = check(&[
+        ("east/defs.omg", "public domain u<8>::Ready;"),
+        ("west/defs.omg", "public domain u8::Ready;"),
+        ("ops.omg", source),
+    ]).unwrap_err();
+    assert_eq!(error.file, "ops.omg");
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"+".as_slice()));
+    assert_eq!(error.message, concat!(
+        r"competing declarations: game\east\u::Ready, game\west\u8::Ready",
+        r" (game\east\u::Ready on u, import ops.omg@4..8) (game\west\u8::Ready on u8, import ops.omg@14..18)",
+    ));
+}
+
+#[test]
 fn an_applied_integer_root_selects_the_domain_on_its_normalized_width() {
     // The reported case: a single domain on u8 named through u<8>.
     let stage = check(&[("domains.omg", "domain u8::Ready;"), ("use.omg", "machine f(x:u8 in u<8>::Ready){}")]).unwrap();

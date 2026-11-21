@@ -1,21 +1,13 @@
-//! Runtime callable descriptors: invocation through a callable parameter,
-//! forwarding of the actual descriptor to a direct callee, and refinement of a
-//! descriptor into a destination contract. The callable contract owns the call
+//! Runtime callable descriptors: construction for a selected local machine,
+//! invocation, forwarding, and refinement into a destination contract. The callable contract owns the call
 //! shape; no representative static callee is substituted or reconstructed.
 use super::body::site_at;
+use super::calls::SelectedCall;
 use super::expressions::{EmitOperation, Expressions, OperationOutput};
 use crate::{CallTarget, LoweringError, MachineBody, OperationKind, OperationResult, TypeShape, ValueId};
 use omega_resolved::Symbol;
 use omega_syntax::NodeKind;
-use omega_typed::{CallUse, InvocationTarget, NodeSemantics, ObligationKind, PauseEffects, TypedSignature, ValueType};
-
-/// An indirect call through the current descriptor of a callable formal.
-pub(super) struct RuntimeCall<'a> {
-    pub callee: CallTarget,
-    pub acknowledgements: PauseEffects,
-    /// Argument nodes in evaluation order with their contract formals.
-    pub operands: Vec<(usize, &'a ValueType)>,
-}
+use omega_typed::{CallUse, InvocationTarget, NodeSemantics, ObligationKind, TypedSignature, ValueType};
 
 /// The current scalar descriptor bound at `node`, which must name `binder_span`
 /// when the caller demands an exact formal identity.
@@ -81,6 +73,7 @@ pub(super) fn descriptor_value(
         .types
         .callable_contract(destination)
         .map_err(|e| error(&e.to_string()))?;
+    let mut construction = None;
     let mut refinement = None;
     let mut typed = Vec::new();
     let mut current = node;
@@ -91,12 +84,20 @@ pub(super) fn descriptor_value(
                     ValueType::Callable(callable) => typed.push(callable.as_ref()),
                     _ => return Err(error("callable descriptor has a non-callable typed carrier")),
                 },
-                NodeSemantics::Obligation(o) if o.node == file.node_id(current) && refinement.is_none() => match &o.kind {
-                    ObligationKind::RefineCallableValue { source, destination: to } if *to == destination.contract => refinement = Some(source),
-                    other => {
-                        return Err(LoweringError::new(&o.site, format!("unsupported callable descriptor obligation: {other:?}")));
+                NodeSemantics::Obligation(o) if o.node == file.node_id(current) && o.site == site_at(file, current) => {
+                    if construction.is_some() || refinement.is_some() {
+                        return Err(LoweringError::new(&o.site, "descriptor has multiple typed refinements"));
                     }
-                },
+                    match &o.kind {
+                        ObligationKind::RefineCallable { formal: None, contract: bound, selection }
+                            if bound == destination && matches!(tree.resolved().symbol(current), Some(Symbol::Declaration(id)) if id == selection.machine.as_ref()) =>
+                        {
+                            construction = Some((selection, &o.site));
+                        }
+                        ObligationKind::RefineCallableValue { source, destination: to } if *to == destination.contract => refinement = Some(source),
+                        other => return Err(LoweringError::new(&o.site, format!("unsupported callable descriptor obligation: {other:?}"))),
+                    }
+                }
                 _ => return Err(error("callable descriptor has an unsupported typed record")),
             }
         }
@@ -111,6 +112,23 @@ pub(super) fn descriptor_value(
             .any(|c| *c != destination.as_ref() && refinement.is_none_or(|source| *source != c.contract))
     {
         return Err(error("callable descriptor type disagrees with its landing contract"));
+    }
+    if let Some((selection, origin)) = construction {
+        if !selection.arguments.is_empty() || !selection.enclosing_arguments.is_empty() {
+            return Err(LoweringError::new(origin, "descriptor construction needs the complete closed application"));
+        }
+        let callee = expressions
+            .callees
+            .local
+            .get(selection.machine.as_ref())
+            .and_then(|entries| entries.get(selection.arguments.as_slice()))
+            .filter(|callee| callee.signature.satisfies.is_none())
+            .ok_or_else(|| LoweringError::new(origin, "descriptor construction requires a local non-member machine"))?;
+        return Ok(body.push_operation(
+            OperationOutput::Scalar(target),
+            OperationKind::ConstructCallableDescriptor { machine: callee.machine, contract },
+            origin.clone(),
+        ));
     }
     let value = bound_descriptor(expressions, current, None)?;
     let actual = contract_of(expressions, value, body).ok_or_else(|| error("bound value is not a callable descriptor"))?;
@@ -138,7 +156,7 @@ pub(super) fn select_runtime_call<'a>(
     node: usize,
     expected: &ValueType,
     body: &MachineBody,
-) -> Result<Option<RuntimeCall<'a>>, LoweringError> {
+) -> Result<Option<SelectedCall<'a>>, LoweringError> {
     let tree: &'a crate::lowering::applied_tree::LoweringTree<'a> = expressions.tree;
     let caller: &TypedSignature = expressions.signature;
     let file = tree.resolved().file;
@@ -159,6 +177,13 @@ pub(super) fn select_runtime_call<'a>(
         match record {
             NodeSemantics::IndirectCall(_) => {}
             NodeSemantics::Expression(e) if e.static_argument_slot.is_none() && &e.ty == expected => typed = true,
+            // The structural return edge carries this call's fresh result
+            // descriptor. The selected contract owns its lifetime relation.
+            NodeSemantics::Obligation(o)
+                if o.node == file.node_id(node)
+                    && o.site == site
+                    && crate::lowering::types::is_reference_descriptor(expected)
+                    && matches!(&o.kind, ObligationKind::ReturnBorrow { machine } if machine == &caller.machine) => {}
             NodeSemantics::Obligation(o) => {
                 return Err(LoweringError::new(&o.site, format!("unsupported runtime call obligation: {:?}", o.kind)));
             }
@@ -168,8 +193,8 @@ pub(super) fn select_runtime_call<'a>(
     if call.use_site != CallUse::Execution || call.node != file.node_id(node) || call.site != site || call.caller.as_ref() != Some(&caller.machine) {
         return Err(error("indirect call disagrees with its owning occurrence"));
     }
-    if call.contract.pause != PauseEffects::default() {
-        return Err(error("runtime call requires pause lowering"));
+    if call.contract.pause.block || call.contract.pause.suspend && !call.acknowledgements.suspend {
+        return Err(error("runtime call needs a supported acknowledged pause envelope"));
     }
     if !typed || call.contract.result != *expected {
         return Err(error("runtime call result disagrees with its normal continuation"));
@@ -224,20 +249,28 @@ pub(super) fn select_runtime_call<'a>(
         if operand.node != file.node_id(argument) || operand.site != site_at(file, argument) {
             return Err(error("runtime call operand disagrees with its argument occurrence"));
         }
-        if operand.callable.is_some() || !crate::lowering::types::supports_value_copy(formal) || crate::lowering::types::is_shared_byte_view(formal) {
+        if operand.callable.is_some() || !crate::declarations::callables::supported_formal(formal) {
             return Err(LoweringError::new(&operand.site, "runtime call operand requires unsupported carrier lowering"));
         }
         operands.push((argument, formal));
     }
-    Ok(Some(RuntimeCall {
+    // Each published contract precondition is one caller obligation at its own
+    // position, as for a direct call; the checker substitutes these operands.
+    let requirement_count = *expressions
+        .callees
+        .runtime_requirements
+        .get(contract.index())
+        .ok_or_else(|| error("runtime call names an unpublished callable contract"))?;
+    Ok(Some(SelectedCall {
+        owed: super::calls::OwedClauses::callee(requirement_count),
         callee: CallTarget::Runtime { descriptor, contract },
         acknowledgements: call.acknowledgements,
         operands,
     }))
 }
 
-/// Check that the source operand supplies the descriptor it actually carries.
-pub(super) fn check_forwarded_operand(
+/// The call's operand selection must agree with the descriptor expression.
+pub(super) fn check_callable_operand(
     tree: &crate::lowering::applied_tree::LoweringTree<'_>,
     caller: &TypedSignature,
     applied: &omega_typed::AppliedOperand,
@@ -254,13 +287,19 @@ pub(super) fn check_forwarded_operand(
             .get(*index)
             .filter(|(_, ty)| matches!(ty, ValueType::Callable(_)))
             .is_some_and(|(binder, _)| matches!(tree.resolved().symbol(file.ungroup(argument)), Some(Symbol::Binding { span, .. }) if span == binder)),
-        InvocationTarget::StoredCallable(stored) => *stored == site_at(file, file.ungroup(argument)),
+        InvocationTarget::Declaration(slot) if slot.trait_arguments.is_empty() => {
+            matches!(tree.resolved().symbol(file.ungroup(argument)), Some(Symbol::Declaration(id)) if id == &slot.declaration)
+        }
+        InvocationTarget::StoredCallable(stored) => {
+            let inner = file.ungroup(argument);
+            *stored == site_at(file, inner) && !matches!(tree.resolved().symbol(inner), Some(Symbol::Declaration(id)) if id.kind == NodeKind::Machine)
+        }
         _ => false,
     };
     if !exact {
         return Err(LoweringError::new(
             &applied.site,
-            "forwarded descriptor requires the actual current descriptor; construction from a named machine is unsupported",
+            "callable operand lacks its exact local selection or current descriptor",
         ));
     }
     Ok(())

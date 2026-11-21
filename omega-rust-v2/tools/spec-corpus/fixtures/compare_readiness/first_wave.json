@@ -1,0 +1,793 @@
+{
+ "20261121T111131Z-pxf_dgd1": {
+  "cases": {
+   "handoff/arithmetic on float reads": {
+    "cohort": "handoff",
+    "detail": "Missing lowering handoff. Psi stores and reads f32 bits but has no float arithmetic operation, so $a + $b on two f32 reads refuses at the operator. Observed typed integer operator has incompatible carriers at recast.omg in tests/recasts.rs::float_views_do_not_admit_mutable_homes_owned_bit_casts_or_float_arithmetic.",
+    "fixture_locations": [
+     {
+      "byte_column": 36,
+      "byte_end": 42,
+      "byte_start": 35,
+      "file": "recast.omg",
+      "line": 1,
+      "occurrence": "$a + $b",
+      "package": "app"
+     }
+    ],
+    "refusal_reason": "typed integer operator has incompatible carriers",
+    "registered_refusal": "limitation",
+    "stage": "L5",
+    "status": "open gap"
+   },
+   "handoff/carry policy on a transparent data alias": {
+    "cohort": "handoff",
+    "detail": "Unresolved refusal (validity or owner undecided). L3 publishes Copy and all four authored axes on Alias, with a separate normalized u64 target and no nominal Alias schema. Does a transparent alias admit any carry list, and if so is it an assertion about the expansion's derived policy? The carry-free control lowers. Carry inherited through an alias from nominal data is not this case. Observed transparent alias carry policy requires a checked relation to its expansion at alias.omg in tests/declarations.rs::alias_with_carry_stops_at_its_attributes.",
+    "fixture_locations": [
+     {
+      "byte_column": 12,
+      "byte_end": 92,
+      "byte_start": 21,
+      "file": "alias.omg",
+      "line": 2,
+      "occurrence": "[copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)]",
+      "package": "app"
+     }
+    ],
+    "refusal_reason": "transparent alias carry policy requires a checked relation to its expansion",
+    "registered_refusal": "unresolved",
+    "stage": "L5",
+    "status": "unresolved refusal"
+   },
+   "handoff/cleanup in a ranked component": {
+    "cohort": "handoff",
+    "detail": "L5 stopped before the checker could judge the obligation. The cleanup calls again(3) and closes a cycle that can repeat the same rank. The unranked control exposes the cleanup edge and actual argument in Psi. finish stays in the component without a rank; the claim on again's return edge stops because a cleanup invocation is not a represented ranked transfer. Checking strict descent needs that edge. Observed ranked recursion needs a terminal call or a non-suspending direct scalar call at ranking.omg in tests/ranking.rs::selected_cleanup_participates_in_the_recursive_component.",
+    "fixture_locations": [
+     {
+      "byte_column": 46,
+      "byte_end": 114,
+      "byte_start": 85,
+      "file": "ranking.omg",
+      "line": 2,
+      "occurrence": "{ let lease=Lease {mark:0}; }",
+      "package": "app"
+     }
+    ],
+    "refusal_reason": "ranked recursion needs a terminal call or a non-suspending direct scalar call",
+    "registered_refusal": "checker",
+    "stage": "L5",
+    "status": "checker input blocked"
+   }
+  },
+  "expected": {
+   "sample": 15,
+   "spec": 134
+  },
+  "fingerprint": "7e3cf3eb2109c59f8890c198c96acc2b8de6bca5085218db76261d374371285a",
+  "last_layer": "L5",
+  "measurement_errors": [],
+  "package_fixtures": [
+   {
+    "files": "alias.omg",
+    "location": {
+     "byte_column": 12,
+     "byte_end": 92,
+     "byte_start": 21,
+     "file": "alias.omg",
+     "line": 2,
+     "occurrence": "[copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)]",
+     "package": "app"
+    },
+    "obligation_sites_observed": true,
+    "obligations": {
+     "VerifyLibraryImplementation": 1
+    },
+    "origin_status": "observed",
+    "outcome": "refused: transparent alias carry policy requires a checked relation to its expansion at alias.omg",
+    "replay": {
+     "entry": "prepared",
+     "expected_refusal": {
+      "byte_end": 92,
+      "byte_start": 21,
+      "cli_message": "transparent alias carry policy requires a checked relation to its expansion",
+      "file": "alias.omg",
+      "message": "transparent alias carry policy requires a checked relation to its expansion"
+     },
+     "files": [
+      [
+       "alias.omg",
+       "// alias\r\ndata Alias [copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)] = u64;"
+      ]
+     ],
+     "message": "transparent alias carry policy requires a checked relation to its expansion",
+     "obligation_sites": [
+      {
+       "byte_end": 337,
+       "byte_start": 47,
+       "file": "language/core/access/access.omg",
+       "kind": "VerifyLibraryImplementation",
+       "package": "@omega/toolchain"
+      }
+     ],
+     "root_message": "transparent alias carry policy requires a checked relation to its expansion"
+    },
+    "reported_compiler_site": {
+     "column": 38,
+     "line": 292,
+     "path": "layers/05_prepared-trees-to-terminal-psi/src/declarations/data.rs"
+    },
+    "target": "tests\\declarations.rs",
+    "test": "alias_with_carry_stops_at_its_attributes"
+   },
+   {
+    "files": "ranking.omg",
+    "location": {
+     "byte_column": 46,
+     "byte_end": 114,
+     "byte_start": 85,
+     "file": "ranking.omg",
+     "line": 2,
+     "occurrence": "{ let lease=Lease {mark:0}; }",
+     "package": "app"
+    },
+    "obligation_sites_observed": true,
+    "obligations": {
+     "CleanupContract": 1,
+     "Termination": 1,
+     "VerifyLibraryImplementation": 1
+    },
+    "origin_status": "observed",
+    "outcome": "refused: ranked recursion needs a terminal call or a non-suspending direct scalar call at ranking.omg",
+    "replay": {
+     "entry": "prepared",
+     "expected_refusal": {
+      "byte_end": 114,
+      "byte_start": 85,
+      "cli_message": "ranked recursion needs a terminal call or a non-suspending direct scalar call",
+      "file": "ranking.omg",
+      "message": "ranked recursion needs a terminal call or a non-suspending direct scalar call"
+     },
+     "files": [
+      [
+       "ranking.omg",
+       "data Lease dropped by finish {mark:u8;}\n        machine again(n:u64) terminates by n { let lease=Lease {mark:0}; }\n        machine finish(x:Lease) { let Lease {mark as _}=x; again(3); }"
+      ]
+     ],
+     "message": "ranked recursion needs a terminal call or a non-suspending direct scalar call",
+     "obligation_sites": [
+      {
+       "byte_end": 337,
+       "byte_start": 47,
+       "file": "language/core/access/access.omg",
+       "kind": "VerifyLibraryImplementation",
+       "package": "@omega/toolchain"
+      },
+      {
+       "byte_end": 84,
+       "byte_start": 69,
+       "file": "ranking.omg",
+       "kind": "Termination",
+       "package": "app"
+      },
+      {
+       "byte_end": 28,
+       "byte_start": 11,
+       "file": "ranking.omg",
+       "kind": "CleanupContract",
+       "package": "app"
+      }
+     ],
+     "root_message": "ranked recursion needs a terminal call or a non-suspending direct scalar call"
+    },
+    "reported_compiler_site": {
+     "column": 13,
+     "line": 79,
+     "path": "layers/05_prepared-trees-to-terminal-psi/src/declarations/ranking/calls.rs"
+    },
+    "target": "tests\\ranking.rs",
+    "test": "selected_cleanup_participates_in_the_recursive_component"
+   },
+   {
+    "files": "ranking.omg",
+    "local_obligation_kinds": [
+     "CleanupContract"
+    ],
+    "obligations": {
+     "CleanupContract": 1,
+     "VerifyLibraryImplementation": 1
+    },
+    "outcome": "produced Psi",
+    "target": "tests\\ranking.rs",
+    "test": "selected_cleanup_participates_in_the_recursive_component"
+   },
+   {
+    "files": "ranking.omg",
+    "local_obligation_kinds": [
+     "CleanupContract",
+     "Termination"
+    ],
+    "obligations": {
+     "CleanupContract": 1,
+     "Termination": 1,
+     "VerifyLibraryImplementation": 1
+    },
+    "outcome": "produced Psi",
+    "target": "tests\\ranking.rs",
+    "test": "selected_cleanup_participates_in_the_recursive_component"
+   },
+   {
+    "files": "recast.omg",
+    "location": {
+     "byte_column": 63,
+     "byte_end": 66,
+     "byte_start": 62,
+     "file": "recast.omg",
+     "line": 1,
+     "occurrence": "bits",
+     "package": "app"
+    },
+    "obligation_sites_observed": true,
+    "obligations": {
+     "Borrow": 1,
+     "Recast": 1,
+     "VerifyLibraryImplementation": 1
+    },
+    "origin_status": "observed",
+    "outcome": "refused: reference root has no structural place at recast.omg",
+    "replay": {
+     "entry": "source",
+     "expected_refusal": {
+      "byte_end": 66,
+      "byte_start": 62,
+      "cli_message": "reference root has no structural place",
+      "file": "recast.omg",
+      "message": "reference root has no structural place"
+     },
+     "files": [
+      [
+       "recast.omg",
+       "machine build() { let mut bits: u32 = 1u32; let view: @f32 = @bits as @f32; }"
+      ]
+     ],
+     "message": "reference root has no structural place",
+     "obligation_sites": [
+      {
+       "byte_end": 337,
+       "byte_start": 47,
+       "file": "language/core/access/access.omg",
+       "kind": "VerifyLibraryImplementation",
+       "package": "@omega/toolchain"
+      },
+      {
+       "byte_end": 66,
+       "byte_start": 61,
+       "file": "recast.omg",
+       "kind": "Borrow",
+       "package": "app"
+      },
+      {
+       "byte_end": 74,
+       "byte_start": 61,
+       "file": "recast.omg",
+       "kind": "Recast",
+       "package": "app"
+      }
+     ],
+     "root_message": "reference root has no structural place"
+    },
+    "reported_compiler_site": {
+     "column": 32,
+     "line": 273,
+     "path": "layers/05_prepared-trees-to-terminal-psi/src/machines/references.rs"
+    },
+    "target": "tests\\recasts.rs",
+    "test": "float_views_do_not_admit_mutable_homes_owned_bit_casts_or_float_arithmetic"
+   },
+   {
+    "files": "recast.omg",
+    "location": {
+     "byte_column": 32,
+     "byte_end": 42,
+     "byte_start": 31,
+     "file": "recast.omg",
+     "line": 1,
+     "occurrence": "bits as f32",
+     "package": "app"
+    },
+    "obligation_sites_observed": true,
+    "obligations": {
+     "ExactCast": 1,
+     "VerifyLibraryImplementation": 1
+    },
+    "origin_status": "observed",
+    "outcome": "refused: cast requires supported scalar types and domain declarations at recast.omg",
+    "replay": {
+     "entry": "source",
+     "expected_refusal": {
+      "byte_end": 42,
+      "byte_start": 31,
+      "cli_message": "cast requires supported scalar types and domain declarations",
+      "file": "recast.omg",
+      "message": "cast requires supported scalar types and domain declarations"
+     },
+     "files": [
+      [
+       "recast.omg",
+       "machine build(bits:u32)->f32 { bits as f32 }"
+      ]
+     ],
+     "message": "cast requires supported scalar types and domain declarations",
+     "obligation_sites": [
+      {
+       "byte_end": 337,
+       "byte_start": 47,
+       "file": "language/core/access/access.omg",
+       "kind": "VerifyLibraryImplementation",
+       "package": "@omega/toolchain"
+      },
+      {
+       "byte_end": 42,
+       "byte_start": 31,
+       "file": "recast.omg",
+       "kind": "ExactCast",
+       "package": "app"
+      }
+     ],
+     "root_message": "cast requires supported scalar types and domain declarations"
+    },
+    "reported_compiler_site": {
+     "column": 27,
+     "line": 88,
+     "path": "layers/05_prepared-trees-to-terminal-psi/src/machines/casts.rs"
+    },
+    "target": "tests\\recasts.rs",
+    "test": "float_views_do_not_admit_mutable_homes_owned_bit_casts_or_float_arithmetic"
+   },
+   {
+    "files": "recast.omg",
+    "location": {
+     "byte_column": 36,
+     "byte_end": 42,
+     "byte_start": 35,
+     "file": "recast.omg",
+     "line": 1,
+     "occurrence": "$a + $b",
+     "package": "app"
+    },
+    "obligation_sites_observed": true,
+    "obligations": {
+     "CopyRead": 2,
+     "OperationContract": 1,
+     "VerifyLibraryImplementation": 1
+    },
+    "origin_status": "observed",
+    "outcome": "refused: typed integer operator has incompatible carriers at recast.omg",
+    "replay": {
+     "entry": "source",
+     "expected_refusal": {
+      "byte_end": 42,
+      "byte_start": 35,
+      "cli_message": "typed integer operator has incompatible carriers",
+      "file": "recast.omg",
+      "message": "typed integer operator has incompatible carriers"
+     },
+     "files": [
+      [
+       "recast.omg",
+       "machine add(a:@f32, b:@f32)->f32 { $a + $b }"
+      ]
+     ],
+     "message": "typed integer operator has incompatible carriers",
+     "obligation_sites": [
+      {
+       "byte_end": 337,
+       "byte_start": 47,
+       "file": "language/core/access/access.omg",
+       "kind": "VerifyLibraryImplementation",
+       "package": "@omega/toolchain"
+      },
+      {
+       "byte_end": 37,
+       "byte_start": 35,
+       "file": "recast.omg",
+       "kind": "CopyRead",
+       "package": "app"
+      },
+      {
+       "byte_end": 42,
+       "byte_start": 40,
+       "file": "recast.omg",
+       "kind": "CopyRead",
+       "package": "app"
+      },
+      {
+       "byte_end": 42,
+       "byte_start": 35,
+       "file": "recast.omg",
+       "kind": "OperationContract",
+       "package": "app"
+      }
+     ],
+     "root_message": "typed integer operator has incompatible carriers"
+    },
+    "reported_compiler_site": {
+     "column": 27,
+     "line": 99,
+     "path": "layers/05_prepared-trees-to-terminal-psi/src/machines/arithmetic.rs"
+    },
+    "target": "tests\\recasts.rs",
+    "test": "float_views_do_not_admit_mutable_homes_owned_bit_casts_or_float_arithmetic"
+   },
+   {
+    "files": "recast.omg",
+    "location": {
+     "byte_column": 109,
+     "byte_end": 117,
+     "byte_start": 108,
+     "file": "recast.omg",
+     "line": 1,
+     "occurrence": "step(1u8)",
+     "package": "app"
+    },
+    "obligation_sites_observed": true,
+    "obligations": {
+     "Borrow": 1,
+     "VerifyLibraryImplementation": 1
+    },
+    "origin_status": "observed",
+    "outcome": "refused: suspension needs the exact backing and carry evidence of the live structural place at recast.omg",
+    "replay": {
+     "entry": "source",
+     "expected_refusal": {
+      "byte_end": 117,
+      "byte_start": 108,
+      "cli_message": "suspension needs the exact backing and carry evidence of the live structural place",
+      "file": "recast.omg",
+      "message": "suspension needs the exact backing and carry evidence of the live structural place"
+     },
+     "files": [
+      [
+       "recast.omg",
+       "machine step(n:u8)->u8 suspends {n} machine f(bits:u8)->u8 suspends { let v:@u8 = @bits; let a:u8 = suspend step(1u8); bits }"
+      ]
+     ],
+     "message": "suspension needs the exact backing and carry evidence of the live structural place",
+     "obligation_sites": [
+      {
+       "byte_end": 337,
+       "byte_start": 47,
+       "file": "language/core/access/access.omg",
+       "kind": "VerifyLibraryImplementation",
+       "package": "@omega/toolchain"
+      },
+      {
+       "byte_end": 87,
+       "byte_start": 82,
+       "file": "recast.omg",
+       "kind": "Borrow",
+       "package": "app"
+      }
+     ],
+     "root_message": "suspension needs the exact backing and carry evidence of the live structural place"
+    },
+    "reported_compiler_site": {
+     "column": 32,
+     "line": 414,
+     "path": "layers/05_prepared-trees-to-terminal-psi/src/machines/suspension.rs"
+    },
+    "target": "tests\\recasts.rs",
+    "test": "float_views_do_not_admit_mutable_homes_owned_bit_casts_or_float_arithmetic"
+   }
+  ],
+  "revision": "e1c9fb0255e4f5d1c53af74b37773aca6b09f5a9",
+  "suites": {
+   "CLI": {
+    "exit": 0
+   },
+   "L0": {
+    "exit": 0
+   },
+   "L1": {
+    "exit": 0
+   },
+   "L2": {
+    "exit": 0
+   },
+   "L3": {
+    "exit": 0
+   },
+   "L4": {
+    "exit": 0
+   },
+   "L5": {
+    "exit": 0
+   }
+  }
+ },
+ "20261121T114344Z-wxz4b6lj": {
+  "cases": {
+   "handoff/arithmetic on float reads": {
+    "cohort": "handoff",
+    "detail": "Missing lowering handoff. Psi stores and reads f32 bits but has no float arithmetic operation, so $a + $b on two f32 reads refuses at the operator. Observed typed integer operator has incompatible carriers at recast.omg in tests/recasts.rs::float_views_do_not_admit_owned_bit_casts_or_float_arithmetic.",
+    "fixture_locations": [
+     {
+      "byte_column": 36,
+      "byte_end": 42,
+      "byte_start": 35,
+      "file": "recast.omg",
+      "line": 1,
+      "occurrence": "$a + $b",
+      "package": "app"
+     }
+    ],
+    "refusal_reason": "typed integer operator has incompatible carriers",
+    "registered_refusal": "limitation",
+    "stage": "L5",
+    "status": "open gap"
+   },
+   "handoff/carry policy on a transparent data alias": {
+    "cohort": "handoff",
+    "detail": "Unresolved refusal (validity or owner undecided). The alias lists exactly u64's derived carry (suspension allowed, any CPU, any thread, movable), so it adds no demand. L3 publishes Copy and the four axes on Alias, with a separate normalized u64 target and no nominal Alias schema. The spec does not say whether a transparent alias may author a carry list that adds no demand, either equal to or weaker than its expansion's policy. The original case, which forbids suspension and pins the CPU on u64, is now refused in L3: a transparent alias cannot change its target's carry. The carry-free control lowers. Carry inherited through an alias from nominal data is not this case. Observed transparent alias carry policy requires a checked relation to its expansion at alias.omg in tests/declarations.rs::alias_with_carry_stops_at_its_attributes.",
+    "fixture_locations": [
+     {
+      "byte_column": 12,
+      "byte_end": 89,
+      "byte_start": 21,
+      "file": "alias.omg",
+      "line": 2,
+      "occurrence": "[copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)]",
+      "package": "app"
+     }
+    ],
+    "refusal_reason": "transparent alias carry policy requires a checked relation to its expansion",
+    "registered_refusal": "unresolved",
+    "stage": "L5",
+    "status": "unresolved refusal"
+   },
+   "handoff/cleanup in a ranked component": {
+    "cohort": "handoff",
+    "detail": "checker input compared; judgement pending",
+    "output_receipts": {
+     "psi-output/ranked-cleanup-actual": {
+      "claim": "the independent consumer reads the claimed action back from the published block: it moves again's whole Lease into finish's one formal, and finish publishes no rank to substitute",
+      "comparison": "assert_eq!(((place.root, place.path.as_slice(), ty, invoked), psi_handoff_consumer::successor_from_call(&package, again.id, edge)), ((lease, [].as_slice(), finish.parameter_types[0], finish.id), Err(\"the target publishes no rank\".to_string())))",
+      "target": "tests/ranking.rs",
+      "test": "selected_cleanup_participates_in_the_recursive_component"
+     },
+     "psi-output/ranked-cleanup-edge": {
+      "claim": "again's witness lists again and finish as its component and claims exactly one edge: action 0 of its return edge's cleanup list, invoking finish, with no successor rank and a pending role",
+      "comparison": "assert_eq!((&rank.component, rank.edges.as_slice()), (&vec![again.id, finish.id], [omega_lowering::RankedEdge { block, call: CallSite::Cleanup(at), forwarding_return: None, target: finish.id, successor: None, comparison: RankComparison::Pending, }].as_slice()))",
+      "target": "tests/ranking.rs",
+      "test": "selected_cleanup_participates_in_the_recursive_component"
+     }
+    },
+    "required_output_checks": [
+     "psi-output/ranked-cleanup-edge",
+     "psi-output/ranked-cleanup-actual"
+    ],
+    "stage": "L5",
+    "status": "checker input compared; judgement pending"
+   }
+  },
+  "expected": {
+   "sample": 15,
+   "spec": 134
+  },
+  "fingerprint": "d6b2b187f12812bcd4654c38319aa0fac2fde5d4816074023ff4e59a930e0f63",
+  "last_layer": "L5",
+  "measurement_errors": [],
+  "package_fixtures": [
+   {
+    "files": "alias.omg",
+    "location": {
+     "byte_column": 12,
+     "byte_end": 89,
+     "byte_start": 21,
+     "file": "alias.omg",
+     "line": 2,
+     "occurrence": "[copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)]",
+     "package": "app"
+    },
+    "obligation_sites_observed": true,
+    "obligations": {
+     "VerifyLibraryImplementation": 1
+    },
+    "origin_status": "observed",
+    "outcome": "refused: transparent alias carry policy requires a checked relation to its expansion at alias.omg",
+    "replay": {
+     "entry": "prepared",
+     "expected_refusal": {
+      "byte_end": 89,
+      "byte_start": 21,
+      "cli_message": "transparent alias carry policy requires a checked relation to its expansion",
+      "file": "alias.omg",
+      "message": "transparent alias carry policy requires a checked relation to its expansion"
+     },
+     "files": [
+      [
+       "alias.omg",
+       "// alias\r\ndata Alias [copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)] = u64;"
+      ]
+     ],
+     "message": "transparent alias carry policy requires a checked relation to its expansion",
+     "obligation_sites": [
+      {
+       "byte_end": 337,
+       "byte_start": 47,
+       "file": "language/core/access/access.omg",
+       "kind": "VerifyLibraryImplementation",
+       "package": "@omega/toolchain"
+      }
+     ],
+     "root_message": "transparent alias carry policy requires a checked relation to its expansion"
+    },
+    "reported_compiler_site": {
+     "column": 38,
+     "line": 292,
+     "path": "layers/05_prepared-trees-to-terminal-psi/src/declarations/data.rs"
+    },
+    "target": "tests\\declarations.rs",
+    "test": "alias_with_carry_stops_at_its_attributes"
+   },
+   {
+    "files": "recast.omg",
+    "location": {
+     "byte_column": 32,
+     "byte_end": 42,
+     "byte_start": 31,
+     "file": "recast.omg",
+     "line": 1,
+     "occurrence": "bits as f32",
+     "package": "app"
+    },
+    "obligation_sites_observed": true,
+    "obligations": {
+     "ExactCast": 1,
+     "VerifyLibraryImplementation": 1
+    },
+    "origin_status": "observed",
+    "outcome": "refused: cast requires supported scalar types and domain declarations at recast.omg",
+    "replay": {
+     "entry": "source",
+     "expected_refusal": {
+      "byte_end": 42,
+      "byte_start": 31,
+      "cli_message": "cast requires supported scalar types and domain declarations",
+      "file": "recast.omg",
+      "message": "cast requires supported scalar types and domain declarations"
+     },
+     "files": [
+      [
+       "recast.omg",
+       "machine build(bits:u32)->f32 { bits as f32 }"
+      ]
+     ],
+     "message": "cast requires supported scalar types and domain declarations",
+     "obligation_sites": [
+      {
+       "byte_end": 337,
+       "byte_start": 47,
+       "file": "language/core/access/access.omg",
+       "kind": "VerifyLibraryImplementation",
+       "package": "@omega/toolchain"
+      },
+      {
+       "byte_end": 42,
+       "byte_start": 31,
+       "file": "recast.omg",
+       "kind": "ExactCast",
+       "package": "app"
+      }
+     ],
+     "root_message": "cast requires supported scalar types and domain declarations"
+    },
+    "reported_compiler_site": {
+     "column": 27,
+     "line": 89,
+     "path": "layers/05_prepared-trees-to-terminal-psi/src/machines/casts.rs"
+    },
+    "target": "tests\\recasts.rs",
+    "test": "float_views_do_not_admit_owned_bit_casts_or_float_arithmetic"
+   },
+   {
+    "files": "recast.omg",
+    "location": {
+     "byte_column": 36,
+     "byte_end": 42,
+     "byte_start": 35,
+     "file": "recast.omg",
+     "line": 1,
+     "occurrence": "$a + $b",
+     "package": "app"
+    },
+    "obligation_sites_observed": true,
+    "obligations": {
+     "CopyRead": 2,
+     "OperationContract": 1,
+     "VerifyLibraryImplementation": 1
+    },
+    "origin_status": "observed",
+    "outcome": "refused: typed integer operator has incompatible carriers at recast.omg",
+    "replay": {
+     "entry": "source",
+     "expected_refusal": {
+      "byte_end": 42,
+      "byte_start": 35,
+      "cli_message": "typed integer operator has incompatible carriers",
+      "file": "recast.omg",
+      "message": "typed integer operator has incompatible carriers"
+     },
+     "files": [
+      [
+       "recast.omg",
+       "machine add(a:@f32, b:@f32)->f32 { $a + $b }"
+      ]
+     ],
+     "message": "typed integer operator has incompatible carriers",
+     "obligation_sites": [
+      {
+       "byte_end": 337,
+       "byte_start": 47,
+       "file": "language/core/access/access.omg",
+       "kind": "VerifyLibraryImplementation",
+       "package": "@omega/toolchain"
+      },
+      {
+       "byte_end": 37,
+       "byte_start": 35,
+       "file": "recast.omg",
+       "kind": "CopyRead",
+       "package": "app"
+      },
+      {
+       "byte_end": 42,
+       "byte_start": 40,
+       "file": "recast.omg",
+       "kind": "CopyRead",
+       "package": "app"
+      },
+      {
+       "byte_end": 42,
+       "byte_start": 35,
+       "file": "recast.omg",
+       "kind": "OperationContract",
+       "package": "app"
+      }
+     ],
+     "root_message": "typed integer operator has incompatible carriers"
+    },
+    "reported_compiler_site": {
+     "column": 27,
+     "line": 99,
+     "path": "layers/05_prepared-trees-to-terminal-psi/src/machines/arithmetic.rs"
+    },
+    "target": "tests\\recasts.rs",
+    "test": "float_views_do_not_admit_owned_bit_casts_or_float_arithmetic"
+   }
+  ],
+  "revision": "e1c9fb0255e4f5d1c53af74b37773aca6b09f5a9",
+  "suites": {
+   "CLI": {
+    "exit": 0
+   },
+   "L0": {
+    "exit": 0
+   },
+   "L1": {
+    "exit": 0
+   },
+   "L2": {
+    "exit": 0
+   },
+   "L3": {
+    "exit": 0
+   },
+   "L4": {
+    "exit": 0
+   },
+   "L5": {
+    "exit": 0
+   }
+  }
+ }
+}

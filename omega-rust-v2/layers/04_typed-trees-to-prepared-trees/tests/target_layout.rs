@@ -2,14 +2,16 @@ use std::sync::Arc;
 
 #[path = "target_layout/intrinsic.rs"]
 mod intrinsic;
+#[path = "support/source_package.rs"]
+mod source_package;
 
 use omega_preparation::{
     CheckedPreparationEvidence, LayoutExtent, LayoutGeometry, PreparationAnswers, PreparationFailure, PreparationProgress, PreparedTrees, RefusalCause, SelectedLayout, TargetIdentity,
     TargetObservation, TargetSemantics, TargetSemanticsError, prepare_source_package, prepare_source_package_diagnosed_with_inputs, prepare_source_package_for_target,
     prepare_source_package_with_open_target, prepare_typing_pass,
 };
-use omega_resolver::{ParsedSource, StageSource};
-use omega_typer::{LayoutQuery, SourcePackage, TypingEnvironment, ValueType, resolve_source_package, type_source_package_for_preparation};
+use omega_typer::{LayoutQuery, SourcePackage, TypingEnvironment, ValueType, type_source_package_for_preparation};
+use source_package::source_package;
 
 const BYTE: ValueType = ValueType::Integer { signed: false, width: Some(8) };
 const WORD: ValueType = ValueType::Integer {
@@ -18,18 +20,7 @@ const WORD: ValueType = ValueType::Integer {
 };
 
 fn resolve(text: &str) -> SourcePackage<'_> {
-    let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
-    let syntax = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap();
-    resolve_source_package(&[StageSource {
-        package: "app",
-        source: ParsedSource {
-            logical_path: "main.omg",
-            text,
-            tokens: &tokens,
-            tree: &syntax,
-        },
-    }])
-    .unwrap()
+    source_package([("main.omg", text)])
 }
 
 fn identity(profile: &str) -> TargetIdentity {
@@ -114,6 +105,33 @@ fn a_selected_layout_survives_constant_aliases_and_type_formation() {
 }
 
 #[test]
+fn runtime_descriptors_and_zero_sized_data_observe_the_selected_layout() {
+    for (declaration, name, bytes) in [
+        ("data F = machine(x:u8)->u8 reaches none crashes none;", "F", 24),
+        ("data Empty {}", "Empty", 0),
+    ] {
+        let source = format!(r"use omega\language\core; {declaration} const SIZE:u64=core\size_of::<{name}>();");
+        let package = resolve(&source);
+        let open = prepare_source_package(&package).unwrap();
+        let constant = &open.typed().constants[0].declaration;
+        assert!(open.open_target_constant(constant).is_some());
+        assert!(open.integer_constant(constant).is_none());
+
+        let query = open.typed().calls.iter().find(|call| call.layout_query == Some(LayoutQuery::Size)).unwrap();
+        let [subject] = query.type_arguments.as_slice() else { panic!("expected one layout subject") };
+        if name == "F" {
+            assert!(matches!(subject, ValueType::Callable(contract) if contract.closed_runtime));
+        }
+        let target = identity("selected");
+        let row = layout(&target, subject.clone(), LayoutExtent::Fixed(bytes), Some(1));
+        let capsule = TargetSemantics::new(target, [row.clone()], []).unwrap();
+        let prepared = prepare_source_package_for_target(&package, &[], &capsule).unwrap();
+        assert_eq!(prepared.integer_constant(constant), Some(&bytes.into()));
+        assert!(matches!(prepared.target_observations(), [TargetObservation::Layout { projection: LayoutQuery::Size, layout, .. }] if layout.as_ref() == &row));
+    }
+}
+
+#[test]
 fn a_dynamic_extent_can_have_alignment() {
     let code = "use omega\\language\\core; const VALUE:u64 = core\\align_of::<[u8]>();";
     let target = identity("layout-target");
@@ -136,6 +154,60 @@ fn a_dynamic_extent_can_have_alignment() {
     let error = prepare_source_package_for_target(&resolve(&code), &[], &capsule).unwrap_err();
     assert!(error.message.contains("no fixed complete extent"), "{}", error.message);
     assert_eq!(error.span.slice(code.as_bytes()), Some(b"core\\size_of::<[u8]>()".as_slice()));
+}
+
+#[test]
+fn a_cross_file_layout_demand_distinguishes_missing_target_from_unusable_geometry() {
+    use omega_preparation::PreparationReason::LayoutQueryNeedsTarget;
+
+    let target = identity("selected");
+    let empty = TargetSemantics::new(target.clone(), [], []).unwrap();
+    let selected = |extent, alignment| {
+        let row = layout(&target, ValueType::Slice(Box::new(BYTE)), extent, alignment);
+        TargetSemantics::new(target.clone(), [row], []).unwrap()
+    };
+    let fixed = selected(LayoutExtent::Fixed(8), Some(1));
+    let dynamic = selected(LayoutExtent::Dynamic, Some(1));
+    let unaligned = selected(LayoutExtent::Dynamic, None);
+
+    for (query, subject, capsule, expected) in [
+        ("size_of", "[u8]", None, Err(RefusalCause::Preparation(LayoutQueryNeedsTarget))),
+        ("size_of", r"core\Squash<u8>", None, Err(RefusalCause::TargetLayout("the selected layout query needs a data type with runtime storage"))),
+        ("size_of", r"core\Squash<u8>", Some(&fixed), Err(RefusalCause::TargetLayout("the selected layout query needs a data type with runtime storage"))),
+        ("size_of", "[u8]", Some(&empty), Err(RefusalCause::TargetLayout("the selected target has no validated layout for the type"))),
+        ("size_of", "[u8]", Some(&dynamic), Err(RefusalCause::TargetLayout("the selected layout has no fixed complete extent"))),
+        ("size_of", "[u8]", Some(&fixed), Ok(8)),
+        ("align_of", "[u8]", Some(&unaligned), Err(RefusalCause::TargetLayout("the selected layout has no known alignment"))),
+        ("align_of", "[u8]", Some(&dynamic), Ok(1)),
+    ] {
+        let occurrence = format!(r"core\{query}::<{subject}>()");
+        let geometry = format!("use omega\\language\\core;\nmachine width()->u64{{{occurrence}}}");
+        let package = source_package([
+            ("geometry.omg", geometry.as_str()),
+            ("use.omg", "const VALUE:u64=width();\nmachine consume(bytes:[u8; VALUE]){}"),
+        ]);
+        let result = prepare_source_package_diagnosed_with_inputs(&package, &[], capsule);
+        match expected {
+            Ok(width) => assert_eq!(parameter(&result.unwrap(), "consume"), &ValueType::Array(Box::new(BYTE), width)),
+            Err(cause) => {
+                let failure = result.unwrap_err();
+                if cause == RefusalCause::Preparation(LayoutQueryNeedsTarget) {
+                    assert!(matches!(failure, PreparationFailure::MissingTarget(_)), "{failure:?}");
+                } else {
+                    assert!(matches!(failure, PreparationFailure::Preparation(_)), "{failure:?}");
+                }
+                let reason = cause.text();
+                spec_corpus::assert_preparation_refusal!(
+                    failure,
+                    cause,
+                    "app",
+                    "geometry.omg",
+                    (46, 46 + occurrence.len()),
+                    format!("static evaluation cannot admit this invocation: {reason}\ncall chain: width -> language\\core\\{query}"),
+                );
+            }
+        }
+    }
 }
 
 #[test]
@@ -333,7 +405,8 @@ fn a_specialized_initializer_closes_the_call_before_entering_the_layout_helper()
                     core\\size_of::<Left>() *% 10 +% core\\size_of::<Right>()
                 }
                 data Outer<T> { data Inner<U> { payload: [u8; byte_count::<T, U>()]; } }
-                machine consume(first:Outer<u16>::Inner<u8>, second:Outer<u8>::Inner<u16>){}";
+                machine read_first(first:Outer<u16>::Inner<u8>)->[u8;41]{first.payload}
+                machine read_second(second:Outer<u8>::Inner<u16>)->[u8;14]{second.payload}";
     let source = resolve(code);
     let target = identity("selected");
     let capsule = TargetSemantics::new(
@@ -366,6 +439,33 @@ fn a_specialized_initializer_closes_the_call_before_entering_the_layout_helper()
                 .count()
                 == 1
         }))
+    );
+    let recipe = "byte_count::<T, U>()";
+    let start = code.find(recipe).unwrap();
+    spec_corpus::observe_handoff!(
+        "specialized-owner-layout/frozen-recipe",
+        assert!(answers.iter().all(|a| a.request.expression.file == "main.omg"
+            && a.request.expression.span == omega_program_contracts::SourceSpan::new(start, start + recipe.len())
+            && a.request == answers[0].request))
+    );
+    // The consumed product is the type of the field read after L3 resumes,
+    // not the declared return type or a second inspection of the answer map.
+    let field_type = |read: &str| {
+        let mut reads = prepared
+            .typed()
+            .expressions
+            .iter()
+            .filter(|e| e.site.file == "main.omg" && e.site.span.slice(code.as_bytes()) == Some(read.as_bytes()));
+        let ty = &reads.next().expect("typed payload read").ty;
+        assert!(reads.next().is_none());
+        ty
+    };
+    spec_corpus::observe_handoff!(
+        "specialized-owner-layout/resumed-field-reads",
+        assert_eq!(
+            [field_type("first.payload"), field_type("second.payload")],
+            [&ValueType::Array(Box::new(BYTE), 41), &ValueType::Array(Box::new(BYTE), 14)]
+        )
     );
     assert_eq!(prepared.target_observations().len(), 2);
 }
@@ -428,13 +528,7 @@ machine probe<T>()->u64 { core\size_of::<T>() }";
             Some(_) => call.type_arguments[0] = open,
         }
 
-        // Library obligations retain node IDs in the library forest.
-        let first_local = facts
-            .obligations
-            .iter()
-            .position(|obligation| obligation.site.package == "app")
-            .unwrap_or(facts.obligations.len());
-        let progress = TypingProgress::Complete(TypedTrees::new(resolved, facts, first_local));
+        let progress = TypingProgress::Complete(TypedTrees::new(resolved, facts));
         let result = prepare_typing_pass_with_cause(&progress, &[], Some(&capsule), CheckedPreparationEvidence::default());
         if let Some((reason, message)) = expected {
             let Err(error) = result else { panic!("expected preparation refusal") };

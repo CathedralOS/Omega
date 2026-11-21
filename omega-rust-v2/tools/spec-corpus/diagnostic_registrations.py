@@ -12,10 +12,10 @@ TYPING_REASON = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*:[A-Z][A-Za-z0-9]*")
 @cache
 def _entries():
     path = Path(__file__).with_name("diagnostic_rules.tsv")
-    rules, reasons = {}, {}
+    rules, typing, preparation = {}, {}, {}
     with path.open(encoding="utf-8", newline="") as source:
         reader = csv.reader(source, delimiter="\t", quoting=csv.QUOTE_NONE)
-        if next(reader, None) != ["layer", "test", "rule", "typing_reason"]:
+        if next(reader, None) != ["layer", "test", "rule", "typed_cause"]:
             raise ValueError(f"{path.name}: invalid header")
         for fields in reader:
             if len(fields) not in (3, 4):
@@ -24,13 +24,17 @@ def _entries():
             if stage not in BINARIES or not test or not rule or (stage, test) in rules:
                 raise ValueError(f"{path.name}:{reader.line_num}: invalid diagnostic registration")
             rules[stage, test] = rule
-            if len(fields) == 4:
+            if stage == "L4":
+                if len(fields) != 4 or not re.fullmatch(r"preparation:[A-Z][A-Za-z0-9]*|forwarded:(?:TargetLayout|IntegerPrimitive)", fields[3]):
+                    raise ValueError(f"{path.name}:{reader.line_num}: expected an owned or forwarded preparation cause")
+                preparation[test] = fields[3]
+            elif len(fields) == 4:
                 if stage != "L3" or not TYPING_REASON.fullmatch(fields[3]):
                     raise ValueError(f"{path.name}:{reader.line_num}: invalid L3 typing reason")
-                reasons[test] = fields[3]
+                typing[test] = fields[3]
     if {stage for stage, _ in rules} != BINARIES.keys():
         raise ValueError(f"{path.name}: missing layer")
-    return rules, reasons
+    return rules, typing, preparation
 
 
 def registrations():
@@ -39,3 +43,7 @@ def registrations():
 
 def typing_reasons():
     return _entries()[1]
+
+
+def preparation_causes():
+    return _entries()[2]

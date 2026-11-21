@@ -1,0 +1,31 @@
+data Reader = machine(x: u32) -> u8
+    requires x < 100
+    ensures result < 50
+    reaches none crashes none;
+
+machine low(x: u32) -> u8
+requires x < 10
+ensures result < 5
+{
+    1
+}
+
+machine high(x: u32) -> u8
+requires x < 1000
+ensures result < 50
+{
+    2
+}
+
+machine run(reader: Reader, x: u32) -> u8
+requires x < 100
+{
+    reader(x)
+}
+
+machine choose(flag: bool, x: u32) -> u8
+requires x < 100
+{
+    let chosen: Reader = match flag {true -> low, false -> high,};
+    run(chosen, x)
+}

@@ -38,7 +38,6 @@ macro_rules! preparation_reasons {
 }
 
 preparation_reasons! {
-    // Preparation rounds.
     /// The source package's instruction catalog and the supplied layout target differ. Rendered without the admission prefix at an empty site.
     AssemblyTargetMismatch => "assembly catalog and preparation selected different targets",
     /// Typing published the same demands after receiving answers for them.
@@ -57,9 +56,9 @@ preparation_reasons! {
     CyclicConstantInitializer => "cyclic constant initializer",
     /// A constant reference selects more than one declaration.
     AmbiguousConstantReference => "ambiguous constant reference",
-    /// A named constant read lands in a different carrier than its declaration.
+    /// A named constant value or read requires a different carrier from its initializer.
     ConstantCarrierMismatch => "the selected constant has a different carrier",
-    /// A frozen integer constant does not fit the carrier that reads it.
+    /// At publication, the evaluated integer is outside its initializer's numeric range.
     FrozenConstantOutsideCarrier => "the frozen constant exceeds its carrier",
 
     /// L3 selected the declaration, but preparation cannot freeze its description into retained storage.
@@ -194,6 +193,12 @@ preparation_reasons! {
     PostconditionNeedsProof => "the selected postcondition requires a checked proof for the arguments and result",
     /// The only applicable invocation proof observed another target.
     InvocationProofTargetChanged => "the checked invocation proof depends on a different target selection",
+    /// A checked proof that would otherwise apply depends on the target, and no target
+    /// is selected yet. It records target observations or, for a provider, names the
+    /// target realization it selects. Applies to invocation facts, termination
+    /// components, checked providers, callable judgments, data establishment and
+    /// canonical identity. Reported as missing target input.
+    ProofNeedsTarget => "the checked proof depends on target input and no target is selected",
 
     // Providers.
     /// The provider does not certify the selected conformance binding.
@@ -300,6 +305,14 @@ preparation_reasons! {
     OmittedFieldZeroNeedsProof => "the omitted field's zero value requires proof of the data predicate",
 }
 
+impl PreparationReason {
+    /// These rules report missing target input. The demand or constant stays
+    /// open for a later target rather than refusing the package.
+    pub(crate) const fn awaits_target(self) -> bool {
+        matches!(self, Self::LayoutQueryNeedsTarget | Self::FloatNeedsTargetRealization | Self::ProofNeedsTarget)
+    }
+}
+
 impl std::fmt::Display for PreparationReason {
     fn fmt(
         &self,
@@ -327,6 +340,11 @@ impl RefusalCause {
             Self::Preparation(reason) => Some(reason),
             Self::TargetLayout(_) | Self::IntegerPrimitive(_) => None,
         }
+    }
+
+    /// True when the cause is missing target input rather than a refusal.
+    pub(crate) const fn awaits_target(self) -> bool {
+        matches!(self, Self::Preparation(reason) if reason.awaits_target())
     }
 
     pub const fn text(self) -> &'static str {

@@ -9,13 +9,13 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage: omega source parse [--] <file>\n       omega source resolve [--] <package-relative file>...\n       omega source type [--] <package-relative file>...\n       omega source prepare [--] <package-relative file>...\n       omega source lower [--] <package-relative file>...";
-const HELP: &str = "Parse checks syntax. Resolve checks names. Type checks declarations, expressions and machine calls. Prepare evaluates constants and static indices and checks the resulting types. Lower constructs portable Psi bodies from prepared source. For resolve, type, prepare and lower, list the source files of one package rooted at the current directory. Success produces no output.";
+const USAGE: &str = "Usage: omega source parse [--] <file>\n       omega source resolve [--package-root <directory>] [--] <package-relative file>...\n       omega source type [--package-root <directory>] [--] <package-relative file>...\n       omega source prepare [--package-root <directory>] [--] <package-relative file>...\n       omega source lower [--package-root <directory>] [--] <package-relative file>...";
+const HELP: &str = "Parse checks syntax. Resolve checks names. Type checks declarations, expressions and machine calls. Prepare evaluates constants and static indices and checks the resulting types. Lower constructs portable Psi bodies from prepared source. For resolve, type, prepare and lower, list the source files of one package rooted at the current directory. With --package-root, paths are relative to that directory. Build captures the complete package there and binds its anonymous owner. This mode requires a root without an authored build.omg. Success produces no output.";
 
 enum Command<'a> {
     Help,
     Parse(&'a Path),
-    Stage(&'a [OsString], source::Stage),
+    Stage(&'a [OsString], source::Stage, Option<&'a Path>),
 }
 
 fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
@@ -36,6 +36,11 @@ fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
             {
                 return Ok(Command::Help);
             }
+            let (root, rest) = match rest {
+                [flag, directory, tail @ ..] if flag == "--package-root" => (Some(Path::new(directory)), tail),
+                [flag] if flag == "--package-root" => return Err("--package-root requires a directory".into()),
+                _ => (None, rest),
+            };
             let files = if rest.first().is_some_and(|flag| flag == "--") {
                 &rest[1..]
             } else {
@@ -58,6 +63,7 @@ fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
                 } else {
                     source::Stage::Resolve
                 },
+                root,
             ))
         }
         [group, action, ..] if group == "source" => Err(format!("unknown source command '{}'", action.to_string_lossy())),
@@ -86,7 +92,7 @@ fn main() -> ExitCode {
     let result = match command(&arguments) {
         Ok(Command::Help) => write_help().map_err(|e| format!("omega: could not write help: {e}")),
         Ok(Command::Parse(path)) => source::parse_file(path),
-        Ok(Command::Stage(paths, stage)) => source::check_files(paths, stage),
+        Ok(Command::Stage(paths, stage, root)) => source::check_files(paths, stage, root),
         Err(message) => {
             eprintln!("omega: {message}\n{USAGE}");
             return ExitCode::from(2);

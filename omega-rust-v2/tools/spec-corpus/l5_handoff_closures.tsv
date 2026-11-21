@@ -1,0 +1,148 @@
+case	scope	checks
+integer value pattern dispatch	product	psi-output/integer-pattern-equality
+payload value pattern	product	psi-output/payload-pattern-equality
+call in a contract predicate	product	psi-output/predicate-call-machine-requirement
+call in a data requirement	product	psi-output/data-requirement-call
+call in a domain predicate	product	psi-output/named-domain-call
+indexed domain alias	product	psi-output/indexed-alias-atoms
+inherited domain	product	psi-output/inherited-domain-subject
+omitted field zero in executable construction	product	psi-output/omitted-field-zero
+omitted timeout field at the same construction span	product	psi-output/omitted-timeout-zero
+ranked recursion through an ordinary call	checker-input	psi-output/ordinary-rank-call|psi-output/ordinary-rank-successor
+unequal-width scalar recast from u16 to i32	checker-input	psi-output/differing-recast-carriers
+unequal-width scalar recast from u32 to i16	checker-input	psi-output/differing-recast-carriers
+unequal-width scalar recast from u64 to u32	checker-input	psi-output/differing-recast-carriers
+recast of a Boolean referent	checker-input	psi-output/differing-recast-carriers
+attributed data alias	product	psi-output/alias-multiplicity-assertion
+mathematical result on a logical hypothesis	product	psi-output/logical-hypothesis-result|psi-output/logical-hypothesis-result-subject
+compound use of a binding after a payload literal test	product	psi-output/compound-payload-binding
+mutable element-view read	checker-input	psi-output/mutable-element-read
+mutable element-view length contract	checker-input	psi-output/mutable-element-length-subject
+open width of a closed const-integer machine application	checker-input	psi-output/closed-width-sites|psi-output/closed-width-call|psi-output/closed-width-requirement|psi-output/closed-width-operation|psi-output/same-width-distinct-premises
+specialized field owner arguments	product	psi-output/specialized-field-extents
+recursive formation of const-indexed data	checker-input	psi-output/recursive-index-formation|psi-output/indexed-field-width
+returning an indexed shared field	checker-input	psi-output/returned-indexed-field-loan
+const binder on selected implementation	product	psi-output/selected-implementation-integer|psi-output/selected-implementation-integer-control
+refined evidence through a restricted trait alias	checker-input	psi-output/restricted-base-bound|psi-output/restricted-evidence-dispatch
+establishment evidence in executable construction	checker-input	psi-output/establish-positive-one|psi-output/establish-positive-zero
+establishment evidence in an executable sum case	checker-input	psi-output/establish-mode-on
+construct a predicate-bearing record	checker-input	psi-output/positive-construction-goal
+independent predicate on a record with an omitted field	checker-input	psi-output/omitted-establishment-goal
+squash proposition as a theorem goal	checker-input	psi-output/squash-theorem-goal|psi-output/squash-projection-control
+machine cited as mathematical evidence	checker-input	psi-output/mathematical-citation|psi-output/mathematical-citation-control
+universe-bounded mathematical application	checker-input	psi-output/universe-bounded-application|psi-output/instantiated-mathematical-universe
+returned borrow into an explicit machine region	checker-input	psi-output/region-bound-return|psi-output/second-region-return|psi-output/region-promise-not-backing|psi-output/elided-return-borrow
+nested helper enclosing static argument via helper(input)	product	psi-output/nested-direct-capture|psi-output/nested-return-binder
+nested helper enclosing static argument via invoke::<helper>(input)	product	psi-output/nested-callback-capture|psi-output/nested-return-binder
+suspend after replacing first with second	checker-input	psi-output/replaced-home-second
+suspend after replacing second with first	checker-input	psi-output/replaced-home-first
+construct a runtime descriptor	checker-input	psi-output/named-descriptor-selection|psi-output/named-descriptor-delivery
+runtime callable with a loan formal	product	psi-output/loan-callable-contract|psi-output/runtime-loan-actual|psi-output/runtime-loan-edge
+ranked ordinary recursion with work after the call	checker-input	psi-output/rank-before-add
+ranked ordinary recursion with caller cleanup	checker-input	psi-output/rank-before-cleanup
+routed callback crash guard	checker-input	psi-output/callback-route-selection|psi-output/callback-route-guard|psi-output/callback-route-substitution
+runtime selector in a contract	checker-input	psi-output/predicate-array-read
+runtime selector in a predicate application argument	checker-input	psi-output/predicate-call-array-read
+domain on a non-scalar carrier	product	psi-output/domain-family-carrier|psi-output/record-tag-carrier
+published Audio::Audible record carrier	product	psi-output/published-audible-predicate|psi-output/published-audible-precondition|psi-output/published-audible-call
+establish a predicate-bearing domain by cast	checker-input	psi-output/predicate-cast-completion
+establish an applied or inherited scalar domain by cast	product	psi-output/applied-domain-cast|psi-output/inherited-domain-cast
+predicate-bearing array element domain	checker-input	psi-output/guarded-array-read|psi-output/array-element-predicate
+boundary view result at suspension	checker-input	psi-output/boundary-view-result
+joined boundary view at suspension	checker-input	psi-output/joined-boundary-view
+mutable view recast	checker-input	psi-output/recast-lender-path|psi-output/mutable-recast-handback
+cite a theorem from executable code	checker-input	psi-output/theorem-citation
+ranked terminal descriptor call	checker-input	psi-output/ranked-descriptor-terminal-call
+ranked ordinary descriptor call	checker-input	psi-output/ranked-descriptor-ordinary-call
+linear temporary discarded on exit	checker-input	psi-output/linear-temporary-discard
+linear local left at normal exit	checker-input	psi-output/linear-local-return-discard
+forward an indexed domain with a parameter-dependent predicate	product	psi-output/applied-domain-predicate
+qualification cast in an inherited domain predicate	product	psi-output/inherited-subject-cast
+embedded exclusive loan at normal exit	checker-input	psi-output/embedded-exclusive-loan-discard
+zero-initialize a qualified record	checker-input	psi-output/zero-value-record-predicate
+two transfers of one array element	checker-input	psi-output/repeated-element-transfer
+whole array after an element transfer	checker-input	psi-output/whole-array-after-element-transfer
+two moves of one record field	checker-input	psi-output/duplicate-field-transfer
+join with different moved fields	checker-input	psi-output/join-arrival-transfers
+decomposition of a value with selected cleanup	checker-input	psi-output/hooked-field-move
+nominal reference match result before a parked field reborrow	checker-input	psi-output/joined-field-reborrow
+parked field reborrow through a reference stored in a borrowed record	checker-input	psi-output/stored-field-reborrow
+carry check for a parked loan of a suspension-forbidden field	checker-input	psi-output/parked-field-carry
+backing owner and field loan in one suspending call	checker-input	psi-output/parked-loan-callee-custody
+overlap of moved and borrowed subtrees at suspension	checker-input	psi-output/parked-loan-moved-overlap
+moving a field while its loan is parked	checker-input	psi-output/parked-named-loan-moved-source
+unwitnessed member of a ranked component	checker-input	psi-output/unwitnessed-member-component|psi-output/unwitnessed-member-edge
+terminating cycle without a witness	checker-input	psi-output/unwitnessed-terminating-cycle|psi-output/unwitnessed-terminating-self-edge
+ranking subject outside the formals	checker-input	psi-output/constant-rank-subject
+recursive view result at suspension	checker-input	psi-output/recursive-view-backing
+out-of-bounds fixed index in a contract	checker-input	psi-output/out-of-bounds-contract-index
+restoration through a recomputed selector	checker-input	psi-output/recomputed-selector-fill
+recursive relay of a boundary view at suspension	checker-input	psi-output/recursive-boundary-view-relay
+restoration through a premised selector	checker-input	psi-output/premised-equal-selector-fill|psi-output/premised-distinct-selector-displacement
+scalar field operand of a record with a non-scalar field	product	psi-output/mixed-record-template-operand|psi-output/mixed-record-operand-carrier
+computed ranking subject	checker-input	psi-output/computed-rank-subject|psi-output/computed-rank-edge
+cleanup in a ranked component	checker-input	psi-output/ranked-cleanup-edge|psi-output/ranked-cleanup-actual
+add a tag and a predicate domain in one cast	checker-input	psi-output/mixed-cast-completion
+add an applied domain and a domain of the other origin in one cast	checker-input	psi-output/applied-cast-completion
+caller-chosen boundary view result at suspension	checker-input	psi-output/caller-chosen-boundary-view
+recursive relay of a caller-chosen boundary view at suspension	checker-input	psi-output/recursive-caller-chosen-boundary-view
+shared float view of a mutable scalar local	checker-input	psi-output/mutable-scalar-home-view
+borrowed scalar home live across a suspension	checker-input	psi-output/parked-scalar-home
+premise-bearing closed static callback	checker-input	psi-output/closed-callback-owes-bound-premise
+arithmetic on float reads	product	psi-output/float-read-addition
+value-level cast from an integer to a float	product	psi-output/integer-float-exact-cast
+proof steps in a theorem body	checker-input	psi-output/theorem-proof-binding
+theorem citation with a computed subject	checker-input	psi-output/theorem-literal-subject
+open callback body beyond straight-line calls	product	psi-output/open-callback-sum|psi-output/open-callback-sum-consumer
+open template whose only static binder is a value	product	psi-output/value-binder-template|psi-output/value-binder-template-consumer
+exported wrapper with a restricted evidence binder	product	psi-output/exported-restricted-template|psi-output/exported-restricted-template-consumer
+nested scalar field operand of a formal record	product	psi-output/nested-template-operand-path|psi-output/nested-template-operand-carrier
+non-scalar field operand of a formal record	product	psi-output/structural-template-operand|psi-output/structural-template-operand-carrier
+projected field operand beside a sibling with cleanup or linear use	checker-input	psi-output/obligated-sibling-template-operand|psi-output/obligated-sibling-instance-cleanup|psi-output/obligated-sibling-template-consumption|psi-output/obligated-sibling-instance-consumption
+float comparison of two formals	product	psi-output/float-formal-comparison|psi-output/float-formal-comparison-consumer
+float literal result	product	psi-output/float-literal-result|psi-output/float-literal-result-consumer
+runtime callable contract with a guarantee	checker-input	psi-output/runtime-contract-guarantee|psi-output/runtime-call-debt|psi-output/runtime-call-guarantee|psi-output/runtime-guarantee-construction|psi-output/runtime-guarantee-refinement
+exclusive view as a match result	checker-input	psi-output/exclusive-view-join
+runtime descriptor joined from distinct selections	checker-input	psi-output/runtime-join-distinct-machines|psi-output/runtime-join-distinct-contracts
+runtime call debts on ordinary and terminal edges	checker-input	psi-output/runtime-ordered-debts|psi-output/runtime-terminal-debts
+exclusive view and runtime descriptor joined before one call	checker-input	psi-output/exclusive-descriptor-joined-call|psi-output/exclusive-view-read-after-transfer
+second name for an existing exclusive view	checker-input	psi-output/exclusive-local-transfer
+open restoration window at suspension	checker-input	psi-output/open-restoration-window-at-suspension
+suspension after a completed restoration	checker-input	psi-output/suspension-after-a-completed-restoration
+field loan of a copyable record at suspension	checker-input	psi-output/copyable-record-field-loan-at-suspension
+store through a mutable scalar element view	checker-input	psi-output/scalar-element-view-write
+projected replacement of a stored shared descriptor at suspension	checker-input	psi-output/projected-descriptor-replacement-at-suspension
+store through a write-only record view	checker-input	psi-output/write-only-view-store
+reading a stored exclusive reference	checker-input	psi-output/stored-exclusive-transfer
+copy record replacement through a write-only loan	checker-input	psi-output/write-only-copy-record
+float comparison in a contract	product	psi-output/float-contract-requirement|psi-output/float-contract-requirement-consumer
+anonymous rational comparison in a contract predicate	product	psi-output/exact-predicate|psi-output/exact-predicate-consumer
+parked home descriptor without one reaching store	checker-input	psi-output/parked-descriptor-join-arrivals|psi-output/parked-descriptor-dominating-store|psi-output/parked-descriptor-store-after-writable-call
+parked descriptor after an unreplaced writable loan	checker-input	psi-output/parked-descriptor-unreplaced-writable-loan-originals
+parked descriptor behind a writable loan that can outlive its operation	checker-input	psi-output/parked-descriptor-outliving-writable-loan-originals
+unselected access policy template constructor	product	psi-output/policy-template-toolchain-callee|psi-output/policy-template-constructor-operands
+shared nominal view as an element count	product	psi-output/nominal-view-count
+qualified float formal in a contract predicate	product	psi-output/qualified-float-contract|psi-output/qualified-float-contract-consumer
+float domain qualification on a formal	product	psi-output/float-domain-formal
+restoration requiring transitive selector equality	checker-input	psi-output/transitive-selector-final-fill
+runtime callable with a mutable loan formal	product	psi-output/runtime-mutable-loan-formal|psi-output/runtime-mutable-reborrows
+runtime callable with a shared record reference formal	product	psi-output/runtime-shared-record-formal|psi-output/runtime-record-reborrow
+runtime callable with a borrowed result	checker-input	psi-output/runtime-borrowed-result|psi-output/runtime-borrowed-call-lifetime
+applied record as a machine formal	product	psi-output/applied-record-formal
+declared parent in a trait interface	product	psi-output/declared-trait-parent
+constant operand in an open template body	product	psi-output/template-integer-literal|psi-output/template-integer-literal-consumer
+record carrier of an open template value binder	product	psi-output/open-record-value-binder
+borrow of a qualified scalar formal	checker-input	psi-output/qualified-scalar-home
+suspending runtime callable contract	product	psi-output/suspending-callable-contract|psi-output/suspending-callable-crossings
+guarantee-bearing closed static callback	checker-input	psi-output/closed-callback-guarantees
+callback premise in a contract predicate	checker-input	psi-output/callback-predicate-premises
+record domain qualification on a formal	product	psi-output/record-domain-formal
+intact sum with case-dependent cleanup	product	psi-output/intact-sum-selected-return-cleanup
+template step reading a formal under its own borrow	checker-input	psi-output/template-borrow-order
+domain-selected cleanup on a record domain	product	psi-output/record-domain-cleanup
+affine field operand of a formal record	checker-input	psi-output/template-affine-field-transfer
+theorem subject computed from a variable	checker-input	psi-output/erased-arithmetic-subject
+theorem application inside a theorem proof	checker-input	psi-output/nested-theorem-application
+user-declared operator in a contract predicate	checker-input	psi-output/selected-record-predicate-operator
+affine replacement through a write-only loan	checker-input	psi-output/write-only-affine-replacement
+descriptor cleanup for write-only replacement	checker-input	psi-output/write-only-descriptor-replacement

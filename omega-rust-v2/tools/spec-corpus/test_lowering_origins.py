@@ -27,6 +27,23 @@ def replay(log, stage='L5', required=False):
 
 
 class LoweringOriginTests(unittest.TestCase):
+    def test_replay_binds_exact_source_bytes_file_order_and_complete_native_message(self):
+        reason = "bad field\nfrom a\tconstant"
+        row = (f"OMEGA_FIXTURE\t{NAME}\tdep.omg,arrays.omg\t\trefused: bad field from a constant at arrays.omg"
+               f"\tapp\tarrays.omg\t6\t8\t2\t3\tπ\t{SITE}\t57\t24")
+        inputs = "\treplay-v1\tsource\tbad field%0Afrom a%09constant\tπ\troot\tbad field%0Afrom a%09constant\tdep.omg\t// literal %250A\tarrays.omg\t//%0D%0A  π"
+        fixture, = replay(block(row + inputs), required=True)["package_fixtures"]
+        self.assertEqual(fixture["origin_status"], "observed")
+        self.assertEqual(fixture["replay"], {"entry": "source", "message": reason, "root_message": reason,
+                             "files": [["dep.omg", "// literal %0A"], ["arrays.omg", "//\r\n  π"]]})
+        for changed in (inputs.replace("source", "unknown"), inputs.replace("dep.omg", "other.omg"),
+                        inputs.replace("bad field", "different field"), inputs.replace("  π", "  λ"),
+                        inputs.replace("%0D%0A", "xx"), inputs.replace("\troot\t", "\tunreproduced\t"), inputs.rsplit("\t", 1)[0]):
+            with self.subTest(changed=changed):
+                measured = replay(block(row + changed), required=True)
+                self.assertTrue(measured["measurement_errors"])
+                self.assertNotEqual(measured["package_fixtures"][0].get("origin_status"), "observed")
+
     def test_subset_is_observational_not_a_rule_roster(self):
         # Two possible branch origins and one repeated origin at a different occurrence. Same public message.
         report = replay(block(ROW, ROW.replace('57\t24', '58\t24'), ROW.replace('73\t74\t1\t74', '74\t75\t1\t75')), required=True)

@@ -69,20 +69,33 @@ impl<'text> OpenTargetPreparation<'text> {
 
     /// Resume the original typing pass with the selected target. Previously
     /// settled answers remain attached to their checked source occurrences.
+    /// This runs every resumed round without checked evidence.
     pub fn close(
         self,
         target: &TargetSemantics,
     ) -> Result<PreparedTrees<'text>, PreparationFailure> {
-        PreparationRound::from_progress(
-            &self.source,
-            &self.boundary_slots,
-            Some(target),
-            self.state,
-            TypingProgress::Pending(self.pending),
-        )
-        .map_err(PreparationFailure::Preparation)?
-        .finish_without_external_evidence()?
-        .into_complete()
+        self.resume(target, |round| round.finish_without_external_evidence()?.into_complete())?
+    }
+
+    /// Hand the resumed pass to `step` as an ordinary round under the selected
+    /// target, so the caller can supply checked evidence for each resumed
+    /// forest exactly as when stepping from `PreparationRound::begin`. A demand
+    /// left open because its proof needed a target closes this way.
+    pub fn resume<R>(
+        self,
+        target: &TargetSemantics,
+        step: impl for<'round> FnOnce(PreparationRound<'round, 'text>) -> R,
+    ) -> Result<R, PreparationFailure> {
+        let Self {
+            source,
+            boundary_slots,
+            pending,
+            state,
+            ..
+        } = self;
+        let round = PreparationRound::from_progress(&source, &boundary_slots, Some(target), state, TypingProgress::Pending(pending))
+            .map_err(PreparationFailure::Preparation)?;
+        Ok(step(round))
     }
 }
 
@@ -315,14 +328,21 @@ impl<'input, 'text> PreparationRound<'input, 'text> {
                     open_target_constants,
                 },
             ) => {
+                // Float landing needs no target: it rounds once to the format.
+                let exact_comparisons = crate::evaluation::exact_comparisons::freeze(&typed);
+                let landed_floats = crate::evaluation::floating_point::landed_floats(&typed);
+                let policies = crate::evaluation::policy_schema::prepare(&typed, source, boundary_slots);
                 return Ok(PreparationStep::Finished(PreparationProgress::Complete(PreparedTrees::from_preparation(
                     typed,
+                    policies,
                     constants,
                     open_target_constants,
                     state.specialized_indices,
                     state.target_observations,
                     state.resource_receipt,
                     state.dependencies,
+                    exact_comparisons,
+                    landed_floats,
                 ))));
             }
             (TypingProgress::Pending(pending), PreparationAnswers::Pending(answers)) => {

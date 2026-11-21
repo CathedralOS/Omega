@@ -70,7 +70,7 @@ fn source_package(source: &str, assembly: Option<Arc<AssemblyTypes>>) -> SourceP
 #[test]
 fn an_assembly_catalog_cannot_be_prepared_for_another_realization_of_the_same_target() {
     let identity = TargetIdentity { profile: "test-cpu".into(), semantics_version: 1, realization: vec![1].into() };
-    let catalog = AssemblyTypes { target: identity.clone(), registers: Default::default(), instructions: Default::default() };
+    let catalog = AssemblyTypes { target: identity.clone(), locations: Default::default(), instructions: Default::default() };
     let package = source_package("machine f() {}", Some(Arc::new(catalog)));
     let target = TargetSemantics::new(identity.clone(), [], []).unwrap();
     prepare_source_package_diagnosed_with_inputs(&package, &[], Some(&target)).unwrap();

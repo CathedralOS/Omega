@@ -13,15 +13,31 @@ impl DataId {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DataArgument {
+    Type(TypeId),
+    Integer { carrier: crate::ScalarType, value: num_bigint::BigInt },
+}
+
+/// Authority for intact replacement through a write-only loan at this concrete type.
+/// Descriptor retirement also owes the resident and incoming loan rosters and
+/// child closure at the store. Neither capability grants copy permission.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WriteOnlyCleanup {
+    NoCodeAffine,
+    DescriptorCleanup,
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct LoweredData {
     pub id: DataId,
     pub declaration: DeclarationId,
     pub carrier: TypeId,
     /// Concrete arguments of this schema, including arguments supplied by enclosing data.
-    pub type_arguments: Vec<TypeId>,
+    pub type_arguments: Vec<DataArgument>,
     /// Exact owned cleanup selected for this declaration, when one is authored.
     pub cleanup_target: Option<crate::MachineId>,
+    pub write_only_cleanup: Option<WriteOnlyCleanup>,
     pub public: bool,
     /// The nominal declaration's multiplicity. A value also owes the obligations
     /// of its record fields or the fields of its active case.
@@ -65,6 +81,8 @@ pub struct LoweredCase {
 pub struct LoweredAlias {
     pub declaration: DeclarationId,
     pub target: AliasTarget,
+    /// Authored assertion checked against the expanded type; never a multiplicity override.
+    pub asserted_multiplicity: Option<Multiplicity>,
     pub public: bool,
     pub site: Site,
 }
@@ -98,7 +116,7 @@ pub struct AliasExpansion {
 
 /// A type or value in a declaration application. Static values retain their declared carrier
 /// and canonical value. A forwarded binder retains its owner and position.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DeclarationTerm {
     /// A type with no static value argument.
     Type(crate::TypeExpression),
@@ -122,6 +140,8 @@ pub struct DataTemplate {
     /// Outer scopes supplying the leading arguments in a flattened type application.
     pub enclosing_parameters: Vec<DeclarationId>,
     pub parameters: Vec<TemplateBinder>,
+    /// Verifier inputs, not a proof of admissibility at any application.
+    pub formation: Vec<(Site, DataFormation)>,
     /// Structural equations used to infer a binder from the supplied arguments.
     pub equations: Vec<(usize, crate::TypeExpression)>,
     pub witness_count: usize,
@@ -134,6 +154,22 @@ pub struct DataTemplate {
     pub requires: Vec<ContractClause>,
     pub site: Site,
 }
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum DataFormation {
+    PositiveWidth(crate::TypeExpression),
+    /// Under this template's declaration, the active application needs the next one to form.
+    RecursiveApplication {
+        active_arguments: Vec<crate::TypeExpression>,
+        arguments: Vec<crate::TypeExpression>,
+    },
+    /// The authored operation and its questions, before index normalization.
+    IntegerOperation {
+        operation: crate::IntegerOperation,
+        carrier: crate::ScalarType,
+        operands: [crate::TypeExpression; 2],
+    },
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TemplateBinder {
     Type { multiplicity: Option<Multiplicity> },

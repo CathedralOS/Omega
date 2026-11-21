@@ -5,6 +5,7 @@ import re
 from tempfile import TemporaryDirectory
 import unittest
 from unittest import mock
+from zlib import adler32
 
 from check_layer_readiness import collect
 import frontend_diagnostics
@@ -365,6 +366,36 @@ class ObligationTests(unittest.TestCase):
         self.assertEqual({kind: row["state"] for kind, row in kinds.items()},
                          {"Move": UNATTRIBUTED, "Borrow": UNATTRIBUTED, "Recast": LOWERED_PARTIAL, "ExactCast": UNATTRIBUTED})
 
+    def test_imported_obligations_do_not_borrow_a_local_output_receipt(self):
+        target, test = "tests/loans.rs", "selected_field"
+        kinds = "Borrow=1,VerifyLibraryImplementation=1"
+        fixture_line = f"OMEGA_FIXTURE\t{test}\tmain.omg\t{kinds}\tproduced Psi"
+        def capture(local):
+            frame = f"{fixture_line}\tlocal-kinds-v1\t{local}"
+            payload = frame.split("\t", 1)[1].encode()
+            return f"{frame}\t{adler32(payload):08x}"
+
+        check = evidence.Assertion("entry", "producer", target, test, "the selected field", ("Borrow", "VerifyLibraryImplementation"))
+        for line, credited, malformed in [
+            (capture("Borrow"), True, False),
+            (capture(""), False, False),  # both occurrences came from dependencies
+            (fixture_line, False, False),  # older report with totals only
+            (capture("Borrow").replace("local-kinds-v1\tBorrow", "local-kinds-v1\tVerifyLibraryImplementation"), False, True),
+            (capture("Borrow,Borrow"), False, True),
+            (capture("Move"), False, True),
+        ]:
+            with self.subTest(line=line):
+                observed = self.observed({"VerifyLibraryImplementation": {}}, tests=[result(target, test, "ok")], package_fixtures=[])
+                collect(libtest(target, (test, "ok", [line])), "L5", observed)
+                self.assertEqual(bool(observed["measurement_errors"]), malformed)
+                with mock.patch.dict(evidence.ASSERTIONS, {"field": check}, clear=True):
+                    _, rows = self.classify(observed, {"field": "credited"})
+                self.assertEqual(rows["Borrow"]["property_checks"], ["field"] if credited else [])
+                self.assertEqual(rows["VerifyLibraryImplementation"]["property_checks"], [])
+                self.assertTrue(any("registers VerifyLibraryImplementation" in e for e in observed["measurement_errors"]))
+                if not malformed:
+                    self.assertEqual(rows["VerifyLibraryImplementation"]["occurrences"], 1)
+
     def test_a_psi_property_is_credited_only_through_a_registered_assertion_on_its_own_input(self):
         def check(test, claim, obligations):
             return evidence.Assertion("entry", "producer", "tests/loans.rs", test, claim, obligations)
@@ -375,7 +406,7 @@ class ObligationTests(unittest.TestCase):
                       "x/named": check("casts", "one ExactCast per cast", ())}
         observed = self.observed(
             tests=[result("tests/loans.rs", name, "FAILED" if name == "recasts" else "ok") for name in ("moves", "borrows", "recasts", "casts", "other")],
-            package_fixtures=[fixture("moves", {"Move": 1}), fixture("borrows", {"Move": 1}), fixture("other", {"Borrow": 1}),
+            package_fixtures=[dict(fixture("moves", {"Move": 1}), local_obligation_kinds=["Move"]), fixture("borrows", {"Move": 1}), fixture("other", {"Borrow": 1}),
                               fixture("borrows", {"Borrow": 1}, "refused: unsupported borrow"),
                               fixture("recasts", {"Recast": 1}), fixture("casts", {"ExactCast": 1})])
         states = {"x/move": "credited", "x/borrow": "credited", "x/recast": "failed", "x/zero": "credited", "x/named": "credited"}

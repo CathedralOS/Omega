@@ -114,7 +114,7 @@ impl SyntaxParser<'_> {
         if self.at_keyword("data") && self.nth_at_word(1) {
             self.parse_data()?;
         } else {
-            self.parse_type_in(TypePosition::Plain)?;
+            self.parse_type_in(TypePosition::Qualified)?;
         }
 
         self.expect(Punctuation::Semicolon, "`;`")?;
@@ -133,7 +133,7 @@ impl SyntaxParser<'_> {
 
         self.expect_word("a field name")?;
         self.expect(Punctuation::Colon, "`:`")?;
-        self.parse_type_in(TypePosition::Plain)?;
+        self.parse_type_in(TypePosition::Qualified)?;
         self.close(case_field, NodeKind::CaseField);
 
         Ok(())

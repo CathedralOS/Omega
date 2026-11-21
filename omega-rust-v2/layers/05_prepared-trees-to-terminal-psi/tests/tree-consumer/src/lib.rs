@@ -1,7 +1,8 @@
 //! A client that reads each source product without linking the compiler stages.
 pub mod obligation_report;
+pub mod resource_report;
 use omega_prepared::PreparedTrees;
-use omega_resolved::{NameRole, SymbolResolvedTrees};
+use omega_resolved::{DeclarationId, NameRole, SymbolResolvedTrees};
 use omega_syntax::SyntaxTree;
 use omega_tokens::{Punctuation, Token, TokenKind};
 use omega_typed::TypedTrees;
@@ -20,37 +21,26 @@ pub fn assignment_spelling<'a>(
 
 pub fn resolves_reference_to(
     trees: &SymbolResolvedTrees<'_>,
-    machine_name: &str,
+    machine: &DeclarationId,
 ) -> bool {
-    trees.uses().any(|name| {
-        name.role == NameRole::Reference
-            && name
-                .target
-                .declaration_candidates()
-                .iter()
-                .any(|id| id.path == machine_name)
-    })
+    trees
+        .uses()
+        .any(|name| name.role == NameRole::Reference && name.target.declaration_candidates().contains(machine))
 }
 
 pub fn selected_nullary_call(
     trees: &TypedTrees<'_>,
-    machine_name: &str,
+    machine: &DeclarationId,
 ) -> bool {
     trees
         .calls
         .iter()
-        .any(|call| call.machine.path == machine_name && call.operands.is_empty())
+        .any(|call| &call.machine == machine && call.operands.is_empty())
 }
 
 pub fn frozen_integer(
     trees: &PreparedTrees<'_>,
-    name: &str,
+    declaration: &DeclarationId,
 ) -> Option<u64> {
-    let declaration = trees
-        .typed()
-        .resolved()
-        .declarations
-        .iter()
-        .find(|id| id.path == name)?;
     trees.integer_constant(declaration)?.try_into().ok()
 }

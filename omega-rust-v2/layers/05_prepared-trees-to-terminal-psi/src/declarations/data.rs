@@ -18,6 +18,7 @@ pub(crate) enum PendingAlias<'a> {
     Structural {
         declaration: &'a DeclarationId,
         carrier: &'a ValueType,
+        asserted_multiplicity: Option<omega_typed::Multiplicity>,
         public: bool,
         site: Site,
     },
@@ -33,6 +34,7 @@ impl PendingAlias<'_> {
             Self::Structural {
                 declaration,
                 carrier,
+                asserted_multiplicity,
                 public,
                 site,
             } => {
@@ -42,6 +44,7 @@ impl PendingAlias<'_> {
                 Ok(LoweredAlias {
                     declaration: crate::identity::declaration(declaration, &site)?,
                     target: AliasTarget::Structural(target),
+                    asserted_multiplicity,
                     public,
                     site,
                 })
@@ -108,6 +111,7 @@ impl<'a> DataSchema<'a> {
             id,
             type_arguments: Vec::new(),
             cleanup_target: None,
+            write_only_cleanup: None,
             declaration: crate::identity::declaration(self.declaration, &self.site)?,
             carrier,
             public: self.public,
@@ -282,7 +286,7 @@ fn read_alias<'a>(
     carrier: &'a ValueType,
     public: bool,
 ) -> Result<PendingAlias<'a>, LoweringError> {
-    let typed = prepared.typed();
+    let typed = tree.forest();
     let resolved = tree.resolved();
     let file = resolved.file;
     let site = site_at(tree, node);
@@ -299,10 +303,21 @@ fn read_alias<'a>(
     let Some((&target, others)) = rest.split_last() else {
         return Err(refuse(node, "data alias has no target type"));
     };
-    // Attributes or other members would give the alias an identity of its own.
-    if !others.is_empty() {
-        return Err(refuse(target, "data alias or unsupported member requires declaration lowering"));
-    }
+    // Only an equality with the expansion's checked multiplicity is supported,
+    // not a new ownership or carry policy on the alias.
+    let asserted_multiplicity = match (others, typed.type_alias_properties.get(declaration)) {
+        ([], None) => None,
+        ([attr], Some(properties)) if file.nodes[*attr].kind == NodeKind::Attributes => {
+            if properties.carry.is_some() {
+                return Err(refuse(*attr, "transparent alias carry policy requires a checked relation to its expansion"));
+            }
+            match properties.multiplicity {
+                omega_typed::Multiplicity::Copy | omega_typed::Multiplicity::Linear => Some(properties.multiplicity),
+                _ => return Err(refuse(*attr, "data alias lacks a checked multiplicity assertion")),
+            }
+        }
+        _ => return Err(refuse(target, "data alias or unsupported member requires declaration lowering")),
+    };
     let enclosing = typed
         .enclosing_data_parameters
         .get(declaration)
@@ -315,6 +330,7 @@ fn read_alias<'a>(
         return Ok(PendingAlias::Structural {
             declaration,
             carrier,
+            asserted_multiplicity,
             public,
             site,
         });
@@ -333,6 +349,7 @@ fn read_alias<'a>(
             return Ok(PendingAlias::Lowered(LoweredAlias {
                 declaration: crate::identity::declaration(declaration, &site)?,
                 target,
+                asserted_multiplicity,
                 public,
                 site,
             }));
@@ -348,6 +365,7 @@ fn read_alias<'a>(
     }
     Ok(PendingAlias::Lowered(LoweredAlias {
         declaration: crate::identity::declaration(declaration, &site)?,
+        asserted_multiplicity,
         target: AliasTarget::Expansion(AliasExpansion {
             enclosing_parameters: enclosing
                 .iter()

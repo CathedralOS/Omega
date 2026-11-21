@@ -1,5 +1,6 @@
 """Replay the normal L3 collector/site join, with no derived identities or mocked observations."""
 import os
+from collections import defaultdict
 from pathlib import Path
 import unittest
 
@@ -29,7 +30,7 @@ def inspect(stage_log, cli_log, sites):
 class TypingReasonEvidence(unittest.TestCase):
     def test_only_the_named_passing_inventory_can_supply_the_denominator(self):
         target, test = reasons.EMITTER
-        keys = list(reasons.typing_reasons().values())
+        keys = list(dict.fromkeys(reasons.typing_reasons().values()))
         def inventory(keys):
             return "\t".join([reasons.PREFIX, str(len(keys)), *(field for key in keys for field in (key, "text"))])
         roster = inventory(keys)
@@ -78,9 +79,12 @@ class TypingReasonEvidence(unittest.TestCase):
         original = inspect(stage, cli, sites)
         self.assertEqual(original["measurement_errors"], [])
         families = original["typing_sites"]["typing_reasons"]["families"]
+        by_reason = defaultdict(list)
         for test, identity in reasons.typing_reasons().items():
+            by_reason[identity].append(test)
+        for identity, tests in by_reason.items():
             family, name = identity.split(":")
-            self.assertEqual(families[family][name]["package"], [test])
+            self.assertCountEqual(families[family][name]["package"], tests)
         for test, other in [("direct_call_pause::missing_suspend", "crashes_none_rejects_a_route_guard"),
                             ("crashes_none_rejects_a_route_guard", "direct_call_pause::missing_suspend")]:
             key = reasons.typing_reasons()[test]
@@ -98,6 +102,22 @@ class TypingReasonEvidence(unittest.TestCase):
                                      {**families, family: {**families[family], name: {**families[family][name], "package": []}}})
                     self.assertTrue(reasons.blocks(changed["typing_sites"]["typing_reasons"]))
                     self.assertEqual(readiness_exit(changed), 1)
+        # Strip one named twin's identity. Matching CLI text plus a genuine package
+        # witness for the very same cause must not cover the damaged registration.
+        for test in ("a_logical_parameter_cannot_gain_write_authority_at_specialization",
+                     "cleanup_cannot_block", "cleanup_cannot_publish_an_abort_route"):
+            with self.subTest(missing_identity=test):
+                identity = reasons.typing_reasons()[test]
+                record, = [line for line in cli.splitlines() if line.startswith("OMEGA_RULE_DIAGNOSTIC\tL3\t" + test + "\t")]
+                tag = "\t" + identity + "\t"
+                self.assertEqual(record.count(tag), 1)
+                changed = inspect(stage, cli.replace(record, record.replace(tag, "\t")), sites)
+                result = changed["typing_sites"]["typing_reasons"]
+                self.assertTrue(changed["rule_diagnostics"]["L3"][test]["verified"])
+                self.assertTrue(all(cause["package"] for family in result["families"].values() for cause in family.values()))
+                self.assertEqual(result["missing_package_tests"], {test: identity})
+                self.assertTrue(reasons.blocks(result))
+                self.assertEqual(readiness_exit(changed), 1)
         roster, = [line for line in stage.splitlines() if line.startswith(reasons.PREFIX)]
         changed = inspect(stage.replace(roster, ""), cli, sites)
         self.assertFalse(changed["typing_sites"]["typing_reasons"]["measured"])

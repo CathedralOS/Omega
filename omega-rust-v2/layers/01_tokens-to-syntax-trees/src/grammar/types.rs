@@ -16,7 +16,8 @@ impl SyntaxParser<'_> {
     ) -> Parsed<ClosedNode> {
         self.enter_nesting()?;
 
-        if type_position != TypePosition::Cast && self.at(Punctuation::LeftParenthesis) && self.nth_at_word(1) && self.nth_at(2, Punctuation::Colon) {
+        if !matches!(type_position, TypePosition::Cast(_)) && self.at(Punctuation::LeftParenthesis) && self.nth_at_word(1) && self.nth_at(2, Punctuation::Colon)
+        {
             let function = self.open();
             self.bump();
             let binder = self.open();
@@ -33,7 +34,7 @@ impl SyntaxParser<'_> {
         }
         let mut parsed_type = self.parse_type_operand(type_position)?;
 
-        if type_position != TypePosition::Cast && self.at(Punctuation::Arrow) {
+        if !matches!(type_position, TypePosition::Cast(_)) && self.at(Punctuation::Arrow) {
             let function_type = self.open_before(parsed_type);
 
             self.bump();
@@ -89,8 +90,7 @@ impl SyntaxParser<'_> {
                 self.parse_lifetime()?;
             }
 
-            // An access word is a marker only if a type follows it; otherwise it names the referenced type.
-            if (self.at_keyword("mut") || self.at_keyword("write")) && self.nth_can_start_type(1) {
+            if self.at_type_access_marker(type_position) {
                 self.bump();
             }
 
@@ -105,7 +105,7 @@ impl SyntaxParser<'_> {
             let bracketed_type = self.open();
 
             self.bump();
-            self.parse_type_in(TypePosition::Plain)?;
+            self.parse_type_in(TypePosition::Qualified)?;
 
             let kind = if self.eat(Punctuation::Semicolon) {
                 self.parse_expression(ExpressionContext::FULL)?;
@@ -125,7 +125,7 @@ impl SyntaxParser<'_> {
 
         if self.at_word() {
             let head = self.parse_path_type()?;
-            if type_position != TypePosition::Cast && self.at(Punctuation::LeftParenthesis) {
+            if !matches!(type_position, TypePosition::Cast(_)) && self.at(Punctuation::LeftParenthesis) {
                 let application = self.open_before(head);
                 self.parse_args()?;
                 return Ok(self.close(application, NodeKind::FamilyApplication));
@@ -136,7 +136,7 @@ impl SyntaxParser<'_> {
         Err(self.error("a type"))
     }
 
-    fn nth_can_start_type(
+    pub(super) fn nth_can_start_type(
         &self,
         ahead: usize,
     ) -> bool {

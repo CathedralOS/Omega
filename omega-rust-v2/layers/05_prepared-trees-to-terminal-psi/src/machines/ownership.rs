@@ -8,8 +8,9 @@ mod cleanup;
 pub(crate) use cleanup::OwnedCrossings;
 pub(super) use cleanup::{dispose_temporary, owned, schedule};
 
-/// An owned transfer and a borrow both need the entire selected subtree.
-pub(super) fn overlaps_moved_path(
+/// An owned transfer needs the entire selected subtree. A parked borrow that
+/// overlaps a hole stays in Psi for the checker to judge.
+fn overlaps_moved_path(
     moved: &[Vec<PlaceProjection>],
     selected: &[PlaceProjection],
 ) -> bool {
@@ -38,6 +39,11 @@ pub(super) fn move_value(
                 NodeSemantics::Obligation(o) if !moved && matches!(&o.kind,ObligationKind::Move{place,ty} if *place==site_at(tree,operand) && ty==carrier) => {
                     moved = true
                 }
+                // A moved reference returned by this machine keeps its loan; the
+                // return edge carries the moved place, as for any returned binding.
+                NodeSemantics::Obligation(o)
+                    if crate::lowering::types::place_reference(carrier).is_some()
+                        && matches!(&o.kind,ObligationKind::ReturnBorrow{machine} if machine==&expressions.signature.machine) => {}
                 _ => return Err(LoweringError::new(&site, "move requires additional typed evidence")),
             }
         }
@@ -64,7 +70,12 @@ pub(super) fn move_value(
     {
         return Err(LoweringError::new(&site, "owned field access carries an unrelated loan obligation"));
     }
-    if !owned(ty, expressions.types, expressions.data) {
+    // An exclusive reference, `@mut` or `@write`, owes no cleanup, but it is
+    // affine: a by-value use transfers the loan carrier and never copies it
+    // (language/ownership.md, "A by-value reference transfers or copies its
+    // loan carrier").
+    let exclusive = crate::lowering::types::is_exclusive_reference(carrier);
+    if !owned(ty, expressions.types, expressions.data) && !exclusive {
         if crosses_loan
             && typed_endpoint()
                 .filter(|row| matches!(row,NodeSemantics::Obligation(o) if matches!(&o.kind,ObligationKind::CopyRead(read) if read==carrier)))
@@ -94,10 +105,10 @@ pub(super) fn move_value(
                 owner_ty
             }
             (PlaceProjection::Field(field), Some(TypeShape::Nominal(id))) => {
+                // A selected cleanup forbids partial moves, but L6 owns that
+                // verdict. Publish the exact path; the owner's declaration
+                // keeps its cleanup target for the checker to compare.
                 let owner = &expressions.data[id.get() - 1];
-                if owner.cleanup_target.is_some() {
-                    return Err(LoweringError::new(&site, "a field move cannot decompose a value with selected cleanup"));
-                }
                 active_case
                     .take()
                     .map_or(&owner.fields, |case| &case.fields)

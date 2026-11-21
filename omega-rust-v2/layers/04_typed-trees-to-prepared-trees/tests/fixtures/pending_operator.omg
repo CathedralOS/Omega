@@ -1,0 +1,7 @@
+machine size()->u64 reaches none crashes none terminates {7u64 + 1u64}
+const SIZE:u64=size();
+domain u<8>::Ready;
+domain u<16>::Ready;
+data Box{}
+machine + add(x:Box,y:u<SIZE> in Ready)->Box{x}
+machine combine(x:Box,y:u8 in Ready)->Box{x+y}

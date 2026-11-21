@@ -130,7 +130,7 @@ fn target_selection_is_not_checked_provider_evidence_even_without_the_selected_s
     facts.signatures.retain(|s| s.machine != implementation);
     assert_eq!(facts.signatures.len() + 1, before);
     assert!(facts.library.is_none(), "no imported obligations in this typed stage");
-    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, 0));
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
     let refusal = prepare_typing_pass_with_cause(&changed, slots, Some(&target), CheckedPreparationEvidence::default()).unwrap_err();
     spec_corpus::assert_preparation_cause!(refusal, cause, "reader", "providers.omg", range, message);
 }

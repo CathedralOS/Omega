@@ -7,10 +7,29 @@ pub struct LoweredTrait {
     pub declaration: DeclarationId,
     pub public: bool,
     pub boundary: bool,
+    /// Direct parent application of an inheriting trait. Inherited members keep their originating declaration.
+    pub parent: Option<crate::TemplateRequirementSlot>,
+    /// A transparent bound inherits its base requirements; it declares no new slots.
+    pub restriction: Option<TraitRestriction>,
     pub parameters: Vec<crate::TemplateBinder>,
     pub dependent_requirements: Vec<crate::TemplateRequirement>,
     pub requirements: Vec<LoweredRequirement>,
     pub site: Site,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct TraitRestriction {
+    pub base: crate::TemplateRequirementSlot,
+    /// Each clause constrains every base requirement. Omitted axes inherit.
+    pub all_members: Vec<MemberRestriction>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct MemberRestriction {
+    pub prohibits_block: bool,
+    pub prohibits_suspend: bool,
+    pub reach: Option<Vec<crate::TemplateRequirementSlot>>,
+    pub requires_termination: bool,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -54,6 +73,8 @@ pub struct ConformanceMember {
 /// A boundary selection records the demand before Build installs a provider.
 #[derive(Debug, Eq, PartialEq)]
 pub struct MemberCallSelection {
+    /// The transparent bound used at this occurrence, distinct from the requirement owner.
+    pub restriction: Option<crate::TemplateRequirementSlot>,
     pub owner: crate::TemplateRequirementSlot,
     pub requirement: crate::TemplateRequirementSlot,
     /// The requirement's own closed arguments, one per binder in declaration order.
@@ -62,7 +83,25 @@ pub struct MemberCallSelection {
     pub static_arguments: Vec<crate::DeclarationTerm>,
     pub parameters: Vec<crate::ParameterType>,
     pub result: Option<TypeId>,
+    /// How a boundary view result's lifetime relates to this call. `None` for
+    /// any other result, and for a boundary view whose input frontier this
+    /// lowering does not represent, such as an aggregate, a generic or several
+    /// views. A consumer must not read `None` as either variant.
+    pub boundary_result_lifetime: Option<BoundaryResultLifetime>,
     pub target: MemberRealization,
+}
+
+/// The published relation between a boundary view result and the call
+/// (`wiki/spec/language/lifetimes.md#caller-chosen-result-lifetimes`). In both
+/// cases the admitted provider establishes the bytes; neither variant claims
+/// that an input contains them or that a provider is admitted.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BoundaryResultLifetime {
+    /// The result lives as long as the ordered call operand at this index.
+    Input(usize),
+    /// No input carries a reference, so each caller chooses the lifetime and
+    /// the provider must back every choice. Nothing in the call anchors it.
+    CallerChosen,
 }
 #[derive(Debug, Eq, PartialEq)]
 pub enum MemberRealization {
@@ -81,7 +120,9 @@ pub enum CallTarget {
     /// Index of the applied requirement and its selected dispatch in this package.
     Member(usize),
     /// The current descriptor value selects the machine at run time. The
-    /// contract governs the arguments and result; no static callee substitutes.
+    /// contract governs the arguments and result, and the call owes the
+    /// contract's preconditions under its ordered arguments; no static callee
+    /// substitutes.
     Runtime {
         descriptor: crate::ValueId,
         contract: crate::CallableContractId,

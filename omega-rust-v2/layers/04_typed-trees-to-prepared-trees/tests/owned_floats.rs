@@ -257,3 +257,69 @@ fn arithmetic_nan_has_semantic_uses_but_no_determined_materialization() {
     assert_eq!(record.path, "Entry");
     assert_eq!(failure.origin.span.slice(source.as_bytes()), Some(b"0.0f32/0.0f32".as_slice()));
 }
+
+/// A float literal in a runtime body is landed once by preparation, with no
+/// target: 0.1 rounds to nearest, and 2^24 + 1 is a tie that rounds to the
+/// even neighbour 2^24. Lowering reads these bits instead of rounding again.
+#[test]
+fn runtime_float_literals_publish_their_landed_bits_without_a_target() {
+    let source = "machine scale(a:f32, b:f64)->f32 { let c: f64 = b * 0.1; a * 16777217.0 }";
+    let prepared = prepare(source, None).unwrap();
+    let landed = |literal: &str| {
+        let start = source.find(literal).unwrap();
+        let landing = prepared
+            .typed()
+            .landings
+            .iter()
+            .find(|landing| landing.site.span.get_start_offset() == start && landing.site.span.get_end_offset() == start + literal.len())
+            .unwrap();
+        let format = match landing.ty {
+            ValueType::Float32 => FloatFormat::Binary32,
+            ValueType::Float64 => FloatFormat::Binary64,
+            _ => panic!("float landing"),
+        };
+        (prepared.landed_float(landing.node, format), prepared.landed_float(landing.node, other(format)))
+    };
+    fn other(format: FloatFormat) -> FloatFormat {
+        match format {
+            FloatFormat::Binary32 => FloatFormat::Binary64,
+            FloatFormat::Binary64 => FloatFormat::Binary32,
+        }
+    }
+    assert_eq!(landed("0.1"), (Some(PreparedFloat::Binary64(0x3FB9_9999_9999_999A)), None));
+    assert_eq!(landed("16777217.0"), (Some(PreparedFloat::Binary32(0x4B80_0000)), None));
+    assert!(prepared.target_observations().is_empty());
+}
+
+#[test]
+fn anonymous_comparisons_keep_exact_order_through_preparation() {
+    for (operator, expected) in [
+        ("==", false),
+        ("!=", true),
+        ("<", false),
+        ("<=", false),
+        (">", true),
+        (">=", true),
+    ] {
+        let source = format!("const C:bool=1.000000000000000000000000000001 {operator} 1.0; machine f()->bool {{(1 / 3) == (2 / 6)}}");
+        let prepared = prepare(&source, None).unwrap();
+        assert_eq!(frozen(&prepared, "C"), &PreparedValue::Bool(expected));
+        let tree = prepared.typed().trees().next().unwrap();
+        let comparisons: Vec<_> = prepared
+            .typed()
+            .operations
+            .iter()
+            .filter_map(|op| Some((op.site.span.slice(source.as_bytes()).unwrap(), prepared.exact_comparison(&tree, op.node.node)?)))
+            .collect();
+        let declaration = format!("1.000000000000000000000000000001 {operator} 1.0");
+        assert_eq!(comparisons.len(), 2);
+        assert!(comparisons.contains(&(declaration.as_bytes(), expected)));
+        assert!(comparisons.contains(&(&b"(1 / 3) == (2 / 6)"[..], true)));
+
+        let other = prepare("machine f()->bool {1.0 != 1.0}", None).unwrap();
+        let foreign = other.typed().trees().next().unwrap();
+        for op in &other.typed().operations {
+            assert_eq!(prepared.exact_comparison(&foreign, op.node.node), None);
+        }
+    }
+}

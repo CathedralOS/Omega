@@ -5,14 +5,24 @@ use num_bigint::BigUint;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct TypeExpression(pub Vec<TypeExpressionStep>);
 
+impl From<ScalarType> for TypeExpression {
+    fn from(ty: ScalarType) -> Self {
+        Self(vec![TypeExpressionStep::Scalar(ty)])
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TypeExpressionStep {
     Scalar(ScalarType),
     LevelKind,
     Level(BigUint),
+    /// The universe level of the preceding type; not necessarily a closed numeral.
+    LevelOf,
     Universe {
         strict: bool,
     },
+    /// Static machine argument, including its lexical application (not a descriptor).
+    MachineSelection(Box<crate::TemplateSelection>),
     GenericParameter {
         owner: DeclarationId,
         index: usize,
@@ -32,6 +42,23 @@ pub enum TypeExpressionStep {
     Slice,
     Array(u64),
     IndexedArray,
+    /// Apply the checked, monomorphic static field recipe to the preceding operands.
+    StaticCall {
+        machine: DeclarationId,
+        operands: usize,
+        site: Site,
+    },
+    StaticInteger {
+        carrier: ScalarType,
+        value: num_bigint::BigInt,
+    },
+    IndexSum {
+        carrier: ScalarType,
+        operands: usize,
+    },
+    IndexedInteger {
+        signed: bool,
+    },
     /// The carrier precedes the arguments of each domain in order.
     Qualified(Vec<(DeclarationId, usize)>),
     Function,
@@ -50,6 +77,11 @@ pub enum TemplateAccess {
 pub struct TemplateCallable {
     pub parameters: Vec<TypeExpression>,
     pub result: Option<TypeExpression>,
+    /// An elided direct reference result is lifetime-related to this ordered
+    /// input when its single reference frontier is represented. The call's
+    /// result has its own descriptor. This relation grants no backing or
+    /// access. Absence supplies no lifetime relation.
+    pub result_lifetime_input: Option<usize>,
     pub requires: Vec<crate::ContractClause>,
     pub ensures: Vec<crate::ContractClause>,
     pub reach: Option<Vec<(DeclarationId, Vec<TypeExpression>)>>,

@@ -1,0 +1,11 @@
+use omega\language\core;
+use omega\language\core\access;
+use omega\language\core\reflect;
+
+domain i32::Locked access Rule;
+
+Rule satisfies AccessPolicy {
+    machine plan<'t>(schema:TypeSchema<'t>)->AccessPlan<'t> reaches none crashes none terminates {
+        new_plan::<'t>(@schema, Issuance::Unrestricted{})
+    }
+}

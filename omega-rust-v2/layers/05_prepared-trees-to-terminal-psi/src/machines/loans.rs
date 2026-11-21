@@ -21,9 +21,11 @@ pub(super) fn descriptor(
     let resolved = tree.resolved();
     let file = resolved.file;
     let site = site_at(tree, node);
+    let region = crate::declarations::regions::direct(carrier, &expressions.signature.machine);
+    let reference = region.map_or(carrier, |(_, reference)| reference);
     let id = expressions
         .types
-        .id_for(carrier)
+        .id_for(reference)
         .map_err(|e| LoweringError::new(&site, e.to_string()))?;
     match file.nodes[node].kind {
         NodeKind::PathExpression => {
@@ -46,14 +48,49 @@ pub(super) fn descriptor(
             Ok(value)
         }
         NodeKind::Borrow => {
-            let Some(crate::CallArgument::Borrow { place: source, access }) = references::call_argument(expressions, node, carrier, body)? else {
+            let destination = region.map(|_| carrier);
+            let Some(crate::CallArgument::Borrow { place: source, access }) = references::reference_operand(expressions, node, reference, body, destination)? else {
                 return Err(LoweringError::new(&site, "borrow has no original place"));
             };
-            Ok(Some(body.push_operation(
-                OperationOutput::Structural(id),
-                OperationKind::BorrowPlace { source, access },
-                site,
-            )))
+            let result = body.push_operation(OperationOutput::Structural(id), OperationKind::BorrowPlace { source, access }, site);
+            if let (Some((ordinal, _)), OperationResult::Structural(descriptor)) = (region, result) {
+                body.lifetime_bindings.push((descriptor, ordinal));
+            }
+            Ok(Some(result))
+        }
+        // A by-value use of an exclusive reference, `@mut` or `@write`,
+        // transfers its loan carrier (language/ownership.md#borrows-and-aliases).
+        // From owned storage that is an ordinary field move; through a `@mut`
+        // parent it opens the restoration window L3 recorded. An explicit
+        // reborrow is a `Borrow` node, and a call operand reborrows in
+        // `references::call_argument`.
+        NodeKind::FieldAccess | NodeKind::Move if region.is_none() && crate::lowering::types::is_exclusive_reference(reference) => {
+            super::ownership::move_value(expressions, node, carrier, body).map(Some)
+        }
+        // Reading a stored shared reference copies no record storage. The value
+        // reborrows the referent through the stored descriptor, so that stored
+        // loan is the parent and the result points into the original backing,
+        // not into the record that holds it. A call operand lends the same place.
+        NodeKind::FieldAccess => {
+            match crate::lowering::types::place_reference(reference) {
+                Some((crate::ReferenceAccess::Shared, _)) => {}
+                Some((crate::ReferenceAccess::Mutable | crate::ReferenceAccess::WriteOnly, _)) => {
+                    return Err(LoweringError::new(
+                        &site,
+                        "a stored exclusive reference returned at a declared region needs its binding",
+                    ));
+                }
+                None => return Err(LoweringError::new(&site, "a stored reference read needs its shared field place")),
+            }
+            if region.is_some() {
+                return Err(LoweringError::new(&site, "a stored reference returned at a declared region needs its binding"));
+            }
+            let Some(crate::CallArgument::Borrow { place: source, access: crate::ReferenceAccess::Shared }) =
+                references::reference_operand(expressions, node, reference, body, None)?
+            else {
+                return Err(LoweringError::new(&site, "a stored reference read needs its shared field place"));
+            };
+            Ok(Some(body.push_operation(OperationOutput::Structural(id), OperationKind::BorrowPlace { source, access: crate::ReferenceAccess::Shared }, site)))
         }
         _ => Ok(None),
     }
@@ -93,14 +130,14 @@ pub(super) fn move_borrowed(
         (NodeKind::Move, _) => return Err(LoweringError::new(&site_at(tree, node), "move needs one borrowed place")),
         _ => file.ungroup(node),
     };
+    // L3 records `RestoreBorrowed` only for a take out of storage it reaches
+    // with exclusive access, so this obligation is the move's authority; the
+    // published path names every loan the restoration window suspends.
     let occurrence = file.node_id(operand);
     let restoration=tree.semantics_at(operand).filter(|row| matches!(row,NodeSemantics::Obligation(o) if matches!(&o.kind,ObligationKind::RestoreBorrowed{place,ty} if *place==occurrence && ty==carrier))).count();
     let site = site_at(tree, node);
-    if restoration != 1 || !references::mutable_place(expressions, &source, body) {
-        return Err(LoweringError::new(
-            &site,
-            "move through a loan needs its exact exclusive place and restoration obligation",
-        ));
+    if restoration != 1 {
+        return Err(LoweringError::new(&site, "move through a loan needs its exact restoration obligation"));
     }
     let ty = expressions
         .types
@@ -117,6 +154,7 @@ pub(super) fn store_borrowed(
     body: &mut MachineBody,
     flow: &mut BlockFlow,
     site: Site,
+    before_return: bool,
 ) -> Result<(), LoweringError> {
     let id = expressions
         .types
@@ -131,7 +169,8 @@ pub(super) fn store_borrowed(
     if body.places[value.index()].ty != id {
         return Err(LoweringError::new(&site, "stored value disagrees with its destination type"));
     }
-    let disposition = if vacancy_at(body, flow, &destination, &site)? {
+    let premises = &expressions.selector_premises;
+    let disposition = if vacancy_at(body, premises, flow, &destination, &site, before_return)? {
         crate::StructuralStoreDisposition::FillVacancy
     } else if matches!(expressions.types.get(id),Some(TypeShape::Nominal(data)) if expressions.data[data.get()-1].multiplicity == crate::Multiplicity::Copy) {
         crate::StructuralStoreDisposition::ReplaceUnrestricted
@@ -161,42 +200,59 @@ pub(super) fn store_borrowed(
 }
 
 /// Choose the store operation that corresponds to the authored assignment.
-/// The checker independently authenticates each loan and its restoration.
+/// The checker independently authenticates each loan and its restoration,
+/// including any selector relation taken from an authored entry clause.
 fn vacancy_at(
     body: &MachineBody,
+    premises: &[super::view_loans::SelectorPremise],
     flow: &BlockFlow,
     destination: &ProjectedPlace,
     site: &Site,
+    before_return: bool,
 ) -> Result<bool, LoweringError> {
     use super::view_loans::{Relation, relate};
     let target = captured_place(body, destination);
+    let known_vacancy = exact_vacancy(body, premises, flow, &target, site)?;
+    let mut owed_final_fill = false;
     let mut checked = Vec::new();
     for operation in &body.operations {
         let OperationKind::BorrowedMove { source } = &operation.kind else { continue };
         let source = captured_place(body, source);
-        let reason = match relate(body, &source, &target) {
-            Relation::Unproved => "element restoration needs the identical selector value of the extracted element",
-            Relation::Overlap => "nested restoration needs the overlapping structural window",
+        let relation = relate(body, premises, &source, &target);
+        match relation {
             Relation::Same | Relation::Disjoint => continue,
-        };
+            // Valid simultaneous extractions must already be disjoint. If this
+            // store fills a known vacancy, another move cannot make it occupied.
+            Relation::Unproved if known_vacancy => continue,
+            Relation::Unproved | Relation::Overlap => {}
+        }
         if checked
             .iter()
-            .any(|prior| matches!(relate(body, prior, &source), Relation::Same))
+            .any(|prior| matches!(relate(body, premises, prior, &source), Relation::Same))
         {
             continue;
         }
         // An old extraction matters only until its matching store. Later
         // assignments through another selector may reuse the intact backing.
-        if exact_vacancy(body, flow, &source, site)? {
-            return Err(LoweringError::new(site, reason));
+        if exact_vacancy(body, premises, flow, &source, site)? {
+            match relation {
+                Relation::Overlap => return Err(LoweringError::new(site, "nested restoration needs the overlapping structural window")),
+                // An occupied displacement here leaves an open window at the
+                // implicit return. Emit the only possible normal repair at
+                // the actual store selector. L6 still owes its identity with
+                // the captured move, its bound and its receiving validity.
+                Relation::Unproved if before_return && !owed_final_fill => owed_final_fill = true,
+                _ => return Err(LoweringError::new(site, "cannot prove the store selector equal to or distinct from the selector of an open vacancy")),
+            }
         }
         checked.push(source);
     }
-    exact_vacancy(body, flow, &target, site)
+    Ok(known_vacancy || owed_final_fill)
 }
 
 fn exact_vacancy(
     body: &MachineBody,
+    premises: &[super::view_loans::SelectorPremise],
     flow: &BlockFlow,
     target: &ProjectedPlace,
     site: &Site,
@@ -228,7 +284,7 @@ fn exact_vacancy(
             let path = captured_place(body, place);
             // View elements match by their evaluated selector, never by the
             // occurrence-local bound obligation or length observation.
-            if matches!(super::view_loans::relate(body, &path, target), super::view_loans::Relation::Same) {
+            if matches!(super::view_loans::relate(body, premises, &path, target), super::view_loans::Relation::Same) {
                 state = Some(vacant);
                 break;
             }

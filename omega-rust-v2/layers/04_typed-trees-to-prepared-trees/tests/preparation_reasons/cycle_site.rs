@@ -30,7 +30,7 @@ fn check_cycle(
             .find(|call| call.caller.as_ref().is_some_and(|caller| caller.path == "b") && call.machine.path == "a")
             .unwrap();
         alter(closing);
-        (TypedTrees::new(resolved, facts, 0), "client", "client.omg", super::last(client, invocation))
+        (TypedTrees::new(resolved, facts), "client", "client.omg", super::last(client, invocation))
     } else {
         (trees, "geometry", "geometry.omg", super::last(LIBRARY, "a(n)"))
     };

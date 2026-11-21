@@ -8,11 +8,13 @@ infers a reason from message text. Causes forwarded unchanged from the target
 contract or the shared integer primitive are listed separately and never count
 toward an owned reason. Package-command witnesses must agree with the independently checked CLI diagnostic.
 """
+from itertools import chain
 import re
 import unicodedata
 from pathlib import Path
 
 from diagnostic_fields import readable, unescape
+from diagnostic_registrations import preparation_causes
 
 
 SUITE = "L4"
@@ -105,7 +107,7 @@ def record(report, suite, target, capture, line):
         if tag not in (REASON_TAG, FORWARDED_TAG):
             raise ValueError("unknown preparation record")
         direct = suite == SUITE and WITNESS_TARGET.fullmatch(target)
-        package_case = suite == "CLI" and target == "tests/preparation_cases.rs" and tag == REASON_TAG
+        package_case = suite == "CLI" and target == "tests/preparation_cases.rs"
         if capture is None or not (direct or package_case):
             raise ValueError(f"witness must be printed inside a captured {SUITE} test")
         fields = line.split("\t")
@@ -117,9 +119,10 @@ def record(report, suite, target, capture, line):
                 raise ValueError("typed cause differs from the expected reason")
             kind = "reason"
         else:
-            if len(fields) != 8:
-                raise ValueError("expected 8 fields")
-            _, actual, *location = fields
+            if len(fields) != 9:
+                raise ValueError("expected forwarded owner and original cause text")
+            _, actual, original, *location = fields
+            original = field(original)
             if actual not in FORWARDED:
                 raise ValueError(f"unknown forwarded cause {actual!r}")
             kind = "forwarded"
@@ -137,6 +140,14 @@ def record(report, suite, target, capture, line):
             raise ValueError("partial source location")
         row = {"suite": suite, "target": target, "test": test, "cause": actual, "package": package,
                "file": file, "byte_start": start, "byte_end": end, "reason": message}
+        if kind == "forwarded":
+            primary = "static evaluation cannot admit this invocation: " + original
+            if not original or not (message == primary or message.startswith((primary + "\ncall chain: ", primary + "\nrecursive component: "))):
+                raise ValueError("primary diagnostic does not preserve the forwarded cause text")
+            row["original"] = original
+        if package_case and any(item["suite"] == suite and item["test"] == test
+                                for item in chain(state["witnesses"], state["forwarded"])):
+            raise ValueError("multiple preparation causes for one package refusal")
         rows = state["witnesses" if kind == "reason" else "forwarded"]
         if row in rows:
             raise ValueError("duplicate record in one test")
@@ -175,16 +186,24 @@ def measure(report):
                         + (f"; not in ALL: {', '.join(absent)}" if absent else "")
                         + (f"; not declared: {', '.join(extra)}" if extra else "")
                         + ("; order differs" if not absent and not extra else ""))
-    forwarded = credited(report, state, statuses, state["forwarded"], None, None)
+    try:
+        expected_packages = preparation_causes()
+    except (OSError, ValueError) as error:
+        problems.append(f"cannot read preparation cause registrations: {error}")
+        expected_packages = {}
+    forwarded = credited(report, state, statuses, state["forwarded"], None, None, expected_packages)
     if problems:
         errors.extend(problems)
         return {"measured": False, "problems": problems, "reasons": {}, "missing": [], "forwarded": forwarded}
     reasons = {name: {"text": texts[name], "state": "missing", "witnesses": []} for name in roster}
-    observed_cli = {row["test"] for row in state["witnesses"] if row["suite"] == "CLI"}
-    for test, rule in report.get("rule_diagnostics", {}).get("L4", {}).items():
-        if rule["verified"] and test not in observed_cli:
+    owned = credited(report, state, statuses, state["witnesses"], reasons, texts, expected_packages)
+    observed_cli = {row["test"] for row in chain(owned, forwarded) if row["suite"] == "CLI" and row["status"] == "ok"}
+    package_tests = report.get("rule_diagnostics", {}).get("L4", {})
+    missing_package = sorted(package_tests.keys() - observed_cli)
+    for test in missing_package:
+        if package_tests[test]["verified"]:
             errors.append(f"CLI::{test}: missing typed preparation cause for the verified package refusal")
-    for row in credited(report, state, statuses, state["witnesses"], reasons, texts):
+    for row in owned:
         entry = reasons[row["cause"]]
         if row["status"] == "ok":
             entry["state"] = "verified"
@@ -192,10 +211,21 @@ def measure(report):
         elif entry["state"] == "missing":
             entry["state"] = "witness in a failed test"
     missing = [name for name, entry in reasons.items() if entry["state"] != "verified"]
-    return {"measured": True, "problems": [], "reasons": reasons, "missing": missing, "forwarded": forwarded}
+    return {"measured": True, "problems": [], "reasons": reasons, "missing": missing, "forwarded": forwarded,
+            "package_tests": len(package_tests), "missing_package_tests": missing_package}
 
 
-def credited(report, state, statuses, rows, reasons, texts):
+def renders_owned_reason(name, text, diagnostic):
+    """Check the primary reason for the already typed cause, not a mention in diagnostic context."""
+    if name == "AssemblyTargetMismatch":
+        return diagnostic == text
+    if name == "UnsupportedFloatOperation":
+        # L4 appends the selected format, operation and target profile.
+        return diagnostic.startswith(text + " (") and diagnostic.endswith(")")
+    return diagnostic.partition("\n")[0] == "static evaluation cannot admit this invocation: " + text
+
+
+def credited(report, state, statuses, rows, reasons, texts, expected_packages):
     """Rows from tests whose records are all valid. A failing test's rows keep status FAILED and never verify."""
     errors = report["measurement_errors"]
     invalid = {tuple(key) for key in state["invalid_tests"]}
@@ -213,17 +243,22 @@ def credited(report, state, statuses, rows, reasons, texts):
         if suite == "CLI":
             rule = report.get("rule_diagnostics", {}).get("L4", {}).get(test, {})
             observed = rule.get("observation") or {}
+            family = "preparation" if reasons is not None else "forwarded"
+            if expected_packages.get(test) != f"{family}:{group[0]['cause']}":
+                errors.append(f"CLI::{test}: preparation cause differs from the registered owner or reason")
+                continue
             if (len(group) != 1 or not rule.get("verified") or group[0]["package"] != "root"
                     or any(group[0][key] != observed.get(key) for key in ("file", "byte_start", "byte_end", "reason"))):
                 errors.append(f"CLI::{test}: typed preparation cause differs from the verified package refusal")
                 continue
         if reasons is not None:
             unknown = sorted({row["cause"] for row in group} - reasons.keys())
-            mismatched = [row["cause"] for row in group if row["cause"] in texts and texts[row["cause"]] not in row["reason"]]
+            mismatched = [row["cause"] for row in group if row["cause"] in texts
+                          and not renders_owned_reason(row["cause"], texts[row["cause"]], row["reason"])]
             if unknown or mismatched:
                 errors.append(f"{suite}::{target}::{test}: " + "; ".join(
                     ([f"undeclared PreparationReason {', '.join(unknown)}"] if unknown else [])
-                    + ([f"diagnostic omits the declared text of {', '.join(mismatched)}"] if mismatched else [])))
+                    + ([f"primary diagnostic does not render the declared reason for {', '.join(mismatched)}"] if mismatched else [])))
                 continue
         accepted.extend({**row, "status": status[0]} for row in group)
     return accepted
@@ -231,7 +266,7 @@ def credited(report, state, statuses, rows, reasons, texts):
 
 def blocks(result):
     """Readiness fails on a broken roster and on any owned reason without a verified witness."""
-    return result is not None and (not result["measured"] or bool(result["missing"]))
+    return result is not None and (not result["measured"] or bool(result["missing"]) or bool(result.get("missing_package_tests")))
 
 
 def _site(row):
@@ -256,7 +291,7 @@ def details(result):
     lines += ["### Forwarded causes", "",
               "These causes come from the target contract or the shared integer primitive. They never count toward an owned reason.", ""]
     rows = [row for row in result["forwarded"] if row["status"] == "ok"]
-    lines += [f"- {row['cause']} · {_site(row)}" for row in rows] or ["No passing test recorded a forwarded cause."]
+    lines += [f"- {row['cause']} · {readable(row['original'])} · {_site(row)}" for row in rows] or ["No passing test recorded a forwarded cause."]
     lines.append("")
     return lines
 
@@ -265,10 +300,21 @@ def summary(result):
     if result is None:
         return []
     forwarded = [row for row in result["forwarded"] if row["status"] == "ok"]
-    tail = (f" Forwarded target-layout or integer-primitive causes, not counted: {len(forwarded)}."
-            " [Evidence for each reason](rule-diagnostics.md#preparation-reasons)")
+    tail = " [Evidence for each reason](rule-diagnostics.md#preparation-reasons)"
+    routes = []
+    for owner in FORWARDED:
+        rows = [row for row in forwarded if row["cause"] == owner]
+        native = {row["original"] for row in rows if row["suite"] == SUITE}
+        package = {row["original"] for row in rows if row["suite"] == "CLI"}
+        routes.append(f"{owner} (distinct cause texts observed at the API: {len(native)}, through package commands: {len(package)})")
+    forwarded_summary = "- L4 forwarded " + ", ".join(routes) + ". [Observed refusals](rule-diagnostics.md#forwarded-causes)"
     if not result["measured"]:
         return [f"- L4 · owned preparation reasons not measured: {'; '.join(display(p) for p in result['problems'])}.{tail}"]
     total = len(result["reasons"])
     line = f"- L4 · {total - len(result['missing'])}/{total} owned preparation reasons have a verified typed witness."
-    return [line + tail]
+    lines = [line + tail, forwarded_summary]
+    if total_tests := result.get("package_tests"):
+        missing_tests = result["missing_package_tests"]
+        lines.append(f"- L4 verified the registered owner and typed cause for {total_tests - len(missing_tests)}/{total_tests} package refusals.")
+        lines.extend(f"  - Missing package witness `{test}`." for test in missing_tests)
+    return lines

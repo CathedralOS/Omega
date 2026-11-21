@@ -1,12 +1,66 @@
 use crate::declarations::declaration_catalog::DeclarationCatalog;
 use crate::declarations::resolved_source_file::ResolvedSourceFile;
 use crate::type_error::SourceTypeError;
+use crate::LogicalHypothesisError;
 use crate::{LogicalHypothesis, TypeError, TypedStage, ValueType};
 use omega_resolved::{DeclarationId, Symbol};
 use omega_syntax::NodeKind::*;
 use omega_syntax::TerminationClause;
 use omega_typed::site_at;
 use std::collections::HashMap;
+
+fn check_parameter(
+    unit: &ResolvedSourceFile<'_>,
+    site: usize,
+    parameter: &ValueType,
+) -> std::result::Result<(), TypeError> {
+    if matches!(parameter.carrier().reference_parts(), Some((crate::Access::Mut | crate::Access::Write, _))) {
+        return Err(TypeError::for_reason(&site_at(unit.file, site), LogicalHypothesisError::MutableAuthority));
+    }
+    Ok(())
+}
+
+/// The outer result is the promise. In particular a mathematical arrow is
+/// not an executable callback, even when its codomain is ordinary data, and
+/// squash is not a promise to return its witness. Inspect normalized carriers
+/// rather than guessing from layout, multiplicity, or the spelling of aliases.
+fn check_result(
+    unit: &ResolvedSourceFile<'_>,
+    site: usize,
+    result: &ValueType,
+) -> std::result::Result<(), TypeError> {
+    use ValueType as Ty;
+    if matches!(
+        result.carrier(),
+        Ty::Bool | Ty::Integer { .. } | Ty::IndexedInteger { .. } | Ty::Float32 | Ty::Float64 | Ty::Address
+            | Ty::Nominal(_) | Ty::Applied(..) | Ty::Tuple(_) | Ty::Array(..) | Ty::IndexedArray(..) | Ty::Slice(_)
+            | Ty::Reference(..) | Ty::AtLifetime(..) | Ty::Callable(_)
+    ) {
+        return Err(TypeError::for_reason(&site_at(unit.file, site), LogicalHypothesisError::ObservedResult));
+    }
+    Ok(())
+}
+
+/// Every hypothesis in the selected declaration sees the substitution, including
+/// nested requirements without a machine argument slot of their own.
+pub(crate) fn check_application(
+    catalog: &DeclarationCatalog<'_>,
+    owner: &DeclarationId,
+    unit: &ResolvedSourceFile<'_>,
+    callee: usize,
+    instantiate: impl Fn(&ValueType) -> ValueType,
+) -> std::result::Result<(), TypeError> {
+    if let Some(sites) = catalog.hypotheses_by_owner.get(owner) {
+        for site in sites {
+            let requirement = &catalog.hypotheses[site];
+            for (_, parameter) in &requirement.parameters {
+                check_parameter(unit, callee, &instantiate(parameter))?;
+            }
+            check_result(unit, callee, &instantiate(&requirement.result))?;
+        }
+    }
+    Ok(())
+}
 
 pub(crate) fn index_logical_hypotheses<'a>(
     unit: &mut ResolvedSourceFile<'a>,
@@ -40,17 +94,15 @@ pub(crate) fn index_logical_hypotheses<'a>(
                 Params => {
                     for (parameter, annotation) in f.parameters(n) {
                         let t = unit.annotation(annotation, &catalog.types)?;
-                        if matches!(t.carrier(), ValueType::Reference(crate::Access::Mut | crate::Access::Write, _)) {
-                            return Err(TypeError::at(
-                                f,
-                                f.nodes[annotation].parent.expect("parameter annotation"),
-                                "logical hypothesis cannot supply mutable authority",
-                            ));
-                        }
+                        check_parameter(unit, f.nodes[annotation].parent.expect("parameter annotation"), &t)?;
                         requirement.parameters.push((parameter.span, t));
                     }
                 }
-                Result => requirement.result = unit.annotation(unit.single_child(part)?, &catalog.types)?,
+                Result => {
+                    let result = unit.annotation(unit.single_child(part)?, &catalog.types)?;
+                    check_result(unit, part, &result)?;
+                    requirement.result = result;
+                }
                 Requires => requirement.premises.push(site_at(f, unit.single_child(part)?)),
                 Ensures => requirement
                     .conclusions
@@ -61,7 +113,7 @@ pub(crate) fn index_logical_hypotheses<'a>(
                     if unit
                         .symbol(unit.single_child(part)?)
                         .is_some_and(|s| matches!(s,Symbol::Builtin(v) if v=="none")) => {}
-                _ => return Err(TypeError::at(f, part, "logical hypothesis cannot promise executable effects")),
+                _ => return Err(TypeError::for_reason(&site_at(f, part), LogicalHypothesisError::ExecutableEffect)),
             }
         }
         unit.hypotheses.insert(name.span, site.clone());
@@ -82,6 +134,7 @@ pub(crate) fn index_logical_hypotheses<'a>(
                 }
             }
         }
+        catalog.hypotheses_by_owner.entry(owner).or_default().push(site.clone());
         catalog.hypotheses.insert(site, requirement.clone());
         output.logical_hypotheses.push(requirement);
     }

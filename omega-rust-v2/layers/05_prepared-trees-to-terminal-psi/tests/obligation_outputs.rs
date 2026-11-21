@@ -66,6 +66,109 @@ fn a_zero_value_establishes_the_selected_nominal_home_at_its_binding() {
     observed("obligation-output/zero-value");
 }
 
+/// A zeroed local of a predicate-bearing record lowers whether or not zero
+/// satisfies the predicate, because the binding's `ZeroValue` verdict belongs to
+/// the checker. Zero fails `self.value > 0` for `Nonzero` and satisfies
+/// `self.value < 10` for `Small`; both bindings produce the same zeroed home, and
+/// that home's schema keeps its own clause for the checker to evaluate at zero.
+/// Removing the predicate leaves the same operation with no clause, so the clause
+/// is the only difference the checker sees.
+#[test]
+fn a_zero_value_carries_its_record_predicate_to_the_checker() {
+    use omega_lowering::{BlockTerminator, CleanupAction, PredicateOperator, PredicateStep};
+    let mut compared = false;
+    for (name, predicate, bound, operator) in [
+        ("Nonzero", "self.value > 0", 0, PredicateOperator::GreaterThan),
+        ("Small", "self.value < 10", 10, PredicateOperator::LessThan),
+    ] {
+        let binding = format!("let mut cell:{name};");
+        let declaration = format!("data {name} requires {predicate} {{value:u8;}}");
+        for qualified in [true, false] {
+            let source = if qualified {
+                declaration.clone()
+            } else {
+                format!("data {name} {{value:u8;}}")
+            } + &format!(" machine init(){{{binding}}}");
+            let lowered = pipeline::lower(&source);
+            let obligations = lowered.obligations("ZeroValue");
+            let [zero] = obligations.as_slice() else {
+                panic!("{source}: expected the local's zero-value obligation")
+            };
+            assert_eq!(lowered.spelling(&zero.site), binding);
+            assert!(
+                matches!(&zero.kind, ObligationKind::ZeroValue(ValueType::Nominal(id)) if id.path == name),
+                "{:?}",
+                zero.kind
+            );
+            let body = &lowered.machine("init").body;
+            let establish = operation_at(body, &zero.site);
+            assert_eq!(establish.kind, OperationKind::EstablishZeroedStructural, "{source}");
+            let OperationResult::Structural(home) = establish.result else {
+                panic!("expected a structural home")
+            };
+            assert_eq!(body.mutable_homes, [home]);
+            assert!(matches!(&body.blocks[0].terminator, BlockTerminator::Return { cleanup, .. } if cleanup == &[CleanupAction::DiscardRoot(home)]));
+            let schema = lowered
+                .package
+                .data
+                .iter()
+                .find(|schema| schema.carrier == body.places[home.index()].ty)
+                .unwrap();
+            assert_eq!(schema.declaration.path, name);
+            if !qualified {
+                assert!(schema.requires.is_empty(), "{source}");
+                continue;
+            }
+            let [clause] = schema.requires.as_slice() else {
+                panic!("{source}: expected one default-domain clause")
+            };
+            assert_eq!(lowered.spelling(&clause.site), format!("requires {predicate}"));
+            let field = schema.fields[0].declaration.clone();
+            assert_eq!(field.path, format!("{name}::value"));
+            spec_corpus::observe_handoff!(
+                psi "psi-output/zero-value-record-predicate",
+                assert_eq!(
+                    clause.predicate,
+                    [PredicateStep::SelfValue, PredicateStep::Field(field), PredicateStep::Integer(bound.into()), PredicateStep::Apply(operator)]
+                ),
+            );
+            compared = true;
+        }
+    }
+    assert!(compared);
+
+    // Gating propagates through containment: a copyable predicate-bearing field
+    // lowers inside the zeroed home and its own schema keeps the clause.
+    let binding = "let mut cell:Holder;";
+    let source = format!("data Inner [copy] requires self.v > 0 {{v:u8;}} data Holder {{inner:Inner;}} machine init(){{{binding}}}");
+    let lowered = pipeline::lower(&source);
+    let [zero] = lowered.obligations("ZeroValue")[..] else {
+        panic!("expected the local's zero-value obligation")
+    };
+    let body = &lowered.machine("init").body;
+    let establish = operation_at(body, &zero.site);
+    assert_eq!(establish.kind, OperationKind::EstablishZeroedStructural);
+    let OperationResult::Structural(home) = establish.result else {
+        panic!("expected a structural home")
+    };
+    let schema = |carrier| {
+        lowered
+            .package
+            .data
+            .iter()
+            .find(|schema| schema.carrier == carrier)
+            .unwrap()
+    };
+    let holder = schema(body.places[home.index()].ty);
+    assert_eq!((holder.declaration.path.as_str(), holder.requires.len()), ("Holder", 0));
+    let inner = schema(holder.fields[0].carrier);
+    assert_eq!(inner.declaration.path, "Inner");
+    let [clause] = inner.requires.as_slice() else {
+        panic!("expected the contained clause")
+    };
+    assert_eq!(lowered.spelling(&clause.site), "requires self.v > 0");
+}
+
 /// `(signed, width)` of a fixed-width integer, spelled as in source.
 type Integer = (bool, u64);
 
@@ -201,7 +304,7 @@ fn exact_cast_converts_the_selected_operand_to_the_destination_carrier_at_its_ca
             panic!("{cast}: expected one conversion, found {:?}", body.operations)
         };
         assert_eq!(operation_at(body, &obligation.site), operation, "{cast}: the cast site is the conversion");
-        assert_eq!(operation.kind, OperationKind::ExactIntegerCast { operand }, "{cast}");
+        assert_eq!(operation.kind, OperationKind::ExactNumericCast { operand }, "{cast}");
         let OperationResult::Scalar(result) = operation.result else {
             panic!("{cast}: a conversion yields a scalar")
         };
@@ -266,14 +369,13 @@ fn recast_reinterprets_the_selected_borrowed_field_at_its_cast() {
         let recast = operation_at(body, &obligation.site);
         let OperationKind::ScalarBitRecast {
             source: borrowed,
-            width,
-            source_signed,
-            destination_signed,
+            source_referent,
+            destination_referent,
         } = recast.kind
         else {
             panic!("{cast}: expected a bit recast, found {:?}", recast.kind)
         };
-        assert_eq!((width, source_signed, destination_signed), (from.1, from.0, to.0), "{cast}");
+        assert_eq!((source_referent, destination_referent), (scalar(from), scalar(to)), "{cast}");
         assert_eq!(from.1, to.1);
         let OperationKind::BorrowPlace { source: place, access } = &place_producer(body, borrowed).kind else {
             panic!("{cast}: the recast source is a fresh borrow")
@@ -307,7 +409,7 @@ fn recast_reinterprets_the_selected_borrowed_field_at_its_cast() {
             !body
                 .operations
                 .iter()
-                .any(|op| matches!(op.kind, OperationKind::ExactIntegerCast { .. })),
+                .any(|op| matches!(op.kind, OperationKind::ExactNumericCast { .. })),
             "{cast}: no value conversion"
         );
     }
@@ -341,7 +443,7 @@ fn recast_reinterprets_the_selected_borrowed_field_at_its_cast() {
         "a value cast neither borrows nor reinterprets"
     );
     let conversion = operation_at(body, &obligation.site);
-    let OperationKind::ExactIntegerCast { operand } = conversion.kind else {
+    let OperationKind::ExactNumericCast { operand } = conversion.kind else {
         panic!("expected an exact conversion, found {:?}", conversion.kind)
     };
     let OperationKind::ProjectedScalarRead { source: read } = &value_producer(body, operand).kind else {

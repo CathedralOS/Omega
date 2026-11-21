@@ -110,6 +110,26 @@ impl DeclarationCatalog<'_> {
             .eq(is.parameters.iter().map(|(_, t)| t.clone()))
             && instantiate(&rs.result) == is.result
     }
+    /// A reach ceiling bounds each named service and its declared boundary
+    /// ancestors, with the child's arguments substituted along each edge. The
+    /// first ordinary parent ends the walk because it carries no service identity.
+    pub(crate) fn reach_covers(
+        &self,
+        ceiling: &[crate::ServiceApplication],
+        service: &crate::ServiceApplication,
+    ) -> bool {
+        ceiling.iter().any(|named| {
+            let slot = crate::RequirementSlot {
+                declaration: named.service.clone(),
+                trait_arguments: named.arguments.clone(),
+            };
+            self.trait_lineage(&slot)
+                .into_iter()
+                .take_while(|ancestor| self.types.service_traits.contains(&ancestor.declaration))
+                .any(|ancestor| ancestor.declaration == service.service && ancestor.trait_arguments == service.arguments)
+        })
+    }
+
     /// Each entry carries the arguments in the declaring trait's own telescope.
     pub(crate) fn trait_lineage(
         &self,
@@ -194,16 +214,10 @@ pub(crate) fn check(
                 }
             }
         }
-        let [(requirement, implementation, owner)] = matches.as_slice() else {
-            return Err(TypeError::at(
-                f,
-                row,
-                if matches.is_empty() {
-                    "conformance row has no matching signature"
-                } else {
-                    "ambiguous conformance row"
-                },
-            ));
+        let (requirement, implementation, owner) = match matches.as_slice() {
+            [] => return Err(TypeError::at(f, row, "conformance row has no matching signature")),
+            [binding] => binding,
+            _ => return Err(TypeError::at(f, row, "ambiguous conformance row")),
         };
         if !supplied.insert(*requirement) {
             return Err(TypeError::at(f, row, "requirement is supplied twice"));

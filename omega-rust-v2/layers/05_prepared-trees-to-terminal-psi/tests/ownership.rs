@@ -3,7 +3,7 @@
 mod pipeline;
 #[path = "support/source.rs"]
 mod sources;
-use omega_lowering::{BlockTerminator, CallArgument, CleanupAction, OperationKind, OperationResult, Parameter, PlaceProjection, ReturnEdge};
+use omega_lowering::{BlockTerminator, CallArgument, CleanupAction, OperationKind, OperationResult, Parameter, PlaceProjection, ProjectedPlace, ReturnEdge};
 use omega_typed::ObligationKind;
 const PAIR: &str = "data Token { value:u8; } data Pair { left:Token; right:Token; }";
 
@@ -206,13 +206,74 @@ fn building_a_record_moves_each_field_once_in_authored_order() {
         assert!(matches!(field.operand,CallArgument::MoveWhole(p) if input.result==OperationResult::Structural(p)));
     }
     assert!(matches!(&body.blocks[0].terminator,BlockTerminator::Return{cleanup,..} if cleanup.is_empty()));
+
+    // Moving `p.left` twice is the checker's refusal at the second transfer
+    // (terminal-psi/ownership.md#partial-ownership-and-residuals). Psi keeps both
+    // transfers at their own authored sites and feeds each one to its field, so the
+    // checker can find the overlap. Normal cleanup names only `p.right`, the field no
+    // transfer claimed.
     let duplicate = source.replace("left:move p.right", "left:move p.left");
-    assert_eq!(
-        sources::lower(&[("duplicate.omg", &duplicate)])
-            .unwrap_err()
-            .message,
-        "owned transfer overlaps previously moved storage"
-    );
+    let package = sources::lower(&[("duplicate.omg", &duplicate)]).unwrap();
+    let body = &package.machines[0].body;
+    let [Parameter::Structural(root)] = body.parameters[..] else {
+        panic!("one owned pair")
+    };
+    let [first, second, record] = body.operations.as_slice() else {
+        panic!("two field moves followed by construction: {:?}", body.operations)
+    };
+    let OperationKind::EstablishRecord { fields } = &record.kind else {
+        panic!("record expected")
+    };
+    let span = |op: &omega_lowering::PsiOperation| {
+        let site = &body.diagnostics.operations[op.id.index()].span;
+        site.get_start_offset()..site.get_end_offset()
+    };
+    let field_of = |place: &omega_lowering::ProjectedPlace| match place.path.as_slice() {
+        [PlaceProjection::Field(f)] if place.root == root => Some(f.path.clone()),
+        _ => None,
+    };
+    let transfers = [first, second].map(|op| match &op.kind {
+        OperationKind::MoveStructural { source } => (field_of(source), span(op)),
+        other => panic!("field transfer expected: {other:?}"),
+    });
+    let supplied: Vec<_> = fields
+        .iter()
+        .map(|f| {
+            let CallArgument::MoveWhole(input) = f.operand else {
+                panic!("owned field expected")
+            };
+            let ordinal = [first, second]
+                .iter()
+                .position(|op| op.result == OperationResult::Structural(input));
+            (f.field.path.clone(), ordinal)
+        })
+        .collect();
+    let BlockTerminator::Return { cleanup, .. } = &body.blocks[0].terminator else {
+        panic!("return expected")
+    };
+    let residuals: Vec<_> = cleanup
+        .iter()
+        .map(|action| match action {
+            CleanupAction::DiscardResidual { place, .. } => field_of(place),
+            other => panic!("only residual disposal expected: {other:?}"),
+        })
+        .collect();
+    // A reader that sees only Psi pairs the second transfer with the first, so the
+    // overlap is recoverable without the source.
+    let overlaps = psi_handoff_consumer::overlapping_transfers(body);
+    let left = || Some("Pair::left".to_owned());
+    spec_corpus::observe_handoff!(psi "psi-output/duplicate-field-transfer", assert_eq!(
+        (transfers, supplied, residuals, overlaps),
+        (
+            [
+                (left(), sources::span_within(&duplicate, "right:move p.left", "move p.left")),
+                (left(), sources::span_within(&duplicate, "left:move p.left", "move p.left")),
+            ],
+            vec![("Pair::left".to_owned(), Some(1)), ("Pair::right".to_owned(), Some(0))],
+            vec![Some("Pair::right".to_owned())],
+            vec![(first.id, second.id)],
+        )
+    ));
 }
 
 #[test]
@@ -297,11 +358,35 @@ fn transferring_an_owned_match_result_uses_the_join_parameter() {
             .iter()
             .any(|o| matches!(&o.kind,OperationKind::MoveStructural{source} if source.root==parameter && source.path.is_empty()))
     );
-    let different = source.replace("false->move p.left", "false->move p.right");
-    assert_eq!(
-        sources::lower(&[("join.omg", &different)]).unwrap_err().message,
-        "structural join requires a common incoming ownership frontier"
+    // Both arms move `p.left`, so both arrivals leave `p.right` and the join keeps that residual.
+    let witness = psi_handoff_consumer::product_witness::join_arrivals_move_fields;
+    witness(body, "Pair::left", "Pair::left").unwrap();
+    witness(body, "Pair::left", "Pair::right").expect_err("the false arm moves left, not right");
+    let BlockTerminator::Return { cleanup, .. } = &join.terminator else {
+        panic!("the join returns the claim")
+    };
+    assert!(
+        matches!(cleanup.as_slice(), [CleanupAction::DiscardResidual { place, .. }] if matches!(place.path.as_slice(), [PlaceProjection::Field(f)] if f.path == "Pair::right"))
     );
+
+    // When the arms move different fields, one arrival leaves `p.right` and the
+    // other `p.left`. Arrivals that disagree at a join are the checker's refusal
+    // (terminal-psi/control_flow.md#graph-and-frontier), so Psi must keep each arm's
+    // own transfer and its undisposed remainder up to the join for that comparison.
+    let different = source.replace("false->move p.left", "false->move p.right");
+    let package = sources::lower(&[("join.omg", &different)]).unwrap();
+    let body = &package.machines[0].body;
+    spec_corpus::observe_handoff!(psi "psi-output/join-arrival-transfers", assert_eq!(witness(body, "Pair::left", "Pair::right"), Ok(())));
+    witness(body, "Pair::left", "Pair::left").expect_err("the false arm moves right");
+    // Lowering schedules the cleanup after the join from its first arrival, the true
+    // arm. The checker refuses at the join before judging that cleanup.
+    let join = body
+        .blocks
+        .iter()
+        .find(|b| !b.structural_parameters.is_empty())
+        .unwrap();
+    assert!(matches!(&join.terminator, BlockTerminator::Return { cleanup, .. }
+        if matches!(cleanup.as_slice(), [CleanupAction::DiscardResidual { place, .. }] if matches!(place.path.as_slice(), [PlaceProjection::Field(f)] if f.path == "Pair::right"))));
 }
 
 #[test]
@@ -426,11 +511,103 @@ fn a_cleanup_pattern_transfers_bound_children_and_disposes_ignored_children() {
     let (returned, cleanup) = psi_handoff_consumer::returned_move(&unpack.body, &unpack.body.blocks[1]).unwrap();
     assert_eq!(returned.root, kept);
     assert!(cleanup.is_empty());
+    let release = package
+        .machines
+        .iter()
+        .find(|m| m.declaration.path == "release")
+        .unwrap();
+    for machine in [unpack, release] {
+        assert_eq!(psi_handoff_consumer::hooked_field_transfers(&package, &machine.body), Ok(vec![]));
+    }
+
+    // A field move cannot take apart a value whose declaration selects a cleanup
+    // (wiki/spec/language/ownership.md, "Paths and control flow"). L6 owns that
+    // verdict, so L5 publishes the exact move, the live complement and the
+    // selection. No action runs `release` on the partially moved subject.
     let illegal = source.replace("let Lease{kept,..}=x;kept", "move x.kept");
-    assert_eq!(
-        sources::lower(&[("parts.omg", &illegal)]).unwrap_err().message,
-        "a field move cannot decompose a value with selected cleanup"
+    let package = sources::lower(&[("parts.omg", &illegal)]).unwrap();
+    let machine = |name: &str| package.machines.iter().find(|m| m.declaration.path == name).unwrap();
+    let (release, unpack) = (machine("release"), machine("unpack"));
+    let lease = package.data.iter().find(|d| d.declaration.path == "Lease").unwrap();
+    let [Parameter::Structural(x)] = unpack.body.parameters[..] else {
+        panic!("one owned subject")
+    };
+    let (moved, cleanup) = psi_handoff_consumer::returned_move(&unpack.body, &unpack.body.blocks[0]).unwrap();
+    let field = |place: &omega_lowering::ProjectedPlace| match place.path.as_slice() {
+        [PlaceProjection::Field(f)] => f.path.clone(),
+        _ => String::new(),
+    };
+    spec_corpus::observe_handoff!(psi "psi-output/hooked-field-move", assert_eq!(
+        (lease.cleanup_target, moved.root, field(moved), cleanup.iter().map(|a| match a {
+            CleanupAction::DiscardResidual { place, .. } if place.root == x => field(place),
+            other => format!("{other:?}"),
+        }).collect::<Vec<_>>()),
+        (Some(release.id), x, "Lease::kept".to_string(), vec!["Lease::ignored".to_string()])
+    ));
+    let rows = psi_handoff_consumer::hooked_field_transfers(&package, &unpack.body).unwrap();
+    assert!(
+        matches!(rows.as_slice(), [row] if row.source == moved && row.owner.is_empty() && row.cleanup == release.id),
+        "{rows:?}"
     );
+
+    // The same rule applies below a transparent owner: the residual keeps the
+    // sibling and the hooked owner's remaining field, and the reader reports
+    // the hooked owner's prefix.
+    let nested = format!("{} data Pair {{left:Token;right:Lease;}} machine split(p:Pair)->Token{{move p.right.kept}}", &source[..source.find("machine unpack").unwrap()]);
+    let package = sources::lower(&[("parts.omg", &nested)]).unwrap();
+    let split = package.machines.iter().find(|m| m.declaration.path == "split").unwrap();
+    let [Parameter::Structural(p)] = split.body.parameters[..] else {
+        panic!("one owned pair")
+    };
+    let (moved, cleanup) = psi_handoff_consumer::returned_move(&split.body, &split.body.blocks[0]).unwrap();
+    let paths = |place: &omega_lowering::ProjectedPlace| {
+        place
+            .path
+            .iter()
+            .map(|step| match step {
+                PlaceProjection::Field(f) => f.path.clone(),
+                other => format!("{other:?}"),
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(moved.root, p);
+    assert_eq!(paths(moved), ["Pair::right", "Lease::kept"]);
+    let residual: Vec<_> = cleanup
+        .iter()
+        .map(|a| match a {
+            CleanupAction::DiscardResidual { place, .. } if place.root == p => paths(place),
+            other => vec![format!("{other:?}")],
+        })
+        .collect();
+    assert_eq!(residual, [vec!["Pair::right", "Lease::ignored"], vec!["Pair::left"]]);
+    let release = package.machines.iter().find(|m| m.declaration.path == "release").unwrap();
+    let rows = psi_handoff_consumer::hooked_field_transfers(&package, &split.body).unwrap();
+    assert!(
+        matches!(rows.as_slice(), [row] if row.source == moved && paths(&ProjectedPlace{root:p,path:row.owner.to_vec()}) == ["Pair::right"] && row.cleanup == release.id),
+        "{rows:?}"
+    );
+
+    // Through an exclusive loan the move is a borrowed move of the referent's
+    // field. The reader reports the referent as the hooked owner.
+    let borrowed = format!(
+        "{} machine swap(x:@mut Lease)->Token{{let t=move x.kept; x.kept=Token{{value:1}}; t}}",
+        &source[..source.find("machine unpack").unwrap()]
+    );
+    let package = sources::lower(&[("parts.omg", &borrowed)]).unwrap();
+    let swap = package.machines.iter().find(|m| m.declaration.path == "swap").unwrap();
+    let release = package.machines.iter().find(|m| m.declaration.path == "release").unwrap();
+    let [Parameter::Structural(x)] = swap.body.parameters[..] else {
+        panic!("one borrowed subject")
+    };
+    let rows = psi_handoff_consumer::hooked_field_transfers(&package, &swap.body).unwrap();
+    let [row] = rows.as_slice() else {
+        panic!("{rows:?}")
+    };
+    assert!(swap.body.operations.iter().any(|op| matches!(&op.kind, OperationKind::BorrowedMove { source } if source == row.source)));
+    assert_eq!(row.source.root, x);
+    assert_eq!(row.owner, [PlaceProjection::Referent]);
+    assert!(matches!(row.source.path.as_slice(), [PlaceProjection::Referent, PlaceProjection::Field(f)] if f.path == "Lease::kept"));
+    assert_eq!(row.cleanup, release.id);
 }
 
 #[test]

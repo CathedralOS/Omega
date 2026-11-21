@@ -298,6 +298,12 @@ impl BodyTyper<'_, '_> {
         for (e, t) in entries {
             self.check_destination(e, &t, &element)?;
         }
+        // The literal builds its value at the destination, as a record literal
+        // does, so at an owned `[T]` it is that `[T]`; its elements stay its
+        // children. An existing `[T; N]` value still does not land there.
+        if let Some(ValueType::Slice(_)) = destination.exact() {
+            return Ok(ValueType::Slice(Box::new(element)));
+        }
         Ok(ValueType::Array(Box::new(element), node.children.len() as u64))
     }
 
@@ -386,8 +392,8 @@ impl BodyTyper<'_, '_> {
             Some(Symbol::TargetRegister(name)) => self
                 .catalog
                 .assembly
-                .and_then(|t| t.registers.get(name))
-                .cloned()
+                .and_then(|t| t.register(name))
+                .map(|location| location.ty.clone())
                 .ok_or_else(|| TypeError::at(source_file, node_index, format!("missing register type for {name}")))?,
             Some(Symbol::Builtin(name)) if matches!(name.as_str(), "result" | "self") => self
                 .subject
@@ -405,6 +411,7 @@ impl BodyTyper<'_, '_> {
                     && let Some(ValueType::Callable(c)) = expected()? =>
             {
                 self.refine_callable(
+                    node_index,
                     node_index,
                     c,
                     None,

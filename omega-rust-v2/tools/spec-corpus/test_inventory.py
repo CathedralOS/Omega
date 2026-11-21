@@ -6,6 +6,7 @@ import subprocess
 from time import monotonic
 
 
+TEST_RESULT = re.compile(r"^test (.+?) \.\.\. (ok|FAILED|ignored)(?:,.*)?$")
 TARGET = re.compile(r"^\s*Running (.+?) \(.+\)$")
 DOC = re.compile(r"^\s*Doc-tests \S+$")
 TOTAL = re.compile(r"^(\d+) tests?, (\d+) benchmarks?$")
@@ -15,6 +16,70 @@ def target_header(line):
     if match := TARGET.fullmatch(line):
         return match[1].replace("\\", "/")
     return "doctests" if DOC.fullmatch(line) else None
+
+
+OS_REASON = r"[^\n]+ \(os error \d+\)"
+CARGO_LAUNCH = re.compile(
+    r"error: (?:doc)?test failed, to rerun pass `[^`\n]+`\n\nCaused by:\n"
+    r"  could not execute process `[^\n]+` \(never executed\)\n\nCaused by:\n"
+    rf"  (?P<reason>{OS_REASON})"
+)
+
+
+def launch_failures(log, action, exit_code):
+    """Extract confirmed Cargo/rustdoc launch diagnostics from one command's log."""
+    if not exit_code:
+        return []
+    lines = log.splitlines()
+    rows, failed_names = [], set()
+    target = section = None
+    for i, line in enumerate(lines):
+        if section is None:
+            if header := target_header(line):
+                target = header
+                # Cargo couldn't start the harness: no libtest output intervenes.
+                if cause := CARGO_LAUNCH.fullmatch("\n".join(lines[i + 1:i + 8])):
+                    rows.append(dict(action=action, target=target, reason=cause["reason"]))
+            elif target and re.fullmatch(r"running \d+ tests?", line):
+                section = "results"
+                failed_names.clear()
+        elif line.startswith("test result: "):
+            target = section = None
+        elif target == "doctests":
+            if line in ("successes:", "failures:"):
+                section = line
+            elif section == "results" and (result := re.fullmatch(r"test (.+) \.\.\. FAILED", line)):
+                failed_names.add(result[1])
+            elif section == "failures:" and (block := re.fullmatch(r"---- (.+) stdout ----", line)):
+                # Rustdoc emits this diagnostic instead of running the example.
+                if (block[1] in failed_names and i + 3 < len(lines) and not lines[i + 2]
+                        and (lines[i + 3] == "failures:" or lines[i + 3].startswith("---- "))):
+                    if cause := re.fullmatch(rf"Couldn't run the test: ({OS_REASON})", lines[i + 1]):
+                        rows.append(dict(action=action, target=target, test=block[1], reason=cause[1]))
+    return rows
+
+
+def abnormal_exits(log, exit_code):
+    """Attribute Cargo's process-exit diagnostic to its harness even after a passing libtest summary."""
+    if not exit_code:
+        return []
+    lines = log.splitlines()
+    target, capture = None, False
+    issues = []
+    for i, line in enumerate(lines):
+        if line.startswith("test result: "):
+            capture = False
+        elif line in ("successes:", "failures:"):
+            capture = True
+        elif not capture and (header := target_header(line)):
+            target = header
+        elif target and not capture and re.fullmatch(r"error: (?:doc)?test failed, to rerun pass `[^`]+`", line):
+            if lines[i + 1:i + 3] == ["", "Caused by:"] and i + 3 < len(lines):
+                termination = re.fullmatch(r"  process didn't exit successfully: `.+` \((.+)\)", lines[i + 3])
+                if termination:
+                    issues.append(f"{target}: harness exited abnormally ({termination[1]})")
+            target = None
+    return issues
 
 
 def list_command(command):
@@ -86,8 +151,12 @@ def verify_suite(report, stage, directory, environment):
         path.write_text(str(error), encoding="utf-8")
         code = 1
     execution = directory / suite.get("log", f"{stage}.log")
-    roster = compare(path.read_text(encoding="utf-8", errors="replace"),
-                     execution.read_text(encoding="utf-8", errors="replace"), suite["tests"])
+    listing = path.read_text(encoding="utf-8", errors="replace")
+    run = execution.read_text(encoding="utf-8", errors="replace")
+    suite["launch_failures"] = launch_failures(run, "test", suite["exit"]) + launch_failures(listing, "list", code)
+    roster = compare(listing, run, suite["tests"])
+    roster["issues"].extend(abnormal_exits(run, suite["exit"]))
+    roster["issues"].extend("listing " + issue for issue in abnormal_exits(listing, code))
     if code:
         roster["issues"].append(f"list command exited {code}")
     roster.update(command=command, seconds=round(monotonic() - started, 2), log=path.name, exit=code)

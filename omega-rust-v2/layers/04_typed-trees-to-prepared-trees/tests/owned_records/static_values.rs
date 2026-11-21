@@ -98,7 +98,7 @@ fn aliased_constant_records_cannot_freeze_another_initializers_value() {
             .find(|c| c.declaration.path == "OTHER")
             .unwrap()
             .declaration = byte;
-        let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, 0));
+        let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
         let refusal = evaluate(&changed).unwrap_err();
         spec_corpus::assert_preparation_cause!(
             refusal,
@@ -119,7 +119,7 @@ fn unique_keys_do_not_authorize_exchanged_initializers() {
     let mut facts = trees.into_facts();
     let [a, b] = facts.constants.as_mut_slice() else { panic!("expected A and B") };
     std::mem::swap(&mut a.initializer, &mut b.initializer);
-    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, 0));
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
     let refusal = evaluate(&changed).unwrap_err();
     spec_corpus::assert_preparation_cause!(
         refusal,
@@ -138,7 +138,7 @@ fn a_second_record_for_the_actual_initializer_is_a_duplicate() {
     let resolved = trees.resolved().clone();
     let mut facts = trees.into_facts();
     facts.constants.push(facts.constants[0].clone());
-    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, 0));
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
     let refusal = evaluate(&changed).unwrap_err();
     spec_corpus::assert_preparation_cause!(
         refusal,
@@ -164,7 +164,7 @@ fn unrelated_late_record_does_not_mask_a_consumed_initializer_failure() {
         .initializer
         .node
         .file = usize::MAX;
-    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, 0));
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
     spec_corpus::assert_preparation_cause!(
         evaluate(&changed).unwrap_err(),
         RefusalCause::Preparation(PreparationReason::AdditionOutsideCarrier),
@@ -191,7 +191,7 @@ fn forged_site_is_not_evidence_of_a_duplicate_or_owner_mismatch() {
             forged.declaration = other.declaration.clone();
         }
         facts.constants.push(forged);
-        let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, 0));
+        let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
         spec_corpus::assert_preparation_cause!(
             evaluate(&changed).unwrap_err(),
             RefusalCause::Preparation(PreparationReason::RequestSiteMismatch),
@@ -217,7 +217,7 @@ fn a_forward_read_rejects_its_conflicting_definition_before_an_unrelated_failure
             .unwrap()
             .clone(),
     );
-    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, 0));
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
     spec_corpus::assert_preparation_cause!(
         evaluate(&changed).unwrap_err(),
         RefusalCause::Preparation(PreparationReason::DuplicateConstantInitializer),
@@ -267,7 +267,7 @@ fn an_open_recipe_requires_the_same_unique_initializer_as_a_frozen_value() {
             .unwrap()
             .clone(),
     );
-    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, 0));
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
     spec_corpus::assert_preparation_cause!(
         evaluate(&changed).unwrap_err(),
         RefusalCause::Preparation(PreparationReason::DuplicateConstantInitializer),
@@ -356,7 +356,7 @@ fn an_omitted_nominal_needs_a_complete_shape_before_producing_any_zero() {
         .unwrap()
         .clone();
     facts.static_data_shapes.remove(&part).unwrap();
-    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts, 0));
+    let changed = TypingProgress::Complete(TypedTrees::new(resolved, facts));
     let refusal = evaluate(&changed).unwrap_err();
     spec_corpus::assert_preparation_cause!(
         refusal,

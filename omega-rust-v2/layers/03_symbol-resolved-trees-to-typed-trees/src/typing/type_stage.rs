@@ -31,7 +31,6 @@ pub(crate) fn type_stage_inner<'text>(
 ) -> Result<(TypedTrees<'text>, Vec<StaticValueDemand>), TypeError> {
     let mut output = TypedStage::default();
     let mut catalog = library.map_or_else(DeclarationCatalog::default, |lib| lib.import(&mut output));
-    let first_local_obligation = output.obligations.len();
     catalog.assembly = environment.target;
     if library.is_none() {
         catalog.ranking_views = environment.ranking_views.into();
@@ -50,7 +49,7 @@ pub(crate) fn type_stage_inner<'text>(
         output.library = Some(crate::standard_library());
     }
     catalog.publish_declarations(&mut output);
-    Ok((crate::TypedTrees::new(resolved.clone(), output, first_local_obligation), demands))
+    Ok((crate::TypedTrees::new(resolved.clone(), output), demands))
 }
 
 pub(crate) fn check_stage<'a>(
@@ -90,6 +89,7 @@ pub(crate) fn check_stage<'a>(
     index_operator_declarations(resolved, catalog, definition)?;
     constants::infer(&units, catalog, output)?;
     check_bodies(&units, catalog, output)?;
+    let policies = access_policies::policy_applications(&units, catalog)?;
     check_static_indices(&units, catalog, environment, output)?;
     if allow_pending {
         // Formation may discover a prerequisite for a call's inferred effects.
@@ -103,7 +103,7 @@ pub(crate) fn check_stage<'a>(
     guarded_calls::record_guarded_calls(&execution, library_execution, catalog, output);
     cleanup::check_cleanup_selections(&units, catalog, &dependencies, output)?;
     trait_refinements::check_trait_refinements(catalog, &dependencies, output)?;
-    access_policies::check_access_policies(&units, catalog, &dependencies, output)?;
+    access_policies::check_access_policies(policies, &units, catalog, &dependencies, output)?;
     if !allow_pending {
         catalog.types.formations.check(&units, &catalog.types, output)?;
     }

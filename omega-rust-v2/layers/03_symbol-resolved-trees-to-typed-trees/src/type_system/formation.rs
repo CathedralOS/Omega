@@ -296,7 +296,7 @@ impl<'a> DeclarationRequirements<'a> {
             Leave(DeclarationId),
         }
         let mut work: Vec<_> = applications.into_iter().map(Work::Visit).collect();
-        let mut active = HashSet::new();
+        let mut active = HashMap::<DeclarationId, Vec<ValueType>>::new();
         let mut checked = HashSet::new();
         while let Some(step) = work.pop() {
             let (id, args, consumer) = match step {
@@ -308,7 +308,7 @@ impl<'a> DeclarationRequirements<'a> {
                     if checked.contains(&application) {
                         continue;
                     }
-                    if !active.contains(&application.0) {
+                    if !active.contains_key(&application.0) {
                         checked.insert(application.clone());
                     }
                     application
@@ -324,7 +324,7 @@ impl<'a> DeclarationRequirements<'a> {
             if nested.is_empty() {
                 continue;
             }
-            if !active.insert(id.clone()) {
+            if let Some(prior) = active.get(&id) {
                 // The same declaration with different arguments requires a recursive
                 // formation judgment. Preserve the exact application for the verifier.
                 let proof = TypingObligation {
@@ -332,6 +332,7 @@ impl<'a> DeclarationRequirements<'a> {
                     site: site.clone(),
                     kind: ObligationKind::FormRecursiveApplication {
                         declaration: id,
+                        active_arguments: prior.clone(),
                         arguments: args,
                     },
                 };
@@ -340,6 +341,7 @@ impl<'a> DeclarationRequirements<'a> {
                 }
                 continue;
             }
+            active.insert(id.clone(), args);
             work.push(Work::Leave(id));
             work.extend(nested.into_iter().rev().map(Work::Visit));
         }

@@ -715,6 +715,27 @@ fn runtime_construction_publishes_each_applied_payload_without_a_static_request(
 }
 
 #[test]
+fn an_unused_formal_demands_exactly_its_applied_record_schema() {
+    spec_corpus::observe_handoff!("unused-formal-schema/producer", {
+        for (formal, width) in [("Buffer<u32>", Some(32)), ("Buffer<u16>", Some(16)), ("u32", None)] {
+            let source = format!("data Buffer<T> {{ unused:bool; used:T; }} machine f(b:{formal}) {{}}");
+            let stage = check(&[("formal.omg", &source)]).unwrap();
+            let mut applications = stage.static_data_shapes.iter().filter_map(|(carrier, shape)| {
+                let (declaration, [argument]) = carrier.nominal_parts()? else { return None };
+                (declaration.path == "Buffer").then_some((argument, &shape.fields))
+            });
+            if let Some(width) = width {
+                let field_type = ValueType::Integer { signed: false, width: Some(width) };
+                let (argument, fields) = applications.next().expect("the exact formal application");
+                assert_eq!(argument, &field_type);
+                assert_eq!(fields.as_slice(), [ValueType::Bool, field_type]);
+            }
+            assert!(applications.next().is_none(), "no unrelated Buffer application for {formal}");
+        }
+    });
+}
+
+#[test]
 fn equal_named_cases_publish_their_exact_declaring_sum() {
     let code = "data Alpha { case Same(w:u8, v:u8); case Other; } data Beta { case Empty; case Same(v:u8, w:u8); }";
     let stage = check(&[("cases.omg", code)]).unwrap();

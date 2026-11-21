@@ -376,8 +376,7 @@ fn intrinsic_array_length_checks_its_result_before_freezing_the_whole_array() {
                     }
                 }
             }
-            let first_local = facts.obligations.iter().position(|o| o.site.package == "app").unwrap_or(facts.obligations.len());
-            let progress = TypingProgress::Complete(TypedTrees::new(resolved, facts, first_local));
+            let progress = TypingProgress::Complete(TypedTrees::new(resolved, facts));
             let pass = prepare_typing_pass_with_cause(&progress, &[], None, CheckedPreparationEvidence::default());
             if narrow {
                 let Err(error) = pass else { panic!("expected refusal at BUF.len") };
@@ -420,4 +419,376 @@ fn omitting_an_inferred_tuple_field_freezes_each_components_zero() {
         PreparedValue::Tuple([PreparedValue::Integer(7.into()), PreparedValue::Bool(true)].into()),
         PreparedValue::Tuple([PreparedValue::Integer(0.into()), PreparedValue::Bool(false)].into()),
     ]);
+}
+
+/// The same evaluation request can have two different issuance operands. Neither
+/// the request nor the imported constructor's postconditions are its result.
+#[test]
+fn issuance_is_an_operand_of_the_library_call_not_a_fact_of_policy_selection() {
+    const ACCESS_PLAN: &str = include_str!("fixtures/access_policy/selected.omg");
+    let only = ACCESS_PLAN.replace("Unrestricted{}", "Only{..}");
+    let empty = ACCESS_PLAN.replace("Unrestricted{}", "Only{routes: []}");
+    for (source, case) in [
+        (ACCESS_PLAN, "Issuance::Unrestricted"),
+        (only.as_str(), "Issuance::Only"),
+        (empty.as_str(), "Issuance::Only"),
+    ] {
+        let package = package(source);
+        let prepared = prepare_source_package(&package).unwrap();
+        let typed = prepared.typed();
+        let [selection] = typed.access_policies.as_slice() else {
+            panic!("expected one access selection")
+        };
+        assert_eq!(std::str::from_utf8(selection.site.span.slice(source.as_bytes()).unwrap()).unwrap(), "access Rule");
+        assert_eq!(
+            (selection.domain.path.as_str(), selection.policy.path.as_str(), selection.plan_machine.path.as_str()),
+            ("i32::Locked", "Rule", "Rule::plan")
+        );
+        assert!(selection.arguments.is_empty());
+        let core = omega_toolchain::core_interface();
+        let row = typed
+            .conformance_rows
+            .iter()
+            .find(|row| row.conformance.as_ref() == Some(&selection.policy) && &row.requirement.declaration == core.access_plan_requirement())
+            .unwrap();
+        assert_eq!(row.implementation, selection.plan_machine);
+        let calls: Vec<_> = typed.calls.iter().filter(|call| call.caller.as_ref() == Some(&selection.plan_machine)).collect();
+        let [call] = calls.as_slice() else {
+            panic!("expected one plan constructor call")
+        };
+        assert_eq!(&call.machine, core.id("access\\new_plan"));
+        let [schema, issuance] = call.operands.as_slice() else {
+            panic!("expected schema and issuance arguments")
+        };
+        assert_eq!(schema.site.file, "main.omg");
+        assert_eq!(schema.site.span.slice(source.as_bytes()), Some(&b"@schema"[..]));
+        let tree = typed.trees().nth(issuance.node.file).unwrap();
+        let construction = tree.construction(issuance.node.node).unwrap();
+        assert_eq!(&construction.owner, core.id("Issuance"));
+        assert_eq!(construction.case.as_ref(), Some(core.id(case)));
+        // Only the explicit spelling writes `routes`. Its `[]` is the declared
+        // owned `[CallableInfo<'t>]` field at the constructed issuance's own
+        // `'t`, with no elements; it is not a view and not a `[T; 0]` value.
+        let written: Vec<_> = construction
+            .initializers
+            .iter()
+            .map(|field| field.expression)
+            .collect();
+        if source == empty {
+            use omega_typed::ValueType::{Applied, Slice};
+            let [routes] = written.as_slice() else {
+                panic!("expected the written routes field, found {written:?}")
+            };
+            assert_eq!(tree.resolved().file.span(*routes).slice(source.as_bytes()), Some(&b"[]"[..]));
+            assert!(tree.resolved().file.nodes[*routes].children.is_empty());
+            let Applied(_, lifetime) = &construction.carrier else {
+                panic!("Issuance is applied to its lifetime")
+            };
+            let published: Vec<_> = tree
+                .semantics_at(*routes)
+                .filter_map(|record| match record {
+                    omega_typed::NodeSemantics::Expression(expression) => Some(expression.ty.clone()),
+                    _ => None,
+                })
+                .collect();
+            let element = Applied(Box::new(core.id(r"reflect\CallableInfo").clone()), lifetime.clone());
+            assert_eq!(published, [Slice(Box::new(element))]);
+        } else {
+            assert!(written.is_empty(), "{case} writes no field: {written:?}");
+        }
+
+        let library = typed.library.unwrap();
+        let signature = library.signatures.iter().find(|s| s.machine == call.machine).unwrap();
+        let declaration = library.trees().nth(signature.node.file).unwrap();
+        // An ordinary checked core body, not a closed-catalog entry. Its guarantees are its
+        // own rows in the library forest; this package imports none of them.
+        let body = declaration
+            .resolved()
+            .file
+            .child(signature.node.node, omega_parser::NodeKind::Body);
+        let owed = library
+            .obligations
+            .iter()
+            .filter(|o| matches!(&o.kind, omega_typed::ObligationKind::ProveGuarantee { machine, .. } if machine == &call.machine))
+            .count();
+        spec_corpus::observe_handoff!(
+            "access-plan-constructor-supply/consumer",
+            assert!(body.is_some() && !core.supplies(&call.machine) && owed == 4),
+        );
+        assert!(typed.obligations.iter().all(|o| o.site.package == "app"));
+    }
+}
+
+#[test]
+fn pending_access_plans_bind_each_selection_to_its_own_domain_and_carrier() {
+    let source = include_str!("fixtures/access_policy/selected.omg").replace(
+        "domain i32::Locked access Rule;",
+        "domain i32::Locked access Rule; domain u8::Small access Rule; domain i32::Free;",
+    );
+    let package = package(&source);
+    let prepared = prepare_source_package(&package).unwrap();
+    let domains = &prepared.typed().domain_carriers;
+    let domain = |path: &str| domains.keys().find(|id| id.package == "app" && id.path == path).unwrap();
+    let locked = prepared.pending_access_plan(domain("i32::Locked")).unwrap();
+    let small = prepared.pending_access_plan(domain("u8::Small")).unwrap();
+    assert!(prepared.pending_access_plan(domain("i32::Free")).is_none());
+    assert_eq!(locked.selection.plan_machine, small.selection.plan_machine);
+    assert_eq!(locked.selection.domain, *domain("i32::Locked"));
+    assert_eq!(small.selection.domain, *domain("u8::Small"));
+    assert_eq!(locked.carrier, &domains[domain("i32::Locked")]);
+    assert_eq!(small.carrier, &domains[domain("u8::Small")]);
+    assert_ne!(locked.carrier, small.carrier);
+    assert_eq!(locked.selection.site.span.get_start_offset(), source.find("access Rule").unwrap());
+    assert_eq!(small.selection.site.span.get_start_offset(), source.rfind("access Rule").unwrap());
+}
+
+#[test]
+fn policy_schema_argument_describes_the_scalar_and_the_requesting_domain() {
+    use omega_preparation::PolicySchemaInput;
+    let base = include_str!("fixtures/access_policy/selected.omg");
+    let source = base.replace(
+        "domain i32::Locked access Rule;",
+        "domain i32::Locked access Rule; domain u32::Small access Rule; domain i32::Other access Rule; data R { a: u8; } domain R::Record access Rule;",
+    );
+    let mut package = package(&source);
+    {
+        let prepared = prepare_source_package(&package).unwrap();
+        for selection in &prepared.typed().access_policies {
+            let demand = prepared.pending_access_plan(&selection.domain).unwrap();
+            if selection.domain.path == "R::Record" {
+                assert_eq!(*demand.schema, PolicySchemaInput::UnsupportedSubject);
+            } else {
+                assert_eq!(*demand.schema, PolicySchemaInput::NeedsPackageOwner);
+            }
+        }
+    }
+    assert!(package.bind_package_key("unrelated", [0x42; 32]).is_err());
+    package.bind_package_key("app", [0x42; 32]).unwrap();
+    package.bind_package_key("app", [0x42; 32]).unwrap();
+    assert!(package.bind_package_key("app", [0x24; 32]).is_err());
+    let prepared = prepare_source_package(&package).unwrap();
+
+    fn word(
+        image: &[u8],
+        slot: usize,
+    ) -> u64 {
+        u64::from_le_bytes(image[slot * 8..(slot + 1) * 8].try_into().unwrap())
+    }
+    fn span(
+        image: &[u8],
+        slot: usize,
+    ) -> &[u8] {
+        let start = word(image, slot) as usize;
+        &image[start..start + word(image, slot + 1) as usize]
+    }
+    let mut revisions = std::collections::HashSet::new();
+    for selection in &prepared.typed().access_policies {
+        let demand = prepared.pending_access_plan(&selection.domain).unwrap();
+        if selection.domain.path == "R::Record" {
+            assert_eq!(*demand.schema, PolicySchemaInput::UnsupportedSubject);
+            continue;
+        }
+        let PolicySchemaInput::Ready {
+            argument: PreparedValue::Record { owner, fields },
+            subject_revision,
+        } = demand.schema
+        else {
+            panic!("expected the schema argument for {}", selection.domain.path)
+        };
+        assert_eq!(owner, omega_toolchain::core_interface().id(r"reflect\TypeSchema"));
+        let [PreparedValue::SharedBytes(image)] = fields.as_ref() else {
+            panic!("TypeSchema.storage is a shared byte view")
+        };
+        let signed = selection.domain.path != "u32::Small";
+        let (atom, app) = if signed {
+            ("i32", r"named(name(compiler-type\(atom\(i32\)\)))")
+        } else {
+            ("u32", r"named(name(compiler-type\(atom\(u32\)\)))")
+        };
+        assert_eq!(
+            subject_revision.as_slice(),
+            [b"omega.reflect.primitive.v2\0".as_slice(), app.as_bytes()].concat()
+        );
+        assert_eq!([word(image, 0), word(image, 1), word(image, 2), word(image, 4)], [2, 2, 1, 1]);
+        let expected_revision = match selection.domain.path.as_str() {
+            "i32::Locked" => 0x2a42e8767c21f387,
+            "i32::Other" => 0xa9fdc503b71d7116,
+            "u32::Small" => 0xdecbcd4ffd284297,
+            other => panic!("unexpected fixture domain {other}"),
+        };
+        assert_eq!(word(image, 3), expected_revision);
+        assert!(revisions.insert(word(image, 3)), "separate requesters have different revisions");
+        let requester = format!("package:{}::declaration(path({}),owner({app}))", "42".repeat(32), selection.domain.path);
+        assert_eq!(span(image, 5), requester.as_bytes());
+        assert_eq!(span(image, 8), &[0; 34 * 8]);
+        let root = span(image, 10);
+        assert_eq!(
+            [
+                word(root, 0),
+                word(root, 1),
+                word(root, 2),
+                word(root, 3),
+                word(root, 6),
+                word(root, 7)
+            ],
+            [1, 1, 32, u64::from(signed), 4, 1]
+        );
+        assert_eq!(span(root, 8), format!("compiler-type(atom({atom}))").as_bytes());
+        assert_eq!(span(root, 10), atom.as_bytes());
+        assert_eq!(span(root, 16), app.as_bytes());
+        assert_eq!(span(root, 20), b"Copy");
+        for slot in [18, 22, 24, 26, 30, 32] {
+            assert!(span(root, slot).is_empty());
+        }
+    }
+    assert_eq!(revisions.len(), 3);
+}
+
+#[test]
+fn compiler_owned_schema_roots_keep_address_and_ieee_formats_distinct_from_integers() {
+    use omega_preparation::PolicySchemaInput;
+    for (carrier, atom, kind, width, signed) in [
+        ("bool", "bool", 0, 0, 0),
+        ("u13", "u13", 1, 13, 0),
+        ("i1", "i1", 1, 1, 1),
+        ("addr", "address", 2, 0, 0),
+        ("f32", "f32", 3, 0, 0),
+        ("f64", "f64", 4, 0, 0),
+    ] {
+        let source = include_str!("fixtures/access_policy/selected.omg").replace("i32::Locked", &format!("{carrier}::Locked"));
+        let mut package = package(&source);
+        package.bind_package_key("app", [0x34; 32]).unwrap();
+        let prepared = prepare_source_package(&package).unwrap();
+        let [selection] = prepared.typed().access_policies.as_slice() else {
+            panic!("one policy")
+        };
+        let PolicySchemaInput::Ready {
+            argument: PreparedValue::Record { fields, .. },
+            subject_revision,
+        } = prepared.pending_access_plan(&selection.domain).unwrap().schema
+        else {
+            panic!("missing schema for {carrier}")
+        };
+        let [PreparedValue::SharedBytes(storage)] = &fields[..] else {
+            panic!("expected byte view")
+        };
+        let word = |bytes: &[u8], n: usize| u64::from_le_bytes(bytes[8 * n..8 * n + 8].try_into().unwrap());
+        let node = &storage[word(storage, 10) as usize..];
+        assert_eq!([word(node, 1), word(node, 2), word(node, 3)], [kind, width, signed]);
+        let name = word(node, 10) as usize;
+        assert_eq!(&node[name..name + word(node, 11) as usize], carrier.as_bytes());
+        assert_eq!(
+            subject_revision,
+            format!("omega.reflect.primitive.v2\0named(name(compiler-type\\(atom\\({atom}\\)\\)))").as_bytes()
+        );
+    }
+}
+
+#[test]
+fn a_computed_policy_argument_is_evaluated_before_selecting_the_access_plan() {
+    use omega_typed::ObligationKind;
+    use omega_typer::{TypingProgress, type_source_package_for_preparation};
+
+    let base = include_str!("fixtures/access_policy/selected.omg")
+        .replace("access Rule;", "access Rule<choose()>;")
+        .replace("Rule satisfies", "Rule<const Open:bool> satisfies")
+        .replace(
+            "Issuance::Unrestricted{}",
+            "match Open { true -> Issuance::Unrestricted{}, false -> Issuance::Only{..}, }",
+        );
+    for open in [false, true] {
+        let source = format!("{base}\nmachine choose()->bool {{ {open} }}");
+        let package = package(&source);
+        let TypingProgress::Pending(initial) = type_source_package_for_preparation(&package, &Default::default()).unwrap() else {
+            panic!("the computed argument requires preparation")
+        };
+        let [demand] = initial.demands() else { panic!("one policy argument demand") };
+        assert_eq!(demand.request().expression.span.slice(source.as_bytes()), Some(b"choose()".as_slice()));
+        assert!(initial.trees().access_policies.is_empty());
+
+        let prepared = prepare_source_package(&package).unwrap();
+        let typed = prepared.typed();
+        assert_eq!(typed.evaluated_indices.as_slice(), [(demand.request().clone(), StaticValue::Bool(open))]);
+        let [selection] = typed.access_policies.as_slice() else {
+            panic!("one resumed policy selection")
+        };
+        spec_corpus::observe_handoff!("computed-policy-argument/consumer", assert_eq!(
+            selection.arguments,
+            [ValueType::StaticValue {
+                carrier: Box::new(ValueType::Bool),
+                value: StaticValue::Bool(open)
+            }]
+        ));
+        let debts: Vec<_> = typed
+            .obligations
+            .iter()
+            .filter_map(|o| match &o.kind {
+                ObligationKind::EvaluateAccessPlan { domain, machine } => Some((domain, machine, &o.site)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(debts, [(&selection.domain, &selection.plan_machine, &selection.site)]);
+        let plan = prepared.pending_access_plan(&selection.domain).unwrap();
+        assert_eq!(plan.schema, &omega_preparation::PolicySchemaInput::NeedsPackageOwner);
+    }
+    let source = format!("{base}\nboundary trait Sensor {{}} machine choose()->bool reaches Sensor {{ true }}");
+    let error = prepare_source_package(&package(&source)).unwrap_err();
+    assert_eq!(error.span.slice(source.as_bytes()), Some(b"choose()".as_slice()));
+    assert_eq!(error.message, "fact or static argument requires an effect-free computation");
+}
+
+#[test]
+fn selected_policy_executes_the_librarys_written_construction_inputs() {
+    use omega_prepared::{PolicyFieldInput, PolicySchemaInput};
+    use std::{fs, path::Path};
+
+    let base = include_str!("fixtures/access_policy/selected.omg");
+    let input = Path::new("main.omg");
+    let core = omega_toolchain::core_interface();
+    for (index, (source, expected_case)) in [
+        (base.to_owned(), Some("Issuance::Unrestricted")),
+        (base.replace("Unrestricted{}", "Only{routes:[]}"), Some("Issuance::Only")),
+        (base.replace("Unrestricted{}", "Only{..}"), Some("Issuance::Only")),
+        (format!("{}\nmachine relay<'t>(s:@TypeSchema<'t>, i:Issuance<'t>)->AccessPlan<'t> reaches none crashes none terminates {{ new_plan::<'t>(s,i) }}",
+                 base.replace("new_plan::<'t>(@schema", "relay::<'t>(@schema")), Some("Issuance::Unrestricted")),
+        (base.replace("new_plan::<'t>(@schema", "let s = schema; new_plan::<'t>(@s"), None),
+    ].into_iter().enumerate() {
+        let root = std::env::temp_dir().join(format!("omega-policy-execution-{}-{index}", std::process::id()));
+        fs::create_dir(&root).unwrap();
+        fs::write(root.join(input), source).unwrap();
+        let build = omega_toolchain::DefaultBuild::capture(&root).unwrap();
+        let bytes = build.source_bytes(input).unwrap();
+        fs::remove_file(root.join(input)).unwrap();
+        fs::remove_dir(root).unwrap();
+        let mut package = package(std::str::from_utf8(&bytes).unwrap());
+        package.bind_package_key("app", build.package_key()).unwrap();
+        let prepared = prepare_source_package(&package).unwrap();
+        let selection = &prepared.typed().access_policies[0];
+        let demand = prepared.pending_access_plan(&selection.domain).unwrap();
+        let PolicySchemaInput::Ready { argument, .. } = demand.schema
+        else { panic!("Build supplied the schema owner") };
+        let Some(expected_case) = expected_case else {
+            assert!(demand.pending_construction.is_none(), "an unsupported statement cannot be skipped");
+            continue;
+        };
+        let construction = demand.pending_construction.expect("selected construction in the defining library");
+        assert_eq!(construction.machine.machine.as_ref(), core.id(r"access\new_plan"));
+        assert_eq!(construction.site.package, omega_toolchain::TOOLCHAIN_PACKAGE);
+        let (definition, _) = prepared.typed().imported_machine_definition(&construction.machine.machine).unwrap();
+        assert_eq!(definition.resolved().file.node_id(construction.node.node), construction.node);
+        assert_eq!(omega_typed::site_at(definition.resolved().file, construction.node.node), construction.site);
+        assert!(definition.semantics_at(construction.node.node).any(|row|
+            matches!(row, omega_typed::NodeSemantics::Obligation(o) if matches!(&o.kind, omega_typed::ObligationKind::EstablishData(owner) if owner == core.id("AccessPlan")))));
+        assert_eq!(construction.fields.len(), 9);
+        assert_eq!(construction.fields[0], (core.id("AccessPlan::schema").clone(), PolicyFieldInput::Written(argument.clone())));
+        let (field, PolicyFieldInput::Written(PreparedValue::Sum { owner, case, fields })) = &construction.fields[1] else { panic!("evaluated issuance") };
+        assert_eq!((field, owner, case), (core.id("AccessPlan::issuance"), core.id("Issuance"), core.id(expected_case)));
+        if expected_case == "Issuance::Only" {
+            assert_eq!(&fields[..], &[PreparedValue::Array([].into())]);
+        } else {
+            assert!(fields.is_empty());
+        }
+        assert!(construction.fields[2..].iter().all(|(_, input)| matches!(input, PolicyFieldInput::Zero(_))));
+        assert_eq!(construction.fields[8].0, *core.id("AccessPlan::reach"));
+    }
 }

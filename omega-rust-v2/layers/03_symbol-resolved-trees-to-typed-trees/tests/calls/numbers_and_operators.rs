@@ -37,15 +37,33 @@ fn arbitrary_precision_and_fractional_intermediates() {
 
 #[test]
 fn integer_landing_matches_independent_endpoint_oracle() {
-    for width in [1, 2, 7, 8, 13, 24, 31, 63, 64, 104] {
+    for width in [1u64, 2, 7, 8, 13, 24, 31, 63, 64, 104] {
         for signed in [false, true] {
-            let limit = 1i128 << (width - i32::from(signed));
+            let limit = 1i128 << (width - u64::from(signed));
             let low = if signed { -limit } else { 0 };
             let high = limit - 1;
             for value in [low - 1, low, 0, high, high + 1] {
                 let carrier = if signed { "i" } else { "u" };
-                let source = format!("machine test()->{carrier}{width}{{ {value} }}");
-                assert_eq!(check(&[("oracle.omg", &source)]).is_ok(), (low..=high).contains(&value), "{source}");
+                let prefix = format!("machine test()->{carrier}{width}{{ ");
+                let literal = value.to_string();
+                let source = format!("{prefix}{literal} }}");
+                let span = omega_lexer::SourceSpan::new(prefix.len(), prefix.len() + literal.len());
+                let typed = check(&[("oracle.omg", &source)]);
+                if (low..=high).contains(&value) {
+                    let stage = typed.unwrap();
+                    let [landing] = stage.landings.as_slice() else { panic!("expected one numeric landing: {source}") };
+                    assert_eq!(landing.site.span, span, "{source}");
+                    assert_eq!(landing.ty, ValueType::Integer { signed, width: Some(width) }, "{source}");
+                    assert_eq!(landing.value.to_string(), literal, "{source}");
+                } else {
+                    let error = typed.unwrap_err();
+                    let message = format!("expected {carrier}{width}, found {value}");
+                    assert_eq!((error.package.as_str(), error.file.as_str(), error.span, error.message.as_str()),
+                               ("game", "oracle.omg", span, message.as_str()), "{source}");
+                    assert!(!error.waiting_for_static_value(), "{source}");
+                    #[cfg(feature = "diagnostic-origins")]
+                    support::report_return(&error, "", Some(("game", "oracle.omg", prefix.len(), prefix.len() + literal.len(), &message)));
+                }
             }
         }
     }

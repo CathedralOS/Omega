@@ -1,20 +1,78 @@
-use crate::{PreparationDependencies, PreparationResourceReceipt, PreparedValue, TargetObservation};
+use crate::{PreparationDependencies, PreparationResourceReceipt, PreparedFloat, PreparedValue, TargetObservation};
 use num_bigint::BigInt;
-use omega_resolved::DeclarationId;
+use omega_resolved::{DeclarationId, TreeNodeId};
 use omega_typed::{SpecializedIndexValue, TypeError, TypedTrees};
 use std::collections::HashMap;
 use std::sync::Arc;
+
+/// A node number belongs to its defining forest. Library and package file
+/// ordinals can overlap when a library clause is instantiated in the package.
+#[derive(Debug, Default, Eq, PartialEq)]
+pub struct PreparedComparisons {
+    pub package: HashMap<TreeNodeId, bool>,
+    pub library: HashMap<TreeNodeId, bool>,
+}
+
+/// A selected policy awaiting evaluation. Its typed carrier names the subject;
+/// a ready schema holds the actual core record to pass to the plan machine.
+#[derive(Debug)]
+pub struct PendingAccessPlan<'a> {
+    pub selection: &'a omega_typed::AccessPolicySelection,
+    pub carrier: &'a omega_typed::ValueType,
+    pub schema: &'a PolicySchemaInput,
+    pub pending_construction: Option<&'a PolicyConstruction>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub struct PolicyPreparation {
+    pub schema: PolicySchemaInput,
+    pub pending_construction: Option<PolicyConstruction>,
+}
+
+/// The checked body reached this data construction in its defining forest.
+/// Written inputs have values. Each omission still owes the zero of its own
+/// carrier, including establishment if that zero has a default domain.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PolicyConstruction {
+    pub machine: omega_typed::MachineApplication,
+    /// Occurrence in the defining machine's own forest.
+    pub node: TreeNodeId,
+    pub site: omega_typed::Site,
+    pub carrier: omega_typed::ValueType,
+    pub fields: Vec<(DeclarationId, PolicyFieldInput)>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PolicyFieldInput {
+    Written(PreparedValue),
+    Zero(omega_typed::ValueType),
+}
+
+/// Progress constructing the one ordinary argument of a selected policy machine.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PolicySchemaInput {
+    NeedsPackageOwner,
+    UnsupportedSubject,
+    Ready {
+        argument: PreparedValue,
+        subject_revision: Vec<u8>,
+    },
+}
 
 /// Typed trees whose demanded closed indices have been evaluated and materialized.
 #[derive(Debug, Eq, PartialEq)]
 pub struct PreparedTrees<'text> {
     typed: TypedTrees<'text>,
+    policies: HashMap<DeclarationId, PolicyPreparation>,
     constants: HashMap<DeclarationId, PreparedValue>,
     open_target_constants: HashMap<DeclarationId, Arc<TypeError>>,
     specialized_indices: Vec<SpecializedIndexValue>,
     target_observations: Vec<TargetObservation>,
     resource_receipt: Option<PreparationResourceReceipt>,
     dependencies: PreparationDependencies,
+    exact_comparisons: PreparedComparisons,
+    /// Sorted by node, then format.
+    landed_floats: Vec<(TreeNodeId, PreparedFloat)>,
 }
 
 impl<'text> PreparedTrees<'text> {
@@ -22,22 +80,82 @@ impl<'text> PreparedTrees<'text> {
     /// package they describe.
     pub fn from_preparation(
         typed: TypedTrees<'text>,
+        policies: HashMap<DeclarationId, PolicyPreparation>,
         constants: HashMap<DeclarationId, PreparedValue>,
         open_target_constants: HashMap<DeclarationId, Arc<TypeError>>,
         specialized_indices: Vec<SpecializedIndexValue>,
         target_observations: Vec<TargetObservation>,
         resource_receipt: Option<PreparationResourceReceipt>,
         dependencies: PreparationDependencies,
+        exact_comparisons: PreparedComparisons,
+        mut landed_floats: Vec<(TreeNodeId, PreparedFloat)>,
     ) -> Self {
+        landed_floats.sort_unstable_by_key(|(node, value)| (*node, value.format() == omega_target_contract::FloatFormat::Binary64));
+        landed_floats.dedup();
         Self {
             typed,
+            policies,
             constants,
             open_target_constants,
             specialized_indices,
             target_observations,
             resource_receipt,
             dependencies,
+            landed_floats,
+            exact_comparisons,
         }
+    }
+
+    /// The bits of the anonymous numeric expression that typing landed at
+    /// `node` in `format`, rounded once to nearest, ties to even. `None` when
+    /// no such landing exists or two landings there disagree.
+    pub fn landed_float(
+        &self,
+        node: TreeNodeId,
+        format: omega_target_contract::FloatFormat,
+    ) -> Option<PreparedFloat> {
+        let start = self.landed_floats.partition_point(|(at, _)| *at < node);
+        let mut matches = self.landed_floats[start..]
+            .iter()
+            .take_while(|(at, _)| *at == node)
+            .filter(|(_, value)| value.format() == format)
+            .map(|(_, value)| *value);
+        let first = matches.next()?;
+        matches.next().is_none().then_some(first)
+    }
+
+    /// The truth of a selected comparison between two wholly anonymous numbers.
+    pub fn exact_comparison(
+        &self,
+        tree: &omega_typed::TypedTree<'_>,
+        node: usize,
+    ) -> Option<bool> {
+        let facts = if std::ptr::eq(tree.forest(), &self.typed) {
+            &self.exact_comparisons.package
+        } else if self
+            .typed
+            .library
+            .is_some_and(|library| std::ptr::eq(tree.forest(), library))
+        {
+            &self.exact_comparisons.library
+        } else {
+            return None;
+        };
+        facts.get(&tree.resolved().file.node_id(node)).copied()
+    }
+
+    /// The policy this package still owes for the given domain. An authored
+    /// constructor or an issuance argument cannot discharge this demand.
+    pub fn pending_access_plan(&self, domain: &DeclarationId) -> Option<PendingAccessPlan<'_>> {
+        let selection = self.typed.access_policies.iter().find(|policy| &policy.domain == domain)?;
+        let carrier = self.typed.domain_carriers.get(domain)?;
+        let progress = self.policies.get(domain);
+        Some(PendingAccessPlan {
+            selection,
+            carrier,
+            schema: progress.map_or(&PolicySchemaInput::UnsupportedSubject, |p| &p.schema),
+            pending_construction: progress.and_then(|p| p.pending_construction.as_ref()),
+        })
     }
 
     pub fn typed(&self) -> &TypedTrees<'text> {

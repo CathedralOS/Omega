@@ -467,9 +467,10 @@ impl ConstantEvaluation<'_, '_> {
                     }) {
                         return Err(PreparationReason::UnselectedBoundarySlot.into());
                     }
-                    let target = self
-                        .target
-                        .ok_or_else(|| EvaluationError::OpenTarget(self.call_diagnostic(PreparationReason::LayoutQueryNeedsTarget, &execution.chain, &[])))?;
+                    let Some(target) = self.target else {
+                        omega_target_contract::validate_layout_query_subject(&subject).map_err(RefusalCause::TargetLayout)?;
+                        return Err(EvaluationError::OpenTarget(self.call_diagnostic(PreparationReason::LayoutQueryNeedsTarget, &execution.chain, &[])));
+                    };
                     let (value, observation) = target
                         .observe_layout(query, &subject)
                         .map_err(RefusalCause::TargetLayout)?;

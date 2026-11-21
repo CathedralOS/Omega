@@ -38,29 +38,31 @@ macro_rules! families {
 
 families! {
     OperationKind => [
-        BeginAssembly, AssemblyInstruction, Constant, Boolean, ExactIntegerCast, TrappingInteger, Integer, Call,
-        RefineCallableDescriptor, ByteSequenceLength, ByteSequenceRead, BorrowPlace, ScalarBitRecast, BorrowedMove,
-        StructuralStore, ElementViewLength, ElementViewRead, EstablishZeroedStructural, EstablishCase, EstablishRecord,
+        BeginAssembly, AssemblyInstruction, Constant, Boolean, ExactNumericCast, TrappingInteger, Integer, Float, Call, ApplyTheorem,
+        ConstructCallableDescriptor, RefineCallableDescriptor, ByteSequenceLength, ByteSequenceRead, BorrowPlace, ScalarBitRecast,
+        MutableScalarBitRecast, BorrowedMove,
+        StructuralStore, ElementViewLength, ElementViewRead, ElementViewWrite, EstablishZeroedStructural, EstablishCase, EstablishRecord,
         CopyStructural, MoveStructural, DecomposeRecord, StructuralScalarFieldStore, ProjectedScalarStore,
         StructuralCaseMembership, ProjectedScalarRead, PrimitiveScalarRead, StructuralLeafCopy, EstablishScalarArray,
-        EstablishStructuralArray,
+        EstablishStructuralArray, EstablishPrimitiveLocal,
     ],
     BlockTerminator => [Return, Conditional, Jump, TerminalCall, ExternalExit],
     ReturnEdge => [Unit, Scalar, Structural],
-    CleanupAction => [DiscardRoot, DiscardResidual, Invoke],
-    StructuralStoreDisposition => [FillVacancy, ReplaceUnrestricted, Dispose],
+    CleanupAction => [DiscardRoot, DiscardResidual, Invoke, RetireHome],
+    StructuralStoreDisposition => [FillVacancy, ReplaceUnrestricted, Dispose, ReplaceWriteOnly],
     ValueOperand => [Scalar, CopyWhole, MoveWhole, Borrow],
     PlaceProjection => [Referent, Case, Field, FixedIndex, ViewElement],
     CallTarget => [Machine, Member, Runtime],
     MemberRealization => [Boundary, Conformance],
     PredicateStep => [
-        Formal, CallbackGuarantee, TypesEqual, ValueIndex, Result, SelfValue, Field, CasePayload, FixedIndex, IsCase,
-        FixedArrayLength, ByteSequenceLength, ElementViewLength, Boolean, Integer, MathematicalTerm,
+        Formal, MachineApplication, CallbackApplication, CallbackGuarantee, TypesEqual, ValueIndex, Result, SelfValue, Field, CasePayload, FixedIndex, FixedArrayRead,
+        IsCase, InDomain,
+        FixedArrayLength, ByteSequenceLength, ElementViewLength, Boolean, Integer, IeeeFloat, IeeeComparison, MathematicalTerm,
         HypothesisParameter, HypothesisGuarantee, Apply,
     ],
     TypeShape => [
-        PrimitiveScalar, QualifiedScalar, Nominal, SharedByteView, SharedElementView, MutableElementView,
-        ScalarReference, NominalReference, Callable, FixedArray,
+        PrimitiveScalar, QualifiedScalar, Nominal, QualifiedNominal, SharedQualifiedScalarReference, SharedByteView, SharedElementView, MutableElementView,
+        ScalarReference, NominalReference, IndexedSharedReference, Callable, FixedArray,
     ],
 }
 
@@ -71,6 +73,7 @@ const RECORDS: &[&str] = &[
     "Package::data",
     "Package::aliases",
     "Package::domains",
+    "Package::domain_templates",
     "Package::domain_aliases",
     "Package::mathematics",
     "Package::theorems",
@@ -115,6 +118,7 @@ impl Tally {
             data,
             aliases,
             domains,
+            domain_templates,
             domain_aliases,
             mathematics,
             theorems,
@@ -130,6 +134,10 @@ impl Tally {
         self.add("Package::data", data.len());
         self.add("Package::aliases", aliases.len());
         self.add("Package::domains", domains.len());
+        self.add("Package::domain_templates", domain_templates.len());
+        for template in domain_templates {
+            self.clauses(&template.requires);
+        }
         self.add("Package::domain_aliases", domain_aliases.len());
         self.add("Package::mathematics", mathematics.len());
         self.add("Package::theorems", theorems.len());
@@ -148,6 +156,11 @@ impl Tally {
         }
         for domain in domains {
             self.clauses(&domain.requires);
+        }
+        for template in machine_templates {
+            self.clauses(&template.signature.requires);
+            self.clauses(&template.signature.ensures);
+            self.clauses(template.signature.crash_routes.iter().filter_map(|route| route.guard.as_ref()));
         }
         for declaration in traits {
             for requirement in &declaration.requirements {

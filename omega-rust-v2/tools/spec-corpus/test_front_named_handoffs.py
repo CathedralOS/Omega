@@ -18,6 +18,7 @@ def inspect(**logs):
         report["suites"][stage] = {"tests": tests}
     Path("target").mkdir(exist_ok=True)
     with TemporaryDirectory(dir="target") as directory:
+        handoffs.collect_rules(report)
         handoffs.finish(report, Path(directory))
     items = {(row["rule"], item["name"]): item["verified"] for stage in logs
              for row in report["handoff_rules"][stage] for item in row.get("named_requirements", [])}

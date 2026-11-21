@@ -1,0 +1,13 @@
+data Pair = machine(a: u32, b: u32) -> u32
+    requires a < 100
+    requires b < a
+    ensures result < a
+    reaches none crashes none;
+
+machine apply(f: Pair, x: u32, y: u32) -> u32
+requires y < 100
+requires x < y
+{
+    let r = f(y, x);
+    r
+}
