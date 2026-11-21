@@ -155,14 +155,6 @@ framework or a list of unimplemented features.
 - Cost: The Build planner recognizes a call in a transition arm's target but misses the subject that ordinary resolution captures. Follow the authored call through that capture so both forms stop at the same preparation and admit the helper's return in the mounted scope.
 - Reported: 2026-11-20, Codex, while comparing ordinary and staged suspension placement.
 
-### Copying a deep scalar proof expression consumes the Rust call stack
-
-- Category: One idea, several implementations.
-- Where: [scalar expressions](source-rust/subsystems/compiler/foundation/semantic-records/src/scalar_terms.rs#L976), [integer math expressions](source-rust/subsystems/compiler/foundation/semantic-records/src/proposition.rs#L1191), [logical clone handing off to scalar clone](source-rust/subsystems/compiler/foundation/semantic-records/src/proposition.rs#L1663), [deep scalar admission control](source-rust/subsystems/compiler/psi-semantics/proofs/bounded/proof.rs#L4912).
-- Saw: The logical clone walker delegates scalar operands to a derived recursive clone. Copying an iteratively constructed, left-nested `ExactIntegerAdd` on a 2 MiB Rust thread succeeded at 8,192 levels and overflowed at 16,384 during clone. The control excluded recursive disposal.
-- Cost: A consumer copying a single arithmetic clause can abort its process. The separate 8,192-level Boolean test passed both clone and kernel-backed admission. The arithmetic control starts with a vocabulary value, so source-level reachability remains unverified.
-- Reported: 2026-11-20, Codex, while checking field identities in suspended Build contracts.
-
 ### Field and export judgments still describe the earlier source tree
 
 - Category: The documents disagree.

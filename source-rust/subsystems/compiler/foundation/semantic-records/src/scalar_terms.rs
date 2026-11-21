@@ -972,7 +972,7 @@ impl From<CanonicalStructuralPathSegment> for ScalarReadProjection {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
 pub enum ScalarTerm {
     Application {
         application: crate::ScalarApplicationId,
@@ -1340,12 +1340,22 @@ macro_rules! integer_shift_term {
     };
 }
 
-macro_rules! scalar_term_operand_table {
-    ($self:expr, $borrow:ident) => {
-        match $self {
-            scalar_term_unary_operand!(operand) => vec![operand.$borrow()],
-            scalar_term_binary_operands!(left, right) => vec![left.$borrow(), right.$borrow()],
-            _ => Vec::new(),
+macro_rules! append_scalar_operands {
+    ($term:expr, $operands:ident, $iter:ident, $borrow:ident) => {
+        match $term {
+            ScalarTerm::StructuralRead { path, .. } => {
+                $operands.extend(path.$iter().filter_map(|segment| match segment {
+                    ScalarReadProjection::Index(index) => Some(index.$borrow()),
+                    ScalarReadProjection::Static(_)
+                    | ScalarReadProjection::Referent
+                    | ScalarReadProjection::Extent => None,
+                }))
+            }
+            scalar_term_unary_operand!(operand) => $operands.push(operand.$borrow()),
+            scalar_term_binary_operands!(left, right) => {
+                $operands.extend([left.$borrow(), right.$borrow()])
+            }
+            _ => {}
         }
     };
 }
@@ -1680,34 +1690,20 @@ impl ScalarTerm {
 
     integer_binary_term!(saturating_integer_multiply => SaturatingIntegerMultiply);
 
+    pub(super) fn append_operands<'a>(&'a self, operands: &mut Vec<&'a Self>) {
+        append_scalar_operands!(self, operands, iter, as_ref);
+    }
+
     pub fn operands(&self) -> Vec<&ScalarTerm> {
-        if let Self::StructuralRead { path, .. } = self {
-            return path
-                .iter()
-                .filter_map(|segment| match segment {
-                    ScalarReadProjection::Index(index) => Some(index.as_ref()),
-                    ScalarReadProjection::Static(_)
-                    | ScalarReadProjection::Referent
-                    | ScalarReadProjection::Extent => None,
-                })
-                .collect();
-        }
-        scalar_term_operand_table!(self, as_ref)
+        let mut operands = Vec::new();
+        self.append_operands(&mut operands);
+        operands
     }
 
     pub fn operands_mut(&mut self) -> Vec<&mut ScalarTerm> {
-        if let Self::StructuralRead { path, .. } = self {
-            return path
-                .iter_mut()
-                .filter_map(|segment| match segment {
-                    ScalarReadProjection::Index(index) => Some(index.as_mut()),
-                    ScalarReadProjection::Static(_)
-                    | ScalarReadProjection::Referent
-                    | ScalarReadProjection::Extent => None,
-                })
-                .collect();
-        }
-        scalar_term_operand_table!(self, as_mut)
+        let mut operands = Vec::new();
+        append_scalar_operands!(self, operands, iter_mut, as_mut);
+        operands
     }
 
     pub fn visit_value_ids(&self, mut visit: impl FnMut(ValueId) -> bool) -> bool {
