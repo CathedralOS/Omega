@@ -1,13 +1,12 @@
-//! Whether a program has the toolchain's Build activation, and whether it
-//! may run.
+//! Admit the toolchain declaration for the Build value the host issues.
 //!
 //! A Build script runs against one compiler-owned `Build` value: the host
 //! builds it, hands the script `@mut Build`, and decodes what the script left
 //! in it by field. Two things must hold before that is sound.
 //!
 //! The first is the vocabulary the host decodes: the program declares the
-//! toolchain's `Build` exactly once, with the one `x86_deployment_features`
-//! field of the toolchain's own type. That is checked here.
+//! toolchain's `Build` exactly once. Its deployment features and optimizations
+//! must use the corresponding toolchain declarations.
 //!
 //! The second is that source cannot construct, store or return a `Build`
 //! value of its own, because the host would decode a forged one as if it had
@@ -33,43 +32,28 @@ use super::is_exact_toolchain_build_prelude_data;
 /// Return the toolchain Build declaration after checking its fields and issuance seal.
 pub(super) fn admit_toolchain_build_activation(
     typed: &TypedTrees,
-) -> Result<Option<&DataDefinition>, Vec<Diagnostic>> {
+) -> Result<&DataDefinition, Vec<Diagnostic>> {
     let refused = |message: String| vec![Diagnostic::error(message)];
     let mut builds = typed.data_definitions().iter().filter(|definition| {
         is_exact_toolchain_build_prelude_data(typed, definition.symbol, "Build")
     });
     let Some(build) = builds.next() else {
-        return Ok(None);
+        return Err(refused(
+            "Build evaluation requires the toolchain-provided Build declaration".into(),
+        ));
     };
     if builds.next().is_some() {
         return Err(refused(
             "the program declares more than one toolchain Build activation".into(),
         ));
     }
-    let mut features = typed
-        .data_members(build)
-        .iter()
-        .filter_map(|member| match member {
-            DataMember::Field(field) if field.name.as_str() == "x86_deployment_features" => {
-                Some(field)
-            }
-            _ => None,
-        });
-    let (Some(field), None) = (features.next(), features.next()) else {
-        return Err(refused(
-            "toolchain Build must declare exactly one `x86_deployment_features` field".into(),
-        ));
-    };
-    let exact = matches!(
-        typed.type_reference_table.type_reference(field.type_reference),
-        TypeReferenceNode::Named { symbol, .. }
-            if is_exact_toolchain_build_prelude_data(typed, *symbol, "X86DeploymentFeatures")
-    );
-    if !exact {
-        return Err(refused(
-            "toolchain Build.x86_deployment_features must have the exact toolchain X86DeploymentFeatures type".into(),
-        ));
-    }
+    require_toolchain_field(
+        typed,
+        build,
+        "x86_deployment_features",
+        "X86DeploymentFeatures",
+    )?;
+    require_toolchain_field(typed, build, "optimizations", "Optimizations")?;
     let mut seals = typed
         .data_members(build)
         .iter()
@@ -87,7 +71,38 @@ pub(super) fn admit_toolchain_build_activation(
             "toolchain Build.seal must be the toolchain BuildSeal, not `[copy]`, in the toolchain domain an access policy governs".into(),
         ));
     }
-    Ok(Some(build))
+    Ok(build)
+}
+
+fn require_toolchain_field(
+    typed: &TypedTrees,
+    build: &DataDefinition,
+    name: &str,
+    expected_type: &str,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut fields = typed
+        .data_members(build)
+        .iter()
+        .filter_map(|member| match member {
+            DataMember::Field(field) if field.name.as_str() == name => Some(field),
+            _ => None,
+        });
+    let (Some(field), None) = (fields.next(), fields.next()) else {
+        return Err(vec![Diagnostic::error(format!(
+            "toolchain Build must declare exactly one `{name}` field"
+        ))]);
+    };
+    let exact = typed
+        .type_reference_table
+        .type_reference(field.type_reference)
+        .as_named_symbol()
+        .is_some_and(|symbol| is_exact_toolchain_build_prelude_data(typed, symbol, expected_type));
+    if !exact {
+        return Err(vec![Diagnostic::error(format!(
+            "toolchain Build.{name} must have the exact toolchain {expected_type} type"
+        ))]);
+    }
+    Ok(())
 }
 
 /// Whether `reference` is what keeps source from producing a `Build`: the
@@ -131,6 +146,7 @@ mod tests {
 
     const PRELUDE: &str = r#"
 public data X86DeploymentFeatures { avx2: bool; }
+public data Optimizations { human_report: u8; selected: [u8; 1]; }
 public trait AccessPolicy { machine plan() -> u64; }
 public data BuildSeal { }
 BuildSealAccess satisfies AccessPolicy { machine plan() -> u64 { 0u64 } }
@@ -138,6 +154,7 @@ public domain BuildSeal::Issued access BuildSealAccess;
 public data Build<'storage> {
     seal: BuildSeal in Issued;
     x86_deployment_features: X86DeploymentFeatures;
+    optimizations: Optimizations;
     identifier: @'storage [u8];
 }
 "#;
@@ -184,7 +201,8 @@ public data Build<'storage> {
                 scope: file.dependency_scope,
             });
         }
-        let lexed = source_compiler::test_support::lexing::lex(loaded.into_iter().collect()).unwrap();
+        let lexed =
+            source_compiler::test_support::lexing::lex(loaded.into_iter().collect()).unwrap();
         let (pages, _) = source_compiler::test_support::parsing::parse(&lexed, Default::default())
             .unwrap()
             .into_parts();
@@ -208,18 +226,44 @@ public data Build<'storage> {
     #[test]
     fn a_program_with_the_sealed_toolchain_build_has_an_activation() {
         let typed = typed("machine build_entry() { }", Some(PRELUDE));
-        assert!(admit_toolchain_build_activation(&typed).unwrap().is_some());
+        assert_eq!(
+            admit_toolchain_build_activation(&typed)
+                .unwrap()
+                .name
+                .as_str(),
+            "Build"
+        );
     }
 
-    /// A `Build` the program declares itself is no compiler-owned value: the
-    /// host issues none for it, so there is no activation to admit or refuse.
     #[test]
-    fn a_program_without_the_toolchain_build_has_no_activation() {
-        let own = typed(
-            "data Build { marker: u64; }\nmachine build_entry() { }",
-            None,
+    fn a_source_owned_build_cannot_receive_the_host_value() {
+        for source in [
+            "data Build { marker: u64; }",
+            "data Optimizations { human_report: u8; } data Build { optimizations: Optimizations; }",
+        ] {
+            let own = typed(&format!("{source}\nmachine build_entry() {{ }}"), None);
+            assert_eq!(
+                refusal(&own),
+                "Build evaluation requires the toolchain-provided Build declaration"
+            );
+        }
+    }
+
+    #[test]
+    fn the_toolchain_build_requires_its_own_optimization_type() {
+        let missing = PRELUDE.replace("    optimizations: Optimizations;\n", "");
+        assert_eq!(
+            refusal(&typed("machine build_entry() { }", Some(&missing))),
+            "toolchain Build must declare exactly one `optimizations` field"
         );
-        assert!(admit_toolchain_build_activation(&own).unwrap().is_none());
+        let wrong = PRELUDE.replace(
+            "optimizations: Optimizations;",
+            "optimizations: X86DeploymentFeatures;",
+        );
+        assert_eq!(
+            refusal(&typed("machine build_entry() { }", Some(&wrong))),
+            "toolchain Build.optimizations must have the exact toolchain Optimizations type"
+        );
     }
 
     /// The vocabulary is judged before the value's protection, so a prelude
