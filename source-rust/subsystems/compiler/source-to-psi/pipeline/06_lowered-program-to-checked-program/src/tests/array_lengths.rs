@@ -670,6 +670,45 @@ fn accepted(verdict: &Result<RouteVerdict, crate::checking::CompilationRefusal>)
 }
 
 #[test]
+fn forwarding_an_extent_to_a_boundary_checks_the_declared_contract() {
+    let source = r#"
+boundary trait Other {}
+boundary trait Text {
+    machine send<const Count: u64>(bytes: @[u8; Count]) -> u64
+    requires Count > 0u64
+    requires bytes[Count - 1u64] == 0u8
+    reaches none
+    crashes none;
+}
+machine forward<const Size: u64>(bytes: @[u8; Size]) -> u64
+requires Size > 0u64
+requires bytes[Size - 1u64] == 0u8
+reaches none
+crashes none
+{ Text::send::<Size>(bytes) }
+machine entry() -> u64 {
+    let bytes: [u8; 4] = [1, 2, 3, 0];
+    forward::<4u64>(@bytes)
+}
+"#;
+    let valid = array_subject(source);
+    assert!(valid.iter().all(accepted), "{valid:?}");
+    // The caller must account for a synchronous entry published by the
+    // method. Two bodyless services distinguish an exact grant from a near miss.
+    let grants = source.replace("reaches none", "reaches none\ninvokes Text");
+    let valid = array_subject(&grants);
+    assert!(valid.iter().all(accepted), "{valid:?}");
+    let missing = array_subject(&grants.replace("invokes Text\ncrashes none\n{", "invokes Other\ncrashes none\n{"));
+    assert!(missing.iter().any(|verdict| matches!(verdict, Ok(RouteVerdict::Rejected { exceeded, .. })
+        if exceeded.iter().any(|row| row.message().contains("synchronous invocation")))), "{missing:?}");
+    let different = source.replace("Size - 1u64] == 0u8", "Size - 1u64] == 7u8")
+        .replace("[1, 2, 3, 0]", "[1, 2, 3, 7]");
+    let wrong_byte = array_subject(&different);
+    assert!(wrong_byte.iter().any(|verdict| matches!(verdict, Ok(RouteVerdict::Rejected { unproved, .. })
+        if !unproved.is_empty())), "{wrong_byte:?}");
+}
+
+#[test]
 fn a_size_generic_requirement_is_checked_once_for_every_size() {
     // At the call, `Count` is 4 and both contracts are formed. The template
     // is judged for every `Count`: `Count - 1` underflows at zero unless the
