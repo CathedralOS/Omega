@@ -712,7 +712,7 @@ fn zero_paths(elaboration: &mut Elaboration, aliases: &[(Vec<Segment>, ValueId)]
 }
 
 #[test]
-fn compact_zero_and_complete_filtered_legacy_names_both_check() {
+fn zero_reads_derive_their_value_only_from_the_establishing_store() {
     for preceding in [[0, 0], [0, 7]] {
         let mut compact = zeroed_point(&preceding);
         let read = field_reads(&compact)[0];
@@ -733,21 +733,15 @@ fn compact_zero_and_complete_filtered_legacy_names_both_check() {
             aliases.push((2, values[1]));
         }
         zero_aliases(&mut legacy, &aliases);
-        let read = field_reads(&legacy)[0];
-        discharge(
-            &mut legacy,
-            &mut crate::checking::ProofSearchActivity::default(),
-        )
-        .unwrap();
-        assert_eq!(
-            read_equals(legacy.tables.machines.get(id(1)).unwrap(), read),
-            Some(values[0])
+        assert_refused(
+            judge(Ok(legacy)),
+            "a write row states a store its operation does not make",
         );
     }
 }
 
 #[test]
-fn partial_duplicate_and_reordered_legacy_zero_groups_are_refused() {
+fn extra_zero_writes_are_refused_regardless_of_order() {
     for fields in [vec![1], vec![2], vec![1, 1], vec![2, 1], vec![1, 2, 2]] {
         let mut program = zeroed_point(&[0, 0]);
         let values = constants(&program);
@@ -835,7 +829,7 @@ fn zeroed_array_after(length: u64, dynamic: bool, bound: u128, preceding: &[u128
 }
 
 #[test]
-fn legacy_array_names_keep_filtered_positions_and_exact_scalar_ids() {
+fn a_zeroed_array_does_not_take_values_from_adjacent_constants() {
     let mut program = zeroed_array_after(3, false, 0, &[0, 7, 0]);
     let values = constants(&program);
     zero_paths(
@@ -845,11 +839,9 @@ fn legacy_array_names_keep_filtered_positions_and_exact_scalar_ids() {
             (vec![Segment::FixedIndex(2)], values[2]),
         ],
     );
-    let read = field_reads(&program)[0];
-    discharge(&mut program, &mut Default::default()).unwrap();
-    assert_eq!(
-        read_equals(program.tables.machines.get(id(1)).unwrap(), read),
-        Some(values[2])
+    assert_refused(
+        judge(Ok(program)),
+        "a write row states a store its operation does not make",
     );
 }
 
@@ -956,7 +948,7 @@ fn a_borrowed_zero_read_uses_its_actual_backing_and_keeps_later_writes() {
 }
 
 #[test]
-fn a_legacy_float_name_requires_the_actual_positive_zero_bits() {
+fn a_zeroed_float_holds_positive_zero_regardless_of_the_preceding_constant() {
     use semantic_vocabulary::IeeeFloatValue;
     for value in [
         IeeeFloatValue::Binary32(0),
@@ -1026,20 +1018,10 @@ fn a_legacy_float_name_requires_the_actual_positive_zero_bits() {
             .unwrap()
             .id;
         zero_aliases(&mut program, &[(1, constant)]);
-        if matches!(
-            value,
-            IeeeFloatValue::Binary32(0) | IeeeFloatValue::Binary64(0)
-        ) {
-            assert!(matches!(
-                judge(Ok(program)).unwrap(),
-                RouteVerdict::Accepted(_)
-            ));
-        } else {
-            assert_refused(
-                judge(Ok(program)),
-                "a write row states a store its operation does not make",
-            );
-        }
+        assert_refused(
+            judge(Ok(program)),
+            "a write row states a store its operation does not make",
+        );
     }
 }
 
@@ -1212,23 +1194,14 @@ fn a_zeroed_leaf_logged_as_another_constant_is_refused() {
             &constrained(),
         )
     };
-    let legacy = || {
-        let mut elaboration = program();
-        let zero = constants(&elaboration)[1];
-        zero_aliases(&mut elaboration, &[(1, zero)]);
-        elaboration
-    };
-    let verdict = with_fault(legacy, |elaboration| {
+    let verdict = with_fault(program, |elaboration| {
         let (_, three) = first_constant(elaboration);
-        let mut rows = logged(entry_tables(elaboration));
-        let zeroed = rows
-            .iter_mut()
-            .find(|row| matches!(row.content, Content::Value(_)))
-            .unwrap();
-        zeroed.content = Content::Value(three);
-        relog(entry_tables(elaboration), rows);
+        zero_aliases(elaboration, &[(1, three)]);
     });
-    assert_refused(verdict, "a write row is not what its operation stores");
+    assert_refused(
+        verdict,
+        "a write row states a store its operation does not make",
+    );
 }
 
 // A place table that is not one place per path.

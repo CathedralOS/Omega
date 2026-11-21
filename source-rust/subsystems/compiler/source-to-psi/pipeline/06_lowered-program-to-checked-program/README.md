@@ -298,7 +298,7 @@ store from the operation that makes it (`Storage::stores`):
 | --- | --- |
 | `EstablishRecord` | each operand into its field of the fresh root: a scalar operand as that value, a record operand as what its source held |
 | `EstablishScalarCase`, `EstablishStructuralCase` | the fresh root established as `result_case`, then each payload operand as above |
-| `EstablishZeroedStructural` | the fresh root zeroed, then a zero constant into each scalar leaf of the zero value that has one |
+| `EstablishZeroedStructural` | one zero write to the fresh root |
 | `StructuralLeafCopy` | what its source held, into the fresh root |
 | `StructuralScalarFieldStore`, `WriteOnlyPrimitiveStore` | its value into exactly the leaf it names |
 | `EstablishPrimitiveLocal` | its operand, the zero a scalar local is constructed with, into the fresh home |
@@ -313,11 +313,9 @@ in order (`Storage::log_is_stated`). A row with another value or place, a
 missing row, a row at another point and a row no operation makes are each
 refused.
 
-A zero establishment has no operand, so the zero of a leaf has a value
-identity only through a constant. Elaboration emits one zero constant per
-scalar leaf directly before the establishment, in leaf order, and that slot
-is where the derivation looks. A leaf whose slot holds anything else is zero
-with no value identity.
+Reads of a zeroed aggregate derive the selected leaf’s typed zero from the
+root write. Subsequent writes take precedence at the affected places. Each
+claimed store must correspond to an operation in the lowered program.
 
 **The place table must be one place per path** (`places_are_interned`). A
 table names a place by its identity: an invocation's record actual, the place

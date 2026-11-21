@@ -817,6 +817,23 @@ pub(crate) mod const_arguments {
                     ))
                 })
                 .collect::<Vec<_>>();
+            for service in program.service_reaches.definitions() {
+                let Some(application) = &service.application else {
+                    continue;
+                };
+                let scope = application.arguments.scope(program).ok_or_else(|| {
+                    Diagnostic::error("an applied service lost the receiver of its static arguments")
+                })?;
+                applications.push((
+                    scope.declaration.symbol,
+                    program
+                        .trait_type_parameters(scope.declaration)
+                        .iter()
+                        .map(|binder| scope.parameter_argument(program, binder.symbol))
+                        .collect(),
+                    scope.argument_owner,
+                ));
+            }
             applications.extend(program.conformances().iter().map(|declaration| {
                 (
                     declaration.trait_symbol,

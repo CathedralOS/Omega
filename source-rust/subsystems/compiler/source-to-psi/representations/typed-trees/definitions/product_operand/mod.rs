@@ -10,7 +10,10 @@ pub(crate) mod applications;
 pub use applications::{ProductApplicationDemand, ProductOperandApplication};
 
 pub(crate) mod occurrences;
-pub use occurrences::{ProductSelectionOccurrence, collect_product_selection_occurrences};
+pub use occurrences::{
+    ProductSelectionOccurrence, collect_product_selection_occurrences,
+    visit_build_selection_occurrences,
+};
 
 pub(crate) mod static_environment;
 pub use static_environment::{capture_closed_operand, capture_static_environment};

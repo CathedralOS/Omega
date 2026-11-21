@@ -205,22 +205,9 @@ mod product {
         pub const fn cases(self) -> &'static [&'static str] {
             match self {
                 Self::CrashCause => &["Trap", "Abort"],
-                Self::PhysicalAuthorityClass => &[
-                    "FilesystemContentRead",
-                    "FilesystemContentWrite",
-                    "FilesystemMetadataQuery",
-                    "DirectoryEnumeration",
-                    "FilesystemNamespaceMutation",
-                    "FilesystemMetadataMutation",
-                    "ProcessOutput",
-                    "ProcessTermination",
-                    "MachineControl",
-                    "PortIo",
-                    "InterruptControl",
-                    "InterruptEntry",
-                    "RootMemoryAccess",
-                    "ProcessInput",
-                ],
+                Self::PhysicalAuthorityClass => {
+                    &semantic_vocabulary::TerminalAuthorityClass::CASE_NAMES
+                }
             }
         }
     }

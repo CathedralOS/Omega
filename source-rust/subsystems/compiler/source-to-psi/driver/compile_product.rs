@@ -12,6 +12,7 @@ use std::sync::Arc;
 mod judge_product_roster;
 use judge_product_roster::prepare_and_judge;
 
+mod behavior_exclusions;
 pub(crate) mod declaration_lookup;
 pub use declaration_lookup::ProductDeclarations;
 mod declarations;

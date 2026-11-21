@@ -188,9 +188,6 @@ impl<'source> Program<'source> {
                     )
                 })?;
             for question in questions {
-                if question.application != application {
-                    continue;
-                }
                 let (
                     Some(candidate),
                     crate::lowering::static_contracts::SourceImplementation::Machine(machine),
@@ -198,6 +195,12 @@ impl<'source> Program<'source> {
                 else {
                     continue;
                 };
+                if !projected.declaration.matches_receiving_application(
+                    &candidate.source_requirement,
+                    Some(&question.application),
+                ) {
+                    continue;
+                }
                 let requirement = self
                     .boundaries
                     .rows

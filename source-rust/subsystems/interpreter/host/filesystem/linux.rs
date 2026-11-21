@@ -1,10 +1,7 @@
-// We admit and execute exact Linux kernel filesystem system calls under explicit
-// host delegation. One table (`KERNEL_CALLS`) names every call std's POSIX
-// providers bind, by number on each Linux target, with the declared parameters
-// in kernel order; admission matches the declaration and ABI against that row
-// and execution presents each operand through the same classification. Raw OS
-// statuses and descriptor ownership belong to the matching Linux host, while
-// authenticated captures provide path, input and stat bytes.
+// The target identifies each Linux filesystem syscall. This adapter checks its
+// arguments against the declared ABI before granting access to the host or
+// the test runner's private filesystem. Captured buffers provide paths, bytes
+// and stat storage. The selected filesystem owns the descriptors and statuses.
 
 use calling_conventions::{CallSignature, ValueShape};
 use native_provider_runtime::{KernelOperand, KernelResult, LinuxFilesystemOperation};
@@ -162,31 +159,12 @@ enum Effect {
     Close,
 }
 
-/// One admitted kernel operation: its numbers on both Linux targets, its
-/// declared parameters in kernel order, its result width and descriptor effect.
+/// How the host presents the arguments and result of a checked kernel call.
 struct KernelCall {
     operation: LinuxFilesystemOperation,
-    numbers: (i64, i64),
     operands: &'static [Operand],
     result: Formal,
     effect: Effect,
-}
-
-const fn call(
-    operation: LinuxFilesystemOperation,
-    x86_64: i64,
-    arm64: i64,
-    operands: &'static [Operand],
-    result: Formal,
-    effect: Effect,
-) -> KernelCall {
-    KernelCall {
-        operation,
-        numbers: (x86_64, arm64),
-        operands,
-        result,
-        effect,
-    }
 }
 
 const I32: Operand = Operand::Value(Formal::Signed(32));
@@ -195,84 +173,46 @@ const I64: Operand = Operand::Value(Formal::Signed(64));
 const STATUS: Formal = Formal::Signed(32);
 const COUNT: Formal = Formal::Signed(64);
 
-// Every filesystem system call std's POSIX providers bind on Linux. A binding
-// whose number is absent here is not a filesystem operation this host supplies.
-const KERNEL_CALLS: &[KernelCall] = {
+fn kernel_call(operation: LinuxFilesystemOperation) -> KernelCall {
     use Effect::{Acquire, Close, Status};
     use LinuxFilesystemOperation as Op;
     use Operand::{
         Descriptor as Fd, Directory as Dir, InputView, Metadata, NullAddress, OutputView, Path,
     };
-    &[
-        call(Op::Openat, 257, 56, &[Dir, Path, I32, I32], STATUS, Acquire),
-        call(Op::Close, 3, 57, &[Fd], STATUS, Close),
-        call(Op::Dup, 32, 23, &[Fd], STATUS, Acquire),
-        call(Op::Lseek, 8, 62, &[Fd, I64, I32], COUNT, Status),
-        call(Op::Mkdirat, 258, 34, &[Dir, Path, I32], STATUS, Status),
-        call(Op::Unlinkat, 263, 35, &[Dir, Path, I32], STATUS, Status),
-        call(
-            Op::Newfstatat,
-            262,
-            79,
-            &[Dir, Path, Metadata, I32],
-            STATUS,
-            Status,
-        ),
-        call(Op::Fstat, 5, 80, &[Fd, Metadata], STATUS, Status),
-        call(Op::Getdents64, 217, 61, &[Fd, OutputView], COUNT, Status),
-        call(Op::Pread64, 17, 67, &[Fd, OutputView, I64], COUNT, Status),
-        call(Op::Pwrite64, 18, 68, &[Fd, InputView, I64], COUNT, Status),
-        call(
-            Op::Readlinkat,
-            267,
-            78,
-            &[Dir, Path, OutputView],
-            COUNT,
-            Status,
-        ),
-        call(Op::Fchmodat, 268, 53, &[Dir, Path, U32], STATUS, Status),
-        call(Op::Fchmod, 91, 52, &[Fd, U32], STATUS, Status),
-        call(
-            Op::Renameat,
-            264,
-            38,
-            &[Dir, Path, Dir, Path],
-            STATUS,
-            Status,
-        ),
-        call(
-            Op::Linkat,
-            265,
-            37,
-            &[Dir, Path, Dir, Path, I32],
-            STATUS,
-            Status,
-        ),
-        call(Op::Symlinkat, 266, 36, &[Path, Dir, Path], STATUS, Status),
-        call(Op::Ftruncate, 77, 46, &[Fd, I64], STATUS, Status),
-        // `utimensat(fd, NULL, times, flags)` sets the descriptor's own times.
-        call(
-            Op::Utimensat,
-            280,
-            88,
-            &[Fd, NullAddress, Operand::Input(32), I32],
-            STATUS,
-            Status,
-        ), // utimensat
-        call(Op::Fsync, 74, 82, &[Fd], STATUS, Status),
-        call(Op::Fdatasync, 75, 83, &[Fd], STATUS, Status),
-        call(Op::Flock, 73, 32, &[Fd, I32], STATUS, Status),
-        call(
-            Op::Fchownat,
-            260,
-            54,
-            &[Dir, Path, I32, I32, I32],
-            STATUS,
-            Status,
-        ),
-        call(Op::Fchown, 93, 55, &[Fd, I32, I32], STATUS, Status),
-    ]
-};
+    let (operands, result, effect): (&'static [Operand], Formal, Effect) = match operation {
+        Op::Openat => (&[Dir, Path, I32, I32], STATUS, Acquire),
+        Op::Close => (&[Fd], STATUS, Close),
+        Op::Dup => (&[Fd], STATUS, Acquire),
+        Op::Lseek => (&[Fd, I64, I32], COUNT, Status),
+        Op::Mkdirat => (&[Dir, Path, I32], STATUS, Status),
+        Op::Unlinkat => (&[Dir, Path, I32], STATUS, Status),
+        Op::Newfstatat => (&[Dir, Path, Metadata, I32], STATUS, Status),
+        Op::Fstat => (&[Fd, Metadata], STATUS, Status),
+        Op::Getdents64 => (&[Fd, OutputView], COUNT, Status),
+        Op::Pread64 => (&[Fd, OutputView, I64], COUNT, Status),
+        Op::Pwrite64 => (&[Fd, InputView, I64], COUNT, Status),
+        Op::Readlinkat => (&[Dir, Path, OutputView], COUNT, Status),
+        Op::Fchmodat => (&[Dir, Path, U32], STATUS, Status),
+        Op::Fchmod => (&[Fd, U32], STATUS, Status),
+        Op::Renameat => (&[Dir, Path, Dir, Path], STATUS, Status),
+        Op::Linkat => (&[Dir, Path, Dir, Path, I32], STATUS, Status),
+        Op::Symlinkat => (&[Path, Dir, Path], STATUS, Status),
+        Op::Ftruncate => (&[Fd, I64], STATUS, Status),
+        // A null path sets the descriptor's own timestamps.
+        Op::Utimensat => (&[Fd, NullAddress, Operand::Input(32), I32], STATUS, Status),
+        Op::Fsync => (&[Fd], STATUS, Status),
+        Op::Fdatasync => (&[Fd], STATUS, Status),
+        Op::Flock => (&[Fd, I32], STATUS, Status),
+        Op::Fchownat => (&[Dir, Path, I32, I32, I32], STATUS, Status),
+        Op::Fchown => (&[Fd, I32, I32], STATUS, Status),
+    };
+    KernelCall {
+        operation,
+        operands,
+        result,
+        effect,
+    }
+}
 
 impl Operand {
     fn formal(self, arm64: bool) -> Formal {
@@ -325,7 +265,7 @@ pub(in super::super) struct LinuxFilesystemImport {
     boundary: semantic_vocabulary::BoundaryMachineId,
     number: i64,
     arm64: bool,
-    call: &'static KernelCall,
+    call: KernelCall,
     /// Each captured structural argument's index and exact produced layout.
     captured: Vec<(usize, NativeBorrowedStorageLayout)>,
     captured_arguments: Vec<usize>,
@@ -349,16 +289,12 @@ impl LinuxFilesystemImport {
         if let Some(private) = context.private() {
             private.borrow_mut().select_target(arm64);
         }
-        let Some(call) = KERNEL_CALLS.iter().find(|call| {
-            system_call.number
-                == if arm64 {
-                    call.numbers.1
-                } else {
-                    call.numbers.0
-                }
-        }) else {
+        let Some(operation) =
+            LinuxFilesystemOperation::from_syscall(system_call.target, system_call.number)
+        else {
             return Ok(None);
         };
+        let call = kernel_call(operation);
         let invalid = super::super::unprovisioned(
             "Linux filesystem entry differs from its exact declaration/ABI",
         );

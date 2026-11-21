@@ -1,43 +1,26 @@
-/*
-
-End-to-end CLI check that a Build may call the operations the toolchain's
-Build prelude declares as machines (`omega --check`).
-
-`Build::exclude_crash(builder, cause)` and the Product queries
-(`BuildProduct::entry(&builder.product, path, slot)`) are declared prelude
-machines, so name resolution answers the author's call with that
-declaration. Typing then spells the call of the Build protocol that carries
-the request. The author's selection and the generated call name different
-declarations, and both are right: the selection record keeps what the author
-named, and the generated call is not that call.
-
-We stage a project whose Build makes one such call and run `omega --check`.
-What the project is stopped by afterwards belongs to the Product admissions
-of those requests, which are separate work; these tests hold that the Build
-itself is typed, judged and run.
-
-*/
+//! Build prelude operations resolve to the compiler-owned machines. The selected
+//! program must satisfy the exclusions its Build actually runs.
 
 use std::process::Command;
 
-fn check(name: &str, build: &str) -> String {
-    let root = std::env::temp_dir().join(format!(
-        "omega-build-prelude-operation-{}-{name}",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_dir_all(&root);
-    std::fs::create_dir_all(&root).expect("staging directory");
-    std::fs::write(root.join("main.omg"), "machine main() { }\n").expect("staged program");
+fn execute(name: &str, build: &str, program: &str, args: &[&str]) -> (bool, String) {
+    let project = platform_custody::temporary_directory::TemporaryDirectory::create(name, false)
+        .expect("staging directory");
+    let root = project.path();
+    std::fs::write(root.join("main.omg"), program).expect("staged program");
     std::fs::write(root.join("build.omg"), build).expect("staged Build");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("--check")
-        .arg("main.omg")
-        .current_dir(&root)
+        .args(args)
+        .current_dir(root)
         .stdin(std::process::Stdio::null())
         .output()
         .expect("omega runs");
-    let _ = std::fs::remove_dir_all(&root);
-    String::from_utf8_lossy(&output.stderr).into_owned()
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    (output.status.success(), report)
 }
 
 /// The Build ran: nothing was refused while its source was discovered, and
@@ -53,65 +36,90 @@ fn build_ran(stderr: &str) {
     }
 }
 
-/// The exclusion the Build ran reached the Product. Nothing on the lowered
-/// route judges a behavior exclusion yet, so its admission refuses it by
-/// name. Before typing read the call's resolved declaration, the written
-/// `Build::exclude_crash` was never recognised: the Build ran the empty
-/// prelude body, recorded nothing, and `omega --check` accepted a program
-/// whose selected entry traps under a Build that excludes `Trap`
-/// (`tests/fixtures/fail/targets/distinct_roots_exclusion_selected_body`).
-fn exclusion_reached_the_product(stderr: &str) {
-    assert!(
-        stderr.contains("no product route yet: Build behavior exclusion admission"),
-        "{stderr}"
-    );
-}
-
+// A Build may pass the evaluated cause through an ordinary helper. The two
+// programs differ only in whether the selected call can reach a Trap.
 #[test]
-fn a_build_that_excludes_a_crash_cause_runs() {
-    let stderr = check(
-        "exclude-crash",
-        "machine build(builder: @mut Build) {
-    Build::application(builder, \"excluding\");
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
-    Build::exclude_crash(builder, CrashCause::Trap);
-}
-",
-    );
-    build_ran(&stderr);
-    exclusion_reached_the_product(&stderr);
-}
-
-/// The same request made by a helper machine the Build forwards its `Build`
-/// to, with the cause passed as a value.
-#[test]
-fn a_helper_machine_that_excludes_a_crash_cause_runs() {
-    let stderr = check(
-        "exclude-helper",
-        "machine build(builder: @mut Build) {
-    Build::application(builder, \"excluding\");
-    Build::bind(builder, linux_x86_64\\ProgramEntry, main);
-    exclude(builder, CrashCause::Abort);
+fn an_executed_exclusion_checks_the_selected_callee() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let build = r#"
+machine build(builder: @mut Build) {
+    Build::application(builder, "excluding");
+    Build::bind(builder, HOST\ProgramEntry, main);
+    exclude(builder, CrashCause::Trap);
 }
 machine exclude(builder: @mut Build, cause: CrashCause) {
     Build::exclude_crash(builder, cause);
 }
-",
+"#
+    .replace("HOST", host.target_name());
+    let run = ["run", "--both", "build.omg"];
+    let program = r#"
+machine main() crashes Trap { selected(); }
+machine selected() crashes Trap { BEHAVIOR }
+"#;
+    let (passed, report) = execute(
+        "excluded-clean",
+        &build,
+        &program.replace("BEHAVIOR", ""),
+        &run,
     );
-    build_ran(&stderr);
-    exclusion_reached_the_product(&stderr);
+    assert!(
+        passed && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
+
+    let (passed, report) = execute(
+        "excluded-trap",
+        &build,
+        &program.replace("BEHAVIOR", "crash Trap;"),
+        &run,
+    );
+    assert!(
+        !passed && report.contains("behavior exclusion violated: crash cause Trap is reachable"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_direct_build_exclusion_checks_an_evaluated_physical_class() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let build = r#"
+machine build(builder: @mut Build) {
+    Build::application(builder, "excluding");
+    Build::bind(builder, HOST\ProgramEntry, main);
+    let authority: PhysicalAuthorityClass = PhysicalAuthorityClass::ProcessOutput;
+    Build::exclude_physical_authority(builder, authority);
+}
+"#
+    .replace("HOST", host.target_name());
+    let (passed, report) = execute(
+        "excluded-output",
+        &build,
+        "machine main() {}",
+        &["run", "--both", "build.omg"],
+    );
+    assert!(
+        passed && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
 }
 
 /// A Build that excludes nothing has nothing for that admission to refuse.
 #[test]
 fn a_build_without_exclusions_is_not_refused_for_one() {
-    let stderr = check(
+    let (_, stderr) = execute(
         "no-exclusion",
         "machine build(builder: @mut Build) {
     Build::application(builder, \"plain\");
     Build::bind(builder, linux_x86_64\\ProgramEntry, main);
 }
 ",
+        "machine main() {}",
+        &["--check", "main.omg"],
     );
     build_ran(&stderr);
     assert!(
@@ -123,7 +131,7 @@ fn a_build_without_exclusions_is_not_refused_for_one() {
 /// A Product query in a value position: the entry a root binding is given.
 #[test]
 fn a_build_that_queries_a_product_entry_is_not_refused_for_its_selection() {
-    let stderr = check(
+    let (_, stderr) = execute(
         "query-entry",
         "machine build(builder: @mut Build) {
     Build::application(builder, \"querying\");
@@ -133,6 +141,8 @@ machine entry(builder: @mut Build, slot: @[u8]) -> ProductEntryRef {
     BuildProduct::entry(@builder.product, \"main\", slot)
 }
 ",
+        "machine main() {}",
+        &["--check", "main.omg"],
     );
     build_ran(&stderr);
     assert!(
