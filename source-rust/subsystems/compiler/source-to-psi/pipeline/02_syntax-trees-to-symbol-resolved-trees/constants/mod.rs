@@ -179,7 +179,7 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     if lowerer.const_resolution_mode
         == crate::resolution::lowering::lowerer::ConstResolutionMode::Complete
     {
-        declaration_values::validate_nominal_destinations(program)
+        declaration_values::prepare_initializer_destinations(program)
             .map_err(|diagnostic| vec![diagnostic])?;
     }
     crate::resolution::selections::authored_selections::finalize_constant_expression_selections(

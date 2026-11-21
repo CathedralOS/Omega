@@ -24,12 +24,12 @@ use syntax_trees::types::TypeConstraintNode;
 use syntax_trees::types::TypeReferenceNode;
 
 /*
-    Even unused private constants owe their exact nominal destination. Check
-    resolved constructor and field identities after specialization, without
-    requiring a public/index encoding or duplicating scalar type checking.
+    A structural constant carries its destination down to each literal leaf.
+    Check nominal selections and land numeric literals at those selected field
+    types before a use copies the initializer.
 */
-pub(super) fn validate_nominal_destinations(
-    program: &SymbolResolvedTrees,
+pub(super) fn prepare_initializer_destinations(
+    program: &mut SymbolResolvedTrees,
 ) -> Result<(), Diagnostic> {
     use crate::source_resolved::data::DataMember;
     use crate::source_resolved::expression::ExpressionNode;
@@ -40,8 +40,20 @@ pub(super) fn validate_nominal_destinations(
         .iter()
         .map(|declaration| (&declaration.declared_type, declaration.initializer))
         .collect::<Vec<_>>();
+    let mut numeric_leaves = Vec::new();
     while let Some((destination, expression)) = pending.pop() {
         let table = &program.tables.bodies.expressions;
+        if matches!(
+            table.expression(expression),
+            ExpressionNode::Integer(_) | ExpressionNode::Float(_)
+        ) {
+            if let TypeReference::Named { symbol, .. } = destination
+                && let Some(atom) = program.symbols.builtin_type_atom(*symbol)
+            {
+                numeric_leaves.push((expression, atom, table.source_span(expression)));
+            }
+            continue;
+        }
         if let TypeReference::Constrained(constraint) = destination {
             pending.push((
                 program.child_type_reference(constraint.base_type),
@@ -108,6 +120,9 @@ pub(super) fn validate_nominal_destinations(
                 pending.push((&declared.type_reference, field.value));
             }
         }
+    }
+    for (expression, carrier, span) in numeric_leaves {
+        super::carrier::retain_scalar_carrier(program, expression, carrier, span)?;
     }
     Ok(())
 }
