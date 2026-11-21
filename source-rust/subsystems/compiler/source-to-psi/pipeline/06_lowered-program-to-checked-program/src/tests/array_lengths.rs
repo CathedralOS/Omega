@@ -670,6 +670,24 @@ fn accepted(verdict: &Result<RouteVerdict, crate::checking::CompilationRefusal>)
 }
 
 #[test]
+fn a_generic_array_requirement_can_return_one_of_its_elements() {
+    let typed = crate::preparation::prepare_typed_trees(
+        super::boundary_calls::typed(
+            "boundary trait Elements {
+                machine last<const Count: u64, Element [copy]>(items: @[Element; Count]) -> Element
+                    reaches requires Count > 0 crashes none;
+            }
+            machine entry() {}",
+        ),
+        &[],
+    )
+    .unwrap();
+    let verdicts = super::boundary_calls::compilation_results_for_subjects(&typed, &[None]);
+    assert!(verdicts.len() > 1, "the generic requirement must be checked");
+    assert!(verdicts.iter().all(accepted), "{verdicts:?}");
+}
+
+#[test]
 fn a_size_generic_requirement_is_checked_once_for_every_size() {
     // At the call, `Count` is 4 and both contracts are formed. The template
     // is judged for every `Count`: `Count - 1` underflows at zero unless the

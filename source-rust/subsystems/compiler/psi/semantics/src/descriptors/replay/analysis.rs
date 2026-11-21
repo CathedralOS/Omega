@@ -2000,27 +2000,15 @@ impl<'a> DescriptorAnalysis<'a> {
                         outputs.push((destination.clone(), std::slice::from_ref(origin), true));
                         continue;
                     }
-                    let DescriptorStoredOrigin::IncomingSlot {
-                        position: parameter,
-                        path,
-                    } = origin
-                    else {
-                        return Err(incomplete_step());
-                    };
-                    let mut source = call
-                        .arguments
-                        .get(*parameter)
-                        .and_then(Option::as_ref)
-                        .ok_or_else(incomplete_step)?
-                        .clone();
-                    source.path.extend_from_slice(path);
                     let source = self
                         .replay
-                        .canonical_contents_packet(machine, before, &source)
-                        .ok_or_else(incomplete_step)?;
-                    if self.replay.unknown_contents_type(machine, &source) != Some(expected) {
-                        return Err(incomplete_step());
-                    }
+                        .returned_packet_input(machine, before, call, origin, expected)
+                        .ok_or(DescriptorGraphError::IncompleteMachine {
+                            machine: machine.id,
+                            position: Some(position),
+                            successor: None,
+                            detail: Some("the returned generic value has no matching input contents"),
+                        })?;
                     step.inputs.push((Some(source.clone()), None));
                     step.derivations.push((source, destination.clone()));
                 }
