@@ -48,17 +48,13 @@ mod scalar;
 pub(crate) mod structural_layout;
 mod unit;
 
-pub(crate) use function_signature::{
-    borrowed_storage, scalar_abi, structural_signature, structural_type_lookup,
-};
+pub(crate) use function_signature::{scalar_abi, structural_signature, structural_type_lookup};
 
 pub use model::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
     LoweringError,
 };
-pub use optimized::{
-    OptimizedTargetLoweringRequest, capture_runtime_borrowed_storage_layouts, lower_native_body,
-};
+pub use optimized::{OptimizedTargetLoweringRequest, lower_native_body, require_lowering_context};
 
 pub(crate) mod boundary_settlements {
     use abstract_operations::{AbstractFunction, CompletionClaimSource};
@@ -469,32 +465,7 @@ pub(crate) mod optimized {
         .map_err(|error| LoweringError::Preparation(Box::new(error)))
     }
 
-    /// The host bridge needs the admitted storage geometry before it can
-    /// borrow guest values. Its recipes depend on the plan's storage and
-    /// boundary declarations, independently of native body realization.
-    pub fn capture_runtime_borrowed_storage_layouts(
-        optimized: &OptimizedAbstractProgram,
-        lowering_facts: &AdmittedLoweringFacts,
-        target: NativeTarget,
-    ) -> Result<runtime_abi::NativeBorrowedStorageLayouts, LoweringError> {
-        require_lowering_context(optimized, lowering_facts, target)?;
-        let plan = optimized.plan();
-        let types = super::structural_type_lookup::StructuralTypeLookup::for_verified(
-            &plan.structural_types,
-            lowering_facts,
-            target,
-        )
-        .map_err(LoweringError::NonDenseStructuralTypes)?;
-        runtime_abi::NativeBorrowedStorageLayouts::seal(super::borrowed_storage::capture(
-            plan, &types,
-        ))
-        .map_err(|error| LoweringError::FunctionContract {
-            machine: plan.entry,
-            reason: error.reason,
-        })
-    }
-
-    fn require_lowering_context(
+    pub fn require_lowering_context(
         optimized: &OptimizedAbstractProgram,
         lowering_facts: &AdmittedLoweringFacts,
         target: NativeTarget,

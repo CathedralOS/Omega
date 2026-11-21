@@ -1534,21 +1534,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "NativeBodyPlanningError::Target::field:0#1",
       "kind": "carried_record",
-      "meaning": "Keep the target lowering or runtime borrow layout failure.",
+      "meaning": "Keep the target-lowering failure for this native body.",
       "producer": "stage 04 target lowering",
       "signature": "e7bb28bb7d042d2c2d1976878da4b439bb7622c2648a1136c35907e8170c648b"
-    },
-    {
-      "consumers": [
-        "plan_native_body",
-        "plan_runtime_storage"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
-      "item": "function:optimize#1",
-      "kind": "producer",
-      "meaning": "Record entry to abstract optimization on the invocation observer, apply its requested selections and work budget to the verified input, and return the validated optimizer output.",
-      "producer": "native body planner",
-      "signature": "d8310f558c031b41fad98163fd084250e2551412babc405b37e5f7cdfba9c467"
     },
     {
       "consumers": [
@@ -1558,20 +1546,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "function:plan_native_body#1",
       "kind": "producer",
-      "meaning": "Observe entry to target lowering and produce the target plan shared by root and private callable bodies. Retain originals only on request.",
+      "meaning": "Apply the selected abstract optimizations under their work budget, lower their output to target operations, and retain original inputs when the caller requests verification. Record entry to each stage.",
       "producer": "native body planner",
-      "signature": "b79d7d086ae5d1f2558b67121a33795aa6f004bc68df2f34844564a19a513ac2"
-    },
-    {
-      "consumers": [
-        "runtime provision admission"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
-      "item": "function:plan_runtime_storage#1",
-      "kind": "producer",
-      "meaning": "Use the same optimizer and its lowering input to plan borrowed storage for runtime-only admission.",
-      "producer": "native body planner",
-      "signature": "c13f1bb2c4a93ec85139dff855ac8d447e5f9b54ab6ab50030c629812440ad44"
+      "signature": "8c4bcf2ee839c4c757a6c8ea703180ed4bffbab1bb32042505ae806f6d1a5eee"
     },
     {
       "consumers": [
@@ -1580,7 +1557,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "use:artifact_lowering :: VerifiedNativeArtifactInput#1",
       "kind": "definition",
-      "meaning": "Accept the verified native artifact input for both shared body-planning entrances.",
+      "meaning": "Accept the admitted source of operations for native body planning.",
       "producer": "Rust module import",
       "signature": "9c8e248f83d4f7963861dda8f36c1d6dfb2d3cdeeb5f219f8e2e2a110fbe0938"
     },

@@ -336,6 +336,8 @@ pub fn verify_retained_target_operations(
     let original = retained_target(replay, "target-operation")?;
     let current = original.target_for_correspondence();
     let optimized = current.optimized();
+    target_lowering::replay::require_lowering_context(optimized, current.lowering_facts(), current.target())
+        .map_err(|error| diagnostics::Diagnostic::error(format!("target-operation source audit failed: {error:?}")))?;
     // Every access reference native program planning established must land on backing
     // the selected program actually allocates. Ordinary emission builds
     // from the current program, so this check runs here and in the object
@@ -364,11 +366,7 @@ pub fn verify_retained_target_operations(
         },
     )
     .map_err(|error| diagnostics::Diagnostic::error(error.to_string()))?;
-    let expected = target_lowering::replay::capture_runtime_borrowed_storage_layouts(
-        optimized,
-        current.lowering_facts(),
-        current.target(),
-    )
+    let expected = current.lowering_facts().borrowed_storage_layouts(current.target())
     .map_err(|error| {
         diagnostics::Diagnostic::error(format!("borrowed storage geometry audit failed: {error:?}"))
     })?;

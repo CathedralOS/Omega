@@ -3004,8 +3004,7 @@ mod width_tests {
             &catalog,
             target::TargetProfile::LinuxX64
                 .native_realization()
-                .unwrap(),
-        )
+                .unwrap(), None, &[])
         .unwrap();
         let value = ValueId::new(1).unwrap();
         let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 13).unwrap());

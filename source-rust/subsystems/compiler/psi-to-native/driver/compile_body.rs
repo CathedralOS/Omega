@@ -17,23 +17,6 @@ pub enum NativeBodyPlanningError {
     Target(target_lowering::LoweringError),
 }
 
-fn optimize(
-    input: VerifiedNativeArtifactInput,
-    selections: &PostTerminalOptimizationSelections,
-    budget: OptimizationWorkBudget,
-    observation: &NativePipelineObservation,
-) -> Result<abstract_optimization::ValidatedOptimizedAbstractPlan, NativeBodyPlanningError> {
-    observation.enter(NativePipelineStage::AbstractOptimization);
-    let selections = selections.selections();
-    abstract_optimization::optimize_abstract_operations(
-        input.into_optimization_input(),
-        selections,
-        &selections.project_psi(),
-        budget,
-    )
-    .map_err(NativeBodyPlanningError::AbstractOptimization)
-}
-
 pub fn plan_native_body(
     input: VerifiedNativeArtifactInput,
     target: OptimizedTargetLoweringRequest<'_>,
@@ -42,22 +25,17 @@ pub fn plan_native_body(
     observation: &NativePipelineObservation,
     retain_original: bool,
 ) -> Result<NativeBodyPlan, NativeBodyPlanningError> {
-    let optimized = optimize(input, selections, budget, observation)?;
+    observation.enter(NativePipelineStage::AbstractOptimization);
+    let selections = selections.selections();
+    let optimized = abstract_optimization::optimize_abstract_operations(
+        input.into_optimization_input(),
+        selections,
+        &selections.project_psi(),
+        budget,
+    )
+    .map_err(NativeBodyPlanningError::AbstractOptimization)?;
     observation.enter(NativePipelineStage::AbstractToTarget);
     target_lowering::lower_native_body(optimized.into_lowering_input(), target, retain_original)
-        .map_err(NativeBodyPlanningError::Target)
-}
-
-/// Runtime-only admission needs the exact storage layout of optimized borrows.
-pub fn plan_runtime_storage(
-    input: VerifiedNativeArtifactInput,
-    target: target::NativeTarget,
-    selections: &PostTerminalOptimizationSelections,
-    budget: OptimizationWorkBudget,
-    observation: &NativePipelineObservation,
-) -> Result<runtime_abi::NativeBorrowedStorageLayouts, NativeBodyPlanningError> {
-    let optimized = optimize(input, selections, budget, observation)?;
-    target_lowering::runtime_storage(&optimized.into_lowering_input(), target)
         .map_err(NativeBodyPlanningError::Target)
 }
 

@@ -75,14 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Interpreter admission runs native abstract optimization to obtain borrowed storage layouts
-
-- Category: Knowledge crossing a boundary.
-- Where: [runtime stop](source-rust/subsystems/compiler/psi-to-native/driver/mod.rs#L121), [interpreter provisions](source-rust/subsystems/compiler/psi-to-native/driver/runtime/mod.rs#L116), [optimizer call](source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs#L51), [layout computation](source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/target_lowering/mod.rs#L475), [host consumer](source-rust/subsystems/interpreter/host/src/execution/host_imports.rs#L505).
-- Saw: The runtime path passes its input through the native abstract optimizer before asking stage 04 only for the layout of borrowed values. The host bridge consumes these layouts. The computation checks the target and uses the plan's structural types and lowering facts. An optimizer failure can therefore stop runtime admission before the interpreter starts.
-- Cost: Define the exact target-bound storage description the host and native code require. Prove both consumers obtain the same layouts for a borrowed value passed to a provider, including refusal of a mismatched layout. Then make ordinary interpreter admission consume that description directly. Keep actual foreign adapter emission in the native compiler.
-- Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
-
 ### Shared Psi semantics live outside the portable program's directory
 
 - Category: The documents disagree.

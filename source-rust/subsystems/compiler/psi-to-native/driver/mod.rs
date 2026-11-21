@@ -106,8 +106,6 @@ fn produce(
         let provisions = runtime::prepare_terminal_runtime(
             realization,
             admission.providers.target(),
-            optimizations,
-            &observation,
         )?;
         observation.complete();
         return Ok(Produced::Runtime(provisions));

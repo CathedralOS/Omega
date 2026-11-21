@@ -15,6 +15,7 @@ use operation_evidence::provider_calls::InstalledAssumedBindingEvidence;
 use psi_target_layouts::TerminalTargetContext;
 use psi_scalar_applications::AdmittedScalarApplications;
 
+pub mod borrowed_storage;
 mod emission_admission;
 pub mod hosted_receiver;
 pub use emission_admission::{AdmittedPhysicalEntry, EmissionAdmission};
@@ -343,6 +344,7 @@ impl VerifiedPsiOptimizationInput {
 
     pub fn into_lowering_facts(self) -> AdmittedLoweringFacts {
         AdmittedLoweringFacts {
+            borrowed_storage: borrowed_storage::BorrowedStorageInputs::of(&self.plan),
             terminal: self.plan.psi,
             entry: self.plan.entry,
             native_execution_scope: self.native_execution_scope,
@@ -405,6 +407,7 @@ impl VerifiedPsiOptimizationContext {
 // its verified input; later stages borrow the sealed association.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedLoweringFacts {
+    borrowed_storage: borrowed_storage::BorrowedStorageInputs,
     terminal: terminal_psi::TerminalPsiIdentity,
     entry: semantic_vocabulary::MachineId,
     native_execution_scope: Option<std::sync::Arc<NativeExecutionScope>>,
@@ -599,10 +602,22 @@ impl AdmittedLoweringFacts {
         {
             return Err("lowering facts belong to another Terminal program or entry");
         }
+        self.require_target(target)
+    }
+
+    pub fn borrowed_storage_layouts(
+        &self,
+        target: target::NativeTarget,
+    ) -> Result<runtime_abi::NativeBorrowedStorageLayouts, &'static str> {
+        self.require_target(target)?;
+        self.borrowed_storage.layouts()
+    }
+
+    fn require_target(&self, target: target::NativeTarget) -> Result<(), &'static str> {
         if let Some(selections) = &self.target_context {
             let profile = target::TargetProfile::from_canonical_target_name(selections.target())
                 .map_err(|_| "lowering facts name an unknown target")?;
-            if selections.terminal_psi() != plan.psi || profile.native_target() != target {
+            if selections.terminal_psi() != self.terminal || profile.native_target() != target {
                 return Err("lowering facts belong to another target selection");
             }
         } else if self.native_execution_scope.is_some() {

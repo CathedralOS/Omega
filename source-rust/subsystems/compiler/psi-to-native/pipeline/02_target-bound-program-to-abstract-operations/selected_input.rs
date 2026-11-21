@@ -914,6 +914,15 @@ mod native {
                     .require_lowering_context(&plan, target::NativeTarget::windows_x64())
                     .is_err()
             );
+            assert!(
+                facts
+                    .borrowed_storage_layouts(target::NativeTarget::macos_arm64())
+                    .is_ok()
+            );
+            assert_eq!(
+                facts.borrowed_storage_layouts(target::NativeTarget::windows_x64()),
+                Err("lowering facts belong to another target selection"),
+            );
             let mut other_entry = plan.clone();
             other_entry.entry = machine_id(2);
             assert!(

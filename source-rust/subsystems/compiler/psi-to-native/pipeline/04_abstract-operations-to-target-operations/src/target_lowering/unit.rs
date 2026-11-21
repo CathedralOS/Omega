@@ -962,12 +962,7 @@ pub(crate) mod boundary_call {
                             &scalar_arguments,
                             &structural_arguments,
                             &target_result,
-                            |buffer| {
-                                crate::target_lowering::borrowed_storage::capture_type(
-                                    buffer,
-                                    structural_types,
-                                )
-                            },
+                            |buffer| structural_types.borrowed_layout(buffer),
                             |scalar| structural_types.closed_scalar(scalar),
                         )
                         .map_err(|reason| {
