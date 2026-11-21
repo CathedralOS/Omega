@@ -1993,6 +1993,14 @@ mod tests {
         ] {
             let catalog = x86_64_machine_effect_catalog(target, &constraints).unwrap();
             let keys = &catalog.selected_keys;
+            for form in selected_instructions::IeeeFloatArithmeticForm::ALL {
+                if form.operation.rounding_direction().is_some() && form.operand_count() == 3 {
+                    assert_eq!(
+                        keys.for_semantic(Semantic::NearestIeeeFloatArithmetic(form)),
+                        None
+                    );
+                }
+            }
             assert_eq!(keys.return_i64, return_i64);
             assert_eq!(keys.return_unit, return_unit);
             assert!(keys.call_scalar.contains(&call));

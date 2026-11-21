@@ -228,6 +228,7 @@ mod constraint_keys {
                         return match form.operand_count() {
                             1 => self.rows.ieee_float_directed_unary,
                             2 => self.rows.ieee_float_directed_binary,
+                            3 => self.rows.ieee_float_directed_ternary,
                             _ => None,
                         };
                     }

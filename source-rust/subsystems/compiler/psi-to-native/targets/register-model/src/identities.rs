@@ -247,6 +247,8 @@ pub fn target_register_environment_identity(
         selected_keys.float_result_trapping,
         selected_keys.float_result_saturating,
         selected_keys.ieee_float_directed_binary,
+        selected_keys.ieee_float_directed_unary,
+        selected_keys.ieee_float_directed_ternary,
     ] {
         optional_constraint_key(&mut bytes, key);
     }
