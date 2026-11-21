@@ -63,6 +63,9 @@ impl DeferredProductSources {
         }
         if let Some(packages) = package_inputs {
             seed_described_entries(&mut imports, packages, bindings);
+            for path in storage.product_subject_sources()? {
+                imports.seed(path, source_provenance::DependencyScope::Product);
+            }
         }
         for root in roots.iter() {
             imports.seed(root.clone(), source_provenance::DependencyScope::Product);
