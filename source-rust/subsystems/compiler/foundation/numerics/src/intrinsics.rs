@@ -534,7 +534,8 @@ mod tests {
             }
         }
         assert_eq!(
-            FloatBuiltin::from_name("is_nan").unwrap()
+            FloatBuiltin::from_name("is_nan")
+                .unwrap()
                 .intrinsic(FloatFormat::F64)
                 .canonical_encoding()
                 .unwrap()[..4],

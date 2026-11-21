@@ -83,7 +83,9 @@ pub fn declaration_path(meaning: NumericIntrinsic) -> Result<String, &'static st
             Ok(format!("Float::{}", operation.name()))
         }
         NumericIntrinsic::Builtin { format, .. } | NumericIntrinsic::Negation(format) => {
-            let name = meaning.float_operation_name().ok_or("unknown named float operation")?;
+            let name = meaning
+                .float_operation_name()
+                .ok_or("unknown named float operation")?;
             Ok(format!("{}::{name}", format.name().to_ascii_uppercase()))
         }
         NumericIntrinsic::Conversion {
@@ -189,7 +191,11 @@ pub fn ensures(meaning: NumericIntrinsic) -> Result<Vec<Proposition>, &'static s
             )
         }
         _ => meaning.float_operation_name().and_then(|name| {
-            FloatSemanticOperation::for_float_operands(name, meaning.signature()?.operand_count, Meaning)
+            FloatSemanticOperation::for_float_operands(
+                name,
+                meaning.signature()?.operand_count,
+                Meaning,
+            )
         }),
     };
     if let Some(operation) = semantic {
