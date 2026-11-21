@@ -46,6 +46,23 @@ The Rust compiler's front end also separates tokenization, parsing and name
 resolution. Its later stages produce Psi. The Epsilon compiler's executable
 product is an Alpha tape. [Rust pipeline](../../../source-rust/subsystems/compiler/source-to-psi/pipeline)
 
+### Private helper arrivals
+
+A private nested helper with no authored `requires` can infer one unsigned
+parameter interval needed by fixed-array reads. The compiler checks its body
+under that proposed condition, then revisits every ordinary and terminal arrival
+before the owner may emit. Actual argument identities, representation-preserving
+carrier removal, pure terminal guards and recorded mutation effects govern the
+proof. A guarded field's declared upper bound can close `index < count <= extent`.
+
+This provision covers same-owner static arrivals with an acyclic predecessor
+graph. Public/free entries, explicit contracts, uncalled helpers and recursive
+arrivals do not acquire inferred conditions. Ordinary calls currently transport
+literal or existing entry facts. Broader copied-value and call-site inference
+remains `Incomplete`. The constructor regressions named `private-arrival-*`
+check these boundaries, including exact product declarations on the full
+`SyntaxTrees` carrier.
+
 ## Retention inventory
 
 | Retained file | Canonical role | Deletion condition |
@@ -95,10 +112,10 @@ The manifest, not directory enumeration or path order, selects and orders D's
 members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
-The manifest materializes 30,080 lines / 1,188,864 bytes with SHA-256
-`8263754f8d932f6b99c2d756a9743aed56396a31055d6da06131ca9e342e433b`.
+The manifest materializes 30,311 lines / 1,198,639 bytes with SHA-256
+`2d6109c993f1994c66457b4f4723a37aabcdf56c5e88a8d2b326aca3d579b30d`.
 The manifest itself is 2,905 bytes, SHA-256
-`6ba0e06a5bcdb1a02af00d73469e51ca983ff149f3c48d8ff92a52031d7024c2`;
+`38d2b00abd7fc5fdc533fa8c4aa8767eb6fca32072a29bca5721c5efde21f462`;
 `tools/bootstrap/omega/compiler_env.sh` checks both identities against every
 materialization. The source-closure verifier checks the resulting packed bytes.
 A digest binds source custody; it does not prove compiler correctness.
