@@ -91,14 +91,6 @@ framework or a list of unimplemented features.
 - Cost: Changing the driver can force a package reader to change with it. Give the retained selection a home in the source representations. Let Build's codec depend on the record and let the source compiler own its construction and resolution against the receiving source. Read existing encoded selections in a consumer test. Preserve an operator family and reject a mismatched source identity, then remove the import through the driver.
 - Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
 
-### The Build host opens typed trees to identify the receiver it may lend
-
-- Category: Knowledge crossing a boundary.
-- Where: [Build host admission](source-rust/subsystems/compiler/build/inputs/build_execution/build_admission.rs#L56), [source type walk](source-rust/subsystems/compiler/build/inputs/build_execution/build_receiver.rs#L22), [lowered receiver correspondence](source-rust/subsystems/compiler/build/inputs/build_execution/build_receiver.rs#L69), [published receiver check](source-rust/subsystems/compiler/build/inputs/build_execution/build_receiver.rs#L125).
-- Saw: Before lending its Build value, the host reads the source machine, its first state and its type-reference nodes to identify the toolchain's `&mut Build`. It then opens the accepted lowering to match the receiver to the executable parameter. `BuildReceiver::parameter_for` already checks the published invocation, entry, parameter and storage identity.
-- Cost: The Build host has to understand the typer's representation before it can lend a value. Have source checking and publication issue the evidence that connects the exact toolchain declaration to the executable receiver. Build should verify that evidence against the invocation and own the actual loan and filesystem grants. Exercise admission after dropping the typed producer, including rejection of a lookalike Build type and a receiver from a different invocation.
-- Reported: 2026-11-20, Codex, while tracing the Rust compiler at `d94ef8e20f1e3`.
-
 ### Source checkpoints carry both a package permission callback and its recorded answer
 
 - Category: Knowledge crossing a boundary.

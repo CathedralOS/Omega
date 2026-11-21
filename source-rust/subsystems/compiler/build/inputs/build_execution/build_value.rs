@@ -1,21 +1,5 @@
-/*
-We own the `Build`-value admission, initial value construction, and post-evaluation decoding protocol for `build.omg`.
-
-Before the build interpreter runs, we inspect the checked `Build` declaration in `TypedTrees` to admit the exact toolchain vocabulary (`BuildValueAdmission`). We then construct the initial `BuildTimeValue` (`initial_value`) populated with zeroed counters, default target/subsystem settings, and any admitted root facets (`source`, `output`, `inputs`, `log`, `product`). Once evaluation finishes, we decode the resulting `BuildTimeValue` back into normalized `EvaluatedBuildSettings` and `OptimizationReportRequest`.
-*/
-
-/*
-Why `BuildValueAdmission` retains private admission state across evaluation:
-`BuildTimeValue` intentionally carries no nominal symbol handles after evaluation. If we decoded fields like `optimizations` or `x86_deployment_features` without first checking that the authored `Build` declaration resolved to the exact toolchain prelude symbols, a user-defined lookalike struct could smuggle unverified settings across the interpreter boundary. Retaining `BuildValueAdmission` from pre-evaluation `TypedTrees` guarantees that initial value construction and post-evaluation extraction agree on the exact admitted vocabulary.
-*/
-
-/*
-Provenance:
-- Configuration decoding (`EvaluatedBuildSettings`, `ElfInterpreterSelections`): `build_execution/build_value/configuration.rs`.
-- Initial `Build` value construction: `build_execution/build_value/initial.rs`.
-- Optimization vocabulary admission and extraction: `build_execution/build_value/optimization.rs`.
-- Toolchain `build` machine and facet queries: `build_execution/build_value/vocabulary.rs`.
-*/
+//! Build checks its toolchain field types once, then uses the admitted fields
+//! to issue the initial Build value and read the settings after execution.
 
 mod activation;
 mod configuration;
@@ -27,34 +11,49 @@ pub use normalized_build_settings::{EvaluatedBuildSettings, X86DeploymentClaim};
 pub(super) use vocabulary::is_exact_toolchain_build_prelude_data;
 
 use super::BuildMachineFilesystemScope;
-use diagnostics::Diagnostic;
 use build_time_values::BuildTimeValue;
-use source_compiler::representations::source_state::TypedTrees;
+use diagnostics::Diagnostic;
+use source_compiler::representations::source_state::{TypedTrees, data::DataMember};
 
 #[derive(Debug, Clone, Copy)]
 pub struct BuildValueAdmission {
     optimization: optimization::BuildOptimizationAdmission, // Admitted optimization field vocabulary.
-    has_toolchain_build_activation: bool, // Whether the toolchain activation vocabulary is present.
+    has_toolchain_build_activation: bool,
+    identifier: bool,
+    log: bool,
+    product: bool,
+    elf_interpreter: bool,
+    tests: bool,
+    filesystem_roots: bool,
+    inputs: bool,
 }
 
 impl BuildValueAdmission {
     pub fn admit(typed: &TypedTrees) -> Result<Self, Vec<Diagnostic>> {
         let optimization = optimization::BuildOptimizationAdmission::admit(typed)?;
-        let has_toolchain_build_activation =
-            activation::admit_toolchain_build_activation(typed)?;
+        let build = activation::admit_toolchain_build_activation(typed)?;
+        let identifier = build.is_some_and(|build| {
+            typed.data_members(build).iter().any(|member| {
+                matches!(member, DataMember::Field(field)
+                if field.name.as_str() == "identifier")
+            })
+        });
+        let has = |name| vocabulary::has_exact_toolchain_build_facet(typed, name);
         Ok(Self {
             optimization,
-            has_toolchain_build_activation,
+            has_toolchain_build_activation: build.is_some(),
+            identifier,
+            log: has("BuildLog"),
+            product: has("BuildProduct"),
+            elf_interpreter: has("ElfInterpreterSelection"),
+            tests: has("BuildTests"),
+            filesystem_roots: has("BuildSource") && has("BuildOutput"),
+            inputs: has("BuildInputs"),
         })
     }
 
-    pub fn initial_value(
-        &self,
-        typed: &TypedTrees,
-        machine: &source_compiler::representations::source_state::machine::Machine,
-        filesystem_scope: &BuildMachineFilesystemScope,
-    ) -> BuildTimeValue {
-        initial::initial_value(self, typed, machine, filesystem_scope)
+    pub fn initial_value(&self, filesystem_scope: &BuildMachineFilesystemScope) -> BuildTimeValue {
+        initial::initial_value(self, filesystem_scope)
     }
 
     pub fn extract(

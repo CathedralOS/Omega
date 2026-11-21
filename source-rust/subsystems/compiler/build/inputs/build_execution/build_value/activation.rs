@@ -22,27 +22,18 @@
 
 use diagnostics::Diagnostic;
 use source_compiler::representations::source_state::TypedTrees;
-use source_compiler::representations::source_state::data::DataMember;
+use source_compiler::representations::source_state::data::{DataDefinition, DataMember};
 use source_compiler::representations::source_state::domain::DomainIssuance;
 use source_compiler::representations::source_state::types::{
     DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
-use symbols::SymbolHandle;
 
 use super::is_exact_toolchain_build_prelude_data;
 
-/// Whether the program has the toolchain's Build activation: it declares the
-/// toolchain's `Build`. A program that does is refused when that
-/// declaration is not the vocabulary the host decodes or does not carry the
-/// seal that keeps source from producing a `Build`.
+/// Return the toolchain Build declaration after checking its fields and issuance seal.
 pub(super) fn admit_toolchain_build_activation(
     typed: &TypedTrees,
-) -> Result<bool, Vec<Diagnostic>> {
-    Ok(build_activation_symbol(typed)?.is_some())
-}
-/// The toolchain's `Build` declaration, when the program has one, after
-/// checking the part of its vocabulary the host decodes by exact type.
-fn build_activation_symbol(typed: &TypedTrees) -> Result<Option<SymbolHandle>, Vec<Diagnostic>> {
+) -> Result<Option<&DataDefinition>, Vec<Diagnostic>> {
     let refused = |message: String| vec![Diagnostic::error(message)];
     let mut builds = typed.data_definitions().iter().filter(|definition| {
         is_exact_toolchain_build_prelude_data(typed, definition.symbol, "Build")
@@ -96,7 +87,7 @@ fn build_activation_symbol(typed: &TypedTrees) -> Result<Option<SymbolHandle>, V
             "toolchain Build.seal must be the toolchain BuildSeal, not `[copy]`, in the toolchain domain an access policy governs".into(),
         ));
     }
-    Ok(Some(build.symbol))
+    Ok(Some(build))
 }
 
 /// Whether `reference` is what keeps source from producing a `Build`: the
@@ -217,7 +208,7 @@ public data Build<'storage> {
     #[test]
     fn a_program_with_the_sealed_toolchain_build_has_an_activation() {
         let typed = typed("machine build_entry() { }", Some(PRELUDE));
-        assert_eq!(admit_toolchain_build_activation(&typed), Ok(true));
+        assert!(admit_toolchain_build_activation(&typed).unwrap().is_some());
     }
 
     /// A `Build` the program declares itself is no compiler-owned value: the
@@ -228,7 +219,7 @@ public data Build<'storage> {
             "data Build { marker: u64; }\nmachine build_entry() { }",
             None,
         );
-        assert_eq!(admit_toolchain_build_activation(&own), Ok(false));
+        assert!(admit_toolchain_build_activation(&own).unwrap().is_none());
     }
 
     /// The vocabulary is judged before the value's protection, so a prelude

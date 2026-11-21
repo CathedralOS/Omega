@@ -242,6 +242,73 @@ fn produced(build: &str) -> Result<ProducedTerminalProgram, Vec<diagnostics::Dia
         )
 }
 
+fn selected_entry(source: &AcceptedTerminalSource) -> symbols::SymbolHandle {
+    *source
+        .closure()
+        .elaboration()
+        .machines
+        .get(source.entry().unwrap())
+        .unwrap()
+}
+
+#[test]
+fn only_the_checked_invocation_can_borrow_its_published_build_receiver() {
+    let build = "machine build(builder: @mut Build) {}";
+    let (receiver, code) = {
+        let source = accepted(build).unwrap();
+        let receiver = source.build_receiver(selected_entry(&source)).unwrap();
+        let published = source
+            .produce(
+                TerminalProductionCustody::default(),
+                &mut CompileTimings::default(),
+            )
+            .unwrap();
+        (receiver, published.retain_code())
+    };
+    let parameter = receiver.parameter_for(code.view().module()).unwrap();
+    assert_eq!(parameter.position, 0);
+    assert_eq!(
+        parameter.access,
+        terminal_psi::StructuralAccess::MutableBorrow
+    );
+    let other = produced(build).unwrap();
+    assert_eq!(
+        receiver.parameter_for(other.view().module()).unwrap_err(),
+        "Build receiver belongs to a different accepted invocation"
+    );
+}
+
+#[test]
+fn a_user_declared_build_type_cannot_receive_the_hosts_build() {
+    let text = "data BuildProduct {}
+                data Build { marker: u64; product: BuildProduct; }
+                machine build(builder: @mut Build) {}";
+    let mut files = source_compiler::representations::source_inputs::SourceMap::default();
+    let id = files
+        .add_checked_instance(
+            "package/build.omg".into(),
+            text,
+            "package".into(),
+            Some(package()),
+            source_admission::SourceOrigin::User,
+            source_admission::SourceResolutionStratum::Base,
+            DependencyScope::Build,
+        )
+        .source_id;
+    let tokens = frontend_fixture::Lexer::new(text).tokenize().unwrap();
+    let syntax = frontend_fixture::parse_syntax_trees_with_id(id, &tokens).unwrap();
+    let mut request = source_compiler::test_support::resolution::ResolutionRequest::new(syntax);
+    request.sources = Some(Arc::new(files));
+    let resolved = source_compiler::test_support::resolution::resolve(request).unwrap();
+    let typed =
+        source_compiler::test_support::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+    let source = accepted_frontier(typed, terminal_codec::TerminalPublication::Invocation).unwrap();
+    assert_eq!(
+        source.build_receiver(selected_entry(&source)).unwrap_err(),
+        "Build entry receiver must name the exact toolchain Build type"
+    );
+}
+
 /// Every boundary call the published artifact makes, as the site a host
 /// row names: a row is about a call the artifact really makes.
 fn published_boundary_calls(program: &ProducedTerminalProgram) -> Vec<BuildCallSite> {

@@ -1,17 +1,15 @@
-//! The host lends its Build only to the entry's checked mutable Build borrow.
-//! Keep that source/type association through publication before minting a value.
+//! The checked source entry identifies the one published parameter that may borrow the host’s Build.
 
+use super::AcceptedTerminalSource;
+use crate::source_state::{TypedTrees, machine::Machine, types::TypeReferenceNode};
 use semantic_vocabulary::MachineId;
-use source_compiler::publication::AcceptedTerminalSource;
-use source_compiler::representations::source_state::{
-    TypedTrees, machine::Machine, types::TypeReferenceNode,
-};
 use terminal_psi::{
     InvocationCodeScope, StructuralAccess, StructuralParameterDeclaration, TerminalModule,
 };
 
+/// Identifies the parameter the host may lend its Build to after source checking.
 #[derive(Debug)]
-pub(super) struct BuildReceiver {
+pub struct CheckedBuildReceiver {
     invocation: InvocationCodeScope,
     machine: MachineId,
     receiver: StructuralParameterDeclaration,
@@ -55,23 +53,31 @@ fn source_receiver(typed: &TypedTrees, machine: &Machine) -> Result<symbols::Sym
     else {
         return Err("Build entry receiver must name the exact toolchain Build type".into());
     };
-    if !super::build_value::is_exact_toolchain_build_prelude_data(typed, *symbol, "Build") {
+    if !typed.is_exact_toolchain_build_prelude_data(*symbol, "Build") {
         return Err("Build entry receiver must name the exact toolchain Build type".into());
     }
     Ok(*symbol)
 }
 
-impl BuildReceiver {
-    pub(super) fn admit(
-        source: &AcceptedTerminalSource,
-        machine: &Machine,
-    ) -> Result<Self, String> {
-        let build = source_receiver(source.source(), machine)?;
-        let elaboration = &source.closure().elaboration();
+impl AcceptedTerminalSource {
+    /// Identify the toolchain Build borrow on this invocation's selected source declaration.
+    pub fn build_receiver(
+        &self,
+        selected: symbols::SymbolHandle,
+    ) -> Result<CheckedBuildReceiver, String> {
+        let elaboration = self.closure().elaboration();
         let module = &elaboration.module;
-        let entry = source
+        let entry_id = self
             .entry()
-            .and_then(|entry| module.machine(entry))
+            .filter(|&id| self.is_invocation() && elaboration.machines.get(id) == Some(&selected))
+            .ok_or("Build entry differs from its accepted invocation root")?;
+        let machine = self
+            .source()
+            .machine(selected)
+            .ok_or("prepared Build program lost its selected entry")?;
+        let build = source_receiver(self.source(), machine)?;
+        let entry = module
+            .machine(entry_id)
             .ok_or("Build entry has no accepted machine")?;
         let [parameter] = entry.structural_parameters.as_slice() else {
             return Err("Build activation requires its one original structural receiver".into());
@@ -83,7 +89,7 @@ impl BuildReceiver {
         {
             return Err("accepted Build entry lost its one mutable Build receiver".into());
         }
-        let mut records = source
+        let mut records = self
             .source_records()
             .iter()
             .filter(|row| row.record == parameter.structural_type);
@@ -109,7 +115,7 @@ impl BuildReceiver {
             .and_then(|declaration| module.identities.text(declaration.semantic_declaration))
             .ok_or("accepted Build entry has no checked semantic declaration")?
             .to_owned();
-        Ok(Self {
+        Ok(CheckedBuildReceiver {
             invocation: module
                 .identities
                 .invocation_scope()
@@ -121,8 +127,11 @@ impl BuildReceiver {
             declaration_identity,
         })
     }
+}
 
-    pub(super) fn parameter_for<'module>(
+impl CheckedBuildReceiver {
+    /// Check the actual invocation before the host lends its Build to this parameter.
+    pub fn parameter_for<'module>(
         &self,
         module: &'module TerminalModule,
     ) -> Result<&'module StructuralParameterDeclaration, String> {

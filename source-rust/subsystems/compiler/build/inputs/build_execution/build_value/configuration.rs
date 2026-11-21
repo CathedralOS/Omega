@@ -182,7 +182,6 @@ mod tests {
         let (_, syntax) = checkpoint
             .assemble(None, &mut timings, &mut catalogue)
             .expect("assemble the real Build vocabulary");
-        let build_source = syntax.build_source.expect("production Build selection");
         let profile = target::TargetProfile::host_if_supported().expect("supported Build host");
         let interval = syntax
             .build_stage_source()
@@ -190,15 +189,14 @@ mod tests {
             .prepare(None, &Default::default(), profile.target_name(), None)
             .unwrap();
         let typed = interval.program.as_ref();
-        let machine = crate::build_execution::select_build_machine(typed, build_source)
-            .expect("the authored Build entry");
         let admission = BuildValueAdmission::admit(typed).expect("real Build admission");
+        drop(interval);
         let scope = crate::build_execution::BuildMachineFilesystemScope::for_root(
             &main,
             root.join("output"),
             None,
         );
-        let value = admission.initial_value(typed, machine, &scope);
+        let value = admission.initial_value(&scope);
         (admission, value)
     }
 
@@ -225,6 +223,9 @@ mod tests {
                 .iter()
                 .any(|(name, _)| matches!(name.as_str(), "privileged_services" | "freestanding"))
         );
+        assert!(fields(&mut original).iter().any(|(name, value)|
+            name == "identifier" && matches!(value, BuildTimeValue::Text(bytes) if bytes.is_empty())
+        ));
         let baseline = admission
             .extract(&original)
             .expect("decode the real initial Build");
