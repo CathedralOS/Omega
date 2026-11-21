@@ -277,7 +277,6 @@ pub(crate) fn cohort_mechanism_row(
         return windows_imports::mechanism_row(foreign);
     }
     host_cohorts::filesystem_mechanism_row(mechanism, method)
-        .or_else(|| host_cohorts::time_host_mechanism_row(mechanism, method))
         .or_else(|| host_cohorts::console_mechanism_row(mechanism, method))
         .or_else(|| host_cohorts::darwin_clock_mechanism_row(mechanism, schema, method))
 }
