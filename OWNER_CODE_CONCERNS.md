@@ -75,14 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### Focused compiler checks rebuild the implementation three times
-
-- Category: Verifying costs more than writing
-- Where: [integration test dependency](source-rust/subsystems/compiler/Cargo.toml#L29), [forwarded test features](source-rust/subsystems/compiler/source-to-psi/Cargo.toml#L11), [provider-choice integration test](source-rust/subsystems/compiler/tests/source_provider_choices.rs#L12).
-- Saw: The locked Cargo unit graphs for a source-compiler unit test, the compiler’s `source_provider_choices` integration test and a CLI build contain three distinct `source_compiler` artifacts: a test executable, a library with `test-support`, and a normal library.
-- Cost: These controls cannot reuse a single compiled implementation. A historical macOS run on `a827cf2c269` spent 22m17s building 24 controls across 12 binaries and 177s executing them. Measure the same selection and feature sets before attributing that time to this split.
-- Reported: 2026-11-18, Codex, while fixing repeated machine-type declarations
-
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 
 - Category: One idea, several implementations
