@@ -579,53 +579,19 @@ impl Program<'_> {
                 )))?;
             }
         }
-        // A transparent alias is checked at declaration. A callable contract
-        // may leave ceilings open here. Its expanded type is checked again in
-        // the position where a parameter, field or other value uses it.
         for alias in typed.type_aliases() {
             if self.owner(entry, alias.symbol, subjects, purpose)? != Owner::Subject {
                 continue;
             }
-            self.served(entry, alias.symbol)?;
-            if !alias.lifetime_parameters.is_empty() || !alias.conformance_bounds.is_empty() {
-                return Err(refuse(
-                    entry,
-                    Construct::Machine,
-                    Unserved::Declaration("generic type alias"),
-                ));
+            if alias.type_parameters.is_empty()
+                && alias.lifetime_parameters.is_empty()
+                && alias.conformance_bounds.is_empty()
+            {
+                self.served(entry, alias.symbol)?;
+                self.alias_expansion(entry, alias)?;
+            } else {
+                self.generic_templates.push(alias.symbol);
             }
-            if !typed.contains_type_reference(alias.expansion) {
-                return Err(refuse(
-                    entry,
-                    Construct::Machine,
-                    Unserved::Type("stale alias expansion"),
-                ));
-            }
-            match typed.type_reference_table.type_reference(alias.expansion) {
-                crate::source_state::types::TypeReferenceNode::Callable { .. }
-                    if !alias.type_parameters.is_empty() =>
-                {
-                    self.generic_templates.push(alias.symbol);
-                    continue;
-                }
-                crate::source_state::types::TypeReferenceNode::Callable { contract } => {
-                    self.callable_alias_declaration(entry, *contract)
-                        .map_err(|failure| {
-                            self.read_failure_at(failure, alias.symbol, "the signature")
-                        })?;
-                }
-                _ if alias.type_parameters.is_empty() => {
-                    self.value_type(entry, alias.expansion)?;
-                }
-                _ => {
-                    return Err(refuse(
-                        entry,
-                        Construct::Machine,
-                        Unserved::Declaration("generic type alias"),
-                    ));
-                }
-            }
-            self.admitted_declarations.include(alias.symbol);
         }
         // One row per remaining declaration table of the typed trees' roots.
         // A subject declaration in any of them is outside what the route
@@ -911,6 +877,76 @@ impl Program<'_> {
         self.source_scope = std::sync::Arc::new(source);
         self.admitted_declarations.include(declared.symbol);
         self.record_at(diagnostic, declared.predicate_subject_type)?;
+        Ok(())
+    }
+
+    /// Check the expanded type in the alias's own binder scope. Closed uses
+    /// read the same expansion with their actual arguments substituted.
+    pub(crate) fn generic_type_alias(
+        &mut self,
+        alias: &crate::source_state::type_aliases::TypeAliasDefinition,
+    ) -> Checked<()> {
+        use crate::source_state::data::{DataProperties, TypeParameterKind};
+        let diagnostic = MachineId::new(1).expect("1 is nonzero");
+        let typed = self.typed;
+        let parameters = typed
+            .data_type_parameters
+            .span(alias.type_parameters)
+            .ok_or_else(|| {
+                refuse(
+                    diagnostic,
+                    Construct::Machine,
+                    Unserved::Declaration("stale type alias parameters"),
+                )
+            })?;
+        if parameters.iter().any(|parameter| {
+            parameter.kind != TypeParameterKind::Type
+                || parameter.bounds != DataProperties::default()
+                || !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
+                || typed.symbols.get(parameter.symbol).parent != alias.symbol
+        }) || !alias.lifetime_parameters.is_empty()
+            || !alias.conformance_bounds.is_empty()
+        {
+            return Err(refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration("type alias with unsupported binders"),
+            ));
+        }
+        self.scope = super::type_parameters::rigid_type_scope(parameters);
+        self.generic_binders
+            .extend(parameters.iter().map(|parameter| parameter.symbol));
+        std::sync::Arc::make_mut(&mut self.source_scope)
+            .rigid_parameters
+            .extend(parameters.iter().map(|parameter| parameter.symbol));
+        self.reading_schema = true;
+        self.served(diagnostic, alias.symbol)?;
+        self.alias_expansion(diagnostic, alias)
+    }
+
+    fn alias_expansion(
+        &mut self,
+        site: MachineId,
+        alias: &crate::source_state::type_aliases::TypeAliasDefinition,
+    ) -> Checked<()> {
+        use crate::source_state::types::TypeReferenceNode;
+        if !self.typed.contains_type_reference(alias.expansion) {
+            return Err(refuse(
+                site,
+                Construct::Machine,
+                Unserved::Type("stale alias expansion"),
+            ));
+        }
+        match self.typed.type_reference_table.type_reference(alias.expansion) {
+            TypeReferenceNode::Callable { contract } => {
+                // A declaration may describe an open callable. Reading that
+                // contract as a stored value would require an extra ceiling.
+                self.callable_alias_declaration(site, *contract)
+            }
+            _ => self.value_type(site, alias.expansion).map(|_| ()),
+        }
+        .map_err(|failure| self.read_failure_at(failure, alias.symbol, "the alias expansion"))?;
+        self.admitted_declarations.include(alias.symbol);
         Ok(())
     }
 
