@@ -46,6 +46,12 @@ impl SelectedProviderAdapters {
         Ok(())
     }
 
+    pub(crate) const fn selection_digest(
+        &self,
+    ) -> selected_provider_plans::SelectedProviderClosureDigest {
+        self.selection
+    }
+
     pub fn rows(&self) -> &[SelectedProviderAdapter] {
         &self.rows
     }

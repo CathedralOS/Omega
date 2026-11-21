@@ -39,6 +39,14 @@ impl NativeScopeSource {
         adapters
             .require_selection(&selection)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        if program
+            .physical_adapter()
+            .is_some_and(|entry| entry.provider_selection != adapters.selection_digest())
+        {
+            return Err(vec![Diagnostic::error(
+                "physical program entry belongs to another provider selection",
+            )]);
+        }
         let entry_call = crate::entry_settlement::bind_selected_program_entry_call(
             artifact, &program, &selection, executions,
         )
@@ -158,7 +166,7 @@ impl<'a> NativeScopeBinding<'a> {
             source: Arc::clone(self.source),
             program_entry: self.parent.is_none(),
             selected_provider_closure: self.parent.map_or_else(
-                || *self.source.selection.identity_digest().as_bytes(),
+                || *self.source.adapters.selection_digest().as_bytes(),
                 NativeExecutionScope::selected_provider_closure,
             ),
         })

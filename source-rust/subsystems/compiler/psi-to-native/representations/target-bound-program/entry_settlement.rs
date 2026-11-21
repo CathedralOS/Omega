@@ -550,6 +550,7 @@ mod physical_adapter {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct PhysicalProgramEntry {
+        pub(crate) provider_selection: selected_provider_plans::SelectedProviderClosureDigest,
         artifact: terminal_codec::TerminalArtifactIdentity,
         checked_entry: CheckedProgramEntryTerminalReceipt,
         calling_application: [u8; 32],
@@ -688,6 +689,7 @@ mod physical_adapter {
             Ok(Self {
                 artifact: artifact.manifest().identity(),
                 checked_entry: entry.checked_entry().clone(),
+                provider_selection: adapters.selection_digest(),
                 calling_application: application.commitment,
                 machine,
                 parameter_formals,
