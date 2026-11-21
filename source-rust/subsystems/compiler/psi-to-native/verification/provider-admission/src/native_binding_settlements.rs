@@ -51,7 +51,7 @@ pub(crate) fn settle<'execution>(
             || request
                 .compiler_builtins
                 .iter()
-                .any(|builtin| builtin.boundary == row.boundary)
+                .any(|builtin| builtin.boundary() == row.boundary)
         {
             return Err(refuse(
                 "boundary has competing native and provider executions".into(),

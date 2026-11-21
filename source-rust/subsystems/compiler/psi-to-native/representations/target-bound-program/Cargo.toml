@@ -8,6 +8,12 @@ version.workspace = true
 path = "bound_reach.rs"
 
 [dependencies]
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+selected-provider-plans = { path = "../../../build/providers/selections" }
+provider-plans = { path = "../../../build/providers/plans" }
+native-intrinsics = { path = "../../targets/intrinsics" }
+direct-boundary-bindings = { path = "../../verification/provider-correspondence/direct-boundaries" }
+provider-correspondence = { path = "../../verification/provider-correspondence" }
 calling-conventions = { path = "../../targets/calling-conventions" }
 native-execution-reach = { path = "execution-reach" }
 psi-target-layouts = { path = "../../../psi-execution-inputs/target-layouts" }

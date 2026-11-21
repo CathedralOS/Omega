@@ -1,6 +1,6 @@
 //! Check provider admission against the selected abstract program and its authorized Psi.
 use provider_admission::{
-    AdmittedNativeProviders, NativeCompilerBuiltinSettlement, NativeProviderSettlement,
+    AdmittedNativeProviders, NativeProviderSettlement,
     PreparedSourceEvaluatedBindings, ProviderAdmissionRequest,
     TerminalAuthorityPermissionPolicy, TerminalAuthorityPolicy, admit_native_providers,
     prepare_source_evaluated_bindings, realization_error,
@@ -26,7 +26,7 @@ pub struct PreparedRetainedNativeProviders<'input> {
     proposal: &'input TerminalNativeRealizationProposal,
     bindings: PreparedSourceEvaluatedBindings<'input>,
     callbacks: &'input [crate::NativeCallbackArgumentProposal],
-    compiler_builtins: Vec<NativeCompilerBuiltinSettlement<'input>>,
+    compiler_builtins: Vec<target_bound_program::builtins::BuiltinProvider<'input>>,
 }
 
 impl PreparedRetainedNativeProviders<'_> {
@@ -113,10 +113,10 @@ pub fn prepare_native_providers<'input>(
         inputs.execution.selection().identities(),
     )?;
 
-    let compiler_builtins = provider_admission::prepare_retained_compiler_builtins(
-        inputs.execution.compiler_builtins(),
-        inputs.execution.selection().plans(),
-    )?;
+    let compiler_builtins = inputs.execution.compiler_builtins().iter()
+        .map(|builtin| builtin.bind_plan(inputs.execution.selection().plans()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|diagnostic| vec![diagnostic])?;
 
     Ok(PreparedRetainedNativeProviders {
         execution: inputs.execution,
@@ -204,8 +204,8 @@ pub fn admit_prepared_native_realization<'execution>(
         .iter()
         .copied()
         .filter(|proposal| {
-            executed_boundaries.contains(&proposal.boundary)
-                || !module_boundaries.contains(&proposal.boundary)
+            executed_boundaries.contains(&proposal.boundary())
+                || !module_boundaries.contains(&proposal.boundary())
         })
         .collect::<Vec<_>>();
     let (native_callbacks, installed_interrupts) = if request

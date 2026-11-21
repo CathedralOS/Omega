@@ -1,6 +1,7 @@
 //! Reach, storage geometry and scalar inputs bound to one native entry.
 #![forbid(unsafe_code)]
 
+pub mod builtins;
 mod scalar_demand;
 
 use native_execution_reach::ExecutionReach;
