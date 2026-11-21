@@ -1,14 +1,14 @@
 //! These controls parse real Build binding requests, then supply a completed
 //! host event. They check retained admission, without executing a Build.
 
-use syntax_trees_to_symbol_resolved_trees::resolution;
-use symbol_resolved_trees_to_typed_trees::typing;
 use super::*;
 use semantic_vocabulary::source_selections::ProductTarget;
 use source_admission::SourceOrigin;
 use source_admission::SourceResolutionStratum;
 use source_provenance::DependencyScope;
 use std::sync::Arc;
+use symbol_resolved_trees_to_typed_trees::typing;
+use syntax_trees_to_symbol_resolved_trees::resolution;
 
 const PRELUDE: &str = r#"
 public data Build { marker: u64; }
@@ -104,7 +104,9 @@ fn typed_requirement_at(
             match stratum {
                 SourceResolutionStratum::Base => "core/raw.omg",
                 SourceResolutionStratum::CurrentActivationExtension
-                | SourceResolutionStratum::DependencyActivationExtension => "core/.omega/generated/raw.omg",
+                | SourceResolutionStratum::DependencyActivationExtension => {
+                    "core/.omega/generated/raw.omg"
+                }
             },
             requirement,
             "core",
@@ -306,6 +308,50 @@ fn closed_native_requirements_rejoin_the_same_complete_argument() {
         declarations[0].requirement_identity,
         other[0].requirement_identity
     );
+    assert_eq!(
+        selection
+            .requirement_identity_for(&receiving, other_selection.requirement)
+            .unwrap(),
+        None,
+        "an explicitly bound tuple must not supply a different application"
+    );
+    assert_eq!(
+        selection
+            .requirement_identity_for(&receiving, selection.requirement)
+            .unwrap(),
+        Some(selection.requirement_identity.clone())
+    );
+
+    let (family_declarations, family_intents) = capture(&make("Raw::read"));
+    let family = collect_captured(&mut receiving, &family_declarations, &family_intents).unwrap();
+    let [family] = family.as_slice() else {
+        panic!("one generic binding must rejoin")
+    };
+    assert!(family.application.is_none());
+    for actual in [selection, other_selection] {
+        assert_eq!(
+            family
+                .requirement_identity_for(&receiving, actual.requirement)
+                .unwrap(),
+            Some(actual.requirement_identity.clone()),
+            "one authored generic binding supplies each exact checked tuple"
+        );
+    }
+    assert_eq!(
+        family
+            .requirement_identity_for(&receiving, SymbolHandle::default())
+            .unwrap(),
+        None
+    );
+    let mut changed_family = family.clone();
+    changed_family.requirement_identity.push_str("changed");
+    assert_eq!(
+        changed_family
+            .requirement_identity_for(&receiving, selection.requirement)
+            .unwrap_err(),
+        "native binding lost its checked requirement identity"
+    );
+
     let value = other[0]
         .application
         .as_ref()
@@ -519,6 +565,84 @@ fn captured_toolchain_binding_keeps_complete_source_and_signature_custody() {
             &changed,
             &intents,
             "retained declaration is absent or changed",
+        );
+    }
+}
+
+#[test]
+fn closed_native_array_storage_uses_the_checked_constant_extents() {
+    use crate::source_state::types::{FixedArrayLength, TypeReferenceNode};
+
+    let mut typed = typed_requirement_at(
+        "public boundary trait Raw { machine read<const Units: u64, const Bytes: u64>(source: @[u16; Units], output: @mut [u8; Bytes]) -> u64 reaches none crashes none; }",
+        "Raw::read<4,8>",
+        SourceOrigin::User,
+        Some(package(7)),
+        SourceResolutionStratum::Base,
+        false,
+    );
+    let source = typed.clone();
+    let lookup = crate::source_state::product_operand::ProductSourceLookups::new(&source);
+    let author = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "build")
+        .unwrap()
+        .symbol;
+    let occurrence =
+        crate::source_state::product_operand::collect_product_selection_occurrences(&source)
+            .into_iter()
+            .find(|occurrence| occurrence.request.operation == BuildOperation::NativeBinding)
+            .unwrap();
+    let prepared = typed_trees::product_operand::formation::prepare_product_requirement_operand(
+        &mut typed,
+        &lookup,
+        &occurrence.request.operands[0],
+        author,
+        None,
+    )
+    .unwrap();
+    let requirement = prepared
+        .closed_requirement
+        .expect("the exact applied requirement");
+    let typed = crate::source_state::FrozenTypedTrees::from(typed);
+    let catalog = typed.boundary_signatures();
+    let id = *catalog
+        .abi_for_boundary(requirement)
+        .expect("retained ABI row")
+        .as_ref()
+        .unwrap();
+    let abi = catalog
+        .abi_signatures()
+        .iter()
+        .find(|abi| abi.id == id)
+        .unwrap();
+    assert_eq!(
+        abi.operands.len(),
+        2,
+        "both original constant arguments stay in the ABI key"
+    );
+    let projection = abi
+        .projections_in_context(&typed, DependencyScope::Product)
+        .next()
+        .unwrap();
+    let storage = projection.storage.as_ref().unwrap();
+    assert!(
+        storage.substitutions.is_empty(),
+        "the checked header is already closed"
+    );
+    assert_eq!(storage.parameters.len(), 2);
+    for (&reference, length) in storage.parameters.iter().zip([4, 8]) {
+        let TypeReferenceNode::Reference { referee, .. } =
+            typed.type_reference_table.type_reference(reference)
+        else {
+            panic!("the ABI keeps the declared reference carrier")
+        };
+        assert!(
+            matches!(typed.type_reference_table.type_reference(*referee),
+                TypeReferenceNode::FixedArray { length: FixedArrayLength::Literal(actual), .. } if *actual == length
+            ),
+            "the ABI must retain each concrete array extent"
         );
     }
 }

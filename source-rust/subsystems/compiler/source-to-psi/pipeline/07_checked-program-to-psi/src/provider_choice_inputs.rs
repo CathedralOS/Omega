@@ -1,7 +1,9 @@
 //! Source-owned provider selection inputs retain the exact authored origin.
 //! Native planning receives the closed canonical selections instead.
 use semantic_vocabulary::PackageKeyIdentity;
-use semantic_vocabulary::source_selections::{CompositionMode, NativeBindingProducer, ProductTarget};
+use semantic_vocabulary::source_selections::{
+    CompositionMode, NativeBindingProducer, ProductTarget,
+};
 use symbols::SymbolHandle;
 
 /// Exact prepared application coordinate. Only the source owner can join it
@@ -67,6 +69,71 @@ impl NativeBuildSupply {
             source_occurrence_digest: self.selection.source_occurrence_digest,
             evaluation: std::sync::Arc::clone(&self.evaluation),
         }
+    }
+
+    pub fn materialization_for(
+        &self,
+        typed: &crate::source_state::TypedTrees,
+        requirement: SymbolHandle,
+    ) -> Result<Option<evaluation_receipts::NativeBindingMaterialization>, String> {
+        let Some(identity) = self
+            .selection
+            .requirement_identity_for(typed, requirement)?
+        else {
+            return Ok(None);
+        };
+        let mut materialization = self.materialization();
+        materialization.requirement_identity = identity;
+        Ok(Some(materialization))
+    }
+}
+
+impl NativeBindingSelection {
+    /// A binding of a generic method supplies its checked applications. An
+    /// explicitly applied binding still supplies only that exact application.
+    /// The original Build occurrence and evaluation remain the binding's origin.
+    pub fn requirement_identity_for(
+        &self,
+        typed: &crate::source_state::TypedTrees,
+        requirement: SymbolHandle,
+    ) -> Result<Option<String>, String> {
+        if requirement != self.requirement {
+            if self.application.is_some() {
+                return Ok(None);
+            }
+            let Some(closed) = typed.closed_requirement_application(requirement) else {
+                return Ok(None);
+            };
+            if closed.template != self.requirement || closed.declaring_trait != self.subject {
+                return Ok(None);
+            }
+        }
+        require_canonical_requirement(self, typed)?;
+        let (owner, authored) = typed
+            .trait_machine_signature(self.requirement)
+            .ok_or("native binding lost its authored requirement signature")?;
+        if typed.trait_requirement_callable_identity_text(owner, authored)
+            != self.requirement_identity
+        {
+            return Err("native binding lost its checked requirement identity".into());
+        }
+        if requirement != self.requirement {
+            let scope =
+                crate::source_state::trait_definition::AppliedTraitScope::abstract_scope(owner);
+            if !typed.requirement_application_matches_contract_scope(requirement, &scope) {
+                return Err("native binding application changed its declaring trait scope".into());
+            }
+        }
+        let (actual_owner, actual) = typed
+            .trait_machine_signature(requirement)
+            .filter(|(actual_owner, actual)| {
+                actual_owner.symbol == owner.symbol && actual.symbol == requirement
+            })
+            .ok_or("native binding application lost its exact requirement signature")?;
+        Ok(Some(typed.trait_requirement_callable_identity_text(
+            actual_owner,
+            actual,
+        )))
     }
 }
 
