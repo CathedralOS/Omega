@@ -355,12 +355,11 @@ fn reference_sources_for_leaves(
             let parameter = parameters
                 .get(position)
                 .ok_or("reference result input is unavailable")?;
-            let endpoint = super::reference_origin_type(
+            let endpoint = super::resolve_reference_origin_type(
                 types.iter(),
                 parameter.structural_type,
                 &path,
-            )
-            .ok_or("reference result input path has no exact typed endpoint")?;
+            )?;
             if endpoint != referent {
                 let Some(StructuralTypeShape::Reference {
                     referent: stored,

@@ -559,7 +559,7 @@ fn publish_parents(
     use terminal_check_tables::ProgramPoint;
     use terminal_check_tables::obligations::{Lender, ObligationKind};
     use terminal_semantics::descriptor_lifetimes::{
-        DescriptorLocation, descriptor_location, descriptor_location_lifetime,
+        DescriptorLocation, descriptor_location_lifetime,
     };
     let module = &elaboration.module;
     let unavailable = |machine, reason| refuse(machine, Construct::Machine, Unserved::Call(reason));
@@ -760,16 +760,12 @@ fn publish_parents(
                     let ty = machine.structural_place_type(source.place).ok_or_else(|| {
                         unavailable(machine.id, "reference formation has no source storage type")
                     })?;
-                    let source_location = descriptor_location(
-                        &module.types.structural_types,
-                        source.place,
+                    let source_path = terminal_semantics::resolved_structural_path(
+                        module.types.structural_types.iter(),
                         ty,
                         &source.path,
-                        None,
                     )
-                    .ok_or_else(|| {
-                        unavailable(machine.id, "reference formation has no exact source place")
-                    })?;
+                    .map_err(|reason| unavailable(machine.id, reason))?;
                     let mut matching = Vec::new();
                     for (id, row) in tables.obligations.iter() {
                         let ObligationKind::Loan {
@@ -791,9 +787,7 @@ fn publish_parents(
                         }
                         let (root, path) = captured_path(tables, captured)
                             .map_err(|reason| unavailable(machine.id, reason))?;
-                        if DescriptorLocation::captured(root, &path).as_ref()
-                            == Some(&source_location)
-                        {
+                        if root == source.place && path == source_path {
                             matching.push(id);
                         }
                     }
@@ -807,17 +801,24 @@ fn publish_parents(
                         operation.kind,
                         terminal_psi::OperationKind::EstablishElementView { .. }
                             | terminal_psi::OperationKind::EstablishMutableElementView { .. }
-                    ) && terminal_semantics::descriptor_lifetimes::descriptor_location_type(
-                        &module.types.structural_types,
+                    ) && terminal_semantics::runtime_structural_path_tip(
+                        module.types.structural_types.iter(),
                         ty,
-                        &source_location.path,
+                        &source.path,
                     )
                     .is_some_and(|source_type| {
                         terminal_semantics::descriptor_results::is_descriptor(
                             module.types.structural_types.iter(),
-                            source_type,
+                            source_type.id,
                         )
                     }) {
+                        let source_location = DescriptorLocation::captured(
+                            source.place,
+                            &source_path,
+                        )
+                        .ok_or_else(|| {
+                            unavailable(machine.id, "view formation has no exact parent descriptor")
+                        })?;
                         *children.get_mut(*identity).ok_or_else(|| {
                             unavailable(machine.id, "view formation lost its parent child row")
                         })? = Some((before, source_location));
@@ -1025,18 +1026,14 @@ fn retained_loan_row(
     claimed: &[semantic_vocabulary::ObligationId],
 ) -> Result<Option<semantic_vocabulary::ObligationId>, &'static str> {
     use terminal_check_tables::obligations::ObligationKind;
-    use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, descriptor_location};
     let ty = machine
         .structural_place_type(source.place)
         .ok_or("retained call loan has no source type")?;
-    let location = descriptor_location(
-        &module.types.structural_types,
-        source.place,
+    let source_path = terminal_semantics::resolved_structural_path(
+        module.types.structural_types.iter(),
         ty,
         &source.path,
-        None,
-    )
-    .ok_or("retained call loan has no exact source")?;
+    )?;
     for (id, row) in tables.obligations.iter() {
         let ObligationKind::Loan {
             captured,
@@ -1050,7 +1047,7 @@ fn retained_loan_row(
             continue;
         }
         let (root, path) = captured_path(tables, captured)?;
-        if DescriptorLocation::captured(root, &path).as_ref() == Some(&location) {
+        if root == source.place && path == source_path {
             return Ok(Some(id));
         }
     }

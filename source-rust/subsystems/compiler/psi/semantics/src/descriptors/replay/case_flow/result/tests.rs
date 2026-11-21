@@ -56,6 +56,7 @@ fn machine(id: u64, root: u64, successors: &[Vec<u32>]) -> DescriptorMachine {
         contents_transfers: BTreeMap::new(),
         payload_producers: BTreeMap::new(),
         payload_entry_predicates: None,
+        unsigned_index_literals: Vec::new(),
         payload_scalar_definitions: BTreeMap::new(),
         payload_scalar_postconditions: BTreeMap::new(),
         payload_scalar_parameters: BTreeMap::new(),
