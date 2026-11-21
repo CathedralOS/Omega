@@ -701,6 +701,8 @@ impl BoundFacts {
 /// activity across certificate reuse to detect any additional search.
 #[derive(Debug, Default)]
 pub struct ProofSearchActivity {
+    #[cfg(test)]
+    normalization_checks: usize,
     started: usize,
     #[cfg(test)]
     sign_queries: usize,
@@ -769,6 +771,9 @@ impl ProofSearchActivity {
                 .bound_fact_visits
                 .saturating_add(other.bound_fact_visits);
             self.exact_fact_work.merge(other.exact_fact_work);
+            self.normalization_checks = self
+                .normalization_checks
+                .saturating_add(other.normalization_checks);
         }
     }
 }
@@ -779,10 +784,27 @@ struct ActiveCut {
     origin: Option<crate::checking::known::DisjunctionOrigin>,
 }
 
+#[derive(Clone)]
+struct Assumptions<'a> {
+    original: &'a [Proposition],
+    local: Vec<&'a Proposition>,
+}
+
+impl Assumptions<'_> {
+    fn len(&self) -> usize {
+        self.original.len() + self.local.len()
+    }
+
+    fn iter(&self) -> impl Iterator<Item = &Proposition> {
+        self.original.iter().chain(self.local.iter().copied())
+    }
+}
+
 pub(crate) struct Prover<'a> {
     activity: &'a mut ProofSearchActivity,
     context: &'a PropositionContext,
-    assumptions: &'a [Proposition],
+    assumptions: Assumptions<'a>,
+    normalized_premises: crate::checking::known::NormalizedPremises,
     axioms: &'a [Proposition],
     values: &'a dyn ProofValues,
     facts: Vec<Fact>,
@@ -803,8 +825,7 @@ pub(crate) struct Prover<'a> {
     /// `[upper, lower]` in the exact declared value namespace. A contract
     /// witness may begin at any real formal ID, not only at value one.
     bounds: IdTable<ValueId, [Slot; 2]>,
-    /// Derived once from this context's immutable facts; every branch builds
-    /// its own index through Prover::new rather than sharing proof answers.
+    /// Each branch indexes its own facts, including the assumption added on entry.
     bound_facts: BoundFacts,
     /// Whether a failed goal may split over a disjunctive fact. Guard
     /// contradiction search disables this to avoid re-entering itself.
@@ -1074,20 +1095,51 @@ impl<'a> Prover<'a> {
         values: &'a dyn ProofValues,
         activity: &'a mut ProofSearchActivity,
     ) -> Self {
+        Self::prepare(
+            context,
+            Assumptions {
+                original: assumptions,
+                local: Vec::new(),
+            },
+            axioms,
+            values,
+            activity,
+            None,
+        )
+    }
+
+    fn prepare(
+        context: &'a PropositionContext,
+        assumptions: Assumptions<'a>,
+        axioms: &'a [Proposition],
+        values: &'a dyn ProofValues,
+        activity: &'a mut ProofSearchActivity,
+        parent: Option<(&[Fact], &crate::checking::known::NormalizedPremises)>,
+    ) -> Self {
+        let mut branch = crate::checking::known::BranchPreparation::new(parent);
         activity.started = activity.started.saturating_add(1);
         let crate::checking::known::Known {
+            #[cfg(test)]
+            normalization_checks,
             facts,
             equations,
             definitions,
             arrival_equations,
             arrival_definitions,
-        } = crate::checking::known::Known::new(context, assumptions, axioms, values);
+        } = crate::checking::known::Known::prepare(
+            context,
+            assumptions.iter(),
+            axioms,
+            values,
+            Some(&mut branch),
+        );
         let implications = ImplicationConclusions::new(&facts);
         let float_integer_equalities = float_integer::Equalities::new(&facts);
         let transport = crate::checking::known::TransportInputs::new(equations.len());
         let exact_facts = ExactFacts::new(&facts);
         #[cfg(test)]
         {
+            activity.normalization_checks += normalization_checks;
             activity.exact_fact_work.prepared_facts = activity
                 .exact_fact_work
                 .prepared_facts
@@ -1107,6 +1159,7 @@ impl<'a> Prover<'a> {
             activity,
             context,
             assumptions,
+            normalized_premises: branch.prepared,
             axioms,
             values,
             facts,
@@ -1749,21 +1802,30 @@ impl<'a> Prover<'a> {
                 return Some(contradiction);
             }
         }
-        let mut assumptions = self.assumptions.to_vec();
-        assumptions.push(part.clone());
-        let mut branch = Prover::new(
+        self.prove_under(part, goal).ok()
+    }
+
+    fn prove_under(
+        &mut self,
+        premise: &Proposition,
+        goal: &Proposition,
+    ) -> Result<ProofNode, Unproven> {
+        let mut assumptions = self.assumptions.clone();
+        assumptions.local.push(premise);
+        let mut branch = Prover::prepare(
             self.context,
-            &assumptions,
+            assumptions,
             self.axioms,
             self.values,
             self.activity,
+            Some((&self.facts, &self.normalized_premises)),
         );
         branch.case_split = self.case_split;
         branch.remaining_case_branches = self.remaining_case_branches;
         branch.active_cuts.clone_from(&self.active_cuts);
         let proof = branch.prove(goal);
         self.remaining_case_branches = branch.remaining_case_branches;
-        proof.ok()
+        proof
     }
 
     /// `goal` from an alternative that contradicts what is known: chained
@@ -1841,21 +1903,7 @@ impl<'a> Prover<'a> {
         conclusion: &Proposition,
         goal: &Proposition,
     ) -> Result<ProofNode, Unproven> {
-        let mut assumptions = self.assumptions.to_vec();
-        assumptions.push(premise.clone());
-        let mut under = Prover::new(
-            self.context,
-            &assumptions,
-            self.axioms,
-            self.values,
-            self.activity,
-        );
-        under.case_split = self.case_split;
-        under.remaining_case_branches = self.remaining_case_branches;
-        under.active_cuts.clone_from(&self.active_cuts);
-        let body = under.prove(conclusion);
-        self.remaining_case_branches = under.remaining_case_branches;
-        let body = body?;
+        let body = self.prove_under(premise, conclusion)?;
         Ok(node(
             goal.clone(),
             ProofRule::ImplicationIntroduction {
