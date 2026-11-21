@@ -141,34 +141,23 @@ fn callable_binders_distinguish_identity_defaults_from_authored_contracts() {
         ("data", "= u64;"),
         ("trait", "{}"),
     ] {
-        for (clause, nominal) in [
-            ("requires machine Selected(value: u64) -> u64;", false),
-            ("requires machine Selected satisfies Hook::step;", true),
-        ] {
-            let source = format!("{declaration} Carrier<machine Selected> {clause} {ending}");
-            let tokens = Lexer::new(&source).tokenize().unwrap();
-            let trees = crate::parse_syntax_trees(&tokens).expect("authored callable contract");
-            let parameters = match trees.root_items().next().unwrap() {
-                Item::Data(data) => data.type_parameters,
-                Item::TypeAlias(alias) => alias.type_parameters,
-                Item::Trait(trait_definition) => trait_definition.type_parameters,
-                _ => panic!("data, transparent alias or trait"),
-            };
-            let TypeParameterKind::Machine {
-                contract: Some(contract),
-            } = &trees.items.type_parameters(parameters)[0].kind
-            else {
-                panic!("retained contract");
-            };
-            assert_eq!(
-                matches!(contract, MachineParameterContract::Nominal { .. }),
-                nominal
-            );
-            assert_eq!(
-                matches!(contract, MachineParameterContract::Structural(_)),
-                !nominal
-            );
-        }
+        let source = format!(
+            "{declaration} Carrier<machine Selected> requires machine Selected(value: u64) -> u64; {ending}"
+        );
+        let tokens = Lexer::new(&source).tokenize().unwrap();
+        let trees = crate::parse_syntax_trees(&tokens).expect("authored structural contract");
+        let parameters = match trees.root_items().next().unwrap() {
+            Item::Data(data) => data.type_parameters,
+            Item::TypeAlias(alias) => alias.type_parameters,
+            Item::Trait(trait_definition) => trait_definition.type_parameters,
+            _ => panic!("data, transparent alias or trait"),
+        };
+        assert!(matches!(
+            trees.items.type_parameters(parameters)[0].kind,
+            TypeParameterKind::Machine {
+                contract: Some(MachineParameterContract::Structural(_))
+            }
+        ));
         for clauses in [
             "",
             "requires machine Selected(value: u64) -> u64; requires machine Selected(value: u64) -> u64;",

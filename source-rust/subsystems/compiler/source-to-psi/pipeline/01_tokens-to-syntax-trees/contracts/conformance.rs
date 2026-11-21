@@ -1,4 +1,3 @@
-use crate::errors::parse_error::ParseError;
 use crate::expressions::parse::parse_expression_handle;
 use crate::token_input::cursor::{Input, ParseResult};
 use crate::types::references::parse_static_argument_reference;
@@ -87,42 +86,6 @@ pub(crate) fn parse_satisfies_traits<'tokens, 'source>(
     Ok((clauses, input))
 }
 
-pub(crate) fn parse_optional_satisfies_type_arguments<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    mut input: Input<'tokens, 'source>,
-) -> Result<(HandleSpan<TypeReferenceHandle>, Input<'tokens, 'source>), ParseError> {
-    if !input.at_punctuation(PunctuationKind::Less) {
-        return Ok((HandleSpan::empty(), input));
-    }
-
-    input = input.take_punctuation(PunctuationKind::Less, "<")?;
-    let mut arguments = Vec::new();
-    loop {
-        let (argument, rest) = parse_satisfies_type_argument(syntax_trees, input)?;
-        arguments.push(argument);
-        input = rest;
-
-        if input.at_punctuation(PunctuationKind::Comma) {
-            input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-            continue;
-        }
-
-        let input = input.take_punctuation(PunctuationKind::Greater, ">")?;
-        return Ok((
-            syntax_trees
-                .type_references
-                .insert_type_reference_handles(arguments),
-            input,
-        ));
-    }
-}
-
-pub(crate) fn parse_satisfies_type_argument<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
-    parse_static_argument_reference(syntax_trees, input)
-}
 pub(crate) fn parse_conformance_trait_application<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -146,11 +109,7 @@ pub(crate) fn parse_conformance_trait_application<'tokens, 'source>(
                 rest = next;
             } else {
                 saw_non_lifetime = true;
-                let (argument, next) =
-                    crate::contracts::conformance::parse_satisfies_type_argument(
-                        syntax_trees,
-                        rest,
-                    )?;
+                let (argument, next) = parse_static_argument_reference(syntax_trees, rest)?;
                 arguments.push(argument);
                 rest = next;
             }
