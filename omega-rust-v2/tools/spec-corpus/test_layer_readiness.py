@@ -10,7 +10,7 @@ import reviewed_comparisons
 
 from check_frontend_readiness import PRODUCT_CASES, STAGE_TARGETS, STAGE_TESTS, context_launch_error, context_results
 from check_layer_readiness import case_blocks_readiness, collect, compare_fragment_runs, contextual_examples, failure_excerpt, incomplete_cohorts, readiness_exit
-from test_l5_records import SAMPLE_LINES, contracts, libtest, sample, spec
+from test_l5_records import CROSS_REASON, SAMPLE_LINES, contracts, libtest, sample, spec
 
 
 class LayerReportTests(unittest.TestCase):
@@ -174,16 +174,15 @@ class LayerReportTests(unittest.TestCase):
         self.assertEqual(compare_fragment_runs(self.report)["differences"], {})
 
     def test_passing_sample_must_match_pinned_bytes_even_at_the_same_position(self):
-        altered = [line.replace("\tMain::main\t", "\tMain::lost\t")
+        altered = [line.replace("\tMain\t", "\tLost\t")
                    if line.startswith("OMEGA_SAMPLE_REFUSAL\tcross-width\t") else line for line in SAMPLE_LINES]
         collect(sample(altered), "L5", self.report)
         self.assertEqual(self.report["measurement_errors"], [
             "L5: sample/cross-width compiler refusal differs from its pinned source bytes or diagnostic"])
 
     def test_unicode_line_separator_inside_a_refusal_remains_part_of_the_reason(self):
-        original = "a data carrier cannot own a machine"
-        reason = original + "\u2028next occurrence"
-        changed = [line.replace(original, reason) if "\tcross-width\t" in line else line for line in SAMPLE_LINES]
+        reason = CROSS_REASON + "\u2028next occurrence"
+        changed = [line.replace(CROSS_REASON, reason) if "\tcross-width\t" in line else line for line in SAMPLE_LINES]
         collect(sample(changed, status="FAILED"), "L5", self.report)
         self.assertEqual(self.report["measurement_errors"], [])
         self.assertEqual(self.report["cases"]["sample/cross-width"]["compiler_refusal"]["reason"], reason)
