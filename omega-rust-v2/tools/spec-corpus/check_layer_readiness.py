@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 from time import monotonic
+from zlib import adler32
 
 from check_frontend_readiness import PRODUCT_CASES, STAGE_TARGETS, STAGE_TESTS, context_launch_error, context_results
 import frontend_diagnostics
@@ -404,6 +405,16 @@ def collect(output, stage, report, *, require_lowering_origins=False):
             report["obligations"][fields[2]][fields[1]] = int(fields[3])
         elif line.startswith("OMEGA_FIXTURE"):
             fields = line.split("\t")
+            local_kinds = None
+            if fields[4:6] == ["produced Psi", "local-kinds-v1"]:
+                payload = "\t".join(fields[1:-1]).encode("utf-8")
+                checksum = f"{adler32(payload):08x}"
+                if len(fields) != 8 or fields[-1] != checksum:
+                    malformed_fixture()
+                    errors.append(f"{stage}: invalid local obligation frame in {line}")
+                    continue
+                local_kinds = fields[6].split(",") if fields[6] else []
+                fields = fields[:5]
             # A replay frame follows the program site and optional Rust origin.
             replay = None
             for boundary in (12, 15):
@@ -429,6 +440,12 @@ def collect(output, stage, report, *, require_lowering_origins=False):
                 continue
             obligations = {kind: int(n) for kind, n in (pair.split("=") for pair in pairs)}
             fixture = {"target": current_test[0], "test": fields[1], "files": fields[2], "obligations": obligations, "outcome": fields[4]}
+            if local_kinds is not None:
+                if sorted(set(local_kinds)) != local_kinds or not set(local_kinds).issubset(obligations):
+                    malformed_fixture()
+                    errors.append(f"{stage}: local obligation kinds disagree with fixture counts in {line}")
+                    continue
+                fixture["local_obligation_kinds"] = local_kinds
             if position_fields:
                 try:
                     package, file, start, end, row, column, occurrence = position_fields
@@ -502,7 +519,8 @@ def failure_excerpt(lines):
 
 def summarize(report):
     failed = sum(suite["counts"].get("failed", 0) for suite in report["suites"].values())
-    blocked = sum(case_blocks_readiness(row) for row in report["cases"].values())
+    blocking_cohorts = Counter(row["cohort"] for row in report["cases"].values() if case_blocks_readiness(row))
+    blocked = sum(blocking_cohorts.values())
     verdict = "Blocked" if readiness_exit(report) else "Passed"
     gaps = report["unverified_contracts"]
     deferred = sum(row.get("consumer_scope") == "later suite" and row["missing"] == ["consumer"] for row in gaps)
@@ -559,6 +577,11 @@ def summarize(report):
     for (cohort, stage, status), count in sorted(groups.items()):
         lines.append(f"| {cohort} | {stage} | {status} | {count} |")
     lines += ["", "### Open gaps, blocked compatibility and missing context", ""]
+    if blocking_cohorts:
+        breakdown = ", ".join(f"{count} {cohort}" for cohort, count in sorted(blocking_cohorts.items()))
+        lines += [f"The {blocked} blocking cases comprise {breakdown}. Each named program or handoff counts once. "
+                  "Several can stop at the same compiler decision. A passing test can confirm a known refusal "
+                  "while its program still needs a lowered output.", ""]
     for key, observation in report["cases"].items():
         if observation["status"] in BLOCKERS or case_blocks_readiness(observation):
             lines.append(f"- {key} · {observation['stage']} · {observation['status']} · {sample_diagnostics.readable(observation['detail'])}")

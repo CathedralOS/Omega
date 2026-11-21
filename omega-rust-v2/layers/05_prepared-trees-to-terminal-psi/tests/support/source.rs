@@ -139,7 +139,20 @@ fn lower_and_report(
             .collect::<Vec<_>>()
             .join(",");
         let detail = match &product {
-            Ok(_) => "produced Psi".to_owned(),
+            Ok(_) => {
+                let typed = prepared.typed();
+                let files: std::collections::BTreeSet<_> = typed.resolved().trees()
+                    .map(|tree| (tree.file.package, tree.file.path))
+                    .collect();
+                let local: std::collections::BTreeSet<_> = typed.obligations.iter()
+                    .filter(|row| files.contains(&(row.site.package.as_str(), row.site.file.as_str())))
+                    .map(|row| tree_handoff_consumer::obligation_report::name(&row.kind))
+                    .collect();
+                let kinds = local.into_iter().collect::<Vec<_>>().join(",");
+                let frame = format!("produced Psi\tlocal-kinds-v1\t{kinds}");
+                let checksum = receipt_checksum(&format!("{test}\t{names}\t{counts}\t{frame}"));
+                format!("{frame}\t{checksum:08x}")
+            }
             Err(error) => {
                 #[cfg(feature = "diagnostic-origins")]
                 let suffix = origin_suffix(error.diagnostic_origin());

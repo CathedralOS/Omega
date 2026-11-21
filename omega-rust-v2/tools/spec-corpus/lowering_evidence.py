@@ -81,7 +81,7 @@ class Assertion(NamedTuple):
     test: str
     claim: str
     # Typed obligation kinds whose one Psi property `claim` states. Credit also requires
-    # that the registered test's own helper input carried the kind.
+    # that a source in the lowered package owned an occurrence of the kind.
     obligations: tuple = ()
 
 
@@ -509,12 +509,16 @@ def obligation_inputs(report, tests, errors, receipts=None):
         if (lowering == 'refused' and report.get('lowering_origins', {}).get('origins_required_by_reader')
                 and 'obligation_sites' not in fixture.get('replay', {}) and fixture.get('origin_status') != 'malformed capture'):
             errors.append(f'L5 {target}::{test}: fixture {index} missing prepared obligation sites')
+        if (lowering == "lowered" and report.get("lowering_origins", {}).get("origins_required_by_reader")
+                and "local_obligation_kinds" not in fixture):
+            errors.append(f"L5 {target}::{test}: fixture {index} missing local obligation kinds")
         if status == 'ok' and fixture.get('obligation_sites_observed'):
             location = fixture['location']
             exact = Counter(row['kind'] for row in fixture['replay']['obligation_sites']
                             if all(row[k] == location[k] for k in ('package', 'file', 'byte_start', 'byte_end')))
         inputs.append({"source": "fixture", "site": f"{target}::{test} ({fixture['files']})", "target": target, "test": test,
                        "fixture_index": index, "exact_sites": exact,
+                       "local_obligation_kinds": fixture.get("local_obligation_kinds"),
                        "obligations": dict(fixture["obligations"]), "lowering": lowering, "status": status or "absent",
                        "standing": standing(status)})
     return inputs
@@ -548,10 +552,14 @@ def property_checks(inventory, inputs, states, errors):
             if state == "failed":
                 failed.setdefault(kind, []).append(label)
             elif state == "credited":
-                own = any(row["source"] == "fixture" and (row["target"], row["test"]) == (assertion.target, assertion.test)
-                          and row["lowering"] == "lowered" and row["obligations"].get(kind) for row in inputs)
-                if own:
+                sources = [row for row in inputs if row["source"] == "fixture"
+                           and (row["target"], row["test"]) == (assertion.target, assertion.test)
+                           and row["lowering"] == "lowered" and row["obligations"].get(kind)]
+                if any(kind in (row["local_obligation_kinds"] or ()) for row in sources):
                     credited.setdefault(kind, []).append(label)
+                elif sources:
+                    errors.append(f"L5 assertion {label} registers {kind}, but {assertion.target}::{assertion.test} "
+                                  "has no observed occurrence in the lowered package's own sources")
                 else:
                     errors.append(f"L5 assertion {label} registers {kind}, but {assertion.target}::{assertion.test} lowered no input carrying it")
     return credited, failed
@@ -852,7 +860,7 @@ def obligation_summary(data):
     lines += refusal_site_table(kinds)
     checks = [(kind, label) for kind, row in kinds.items() for label in row["property_checks"]]
     failed = [(kind, label) for kind, row in kinds.items() for label in row["failed_property_checks"]]
-    lines += ["", f"Registered Psi property checks credited for an obligation kind: {len(checks)}, covering {len({kind for kind, _ in checks})} of {len(kinds)} kinds. Each establishes only the property its claim states, on its own test input."]
+    lines += ["", f"Registered Psi property checks credited for an obligation kind: {len(checks)}, covering {len({kind for kind, _ in checks})} of {len(kinds)} kinds. Each credit requires the kind to occur in a source owned by the lowered package in the registered test."]
     lines += [f"- {kind}: {data['assertions'][label]['claim']} ({label})" for kind, label in checks]
     lines += [f"- {kind}: failed check {label}" for kind, label in failed]
     return lines
