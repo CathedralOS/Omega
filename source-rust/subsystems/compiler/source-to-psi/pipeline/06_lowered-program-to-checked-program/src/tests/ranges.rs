@@ -61,6 +61,59 @@ fn assert_upper(requires: Vec<Proposition>, first: Strict, operand: Expression, 
 }
 
 #[test]
+fn an_exact_cast_transports_the_guard_for_the_same_byte_slice() {
+    let header = "machine run(bytes: @[u8], other: @[u8], size: u32) -> u64 {
+        transition size <= bytes.len { true -> consume(bytes, size as u64), _ -> 0 }
+        machine consume(bytes: @[u8], n: u64) -> u64 requires n <= bytes.len { n }
+    }
+    machine left(value: i32, limit: i64) -> i64 requires value < limit ensures result < limit { value as i64 }
+    machine right(value: i32, floor: i64) -> i64 requires floor <= value ensures floor <= result { value as i64 }";
+    let checked = match super::entryless::judged(header, false) {
+        RouteVerdict::Accepted(checked) => checked,
+        refused => panic!("a value-preserving cast keeps the guarded order: {refused:?}"),
+    };
+    let mut source = checked.elaboration.clone();
+    let mut activity = crate::checking::ProofSearchActivity::default();
+    let mut replay = crate::checking::prepare_replay(&mut source, &mut activity).unwrap();
+    let mut proofs = 0;
+    for (machine, discharge) in checked.discharge.machines.iter() {
+        for (obligation, result) in discharge.verdicts.iter() {
+            if let Ok(Discharged::Certificate(evidence)) = result {
+                crate::checking::reverify(
+                    &mut replay,
+                    machine,
+                    obligation,
+                    &evidence.certificate,
+                    &mut activity,
+                )
+                .unwrap();
+                proofs += 1;
+            }
+        }
+    }
+    assert!(proofs > 0);
+    let shortened = header.replace("consume(bytes, size as u64)", "consume(other, size as u64)");
+    // A wrapped size may be zero when the original size exceeds the slice.
+    let truncated = "machine run(bytes: @[u8], wide: u64) -> u64 {
+        let small: u32 = (wide & 0xFFFF_FFFF) as u32;
+        transition small <= bytes.len { true -> consume(bytes, wide), _ -> 0 }
+        machine consume(bytes: @[u8], n: u64) -> u64 requires n <= bytes.len { n }
+    }";
+    for invalid in [shortened.as_str(), truncated] {
+        let RouteVerdict::Rejected { unproved, .. } = super::entryless::judged(invalid, false)
+        else {
+            panic!("the guard does not establish the actual argument's bound");
+        };
+        assert!(
+            unproved
+                .iter()
+                .any(|row| row.statement.contains("requires contract for call consume")),
+            "{unproved:?}"
+        );
+    }
+}
+
+#[test]
 fn a_quotient_by_a_literal_is_bounded_by_the_dividends_bound() {
     // a / 2 over the whole carrier is at most MAX / 2.
     assert_upper(Vec::new(), Strict::Divide, unsigned(2), MAX / 2);

@@ -1926,6 +1926,9 @@ impl<'a> Prover<'a> {
         if let Some(index) = self.exact_fact(&Proposition::Falsehood) {
             return Ok(ex_falso(self.facts[index].proof(&self.facts), goal));
         }
+        if let Some(proof) = self.order_through_cast(goal) {
+            return Ok(proof);
+        }
         match goal {
             Proposition::Truth => Ok(primitive(Proposition::Truth, PrimitiveJudgment::Truth)),
             Proposition::Falsehood => Err("the goal is false"),
@@ -2343,71 +2346,40 @@ impl<'a> Prover<'a> {
         None
     }
 
-    /// `left <= right` between two embedded values: directly across a checked
-    /// exact-cast or widening result equation, or through a literal separating
-    /// their upper and lower bounds.
-    fn mathematical_value_order(
-        &mut self,
-        goal: &Proposition,
-        left: &IntegerMathTerm,
-        right: &IntegerMathTerm,
-    ) -> Option<ProofNode> {
-        let (
-            IntegerMathTerm::MathValue {
-                source_type: left_type,
-                value: left_id,
-            },
-            IntegerMathTerm::MathValue {
-                source_type: right_type,
-                value: right_id,
-            },
-        ) = (left, right)
-        else {
-            return None;
-        };
-        let left_scalar = ScalarTerm::value(*left_id, ScalarType::Integer(*left_type));
-        let right_scalar = ScalarTerm::value(*right_id, ScalarType::Integer(*right_type));
-        for fact in &self.facts {
-            let Some(axiom) = fact.axiom else { continue };
-            let Proposition::Equal(
-                target,
-                ScalarTerm::IntegerExactCast {
-                    source_type,
-                    operand,
-                    ..
+    /// An admitted exact conversion preserves the mathematical value in
+    /// either endpoint of an inequality. Prove the original order with the
+    /// other operand unchanged, then cite the defining conversion in the
+    /// kernel's checked cast chain. Lossy conversions have no such witness.
+    fn order_through_cast(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        let math;
+        let (left, right, strict) = match goal {
+            Proposition::IntegerMathLessOrEqual(left, right) => (left, right, false),
+            Proposition::IntegerMathLessThan(left, right) => (left, right, true),
+            Proposition::LessOrEqual(left, right) | Proposition::LessThan(left, right) => {
+                if ![left, right].iter().any(|term| matches!(term, ScalarTerm::Value { id, .. } if self.cast_definition(*id).is_some())) {
+                    return None;
                 }
-                | ScalarTerm::IntegerWiden {
-                    source_type,
-                    operand,
-                    ..
-                },
-            ) = &fact.proposition
-            else {
+                math = proof_admission::lift_fixed_integer_relation(goal)?;
+                match &math {
+                    Proposition::IntegerMathLessOrEqual(left, right) => (left, right, false),
+                    Proposition::IntegerMathLessThan(left, right) => (left, right, true),
+                    _ => return None,
+                }
+            }
+            _ => return None,
+        };
+        for (endpoint, at_left) in [(left, true), (right, false)] {
+            let IntegerMathTerm::MathValue { value, source_type } = endpoint else {
                 continue;
             };
-            let (root_math, root_scalar, target_scalar) = if target == &left_scalar
-                && operand.as_ref() == &right_scalar
-                && source_type == right_type
-            {
-                (right.clone(), right_scalar.clone(), left_scalar.clone())
-            } else if target == &right_scalar
-                && operand.as_ref() == &left_scalar
-                && source_type == left_type
-            {
-                (left.clone(), left_scalar.clone(), right_scalar.clone())
-            } else {
+            let Some((index, operand)) = self.cast_definition(*value) else {
                 continue;
             };
-            let Some(root_bound) = self.closed(Proposition::IntegerMathLessOrEqual(
-                root_math.clone(),
-                root_math,
-            )) else {
-                continue;
-            };
+            let root = operand.clone();
             let witness = proof_admission::IntegerCastChainWitness {
-                root: root_scalar,
-                target: target_scalar,
-                definition_axioms: vec![axiom],
+                root: root.clone(),
+                target: ScalarTerm::value(*value, ScalarType::Integer(*source_type)),
+                definition_axioms: vec![index],
             };
             let Ok(chain) = proof_admission::check_integer_cast_chain_witness(
                 self.context,
@@ -2416,21 +2388,70 @@ impl<'a> Prover<'a> {
             ) else {
                 continue;
             };
-            if proof_admission::check_integer_cast_bound_conversion(
-                &chain,
-                &root_bound.conclusion,
-                goal,
-            )
-            .is_ok()
+            let Some(origin) = IntegerMathTerm::embed(root) else {
+                continue;
+            };
+            let (low, high) = if at_left {
+                (origin, right.clone())
+            } else {
+                (left.clone(), origin)
+            };
+            let source = if strict {
+                Proposition::IntegerMathLessThan(low, high)
+            } else {
+                Proposition::IntegerMathLessOrEqual(low, high)
+            };
+            let upstream = lower_integer_math_relation(&source)
+                .and_then(|finite| self.prove_direct_subgoal(&finite).ok())
+                .or_else(|| self.prove_direct_subgoal(&source).ok());
+            if let Some(premise) = upstream
+                && proof_admission::check_integer_cast_bound_conversion(
+                    &chain,
+                    &premise.conclusion,
+                    goal,
+                )
+                .is_ok()
             {
                 return Some(node(
                     goal.clone(),
                     ProofRule::IntegerCastBound {
-                        root_bound: Box::new(root_bound),
+                        root_bound: Box::new(premise),
                         witness,
                     },
                 ));
             }
+        }
+        None
+    }
+
+    fn cast_definition(&self, value: ValueId) -> Option<(usize, &ScalarTerm)> {
+        let equation = self.equations[(*self.definitions.get(value)?)?];
+        let fact = &self.facts[equation];
+        let Proposition::Equal(
+            ScalarTerm::Value { id, .. },
+            ScalarTerm::IntegerExactCast { operand, .. } | ScalarTerm::IntegerWiden { operand, .. },
+        ) = &fact.proposition
+        else {
+            return None;
+        };
+        (*id == value).then_some((fact.axiom?, operand.as_ref()))
+    }
+
+    /// Compare mathematical values using ordered upper and lower bounds.
+    fn mathematical_value_order(
+        &mut self,
+        goal: &Proposition,
+        left: &IntegerMathTerm,
+        right: &IntegerMathTerm,
+    ) -> Option<ProofNode> {
+        if !matches!(
+            (left, right),
+            (
+                IntegerMathTerm::MathValue { .. },
+                IntegerMathTerm::MathValue { .. }
+            )
+        ) {
+            return None;
         }
         let upper = self.arithmetic_image(left, Direction::Upper).ok()?;
         let lower = self.arithmetic_image(right, Direction::Lower).ok()?;
