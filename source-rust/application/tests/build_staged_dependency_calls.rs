@@ -590,6 +590,40 @@ fn a_new_dependency_can_run_before_the_build_releases_its_live_borrow() {
 }
 
 #[test]
+fn a_build_keeps_the_byte_its_helper_read_before_preparation() {
+    let target = target::TargetProfile::host_if_supported().expect("hosted test target");
+    let build = r#"use kit;
+machine middle(bytes: @[u8]) -> u8 requires bytes.len == 3 { bytes[1] }
+machine build(builder: @mut Build) suspends {
+    Build::application(builder, "staged_byte_read");
+    let mut request: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
+    dependency\with_alias(@mut request, "kit");
+    let registered: DependencyRegistration = Build::build_dependency(builder, request);
+    let byte: u8 = middle("kit");
+    suspend Build::prepare_dependency(builder, registered);
+    let seven: i32 = kit\v();
+    transition byte == 105u8 && seven == 7 {
+        true -> done(builder),
+        _ -> wrong(builder)
+    }
+    machine done(builder: @mut Build) { Build::bind(builder, HOST\ProgramEntry, main); }
+    machine wrong(builder: @mut Build) { Build::application(builder, "wrong_byte"); }
+}
+"#.replace("HOST", target.target_name());
+    let (ran, report) = check_project(
+        "byte-before-wait",
+        &build,
+        7,
+        "",
+        &["run", "--both", "build.omg"],
+    );
+    assert!(
+        ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
+}
+
+#[test]
 fn a_field_borrow_survives_a_newly_visible_dependency() {
     let target = target::TargetProfile::host_if_supported().expect("hosted test target");
     let source = include_str!("fixtures/build/run/borrowed_field_after_mount/build.omg").replace(

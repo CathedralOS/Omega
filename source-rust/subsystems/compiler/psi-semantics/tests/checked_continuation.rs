@@ -440,8 +440,11 @@ fn a_repeated_return_site_preserves_its_previous_iterations() {
     assert!(CheckedPrefix::check(&previous, cut, &new, cut).is_err());
 }
 
-#[test]
-fn a_live_byte_literal_requires_its_unique_dominating_image_backing() {
+fn program_with_live_byte_literal() -> (
+    TerminalModule,
+    (MachineId, OperationId),
+    semantic_vocabulary::PlaceId,
+) {
     use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
     use terminal_psi::{
         ByteSequenceCarrier, StructuralAccess, StructuralArgument, StructuralMultiplicity,
@@ -488,9 +491,7 @@ fn a_live_byte_literal_requires_its_unique_dominating_image_backing() {
             qualifications: vec![],
         },
     );
-    old.machines[0].blocks[0]
-        .operations
-        .insert(0, literal.clone());
+    old.machines[0].blocks[0].operations.insert(0, literal);
     let frontier = &mut old.execution.suspension_call_plans[0];
     frontier.live_value_count = 1;
     frontier.live_values.push(TerminalSuspensionLiveValue {
@@ -506,6 +507,13 @@ fn a_live_byte_literal_requires_its_unique_dominating_image_backing() {
         effective: language_core::CarryPolicy::PERMISSIVE,
         loans: TerminalSuspensionValueLoans::Unresolved,
     });
+    (old, cut, place)
+}
+
+#[test]
+fn a_live_byte_literal_requires_its_unique_dominating_image_backing() {
+    use terminal_psi::{StructuralAccess, TerminalSuspensionPlace};
+    let (mut old, cut, place) = program_with_live_byte_literal();
     assert!(CheckedPrefix::check(&old, cut, &old, cut).is_ok());
     let mut parked = old.clone();
     let block = &mut parked.machines[0].blocks[0];
@@ -537,7 +545,7 @@ fn a_live_byte_literal_requires_its_unique_dominating_image_backing() {
     arg.access = StructuralAccess::WriteOnlyBorrow;
     assert!(CheckedPrefix::check(&write_only, cut, &write_only, cut).is_err());
     let mut duplicate = old.clone();
-    let mut duplicate_literal = literal;
+    let mut duplicate_literal = duplicate.machines[0].blocks[0].operations[0].clone();
     duplicate_literal.id = OperationId::new(3).unwrap();
     duplicate.machines[0].blocks[0]
         .operations
@@ -545,6 +553,80 @@ fn a_live_byte_literal_requires_its_unique_dominating_image_backing() {
     assert!(CheckedPrefix::check(&old, cut, &duplicate, cut).is_err());
     old.machines[0].blocks[0].operations.swap(0, 1);
     assert!(CheckedPrefix::check(&old, cut, &old, cut).is_err());
+}
+
+#[test]
+fn a_completed_byte_read_keeps_its_source_index_length_and_bounds_obligation() {
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ObligationId, PlaceId};
+    use terminal_psi::{StructuralAccess, StructuralArgument};
+
+    let (mut old, cut, place) = program_with_live_byte_literal();
+    let scalar = |id, width, kind| {
+        Operation::unsuspended(
+            OperationId::new(id).unwrap(),
+            OperationResult::Scalar(ValueDeclaration {
+                id: ValueId::new(id).unwrap(),
+                scalar_type: ScalarType::Integer(
+                    IntegerType::new(IntegerSign::Unsigned, width).unwrap(),
+                ),
+                qualifications: ScalarQualificationSetId::ZERO,
+            }),
+            kind,
+        )
+    };
+    let index = |id, value| {
+        scalar(
+            id,
+            64,
+            OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(value),
+            },
+        )
+    };
+    let first = ValueId::new(3).unwrap();
+    let second = ValueId::new(4).unwrap();
+    let count = ValueId::new(5).unwrap();
+    let bounds = ObligationId::new(1).unwrap();
+    let read = |source, index, length, obligation| OperationKind::ByteSequenceRead {
+        source,
+        index,
+        length,
+        obligation,
+    };
+    old.machines[0].blocks[0].operations.splice(
+        1..1,
+        [
+            index(3, 0),
+            index(4, 1),
+            scalar(
+                5,
+                64,
+                OperationKind::ByteSequenceLength {
+                    source: StructuralArgument {
+                        place,
+                        path: vec![],
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                },
+            ),
+            scalar(6, 8, read(place, first, count, bounds)),
+        ],
+    );
+
+    CheckedPrefix::check(&old, cut, &old, cut).unwrap();
+    for changed in [
+        read(place, second, count, bounds),
+        read(PlaceId::new(2).unwrap(), first, count, bounds),
+        read(place, first, second, bounds),
+        read(place, first, count, ObligationId::new(2).unwrap()),
+    ] {
+        let mut next = old.clone();
+        next.machines[0].blocks[0].operations[4].kind = changed;
+        assert_eq!(
+            CheckedPrefix::check(&old, cut, &next, cut).err(),
+            Some("successor changed an operation or its result in the executed prefix")
+        );
+    }
 }
 
 #[test]

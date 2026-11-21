@@ -506,6 +506,7 @@ impl<'a> CheckedPrefix<'a> {
                 | EstablishElementView { .. }
                 | EstablishMutableElementView { .. }
                 | ByteSequenceLength { .. }
+                | ByteSequenceRead { .. }
                 | ElementViewLength { .. }
                 | ElementViewRead { .. }
                 | ElementViewSubslice { .. }
