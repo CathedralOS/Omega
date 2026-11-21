@@ -545,3 +545,147 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
     };
     assert!(success, "{:?}", observation.status);
 }
+
+#[test]
+fn root_and_private_callable_require_the_same_fma_deployment() {
+    use artifact_lowering::{
+        RetainedNativeProviderInputs, admit_prepared_native_realization, lower_native_callable,
+        lower_native_execution, prepare_native_providers,
+    };
+    use provider_realization::native_execution::{BoundNativeCallable, prepare_program};
+
+    let workspace =
+        platform_custody::temporary_directory::TemporaryDirectory::create("fma-scope", false)
+            .unwrap();
+    let source = workspace.path().join("main.omg");
+    std::fs::write(
+        &source,
+        r"use omega\language\core\F32::fused_multiply_add;
+machine fused(value: f32) -> f32 { F32::fused_multiply_add(value, value, value) }
+machine main() { let result: f32 = fused(1.0f32); }",
+    )
+    .unwrap();
+    std::fs::write(
+        workspace.path().join("build.omg"),
+        r#"machine build(builder: @mut Build) {
+    Build::application(builder, "fma_scope");
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+    builder.x86_deployment_features = X86DeploymentFeatures::AvxFma3;
+}"#,
+    )
+    .unwrap();
+    let profile = TargetProfile::LinuxX64;
+    let product = open_project(&source, &[profile]);
+    let stage = product.product_stage(&[profile]).unwrap();
+    let Artifact::Runtime(product) = compiler::compile(
+        CompileRequest::Runtime {
+            program: stage.program(profile, vec![]).unwrap(),
+            entry_memory: &[],
+        },
+        Default::default(),
+    )
+    .unwrap()
+    .artifact
+    else {
+        panic!("expected runtime admission")
+    };
+    let retained = product.into_retained_terminal_artifact().unwrap();
+    let artifact = retained.artifact();
+    let proposal = retained.native_realization_proposal();
+    let execution = prepare_program(proposal, retained.authorization())
+        .unwrap()
+        .with_operation_evidence(artifact, artifact.published_evidence().cloned())
+        .unwrap();
+    let module = artifact.semantic_module();
+    let (fused, boundary) = module
+        .machines
+        .iter()
+        .flat_map(|machine| {
+            machine.operations().filter_map(move |op| {
+                let terminal_psi::OperationKind::BoundaryCall { boundary, .. } = op.kind else {
+                    return None;
+                };
+                let declaration = terminal_psi::find_boundary_machine(
+                    &module.interfaces.boundary_machines,
+                    boundary,
+                )?;
+                module
+                    .identities
+                    .text(declaration.identity)?
+                    .contains("fused_multiply_add")
+                    .then_some((machine.id, boundary))
+            })
+        })
+        .next()
+        .expect("the fused helper calls the selected FMA boundary");
+    assert_ne!(execution.scope().reach().entry(), fused);
+
+    let permissions = provider_admission::terminal_authority_permissions::admit_package_terminal_authority_permissions(
+        proposal.package_terminal_authority_permissions().to_vec(),
+        proposal.package_terminal_authority_permission_identities().clone(),
+        "test package permissions",
+    ).unwrap();
+    let providers = prepare_native_providers(
+        proposal,
+        RetainedNativeProviderInputs {
+            execution: &execution,
+            optimization_selections: proposal.post_terminal_optimizations().selections(),
+            accepted_package_permissions: &permissions,
+        },
+    )
+    .unwrap();
+    let settlements = providers.program_settlements();
+    let policy = provider_admission::current_terminal_authority_policy();
+    let base = providers.admission_request(&settlements, &policy, &None, &[]);
+    let features = base
+        .providers
+        .x86_scalar_fma_provider
+        .expect("Build selected AVX and FMA3");
+    let mut root_context = None;
+    for entry in [
+        None,
+        Some(terminal_psi::TargetMachineCallable::Machine(fused)),
+    ] {
+        for deployment in [None, Some(features)] {
+            let mut request = base;
+            request.providers.x86_scalar_fma_provider = deployment;
+            let coverage;
+            let input = if let Some(entry) = entry {
+                let callable =
+                    BoundNativeCallable::prepare(proposal, &execution, artifact, entry).unwrap();
+                let (input, callable_coverage) = lower_native_callable(callable, None).unwrap();
+                coverage = callable_coverage;
+                request.entry = entry;
+                request.providers.program_provider_context = Some(root_context.as_ref().unwrap());
+                request.boundary_application_coverage = Some(&coverage);
+                input
+            } else {
+                lower_native_execution(proposal, &execution, &[], None).unwrap()
+            };
+            let result = admit_prepared_native_realization(input, artifact, &request);
+            if deployment.is_none() {
+                let errors = result
+                    .err()
+                    .expect("an FMA call needs an admitted deployment");
+                assert!(
+                    errors.iter().any(|error| error
+                        .message
+                        .contains("requires explicit AVX+FMA3 admission")),
+                    "{errors:?}"
+                );
+            } else {
+                let admitted = result.unwrap();
+                assert!(admitted.providers.settlements.iter().any(|row| {
+                    row.boundary == boundary
+                        && matches!(
+                            row.execution,
+                            provider_admission::AdmittedBoundaryExecution::CompilerBuiltin(_)
+                        )
+                }));
+                if entry.is_none() {
+                    root_context = Some(Arc::clone(admitted.providers.program_provider_context()));
+                }
+            }
+        }
+    }
+}
