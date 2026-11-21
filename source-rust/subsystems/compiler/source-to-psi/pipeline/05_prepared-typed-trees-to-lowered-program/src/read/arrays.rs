@@ -2,6 +2,8 @@
 //! elements keep the canonical indexed namespace; they never acquire invented
 //! field declarations or a nominal schema.
 
+mod argument_types;
+
 use crate::lowering::body::Qualification;
 use crate::source_state::SourceTypeApplication;
 use crate::source_state::expression::{ExpressionHandle, TableIndexedExpression};

@@ -20,6 +20,7 @@ pub(crate) struct SettledSource<'request> {
     pub(crate) program: crate::source_state::TypedTrees,
     pub(crate) wire_demands: &'request [crate::WireCompatibilityDemand],
     pub(crate) demanded_constants: Vec<symbols::SymbolHandle>,
+    pub(crate) selected_providers: Vec<symbols::SymbolHandle>,
     pub(crate) accounting: crate::compile_time_invocations::SourceCompletionAccounting,
 }
 
@@ -29,6 +30,7 @@ impl SettledSource<'_> {
             program,
             wire_demands: &[],
             demanded_constants: Vec::new(),
+            selected_providers: Vec::new(),
             accounting: Default::default(),
         }
     }
@@ -37,8 +39,12 @@ impl SettledSource<'_> {
         self,
     ) -> Result<FrozenSource, prepare_typed_source::SourcePreparationFailure> {
         let result = (|| {
-            let program = preparation::prepare_typed_trees(self.program, self.wire_demands)
-                .map_err(|rows| DiagnosticStage::Preparation.attribute(rows))?;
+            let program = preparation::prepare_with_selected_providers(
+                self.program,
+                self.wire_demands,
+                &self.selected_providers,
+            )
+            .map_err(|rows| DiagnosticStage::Preparation.attribute(rows))?;
             let constants = constant_reads(&program, self.demanded_constants)
                 .map_err(|rows| DiagnosticStage::Preparation.attribute(rows))?;
             Ok((program, constants))

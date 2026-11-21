@@ -907,8 +907,9 @@ fn witness_call(
 ) -> Checked<IdTable<MachineId, Body>> {
     let required =
         terminal_check_tables::row(&program.signatures, entry, entry, Construct::Machine)?.clone();
-    let supplied =
+    let mut supplied =
         terminal_check_tables::row(&program.signatures, callee, entry, Construct::Machine)?.clone();
+    program.apply_forwarded_array_lengths(entry, callee, &required, &mut supplied);
     let supplied_machine = program
         .symbols
         .get(callee)
