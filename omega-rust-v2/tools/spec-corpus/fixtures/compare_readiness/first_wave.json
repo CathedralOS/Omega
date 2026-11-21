@@ -246,7 +246,7 @@
      "files": [
       [
        "recast.omg",
-       "machine build() { let mutable bits: u32 = 1u32; let view: @f32 = @bits as @f32; }"
+       "machine build() { let mut bits: u32 = 1u32; let view: @f32 = @bits as @f32; }"
       ]
      ],
      "message": "reference root has no structural place",
