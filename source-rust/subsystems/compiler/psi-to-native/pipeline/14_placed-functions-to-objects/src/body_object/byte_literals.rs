@@ -9,7 +9,7 @@ use std::{borrow::Cow, collections::BTreeMap};
 pub const POOL_SYMBOL_NAME: &str = "omega_byte_literal_pool";
 const POOL_ALIGNMENT: usize = 16;
 
-pub fn place(
+pub(super) fn place(
     source: &ObjectPublication,
     object: &mut ObjectPlan,
     text_bytes: &mut Vec<u8>,
@@ -43,7 +43,7 @@ pub fn place(
     }))
 }
 
-pub fn publish_relocations(
+pub(super) fn publish_relocations(
     pool: Option<&ObjectByteLiteralPool>,
     functions: &[impl AsRef<ObjectFunctionLocation>],
     relocations: &mut RelocationPlan,

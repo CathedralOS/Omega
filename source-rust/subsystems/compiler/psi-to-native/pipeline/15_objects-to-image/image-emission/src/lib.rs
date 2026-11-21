@@ -112,8 +112,8 @@ pub use object::object_artifact::{
     resolve_instruction_sequence,
 };
 pub(crate) use object::object_artifact::{
-    ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectCompilerPrivateFunction, ObjectError,
-    ObjectPortEffect, ObjectScalarStack, ObjectUnitStack,
+    ObjectByteLiteralPool, ObjectCompilerPrivateFunction, ObjectError, ObjectPortEffect,
+    ObjectScalarStack, ObjectUnitStack,
 };
 
 pub use object::function_fragments::prepare_object_for_image;

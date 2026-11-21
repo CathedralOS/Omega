@@ -1,7 +1,7 @@
 use super::{Error, host};
 use crate::{ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationRecord, SectionKind};
 use machine_code::ImageAddressFields;
-pub fn records(
+pub(super) fn records(
     fields: ImageAddressFields,
     origin: RelocationOrigin,
     destination: ObjectSymbolHandle,

@@ -2839,7 +2839,7 @@ pub(crate) use carriers::{
     ObjectCompilerPrivateFunction, ObjectPortEffect, ObjectScalarStack, ObjectUnitStack,
     find_object_function,
 };
-pub(crate) use object_file::{ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectError};
+pub(crate) use object_file::{ObjectByteLiteralPool, ObjectError};
 pub use object_file::{
     ObjectForeignCall, derive_normalized_foreign_call_custody, fragment_instruction_span,
     place_foreign_call, resolve_instruction_sequence,

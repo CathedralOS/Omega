@@ -159,7 +159,7 @@ pub fn place(
     ))
 }
 
-pub fn publish_relocations(
+pub(super) fn publish_relocations(
     pool: Option<&ObjectCodeDescriptorPool>,
     functions: &[impl AsRef<ObjectFunctionLocation>],
     relocations: &mut RelocationPlan,

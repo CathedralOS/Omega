@@ -22101,7 +22101,7 @@
       "kind": "definition",
       "meaning": "Resolve a semantic machine to its object-local function symbol and extent.",
       "producer": "native body object publication",
-      "signature": "da48453c85dd2e5109e03ae083f5b6d40df85ad35c590a809c633cc936c68646"
+      "signature": "755b7eb31f962b2b52185509d6049cdc7d01a36b883edab939ba360206c5713f"
     },
     {
       "consumers": [
@@ -22161,7 +22161,7 @@
       "kind": "definition",
       "meaning": "Place all sections, declare symbols and resolve each body reference to a relocation before image composition.",
       "producer": "native body object publication",
-      "signature": "e506e02cc496c8b9f898ddc0a8f932c48f4a56e0bed525ee7ea1d7ca552e69bd"
+      "signature": "43232a9d6fe2989aa101ba2c0f28cc5f347d32bc5fc81e86369d2db1166fd0c3"
     },
     {
       "consumers": [
@@ -22173,7 +22173,7 @@
       "kind": "producer",
       "meaning": "Place all sections, declare symbols and resolve each body reference to a relocation before image composition.",
       "producer": "native body object publication",
-      "signature": "7107627db5b257c240d48124049c82d91b65061e14d411fe14d31b9afacc3b6d"
+      "signature": "ce4fd53b0a0eeaebf6ffc24d457c06b21cf9662ebb41132de98446b29d9e812c"
     },
     {
       "consumers": [
@@ -22209,7 +22209,7 @@
       "kind": "definition",
       "meaning": "Encodes x86 relative or AArch64 paired page-address relocation fields.",
       "producer": "native body object publication",
-      "signature": "0a69e09b422bd5b2c01308205f4f3fb25b2f50b44845f5e2e92c818f15300edc"
+      "signature": "ea645e34df4b21f783f01ad8ae2817934841752d0ef11c68205ca615df65d542"
     },
     {
       "consumers": [

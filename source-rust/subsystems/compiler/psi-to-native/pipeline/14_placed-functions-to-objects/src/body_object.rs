@@ -8,7 +8,7 @@ use crate::{
 use semantic_vocabulary::MachineId;
 pub mod byte_literals;
 pub mod code_descriptors;
-pub mod image_addresses;
+mod image_addresses;
 pub mod image_residence;
 pub mod imports;
 pub mod native_code_layouts;
@@ -42,10 +42,10 @@ impl AsRef<Self> for ObjectFunctionLocation {
         self
     }
 }
-fn find_object_function<'a>(
-    functions: &'a [impl AsRef<ObjectFunctionLocation>],
+fn find_object_function(
+    functions: &[impl AsRef<ObjectFunctionLocation>],
     machine: MachineId,
-) -> Option<&'a ObjectFunctionLocation> {
+) -> Option<&ObjectFunctionLocation> {
     functions
         .iter()
         .map(AsRef::as_ref)
@@ -148,9 +148,10 @@ impl FunctionObjectSections {
             &mut object,
         )?;
         let native_code_layout_pool = native_code_layouts::place(
-            &source
+            source
                 .native_code_layouts()
-                .map_err(Error::NativeCodeLayout)?,
+                .map_err(Error::NativeCodeLayout)?
+                .as_ref(),
             &source.text().unresolved_image_addresses,
             &mut object,
             &mut data_bytes,

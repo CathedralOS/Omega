@@ -1,6 +1,6 @@
 use super::{Error, ObjectFunctionLocation};
 use crate::{ObjectForeignCall, ObjectPublication};
-pub fn placed_calls<'a>(
+pub(super) fn placed_calls<'a>(
     source: &'a ObjectPublication,
     functions: &[impl AsRef<ObjectFunctionLocation>],
     calls: &'a [ObjectForeignCall],

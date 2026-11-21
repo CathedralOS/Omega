@@ -1571,14 +1571,7 @@ mod byte_literals {
 }
 
 mod image_addresses {
-    use super::{Error, host};
-    use machine_code::ImageAddressFields;
-    use object_file::{
-        ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan, RelocationRecord,
-        SectionKind,
-    };
-
-    pub(super) use object_file::body_object::image_addresses::records;
+    use object_file::{ObjectSymbolHandle, RelocationOrigin, RelocationPlan, RelocationRecord};
     pub(super) fn rows_for_symbols(
         plan: &RelocationPlan,
         symbols: impl IntoIterator<Item = ObjectSymbolHandle>,
@@ -1677,7 +1670,8 @@ mod image_addresses {
 pub(crate) mod image_residence {
     use super::{Error, image_addresses::rows_for_symbols};
     pub(crate) use object_file::body_object::image_residence::declare_symbol;
-    use object_file::body_object::image_residence::{observes_residence, records};
+    use object_file::body_object::image_residence::observes_residence;
+    pub(super) use object_file::body_object::image_residence::records;
     use object_file::{SymbolKind, SymbolSection};
     pub(super) fn validate(
         source: &crate::object_input::ObjectEmissionInput,
@@ -1723,20 +1717,16 @@ pub(crate) mod image_residence {
 }
 
 pub(crate) mod code_descriptors {
-    use super::{Error, refuse_symbol_collision};
-    use crate::ObjectFunction;
-    use machine_code::PlacedImageAddress;
+    use super::Error;
     use object_file::{
-        ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan,
-        RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
+        ObjectPlan, RelocationOrigin, RelocationPlan, RelocationRecord, SectionKind,
     };
-    use terminal_psi::TerminalDynamicDispatchCatalog;
 
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    use object_file::body_object::code_descriptors::place;
+    pub(super) use object_file::body_object::code_descriptors::records;
     pub(crate) use object_file::body_object::code_descriptors::{
-        CodeDescriptorSource, ObjectCodeDescriptorPool, address_source, target_entries,
+        ObjectCodeDescriptorPool, address_source, target_entries,
     };
-    use object_file::body_object::code_descriptors::{place, records, records_for_symbols};
     pub(super) fn validate(
         artifact: &crate::ObjectArtifact,
         selections: Option<&super::current_image_selections::CurrentImageSelections>,
@@ -1922,6 +1912,9 @@ pub(crate) mod code_descriptors {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use object_file::body_object::code_descriptors::records_for_symbols;
+        use object_file::{RelocationKind, SymbolKind, SymbolPlan, SymbolSection};
+        use terminal_psi::TerminalDynamicDispatchCatalog;
         use terminal_psi::{TerminalDynamicInterface, TerminalDynamicSlot, TerminalDynamicTable};
 
         fn catalog(
@@ -2058,9 +2051,7 @@ pub(crate) mod code_descriptors {
 
 mod imports {
     use super::{Error, host};
-    use crate::{
-        ObjectArtifact, ObjectForeignCall, ObjectFunction, derive_normalized_foreign_call_custody,
-    };
+    use crate::{ObjectArtifact, derive_normalized_foreign_call_custody};
 
     use crate::object_input::ObjectEmissionInput;
     use machine_code::CallbackAddressEncoding;
@@ -2344,18 +2335,13 @@ mod mixed_scalar_abi {
 }
 
 pub(crate) mod native_code_layouts {
-    use super::{Error, host, refuse_symbol_collision};
-    use crate::ObjectFunction;
-    use machine_code::code_layout::NativeCodeLayout;
-    use machine_code::{ImageAddressFields, PlacedImageAddress};
-    use object_file::{
-        ObjectPlan, ObjectSymbolHandle, RelocationKind, RelocationOrigin, RelocationPlan,
-        RelocationRecord, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
-    };
+    use super::Error;
+    use object_file::{ObjectPlan, RelocationOrigin, RelocationRecord, SectionKind};
     use selected_instructions::SelectedImageAddressReference;
 
     pub(crate) use object_file::body_object::native_code_layouts::NativeCodeLayoutPool;
-    use object_file::body_object::native_code_layouts::{place, records};
+    use object_file::body_object::native_code_layouts::place;
+    pub(super) use object_file::body_object::native_code_layouts::records;
     pub(super) fn validate(
         artifact: &crate::ObjectArtifact,
         selections: Option<&super::current_image_selections::CurrentImageSelections>,
@@ -2766,15 +2752,10 @@ mod port_effects {
 
 mod private_addresses {
     use super::Error;
-    use crate::{ObjectArtifact, ObjectForeignCall, ObjectFunction};
+    use crate::ObjectArtifact;
     use function_identity::MachineFunctionIdentity;
     use machine_code::PlacedImageAddress;
-    use object_file::{
-        FunctionSymbolPlan, ObjectPlan, RelocationOrigin, RelocationRecord, SymbolKind, SymbolPlan,
-        SymbolSection,
-    };
-    use selected_instructions::SelectedImageAddressReference;
-    use terminal_psi::TerminalPsiIdentity;
+    use object_file::{ObjectPlan, RelocationRecord, SymbolKind, SymbolSection};
 
     pub(super) use object_file::body_object::private_addresses::identities;
     use object_file::body_object::private_addresses::records;
@@ -2853,10 +2834,6 @@ mod production {
     use crate::{
         ObjectArtifact, ObjectCodeAttribution, ObjectFunction, ObjectScalarCallStack,
         ObjectScalarStack, ObjectUnitCallStack, ObjectUnitStack,
-    };
-    use object_file::{
-        ObjectPlan, SectionKind, SectionPlan, SymbolKind, SymbolPlan, SymbolSection,
-        entry_symbol_name,
     };
     use std::sync::Arc;
 

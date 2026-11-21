@@ -53,7 +53,7 @@ fn unique_identities(
     Ok(rows.into_iter().map(|(_, _, identity)| identity).collect())
 }
 
-pub fn declare(
+pub(super) fn declare(
     identities: &[MachineFunctionIdentity],
     object: &mut ObjectPlan,
 ) -> Result<(), Error> {

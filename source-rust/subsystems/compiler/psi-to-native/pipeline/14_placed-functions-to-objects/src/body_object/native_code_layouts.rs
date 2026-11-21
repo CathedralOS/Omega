@@ -220,7 +220,7 @@ pub fn records(
     Ok(rows)
 }
 
-pub fn publish_relocations(
+pub(super) fn publish_relocations(
     pool: Option<&NativeCodeLayoutPool>,
     functions: &[impl AsRef<ObjectFunctionLocation>],
     plan: &mut RelocationPlan,

@@ -9,7 +9,7 @@ pub fn observes_residence(address: &PlacedImageAddress) -> bool {
     address.reference == SelectedImageAddressReference::RetainedEntryStorageStart
 }
 
-pub fn declare(
+pub(super) fn declare(
     addresses: &[PlacedImageAddress],
     object: &mut ObjectPlan,
     profile: Option<target::TargetProfile>,
@@ -41,7 +41,7 @@ pub fn declare_symbol(object: &mut ObjectPlan) -> Result<ObjectSymbolHandle, Err
     }))
 }
 
-pub fn publish_relocations(
+pub(super) fn publish_relocations(
     addresses: &[PlacedImageAddress],
     destination: ObjectSymbolHandle,
     functions: &[impl AsRef<ObjectFunctionLocation>],
