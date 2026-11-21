@@ -85,7 +85,7 @@ fn eliminate(goal: Proposition, bound: u64, lower: usize, upper: usize) -> Proof
     ProofNode {
         conclusion: goal,
         rule: ProofRule::ConjunctionElimination {
-            conjunction: Box::new(widened),
+            conjunction: widened.into(),
             conjunct: 1,
         },
     }

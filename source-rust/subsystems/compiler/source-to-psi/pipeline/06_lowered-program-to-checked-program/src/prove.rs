@@ -1081,7 +1081,7 @@ fn ex_falso(absurd: ProofNode, goal: &Proposition) -> ProofNode {
     node(
         goal.clone(),
         ProofRule::ConjunctionElimination {
-            conjunction: Box::new(both),
+            conjunction: both.into(),
             conjunct: 1,
         },
     )

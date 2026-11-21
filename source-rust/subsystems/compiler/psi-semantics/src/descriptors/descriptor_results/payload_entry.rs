@@ -226,11 +226,12 @@ fn select(
         return Some(derived);
     }
     if let Proposition::Conjunction(children) = &proof.conclusion {
+        let conjunction = std::sync::Arc::new(proof.clone());
         for (conjunct, child) in children.iter().enumerate() {
             let selected = ProofNode {
                 conclusion: child.clone(),
                 rule: ProofRule::ConjunctionElimination {
-                    conjunction: Box::new(proof.clone()),
+                    conjunction: conjunction.clone(),
                     conjunct,
                 },
             };

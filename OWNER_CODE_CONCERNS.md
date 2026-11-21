@@ -139,14 +139,6 @@ framework or a list of unimplemented features.
 - Cost: An indirect call in the provider needs the actual machine passed by its caller. The original report reached native stack planning. A later run on the #4790 CLI checked the modernized source, then stopped at a repeated stage-07 selection before either engine could exercise the remaining paths. Recheck both consumers with the same selected call.
 - Reported: 2026-11-18, Codex, while migrating Build-selected dispatch to machine values.
 
-### Individual proof citations copy their entire compound premise
-
-- Category: Verifying costs more than writing
-- Where: [premise reconstruction](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/known.rs#L178), [copied conclusion](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/known.rs#L211), [owned proof nodes](source-rust/subsystems/compiler/psi/proofs/certificates.rs#L96).
-- Saw: Selecting a conjunct reconstructs the parent's proof and clones its complete proposition. In the original multiplication-table capture (machine 7, obligation 26), 1,408 assumption citations contributed to a 3,798-node proof. Its debug rendering occupied 1.95 GB and the checked core certificate occupied 212 KB.
-- Cost: Borrowing the proof during verification removes one extra copy, but building it still copies these large premises. Any sharing must count every logical use, keep its original scope and publish the complete predicate. Certificates attached to operations still refer to whole premise rows, so those assumptions cannot simply be replaced with selected conjuncts.
-- Reported: 2026-11-18, Codex, while carrying the original multiplication table through proof checking and execution.
-
 ### Focused compiler checks rebuild the implementation three times
 
 - Category: Verifying costs more than writing
