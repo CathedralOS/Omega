@@ -121,11 +121,7 @@ impl<'source> Program<'source> {
                 typed.symbols.symbols().nodes().is_valid(parameter.symbol)
                     && typed.symbols.get(parameter.symbol).parent != target
                     && typed
-                        .declaration_type_parameters(
-                            typed
-                                .machine_by_own_or_state_symbol(caller)
-                                .map_or(caller, |machine| machine.symbol),
-                        )
+                        .declaration_type_parameters(caller)
                         .iter()
                         .any(|actual| actual == parameter)
             })
