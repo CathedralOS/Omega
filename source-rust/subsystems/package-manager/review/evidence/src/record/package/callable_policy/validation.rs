@@ -123,3 +123,13 @@ pub(in crate::record) fn nominal_set(
     }
     Ok(())
 }
+
+pub(in crate::record) fn service_set(
+    values: &[crate::record::PackageReviewServiceIdentity],
+) -> Result<(), &'static str> {
+    ordered(values)?;
+    for value in values {
+        value.validate_resolved()?;
+    }
+    Ok(())
+}

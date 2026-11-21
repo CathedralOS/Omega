@@ -1,6 +1,7 @@
 // Inert baseline recovery under one shared reader and allocation budget.
 // `recover_canonical` restores comparison meaning without old source, proof, or native replay.
 
+use crate::encoding::recovery::policy::identity::service;
 use crate::record::PackagePolicyBaseline;
 pub(in crate::encoding::recovery) mod boundary;
 pub(in crate::encoding::recovery) mod dependencies;
@@ -38,10 +39,12 @@ impl PackagePolicyBaseline {
                 | crate::encoding::BASELINE_WITH_STRUCTURAL_PARAMETERS
                 | crate::encoding::BASELINE_WITH_PROVIDER_APPLICATION_GRANTS
                 | crate::encoding::BASELINE_WITH_TYPE_ALIASES
+                | crate::encoding::BASELINE_WITH_CARRIED_TYPES
                 | PACKAGE_POLICY_BASELINE_VERSION
         ) {
             return Err(Error::UnsupportedVersion);
         }
+        reader.applied_services = schema_version >= crate::encoding::BASELINE_WITH_APPLIED_SERVICES;
         let policy = Self {
             schema_version,
             package: package(&mut reader)?,
@@ -61,7 +64,7 @@ impl PackagePolicyBaseline {
             boundary_applications: boundary::applications(&mut reader)?,
             restricted_build_requests: restricted_build::requests(&mut reader)?,
             assumed_bindings: reader.sequence(1, |reader| reader.string())?,
-            service_audits: reader.sequence(1, super::identity::nominal)?,
+            service_audits: reader.sequence(1, service)?,
             component_assumptions: reader.sequence(1, component_assumption)?,
         };
         reader.finish()?;

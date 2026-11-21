@@ -9,7 +9,7 @@ use diagnostics::Diagnostic;
 use review_evidence::record::{
     PackagePolicyBaseline, PackagePolicyBoundaryApplications, PackagePolicyCallables,
     PackagePolicyPublicApi, PackagePolicyRepresentation, PackagePolicyRestrictedBuildRequest,
-    PackagePolicySelectedProviders, PackageReviewNominalIdentity,
+    PackagePolicySelectedProviders, PackageReviewServiceIdentity,
     PackageReviewRepresentationArchitecture, PackageReviewRepresentationObjectFormat,
     PackageReviewRepresentationTarget, PackageReviewRepresentationTargetProfile,
 };
@@ -37,7 +37,8 @@ pub(super) fn project(
     let origins =
         super::callables::service_origins(accepted, source_provenance::DependencyScope::Product)?;
     let services = super::callables::service_identities(
-        accepted.source(),
+        input.typed(),
+        accepted.module(),
         input.sources().exact_toolchain_sources(),
         &origins,
     )?;
@@ -136,14 +137,14 @@ struct PolicyDeclarations {
     callables: Vec<review_evidence::record::PackagePolicyCallable>,
     representation: PackageReviewRepresentationTarget,
     restricted_build_requests: Vec<PackagePolicyRestrictedBuildRequest>,
-    audits: Vec<PackageReviewNominalIdentity>,
+    audits: Vec<PackageReviewServiceIdentity>,
 }
 
 fn declaration_policy(
     declarations: &PolicySource<'_>,
     target: TargetProfile,
     package: PackageKeyIdentity,
-    services: &[(semantic_vocabulary::ServiceId, PackageReviewNominalIdentity)],
+    services: &[(semantic_vocabulary::ServiceId, PackageReviewServiceIdentity)],
     ordinary_traits: Vec<review_evidence::record::PackagePolicyTraitShape>,
 ) -> Result<PolicyDeclarations, Vec<Diagnostic>> {
     // The owned declaration census above refuses unserved admission claims,
@@ -222,7 +223,7 @@ fn declaration_policy(
         .declarations
         .service_audits()
         .iter()
-        .map(|symbol| declarations.nominal(*symbol))
+        .map(|symbol| declarations.unapplied_service(*symbol))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(PolicyDeclarations {
         public_api,

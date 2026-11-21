@@ -13,7 +13,7 @@ use crate::record::validation::{ordered, ordered_by};
 
 pub(super) fn validate(
     crashes: &[PackagePolicyCrashRoute],
-    reaches: &[PackageReviewNominalIdentity],
+    reaches: &[crate::record::PackageReviewServiceIdentity],
     invocations: &[PackageReviewSynchronousInvocation],
     termination: &PackagePolicyTermination,
     scope: &Scope<'_>,

@@ -11,7 +11,7 @@ use crate::record::PackageReviewCheckedServiceReach;
 use crate::record::PackageReviewCrashInterface;
 use crate::record::PackageReviewProgressSubject;
 use crate::record::PackageReviewSynchronousInvocation;
-use crate::record::package::callable_policy::validation::nominal_set;
+use crate::record::package::callable_policy::validation::service_set;
 use crate::record::package::callable_policy::validation::ordered;
 use crate::record::package::callable_policy::validation::ordered_by;
 use crate::record::package::callable_policy::validation::signature;
@@ -19,10 +19,10 @@ use crate::record::package::callable_policy::validation::structural;
 
 pub(super) fn validate(callable: &PackagePolicyCallable) -> Result<(), &'static str> {
     if let Some(ceiling) = &callable.declared_service_reach {
-        nominal_set(ceiling)?;
+        service_set(ceiling)?;
     }
     let dependency = &callable.service_reach_dependency;
-    nominal_set(&dependency.concrete)?;
+    service_set(&dependency.concrete)?;
     ordered(&dependency.parameters)?;
     for ordinal in &dependency.parameters {
         if !matches!(
@@ -50,8 +50,8 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result<(), &'static 
     if let PackageReviewCheckedServiceReach::CheckedBody { realized, concrete } =
         &callable.checked_service_reach
     {
-        nominal_set(realized)?;
-        nominal_set(concrete)?;
+        service_set(realized)?;
+        service_set(concrete)?;
         if concrete
             .iter()
             .any(|service| realized.binary_search(service).is_err())
@@ -62,7 +62,7 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result<(), &'static 
     ordered(&callable.unresolved_installation_reaches)?;
     for reach in &callable.unresolved_installation_reaches {
         reach.requirement.validate_resolved()?;
-        nominal_set(&reach.upper_bound)?;
+        service_set(&reach.upper_bound)?;
     }
     if let Some(ceiling) = &callable.declared_synchronous_invocations {
         invocations(ceiling, callable.parameters.len())?;

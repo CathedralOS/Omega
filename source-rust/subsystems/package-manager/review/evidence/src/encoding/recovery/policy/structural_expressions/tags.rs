@@ -185,7 +185,7 @@ mod tests {
         use crate::record::{PackagePolicyBaseline, PackagePolicyCallables};
 
         let mut callable_header = CALLABLE_POLICY_MAGIC.to_vec();
-        callable_header.extend_from_slice(&(PACKAGE_CALLABLE_POLICY_VERSION - 1).to_le_bytes());
+        callable_header.extend_from_slice(&(crate::encoding::CALLABLE_POLICY_WITH_NOMINAL_SERVICES - 1).to_le_bytes());
         assert_eq!(
             PackagePolicyCallables::recover_canonical(
                 &callable_header,

@@ -5,6 +5,7 @@
 // aggregate checks their qualified coordinate and delegates local operator
 // demand validation to `boundary_owners::validate_demand`.
 
+use crate::record::PackageReviewServiceIdentity;
 use crate::record::PackagePolicyBaseline;
 use crate::record::PackagePolicyCallable;
 use crate::record::PackagePolicyCallableRole;
@@ -253,7 +254,7 @@ impl PackagePolicyBaseline {
 
 pub(super) fn exposes(
     callable: &PackagePolicyCallable,
-    service: &PackageReviewNominalIdentity,
+    service: &PackageReviewServiceIdentity,
 ) -> bool {
     callable
         .published_service_reach()

@@ -77,18 +77,19 @@ impl PackageReviewNominalIdentity {
         encode(&mut writer).is_ok() && writer.remaining.is_empty()
     }
 
+    fn trait_application_operands<'identity>(&self, expected: &'identity str) -> Option<&'identity str> {
+        let mut writer = MatchingWriter { remaining: expected.strip_prefix("trait-application(")? };
+        write_atom(&mut writer, "declaration", |value| self.write_qualified_path(value)).ok()?;
+        Some(writer.remaining)
+    }
+
     pub(crate) fn matches_unapplied_trait_declaration(&self, expected: &str) -> bool {
-        let Some(declaration) = expected.strip_prefix("trait-application(") else {
-            return false;
-        };
-        let mut writer = MatchingWriter {
-            remaining: declaration,
-        };
-        write_atom(&mut writer, "declaration", |value| {
-            self.write_qualified_path(value)
-        })
-        .is_ok()
-            && writer.remaining == ",arguments(),lifetimes())"
+        self.trait_application_operands(expected) == Some(",arguments(),lifetimes())")
+    }
+
+    pub(crate) fn matches_applied_trait_declaration(&self, expected: &str) -> bool {
+        self.trait_application_operands(expected).is_some_and(|operands| operands != ",arguments(),lifetimes())") &&
+            application_identity::type_identity::validate_trait_application(expected).is_ok()
     }
 
     pub(crate) fn matches_closed_calling_application(

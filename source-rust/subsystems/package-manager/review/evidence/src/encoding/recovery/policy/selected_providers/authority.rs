@@ -1,5 +1,6 @@
 // Bounded recovery for selected-provider service authority and progress premises.
 
+use crate::encoding::recovery::policy::identity::service;
 use super::{Error, Reader, nominal};
 use crate::encoding::recovery::policy::behavior::synchronous_invocation;
 use crate::record::{
@@ -12,7 +13,7 @@ pub(in crate::encoding::recovery) fn authority(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyServiceAuthority, Error> {
     Ok(PackagePolicyServiceAuthority {
-        service_reach: reader.sequence(41, nominal)?,
+        service_reach: reader.sequence(41, service)?,
         synchronous_invocations: reader.sequence(5, synchronous_invocation)?,
         progress_premises: reader.sequence(58, |reader| {
             Ok(PackagePolicyServiceProgressPremise {

@@ -4,7 +4,7 @@ use diagnostics::Diagnostic;
 use language_core::core_vocabulary::CoreVocabulary;
 use provider_acceptance::AcceptedSemanticBindingRole as Role;
 use review_evidence::record::{
-    PackageReviewDangerousAuthorityClass as Class, PackageReviewNominalIdentity,
+    PackageReviewDangerousAuthorityClass as Class, PackageReviewServiceIdentity,
 };
 
 /// Core vocabulary lookup authenticates the toolchain declaration's full source bytes.
@@ -26,15 +26,28 @@ fn critical_class(vocabulary: CoreVocabulary) -> Option<Class> {
 pub(super) fn critical_services(
     input: &PolicySource<'_>,
     selected: &compiler::SelectedProviderResult,
-) -> Result<Vec<(PackageReviewNominalIdentity, Class)>, Vec<Diagnostic>> {
+) -> Result<Vec<(PackageReviewServiceIdentity, Class)>, Vec<Diagnostic>> {
     let mut classes = Vec::new();
-    for declaration in input.typed().traits().iter().filter(|d| d.is_boundary) {
-        if let Some(class) = input
-            .typed()
-            .core_vocabulary(declaration.symbol)
-            .and_then(critical_class)
-        {
-            classes.push((input.nominal(declaration.symbol)?, class));
+    let source = input.typed();
+    let mut applied = std::collections::BTreeMap::new();
+    for declaration in source.traits().iter().filter(|d| d.is_boundary) {
+        let Some(class) = source.core_vocabulary(declaration.symbol).and_then(critical_class) else { continue };
+        if declaration.type_parameters.is_empty() && declaration.lifetime_parameters.is_empty() {
+            classes.push((input.unapplied_service(declaration.symbol)?, class));
+        } else {
+            applied.insert(super::providers::symbol_key(declaration.symbol), class);
+        }
+    }
+    if !applied.is_empty() {
+        for root in source.applied_trait_roots() {
+            let mut members = Vec::new();
+            root.try_visit(source, &mut |scope| {
+                if let Some(&class) = applied.get(&super::providers::symbol_key(scope.declaration.symbol)) {
+                    members.push((scope.clone(), class));
+                }
+                Ok(())
+            }).map_err(super::declarations::unavailable)?;
+            for (scope, class) in members { classes.push((input.effect_identity(&scope)?, class)); }
         }
     }
     for binding in input.sources().accepted_semantic_bindings() {
@@ -43,8 +56,8 @@ pub(super) fn critical_services(
             Role::FilesystemHostService => Class::Filesystem,
             _ => continue,
         };
-        let (symbol, _) = checked_service(input, selected, binding)?;
-        classes.push((input.nominal(symbol)?, class));
+        let (symbol, schema) = checked_service(input, selected, binding)?;
+        classes.push((input.effect_identity(&input.schema_effect_scope(symbol, &schema)?)?, class));
     }
     classes.sort();
     classes.dedup();

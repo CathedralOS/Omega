@@ -6,6 +6,7 @@
 // result-arm coordinate guarding an outcome-specific guarantee (`None` for
 // unconditional `requires`/`ensures` rows).
 
+use crate::record::PackageReviewServiceIdentity;
 use crate::record::PackageReviewContractExpression;
 use crate::record::PackageReviewContractKind;
 use crate::record::PackageReviewNominalIdentity;
@@ -65,7 +66,7 @@ impl PackageReviewCallableContract {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewSynchronousInvocation {
     Parameter(u32),
-    Service(PackageReviewNominalIdentity),
+    Service(PackageReviewServiceIdentity),
 }
 
 impl PackageReviewSynchronousInvocation {

@@ -276,7 +276,7 @@ impl PolicySource<'_> {
             .map(|services| {
                 services
                     .iter()
-                    .map(|symbol| self.nominal(*symbol))
+                    .map(|service| self.reviewed_requirement_service(service))
                     .collect::<Result<Vec<_>, _>>()
             })
             .transpose()?;
@@ -324,7 +324,7 @@ impl PolicySource<'_> {
                     .iter()
                     .map(|invocation| match invocation {
                         Invocation::Parameter(position) => Ok(Reviewed::Parameter(*position)),
-                        Invocation::Service(symbol) => self.nominal(*symbol).map(Reviewed::Service),
+                        Invocation::Service(service) => self.reviewed_requirement_service(service).map(Reviewed::Service),
                     })
                     .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
                 invocations.sort();

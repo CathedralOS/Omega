@@ -17,7 +17,7 @@ use review_evidence::record::{
     PackagePolicyServiceMethod, PackagePolicyServiceReachDependency, PackagePolicyServiceSignature,
     PackagePolicyTargetContext, PackagePolicyTermination, PackagePolicyTraitShape,
     PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewCrashInterface,
-    PackageReviewInstallationReach, PackageReviewNominalIdentity, PackageReviewNominalOwner,
+    PackageReviewInstallationReach, PackageReviewServiceIdentity, PackageReviewNominalIdentity, PackageReviewNominalOwner,
     PackageReviewSelectedInstallationReach, PackageReviewSignatureParameter,
     PackageReviewSynchronousInvocation, PackageReviewWriteFrameCompleteness,
 };
@@ -145,14 +145,14 @@ pub(super) struct AcceptedDeclarations<'module> {
     behaviors: Vec<&'module UnoptimizedMachineBehavior>,
     authored_reach_owners: Vec<SymbolHandle>,
     service_origins: &'module [(ServiceId, SymbolHandle)],
-    service_names: &'module [(ServiceId, PackageReviewNominalIdentity)],
+    service_names: &'module [(ServiceId, PackageReviewServiceIdentity)],
 }
 
 impl<'module> AcceptedDeclarations<'module> {
     pub(super) fn new(
         accepted: &'module source_compiler::publication::AcceptedTerminalSource,
         service_origins: &'module [(ServiceId, SymbolHandle)],
-        service_names: &'module [(ServiceId, PackageReviewNominalIdentity)],
+        service_names: &'module [(ServiceId, PackageReviewServiceIdentity)],
         has_providers: bool,
     ) -> Self {
         let module = accepted.module();
@@ -215,25 +215,22 @@ impl<'module> AcceptedDeclarations<'module> {
             .ok_or_else(|| unavailable("the selected service's authored name"))
     }
 
-    fn source_service_names<'source, Name: Ord>(
-        &'source self,
-        services: &[ServiceId],
-        name: impl Fn(&'source TraitDefinition) -> Name,
-    ) -> Result<Vec<Name>, Vec<Diagnostic>> {
-        let mut names = services
-            .iter()
-            .map(|service| self.source_service(*service).map(&name))
-            .collect::<Result<Vec<_>, _>>()?;
-        names.sort_unstable();
-        Ok(names)
+    fn surface_service_name(&self, service: ServiceId) -> Result<String, Vec<Diagnostic>> {
+        let position = self.service_names.binary_search_by_key(&service, |(id, _)| *id)
+            .map_err(|_| unavailable("a published service's exact application"))?;
+        match &self.service_names[position].1.application {
+            Some(application) => Ok(application.canonical.clone()),
+            None => Ok(self.accepted.source().trait_declaration_path(self.source_service(service)?)),
+        }
     }
+
 }
 
 struct PreparedProviders {
     review: ReviewedProviders,
     choices: Vec<PreparedProvider>,
     numeric: Option<super::numeric::PreparedNumeric>,
-    service_names: Vec<(ServiceId, PackageReviewNominalIdentity)>,
+    service_names: Vec<(ServiceId, PackageReviewServiceIdentity)>,
     service_ids: Vec<(String, ServiceId)>,
 }
 
@@ -330,7 +327,7 @@ impl PreparedRow {
         plan: &ProviderPlan,
         row: &ProviderPlanRow,
         service_ids: &[(String, ServiceId)],
-        services: &[(ServiceId, PackageReviewNominalIdentity)],
+        services: &[(ServiceId, PackageReviewServiceIdentity)],
     ) -> Result<PackagePolicyProviderRow, Vec<Diagnostic>> {
         let ProviderBinding::CheckedAdapter {
             machine_identity,
@@ -368,7 +365,7 @@ impl PreparedRow {
         plan: &ProviderPlan,
         row: &ProviderPlanRow,
         service_ids: &[(String, ServiceId)],
-        services: &[(ServiceId, PackageReviewNominalIdentity)],
+        services: &[(ServiceId, PackageReviewServiceIdentity)],
     ) -> Result<Option<PackageReviewSelectedInstallationReach>, Vec<Diagnostic>> {
         let matches = selected
             .installation_reach_resolutions()
@@ -993,25 +990,21 @@ impl PolicySource<'_> {
             .service_names
             .binary_search_by_key(&owner, |(service, _)| *service)
             .map_err(|_| unavailable("the selected requirement's own service"))?;
-        if declarations.service_names[owner_index].1 != requirement_owner {
+        if declarations.service_names[owner_index].1.declaration != requirement_owner {
             return Err(unavailable(
                 "the selected requirement's exact owning service",
             ));
         }
 
-        // Owning a provider slot identifies the method. Its published reach is
-        // the independently declared ceiling, including any authored parents.
         let reach = &boundary.published_service_ceiling;
         let authority = reviewed_services(declarations.service_names, reach)?;
-        // The plan stores source names. Resolve those from the same checked
-        // coordinates, even when the nominal identities have qualified paths.
-        let ceiling_matches = declarations
-            .source_service_names(reach, |declaration| declaration.name.as_str())?
-            .into_iter()
-            .eq(method.service_reach.iter().map(String::as_str));
+        let mut surface_reach = reach.iter()
+            .map(|service| declarations.surface_service_name(*service))
+            .collect::<Result<Vec<_>, _>>()?;
+        surface_reach.sort_unstable();
+        let ceiling_matches = surface_reach == method.service_reach;
         use service_surface::ServiceSynchronousInvocation;
         use terminal_psi::TerminalCallableInvocation;
-        let source = declarations.accepted.source();
         let invocation_contract = declarations
             .accepted
             .module()
@@ -1027,11 +1020,7 @@ impl PolicySource<'_> {
                     Ok(ServiceSynchronousInvocation::Parameter(*position))
                 }
                 TerminalCallableInvocation::Service(service) => {
-                    declarations.source_service(*service).map(|declaration| {
-                        ServiceSynchronousInvocation::Service(
-                            source.trait_declaration_path(declaration),
-                        )
-                    })
+                    declarations.surface_service_name(*service).map(ServiceSynchronousInvocation::Service)
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;

@@ -126,7 +126,7 @@ pub(crate) use domains::{
     PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
     PackageReviewDomainSemanticRole,
 };
-pub use identity::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
+pub use identity::{PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewServiceIdentity};
 pub use identity::{
     PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
     PackageReviewToolchainSourceIdentity,

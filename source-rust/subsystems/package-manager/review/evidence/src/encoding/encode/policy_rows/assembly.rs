@@ -1,5 +1,6 @@
 // Row counting and whole-baseline row projection across public API, callables, providers, terminal permissions, representation, and authority obligations.
 
+use crate::encoding::encode::values::identity::encode_service;
 use super::super::{baseline, callable_policy, selected_providers, values};
 use super::Builder;
 use crate::encoding::PackageReviewEncodingError;
@@ -161,8 +162,8 @@ pub(super) fn project(
             PackagePolicyRowKind::ServiceAudit,
             true,
             true,
-            |encoder| encode_nominal(encoder, service),
-            |encoder| encode_nominal(encoder, service),
+            |encoder| encode_service(encoder, service),
+            |encoder| encode_service(encoder, service),
         )?;
     }
     component_assumptions_rows(builder, component_assumptions)?;

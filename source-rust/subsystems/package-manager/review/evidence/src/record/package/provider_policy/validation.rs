@@ -2,7 +2,7 @@
 use super::binding_validation::matches_owner;
 use crate::record::PackagePolicyProviderPlan;
 use crate::record::PackagePolicySelectedProviders;
-use crate::record::package::callable_policy::validation::nominal_set;
+use crate::record::package::callable_policy::validation::service_set;
 use crate::record::validation::{ordered, ordered_by};
 use application_identity::type_identity::normalize_requirement_lifetime_partition;
 use std::cmp::Ordering;
@@ -117,7 +117,7 @@ impl PackagePolicySelectedProviders {
                 }
                 if let Some(reach) = &row.installation_reach {
                     for declarations in [&reach.upper_bound, &reach.resolved] {
-                        nominal_set(declarations)?;
+                        service_set(declarations)?;
                     }
                     if reach
                         .resolved

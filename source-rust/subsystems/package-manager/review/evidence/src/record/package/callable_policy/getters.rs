@@ -5,6 +5,7 @@
 // never attenuates that contract, and unknown bodies supply no inferred
 // fallback.
 
+use crate::record::PackageReviewServiceIdentity;
 use crate::record::PackagePolicyCallable;
 use crate::record::PackagePolicyCallableConformance;
 use crate::record::PackagePolicyCallableRole;
@@ -43,11 +44,11 @@ impl PackagePolicyCallable {
     field_projection_accessors!(sliced operator_realizations: &[PackageReviewOperatorRealization]);
     field_projection_accessors!(sliced contracts: &[PackageReviewCallableContract]);
 
-    pub fn declared_service_reach(&self) -> Option<&[PackageReviewNominalIdentity]> {
+    pub fn declared_service_reach(&self) -> Option<&[PackageReviewServiceIdentity]> {
         self.declared_service_reach.as_deref()
     }
 
-    pub fn published_service_reach(&self) -> Option<&[PackageReviewNominalIdentity]> {
+    pub fn published_service_reach(&self) -> Option<&[PackageReviewServiceIdentity]> {
         self.declared_service_reach()
             .or_else(|| self.checked_service_reach().realized())
     }

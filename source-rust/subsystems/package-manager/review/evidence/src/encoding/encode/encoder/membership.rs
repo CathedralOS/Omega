@@ -41,6 +41,14 @@ impl<'identity> Encoder<'identity> {
         self.check()
     }
 
+    pub(crate) fn observe_service_application(&mut self, identity: &str) -> Result<(), PackageReviewEncodingError> {
+        if let Some(observer) = &mut self.membership {
+            let result = observer.service_application(identity);
+            self.record_membership_result(result);
+        }
+        self.check()
+    }
+
     pub(crate) fn observe_nominal_path(
         &mut self,
         path: &str,

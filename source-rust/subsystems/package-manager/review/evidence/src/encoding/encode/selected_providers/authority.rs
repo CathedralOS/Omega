@@ -1,5 +1,6 @@
 // Canonical encoding for service-method operational authority, invocations, and progress premises.
 
+use crate::encoding::encode::values::identity::encode_service;
 use super::{Encoder, PackageReviewEncodingError, encode_nominal};
 use crate::encoding::encode::values::effects::encode_synchronous_invocation;
 use crate::record::PackagePolicyServiceAuthority;
@@ -9,7 +10,7 @@ pub(super) fn authority(
     encoder: &mut Encoder,
     authority: &PackagePolicyServiceAuthority,
 ) -> Result<(), PackageReviewEncodingError> {
-    encoder.sequence_field("service_reach", &authority.service_reach, encode_nominal)?;
+    encoder.sequence_field("service_reach", &authority.service_reach, encode_service)?;
     encoder.field("synchronous_invocations", |encoder| {
         encoder.sequence(
             &authority.synchronous_invocations,

@@ -3,7 +3,7 @@
 use super::Program;
 use crate::lowering::body::Signature;
 use crate::lowering::publication::{
-    RequirementInvocation, RequirementReview, RequirementReviewMetadata,
+    RequirementInvocation, RequirementService, RequirementReview, RequirementReviewMetadata,
 };
 use crate::lowering::reach::SourceInvocation;
 use crate::lowering::static_contracts::SourceServiceCeiling;
@@ -106,19 +106,15 @@ impl Program<'_> {
             .static_envelope(context, source, owner.is_boundary)
             .map_err(|refusal| format!("public requirement operational envelope: {refusal:?}"))?;
         let service = |id| {
-            let definition = self
-                .typed
-                .service_reaches
-                .definition(id)
-                .ok_or("public requirement lost the declaration of its checked service")?;
-            if definition.application.is_some() {
-                return Err("public requirement review cannot encode an applied service identity");
-            }
-            self.typed
-                .trait_definition_by_symbol(definition.symbol)
-                .filter(|declaration| declaration.is_boundary)
-                .map(|declaration| declaration.symbol)
-                .ok_or("public requirement reach names a non-service declaration")
+            let scope = self.typed.service_effect_scope(id, None)?;
+            let declaration = scope.declaration;
+            let application = if declaration.type_parameters.is_empty() && declaration.lifetime_parameters.is_empty() {
+                None
+            } else {
+                Some(scope.portable_application_identity(self.typed).and_then(|id| self.typed.type_identity_text(id))
+                    .ok_or("public requirement lost its service application")?)
+            };
+            Ok::<_, &'static str>(RequirementService { declaration: declaration.symbol, application })
         };
         let service_reach = match &envelope.service_reach {
             SourceServiceCeiling::Open => None,

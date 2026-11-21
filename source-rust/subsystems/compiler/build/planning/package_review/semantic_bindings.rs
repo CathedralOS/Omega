@@ -121,6 +121,7 @@ fn host_services(
         )?;
         let ids = super::callables::service_identities(
             input.typed(),
+            module,
             input.sources().exact_toolchain_sources(),
             &origins,
         )?;
@@ -133,8 +134,8 @@ fn host_services(
         ("FilesystemHost", Role::FilesystemHostService),
         ("TimeHost", Role::TimeHostService),
     ] {
-        let mut matches = services.iter().filter_map(|service| match service.owner {
-            PackageReviewNominalOwner::Package(owner) if service.path == path => Some(owner),
+        let mut matches = services.iter().filter_map(|service| match service.owner() {
+            PackageReviewNominalOwner::Package(owner) if service.application.is_none() && service.path() == path => Some(owner),
             _ => None,
         });
         let Some(owner) = matches.next() else {

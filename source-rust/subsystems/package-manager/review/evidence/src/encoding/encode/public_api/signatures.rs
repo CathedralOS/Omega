@@ -1,5 +1,6 @@
 // Shared callable-shape, behavior-tail, type-parameter, machine-contract, and formal-parameter encoders for public API declarations.
 
+use crate::encoding::encode::values::identity::encode_service;
 use super::super::{
     callable_policy::{crash_route, termination},
     declarations::{encode_data_properties, encode_type_identity},
@@ -50,7 +51,7 @@ macro_rules! encode_callable_behavior_tail {
             encode_callable_behavior_tail!(@ceiling encoder, &$record.published_crash, crash_route $(, $optional)?)
         })?;
         ($encoder).field("service_reach", |encoder| {
-            encode_callable_behavior_tail!(@ceiling encoder, &$record.service_reach, encode_nominal $(, $optional)?)
+            encode_callable_behavior_tail!(@ceiling encoder, &$record.service_reach, encode_service $(, $optional)?)
         })?;
         ($encoder).field("service_reach_is_installation_bound", |encoder| {
             encoder.boolean($record.service_reach_is_installation_bound);

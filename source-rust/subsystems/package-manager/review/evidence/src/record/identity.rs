@@ -61,6 +61,32 @@ impl PackageReviewNominalIdentity {
     }
 }
 
+/// One boundary effect. Its original declaration establishes ownership, while
+/// an applied declaration also retains the compiler's normalized static inputs.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewServiceIdentity {
+    pub declaration: PackageReviewNominalIdentity,
+    pub application: Option<super::PackageReviewTypeIdentity>,
+}
+
+impl From<PackageReviewNominalIdentity> for PackageReviewServiceIdentity {
+    fn from(declaration: PackageReviewNominalIdentity) -> Self {
+        Self { declaration, application: None }
+    }
+}
+
+impl PackageReviewServiceIdentity {
+    pub fn owner(&self) -> PackageReviewNominalOwner { self.declaration.owner() }
+    pub fn path(&self) -> &str { self.declaration.path() }
+    pub(crate) fn validate_resolved(&self) -> Result<(), &'static str> {
+        self.declaration.validate_resolved()?;
+        if self.application.as_ref().is_some_and(|application| !self.declaration.matches_applied_trait_declaration(&application.canonical)) {
+            return Err("applied service identity does not name its declared receiver and complete arguments");
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewSemanticDependencyExposure {
     PrivateImplementation,

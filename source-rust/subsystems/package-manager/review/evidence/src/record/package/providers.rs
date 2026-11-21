@@ -11,6 +11,7 @@
 // intrinsics as disjoint variants so absent fields are never mistaken for
 // evidence supplied by another role.
 
+use crate::record::PackageReviewServiceIdentity;
 use super::super::identity::PackageReviewNominalIdentity;
 use super::super::signatures::PackageReviewTypeIdentity;
 use crate::record::accessors::field_projection_accessors;
@@ -54,13 +55,13 @@ pub enum PackageReviewCompilerIntrinsicExecution {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageReviewSelectedInstallationReach {
-    pub upper_bound: Vec<PackageReviewNominalIdentity>,
-    pub resolved: Vec<PackageReviewNominalIdentity>,
+    pub upper_bound: Vec<PackageReviewServiceIdentity>,
+    pub resolved: Vec<PackageReviewServiceIdentity>,
 }
 
 impl PackageReviewSelectedInstallationReach {
-    field_projection_accessors!(sliced upper_bound: &[PackageReviewNominalIdentity]);
-    field_projection_accessors!(sliced resolved: &[PackageReviewNominalIdentity]);
+    field_projection_accessors!(sliced upper_bound: &[PackageReviewServiceIdentity]);
+    field_projection_accessors!(sliced resolved: &[PackageReviewServiceIdentity]);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

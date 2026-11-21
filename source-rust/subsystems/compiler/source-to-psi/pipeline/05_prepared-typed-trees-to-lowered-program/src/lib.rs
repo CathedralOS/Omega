@@ -59,7 +59,7 @@ pub use typed_trees_to_prepared_typed_trees::PreparedTypedTrees;
 mod publication;
 use publication::PreparedProgram;
 pub use publication::{
-    DesignatedOperands, RequirementInvocation, RequirementReview, RequirementReviewMetadata,
+    DesignatedOperands, RequirementInvocation, RequirementService, RequirementReview, RequirementReviewMetadata,
     SourceCorrespondence, SourceFormCorrespondence, SourceOrigin,
 };
 mod canonical;

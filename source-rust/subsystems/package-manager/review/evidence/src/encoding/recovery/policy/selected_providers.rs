@@ -1,5 +1,6 @@
 // Full typed selected-provider recovery with one aggregate reader budget.
 
+use crate::encoding::recovery::policy::identity::service;
 use crate::record::{
     PackagePolicyProviderFamily, PackagePolicyProviderFamilyCoordinate, PackagePolicyProviderPlan,
     PackagePolicyProviderRow, PackagePolicySelectedProviders, PackageReviewProviderFamilyCoverage,
@@ -33,6 +34,7 @@ impl PackagePolicySelectedProviders {
                 matches!(
                     version,
                     crate::encoding::PROVIDER_POLICY_WITHOUT_APPLICATION_GRANTS
+                        | crate::encoding::PROVIDER_POLICY_WITH_APPLICATION_GRANTS
                         | PACKAGE_SELECTED_PROVIDER_POLICY_VERSION
                 )
             },
@@ -104,8 +106,8 @@ pub(in crate::encoding::recovery) fn row(
         compiler_intrinsic_execution: reader.option(intrinsic::execution)?,
         installation_reach: reader.option(|reader| {
             Ok(PackageReviewSelectedInstallationReach {
-                upper_bound: reader.sequence(41, nominal)?,
-                resolved: reader.sequence(41, nominal)?,
+                upper_bound: reader.sequence(41, service)?,
+                resolved: reader.sequence(41, service)?,
             })
         })?,
         admitted_same_stack_bytes: reader.u64()?,

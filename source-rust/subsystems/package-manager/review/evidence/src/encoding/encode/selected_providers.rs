@@ -1,5 +1,6 @@
 // Full inert selected-provider policy encoding sharing one bounded writer.
 
+use crate::encoding::encode::values::identity::encode_service;
 use crate::record::{
     PackagePolicyProviderFamily, PackagePolicyProviderPlan, PackagePolicyProviderRow,
     PackagePolicySelectedProviders, PackageReviewProviderFamilyCoverage,
@@ -25,11 +26,11 @@ use crate::encoding::{
 impl PackagePolicySelectedProviders {
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PackageReviewEncodingError> {
         let version = if self.has_application_grants() {
-            PACKAGE_SELECTED_PROVIDER_POLICY_VERSION
+            crate::encoding::PROVIDER_POLICY_WITH_APPLICATION_GRANTS
         } else {
             crate::encoding::PROVIDER_POLICY_WITHOUT_APPLICATION_GRANTS
         };
-        Encoder::policy_bytes(SELECTED_PROVIDER_POLICY_MAGIC, version, self, policy)
+        Encoder::versioned_policy_bytes(SELECTED_PROVIDER_POLICY_MAGIC, version, PACKAGE_SELECTED_PROVIDER_POLICY_VERSION, self, policy)
     }
 }
 
@@ -112,8 +113,8 @@ fn row(
     )?;
     encoder.field("installation_reach", |encoder| {
         encoder.option(row.installation_reach.as_ref(), |encoder, reach| {
-            encoder.sequence_field("upper_bound", &reach.upper_bound, encode_nominal)?;
-            encoder.sequence_field("resolved", &reach.resolved, encode_nominal)
+            encoder.sequence_field("upper_bound", &reach.upper_bound, encode_service)?;
+            encoder.sequence_field("resolved", &reach.resolved, encode_service)
         })
     })?;
     encoder.u64_field("admitted_same_stack_bytes", row.admitted_same_stack_bytes)

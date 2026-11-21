@@ -1,5 +1,6 @@
 // Canonical encoding for synchronous callable invocations and installation reach bounds.
 
+use crate::encoding::encode::values::identity::encode_service;
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{PackageReviewInstallationReach, PackageReviewSynchronousInvocation};
@@ -17,7 +18,7 @@ pub(crate) fn encode_synchronous_invocation(
         }
         PackageReviewSynchronousInvocation::Service(service) => {
             encoder.tag("service", 1);
-            encoder.field("service", |encoder| encode_nominal(encoder, service))?;
+            encoder.field("service", |encoder| encode_service(encoder, service))?;
         }
     }
     Ok(())
@@ -27,5 +28,5 @@ pub(crate) fn encode_installation_reach(
     reach: &PackageReviewInstallationReach,
 ) -> Result<(), PackageReviewEncodingError> {
     encoder.field_by("requirement", &reach.requirement, encode_nominal)?;
-    encoder.sequence_field("upper_bound", &reach.upper_bound, encode_nominal)
+    encoder.sequence_field("upper_bound", &reach.upper_bound, encode_service)
 }

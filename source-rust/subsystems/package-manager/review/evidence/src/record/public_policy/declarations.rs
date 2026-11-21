@@ -1,5 +1,6 @@
 // Public API policy shape declarations for traits, requirements, conformances, domains, operators, and data.
 
+use crate::record::PackageReviewServiceIdentity;
 use crate::record::{
     PackagePolicyCrashRoute, PackagePolicyTermination, PackagePolicyTypeParameter,
     PackageReviewCallableContract, PackageReviewConformanceBound, PackageReviewContractFact,
@@ -37,7 +38,7 @@ pub struct PackagePolicyTraitRequirement {
     pub contracts: Vec<PackageReviewCallableContract>,
     /// None is open; Some(empty) is an explicit empty ceiling.
     pub published_crash: Option<Vec<PackagePolicyCrashRoute>>,
-    pub service_reach: Option<Vec<PackageReviewNominalIdentity>>,
+    pub service_reach: Option<Vec<PackageReviewServiceIdentity>>,
     pub service_reach_is_installation_bound: bool,
     pub synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
     pub suspends: bool,

@@ -325,3 +325,36 @@ fn carried_nominals_bind_one_supplier_occurrence_and_preserve_earlier_reviews() 
     reviewed.semantic_dependencies.sort();
     assert!(reviewed.canonical_bytes().is_err());
 }
+
+#[test]
+fn saved_effects_keep_applications_distinct_and_reject_another_declarations_receiver() {
+    use application_identity::type_identity::encoding::{CoordinateTag, atom, compound};
+    let declaration = format!("nominal(package-owner(32:{}),path(Sensor))", "56".repeat(32));
+    let application = |value| {
+        let canonical = compound(CoordinateTag::TraitApplication, [
+            atom(CoordinateTag::Declaration, &declaration),
+            compound(CoordinateTag::Arguments, [format!("integer-const({value})")]),
+            compound(CoordinateTag::Lifetimes, []),
+        ]);
+        PackageReviewServiceIdentity { declaration: identity("Sensor"), application: Some(type_identity(&canonical)) }
+    };
+    let mut current = policy(Some(vec![1, 3]));
+    current.public_api.traits[0].requirements[0].service_reach = Some(vec![application(17), application(29)]);
+    assert_eq!(recover(&current), Ok(current.clone()));
+    let rows = |policy: &PackagePolicyBaseline| policy.canonical_rows_with_limits(Default::default()).unwrap().0;
+    let trait_row = |policy: &PackagePolicyBaseline| rows(policy).into_iter()
+        .find(|row| row.canonical_text().contains("field requirements")).unwrap();
+    let first = trait_row(&current);
+    let mut only_17 = current.clone();
+    only_17.public_api.traits[0].requirements[0].service_reach.as_mut().unwrap().pop();
+    let second = trait_row(&only_17);
+    assert_eq!(first.key_bytes(), second.key_bytes());
+    assert_ne!(first.canonical_bytes(), second.canonical_bytes());
+    let mut forged = current.canonical_bytes().unwrap();
+    let index = crate::encoding::PACKAGE_POLICY_BASELINE_MAGIC.len();
+    forged[index..index + 2].copy_from_slice(&crate::encoding::BASELINE_WITH_CARRIED_TYPES.to_le_bytes());
+    assert!(PackagePolicyBaseline::recover_canonical(&forged, Default::default()).is_err());
+    let mut wrong_owner = current.clone();
+    wrong_owner.public_api.traits[0].requirements[0].service_reach.as_mut().unwrap()[0].declaration = identity("Neighbor");
+    assert!(wrong_owner.validate_canonical_structure().is_err());
+}

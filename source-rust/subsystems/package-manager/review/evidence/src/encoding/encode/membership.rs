@@ -22,6 +22,7 @@ pub(super) trait Observer {
         identity: &str,
         lifetimes: usize,
     ) -> Result<(), PackagePolicyMembershipError>;
+    fn service_application(&mut self, identity: &str) -> Result<(), PackagePolicyMembershipError>;
     fn nominal_path(&mut self, path: &str) -> Result<(), PackagePolicyMembershipError>;
 }
 

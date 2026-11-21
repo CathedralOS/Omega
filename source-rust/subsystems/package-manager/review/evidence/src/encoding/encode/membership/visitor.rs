@@ -155,6 +155,11 @@ impl<Contains: FnMut(PackageKeyIdentity) -> bool> Observer for Visitor<Contains>
         let result = self.visit_type(identity, Some(lifetimes));
         self.explain(result, "declared type identity", identity)
     }
+    fn service_application(&mut self, identity: &str) -> Result<(), Error> {
+        let result = application_identity::type_identity::visit_trait_application_package_owners(identity, self)
+            .map_err(|_| self.failure.unwrap_or(Error::MalformedIdentity));
+        self.explain(result, "service application", identity)
+    }
     fn nominal_path(&mut self, path: &str) -> Result<(), Error> {
         let result = self.visit_name(path);
         self.explain(result, "nominal path", path)
