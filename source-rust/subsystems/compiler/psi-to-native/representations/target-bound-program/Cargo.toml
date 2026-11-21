@@ -8,6 +8,11 @@ version.workspace = true
 path = "bound_reach.rs"
 
 [dependencies]
+target-provider-admission = { path = "../../verification/target-providers" }
+psi-authorization = { path = "../../../psi-artifact/authorization" }
+psi-entry-memory = { path = "../../../psi-execution-inputs/entry-memory" }
+program-entry-contracts = { path = "../program-entry-contracts" }
+psi-publication-records = { path = "../../../psi-artifact/publication" }
 diagnostics = { path = "../../../../../foundation/diagnostics" }
 selected-provider-plans = { path = "../../../build/providers/selections" }
 provider-plans = { path = "../../../build/providers/plans" }

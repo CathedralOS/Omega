@@ -11,101 +11,11 @@
 // private body realized under a smaller executable provider scope can still
 // inspect the original entry without installing providers in that body.
 
-use crate::SelectedProviderAdapter;
-use provider_plans::ProviderBinding;
 use psi_provider_selections::AdmittedProviderSelections;
 use psi_target_layouts::TerminalTargetContext;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
+pub use target_bound_program::retain_selected_provider_adapters;
 use terminal_semantics::synchronous_calls::SynchronousCallGraph;
-
-pub fn retain_selected_provider_adapters(
-    selected: &selected_provider_plans::SelectedProviderPlanFacts,
-) -> Result<Vec<SelectedProviderAdapter>, String> {
-    let mut adapters = Vec::new();
-    for plan in selected.plans() {
-        let mut owner = None;
-        for row in &plan.rows {
-            let ProviderBinding::CheckedAdapter {
-                machine_identity,
-                machine_package_identity,
-            } = &row.binding
-            else {
-                continue;
-            };
-            if plan.provider_type.is_empty()
-                || plan.identities.text(row.requirement_identity).is_empty()
-                || plan.identity_text(*machine_identity).is_empty()
-                || *machine_package_identity != plan.origin_package_identity
-            {
-                return Err(format!(
-                    "selected ProviderPlan `{}` has incomplete checked-adapter custody",
-                    plan.name
-                ));
-            }
-            let owner = match owner {
-                Some(owner) => owner,
-                None => {
-                    let declared = plan
-                        .provider_declaration
-                        .as_deref()
-                        .filter(|owner| !owner.is_empty())
-                        .ok_or("native checked provider plan has no exact selecting declaration")?;
-                    owner = Some(declared);
-                    declared
-                }
-            };
-            for requirement in selected.selected_row_requirement_identities(
-                plan.report_fingerprint(),
-                plan.identities.text(row.requirement_identity),
-            ) {
-                let machine = selected
-                    .specialized_requirement_row(requirement)
-                    .map_or_else(
-                        || plan.identity_text(*machine_identity),
-                        |specialization| {
-                            selected
-                                .identities()
-                                .text(specialization.machine_identity)
-                                .unwrap_or_default()
-                        },
-                    );
-                if machine.is_empty() {
-                    return Err("selected checked realization has an empty machine identity".into());
-                }
-                adapters.push(SelectedProviderAdapter {
-                    provider_declaration: owner.to_owned(),
-                    provider_plan_digest: plan.identity_digest(),
-                    selected_requirement_identity: plan
-                        .identities
-                        .text(row.requirement_identity)
-                        .to_owned(),
-                    requirement_identity: requirement.to_owned(),
-                    provider_identity: plan.provider_type.clone(),
-                    machine_identity: machine.to_owned(),
-                });
-            }
-        }
-    }
-    adapters.sort_by(|left, right| {
-        left.requirement_identity
-            .cmp(&right.requirement_identity)
-            .then_with(|| {
-                left.provider_plan_digest
-                    .as_bytes()
-                    .cmp(right.provider_plan_digest.as_bytes())
-            })
-    });
-    if let Some(duplicate) = adapters.windows(2).find(|rows| {
-        rows[0].requirement_identity == rows[1].requirement_identity
-            && rows[0].provider_plan_digest == rows[1].provider_plan_digest
-    }) {
-        return Err(format!(
-            "one selected whole provider plan projects repeated checked adapters for exact requirement `{}`",
-            duplicate[0].requirement_identity
-        ));
-    }
-    Ok(adapters)
-}
 
 #[derive(Debug)]
 pub struct AdmittedProgramProviderContext {
@@ -205,7 +115,7 @@ pub fn selected_synchronous_call_graph<'module>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use provider_plans::{ProviderPlan, ProviderPlanRow, ServiceMethod};
+    use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
 
     fn plan() -> ProviderPlan {
         let mut plan = ProviderPlan {
@@ -250,6 +160,13 @@ mod tests {
             |plan| selected_provider_plans::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap();
         let first = facts(first_plan);
         let other = facts(other_plan);
+        let adapters =
+            target_bound_program::SelectedProviderAdapters::from_selected_plans(&first).unwrap();
+        adapters.require_selection(&first).unwrap();
+        assert_eq!(
+            adapters.require_selection(&other).unwrap_err(),
+            "physical adapter rows belong to another provider selection",
+        );
         for (selected, owner) in [(&first, "FirstMap"), (&other, "SecondMap")] {
             let adapters = retain_selected_provider_adapters(selected).unwrap();
             assert_eq!(adapters.len(), 1);

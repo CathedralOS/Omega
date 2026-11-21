@@ -1,11 +1,12 @@
 //! Issue the target-selected reach before the driver requests scalar values or lowers a body.
 use diagnostics::Diagnostic;
-use native_execution_scope::{NativeScopeEntry, derive_native_scope};
+use native_execution_scope::derive_native_scope;
 use std::collections::BTreeSet;
-use target_bound_program::{ScopedProviderBindings, builtins::SelectedCompilerBuiltin};
-use verified_optimization_input::{
-    NativeExecutionScope, ScopedProviderSelection, TerminalNativeRealizationProposal,
+use target_bound_program::{
+    NativeExecutionScope, ScopedProviderSelection, SelectedProviderAdapter,
 };
+use target_bound_program::{ScopedProviderBindings, builtins::SelectedCompilerBuiltin};
+use verified_optimization_input::TerminalNativeRealizationProposal;
 
 mod provider_bindings;
 
@@ -78,7 +79,7 @@ impl PreparedNativeExecution {
         &self.providers.compiler_builtins
     }
 
-    pub fn local_adapters(&self) -> &[provider_admission::SelectedProviderAdapter] {
+    pub fn local_adapters(&self) -> &[SelectedProviderAdapter] {
         self.scope().local_adapters()
     }
 
@@ -93,7 +94,8 @@ pub fn prepare_program(
     proposal: &TerminalNativeRealizationProposal,
     authorization: &psi_authorization::AuthorizedTerminalArtifact,
 ) -> Result<PreparedNativeExecution, Vec<Diagnostic>> {
-    let scope = derive_native_scope(authorization.artifact(), proposal, NativeScopeEntry::Program)?;
+    let binding = proposal.scope_source().program(authorization)?;
+    let scope = derive_native_scope(binding)?;
     provider_bindings::bind(proposal, authorization, scope)
 }
 
@@ -114,14 +116,11 @@ impl<'a> BoundNativeCallable<'a> {
         artifact: &'a terminal_codec::CanonicalTerminalArtifact,
         entry: terminal_psi::TargetMachineCallable,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let scope = derive_native_scope(
-            artifact,
-            proposal,
-            NativeScopeEntry::Callable {
-                entry,
-                parent: execution.checked_providers(),
-            },
-        )?;
+        let binding =
+            execution
+                .checked_providers()
+                .callable(artifact, proposal.scope_source(), entry)?;
+        let scope = derive_native_scope(binding)?;
         let coverage = provider_bindings::callable_coverage(
             proposal,
             artifact,

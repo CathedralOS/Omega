@@ -20,20 +20,18 @@ pub mod hosted_receiver;
 pub use emission_admission::{AdmittedPhysicalEntry, EmissionAdmission};
 pub mod publication;
 
-mod native_execution_scope;
-pub use native_execution_scope::{NativeExecutionScope, NativeScopeBinding};
+pub use target_bound_program::NativeExecutionScope;
 
 pub mod callback_settlement;
 pub mod component_inputs;
-pub mod entry_settlement;
+pub use target_bound_program::entry_settlement;
 pub mod native_proposal;
 pub mod settlement;
 pub use component_inputs::{
     AdmittedNativeComponentCall, ComponentExportInput, ComponentNativeInputs,
     RetainedComponentNativeInputs,
 };
-mod scoped_provider_selection;
-pub use scoped_provider_selection::ScopedProviderSelection;
+pub use target_bound_program::ScopedProviderSelection;
 mod runtime_input;
 pub mod runtime_provisions;
 pub use callback_settlement::{
@@ -59,8 +57,7 @@ pub use settlement::boundary_application_settlement::BoundaryApplicationSettleme
 // Saved native inputs are read and written beside the retained artifact they
 // rebuild, so a saved product is recovered without running an Omega stage.
 
-mod entry_call;
-pub use entry_call::SelectedProgramEntryCall;
+pub use target_bound_program::SelectedProgramEntryCall;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationInput {
@@ -194,7 +191,8 @@ impl VerifiedPsiOptimizationInput {
         selected_provider_closure: [u8; 32],
     ) -> Result<(), &'static str> {
         let reach = scope.reach();
-        if reach.target_context().terminal_psi() != self.plan.psi
+        if scope.artifact_identity() != self.context.artifact.identity()
+            || reach.target_context().terminal_psi() != self.plan.psi
             || reach.entry() != self.plan.entry
             || Some(reach.target_context()) != self.target_context.as_ref()
             || scope.selected_provider_closure() != selected_provider_closure

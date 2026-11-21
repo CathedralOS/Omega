@@ -2,6 +2,17 @@
 #![forbid(unsafe_code)]
 
 pub mod builtins;
+mod entry_call;
+pub mod entry_settlement;
+mod native_execution_scope;
+
+pub use entry_call::SelectedProgramEntryCall;
+pub use native_execution_scope::{
+    NativeExecutionScope, NativeScopeBinding, NativeScopeSource, ScopedProviderSelection,
+};
+pub use provider_bindings::{
+    SelectedProviderAdapter, SelectedProviderAdapters, retain_selected_provider_adapters,
+};
 mod provider_bindings;
 mod scalar_demand;
 

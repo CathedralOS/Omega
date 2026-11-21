@@ -15,14 +15,14 @@ pub use entry_receiver::admit_executable_entry;
 pub use selected_execution::{lower_native_callable, lower_native_execution};
 pub use selected_input::{NativeScalarApplications, VerifiedNativeArtifactInput};
 
-use provider_admission::{NativeCallbackArgumentProposal, SelectedProviderAdapter};
+use provider_admission::NativeCallbackArgumentProposal;
 use selected_input::{
     ArtifactLoweringError, NativeExecutionSelection, TerminalAccessViewEstablishment,
 };
-use verified_optimization_input::NativeExecutionScope;
-use verified_optimization_input::entry_settlement::{
+use target_bound_program::entry_settlement::{
     SelectedProgramEntryCall, validate_native_program_entry_settlement,
 };
+use target_bound_program::{NativeExecutionScope, SelectedProviderAdapter};
 
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;

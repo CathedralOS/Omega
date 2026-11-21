@@ -9,8 +9,8 @@ use provider_correspondence::callbacks::TerminalCallbackOccurrenceProposal;
 pub struct TerminalNativeProviders {
     pub direct_boundary_leaves: Vec<direct_boundary_bindings::DirectBoundaryLeaf>,
     pub native_bindings: native_binding_admission::RetainedNativeBindings,
-    pub selection: selected_provider_plans::SelectedProviderPlanFacts,
-    pub checked_adapters: Vec<provider_admission::SelectedProviderAdapter>,
+    pub selection: std::sync::Arc<selected_provider_plans::SelectedProviderPlanFacts>,
+    pub checked_adapters: target_bound_program::SelectedProviderAdapters,
     pub external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     pub intrinsic_executions:
         Vec<Vec<Option<native_intrinsics::CompilerIntrinsicExecutionIdentity>>>,
@@ -19,7 +19,7 @@ pub struct TerminalNativeProviders {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeOccurrences {
-    pub callbacks: Vec<TerminalCallbackOccurrenceProposal>,
+    pub callbacks: std::sync::Arc<[TerminalCallbackOccurrenceProposal]>,
     pub installed_interrupts: Vec<provider_admission::InstalledInterruptNativeEntryProposal>,
     pub callback_arguments: Option<Vec<provider_admission::NativeCallbackArgumentProposal>>,
 }
@@ -40,7 +40,7 @@ pub(crate) struct TerminalNativeBodyProposal {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeRealizationProposal {
     application: target::NativeApplicationMetadata,
-    program_entry: crate::ValidatedNativeProgramEntrySettlement,
+    scope_source: std::sync::Arc<target_bound_program::NativeScopeSource>,
     post_terminal_optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
     providers: TerminalNativeProviders,
     occurrences: TerminalNativeOccurrences,
@@ -52,8 +52,8 @@ pub struct TerminalNativeRealizationProposal {
 }
 
 impl TerminalNativeRealizationProposal {
-    pub const fn target_profile(&self) -> target::TargetProfile {
-        self.program_entry.source().target_slot().owner
+    pub fn target_profile(&self) -> target::TargetProfile {
+        self.program_entry().source().target_slot().owner
     }
 
     pub fn target_provider_proposals(
@@ -62,28 +62,25 @@ impl TerminalNativeRealizationProposal {
         std::slice::from_ref(&self.target_provider)
     }
 
-    pub const fn native_target(&self) -> target::NativeTarget {
-        self.program_entry.target()
+    pub fn native_target(&self) -> target::NativeTarget {
+        self.program_entry().target()
     }
 
     pub const fn application(&self) -> &target::NativeApplicationMetadata {
         &self.application
     }
 
-    pub const fn program_entry(&self) -> &crate::ValidatedNativeProgramEntrySettlement {
-        &self.program_entry
+    pub fn program_entry(&self) -> &crate::ValidatedNativeProgramEntrySettlement {
+        self.scope_source.program_entry()
     }
 
     /// Target callable named by the checked program entry and its optional physical adapter.
     pub fn target_program_entry(&self) -> terminal_psi::TargetMachineCallable {
-        let entry = self.program_entry();
-        terminal_psi::TargetMachineCallable::Machine(
-            entry
-                .physical_adapter()
-                .map_or(entry.checked_entry().terminal_entry(), |adapter| {
-                    adapter.machine()
-                }),
-        )
+        self.program_entry().target_callable()
+    }
+
+    pub fn scope_source(&self) -> &std::sync::Arc<target_bound_program::NativeScopeSource> {
+        &self.scope_source
     }
 
     pub fn settle_scoped_boundary_applications(
@@ -200,9 +197,22 @@ mod proposal {
             let body = project_terminal_native_body(artifact, target_profile, &request)?;
             if request.bind_physical_adapter {
                 program_entry
-                    .bind_physical_adapter(artifact, &body.providers.checked_adapters)
+                    .bind_physical_adapter(
+                        artifact,
+                        &body.providers.selection,
+                        &body.providers.checked_adapters,
+                    )
                     .map_err(|error| vec![Diagnostic::error(error)])?;
             }
+            let scope_source = target_bound_program::NativeScopeSource::admit(
+                &authorization,
+                program_entry,
+                body.providers.selection.clone(),
+                body.providers.checked_adapters.clone(),
+                body.occurrences.callbacks.clone(),
+                body.providers.native_bindings.identity_digest(),
+                &body.providers.intrinsic_executions,
+            )?;
             let mut permissions = request.package_terminal_authority_permissions;
             let identities = request.package_terminal_authority_permission_identities;
             permissions.sort_by(|left, right| {
@@ -220,7 +230,7 @@ mod proposal {
                 native_realization_proposal: TerminalNativeRealizationProposal {
                     target_provider: request.target_provider,
                     application: request.application,
-                    program_entry,
+                    scope_source: std::sync::Arc::new(scope_source),
                     post_terminal_optimizations: request.optimizations,
                     providers: body.providers,
                     occurrences: body.occurrences,
@@ -251,13 +261,10 @@ mod proposal {
             target_profile,
         )?;
         let checked_adapters =
-            provider_admission::retain_selected_provider_adapters(&selected)
+            target_bound_program::SelectedProviderAdapters::from_selected_plans(&selected)
                 .map_err(|message| vec![Diagnostic::error(message)])?;
-        provider_admission::validate_external_provider_owners(
-            terminal_module,
-            &selected,
-        )
-        .map_err(|message| vec![Diagnostic::error(message)])?;
+        provider_admission::validate_external_provider_owners(terminal_module, &selected)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
         if selected.plans().len() != request.boundaries.selected_provider_provenance.len() {
             return Err(vec![Diagnostic::error(
                 "native proposal lost selected intrinsic plan custody",
@@ -291,7 +298,7 @@ mod proposal {
             &callback_placements,
             artifact,
             &selected,
-            &checked_adapters,
+            checked_adapters.rows(),
         )?;
         let callback_arguments =
             provider_admission::project_native_callback_arguments(
@@ -373,14 +380,14 @@ mod proposal {
                     terminal_module,
                     &request.direct_boundary_leaves,
                 )?,
-                selection: selected,
+                selection: std::sync::Arc::new(selected),
                 checked_adapters,
                 external_bindings: external_binding_rows,
                 intrinsic_executions,
                 x86_scalar_fma: request.x86_scalar_fma_provider,
             },
             occurrences: TerminalNativeOccurrences {
-                callbacks: callback_occurrences,
+                callbacks: callback_occurrences.into(),
                 installed_interrupts,
                 callback_arguments,
             },

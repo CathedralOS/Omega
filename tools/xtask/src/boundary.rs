@@ -1117,7 +1117,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             &["bind_target_reach"],
             &["source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/execution-scope/scope.rs"],
             &[(
-                "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input/src/native_execution_scope.rs",
+                "source-rust/subsystems/compiler/psi-to-native/representations/target-bound-program/native_execution_scope.rs",
                 "pub fn bind_target_reach(",
             )],
             "stage 01 issues reachability before a native body can be lowered",
@@ -1129,6 +1129,17 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         violations.extend(image_replay_read_violations(&root));
         violations.extend(backend_execution_plan_read_violations(&root));
         violations.extend(installation_mutation_violations(&root));
+        for dependency in [
+            "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/verified-optimization-input",
+            "source-rust/subsystems/compiler/psi-to-native/verification/provider-admission",
+        ] {
+            violations.extend(transitive_exact_violations(
+                &metadata,
+                &["source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/execution-scope"],
+                dependency,
+                "entry reachability uses the checked program entry and selected providers",
+            )?);
+        }
         violations.extend(transitive_forbidden_violations(
             &metadata,
             SELECTION_REPRESENTATIONS,

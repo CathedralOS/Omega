@@ -58,15 +58,7 @@ pub enum ProviderInstallationError {    PlanReplayMismatch,
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectedProviderAdapter {
-    pub provider_declaration: String, // Selecting declaration, independent of the realizing callable.
-    pub provider_plan_digest: semantic_vocabulary::provider_identity::ProviderPlanDigest, // Full originating plan identity; report fingerprints cannot select it.
-    pub selected_requirement_identity: String, // Original row before specialization or target-family aliasing.
-    pub requirement_identity: String,
-    pub provider_identity: String,
-    pub machine_identity: String,
-}
+pub use target_bound_program::SelectedProviderAdapter;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AdmittedInstalledProviderCall {
