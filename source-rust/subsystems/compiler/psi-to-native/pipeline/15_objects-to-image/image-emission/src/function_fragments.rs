@@ -17092,7 +17092,7 @@ mod source {
                 return None;
             };
             if block == target.graph.entry
-                || !abstract_operations::control_flow::address_joins::is_address_join_in(
+                || !structural_storage_queries::address_joins::is_address_join_in(
                     parameter,
                     &target.graph.structural_types,
                 )

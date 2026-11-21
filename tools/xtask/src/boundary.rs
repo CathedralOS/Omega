@@ -395,6 +395,7 @@ const SELECTION_REPRESENTATIONS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/representations/operation-operands",
     "source-rust/subsystems/compiler/psi-to-native/representations/operation-evidence",
     "source-rust/subsystems/compiler/psi-to-native/representations/structural-storage",
+    "source-rust/subsystems/compiler/psi-to-native/representations/structural-storage/queries",
     "source-rust/subsystems/compiler/psi-to-native/representations/target-operations",
     "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations",
     "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions",
@@ -1165,6 +1166,16 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             &native_forms(),
             SEALED_TERMINAL_MODULE,
             "a native form reaches the sealed Terminal Psi module; use the Psi encoder for the record it carries",
+        )?);
+        violations.extend(transitive_exact_violations(
+            &metadata,
+            &[
+                "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations",
+                "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit",
+                "source-rust/subsystems/compiler/psi-to-native/representations/structural-storage",
+            ],
+            "source-rust/subsystems/compiler/psi-to-native/representations/structural-storage/queries",
+            "a native record depends on storage queries that belong to the stages that call them",
         )?);
         let declaration_encoding =
             "source-rust/subsystems/compiler/psi/artifact/declaration-encoding";

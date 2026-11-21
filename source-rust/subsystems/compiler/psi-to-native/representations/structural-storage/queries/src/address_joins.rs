@@ -12,8 +12,8 @@ shared access, and reading a stored pointer through write-only storage is
 refused.
 */
 
-use crate::structural_type_catalog::unique_structural_type;
 use semantic_vocabulary::StructuralTypeId;
+use structural_storage::structural_type_catalog::unique_structural_type;
 use terminal_psi::{
     StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralPathSegment as PathSegment, StructuralTypeDeclaration, StructuralTypeShape,

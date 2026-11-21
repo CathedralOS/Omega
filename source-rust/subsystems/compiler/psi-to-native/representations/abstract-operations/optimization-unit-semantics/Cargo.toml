@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 arena = { path = "../../../../../../foundation/arena" }
-structural-storage = { path = "../../structural-storage" }
+structural-storage-queries = { path = "../../structural-storage/queries" }
 optimization-core = { path = "../../optimization-records" }
 optimization-unit = { path = "../optimization-unit" }
 abstract-operations = { path = ".." }

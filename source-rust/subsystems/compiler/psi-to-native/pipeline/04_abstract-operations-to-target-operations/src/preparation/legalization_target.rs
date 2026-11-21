@@ -1993,8 +1993,8 @@ pub(crate) mod element_view {
         element_leaf_geometry, projected_collection, typed_collection_layout_matches,
     };
     use abstract_operations::AbstractOperation;
-    use abstract_operations::control_flow::address_joins::is_address_join_in;
     use semantic_vocabulary::{PlaceId, ValueId};
+    use structural_storage_queries::address_joins::is_address_join_in;
     use target_operations::{TargetElementView, TargetStructuralArgumentSource};
     use terminal_psi::StructuralTypeShape;
 
@@ -2353,7 +2353,7 @@ pub(crate) mod element_view {
                 return false;
             };
             let descriptor_carrier =
-                abstract_operations::control_flow::address_joins::is_descriptor_join_in(
+                structural_storage_queries::address_joins::is_descriptor_join_in(
                     parameter, self.types,
                 );
             let backing = parameter.access == terminal_psi::StructuralAccess::Owned

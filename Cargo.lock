@@ -60,6 +60,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "structural-storage",
+ "structural-storage-queries",
  "target",
  "target-operations",
  "target-operations-to-selected-instructions",
@@ -1044,6 +1045,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "sha2",
+ "structural-storage-queries",
  "target",
  "target-aarch64",
  "target-operations",
@@ -1934,7 +1936,7 @@ dependencies = [
  "optimization-unit",
  "psi-declaration-encoding",
  "semantic-vocabulary",
- "structural-storage",
+ "structural-storage-queries",
  "terminal-psi",
  "terminal-semantics",
  "terminal-work",
@@ -2116,7 +2118,7 @@ dependencies = [
  "runtime-abi",
  "selected-instructions",
  "semantic-vocabulary",
- "structural-storage",
+ "structural-storage-queries",
  "target",
  "target-aarch64",
  "target-vocabulary",
@@ -3257,9 +3259,18 @@ dependencies = [
 name = "structural-storage"
 version = "0.1.0"
 dependencies = [
- "operation-operands",
  "psi-declaration-encoding",
  "semantic-vocabulary",
+ "terminal-psi",
+]
+
+[[package]]
+name = "structural-storage-queries"
+version = "0.1.0"
+dependencies = [
+ "operation-operands",
+ "semantic-vocabulary",
+ "structural-storage",
  "terminal-psi",
  "terminal-semantics",
 ]
@@ -3519,6 +3530,7 @@ dependencies = [
  "selected-instructions",
  "semantic-vocabulary",
  "structural-storage",
+ "structural-storage-queries",
  "target",
  "target-vocabulary",
  "terminal-psi",

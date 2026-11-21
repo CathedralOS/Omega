@@ -41,8 +41,8 @@ pub(crate) mod address_joins {
         fixed_byte_array_view, fixed_element_array_view, internal_borrow_shape, parameter_shape,
         runtime_borrowed_projection,
     };
-    use abstract_operations::control_flow::address_joins::is_address_join_in;
     use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralPlaceKind};
+    use structural_storage_queries::address_joins::is_address_join_in;
     use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration};
 
     pub(crate) fn parameter<'a>(
@@ -236,7 +236,7 @@ pub(crate) mod address_joins {
                             plan.geometry(),
                             declaration.access,
                         )
-                        && abstract_operations::control_flow::address_joins::is_address_projection(
+                        && structural_storage_queries::address_joins::is_address_projection(
                             &binding.argument.path,
                         )
                         && root_type(
@@ -248,7 +248,7 @@ pub(crate) mod address_joins {
                             plan,
                         )
                         .and_then(|root| {
-                            abstract_operations::control_flow::address_joins::borrowed_referent_type(
+                            structural_storage_queries::address_joins::borrowed_referent_type(
                                 plan.structural_types.iter(),
                                 root,
                                 &binding.argument.path,
@@ -281,7 +281,7 @@ pub(crate) mod address_joins {
         plan: &crate::preparation::native_geometry::NativePlan<'_>,
     ) -> Option<semantic_vocabulary::StructuralTypeId> {
         let permitted = |source: &StructuralParameterDeclaration| {
-            abstract_operations::control_flow::address_joins::loan_access_permitted(
+            structural_storage_queries::address_joins::loan_access_permitted(
                 plan.structural_types.iter(),
                 source.structural_type,
                 path,
@@ -635,7 +635,7 @@ pub(crate) mod aggregate_results {
             (arrivals.next().is_none()
                 && block != caller.entry
                 && structural_case::block_parameter_declared(caller, block, declaration)
-                && abstract_operations::control_flow::address_joins::is_descriptor_join_in(
+                && structural_storage_queries::address_joins::is_descriptor_join_in(
                     declaration,
                     structural_types,
                 )
@@ -1321,10 +1321,10 @@ pub(crate) mod aggregate_results {
     ) -> bool {
         // Block arrivals keep the descriptor's retained access. Use the
         // same classification as the native producer and successor checks.
-        abstract_operations::control_flow::address_joins::is_descriptor_join_in(
+        structural_storage_queries::address_joins::is_descriptor_join_in(
             parameter,
             &plan.structural_types,
-        ) || abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan_in(
+        ) || structural_storage_queries::owner_loans::is_shared_view_carrier_loan_in(
             parameter,
             plan.geometry(),
         )
@@ -1500,7 +1500,7 @@ pub(crate) mod aggregate_results {
             let mut matching = super::structural_case::arrivals(function, place);
             let (block, declaration) = matching.next().ok_or(LegalizationError::custody())?;
             if matching.next().is_some()
-                || !abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
+                || !structural_storage_queries::owner_loans::is_owned_bounded_byte_parameter_in(
                     declaration,
                     plan.geometry(),
                 )
@@ -1768,9 +1768,9 @@ pub(crate) mod borrowed_windows {
     use super::PsiOptimizationFunction;
     use crate::preparation::LegalizationError;
     use crate::preparation::structural_inputs::structural_reference_input::{self, RuntimeElement};
-    use abstract_operations::control_flow::address_joins::is_address_join_in;
     use calling_conventions::ValueShape;
     use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
+    use structural_storage_queries::address_joins::is_address_join_in;
     use terminal_psi::{StructuralAccess, StructuralOperationResult, StructuralPathSegment};
 
     pub(crate) struct WindowExtent {
@@ -1830,7 +1830,7 @@ pub(crate) mod borrowed_windows {
                                 || (matches!(
                                     root.access,
                                     terminal_psi::exclusive_borrow_pair_pattern!()
-                                ) && abstract_operations::control_flow::address_joins::is_descriptor_join_in(
+                                ) && structural_storage_queries::address_joins::is_descriptor_join_in(
                                     root, &plan.structural_types,
                                 )))))
                     || (root.access == StructuralAccess::MutableBorrow
@@ -6559,7 +6559,7 @@ pub(crate) mod structural_call {
             || !(terminal_semantics::view_descriptor_parameter(
                 destination_parameter,
                 structural_types.iter(),
-            ) || abstract_operations::control_flow::owner_loans::is_shared_byte_view(
+            ) || structural_storage_queries::owner_loans::is_shared_byte_view(
                 destination_parameter,
                 |identity| structural_types.declaration(identity).ok(),
             ))
