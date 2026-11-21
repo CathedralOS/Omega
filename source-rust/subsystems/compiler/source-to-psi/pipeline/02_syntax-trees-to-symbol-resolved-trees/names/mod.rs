@@ -58,7 +58,11 @@ pub(crate) fn select_machine_entry<T>(
     name: &str,
     mut state_named: impl FnMut(&str) -> Option<T>,
 ) -> Option<T> {
-    state_named(name).or_else(|| state_named("entry"))
+    // A static call can already carry its fully qualified declaration name
+    // when a retained contract is resolved again. Its entry is a child of
+    // the selected machine and uses only the final name component.
+    let leaf = name.rsplit_once("::").map_or(name, |(_, leaf)| leaf);
+    state_named(leaf).or_else(|| state_named("entry"))
 }
 
 #[derive(Default)]
