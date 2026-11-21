@@ -5826,10 +5826,12 @@ pub(crate) mod scalar_fields {
 pub(crate) mod scalar_observations {
     use crate::codec_error::{CodecError, malformed};
     use semantic_vocabulary::{
-        PlaceId, Proposition, ScalarTerm, ScalarType, StructuralTypeId, ValueId,
+        IntegerSign, IntegerType, PlaceId, Proposition, ScalarReadProjection, ScalarTerm,
+        ScalarType, StructuralTypeId, ValueId,
     };
     use terminal_psi::{
-        BoundaryMachineDeclaration, StructuralAccess, TerminalMachine, TerminalModule,
+        ArrayExtent, BoundaryMachineDeclaration, StructuralAccess, StructuralTypeShape,
+        TerminalMachine, TerminalModule,
     };
     use terminal_semantics::{canonical_structural_path_tip, structural_read_scalar_type};
 
@@ -6007,45 +6009,51 @@ pub(crate) mod scalar_observations {
         module: &TerminalModule,
         boundary: &BoundaryMachineDeclaration,
     ) -> Result<(), CodecError> {
-        let root = |place| {
+        let input_place = |place| {
             boundary
                 .structural_parameters
                 .iter()
                 .find(|p| p.place == place && p.access != StructuralAccess::WriteOnlyBorrow)
                 .map(|p| p.structural_type)
         };
-        let value = |id: ValueId| {
-            usize::try_from(id.get())
-                .ok()
-                .and_then(|position| position.checked_sub(1))
-                .and_then(|position| {
-                    boundary
-                        .scalar_parameters
-                        .get(position)
-                        .copied()
-                        .or_else(|| {
-                            (position == boundary.scalar_parameters.len())
-                                .then(|| boundary.result.scalar())
-                                .flatten()
-                        })
-                })
+        let input_value = |id: ValueId| {
+            let position = usize::try_from(id.get()).ok()?.checked_sub(1)?;
+            boundary.scalar_parameters.get(position).copied()
         };
-        for proposition in boundary
-            .scalar_requires
-            .iter()
-            .chain(&boundary.scalar_ensures)
-            .chain(
-                boundary
-                    .crash_routes
-                    .iter()
-                    .flat_map(|row| &row.alternatives)
-                    .filter_map(|guard| match guard {
-                        terminal_psi::CrashRouteGuard::Predicate(p) => Some(p.proposition()),
-                        _ => None,
-                    }),
-            )
-        {
-            validate(module, proposition, &root, &value)?;
+        for proposition in boundary.scalar_requires.iter().chain(
+            boundary
+                .crash_routes
+                .iter()
+                .flat_map(|row| &row.alternatives)
+                .filter_map(|guard| match guard {
+                    terminal_psi::CrashRouteGuard::Predicate(p) => Some(p.proposition()),
+                    _ => None,
+                }),
+        ) {
+            validate(module, proposition, &input_place, &input_value)?;
+        }
+        let structural_result = boundary.structural_contract_result();
+        let scalar_result = boundary.scalar_contract_result();
+        for guarantee in &boundary.scalar_ensures {
+            validate(
+                module,
+                guarantee,
+                &|place| {
+                    input_place(place).or_else(|| {
+                        structural_result
+                            .filter(|(result, _)| *result == place)
+                            .map(|(_, ty)| ty)
+                    })
+                },
+                &|id| {
+                    input_value(id).or_else(|| {
+                        scalar_result
+                            .as_ref()
+                            .filter(|result| result.id == id)
+                            .map(|result| result.scalar_type)
+                    })
+                },
+            )?;
         }
         Ok(())
     }
@@ -6159,19 +6167,38 @@ pub(crate) mod scalar_observations {
             }
             if let ScalarTerm::BooleanField { root, path, .. }
             | ScalarTerm::IntegerField { root, path, .. }
-            | ScalarTerm::IeeeFloatField { root, path, .. } = term
+            | ScalarTerm::IeeeFloatField { root, path, .. }
+            | ScalarTerm::ViewExtent { root, path, .. } = term
             {
                 let Some(root) = root_type(*root) else {
                     return malformed("scalar field predicate has no readable declared root");
                 };
-                let projections = path
+                let types = &module.types.structural_types;
+                let mut projections = path
                     .iter()
                     .cloned()
-                    .map(semantic_vocabulary::ScalarReadProjection::from)
+                    .map(ScalarReadProjection::from)
                     .collect::<Vec<_>>();
-                if structural_read_scalar_type(module.types.structural_types.iter(), root, &projections)
-                    != Some(term.scalar_type())
-                {
+                let mut closed_array_extent = false;
+                if matches!(term, ScalarTerm::ViewExtent { .. }) {
+                    closed_array_extent = matches!(
+                        canonical_structural_path_tip(types.iter(), root, path)
+                            .map(|row| &row.shape),
+                        Some(StructuralTypeShape::FixedArray {
+                            length: ArrayExtent::Literal(_),
+                            ..
+                        })
+                    );
+                    projections.push(ScalarReadProjection::Extent);
+                }
+                let actual = if closed_array_extent {
+                    IntegerType::new(IntegerSign::Unsigned, 64)
+                        .ok()
+                        .map(ScalarType::Integer)
+                } else {
+                    structural_read_scalar_type(types.iter(), root, &projections)
+                };
+                if actual != Some(term.scalar_type()) {
                     return malformed(
                         "scalar field predicate disagrees with its declaration path or scalar carrier",
                     );

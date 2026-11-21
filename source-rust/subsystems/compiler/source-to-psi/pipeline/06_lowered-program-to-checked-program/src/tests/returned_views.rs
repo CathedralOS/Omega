@@ -74,6 +74,55 @@ machine entry() reaches Fs invokes Fs {
 }
 
 #[test]
+fn a_saved_boundary_result_observation_requires_its_declared_shape() {
+    let source = r#"
+data Packet { count: u64; }
+boundary trait Reader {
+    machine issue() -> Packet ensures result.count == 2u64 reaches none crashes none;
+}
+machine entry() -> u64 reaches Reader invokes Reader {
+    let packet: Packet = Reader::issue();
+    packet.count
+}
+"#;
+    let RouteVerdict::Accepted(accepted) = crate::checking::judge(elaborate(source)).unwrap()
+    else {
+        panic!("the declared result field must be available after the call");
+    };
+    let bytes = terminal_codec::encode_module(&accepted.elaboration.module).unwrap();
+    let mut module = terminal_codec::decode_module(&bytes).unwrap();
+    let boundary = module
+        .interfaces
+        .boundary_machines
+        .iter_mut()
+        .find(|boundary| !boundary.scalar_ensures.is_empty())
+        .unwrap();
+    let result = boundary.structural_contract_result().unwrap().0;
+    let Proposition::Equal(left, right) = &mut boundary.scalar_ensures[0] else {
+        panic!("the published record field guarantee must be an equality");
+    };
+    let observed = [left, right]
+        .into_iter()
+        .find(|term| matches!(term, ScalarTerm::IntegerField { root, .. } if *root == result))
+        .unwrap();
+    let ScalarType::Integer(carrier) = observed.scalar_type() else {
+        unreachable!()
+    };
+    *observed = ScalarTerm::ViewExtent {
+        root: result,
+        path: Vec::new(),
+        scalar_type: carrier,
+    };
+    let forged = terminal_codec::encode_module(&module).unwrap();
+    assert!(matches!(
+        terminal_codec::decode_module(&forged),
+        Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+            "scalar field predicate disagrees with its declaration path or scalar carrier"
+        ))
+    ));
+}
+
+#[test]
 fn a_boundary_can_lend_a_provider_owned_integer_for_an_immediate_read() {
     let source = r#"
 boundary trait Errno { machine slot() -> @i32 reaches none crashes none; }
