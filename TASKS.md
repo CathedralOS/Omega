@@ -66,6 +66,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Foundation and core generator, then suspension leases and pause-protocol/per-step progress contracts; rebuild tasks on it.
 
 - **RUNTIME-PLATFORM-PROVIDERS.** Deliver authorized task/lifecycle and interrupt save/restore packages over exact primitives ([acceptance](wiki/drafts/designs/runtime_provider_authority.md#acceptance)); fake-intrinsic rejection alone is not delivery.
+  - Bind firmware and a hosted process in one Build. Give only the firmware provider interrupt-mask authority. Firmware must admit the operation and the hosted process must refuse it. See [Build permissions](wiki/spec/build/permissions.md#where-the-operation-can-run).
 
 - **BUILD-OWNED-TARGET-SELECTION.** Retire target-prefixed machines for target-keyed Build rows ([provider_selection.md](wiki/spec/build/provider_selection.md#build-owned-target-selection)).
   - Delete source target modifiers and their declaration/proof-graph family metadata; migrate `samples/cli/facts/placed_stable_write/target_body` (a selected provider's placed `Access` write rejects natively: a formal pointer is not backing authority), `audio_playback`, and target fixtures.

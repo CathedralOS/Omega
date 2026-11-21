@@ -13,5 +13,4 @@ machine build(builder: @mut Build) {
     let mut e_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "sibling_e" });
     dependency\with_alias(@mut e_dependency, "e");
     let e_registration: DependencyRegistration = Build::dependency(builder, e_dependency);
-    builder.freestanding = true;
 }

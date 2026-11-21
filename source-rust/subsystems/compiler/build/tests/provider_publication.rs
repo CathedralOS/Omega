@@ -58,6 +58,42 @@ fn open_project(path: &Path, targets: &[TargetProfile]) -> PlannedProduct {
 }
 
 #[test]
+fn a_mixed_build_keeps_a_firmware_provider_selection_scoped_to_uefi() {
+    let temporary =
+        platform_custody::temporary_directory::TemporaryDirectory::create("mixed-provider", false)
+            .unwrap();
+    let root = temporary.path().join("main.omg");
+    std::fs::write(
+        &root,
+        r"use omega\language\core\Extent;
+boundary trait Sensor { machine read() -> u32 reaches none crashes none; }
+FirmwareSensor satisfies Sensor { machine read() -> u32 { 17u32 } }
+machine hosted() {}
+machine firmware(image: Extent in Granted, initial_storage: Extent in Granted)
+    crashes Abort { crash Abort; }",
+    )
+    .unwrap();
+    std::fs::write(
+        temporary.path().join("build.omg"),
+        r#"machine build(builder: @mut Build) {
+    Build::application(builder, "mixed");
+    Build::select_provider::<Sensor, FirmwareSensor>(builder, uefi_x86_64);
+    Build::bind(builder, uefi_x86_64\ProgramEntry, firmware);
+    Build::bind(builder, linux_x86_64\ProgramEntry, hosted);
+}"#,
+    )
+    .unwrap();
+    let targets = [TargetProfile::UefiX64, TargetProfile::LinuxX64];
+    let project = open_project(&root, &targets);
+    let returned = &project.evaluated().configuration;
+    assert_eq!(returned.root_binding_requests.len(), 2);
+    let [choice] = returned.product_selection_requests.as_slice() else {
+        panic!("the Build selected exactly one provider");
+    };
+    assert_eq!(choice.target.unwrap().canonical_name(), "uefi_x86_64");
+}
+
+#[test]
 fn one_portable_program_carries_the_four_selected_entry_contracts() {
     let targets = [
         TargetProfile::LinuxX64,

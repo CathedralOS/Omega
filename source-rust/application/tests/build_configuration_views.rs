@@ -40,7 +40,7 @@ fn check(name: &str, assignments: &str) -> (bool, String) {
     )
     .expect("staged Build");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("--check")
+        .args(["--check", "--target", "linux_x86_64"])
         .arg("main.omg")
         .current_dir(&root)
         .stdin(std::process::Stdio::null())
@@ -57,6 +57,13 @@ fn check(name: &str, assignments: &str) -> (bool, String) {
 fn a_build_that_assigns_no_view_compiles() {
     let (compiled, stderr) = check("control", "    builder.tests.disabled = true;\n");
     assert!(compiled, "{stderr}");
+}
+
+#[test]
+fn build_refuses_the_retired_freestanding_field() {
+    let (compiled, stderr) = check("freestanding", "    builder.freestanding = true;\n");
+    assert!(!compiled, "{stderr}");
+    assert!(stderr.contains("data `Build` has no field `freestanding`"), "{stderr}");
 }
 
 /// A view field of the Build itself, and one of a record the Build holds.

@@ -1,7 +1,7 @@
 // Initial `Build` value construction under its admitted vocabulary and filesystem scope.
 //
 // Populates the interpreter's starting `Build` struct with baseline defaults
-// (`x86_deployment_features = Baseline`, `subsystem = Console`, `freestanding = false`),
+// (`x86_deployment_features = Baseline`, `subsystem = Console`),
 // optional `identifier` bytes, zeroed `optimizations` counters, compiler-issued
 // private facet markers (`$OmegaBuildLogFacet`, `$OmegaBuildProductFacet`),
 // an enabled `tests` facet, empty `elf_interpreter` rows for each ELF target
@@ -51,7 +51,6 @@ pub(super) fn initial_value(
                 payload: Vec::new(),
             },
         ),
-        ("freestanding".to_owned(), BuildTimeValue::Bool(false)),
     ]);
     if vocabulary::build_machine_declares_identifier_field(typed, machine) {
         build_fields.push(("identifier".to_owned(), BuildTimeValue::Text(Vec::new())));

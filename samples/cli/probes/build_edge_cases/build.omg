@@ -3,7 +3,6 @@
 // kind is a library package.
 machine build(builder: @mut Build) {
     Build::package(builder, "edge_case_kernel");
-    builder.freestanding = true;
     builder.subsystem = Subsystem::Gui;
     builder.identifier = "com.example.edge";
 }

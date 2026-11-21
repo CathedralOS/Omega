@@ -6,5 +6,4 @@ machine build(builder: @mut Build) {
     let mut dep_dependency: DependencyDescription = dependency\from_source(Source::Path { location: "no_build" });
     dependency\with_alias(@mut dep_dependency, "dep");
     let dep_registration: DependencyRegistration = Build::dependency(builder, dep_dependency);
-    builder.freestanding = true;
 }

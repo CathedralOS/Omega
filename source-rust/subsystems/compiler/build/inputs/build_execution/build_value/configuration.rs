@@ -103,13 +103,6 @@ pub(crate) fn extract_build_settings(
         Err(_) => None,
     };
 
-    // Keep validating the authored legacy field until its declaration is retired.
-    // It supplies no normalized output choice or per-output hardware authority.
-    match field("freestanding")? {
-        BuildTimeValue::Bool(_) => {}
-        other => return Err(format!("Build.freestanding is not a bool: {other:?}")),
-    }
-
     let elf_interpreters = match field("elf_interpreter") {
         Ok(BuildTimeValue::Struct { fields, .. }) => {
             ElfInterpreterSelections::from_build_rows(fields)?
@@ -164,7 +157,7 @@ mod tests {
     // declaration or unchecked constructor stands in for Build admission.
     fn admitted_build() -> (BuildValueAdmission, BuildTimeValue) {
         let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
-            "build-legacy-setting",
+            "build-settings",
             false,
         )
         .expect("create an owned Build fixture directory");
@@ -225,12 +218,12 @@ mod tests {
     }
 
     #[test]
-    fn legacy_freestanding_is_validated_without_becoming_a_choice() {
+    fn initial_build_contains_only_current_settings() {
         let (admission, mut original) = admitted_build();
         assert!(
             !fields(&mut original)
                 .iter()
-                .any(|(name, _)| name == "privileged_services")
+                .any(|(name, _)| matches!(name.as_str(), "privileged_services" | "freestanding"))
         );
         let baseline = admission
             .extract(&original)
@@ -256,40 +249,11 @@ mod tests {
         assert_eq!(gui.0.subsystem, 2);
         assert_eq!(gui.1, baseline.1);
 
-        let mut missing = original.clone();
-        fields(&mut missing).retain(|(name, _)| name != "freestanding");
-        assert_eq!(
-            admission.extract(&missing).unwrap_err(),
-            "the Build carries no `freestanding` field"
-        );
-        for wrong in [
-            BuildTimeValue::Unit,
-            BuildTimeValue::Int(1),
-            BuildTimeValue::Text(b"yes".to_vec()),
-        ] {
-            let mut malformed = original.clone();
-            let expected = format!("Build.freestanding is not a bool: {wrong:?}");
-            set(&mut malformed, "freestanding", wrong);
-            // The later invalid setting must not hide this first refusal.
-            set(&mut malformed, "elf_interpreter", BuildTimeValue::Unit);
-            assert_eq!(admission.extract(&malformed).unwrap_err(), expected);
-        }
-
         let mut malformed = original.clone();
         set(&mut malformed, "elf_interpreter", BuildTimeValue::Unit);
         assert_eq!(
             admission.extract(&malformed).unwrap_err(),
             "Build.elf_interpreter is not an ElfInterpreterSelection struct: Unit"
-        );
-
-        let mut changed = original.clone();
-        set(&mut changed, "freestanding", BuildTimeValue::Bool(true));
-        assert_eq!(
-            admission
-                .extract(&changed)
-                .expect("accept the legacy Boolean"),
-            baseline,
-            "the legacy Boolean must not distinguish normalized Build choices"
         );
     }
 }
