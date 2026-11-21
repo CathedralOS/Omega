@@ -2375,8 +2375,16 @@ machine entry() -> u32 crashes none {{
     fn accept_formation_program(
         program: crate::lowering::PreparedTypedTrees,
     ) -> Result<AcceptedTerminalSource, Vec<Diagnostic>> {
-        let entry = program.realized_machine_named("entry").unwrap().symbol;
-        let package = program.symbols.symbol_package_identity(entry).unwrap();
+        let entry = program
+            .trees()
+            .realized_machine_named("entry")
+            .unwrap()
+            .symbol;
+        let package = program
+            .trees()
+            .symbols
+            .symbol_package_identity(entry)
+            .unwrap();
         crate::judge_fixture(
             program,
             crate::lowering::Compilation {
@@ -2427,7 +2435,7 @@ machine entry() -> u32 crashes none {{
 
         // A written call still owes visibility before it reaches admission.
         let (program, _) = closed_requirement_formed_in_build(true);
-        let sources = program.symbols.source_map().unwrap();
+        let sources = program.trees().symbols.source_map().unwrap();
         let errors = accept_formation_program(program).err().unwrap();
         assert_eq!(errors.len(), 1, "{errors:?}");
         let refused = &errors[0];

@@ -27,7 +27,7 @@ machine entry() -> u32 {
 /// The entry closure's verdicts, as `judge_compilation` lists them.
 fn verdicts(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
     let typed = crate::prepare_fixture(boundary_calls::typed(text));
-    let entry = boundary_calls::entry(&typed);
+    let entry = boundary_calls::entry(typed.trees());
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,

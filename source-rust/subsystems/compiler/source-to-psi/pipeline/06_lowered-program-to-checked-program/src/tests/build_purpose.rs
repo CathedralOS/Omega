@@ -245,7 +245,7 @@ pub(super) fn judge_build_with_core(
         DependencyScope::Build,
         core,
     ));
-    let entry = symbol(&typed, "build_entry");
+    let entry = symbol(typed.trees(), "build_entry");
     let verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
@@ -290,7 +290,7 @@ pub(super) fn judge_build_all(
     build: &str,
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
     let typed = crate::prepare_fixture(frontier_of("machine product_entry() { }", build));
-    let entry = symbol(&typed, "build_entry");
+    let entry = symbol(typed.trees(), "build_entry");
     crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,
@@ -305,7 +305,7 @@ pub(super) fn judge_build_all(
 #[test]
 fn the_checker_judges_a_build_program_as_an_invocation() {
     let typed = crate::prepare_fixture(frontier());
-    let entry = symbol(&typed, "build_entry");
+    let entry = symbol(typed.trees(), "build_entry");
     let mut verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,

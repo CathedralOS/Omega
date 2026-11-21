@@ -479,7 +479,7 @@ fn inferred_array_extent_is_retained_in_a_lexical_child() {
     "#;
     let typed = super::build_purpose::frontier_of("machine product_entry() {}", source);
     let typed = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
-    let entry = super::build_purpose::symbol(&typed, "build_entry");
+    let entry = super::build_purpose::symbol(typed.trees(), "build_entry");
     let mut verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
             &typed,

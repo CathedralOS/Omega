@@ -202,7 +202,7 @@ machine entry() -> bool {
         let typed =
             crate::preparation::prepare_typed_trees(super::boundary_calls::typed(&source), &[])
                 .expect("the complete source preparation must retain its generic applications");
-        let entry = super::boundary_calls::entry(&typed);
+        let entry = super::boundary_calls::entry(typed.trees());
         let subjects = if same_unit { &[None][..] } else { &[][..] };
         let prepared = crate::lowering::prepare_compilation(
             &typed,

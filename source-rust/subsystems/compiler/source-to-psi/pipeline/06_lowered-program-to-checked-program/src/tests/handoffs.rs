@@ -9,7 +9,7 @@ fn prepared_terminal_input_keeps_contracts_without_the_typed_owner() {
             let typed = crate::prepare_fixture(super::boundary_calls::typed(&format!(
                 "machine entry() -> u32 ensures result == {promised} {{ 7u32 }}"
             )));
-            let entry = super::boundary_calls::entry(&typed);
+            let entry = super::boundary_calls::entry(typed.trees());
             crate::lowering::prepare_compilation(
                 &typed,
                 crate::lowering::Compilation {

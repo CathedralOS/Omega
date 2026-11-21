@@ -63,21 +63,27 @@ impl PreparedBuildMachineEntry {
         &self,
         targets: &[(&str, Option<&layout_plans::LayoutTargetFacts>)],
         accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
-    ) -> Result<Vec<crate::compile_time_invocations::BuildTimeValue>, String> {
+    ) -> Result<
+        (
+            Vec<crate::compile_time_invocations::BuildTimeValue>,
+            typed_trees_to_prepared_typed_trees::TargetInputs,
+        ),
+        String,
+    > {
+        use typed_trees_to_prepared_typed_trees::{PreparedTarget, TargetInputs};
         let produced = Arc::new(self.produce_invocation()?);
         let module = produced.view().module();
-        if module.layouts.target_layout_applications.is_empty()
-            && module.scalars.scalar_applications.declarations().is_empty()
-        {
+        if !Self::uses_target_layout(module) {
             let target = InvocationTarget {
                 name: None,
                 layout_target: None,
                 carrier_layout: None,
                 address_model: None,
             };
-            return Ok(vec![
-                self.invoke_produced_recorded(produced, target, accounting)?,
-            ]);
+            return Ok((
+                vec![self.invoke_produced_recorded(produced, target, accounting)?],
+                TargetInputs::None,
+            ));
         }
         if targets.is_empty() {
             return Err(
@@ -86,21 +92,27 @@ impl PreparedBuildMachineEntry {
                     .into(),
             );
         }
-        targets
-            .iter()
-            .map(|(name, facts)| {
-                let facts = facts.ok_or_else(|| {
-                    format!("deployment `{name}` has no complete layout facts for the layout it stores through")
-                })?;
-                let target = InvocationTarget {
-                    name: Some(name),
-                    layout_target: Some(facts),
-                    carrier_layout: None,
-                    address_model: None,
-                };
-                self.invoke_produced_recorded(Arc::clone(&produced), target, accounting)
-            })
-            .collect()
+        let mut values = Vec::with_capacity(targets.len());
+        let mut inputs = Vec::with_capacity(targets.len());
+        for &(name, facts) in targets {
+            let facts = facts.ok_or_else(|| format!("deployment `{name}` has no complete layout facts for the layout it stores through"))?;
+            let target = InvocationTarget {
+                name: Some(name),
+                layout_target: Some(facts),
+                carrier_layout: None,
+                address_model: None,
+            };
+            values.push(self.invoke_produced_recorded(
+                Arc::clone(&produced),
+                target,
+                accounting,
+            )?);
+            inputs.push(PreparedTarget {
+                deployment: name.to_owned(),
+                layout: facts.clone(),
+            });
+        }
+        Ok((values, TargetInputs::Observed(inputs)))
     }
 
     fn admit_invocation(

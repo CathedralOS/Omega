@@ -384,6 +384,7 @@ machine main() crashes Trap {
     let prepare = |text: &str| {
         let typed = crate::prepare_fixture(super::boundary_calls::typed(text));
         let main = typed
+            .trees()
             .machines()
             .iter()
             .find(|machine| machine.name.as_str() == "main")
@@ -668,6 +669,7 @@ fn loop_windows_keep_the_exact_original_input_permission() {
     ));
     let typed = crate::prepare_fixture(super::rankings::typed_with_ranking_catalog(program));
     let checksum = typed
+        .trees()
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "checksum")
@@ -767,7 +769,7 @@ fn loop_windows_keep_the_exact_original_input_permission() {
 
 fn permission_inputs(text: &str) -> crate::lowering::Elaboration {
     let typed = crate::prepare_fixture(super::boundary_calls::typed(text));
-    let entry = super::boundary_calls::entry(&typed);
+    let entry = super::boundary_calls::entry(typed.trees());
     let program = crate::lowering::prepare_compilation(
         &typed,
         crate::lowering::Compilation {

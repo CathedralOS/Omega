@@ -232,7 +232,7 @@ machine entry() -> bool {{ policy_kind::<{kind}>() }}
         ));
         let typed = crate::preparation::prepare_typed_trees(typed, &[])
             .expect("the actual closed application retains its complete nominal tuple");
-        assert_operator_value(operator_program(&typed), expected);
+        assert_operator_value(operator_program(typed.trees()), expected);
     }
 }
 
@@ -305,7 +305,7 @@ machine entry() -> bool {
     );
     let typed = crate::preparation::prepare_typed_trees(typed, &[])
         .expect("the nested writer retains its actual enclosing application");
-    assert_operator_value(operator_program(&typed), true);
+    assert_operator_value(operator_program(typed.trees()), true);
 }
 
 #[test]
@@ -321,7 +321,7 @@ fn an_unselected_declared_value_index_is_explicitly_refused_for_reads_and_writes
         ));
         let typed = crate::preparation::prepare_typed_trees(typed, &[])
             .expect("the ordinary preparation path retains the indexed expression");
-        let refusal = operator_program(&typed)
+        let refusal = operator_program(typed.trees())
             .expect_err("an unselected value index cannot silently acquire builtin semantics");
         let (reason, completion) = refusal
             .split_once("; operator completion: ")
@@ -537,10 +537,10 @@ machine entry() -> bool { bounded::<u32>(7u32) == 7u32 }
         crate::preparation::prepare_typed_trees(super::boundary_calls::typed(text), &[])
             .expect("ordinary specialization must retain the mixed contract")
     };
-    assert_operator_value(operator_program(&prepared(source)), true);
-    let rejected = operator_program(&prepared(
-        &source.replace("bounded::<u32>(7u32)", "bounded::<u32>(11u32)"),
-    ))
+    assert_operator_value(operator_program(prepared(source).trees()), true);
+    let rejected = operator_program(
+        prepared(&source.replace("bounded::<u32>(7u32)", "bounded::<u32>(11u32)")).trees(),
+    )
     .expect("the closed type guard must not hide the remaining value contract");
     assert!(
         matches!(rejected, RouteVerdict::Rejected { ref unproved, .. }
@@ -725,7 +725,8 @@ fn copied_static_pattern() -> (
     let template = *template;
     let typed = crate::preparation::prepare_typed_trees(typed, &[])
         .expect("ordinary preparation copies the actual finite-family body");
-    let applications = typed
+    let trees = typed.trees();
+    let applications = trees
         .machine_specializations
         .iter()
         .filter(|application| application.template == template)
@@ -736,11 +737,11 @@ fn copied_static_pattern() -> (
         "choose has one exact source application"
     );
     let instance = applications[0].instance;
-    let machine = typed.machine_by_symbol(instance).unwrap();
-    let Some([state]) = typed.machine_states(machine).as_array() else {
+    let machine = trees.machine_by_symbol(instance).unwrap();
+    let Some([state]) = trees.machine_states(machine).as_array() else {
         panic!("one authored body");
     };
-    let (guard, condition) = typed
+    let (guard, condition) = trees
         .statement_table
         .statements(state.statement_nodes)
         .iter()
@@ -751,7 +752,7 @@ fn copied_static_pattern() -> (
             let TransitionGuardNode::When(guard) = transition.guard else {
                 return None;
             };
-            let [pattern] = typed
+            let [pattern] = trees
                 .statement_table
                 .transition_patterns(transition.patterns)
             else {
@@ -764,11 +765,11 @@ fn copied_static_pattern() -> (
         guard, condition,
         "the declaration copier creates distinct expression rows"
     );
-    let guard_questions = typed
+    let guard_questions = trees
         .expression_table
         .authored_selection_occurrences(guard)
         .collect::<Vec<_>>();
-    let pattern_questions = typed
+    let pattern_questions = trees
         .expression_table
         .authored_selection_occurrences(condition)
         .collect::<Vec<_>>();
@@ -792,7 +793,7 @@ fn static_false_pattern_reads_guard_and_copy_without_its_target() {
             calling: None,
             providers: None,
             declaration_metadata: &[],
-            entries: &[super::boundary_calls::entry(&typed)],
+            entries: &[super::boundary_calls::entry(typed.trees())],
             subjects: &[],
             purpose: source_provenance::DependencyScope::Product,
             selected: &[],

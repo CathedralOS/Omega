@@ -99,7 +99,8 @@ fn prepare(
     build: &[ProviderSelection],
     defaults: Vec<TargetProviderDefaults>,
 ) -> Result<PreparedProviderChoices, String> {
-    prepare_with_source_defaults(&fixture.source, &[TARGET], build, &[], &defaults).map_err(first)
+    prepare_with_source_defaults(fixture.source.trees(), &[TARGET], build, &[], &defaults)
+        .map_err(first)
 }
 
 fn judge(fixture: &Fixture, choices: &PreparedProviderChoices) -> AcceptedTerminalSource {
@@ -113,13 +114,13 @@ fn judge(fixture: &Fixture, choices: &PreparedProviderChoices) -> AcceptedTermin
             purpose: source_provenance::DependencyScope::Product,
             selected: &choices.declaration_roots,
             calling: Some(crate::test_support::lowering::CallingPolicySelections {
-                source: &fixture.source,
+                source: fixture.source.trees(),
                 applications: &choices.calling_applications,
                 entries: &[],
             }),
             providers: Some(
                 crate::test_support::lowering::provider_selections::ProviderSelections {
-                    source: &fixture.source,
+                    source: fixture.source.trees(),
                     choices: &choices.selections,
                 },
             ),
@@ -172,15 +173,15 @@ fn selected_provider(fixture: &Fixture, choices: &PreparedProviderChoices, name:
     let [choice] = choices.selections.as_slice() else {
         panic!("one exact chosen provider")
     };
-    let declared = fixture
-        .source
+    let source = fixture.source.trees();
+    let declared = source
         .conformances()
         .iter()
-        .find(|declaration| fixture.source.symbols.name(declaration.symbol) == name)
+        .find(|declaration| source.symbols.name(declaration.symbol) == name)
         .expect("the source declares this named map");
     assert_eq!(
         choice.provider,
-        fixture.source.implementation_value_head(declared.symbol)
+        source.implementation_value_head(declared.symbol)
     );
     assert_eq!(choice.target, TARGET);
 }

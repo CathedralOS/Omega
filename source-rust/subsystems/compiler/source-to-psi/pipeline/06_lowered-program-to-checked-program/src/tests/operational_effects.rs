@@ -419,12 +419,14 @@ fn an_implementation_keeps_its_own_bound_and_owes_the_requirement_bound() {
         );
         let typed = crate::prepare_fixture(boundary_calls::typed(&text));
         let implementation = typed
+            .trees()
             .machines()
             .iter()
             .find(|row| row.name.as_str() == "implementation")
             .unwrap()
             .symbol;
         let package = typed
+            .trees()
             .symbols
             .symbol_product_package_identity(implementation)
             .expect("the checked fixture has its actual package identity");
@@ -620,6 +622,7 @@ fn canonical_roundtrip_keeps_bounds_and_source_acknowledgements() {
 fn selected_verdicts(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
     let typed = crate::prepare_fixture(boundary_calls::typed(text));
     let entry = typed
+        .trees()
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "main")

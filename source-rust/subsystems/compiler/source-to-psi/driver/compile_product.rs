@@ -215,7 +215,7 @@ pub(crate) fn prepare_lower_and_check(
             ProviderWork::JudgeProviders(supplies) => {
                 let mut roster = judged.publication.roster()?.clone();
                 roster.supplies.extend(supplies);
-                let source = judged.publication.accepted()?.source().clone();
+                let source = judged.publication.accepted()?.prepared().clone();
                 judged.publication = Arc::new(judge_lowered_source::SourcePublication::judge(
                     source,
                     roster,

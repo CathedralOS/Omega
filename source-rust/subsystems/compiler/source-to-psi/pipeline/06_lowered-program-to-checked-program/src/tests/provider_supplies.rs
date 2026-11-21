@@ -69,9 +69,10 @@ fn supplied_with_subjects(
     subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
 ) -> Result<Vec<String>, String> {
     let typed = crate::prepare_fixture(typed(text));
+    let trees = typed.trees();
     let slot = match slot {
         "Service::go" => {
-            typed
+            trees
                 .trait_machine_signatures
                 .iter()
                 .find(|(_, signature)| signature.name.as_str() == "go")
@@ -79,11 +80,11 @@ fn supplied_with_subjects(
                 .1
                 .symbol
         }
-        whole => declared(&typed, whole),
+        whole => declared(trees, whole),
     };
     let supplies = [crate::lowering::Supply {
         slot,
-        provider: declared(&typed, "Native"),
+        provider: declared(trees, "Native"),
     }];
     let verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(
@@ -93,7 +94,7 @@ fn supplied_with_subjects(
                 providers: None,
 
                 declaration_metadata: &[],
-                entries: &[entry(&typed)],
+                entries: &[entry(trees)],
                 subjects,
                 purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
@@ -168,7 +169,7 @@ fn supplied_with_subjects(
         .elaboration
         .machines
         .iter()
-        .map(|(_, symbol)| typed.symbols.display_path(*symbol, "::"))
+        .map(|(_, symbol)| trees.symbols.display_path(*symbol, "::"))
         .collect())
 }
 
@@ -182,11 +183,12 @@ fn multiple_provider_declarations_publish_in_portable_order() {
         env!("CARGO_MANIFEST_DIR"),
         "/../../../../../../tests/fixtures/providers/run/target_selected_implementation/main.omg"
     ))));
+    let trees = typed.trees();
     let supplies = [crate::lowering::Supply {
-        slot: declared(&typed, "TargetConstants"),
-        provider: declared(&typed, "WindowsConstants"),
+        slot: declared(trees, "TargetConstants"),
+        provider: declared(trees, "WindowsConstants"),
     }];
-    let entries = [super::build_purpose::symbol(&typed, "main")];
+    let entries = [super::build_purpose::symbol(trees, "main")];
     let subjects = [Some(super::build_purpose::package())];
     let prepared = crate::lowering::prepare_compilation(
         &typed,
@@ -353,7 +355,7 @@ fn a_provider_that_refines_its_requirement_is_judged_as_a_root() {
                 providers: None,
 
                 declaration_metadata: &[],
-                entries: &[entry(&typed)],
+                entries: &[entry(typed.trees())],
                 subjects: &[],
                 purpose: source_provenance::DependencyScope::Product,
                 selected: &[],
@@ -552,15 +554,16 @@ fn a_supplied_body_has_no_cached_or_selected_named_entry() {
     );
 
     let typed = crate::prepare_fixture(typed(&text));
-    let member = typed
+    let trees = typed.trees();
+    let member = trees
         .machines()
         .iter()
-        .find(|machine| typed.symbols.display_path(machine.symbol, "::") == "Native::go")
+        .find(|machine| trees.symbols.display_path(machine.symbol, "::") == "Native::go")
         .unwrap()
         .symbol;
     let supplies = [crate::lowering::Supply {
-        slot: declared(&typed, "Service"),
-        provider: declared(&typed, "Native"),
+        slot: declared(trees, "Service"),
+        provider: declared(trees, "Native"),
     }];
     let verdicts = crate::checking::judge_compilation(
         crate::lowering::prepare_compilation(

@@ -28,7 +28,7 @@ pub use artifacts::compile_timings::CompileTimings;
 pub use driver::prepare_typed_source::SourcePreparationFailure;
 pub use driver::resolve_and_type::{SourceExtensionRequest, SourcePreparation};
 pub use source_declarations::source_selections::RootBinding;
-pub use typed_trees_to_prepared_typed_trees::WireCompatibilityDemand;
+pub use source_declarations::source_selections::WireCompatibilityDemand;
 
 use representations::{declaration_selection, source_inputs, source_state, source_symbols};
 

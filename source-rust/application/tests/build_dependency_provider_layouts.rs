@@ -244,7 +244,10 @@ fn an_unreached_layout_constant_keeps_its_initializer_without_target_geometry() 
         r#"use omega\language\core\CLayout;
         public data Packet [copy] { first: u8; second: u64; last: u16; }
         public const BYTES: u64 = size_of::<CLayout<Packet>>();
-        public machine packet_bytes() -> u64 reaches none crashes none { BYTES }"#,
+        public machine packet_bytes() -> u64 reaches none crashes none { BYTES }
+        machine extent() -> u64 reaches none crashes none { size_of::<CLayout<Packet>>() }
+        public data Envelope [copy] { bytes: [u8; extent()]; }
+        public machine read(packet: @Envelope) -> u64 reaches none crashes none { 0u64 }"#,
     )
     .unwrap();
     let report = omega(
@@ -269,6 +272,11 @@ fn an_unreached_layout_constant_keeps_its_initializer_without_target_geometry() 
     assert!(module.operations().any(|operation| matches!(operation.kind,
         terminal_psi::OperationKind::ReadScalarApplication { application }
             if matches!(applications.declaration(application), Some(ScalarApplication::Evaluate { .. })))));
+    assert!(module.types.structural_types.iter().any(|record| matches!(
+        &record.shape,
+        terminal_psi::StructuralTypeShape::FixedArray { length: terminal_psi::ArrayExtent::Application(extent), .. }
+            if matches!(applications.declaration(*extent), Some(ScalarApplication::Evaluate { .. }))
+    )), "the array's own extent retains its checked evaluation");
     let recipes = applications.declarations();
     assert!(
         recipes

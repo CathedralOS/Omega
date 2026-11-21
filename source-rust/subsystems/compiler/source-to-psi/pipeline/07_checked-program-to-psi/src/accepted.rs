@@ -143,6 +143,24 @@ pub struct ConstantRead {
     pub value: Option<numeric_literals::EvaluatedConstant>,
 }
 
+impl ConstantRead {
+    pub fn from_preparation(prepared: &crate::lowering::PreparedTypedTrees) -> Vec<Self> {
+        let source = prepared.trees();
+        prepared
+            .constants()
+            .map(|constant| Self {
+                name: source.symbols.name(constant.symbol).to_owned(),
+                declaration: crate::source_symbols::retain_declaration(
+                    &source.symbols,
+                    constant.symbol,
+                )
+                .ok(),
+                value: constant.evaluated_value.clone(),
+            })
+            .collect()
+    }
+}
+
 /// One boundary requirement an accepted module declares.
 ///
 /// `boundary` is the callable the module declares for it, `requirement` the
@@ -279,9 +297,9 @@ impl AcceptedTerminalSource {
                 )]
             })?;
             let span = self
-                .source
+                .source()
                 .symbols
-                .symbol_source_span(self.source.symbols.authored_origin(*symbol));
+                .symbol_source_span(self.source().symbols.authored_origin(*symbol));
             provenance.name(machine, name.machine.clone(), span);
         }
         // A declaration module has no entry: every machine keeps its name,
@@ -311,63 +329,10 @@ impl AcceptedTerminalSource {
             .publish(custody.applications, timings)
     }
 
-    /// The constants the declarations of this accepted module name, each
-    /// declaration once and in the order the declarations name them.
-    ///
-    /// The declarations are the ones the elaboration lowered: its machines,
-    /// its boundary requirements and the records it declares. They are read
-    /// in the judged source, so the answer is about this artifact and does
-    /// not rest on the reader having refused constants on the way here. A
-    /// Build admission settles nothing for a module that names none.
+    /// Constant inputs of this judged preparation, including the expressions that
+    /// became type arguments or array extents before lowering.
     pub fn constants_read(&self) -> Vec<ConstantRead> {
-        let elaboration = self.closure.elaboration();
-        let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
-        let mut lowered = elaboration
-            .machines
-            .iter()
-            .map(|(_, symbol)| *symbol)
-            .chain(elaboration.boundaries.iter().map(|(_, symbol)| *symbol))
-            .chain(
-                self.correspondence()
-                    .records
-                    .iter()
-                    .map(|record| record.declaration),
-            )
-            .collect::<Vec<_>>();
-        lowered.sort_unstable_by_key(|symbol| key(*symbol));
-        let constants = self
-            .source
-            .const_declarations()
-            .iter()
-            .map(|declaration| declaration.symbol)
-            .collect();
-        let mut uses =
-            crate::source_state::references::ConstantUses::new(constants, |declaration| {
-                lowered
-                    .binary_search_by_key(&key(declaration), |symbol| key(*symbol))
-                    .is_ok()
-            });
-        crate::source_state::references::visit_program(&self.source, &mut uses);
-        let mut read = Vec::<symbols::SymbolHandle>::new();
-        for found in uses.into_uses() {
-            if !read.contains(&found.constant) {
-                read.push(found.constant);
-            }
-        }
-        read.into_iter()
-            .map(|constant| ConstantRead {
-                name: self.source.symbols.name(constant).to_owned(),
-                declaration: crate::source_symbols::retain_declaration(
-                    &self.source.symbols,
-                    constant,
-                )
-                .ok(),
-                value: self
-                    .source
-                    .const_declaration_by_symbol(constant)
-                    .and_then(|declaration| declaration.evaluated_value.clone()),
-            })
-            .collect()
+        ConstantRead::from_preparation(self.prepared())
     }
 
     /// Exact lowered boundary declarations whose source owns an installation bound.
@@ -429,7 +394,7 @@ impl AcceptedTerminalSource {
                 continue;
             }
             let (owner, requirement) = self
-                .source
+                .source()
                 .trait_machine_signature(*symbol)
                 .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == *symbol)
                 .ok_or_else(|| lost("lost the boundary trait that owns a requirement"))?;
@@ -507,7 +472,7 @@ impl AcceptedTerminalSource {
         declaration_path: &str,
     ) -> Result<crate::production::ProducedBuildProvider, Vec<Diagnostic>> {
         let refuse = |reason: &str| vec![Diagnostic::error(reason)];
-        let source = &*self.source;
+        let source = self.source();
         let selected = build_backing(source, package, declaration_path)?;
         let scope = crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
             source, selected,
@@ -580,10 +545,10 @@ impl AcceptedTerminalSource {
         &self,
         slot: symbols::SymbolHandle,
     ) -> Option<Arc<service_surface::ServiceSurface>> {
-        let declaration = self.source.trait_definition_by_symbol(slot)?;
+        let declaration = self.source().trait_definition_by_symbol(slot)?;
         crate::source_state::service_declarations::projection::from_typed(
             crate::source_state::provider_declarations::ProviderPlanningContext::new(
-                &self.source,
+                self.source(),
                 source_provenance::DependencyScope::Product,
             ),
             declaration,
@@ -610,7 +575,11 @@ impl AcceptedTerminalSource {
         &self.closure.elaboration().module
     }
 
-    pub fn source(&self) -> &crate::lowering::PreparedTypedTrees {
+    pub fn source(&self) -> &Arc<FrozenTypedTrees> {
+        self.source.trees()
+    }
+
+    pub fn prepared(&self) -> &crate::lowering::PreparedTypedTrees {
         &self.source
     }
 
@@ -624,7 +593,7 @@ impl AcceptedTerminalSource {
         &self,
         declaration: symbols::SymbolHandle,
     ) -> Result<&crate::lowering::RequirementReviewMetadata, String> {
-        if self.source.trait_machine_signature(declaration).is_none() {
+        if self.source().trait_machine_signature(declaration).is_none() {
             return Err("requirement review names a foreign declaration".to_owned());
         }
         let key = (declaration.arena_index(), declaration.generation());

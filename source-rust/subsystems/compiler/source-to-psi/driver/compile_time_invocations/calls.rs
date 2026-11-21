@@ -74,6 +74,22 @@ impl PreparedBuildMachineEntry {
         &self.accepted
     }
 
+    /// A source invocation with a symbolic geometry must keep its recipe until
+    /// the deployment supplies the target used for the judgment.
+    pub(crate) fn uses_target_layout(module: &terminal_psi::TerminalModule) -> bool {
+        !module.layouts.target_layout_applications.is_empty()
+            || !module.scalars.scalar_applications.declarations().is_empty()
+    }
+
+    pub(crate) fn needs_selected_provider(module: &terminal_psi::TerminalModule) -> bool {
+        module.interfaces.boundary_machines.iter().any(|boundary| {
+            boundary
+                .declaration
+                .as_ref()
+                .is_some_and(|row| !row.execution.compiler_owned())
+        })
+    }
+
     pub(crate) fn produce_invocation(&self) -> Result<production::ProducedTerminalProgram, String> {
         self.accepted
             .produce(

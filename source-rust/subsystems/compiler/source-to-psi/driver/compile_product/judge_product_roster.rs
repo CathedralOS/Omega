@@ -162,7 +162,7 @@ pub(super) fn prepare_and_judge(
             }
             .prepare()
         });
-    let program = match source {
+    let prepared = match source {
         Ok(source) => {
             pass.accounting.append(source.accounting);
             source.program
@@ -172,8 +172,9 @@ pub(super) fn prepare_and_judge(
             return Err(failure.diagnostics);
         }
     };
+    let program = prepared.trees();
     let mut provider_defaults = crate::compile_product::provider_choices::retain_provider_defaults(
-        ProviderPlanningContext::new(&program, source_provenance::DependencyScope::Product),
+        ProviderPlanningContext::new(program, source_provenance::DependencyScope::Product),
     )?;
     // Keep every available default for settlement. Only actual target choices
     // become normalized provider records and concrete body judgments here;
@@ -201,7 +202,7 @@ pub(super) fn prepare_and_judge(
         declaration_roots,
         calling_applications,
     } = crate::compile_product::provider_choices::prepare_with_source_defaults(
-        &program,
+        program,
         build.calling_targets,
         &pass.explicit_providers,
         &[],
@@ -228,10 +229,10 @@ pub(super) fn prepare_and_judge(
         // in its numbering. Only selected rows have projected calling shapes.
         let implementation = root_bindings[selected].implementation_symbol;
         let nomination = crate::compile_product::entry_contracts::select_program_entry_contract(
-            &program, profile,
+            program, profile,
         )?;
         nomination
-            .require_owner(&program)
+            .require_owner(program)
             .map_err(|diagnostic| vec![diagnostic])?;
         let sources = program.symbols.source_map().ok_or_else(|| {
             vec![Diagnostic::error(
@@ -276,12 +277,12 @@ pub(super) fn prepare_and_judge(
     });
 
     let publication = judge_lowered_source::SourcePublication::judge(
-        program.clone(),
+        prepared.clone(),
         roster,
         build.optimizations.clone(),
     )?;
     Ok(JudgedSource {
-        program: Arc::clone(&program),
+        program: Arc::clone(program),
         publication: Arc::new(publication),
         provider_defaults,
     })

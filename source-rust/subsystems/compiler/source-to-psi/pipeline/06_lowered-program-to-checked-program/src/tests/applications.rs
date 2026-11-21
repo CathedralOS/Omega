@@ -230,6 +230,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
 fn source_application_cannot_change_its_payload_type() {
     let typed = crate::prepare_fixture(source_program("true"));
     let entry = typed
+        .trees()
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "entry")
@@ -272,15 +273,17 @@ fn a_local_generic_data_template_is_read_and_judged_where_it_is_applied() {
     for (payload, accepted) in [("7u64", true), ("true", false)] {
         let typed = crate::prepare_fixture(source_program_in_scope(payload, false));
         let optional = typed
+            .trees()
             .data_definitions()
             .iter()
             .find(|data| data.name.as_str() == "Optional")
             .unwrap();
         assert_eq!(
-            typed.symbols.symbol_source_origin(optional.symbol),
+            typed.trees().symbols.symbol_source_origin(optional.symbol),
             Some(source_admission::SourceOrigin::User)
         );
         let entry = typed
+            .trees()
             .machines()
             .iter()
             .find(|machine| machine.name.as_str() == "entry")
