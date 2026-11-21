@@ -791,9 +791,11 @@ impl Program<'_> {
             return Err(unavailable("Identity lost its authored type application"));
         }
         let application = expressions.static_machine_application(application_handle);
-        // The written application belongs to the declaration. The clause's
-        // result belongs to that machine's one state.
-        if self.entered_machine(scope.owner) != Some(application.lexical_owner) {
+        // A concrete body's result belongs to its entry state, while its
+        // static applications belong to the machine. A bodyless requirement
+        // owns its own result and its written applications directly.
+        let owner = self.entered_machine(scope.owner).unwrap_or(scope.owner);
+        if !typed.symbols.symbols().nodes().is_valid(owner) || application.lexical_owner != owner {
             return Err(unavailable(
                 "Identity application has a different lexical declaration",
             ));
