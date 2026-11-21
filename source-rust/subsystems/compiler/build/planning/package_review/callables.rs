@@ -739,6 +739,25 @@ pub(super) fn reviewed_invocations(
     Ok(invocations)
 }
 
+/// Exact service declarations named by the published contract or its checked body.
+pub(super) fn referenced_services(
+    callable: &PackagePolicyCallable,
+) -> impl Iterator<Item = &PackageReviewNominalIdentity> {
+    let invocations = callable
+        .declared_synchronous_invocations
+        .iter()
+        .flatten()
+        .chain(&callable.realized_synchronous_invocations);
+    let checked = &callable.checked_service_reach;
+    callable
+        .declared_service_reach
+        .iter()
+        .flatten()
+        .chain(checked.realized().unwrap_or_default())
+        .chain(checked.concrete().unwrap_or_default())
+        .chain(invocations.filter_map(PackageReviewSynchronousInvocation::service))
+}
+
 // These authority inventories belong to the accepted module, so inspect them
 // once before projecting its checked bodies rather than once per public helper.
 pub(super) fn validate_body_effect_inventory(

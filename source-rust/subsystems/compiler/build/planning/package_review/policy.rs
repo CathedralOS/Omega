@@ -66,6 +66,7 @@ pub(super) fn project(
         &services,
         input.public_traits(package)?,
     )?;
+    providers.validate_service_inventory(&census, &source.callables, &source.public_api.traits)?;
     let native_bindings = native.finish(checked, target)?;
     let mut public_api = source.public_api;
     public_api.traits.extend(providers.public_traits);

@@ -19,7 +19,7 @@ use review_evidence::record::{
     PackageReviewCallableSupply, PackageReviewCheckedServiceReach, PackageReviewCrashInterface,
     PackageReviewInstallationReach, PackageReviewNominalIdentity, PackageReviewNominalOwner,
     PackageReviewSelectedInstallationReach, PackageReviewSignatureParameter,
-    PackageReviewWriteFrameCompleteness,
+    PackageReviewSynchronousInvocation, PackageReviewWriteFrameCompleteness,
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId, PackageKeyIdentity, ServiceId};
 use source_compiler::compile_product::provider_declarations::ProviderSelectionSubject;
@@ -41,6 +41,68 @@ pub(super) struct ReviewedProviders {
     pub semantic_dependencies: Vec<review_evidence::record::PackagePolicySemanticDependency>,
     boundaries: Vec<BoundaryMachineId>,
     services: Vec<ServiceId>,
+}
+
+impl ReviewedProviders {
+    /// A package may publish a foreign service ceiling without installing a
+    /// provider for it. Account for that declaration only when the completed
+    /// Product findings name its one exact checked application.
+    pub(super) fn validate_service_inventory(
+        &self,
+        declarations: &AcceptedDeclarations<'_>,
+        callables: &[PackagePolicyCallable],
+        traits: &[PackagePolicyTraitShape],
+    ) -> Result<(), Vec<Diagnostic>> {
+        use std::collections::{BTreeMap, BTreeSet};
+        let signatures = traits
+            .iter()
+            .chain(&self.public_traits)
+            .flat_map(|declaration| &declaration.requirements);
+        let mut referenced: BTreeSet<_> = callables
+            .iter()
+            .chain(&self.callables)
+            .filter(|callable| callable.role != PackagePolicyCallableRole::Build)
+            .flat_map(super::callables::referenced_services)
+            .collect();
+        for signature in signatures {
+            referenced.extend(signature.service_reach.iter().flatten());
+            referenced.extend(
+                signature
+                    .synchronous_invocations
+                    .iter()
+                    .filter_map(PackageReviewSynchronousInvocation::service),
+            );
+        }
+        let mut applications = BTreeMap::new();
+        for (id, identity) in declarations.service_names {
+            if referenced.contains(identity) {
+                applications
+                    .entry(identity)
+                    .and_modify(|id| *id = None)
+                    .or_insert(Some(*id));
+            }
+        }
+        let cited: BTreeSet<_> = applications.into_values().flatten().collect();
+        for &(service, owner) in declarations.service_origins {
+            if self.services.binary_search(&service).is_err()
+                && self
+                    .slots
+                    .binary_search_by_key(&symbol_key(owner), |slot| symbol_key(*slot))
+                    .is_err()
+                && !cited.contains(&service)
+            {
+                return Err(unavailable(format!(
+                    "the checked service inventory for {}",
+                    declarations
+                        .accepted
+                        .source()
+                        .symbols
+                        .display_path(owner, "::")
+                )));
+            }
+        }
+        Ok(())
+    }
 }
 
 pub(super) fn symbol_key(symbol: SymbolHandle) -> (u32, u32) {
@@ -461,16 +523,9 @@ impl PolicySource<'_> {
             .copied()
             .eq(declarations.boundaries.iter().map(|boundary| boundary.id))
             || review.boundaries.windows(2).any(|pair| pair[0] == pair[1])
-            || service_origins.iter().any(|(service, owner)| {
-                review.services.binary_search(service).is_err()
-                    && review
-                        .slots
-                        .binary_search_by_key(&symbol_key(*owner), |slot| symbol_key(*slot))
-                        .is_err()
-            })
         {
             return Err(unavailable(
-                "the accepted module's complete boundary/service inventory",
+                "the accepted module's complete boundary inventory",
             ));
         }
         let mut service_ids = Vec::new();
