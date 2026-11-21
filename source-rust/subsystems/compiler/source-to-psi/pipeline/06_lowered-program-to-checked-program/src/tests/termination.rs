@@ -453,6 +453,7 @@ fn suffix_parser_proves_each_members_own_distance_and_cuts_the_cycle() {
     let mut replay_input = checked.elaboration.clone();
     let mut activity = crate::checking::ProofSearchActivity::default();
     let mut replay = crate::checking::prepare_replay(&mut replay_input, &mut activity).unwrap();
+    let searches_before_replay = activity.started();
     let mut strict = 0;
     let mut preserving = 0;
     for (machine, tables) in checked.elaboration.tables.machines.iter() {
@@ -498,6 +499,7 @@ fn suffix_parser_proves_each_members_own_distance_and_cuts_the_cycle() {
             }
         }
     }
+    assert_eq!(activity.started(), searches_before_replay, "replay searched for new evidence");
     assert!(
         strict > 0 && preserving > 0,
         "the parser must both hand off and consume"
