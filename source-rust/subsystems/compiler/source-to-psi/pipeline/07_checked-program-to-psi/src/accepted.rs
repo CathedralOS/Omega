@@ -32,6 +32,14 @@ pub struct PreparedTerminalPublication {
 }
 
 impl PreparedTerminalPublication {
+    /// The Build program’s host requirements, derived from its prepared calls.
+    pub fn build_protocol_use(&self) -> crate::production::BuildProtocolUse {
+        crate::production::BuildProtocolUse {
+            reaches_outside: self.companions.unowned != 0,
+            filesystem: !self.companions.filesystem.is_empty(),
+        }
+    }
+
     pub fn publish(
         self,
         applications: &[crate::production::TerminalApplicationCustody<'_>],
@@ -301,20 +309,6 @@ impl AcceptedTerminalSource {
     ) -> Result<crate::production::ProducedTerminalProgram, Vec<Diagnostic>> {
         self.prepare_publication(custody.invocation_sources)?
             .publish(custody.applications, timings)
-    }
-
-    /// What this accepted Build program asks of its host, read from the
-    /// same rows `produce` publishes.
-    pub fn build_protocol_use(
-        &self,
-    ) -> Result<crate::production::BuildProtocolUse, Vec<Diagnostic>> {
-        let companions =
-            crate::production::build_companions::produce(self, &self.closure.elaboration().module)
-                .map_err(|diagnostic| vec![diagnostic])?;
-        Ok(crate::production::BuildProtocolUse {
-            reaches_outside: companions.unowned != 0,
-            filesystem: !companions.filesystem.is_empty(),
-        })
     }
 
     /// The constants the declarations of this accepted module name, each
@@ -824,12 +818,37 @@ mod tests {
         let prepared = accepted.prepare_publication(None).unwrap();
         drop(accepted);
         assert!(owner.upgrade().is_none());
-        let published = prepared
-            .publish(&[], &mut artifacts::compile_timings::CompileTimings::default())
+        let missing = terminal_psi::PreparedNominalRoot::new("absent", "absent", None).unwrap();
+        let application = crate::production::TerminalApplicationCustody::prepare(
+            Ok(missing),
+            Some([7; 32]),
+            Some(Default::default()),
+        );
+        let (published, applications) = prepared
+            .publish(
+                &[application],
+                &mut artifacts::compile_timings::CompileTimings::default(),
+            )
             .unwrap()
-            .into_shared_portable()
+            .into_portable_publication()
             .unwrap();
-        assert_eq!(published.artifact().view().identity(), expected);
+        let [Ok(application)] = applications.as_slice() else {
+            panic!("expected one application judgment");
+        };
+        let [Err(root)] = application.roots.as_slice() else {
+            panic!("an absent composition root must fail its application check");
+        };
+        let receipt = application.receipt.as_ref().unwrap_err();
+        assert!(root[0].message.contains("TerminalEntryMultiplicity(0)"));
+        assert!(receipt[0].message.contains("TerminalEntryMultiplicity(0)"));
+
+        let reopened =
+            terminal_codec::CanonicalTerminalArtifact::from_bytes(&published.to_bytes()).unwrap();
+        assert_eq!(reopened.view().identity(), expected);
+        assert!(reopened.publication_metadata().unwrap().has_bound_applications());
+        assert_eq!(reopened.publication_metadata(), published.publication_metadata());
+        assert_eq!(reopened.published_evidence().unwrap().module, expected);
+        assert_eq!(reopened.published_evidence(), published.published_evidence());
     }
 
     fn contract_fixture(

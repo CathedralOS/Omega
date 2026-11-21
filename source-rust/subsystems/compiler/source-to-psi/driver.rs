@@ -23,7 +23,6 @@ use compile_product::{
     CompletedProductSource, ProductEntry, ProductSourceInputs, prepare_lower_and_check,
 };
 use diagnostics::Diagnostic;
-use std::sync::Arc;
 
 pub(crate) fn publish_stage(
     source: StageSource<'_>,
@@ -78,12 +77,11 @@ impl ProductSourceInputs<'_> {
         &self,
         checked: &CompletedProductSource,
     ) -> Result<PublishedPsi, Vec<Diagnostic>> {
-        let psi = checked.terminal_publication.publish(
+        checked.terminal_publication.publish(
             &self.optimizations,
             self.declaration_authority,
             &mut CompileTimings::default(),
-        )?;
-        Ok(Arc::clone(psi.artifact()))
+        )
     }
 }
 

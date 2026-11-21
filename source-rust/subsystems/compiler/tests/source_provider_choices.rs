@@ -203,15 +203,15 @@ fn execution(
 }
 
 fn produced(accepted: &AcceptedTerminalSource) -> Arc<terminal_codec::CanonicalTerminalArtifact> {
-    let program = accepted
+    let (artifact, _) = accepted
         .produce(
             Default::default(),
             &mut source_compiler::CompileTimings::default(),
         )
         .expect("accepted source publishes")
-        .into_shared_portable()
+        .into_portable_publication()
         .expect("portable publication");
-    Arc::clone(program.artifact())
+    Arc::new(artifact)
 }
 fn check_conditions(
     artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,

@@ -492,15 +492,12 @@ machine watch() {{
         ))
         .unwrap()
     };
-    let unreached = program("");
-    assert!(!unreached.build_protocol_use().unwrap().reaches_outside);
+    let unreached = program("").prepare_publication(None).unwrap();
+    assert!(!unreached.build_protocol_use().reaches_outside);
     // The helper is still part of the program: its call has no host row,
     // and the entry's and the called helper's requests have theirs.
     let produced = unreached
-        .produce(
-            TerminalProductionCustody::default(),
-            &mut CompileTimings::default(),
-        )
+        .publish(&[], &mut CompileTimings::default())
         .unwrap();
     assert_eq!(
         produced
@@ -514,8 +511,9 @@ machine watch() {{
     for reached in ["watch();", "watch()"] {
         assert!(
             program(reached)
-                .build_protocol_use()
+                .prepare_publication(None)
                 .unwrap()
+                .build_protocol_use()
                 .reaches_outside,
             "{reached}"
         );
@@ -529,8 +527,11 @@ machine watch() {{
 /// protocol is one of the four the toolchain names, not anything it ships.
 #[test]
 fn a_boundary_outside_the_build_protocols_is_reported_and_given_no_row() {
-    let inside = accepted(ONE_BINDING).unwrap();
-    let asked = inside.build_protocol_use().unwrap();
+    let inside = accepted(ONE_BINDING)
+        .unwrap()
+        .prepare_publication(None)
+        .unwrap();
+    let asked = inside.build_protocol_use();
     assert!(!asked.reaches_outside);
     assert!(!asked.filesystem);
 
@@ -542,13 +543,12 @@ machine build(builder: @mut Build) {
 }
 "#,
     )
+    .unwrap()
+    .prepare_publication(None)
     .unwrap();
-    assert!(outside.build_protocol_use().unwrap().reaches_outside);
+    assert!(outside.build_protocol_use().reaches_outside);
     let program = outside
-        .produce(
-            TerminalProductionCustody::default(),
-            &mut CompileTimings::default(),
-        )
+        .publish(&[], &mut CompileTimings::default())
         .unwrap();
     assert_eq!(published_boundary_calls(&program).len(), 2);
     assert_eq!(
@@ -723,7 +723,7 @@ fn native_binding_prelude() -> String {
     );
     for target in semantic_vocabulary::source_selections::ProductTarget::ALL {
         targets.push_str(&format!(
-            "BuildTarget::{} -> {}u64\n",
+            "BuildTarget::{} -> {}u64,\n",
             target.source_case(),
             target.code()
         ));

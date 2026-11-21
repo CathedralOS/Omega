@@ -12,8 +12,8 @@ use crate::source_state::TypedTrees;
 use crate::{CompileTimings, ParsedStageSources, SourcePreparation};
 use checked_program_to_psi::production;
 use checked_program_to_psi::production::{
-    AcceptedTerminalSource, ConstantRead, ProducedTerminalProgram, TerminalProductionCustody,
-    TerminalSourceCompilation,
+    AcceptedTerminalSource, BuildProtocolUse, ConstantRead, PreparedTerminalPublication,
+    ProducedTerminalProgram, TerminalSourceCompilation,
 };
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -227,16 +227,34 @@ impl CheckedBuildInvocation {
         &self.accepted
     }
 
+    pub fn prepare_publication(self) -> Result<PreparedBuildInvocation, Vec<Diagnostic>> {
+        let publication = self
+            .accepted
+            .prepare_publication(self.invocation_sources.as_deref())?;
+        Ok(PreparedBuildInvocation {
+            accepted: self.accepted,
+            publication,
+        })
+    }
+}
+
+/// Keeps the host operations inspected during admission with the code that will run.
+pub struct PreparedBuildInvocation {
+    accepted: AcceptedTerminalSource,
+    publication: PreparedTerminalPublication,
+}
+
+impl PreparedBuildInvocation {
+    pub fn build_protocol_use(&self) -> BuildProtocolUse {
+        self.publication.build_protocol_use()
+    }
+
     pub fn publish(
         self,
     ) -> Result<(AcceptedTerminalSource, ProducedTerminalProgram), Vec<Diagnostic>> {
-        let produced = self.accepted.produce(
-            TerminalProductionCustody {
-                invocation_sources: self.invocation_sources.as_deref(),
-                ..Default::default()
-            },
-            &mut CompileTimings::default(),
-        )?;
+        let produced = self
+            .publication
+            .publish(&[], &mut CompileTimings::default())?;
         Ok((self.accepted, produced))
     }
 }
