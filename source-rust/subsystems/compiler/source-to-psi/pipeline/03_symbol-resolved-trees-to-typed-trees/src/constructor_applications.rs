@@ -575,8 +575,7 @@ fn infer_call(
     };
     let (parameters, formals) =
         if let Some((owner, signature)) = program.trait_machine_signature(call.target) {
-            if !supplied.is_empty()
-                || !owner.type_parameters.is_empty()
+            if !owner.type_parameters.is_empty()
                 || !owner.lifetime_parameters.is_empty()
                 || !signature.lifetime_parameters.is_empty()
             {
