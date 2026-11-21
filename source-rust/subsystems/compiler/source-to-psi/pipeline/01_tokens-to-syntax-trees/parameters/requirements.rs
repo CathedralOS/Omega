@@ -48,9 +48,6 @@ pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
             syntax_trees::item::TypeParameterKind::Machine {
                 contract: None | Some(MachineParameterContract::RequirementIdentity),
             } => {}
-            syntax_trees::item::TypeParameterKind::Type
-                if syntax_trees.items.type_parameters(type_parameters)[parameter_index].bounds
-                    == syntax_trees::item::DataProperties::default() => {}
             syntax_trees::item::TypeParameterKind::Machine { contract: Some(_) } => {
                 return Err(after_name.error_here(format!(
                     "machine parameter `{}` already has a `requires machine` contract",
@@ -59,8 +56,7 @@ pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
             }
             _ => {
                 return Err(after_name.error_here(format!(
-                    "`{}` is not a machine parameter; its declared kind or property bounds conflict with `requires machine {}`",
-                    name.as_str(syntax_trees),
+                    "`{}` is not a machine parameter; declare a callable with a typed static parameter",
                     name.as_str(syntax_trees)
                 )));
             }
