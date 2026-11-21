@@ -83,6 +83,8 @@ mod behavior_policy {
             impl $name {
                 pub const ALL: [Self; [$(Self::$variant),+].len()] = [$(Self::$variant),+];
 
+                pub const CASE_NAMES: [&'static str; Self::ALL.len()] = [$(stringify!($variant)),+];
+
                 pub const fn $tag_method(self) -> u8 {
                     match self {
                         $(Self::$variant => $tag,)+
