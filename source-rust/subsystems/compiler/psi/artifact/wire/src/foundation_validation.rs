@@ -4980,8 +4980,7 @@ pub(crate) mod scalar_applications {
             .map(|(_, owner)| *owner)
             .collect::<std::collections::BTreeSet<_>>();
         for machine in &module.machines {
-            for (_, expected) in module
-                .layout_call_conditions(machine)
+            for (_, expected) in terminal_semantics::layout_call_conditions(module, machine)
                 .map_err(CodecError::MalformedStructuralFoundation)?
             {
                 let ScalarConditionSubject::Declaration(owner) = expected.subject else {
@@ -5227,11 +5226,11 @@ pub(crate) mod scalar_applications {
                 ));
             };
             refusal(&module);
-            let [(_, condition)] = module
-                .layout_call_conditions(&module.machines[0])
-                .unwrap()
-                .try_into()
-                .unwrap();
+            let [(_, condition)] =
+                terminal_semantics::layout_call_conditions(&module, &module.machines[0])
+                    .unwrap()
+                    .try_into()
+                    .unwrap();
             module
                 .scalars.scalar_applications
                 .conditions

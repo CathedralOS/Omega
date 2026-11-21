@@ -810,8 +810,7 @@ fn check_prepared_machine(
     // A machine stage 04 generated takes each one its generic form proved,
     // and searches only where none is carried (`discharge_carrying`).
     let carrier = carried.and_then(|carried| carried.carrier(tables, lowered, module));
-    let mut layout_conditions = module
-        .layout_call_conditions(lowered)
+    let mut layout_conditions = terminal_semantics::layout_call_conditions(module, lowered)
         .map_err(|detail| {
             refusal(
                 RefusalReason::ForeignIdentity,
