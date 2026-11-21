@@ -4,6 +4,7 @@ use source_compiler::publication::AcceptedTerminalSource;
 use source_compiler::representations::source_state::TypedTrees;
 
 pub(super) struct PolicySource<'a> {
+    pub(super) carried_types: super::carried_types::CarriedTypes,
     pub(super) declarations: &'a source_compiler::CheckedPackageDeclarations,
     pub(super) accepted: &'a AcceptedTerminalSource,
     pub(super) sources: &'a package_compilation::CheckedSourceCustody,
@@ -15,6 +16,8 @@ impl<'a> PolicySource<'a> {
         declarations: &'a source_compiler::CheckedPackageDeclarations,
         sources: &'a package_compilation::CheckedSourceCustody,
         evaluation: &'a build_execution::EvaluatedBuild,
+        inputs: &package_compilation::PackageCompilationInputs,
+        target: target::TargetProfile,
     ) -> Result<Self, Vec<Diagnostic>> {
         let accepted = declarations.accepted()?;
         sources
@@ -26,6 +29,7 @@ impl<'a> PolicySource<'a> {
             )]);
         }
         Ok(Self {
+            carried_types: super::carried_types::CarriedTypes::new(inputs, target)?,
             declarations,
             accepted,
             sources,

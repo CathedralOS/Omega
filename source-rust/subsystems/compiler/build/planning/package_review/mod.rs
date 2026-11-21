@@ -2,6 +2,7 @@
 mod authority;
 mod callables;
 mod calling;
+mod carried_types;
 mod declarations;
 mod hosted_services;
 mod input;
@@ -73,7 +74,8 @@ impl crate::ProductStage<'_> {
             base_source_consumption_commitment: evaluation.base_source_consumption_commitment,
         }
         .seal(accepted.source(), Some(inputs))?;
-        let input = input::PolicySource::checked(&declarations, &sources, evaluation)?;
+        let input =
+            input::PolicySource::checked(&declarations, &sources, evaluation, inputs, profile)?;
         let package = inputs.root();
         let policy = policy::project(&input, &selected, profile, package)?;
         let (semantic_binding_candidates, target_entry_candidate) =

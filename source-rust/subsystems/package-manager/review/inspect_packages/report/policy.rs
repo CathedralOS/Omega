@@ -166,6 +166,20 @@ pub(super) fn render(
         "  semantic-dependencies {}; complete owner/type relationships: --details",
         policy.semantic_dependencies().len()
     )?;
+    for dependency in policy.semantic_dependencies() {
+        if let review_evidence::record::PackagePolicySemanticDependency::CarriedType {
+            dependency,
+            exposure,
+            ..
+        } = dependency
+        {
+            writeln!(
+                output,
+                "    carried type {} ({exposure:?})",
+                names.name(dependency)
+            )?;
+        }
+    }
     for demand in policy.boundary_applications().demands() {
         writeln!(
             output,

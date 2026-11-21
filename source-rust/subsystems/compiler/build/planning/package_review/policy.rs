@@ -78,6 +78,10 @@ pub(super) fn project(
     callables.sort_by(|left, right| left.identity.cmp(&right.identity));
     let terminal_permissions =
         super::terminal_permissions::project(input, checked, target, package, &callables)?;
+    let mut semantic_dependencies = providers.semantic_dependencies;
+    semantic_dependencies.extend(input.carried_dependencies(package)?);
+    semantic_dependencies.sort_unstable();
+    semantic_dependencies.dedup();
     let mut policy = PackagePolicyBaseline {
         schema_version: review_evidence::encoding::PACKAGE_POLICY_BASELINE_VERSION,
         package,
@@ -110,7 +114,7 @@ pub(super) fn project(
         external_supplies: Vec::new(),
         dangerous_capabilities: Vec::new(),
         slack_uses: Vec::new(),
-        semantic_dependencies: providers.semantic_dependencies,
+        semantic_dependencies,
         boundary_applications: PackagePolicyBoundaryApplications {
             demands: Vec::new(),
             realizations: providers.applications,

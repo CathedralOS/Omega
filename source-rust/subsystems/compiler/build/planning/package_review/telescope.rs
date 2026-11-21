@@ -206,6 +206,7 @@ impl PolicySource<'_> {
     ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
         let program = self.typed();
         self.require_type_dependencies(
+            owner,
             reference,
             review_evidence::record::PackageReviewSemanticDependencyExposure::PublicInterface,
         )?;

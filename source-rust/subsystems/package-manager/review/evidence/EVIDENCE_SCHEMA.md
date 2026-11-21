@@ -16,6 +16,10 @@ compiler-derived risk acceptances and decisions, trusting whoever lands it.
 Compiler proof/reach checks and native artifact validation are independent of
 installation.
 
+Whole-package baseline version 41 records a carried nominal type by its supplier,
+exact declaration path, complete supplier source commitment and public or private
+exposure. Earlier versions support only their original declaration dependencies.
+
 Whole-package baseline version 40 adds the public type alias inventory, including
 checked binder positions, conformance bounds and the normalized expansion. Older
 baselines omit this field. Each alias has its own public interface row and adds
