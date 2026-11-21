@@ -203,14 +203,20 @@ pub(crate) fn prepare_lower_and_check(
     let mut judged = prepare_and_judge(&mut pass, typed, &layouts)?;
     loop {
         use provider_settlement::{ProductSupplySource, ProviderWork, next_provider_work};
-        match next_provider_work(ProductSupplySource {
-            targets: pass.inputs.targets,
-            publication: &judged.publication,
-            build: &pass.explicit_providers,
-            native_bindings: &pass.native_supplies,
-            defaults: &judged.provider_defaults,
-            layout_prepared: &layouts,
-        })? {
+        let work = pass.timings.record_result(
+            artifacts::compile_timings::source::PROVIDER_SETTLEMENT,
+            || {
+                next_provider_work(ProductSupplySource {
+                    targets: pass.inputs.targets,
+                    publication: &judged.publication,
+                    build: &pass.explicit_providers,
+                    native_bindings: &pass.native_supplies,
+                    defaults: &judged.provider_defaults,
+                    layout_prepared: &layouts,
+                })
+            },
+        )?;
+        match work {
             ProviderWork::Complete => break,
             ProviderWork::JudgeProviders(supplies) => {
                 let mut roster = judged.publication.roster()?.clone();
@@ -220,6 +226,7 @@ pub(crate) fn prepare_lower_and_check(
                     source,
                     roster,
                     pass.inputs.optimizations.clone(),
+                    pass.timings,
                 )?);
             }
             ProviderWork::PrepareLayouts(chosen) => {

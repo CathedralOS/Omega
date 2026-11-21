@@ -170,13 +170,7 @@ fn compile_targets(
     if arguments.timings
         && let Some((planned, _)) = prepared.iter().find_map(|row| row.as_ref().ok())
     {
-        for phase in planned.timings().phases() {
-            eprintln!(
-                "{:>10.3} ms  {}",
-                phase.microseconds as f64 / 1_000.0,
-                phase.phase
-            );
-        }
+        print_phases("Build", planned.timings());
     }
     let mut failures = Vec::new();
     let mut failed_targets = Vec::new();
@@ -399,7 +393,16 @@ fn compile_target(
                     .map_err(output_error)?,
             );
         } else {
-            advisories = compiler::check(stage.source())?;
+            let mut timings = if arguments.timings {
+                CompileTimings::enabled()
+            } else {
+                CompileTimings::default()
+            };
+            let checked = compiler::check(stage.source(), &mut timings);
+            if arguments.timings {
+                print_phases(&format!("Product ({})", profile.target_name()), &timings);
+            }
+            advisories = checked?;
         }
     } else {
         let program = stage.program(
@@ -594,6 +597,16 @@ fn batch_outcome(
         });
     }
     combined.unwrap_or(CompilerRequestOutcome::Reject)
+}
+
+fn print_phases(scope: &str, timings: &CompileTimings) {
+    for phase in timings.phases() {
+        eprintln!(
+            "{:>10.3} ms  {scope} / {}",
+            phase.microseconds as f64 / 1_000.0,
+            phase.phase
+        );
+    }
 }
 
 fn print_elapsed(started: Instant) {

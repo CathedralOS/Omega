@@ -101,11 +101,13 @@ impl<'a> RegisteredTests<'a> {
                 "test target is outside its Product deployment",
             )]);
         }
-        let (source, continuation) = source.resolve()?;
+        let mut timings = crate::CompileTimings::default();
+        let (source, continuation) = source.resolve(&mut timings)?;
         let checked = source.judge(
             continuation.clone(),
             crate::compile_product::ProductEntry::BuildBindings,
             &mut Default::default(),
+            &mut timings,
         )?;
         let typed = &checked.program;
         let retain = |symbol| {
@@ -188,6 +190,7 @@ impl<'a> RegisteredTests<'a> {
         let checked = self.source.judge(
             self.continuation.clone(),
             crate::compile_product::ProductEntry::RegisteredTest { root, target },
+            &mut Default::default(),
             &mut Default::default(),
         )?;
         let psi = self.source.publish(&checked)?;

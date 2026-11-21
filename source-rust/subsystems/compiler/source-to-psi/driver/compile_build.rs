@@ -276,11 +276,13 @@ impl crate::StageSource<'_> {
                 "Build provider source did not select deployment target `{deployment}`"
             ))]);
         }
-        let (product, resolved) = self.resolve()?;
+        let mut timings = crate::CompileTimings::default();
+        let (product, resolved) = self.resolve(&mut timings)?;
         let checked = product.judge(
             resolved,
             crate::compile_product::ProductEntry::BuildBindings,
             &mut SourceCompletionAccounting::default(),
+            &mut timings,
         )?;
         let publication = checked.terminal_publication();
         let accepted = publication.accepted()?;
@@ -297,6 +299,7 @@ impl crate::StageSource<'_> {
             accepted.prepared().clone(),
             roster,
             publication.optimizations().clone(),
+            &mut timings,
         )?;
         supplied
             .accepted()?

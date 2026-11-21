@@ -108,22 +108,26 @@ impl SourcePublication {
     pub fn check(
         &self,
         authority: Option<&dyn declaration_scope::DeclarationSelectionAuthority>,
+        timings: &mut artifacts::compile_timings::CompileTimings,
     ) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
+        use artifacts::compile_timings::source as stages;
         let accepted = self.accepted()?;
-        let module = accepted.module();
-        let selections =
-            crate::production::source_selection_publication::prepare(accepted, module, None)
-                .map_err(|diagnostic| vec![diagnostic])?;
-        psi_authorization::selection_questions::admit_selection_questions(
-            module,
-            &selections.questions,
-            &psi_authorization::selection_questions::SelectionAuthorities {
-                build: None,
-                product: authority,
-            },
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        Ok(accepted.advisories().to_vec())
+        timings.record_result(stages::CHECK_SELECTIONS, || {
+            let module = accepted.module();
+            let selections =
+                crate::production::source_selection_publication::prepare(accepted, module, None)
+                    .map_err(|diagnostic| vec![diagnostic])?;
+            psi_authorization::selection_questions::admit_selection_questions(
+                module,
+                &selections.questions,
+                &psi_authorization::selection_questions::SelectionAuthorities {
+                    build: None,
+                    product: authority,
+                },
+            )
+            .map_err(|reason| vec![Diagnostic::error(reason)])
+        })?;
+        timings.record_result(stages::ADVISORIES, || Ok(accepted.advisories().to_vec()))
     }
 
     /// Publish the accepted source once, with the declaration authority admitted

@@ -30,8 +30,9 @@ pub(crate) fn publish_stage(
     advisories: Option<&mut Vec<Diagnostic>>,
     accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
 ) -> Result<(PublishedPsi, CompletedProductSource), Vec<Diagnostic>> {
-    let (product, continuation) = source.resolve()?;
-    let checked = product.judge(continuation, entry, accounting)?;
+    let mut timings = CompileTimings::default();
+    let (product, continuation) = source.resolve(&mut timings)?;
+    let checked = product.judge(continuation, entry, accounting, &mut timings)?;
     let psi = product.publish(&checked)?;
     if let Some(advisories) = advisories {
         advisories.extend_from_slice(checked.terminal_publication.accepted()?.advisories());
@@ -42,6 +43,7 @@ pub(crate) fn publish_stage(
 impl<'a> StageSource<'a> {
     pub(crate) fn resolve(
         self,
+        timings: &mut CompileTimings,
     ) -> Result<(ProductSourceInputs<'a>, SourceTypingCheckpoint), Vec<Diagnostic>> {
         let primary = self
             .parsed
@@ -55,7 +57,7 @@ impl<'a> StageSource<'a> {
         request.selection_authority = self.product.declaration_scope.clone();
         let continuation = request
             .with_build_entry(self.product.policy.activation)
-            .prepare(&mut CompileTimings::default())?;
+            .prepare(timings)?;
         Ok((self.product, continuation))
     }
 }
@@ -66,14 +68,9 @@ impl ProductSourceInputs<'_> {
         continuation: SourceTypingCheckpoint,
         entry: ProductEntry<'_>,
         accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
+        timings: &mut CompileTimings,
     ) -> Result<CompletedProductSource, Vec<Diagnostic>> {
-        prepare_lower_and_check(
-            continuation,
-            self.clone(),
-            entry,
-            accounting,
-            &mut CompileTimings::default(),
-        )
+        prepare_lower_and_check(continuation, self.clone(), entry, accounting, timings)
     }
 
     pub(crate) fn publish(

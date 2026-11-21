@@ -20,7 +20,7 @@ pub fn package_handoff_declarations(
             "a dependency Build handoff requires a named package",
         )]
     })?;
-    let (product, declarations) = source.resolve()?;
+    let (product, declarations) = source.resolve(&mut Default::default())?;
     // Dependency handoff uses only the package's typed declarations and Build requests.
     let mut typed = declarations.typed().clone();
     let (_, admitted) = product.policy.admit(&mut typed, Some(package))?;
