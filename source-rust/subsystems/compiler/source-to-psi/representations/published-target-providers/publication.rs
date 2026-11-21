@@ -47,7 +47,8 @@ pub fn issue_target_provider_demand(
 }
 
 impl PublishedTargetProviders {
-    /// Only reached slots demand a separate supplier Product.
+    /// Supply the independently selected packages for this target. Explicit Build selections
+    /// participate in this closure even when the entry calls none of their methods.
     pub fn independent_packages(
         &self,
     ) -> Result<std::collections::BTreeSet<semantic_vocabulary::PackageKeyIdentity>, String> {

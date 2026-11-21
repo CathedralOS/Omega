@@ -513,7 +513,7 @@ pub fn open_products(
                         // deployment sections even when its target and host are the same.
                         let mut cache = services::HandoffCache::default();
                         if root.evaluated().configuration.product_selection_requests.iter().any(|request| {
-                            request.target.is_some_and(|selected| selected.canonical_name() == target.target_name())
+                            request.target.is_none_or(|selected| selected.canonical_name() == target.target_name())
                                 && request.composition == Some(semantic_vocabulary::source_selections::CompositionMode::Independent)
                         })
                         {

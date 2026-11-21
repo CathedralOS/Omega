@@ -3412,7 +3412,7 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/01_admitted-native-inputs-to-target-bound-program/src/execution.rs",
       "item": "function:selected_boundary_implementations#1",
       "kind": "checker",
-      "meaning": "Reconstruct locally executed checked bindings from fused provider plans; independently imported requirements keep their separately admitted calls.",
+      "meaning": "Reconstruct the executable checked bindings of fused provider plans. Independently imported requirements retain their separately admitted calls.",
       "producer": "target-bound program planning",
       "signature": "5cfecdd135a34bbd2b3327b5d5a1c5743d4ef868deaa3e8e752d7ead8cb6e515"
     },
@@ -21712,7 +21712,7 @@
       "kind": "definition",
       "meaning": "Hand source choices to a receiver that presents the matching publication and deployment.",
       "producer": "source provider publication",
-      "signature": "cd0eefcef5d5570c3c3839289724b0ac2dfadea7092ac76540230721cd6e0287"
+      "signature": "d45cb042f5ff1df690c534393d12bd76fe9a9fa00c4c7e140f9441f3ac5bbbf6"
     },
     {
       "consumers": [
@@ -21782,9 +21782,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/representations/published-target-providers/publication.rs",
       "item": "impl:PublishedTargetProviders::method:independent_packages#1",
       "kind": "carried_record",
-      "meaning": "Lists package owners of reached Independent provider choices so the project publishes only the suppliers its source demands.",
+      "meaning": "Lists the package owners of Independent choices in the closed target selection. Executable reach determines which methods need physical imports.",
       "producer": "source provider publication",
-      "signature": "92593a5ade7d6165b9958c06ca03573335e5ceb0a734ef169cf88dce9e58148e"
+      "signature": "1eec4c66cfd28d0145bece30c02f4a4c737f5a48ff6c6a00bf319b64d7980fc4"
     },
     {
       "consumers": [
