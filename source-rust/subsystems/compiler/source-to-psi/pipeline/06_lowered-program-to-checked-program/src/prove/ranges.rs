@@ -80,6 +80,25 @@ fn chain_operands(expression: &ScalarTerm) -> Vec<(&ScalarTerm, &ScalarTerm)> {
     }
 }
 
+fn lift_endpoint_order(relation: ProofNode) -> Option<ProofNode> {
+    let Proposition::LessOrEqual(left, _) = &relation.conclusion else {
+        return None;
+    };
+    let conclusion = proof_admission::lift_exact_integer_order(&relation.conclusion)?;
+    let unchanged = primitive(
+        Proposition::Equal(left.clone(), left.clone()),
+        PrimitiveJudgment::ReflexiveEquality,
+    );
+    Some(node(
+        conclusion,
+        ProofRule::IntegerOrderSubstitution {
+            relation: Box::new(relation),
+            equality: Box::new(unchanged),
+            endpoint: 0,
+        },
+    ))
+}
+
 impl Prover<'_> {
     /// The earlier axiom that fixes `term` to a literal, which a chain step
     /// cites as the landing of its literal operand.
@@ -320,19 +339,182 @@ impl Prover<'_> {
         })
     }
 
-    /// `output <= dividend` for an exact quotient `output == dividend /
-    /// divisor` whose divisor is a value: the kernel's
-    /// quotient-at-most-dividend form, a provisional rule
-    /// (`AcceptedProofRule::IntegerQuotientAtMostDividend`). It needs the
-    /// dividend bounded below by a nonnegative literal and the divisor proved
-    /// positive. An order step between two values, like
-    /// `remainder_below_divisor`. `None` when the kernel refuses the witness
-    /// or either premise is unproved.
-    pub(super) fn quotient_at_most_dividend(
+    /// Translate the branch order `lower < upper` by `-lower`. Integer
+    /// discreteness first gives `lower + 1 <= upper`, so the formed exact
+    /// difference has a positive value even when neither endpoint is literal.
+    pub(super) fn positive_difference(&mut self, goal: &Proposition) -> Option<ProofNode> {
+        let Proposition::LessThan(zero, value) = goal else {
+            return None;
+        };
+        let (integer, literal) = zero.integer_value()?;
+        if literal != integer.zero() {
+            return None;
+        }
+        let equation = match value {
+            ScalarTerm::Value { id, .. } => {
+                let index = (*self.definitions.get(*id)?)?;
+                Some(self.facts[self.equations[index]].proof(&self.facts))
+            }
+            _ => None,
+        };
+        let difference = match &equation {
+            Some(proof) => {
+                let Proposition::Equal(result, difference) = &proof.conclusion else {
+                    return None;
+                };
+                if result != value {
+                    return None;
+                }
+                difference
+            }
+            None => value,
+        };
+        let ScalarTerm::ExactIntegerSubtract {
+            left: upper,
+            right: lower,
+            ..
+        } = difference
+        else {
+            return None;
+        };
+        let strict = self
+            .prove(&Proposition::LessThan(
+                lower.as_ref().clone(),
+                upper.as_ref().clone(),
+            ))
+            .ok()?;
+        let lower = IntegerMathTerm::embed(lower.as_ref().clone())?;
+        let one = IntegerMathTerm::literal(semantic_vocabulary::IntegerValue::Unsigned(1));
+        let finite_order = Proposition::LessThan(zero.clone(), difference.clone());
+        let Proposition::IntegerMathLessThan(zero_math, difference_math) =
+            proof_admission::lift_exact_integer_order(&finite_order)?
+        else {
+            return None;
+        };
+        let successor = IntegerMathTerm::Add(Box::new(lower.clone()), Box::new(one.clone()));
+        let discrete = node(
+            Proposition::IntegerMathLessOrEqual(
+                successor,
+                IntegerMathTerm::embed(upper.as_ref().clone())?,
+            ),
+            ProofRule::IntegerOrderDiscreteness {
+                relation: Box::new(strict),
+            },
+        );
+        let at_least_one = self.translate_mathematical_order(
+            discrete,
+            IntegerMathTerm::Subtract(Box::new(zero_math.clone()), Box::new(lower)),
+            &Proposition::IntegerMathLessOrEqual(one.clone(), difference_math.clone()),
+        )?;
+        let zero_below_one =
+            self.closed(Proposition::IntegerMathLessThan(zero_math.clone(), one))?;
+        let positive = node(
+            Proposition::IntegerMathLessThan(zero_math, difference_math.clone()),
+            ProofRule::IntegerStrictOrderTransitivity {
+                left_to_middle: Box::new(zero_below_one),
+                middle_to_right: Box::new(at_least_one),
+            },
+        );
+        let same = primitive(
+            Proposition::IntegerMathEqual(difference_math.clone(), difference_math),
+            PrimitiveJudgment::ReflexiveEquality,
+        );
+        let finite = node(
+            finite_order,
+            ProofRule::IntegerOrderSubstitution {
+                relation: Box::new(positive),
+                equality: Box::new(same),
+                endpoint: 1,
+            },
+        );
+        Some(match equation {
+            Some(equation) => node(
+                goal.clone(),
+                ProofRule::ValueEqualityTransport {
+                    premise: Box::new(finite),
+                    equalities: vec![equation],
+                },
+            ),
+            None => finite,
+        })
+    }
+
+    /// A formed difference supplies a candidate upper endpoint for a sum.
+    /// Prove that the step fits the gap before adding its origin back to
+    /// both sides. The endpoint's own bound then bounds the mathematical
+    /// sum, including when forming the source addition is still at issue.
+    pub(super) fn remaining_capacity_image(
+        &mut self,
+        target: &ScalarTerm,
+        sum: &IntegerMathTerm,
+    ) -> Option<ProofNode> {
+        let ScalarTerm::ExactIntegerAdd { left, right, .. } = target else {
+            return None;
+        };
+        for (base, step) in [
+            (left.as_ref(), right.as_ref()),
+            (right.as_ref(), left.as_ref()),
+        ] {
+            let ScalarTerm::Value { id, .. } = base else {
+                continue;
+            };
+            let mut cursor = super::BoundFactCursor::default();
+            while let Some(index) = self.bound_facts.next(*id, &mut cursor) {
+                let Proposition::Equal(
+                    _,
+                    difference @ ScalarTerm::ExactIntegerSubtract {
+                        left: limit,
+                        right: origin,
+                        ..
+                    },
+                ) = &self.facts[index].proposition
+                else {
+                    continue;
+                };
+                if origin.as_ref() != base {
+                    continue;
+                }
+                let difference = difference.clone();
+                let limit = limit.as_ref().clone();
+                let Some(order) = self
+                    .relation(step, &difference, false)
+                    .and_then(lift_endpoint_order)
+                else {
+                    continue;
+                };
+                let bound = Proposition::IntegerMathLessOrEqual(
+                    sum.clone(),
+                    IntegerMathTerm::embed(limit.clone())?,
+                );
+                let Some(to_limit) = self.translate_mathematical_order(
+                    order,
+                    IntegerMathTerm::embed(base.clone())?,
+                    &bound,
+                ) else {
+                    continue;
+                };
+                if let Some(cap) = self
+                    .evidence(&limit, Direction::Upper)
+                    .ok()
+                    .and_then(lift_endpoint_order)
+                    && let Some(result) = super::chain_math(to_limit, cap)
+                {
+                    return Some(result);
+                }
+            }
+        }
+        None
+    }
+
+    /// The exact quotient is at most a nonnegative dividend for a positive
+    /// divisor. A positive dividend and a divisor greater than one give a
+    /// strict bound. The certificate also cites the operation defining output.
+    pub(super) fn quotient_order(
         &mut self,
         axiom: usize,
         output: &ScalarTerm,
         expression: &ScalarTerm,
+        strict: bool,
     ) -> Option<(ScalarTerm, ProofNode)> {
         let ScalarTerm::ExactIntegerDivide {
             scalar_type,
@@ -350,28 +532,34 @@ impl Prover<'_> {
             literal_axioms: vec![None],
         };
         let form = check_integer_affine_witness(self.context, self.axioms, &witness).ok()?;
-        let nonnegative = self.evidence(dividend, Direction::Lower).ok()?;
-        let positive = self.positive(*scalar_type, divisor)?;
-        let parts = vec![nonnegative, positive];
-        let root =
-            Proposition::Conjunction(parts.iter().map(|part| part.conclusion.clone()).collect());
+        let (numerator, denominator) = if strict {
+            let one = ScalarTerm::integer(*scalar_type, scalar_type.one()).ok()?;
+            let denominator = self
+                .prove(&Proposition::LessThan(one, divisor.clone()))
+                .ok()?;
+            (self.positive(*scalar_type, dividend)?, denominator)
+        } else {
+            (
+                self.evidence(dividend, Direction::Lower).ok()?,
+                self.positive(*scalar_type, divisor)?,
+            )
+        };
+        let premises = vec![numerator, denominator];
+        let root = Proposition::Conjunction(
+            premises
+                .iter()
+                .map(|part| part.conclusion.clone())
+                .collect(),
+        );
         let image = map_integer_affine_bound(&form, &root).ok()?;
-        matches!(&image, Proposition::LessOrEqual(left, right) if left == output && right == dividend)
-            .then(|| {
-                (
-                    dividend.clone(),
-                    node(
-                        image,
-                        ProofRule::IntegerAffineBound {
-                            root_bound: Box::new(node(
-                                root,
-                                ProofRule::ConjunctionIntroduction(parts),
-                            )),
-                            witness,
-                        },
-                    ),
-                )
-            })
+        let proof = node(
+            image,
+            ProofRule::IntegerAffineBound {
+                root_bound: Box::new(node(root, ProofRule::ConjunctionIntroduction(premises))),
+                witness,
+            },
+        );
+        Some((dividend.clone(), proof))
     }
 
     /// The kernel's image of an exact left shift's operand bounds: a bound in
