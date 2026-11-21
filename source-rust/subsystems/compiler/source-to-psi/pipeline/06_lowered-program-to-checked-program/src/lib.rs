@@ -548,15 +548,6 @@ fn discharge_inner(
     // borrowed declaration view is needed beside it for projected paths.
     let empty_contracts =
         terminal_semantics::inhabitation::TerminalContracts::new(module.types.structural_types.iter());
-    let application_sized_storage =
-        terminal_semantics::application_sized_storage(module).map_err(|detail| {
-            refusal(
-                RefusalReason::ForeignIdentity,
-                diagnostic,
-                Construct::Machine,
-                detail,
-            )
-        })?;
     let machines =
         machine_batch::check(&mut checking.machines, activity, |id, tables, activity| {
             // A requirement has a contract and no body, so nothing about it is
@@ -595,7 +586,6 @@ fn discharge_inner(
                 inputs.carried.map(|position| &carried[position]),
                 inputs.branches,
                 &empty_contracts,
-                &application_sized_storage,
                 borrow_ends,
                 activity,
             )
@@ -707,7 +697,6 @@ fn machine(
     carried: Option<&Carried<'_>>,
     branches: &[terminal_check_tables::program::Branch],
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
-    application_sized_storage: &[StructuralTypeId],
     borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
@@ -735,7 +724,6 @@ fn machine(
                 unreached,
                 carried,
                 empty_contracts,
-                application_sized_storage,
                 borrow_ends,
                 activity,
             )
@@ -756,7 +744,6 @@ fn check_prepared_machine(
     unreached: &[ValueId],
     carried: Option<&Carried<'_>>,
     empty_contracts: &terminal_semantics::inhabitation::TerminalContracts<'_>,
-    application_sized_storage: &[StructuralTypeId],
     borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
@@ -835,7 +822,7 @@ fn check_prepared_machine(
         .into_iter()
         .peekable();
     let mut target_ranges =
-        terminal_semantics::target_scalar_ranges(module, lowered, types, application_sized_storage)
+        terminal_semantics::target_scalar_ranges(module, lowered, types)
             .map_err(|detail| {
                 refusal(
                     RefusalReason::ForeignIdentity,

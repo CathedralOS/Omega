@@ -1611,20 +1611,13 @@ pub fn scalar_operation_literal(
     Some((result.scalar_type, literal))
 }
 
-fn incoming_scalar_origin<'block>(
-    bindings: impl Iterator<Item = Option<&'block [semantic_vocabulary::ValueId]>>,
-    ordinal: usize,
-) -> Option<ScalarConstantOrigin> {
-    let mut incoming = Vec::new();
-    for arguments in bindings {
-        incoming.push(*arguments?.get(ordinal)?);
-    }
-    Some(ScalarConstantOrigin::Incoming(incoming))
-}
-
 pub struct MachineScalarIndex<'machine> {
     machine: &'machine terminal_psi::TerminalMachine,
-    definitions: Vec<(semantic_vocabulary::ValueId, &'machine Operation)>,
+    definitions: Vec<(
+        semantic_vocabulary::ValueId,
+        &'machine terminal_psi::Block,
+        usize,
+    )>,
     parameters: Vec<(
         semantic_vocabulary::ValueId,
         semantic_vocabulary::BlockId,
@@ -1634,6 +1627,7 @@ pub struct MachineScalarIndex<'machine> {
     constants: std::cell::RefCell<ScalarConstants>,
     incoming: Vec<(
         semantic_vocabulary::BlockId,
+        &'machine terminal_psi::Block,
         Option<&'machine [semantic_vocabulary::ValueId]>,
     )>,
 }
@@ -1641,10 +1635,19 @@ pub struct MachineScalarIndex<'machine> {
 impl<'machine> MachineScalarIndex<'machine> {
     pub fn new(machine: &'machine terminal_psi::TerminalMachine) -> Self {
         let mut definitions: Vec<_> = machine
-            .operations()
-            .filter_map(|operation| Some((operation.result.scalar_ref()?.id, operation)))
+            .blocks
+            .iter()
+            .flat_map(|block| {
+                block
+                    .operations
+                    .iter()
+                    .enumerate()
+                    .filter_map(move |(position, operation)| {
+                        Some((operation.result.scalar_ref()?.id, block, position))
+                    })
+            })
             .collect();
-        definitions.sort_by_key(|(value, _)| *value);
+        definitions.sort_by_key(|(value, ..)| *value);
         let mut parameters: Vec<_> = machine
             .blocks
             .iter()
@@ -1671,14 +1674,16 @@ impl<'machine> MachineScalarIndex<'machine> {
         let mut incoming: Vec<_> = machine
             .blocks
             .iter()
-            .flat_map(crate::control_graph::forwarded_bindings)
-            .map(|binding| (binding.target, binding.arguments))
+            .flat_map(|block| {
+                crate::control_graph::forwarded_bindings(block)
+                    .map(move |binding| (binding.target, block, binding.arguments))
+            })
             .collect();
-        incoming.sort_by_key(|(target, _)| *target);
+        incoming.sort_by_key(|(target, ..)| *target);
         let constants = ScalarConstants::for_values(
             definitions
                 .iter()
-                .map(|(id, _)| *id)
+                .map(|(id, ..)| *id)
                 .chain(parameters.iter().map(|(id, ..)| *id)),
         );
         Self {
@@ -1698,35 +1703,52 @@ impl<'machine> MachineScalarIndex<'machine> {
         &self,
         value: semantic_vocabulary::ValueId,
     ) -> impl Iterator<Item = &'machine Operation> + '_ {
-        let start = self.definitions.partition_point(|(id, _)| *id < value);
-        self.definitions[start..]
-            .iter()
-            .take_while(move |(id, _)| *id == value)
-            .map(|(_, operation)| *operation)
+        self.definition_sites(value)
+            .map(|(block, position)| &block.operations[position])
     }
 
-    fn constant_origin(
+    pub fn definition_sites(
         &self,
         value: semantic_vocabulary::ValueId,
-    ) -> Option<ScalarConstantOrigin> {
+    ) -> impl Iterator<Item = (&'machine terminal_psi::Block, usize)> + '_ {
+        let start = self.definitions.partition_point(|(id, ..)| *id < value);
+        self.definitions[start..]
+            .iter()
+            .take_while(move |(id, ..)| *id == value)
+            .map(|(_, block, position)| (*block, *position))
+    }
+
+    fn constant_origin(&self, value: semantic_vocabulary::ValueId) -> Option<ScalarConstantOrigin> {
         if let Some((scalar_type, literal)) = self
             .definitions(value)
             .find_map(|operation| scalar_operation_literal(operation, value))
         {
             return Some(ScalarConstantOrigin::Literal(scalar_type, literal));
         }
+        self.incoming_values(value).map(|arrivals| {
+            ScalarConstantOrigin::Incoming(arrivals.into_iter().map(|(_, value)| value).collect())
+        })
+    }
+
+    /// Every predecessor must bind this block parameter. Machine entry inputs
+    /// and case payloads have no list of forwarded scalar values.
+    pub fn incoming_values(
+        &self,
+        value: semantic_vocabulary::ValueId,
+    ) -> Option<Vec<(&'machine terminal_psi::Block, semantic_vocabulary::ValueId)>> {
         let start = self.parameters.partition_point(|(id, ..)| *id < value);
-        let (_, owner, ordinal, _) =
-            *self.parameters.get(start).filter(|(id, ..)| *id == value)?;
+        let (_, owner, ordinal, _) = *self.parameters.get(start).filter(|(id, ..)| *id == value)?;
         if owner == self.machine.entry {
             return None;
         }
-        let start = self.incoming.partition_point(|(target, _)| *target < owner);
-        let bindings = self.incoming[start..]
+        let start = self
+            .incoming
+            .partition_point(|(target, ..)| *target < owner);
+        self.incoming[start..]
             .iter()
-            .take_while(|(target, _)| *target == owner)
-            .map(|(_, arguments)| *arguments);
-        incoming_scalar_origin(bindings, ordinal)
+            .take_while(|(target, ..)| *target == owner)
+            .map(|(_, block, arguments)| Some((*block, *arguments.as_ref()?.get(ordinal)?)))
+            .collect()
     }
 
     pub fn constant_value(&self, value: semantic_vocabulary::ValueId) -> Option<KnownScalar> {

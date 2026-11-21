@@ -288,6 +288,14 @@ follow from the observation kind or diagnostic description. A completion row
 requires the named calculation to finish. It carries the application identity
 and no role tag.
 
+An integer bound recipe can also compare its two top intervals for equality
+(tag 9) or strict integer order (tag 10). The result bounds the comparison's
+integer indicator over every pair of operand values. It is one when every
+pair satisfies the comparison, zero when no pair does, and the interval
+from zero through one otherwise. Multiplying an operation's result range by
+a necessary branch indicator therefore tests representability on targets where
+the operation can execute. Every integer carrier contains zero.
+
 Predicate node tags are integer literal (1),
 Boolean literal (2), scalar observation (3), forwarding (4), negation (5), and
 binary operator (6). Binary operators are `and`, `or`, equality, inequality,
