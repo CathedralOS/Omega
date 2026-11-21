@@ -442,18 +442,18 @@ independently of establishing a value.": the clause's verdict is
 `Discharged::Window`, which rejects nothing by itself, and the declaration
 opens an initial-establishment window for that clause on the place
 ([Invariant windows](#invariant-windows)). A store that proves the clause
-closes it, so `let mut g: Both; g.a = 3; g.b = 2; take(g)` is accepted when
+closes it, so `let mutable g: Both; g.a = 3; g.b = 2; take(g)` is accepted when
 each store proves its field's clause. A use that observes a leaf the
 declaration zeroed while some clause's window is still open is
 `Unestablished`, with the declaration named beside it
-(`UnestablishedUse::declared`): `let mut g: Both; g.a = 3; take(g)` is
+(`UnestablishedUse::declared`): `let mutable g: Both; g.a = 3; take(g)` is
 refused at `take(g)`, because `g.b` is still the zero `1 <= b` fails on. A
 read of a leaf a store wrote observes that store, not zeroed storage, and is
 established as before.
 
 A scalar local declared without an initializer is zero-constructed by the
 same rule: elaboration logs the zero constant on its home at
-`EstablishPrimitiveLocal`, so `let mut x: u32; f(x)` reads a value that is
+`EstablishPrimitiveLocal`, so `let mutable x: u32; f(x)` reads a value that is
 provably zero. Every scalar type this route
 serves (`i8`..`u64`, `bool`) admits zero, and a qualified or ranged scalar
 type is refused by the reader as `type constrained`, so a scalar home owes
@@ -512,7 +512,7 @@ described next; it is never refused at the store.
 "A write known to preserve the default domain keeps it established.
 Otherwise the write opens a window on the place, whose actual new contents
 remain available to ordinary flow reasoning. The domain must be proved again
-at the next consumption point". So `let mut s = Span { low: 1, high: 9 };
+at the next consumption point". So `let mutable s = Span { low: 1, high: 9 };
 s.low = 12; s.high = 20; width(s)` is valid: the first store breaks
 `low <= high`, the second restores it, and only then is `s` consumed.
 
@@ -524,9 +524,9 @@ s.low = 12; s.high = 20; width(s)` is valid: the first store breaks
   obligation is the window's identity; its verdict is `Discharged::Window`,
   which keeps why the clause was not proved there. A construction makes a
   value and opens nothing: its unproved clause is still `Unproved`.
-  A call that lends a place exclusively (`&mut` or `&write`) is a store
+  A call that lends a place exclusively (`@mutable` or `@write`) is a store
   into every value above that place: the callee may write anything beneath
-  it, so `bump(&mut s.low)` owes `Span`'s clauses for `s` and opens a window
+  it, so `bump(@mutable s.low)` owes `Span`'s clauses for `s` and opens a window
   when they are not proved over what the call left there. The lent place's
   own type owes nothing at the call: it is the callee's formal, which the
   callee proves at handback, as a replaced field arrives formed.
@@ -816,7 +816,7 @@ be formed is `Discharged::Lent`; one that may not is refused with
   incompatibly"; loans.md: "A live exclusive loan does not prove projections
   disjoint."
 - **An exclusive reborrow of storage held shared**: a loan beneath a
-  borrowed formal declared `&T` with mutable access (loans.md, "Reborrow
+  borrowed formal declared `@T` with mutable access (loans.md, "Reborrow
   lineage and access": a `Read` parent rejects a mutable child).
 
 `judge` reports each as a `ConflictingUse` in `RouteVerdict::Rejected`
@@ -1120,7 +1120,7 @@ directly.
    call's result, so those stores are all `Overwritten` in the log. The walk
    reads the derived store (`Stored`), which says each of them, and the log
    is only compared with it.
-8. **A scalar local with no initializer holds zero.** `let mut x: u32; f(x)`
+8. **A scalar local with no initializer holds zero.** `let mutable x: u32; f(x)`
    is accepted with `x == 0` known (`local-without-initializer`). The
    establishing operation names the zero as its operand, so the home's store
    is derived from it like any other, and elaboration logs the same row. A
@@ -1147,7 +1147,7 @@ directly.
     discharge nor a refusal.** `Discharged::Window` holds why the clause
     was not proved at the store or the zero establishment. The
     specification puts the refusal at the consumption, and an `Unproved`
-    verdict at the write would reject `let mut g: Gated; g = Gated { .. };`
+    verdict at the write would reject `let mutable g: Gated; g = Gated { .. };`
     and `s.low = 12; s.high = 20;` before their later restoration could count.
 12. **Invariant windows are judged, not handed back.** See
     [Invariant windows](#invariant-windows). The sentence "Terminal Psi
@@ -1178,7 +1178,7 @@ directly.
     one yet. A callee's implementation cannot substitute for missing
     caller-visible result correspondence.
 16. **A clause over a field with no value identity is unproved even when it
-    is true of every value.** After `let mut s = make(); s.low = 0;`, the
+    is true of every value.** After `let mutable s = make(); s.low = 0;`, the
     clause `low <= high` is unproved: `high` has no value there. Stating a
     result leaf as a value needs the callee's `ensures` over `result`, which
     this slice does not serve.
@@ -1596,7 +1596,7 @@ Limits:
   of the parameter changes that order inside one clause, the generic clause
   is not recognized as the specialization's and nothing is carried.
 - Only an integer carrier, only `const` binders, and only parameters of
-  the machine itself: a value parameter used in a type (`&[u8; N]`) waits
+  the machine itself: a value parameter used in a type (`@[u8; N]`) waits
   for arrays.
 
 ### Type parameters
