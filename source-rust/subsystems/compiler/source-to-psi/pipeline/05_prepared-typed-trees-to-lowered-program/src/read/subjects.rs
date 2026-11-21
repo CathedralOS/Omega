@@ -844,7 +844,6 @@ impl Program<'_> {
                 Ok(())
             }
             TypeReferenceNode::Named { .. }
-            | TypeReferenceNode::Reference { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Callable { .. }
             | TypeReferenceNode::ConstExpression(_)
