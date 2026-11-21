@@ -1653,7 +1653,6 @@ pub(crate) mod instance {
     }
 
     pub struct TerminalInstance<'host, 'artifact> {
-        observation_admission: Option<crate::call_observations::ObservationAdmission>,
         program: TerminalProgram<'artifact>,
         entry: semantic_vocabulary::MachineId,
         completed_entry_call: Option<(usize, CheckedCall)>,
@@ -1686,7 +1685,6 @@ pub(crate) mod instance {
                 required_imports,
                 bindings: BTreeMap::new(),
                 storage_resolver: None,
-                observation_admission: None,
                 components: BTreeMap::new(),
                 invoked: false,
                 closed: false,
@@ -1697,49 +1695,24 @@ pub(crate) mod instance {
             &self.program
         }
 
-        pub(super) fn authorize_compiler_invocation(
+        pub(super) fn install_compiler_observations(
             &mut self,
-            target: Option<&str>,
             issued: Option<Box<crate::layout_target::IssuedLayoutTarget>>,
-        ) -> Result<(), TerminalInterpretError> {
-            self.execution
-                .as_mut()
-                .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
-                    "issued target requires an unopened compiler invocation",
-                ))?
-                .issued_layout_target = issued;
-            self.observation_admission = Some(crate::call_observations::ObservationAdmission {
-                target: target.map(str::to_owned),
-            });
-            Ok(())
-        }
-
-        /// Select arguments of exact direct calls in an admitted compiler invocation.
-        pub fn observe_calls(
-            &mut self,
-            admitted: &evaluation_admission::AdmittedCompilerEvaluation,
             calls: &[crate::TerminalCallObservation],
         ) -> Result<(), TerminalInterpretError> {
-            use super::program::ProgramStorage;
-            let error = || {
-                TerminalInterpretError::UnsupportedSemanticVariant(
-                    "call observations require an unopened, admitted compiler invocation",
-                )
-            };
-            if self.invoked || self.closed || !self.required_imports.is_empty() {
-                return Err(error());
+            if !calls.is_empty() && !self.required_imports.is_empty() {
+                return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "compiler call observation requires an invocation without host imports",
+                ));
             }
-            let authorization = self.observation_admission.as_ref().ok_or_else(error)?;
-            let execution = self.execution.as_mut().ok_or_else(error)?;
-            let view = match execution.program.catalogs.as_ref() {
-                ProgramStorage::Borrowed(view) => *view,
-                ProgramStorage::Retained(code) => code.view(),
-                _ => return Err(error()),
-            };
-            admitted
-                .require_invocation(view, authorization.target.as_deref(), self.entry.into())
-                .map_err(|_| error())?;
-            execution.select_call_observations(calls)
+            let execution = self.execution.as_mut().ok_or(
+                TerminalInterpretError::UnsupportedSemanticVariant(
+                    "compiler observations require an unopened invocation",
+                ),
+            )?;
+            execution.select_call_observations(calls)?;
+            execution.issued_layout_target = issued;
+            Ok(())
         }
 
         pub fn take_call_observations(&mut self) -> Vec<crate::ObservedTerminalCall> {
@@ -3548,30 +3521,34 @@ pub(crate) mod program {
             ))
         }
 
-        /// A compiler invocation may observe its own direct calls. The
-        /// installation which will execute must be the one that was admitted.
+        /// Start the exact compiler invocation admitted for this artifact and target.
         pub fn instantiate_compiler_evaluation<'host>(
             &self,
             request: TerminalInstantiation<'_>,
             admitted: &evaluation_admission::AdmittedCompilerEvaluation,
             issued_layout: Option<(&layout_plans::LayoutTargetFacts, &[usize])>,
+            calls: &[crate::TerminalCallObservation],
         ) -> Result<TerminalInstance<'host, 'artifact>, TerminalArtifactInterpretError> {
             let refusal = || {
                 TerminalArtifactInterpretError::Execution(
                     TerminalInterpretError::UnsupportedSemanticVariant(
-                        "compiler call observations require the admitted installation and target",
+                        "compiler invocation requires its admitted artifact, entry, installation and target",
                     ),
                 )
             };
             let installation = request.installation.ok_or_else(refusal)?;
-            if installation.provider_selections.as_ref() != Some(admitted.providers())
-                || installation
-                    .target_machines
-                    .as_ref()
-                    .is_some_and(|context| Some(context.target()) != admitted.target())
-            {
-                return Err(refusal());
-            }
+            let view = match self.program.catalogs.as_ref() {
+                ProgramStorage::Borrowed(view) => *view,
+                ProgramStorage::Retained(code) => code.view(),
+                _ => return Err(refusal()),
+            };
+            let root = view.module().entry.ok_or_else(refusal)?;
+            admitted
+                .require_invocation(view, admitted.target(), root)
+                .map_err(|_| refusal())?;
+            installation
+                .require_compiler_evaluation(view, admitted, request.scalar_admission)
+                .map_err(|_| refusal())?;
             let issued = if let Some((facts, indices)) = issued_layout {
                 if admitted.target() != Some(facts.profile.as_str())
                     || indices.is_empty()
@@ -3582,7 +3559,7 @@ pub(crate) mod program {
                 {
                     return Err(refusal());
                 }
-                let entry = self.entry().map_err(|_| refusal())?;
+                let entry = self.entry_installed(installation).map_err(|_| refusal())?;
                 let mut arguments = Vec::with_capacity(indices.len());
                 for &position in indices {
                     let parameter = entry
@@ -3621,7 +3598,7 @@ pub(crate) mod program {
             };
             let mut instance = self.instantiate(request)?;
             instance
-                .authorize_compiler_invocation(admitted.target(), issued)
+                .install_compiler_observations(issued, calls)
                 .map_err(TerminalArtifactInterpretError::Execution)?;
             Ok(instance)
         }

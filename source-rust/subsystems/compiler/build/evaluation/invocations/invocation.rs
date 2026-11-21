@@ -185,7 +185,7 @@ impl<'input> ArtifactInvocation<'input> {
         let meter = &mut *self.meter;
         let program = TerminalProgram::borrow(view);
         let entry = program
-            .entry()
+            .entry_installed(self.input.supplies)
             .map_err(|error| format!("source invocation entry: {error:?}"))?;
         if !entry.scalar_parameters.is_empty()
             || entry.structural_parameters.len() != self.input.inputs.len()
@@ -285,17 +285,14 @@ impl<'input> ArtifactInvocation<'input> {
                 target_arguments.as_slice(),
             ))
         };
-        let mut instance = if issued.is_none() && self.input.observed_calls.is_empty() {
-            program.instantiate(request)
-        } else {
-            program.instantiate_compiler_evaluation(request, self.input.admission, issued)
-        }
-        .map_err(|error| format!("source invocation preparation: {error:?}"))?;
-        if !self.input.observed_calls.is_empty() {
-            instance
-                .observe_calls(self.input.admission, self.input.observed_calls)
-                .map_err(|error| format!("layout placement observation: {error:?}"))?;
-        }
+        let mut instance = program
+            .instantiate_compiler_evaluation(
+                request,
+                self.input.admission,
+                issued,
+                self.input.observed_calls,
+            )
+            .map_err(|error| format!("source invocation preparation: {error:?}"))?;
         let status = instance
             .invoke(meter)
             .map_err(|error| format!("source invocation execution: {error:?}"))?;
