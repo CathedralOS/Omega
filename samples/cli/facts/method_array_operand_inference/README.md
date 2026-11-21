@@ -3,6 +3,7 @@
 `Bytes::last::<3u64>(@bytes)` supplies the count and leaves the element type
 open. The caller passes a shared borrow of `[u8; 3]`, so the selected method
 takes `@[u8; 3]` and returns a `u8`. Its body reads `bytes[Count - 1]`.
+The root program calls that same provider with two `u16` values and checks that it returns `513`.
 The explicit count stays fixed during inference. Passing the same three
 elements to `Bytes::last::<4u64>` must fail at the argument.
 
