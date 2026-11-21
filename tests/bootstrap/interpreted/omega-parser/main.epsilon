@@ -359,6 +359,21 @@ machine Main::main(&mut self) {
     self.parser.parse_view("machine p() { take(@mut value); }");
     self.check_refused();
 
+    self.parser.parse_view("machine p(x: &P) {}");
+    self.check_refused();
+    self.parser.parse_view("machine p(x: &mutable P) {}");
+    self.check_refused();
+    self.parser.parse_view("machine p(x: &write P) {}");
+    self.check_refused();
+    self.parser.parse_view("machine p() { take(&value); }");
+    self.check_refused();
+    self.parser.parse_view("machine p() { take(&mutable value); }");
+    self.check_refused();
+    self.parser.parse_view("machine p() { take(&write value); }");
+    self.check_refused();
+    self.parser.parse_view("machine p(&mut self) {}");
+    self.check_refused();
+
     self.parser.parse_view("machine p() { take(@value, @mutable value, @write value); }");
     self.check_complete();
     assert self.parser.call_statement_count == 1;

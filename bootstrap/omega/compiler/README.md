@@ -835,7 +835,9 @@ generic satisfies arguments, aliases, other external binding cases, and empty or
 installation-bound reach rows remain incomplete. The parameter list
 retains canonical optional `const` and leading
 `mutable`, consuming or borrowed `self`, and shared/mutable/write-only
-binding-reference forms.
+binding-reference forms. Omega writes these as `@T`, `@mutable T` and
+`@write T`. Borrow expressions use the same `@` marker. Binary `&`
+computes bitwise AND.
 Non-receiver parameters retain `name: Type`. Non-receiver parameter types, data
 fields, case-payload fields, and immediate machine return types share one engine
 for bare named/Self/Unit, outer references, unqualified domains, inclusive
