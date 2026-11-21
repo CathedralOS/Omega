@@ -268,6 +268,24 @@ impl FilesystemContext {
             ),
             (b"creat", &[path, Unsigned(16)], Signed(32), Acquire),
             (b"close", &[Signed(32)], Signed(32), Close),
+            (
+                b"pread",
+                &[Signed(32), ByteView(MutableBorrow), Signed(64)],
+                Signed(64),
+                Use {
+                    scalar: 0,
+                    current_directory: false,
+                },
+            ),
+            (
+                b"pwrite",
+                &[Signed(32), ByteView(SharedBorrow), Signed(64)],
+                Signed(64),
+                Use {
+                    scalar: 0,
+                    current_directory: false,
+                },
+            ),
             (b"unlink", &[path], Signed(32), NoDescriptor),
             (b"rmdir", &[path], Signed(32), NoDescriptor),
             (b"realpath", realpath, Unsigned(64), NoDescriptor),
@@ -508,7 +526,8 @@ impl FilesystemContext {
     ) -> Result<(), &'static str> {
         for service in services {
             let supplied = module
-                .interfaces.services
+                .interfaces
+                .services
                 .iter()
                 .find(|row| row.id == service)
                 .and_then(|row| module.identities.text(row.identity))
@@ -866,10 +885,10 @@ mod tests {
             CoordinateTag, atom, bare, byte_atom, compound,
         };
         use application_identity::type_identity::vocabulary::{NameForm, OwnerForm};
-        use service_surface::{ServiceReceiverApplication, ServiceSurface};
         use language_core::core_vocabulary::{
             CoreVocabulary, CoreVocabularyCatalog, FilesystemService,
         };
+        use service_surface::{ServiceReceiverApplication, ServiceSurface};
         use terminal_psi::{
             ServiceDeclaration, TerminalIdentityTableBuilder, TerminalModule, TerminalServiceSchema,
         };
@@ -918,11 +937,14 @@ mod tests {
                 identity: application,
                 parents: vec![],
             });
-            module.interfaces.service_schemas.push(TerminalServiceSchema {
-                declaration,
-                application,
-                surface: std::sync::Arc::new(surface),
-            });
+            module
+                .interfaces
+                .service_schemas
+                .push(TerminalServiceSchema {
+                    declaration,
+                    application,
+                    surface: std::sync::Arc::new(surface),
+                });
         }
         module.identities = identities.build();
         module
@@ -940,7 +962,8 @@ mod tests {
             context.admit_service_ids(
                 &module,
                 module
-                    .interfaces.services
+                    .interfaces
+                    .services
                     .iter()
                     .map(|row| row.id)
                     .chain([semantic_vocabulary::ServiceId::new(99).unwrap()])
@@ -969,7 +992,8 @@ mod tests {
             module.identities = identities.build();
             module.interfaces.services[2].identity = changed;
             module.interfaces.service_schemas[2].application = changed;
-            let surface = std::sync::Arc::make_mut(&mut module.interfaces.service_schemas[2].surface);
+            let surface =
+                std::sync::Arc::make_mut(&mut module.interfaces.service_schemas[2].surface);
             surface.receiver_applications[0].application = surface.identities.intern(&text);
             let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace);
             assert_eq!(
@@ -995,11 +1019,14 @@ mod tests {
         .into_iter()
         .enumerate()
         {
-            module.interfaces.services.push(terminal_psi::ServiceDeclaration {
-                id: semantic_vocabulary::ServiceId::new(index as u64 + 1).unwrap(),
-                identity: identities.intern(label),
-                parents: vec![],
-            });
+            module
+                .interfaces
+                .services
+                .push(terminal_psi::ServiceDeclaration {
+                    id: semantic_vocabulary::ServiceId::new(index as u64 + 1).unwrap(),
+                    identity: identities.intern(label),
+                    parents: vec![],
+                });
         }
         module.identities = identities.build();
         let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace);
@@ -1072,6 +1099,203 @@ mod tests {
         );
         for stream in 0..=2 {
             assert!(call.arguments(&[descriptor(stream)]).is_err());
+        }
+    }
+
+    #[test]
+    fn positioned_io_preserves_the_offset_and_requires_its_guest_descriptor() {
+        let mut call = call(Ok(()));
+        call.descriptor = DescriptorEffect::Use {
+            scalar: 0,
+            current_directory: false,
+        };
+        call.context
+            .descriptors
+            .borrow_mut()
+            .insert(3, NativeDescriptor::Open(91));
+        let offset = TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Signed, 64).unwrap(),
+            value: IntegerValue::Signed(123),
+        };
+        assert_eq!(
+            call.arguments(&[descriptor(3), offset]).unwrap(),
+            [descriptor(91), offset]
+        );
+        for stream in 0..=2 {
+            assert!(!call.modeled_stream(&[descriptor(stream), offset]));
+            assert!(call.arguments(&[descriptor(stream), offset]).is_err());
+        }
+        assert_eq!(
+            call.arguments(&[descriptor(999), offset]).unwrap(),
+            [descriptor(-1), offset]
+        );
+        call.context
+            .descriptors
+            .borrow_mut()
+            .insert(3, NativeDescriptor::Uncertain);
+        assert!(call.arguments(&[descriptor(3), offset]).is_err());
+        call.namespace_admission = Err("unprovided extra service");
+        assert!(call.arguments(&[descriptor(999), offset]).is_err());
+    }
+
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+    #[test]
+    fn positioned_imports_require_the_exact_contract_and_filesystem_supply() {
+        use language_core::core_vocabulary::FilesystemService;
+        use semantic_vocabulary::{BoundaryMachineId, PlaceId, StructuralTypeId};
+        use terminal_psi::{
+            BoundaryCompletion, BoundaryDeclarationRole, ByteSequenceCarrier,
+            NominalDeclarationIdentity, StructuralMultiplicity, StructuralParameterDeclaration,
+            StructuralTypeDeclaration,
+        };
+
+        let integer =
+            |bits| ScalarType::Integer(IntegerType::new(IntegerSign::Signed, bits).unwrap());
+        let mut module = canonical_filesystem_module();
+        let mut identities = std::mem::take(&mut module.identities).into_builder();
+        let identity = identities.intern("positioned_io_test");
+        module.identities = identities.build();
+        let bytes = StructuralTypeId::new(1).unwrap();
+        module
+            .types
+            .structural_types
+            .push(StructuralTypeDeclaration {
+                id: bytes,
+                identity,
+                declaration_identity: Default::default(),
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                shape: StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: None,
+                }),
+                scalar_restriction: None,
+                requires: Vec::new(),
+            });
+        let closed = terminal_codec::ClosedTerminalModule::new(module).unwrap();
+        let program = TerminalProgram::load(closed.semantic_bytes()).unwrap();
+        for (symbol, access, reach) in [
+            (
+                b"_pread".as_slice(),
+                StructuralAccess::MutableBorrow,
+                FilesystemService::ContentRead,
+            ),
+            (
+                b"_pwrite".as_slice(),
+                StructuralAccess::SharedBorrow,
+                FilesystemService::ContentWrite,
+            ),
+        ] {
+            let service = program
+                .module()
+                .interfaces
+                .services
+                .iter()
+                .find(|row| program.module().core_filesystem_service(row.id).ok() == Some(reach))
+                .unwrap()
+                .id;
+            let locator = target::normalize_foreign_locator(
+                target::ForeignLocatorCandidate::MachODylibSymbol {
+                    install_name: b"/usr/lib/libSystem.B.dylib".to_vec(),
+                    symbol: symbol.to_vec(),
+                },
+                target::TargetProfile::MacosArm64,
+            )
+            .unwrap();
+            let signature = calling_conventions::CallSignature {
+                parameters: vec![
+                    calling_conventions::ValueShape::integer(4, 4),
+                    calling_conventions::ValueShape::integer(8, 8),
+                    calling_conventions::ValueShape::integer(8, 8),
+                    calling_conventions::ValueShape::integer(8, 8),
+                ],
+                result: Some(calling_conventions::ValueShape::integer(8, 8)),
+            };
+            let binding = NormalizedForeignCallBinding {
+                boundary_entry_plan: calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                    calling_conventions::CallingPolicy::DarwinAapcs64,
+                    &signature,
+                )
+                .unwrap()
+                .plan()
+                .clone(),
+                mechanism: target_vocabulary::NormalizedForeignCallMechanism::HostedImport {
+                    locator,
+                    receipt: [1; 32],
+                    requirement_identity: "positioned filesystem test".into(),
+                },
+            };
+            let declaration = BoundaryMachineDeclaration {
+                id: BoundaryMachineId::new(1).unwrap(),
+                declaration: None,
+                numeric_intrinsic: None,
+                role: BoundaryDeclarationRole::Callable,
+                kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
+                completion: BoundaryCompletion::NormalReturn,
+                unconditional_termination: false,
+                identity,
+                owner: NominalDeclarationIdentity::new(identity),
+                attachment: None,
+                parameter_order: vec![
+                    BoundaryParameterKind::Scalar,
+                    BoundaryParameterKind::Structural,
+                    BoundaryParameterKind::Scalar,
+                ],
+                scalar_parameters: vec![integer(32), integer(64)],
+                crash_routes: Vec::new(),
+                structural_parameters: vec![StructuralParameterDeclaration {
+                    place: PlaceId::new(1).unwrap(),
+                    position: 1,
+                    structural_type: bytes,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                }],
+                result: BoundaryMachineResult::Scalar(integer(64).into()),
+                result_reference_regions: Vec::new(),
+                result_lifetimes: None,
+                requires: Vec::new(),
+                normal_qualifications: Vec::new(),
+                scalar_domain_requirements: Vec::new(),
+                membership_ensures: Vec::new(),
+                scalar_requires: Vec::new(),
+                scalar_ensures: Vec::new(),
+                reference_outputs: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                fixed_service_reach: vec![service],
+                service_reach_is_installation_bound: false,
+                owning_service: None,
+                published_service_ceiling: Vec::new(),
+                published_synchronous_entries: Vec::new(),
+            };
+            let context = FilesystemContext::new(TerminalFilesystemDelegation::HostNamespace);
+            let admitted = context
+                .admit(&program, &declaration, &binding, &[])
+                .map(|call| matches!(call, Some(FilesystemCall::Libc(_))));
+            assert!(matches!(admitted, Ok(true)), "{symbol:?}: {admitted:?}");
+            let unavailable = FilesystemContext::new(TerminalFilesystemDelegation::Unprovided);
+            assert!(
+                unavailable
+                    .admit(&program, &declaration, &binding, &[])
+                    .is_err()
+            );
+            for changed in 0..4 {
+                let mut invalid = declaration.clone();
+                match changed {
+                    0 => invalid.scalar_parameters[0] = integer(64),
+                    1 => invalid.scalar_parameters[1] = integer(32),
+                    2 => invalid.structural_parameters[0].access = StructuralAccess::Owned,
+                    3 => invalid.result = BoundaryMachineResult::Scalar(integer(32).into()),
+                    _ => unreachable!(),
+                }
+                assert!(context.admit(&program, &invalid, &binding, &[]).is_err());
+            }
         }
     }
 }
