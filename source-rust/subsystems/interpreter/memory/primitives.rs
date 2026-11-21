@@ -6362,7 +6362,11 @@ pub(crate) mod storage_addresses {
                 &source.path,
             );
             let endpoint = self.storage_address_endpoint(source, scalar)?;
-            let alignment = self.location_alignment(endpoint)?;
+            let geometry = crate::storage::provider_storage::value_image::geometry::ImageGeometry::for_execution(self);
+            let limit = geometry
+                .location_alignment_limit(self.live_structural_type(source.place)?, &source.path)
+                .ok_or(malformed())?;
+            let alignment = self.location_alignment(endpoint)?.min(limit);
             self.values.insert(
                 result.id,
                 TerminalScalarValue::Integer {

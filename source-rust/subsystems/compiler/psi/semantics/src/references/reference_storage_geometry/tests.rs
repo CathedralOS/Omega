@@ -156,6 +156,10 @@ fn physical_carriers_preserve_source_defaults_and_lookup_errors() {
     }
     let mut source = ReferenceStorageGeometry::new(types.iter(), unresolved)
         .with_target_carriers(Some(carriers));
+    assert_eq!(
+        source.location_alignment_limit(identity(2), &[StructuralPathSegment::Referent]),
+        Some(4),
+    );
     assert_eq!(source.layout(identity(2)), Ok((8, 8)));
     assert!(matches!(
         source.layout(identity(3)),
@@ -197,6 +201,13 @@ fn physical_carriers_preserve_source_defaults_and_lookup_errors() {
     let mut physical = ReferenceStorageGeometry::new(types.iter(), unresolved)
         .with_target_carriers(Some(carriers))
         .with_record_storage(Physical { unavailable: false });
+    assert_eq!(
+        physical.location_alignment_limit(
+            identity(3),
+            &[StructuralPathSegment::Field(TerminalIdentityIndex(5))]
+        ),
+        Some(1),
+    );
     assert_eq!(physical.layout(identity(2)), Ok((16, 8)));
     assert_eq!(physical.layout(identity(3)), Ok((24, 8)));
     let region = physical

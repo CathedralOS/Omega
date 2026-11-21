@@ -2546,6 +2546,7 @@ pub(crate) mod primitive_locals {
         let LegalizedScalarInstructionKind::ObserveStorageLocation {
             query,
             source: place,
+            path,
             ..
         } = &row.kind
         else {
@@ -2556,10 +2557,12 @@ pub(crate) mod primitive_locals {
         let observed = match query {
             terminal_psi::StorageLocationQuery::Address => address,
             terminal_psi::StorageLocationQuery::Alignment => {
-                // All address bits zero also describe a location divisible by a power
-                // of two. Setting the top bit leaves every nonzero low bit intact,
-                // and gives zero a representable, positive alignment of 2^63.
-                let top = super::fragmented_scalar::constant(builder, row, *place, 1u64 << 63)?;
+                // Setting the limit bit caps the least-set-bit result at the
+                // declared region alignment, independent of incidental placement.
+                // A less aligned projected address keeps its true smaller result.
+                let root = crate::instruction_selection::selection::reference_input::root_type(source, *place).ok_or_else(invalid)?;
+                let limit = source.geometry().location_alignment_limit(root, path).ok_or_else(invalid)?;
+                let top = super::fragmented_scalar::constant(builder, row, *place, limit)?;
                 let address = super::fragmented_scalar::binary(
                     builder,
                     row,

@@ -53,6 +53,14 @@ impl<'a> NativeGeometry<'a> {
         .with_record_storage(self)
     }
 
+    pub fn location_alignment_limit(
+        &self,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<u64> {
+        self.storage_geometry().location_alignment_limit(root, path)
+    }
+
     pub fn storage_region(
         &self,
         root: StructuralTypeId,

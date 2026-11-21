@@ -3741,6 +3741,17 @@ pub(crate) mod value_image {
                     .view_source_compatible(root, path, reference, None)
             }
 
+            pub(crate) fn location_alignment_limit(
+                &self,
+                root: StructuralTypeId,
+                path: &[StructuralPathSegment],
+            ) -> Option<u64> {
+                let types = self.execution.structural_types();
+                ReferenceStorageGeometry::new(types.values(), unresolved)
+                    .with_target_carriers(self.available_carriers())
+                    .location_alignment_limit(root, path)
+            }
+
             pub(crate) fn region(
                 &self,
                 root: StructuralTypeId,
