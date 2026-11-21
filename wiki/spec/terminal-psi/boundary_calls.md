@@ -116,20 +116,24 @@ proposition cannot substitute for the carried identity.
 ## Scalar requires
 
 A requirement's scalar `requires` clauses, and its integer parameter ranges,
-are part of the contract the declaration retains. They are propositions in the
-crash routes' declaration-local scalar-formal namespace, in canonical order,
-naming no structural place or caller value. Each `BoundaryCall` carries one
-`ObligationId` per row at the same index, as an ordinary call's `requires`
-lane does. Verification instantiates the row at that call's scalar actuals and
-proves it from the caller's facts before the call. A clause that is wholly
-structural membership stays a structural domain requirement and has no row.
+are part of the contract the declaration retains. Each proposition may name
+the declaration's scalar inputs and scalar observations of its readable
+structural inputs, such as a record field or a view's length. Only inputs
+are in scope before the call. The rows appear in canonical order, with one
+`ObligationId` per row in the `BoundaryCall`, as in an ordinary call's
+`requires` lane. Verification substitutes the actual arguments and proves
+each row from the caller's facts. A clause that is wholly structural
+membership stays a structural domain requirement and has no scalar row.
 
 Selecting a provider does not remove or weaken these obligations. A checked
 candidate may be installed for the call only when its own requirements follow
-from the declaration's rows. Scalar normal-return guarantees use the same
-formal namespace, with the scalar result immediately after the inputs. A
-successful call substitutes the exact actuals and its produced result and
-imports those guarantees. Checked provider admission requires each declared
+from the declaration's rows. A scalar normal-return guarantee may name the
+declared result. A scalar result follows the scalar inputs in value order.
+A structural result follows the structural inputs in place order, allowing a
+guarantee such as `ensures result.len > 0u64` to observe the returned view.
+Only normal completion binds that place. Verification substitutes the exact
+result produced by this invocation and its actual inputs when importing the
+guarantee. Checked provider admission requires each declared
 guarantee in the provider's verified ensures roster after substitution; a
 stronger provider contract never silently strengthens the caller's assumptions.
 The declaration carries only supported scalar consequences of its authored

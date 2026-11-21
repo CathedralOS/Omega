@@ -1096,8 +1096,10 @@ fn boundary_binding(
     Ok(match &boundary.result {
         terminal_psi::BoundaryMachineResult::Unit => ResultBinding::Unit,
         terminal_psi::BoundaryMachineResult::Scalar(value) => {
-            let formal =
-                ValueId::new(boundary.scalar_parameters.len() as u64 + 1).ok_or_else(|| {
+            let formal = boundary
+                .scalar_contract_result()
+                .map(|result| result.id)
+                .ok_or_else(|| {
                     unavailable(machine, "boundary membership result identity overflow")
                 })?;
             ResultBinding::Scalar {
@@ -1107,8 +1109,10 @@ fn boundary_binding(
             }
         }
         terminal_psi::BoundaryMachineResult::Structural(value) => {
-            let formal =
-                PlaceId::new(boundary.structural_parameters.len() as u64 + 1).ok_or_else(|| {
+            let formal = boundary
+                .structural_contract_result()
+                .map(|(place, _)| place)
+                .ok_or_else(|| {
                     unavailable(
                         machine,
                         "boundary membership result place identity overflow",

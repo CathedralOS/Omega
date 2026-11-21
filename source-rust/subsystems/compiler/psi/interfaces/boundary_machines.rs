@@ -610,6 +610,21 @@ impl BoundaryMachineDeclaration {
             .filter_map(move |(position, found)| (*found == kind).then_some(position))
     }
 
+    /// Structural input places occupy the first coordinates in the public
+    /// contract. The normal result follows them and has no entry contents.
+    pub fn structural_contract_result(
+        &self,
+    ) -> Option<(semantic_vocabulary::PlaceId, StructuralTypeId)> {
+        Some((
+            semantic_vocabulary::PlaceId::new(
+                u64::try_from(self.structural_parameters.len())
+                    .ok()?
+                    .checked_add(1)?,
+            )?,
+            self.result.structural()?,
+        ))
+    }
+
     pub fn scalar_contract_result(&self) -> Option<ValueDeclaration> {
         Some(ValueDeclaration {
             id: ValueId::new(
