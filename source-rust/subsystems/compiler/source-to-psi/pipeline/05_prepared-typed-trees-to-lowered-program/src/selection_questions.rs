@@ -380,15 +380,39 @@ fn formed_product_type_inputs(typed: &TypedTrees) -> Membership<ProductTypeInput
     let mut inputs = Membership::default();
     for handle in typed.live_product_operand_applications() {
         let selected = typed.product_operand_applications.get(handle);
-        let Some(application) = &selected.argument.application else { continue };
-        let parameters = typed.data_type_parameters.span_or_empty(selected.declaration_parameters);
+        let Some(application) = &selected.argument.application else {
+            continue;
+        };
+        let names = selected
+            .operand
+            .application
+            .iter()
+            .flat_map(|graph| graph.names.iter().map(|(_, name)| name.source_span))
+            .chain(selected.environment.iter().flat_map(|environment| {
+                environment
+                    .graph
+                    .names
+                    .iter()
+                    .map(|(_, name)| name.source_span)
+            }))
+            .collect::<Membership<_>>();
+        let parameters = typed
+            .data_type_parameters
+            .span_or_empty(selected.declaration_parameters);
         for (formal, actual) in parameters.iter().zip(application.arguments.iter()) {
-            if formal.kind != crate::source_state::data::TypeParameterKind::Type || !actual.type_reference.is_valid() {
+            if formal.kind != crate::source_state::data::TypeParameterKind::Type
+                || !actual.type_reference.is_valid()
+            {
                 continue;
             }
-            for reference in crate::source_state::references::type_reference_inputs(typed, actual.type_reference).types {
-                if let TypeOperandOrigin::ProductInput(input) = typed.type_reference_table.operand_origin(reference)
+            for reference in
+                crate::source_state::references::type_reference_inputs(typed, actual.type_reference)
+                    .types
+            {
+                if let TypeOperandOrigin::ProductInput(input) =
+                    typed.type_reference_table.operand_origin(reference)
                     && input.operand == selected.operand.source_span
+                    && names.contains(&input.occurrence)
                     && typed.type_reference_symbol(reference) == input.declaration
                 {
                     inputs.insert(input);

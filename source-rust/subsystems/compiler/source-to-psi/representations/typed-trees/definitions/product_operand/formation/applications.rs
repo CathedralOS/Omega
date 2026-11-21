@@ -16,10 +16,9 @@
 //! unused parameters. Conflicting, excessive, or incomplete selections
 //! reject."
 //!
-//! Nothing here names a declaration by its spelling. A name in the graph is
-//! a compiler type atom or the source position of a declaration, found again
-//! among this program's symbols; a name bound by the environment is replaced
-//! by the argument the helper was given. Served: type arguments that are a
+//! A retained name rejoins a builtin atom or a declaration anchor. An authored
+//! Product data path unresolved in Build is looked up from that exact source
+//! occurrence. Helper binders are replaced by their supplied arguments. Served: type arguments that are a
 //! builtin type, plain or applied data, or a fixed array of those with a
 //! literal extent; value arguments that are an integer literal or a Boolean.
 //! Every other form is refused by name and forms nothing.
@@ -31,9 +30,7 @@ use crate::declaration_selection::product_operands::{
 use crate::declaration_selection::{ProductDeclarationOperand, ProductOperandRole};
 use crate::source_state::TypedTrees;
 use crate::source_state::data::TypeParameterKind;
-use crate::source_state::expression::{
-    ExpressionNode, StaticMachineArgument, StaticSymbolApplication,
-};
+use crate::source_state::expression::{StaticMachineArgument, StaticSymbolApplication};
 use crate::source_state::name::Identifier;
 use crate::source_state::product_operand::{ProductApplicationDemand, ProductOperandApplication};
 use crate::source_state::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
@@ -90,9 +87,7 @@ struct Lower<'a> {
     /// The generic helper that wrote the request, whose binders a bare name
     /// in it may be; invalid where no such name can occur.
     helper: SymbolHandle,
-    /// The selected declaration decides whether this argument names a type
-    /// or a value before either role is resolved.
-    expects_type: bool,
+    /// The authored selection that owns the normalized nominal types.
     selecting_operand: source_text::SourceSpan,
     /// Nodes read so far for this argument.
     nodes: usize,
@@ -153,11 +148,6 @@ impl Lower<'_> {
     /// The declaration a graph name stands for among this program's symbols.
     fn symbol(&self, name: &ProductOperandName, path: &str) -> Formed<SymbolHandle> {
         let symbols = &self.program.symbols;
-        if let Some(atom) = name.builtin_type {
-            return symbols
-                .builtin_atom_symbol(atom)
-                .ok_or(unserved("a builtin type this program does not hold"));
-        }
         let Some(declaration) = name.declaration else {
             // A Build names Product declarations it cannot see while it is
             // typed, so typing leaves the name of one unresolved. It is
@@ -169,17 +159,15 @@ impl Lower<'_> {
                     "a static argument name with no declaration anchor",
                 ));
             }
-            return self.source.ok_or(unserved("a retained operand has no authored lookup scope"))?.declarations.resolve(
-                path,
-                name.source_span,
-                ProductOperandRole::Data,
-            )
-            .ok_or_else(|| {
-                Stop::Rejected(format!(
-                    "static argument `{}` of this provider choice names no data type visible here",
-                    path
-                ))
-            });
+            let source = self
+                .source
+                .ok_or(unserved("a retained operand has no authored lookup scope"))?;
+            return source
+                .declarations
+                .resolve(path, name.source_span, ProductOperandRole::Data)
+                .ok_or_else(|| Stop::Rejected(format!(
+                    "static argument `{path}` of this provider choice names no data type visible here"
+                )));
         };
         let declaration = symbols.rejoin_product_occurrence(declaration);
         let mut found = self
@@ -251,7 +239,11 @@ impl Lower<'_> {
     /// The argument the environment gives the helper parameter `name`
     /// stands for, lowered; `None` when `name` is no parameter of the
     /// helper. A parameter with no environment is open.
-    fn supplied(&mut self, name: &ProductOperandName) -> Formed<Option<Closed>> {
+    fn supplied(
+        &mut self,
+        name: &ProductOperandName,
+        expects_type: bool,
+    ) -> Formed<Option<Closed>> {
         let Some(parameter) = self.parameter(name)? else {
             return Ok(None);
         };
@@ -275,15 +267,18 @@ impl Lower<'_> {
             graph: &environment.graph,
             environment: None,
             helper: SymbolHandle::invalid(),
-            expects_type: self.expects_type,
             selecting_operand: self.selecting_operand,
             nodes: self.nodes,
         };
-        actual.argument(binding.argument).map(Some)
+        actual.argument(binding.argument, expects_type).map(Some)
     }
 
     /// One static argument, closed.
-    fn argument(&mut self, handle: Handle<ProductStaticOperand>) -> Formed<Closed> {
+    fn argument(
+        &mut self,
+        handle: Handle<ProductStaticOperand>,
+        expects_type: bool,
+    ) -> Formed<Closed> {
         self.deeper()?;
         if !self.graph.operands.is_valid(handle) {
             return Err(unserved("a static argument its request does not hold"));
@@ -296,27 +291,21 @@ impl Lower<'_> {
             return Ok(Closed::Integer(literal));
         }
         if operand.structural_type.is_valid() {
-            return self.ty(operand.structural_type).map(Closed::Type);
+            return self.ty(operand.structural_type, expects_type);
         }
         let names = self.graph.names.span_or_empty(operand.path).to_vec();
-        let name = names.last().ok_or(unserved("an empty static argument path"))?;
-        let path = names.iter().map(|part| part.text.as_str()).collect::<Vec<_>>().join("::");
+        let name = names
+            .last()
+            .ok_or(unserved("an empty static argument path"))?;
+        if !operand.application.is_valid() && names.len() == 1 {
+            return self.bare_name(name, expects_type);
+        }
+        let path = names
+            .iter()
+            .map(|part| part.text.as_str())
+            .collect::<Vec<_>>()
+            .join("::");
         if !operand.application.is_valid() {
-            if names.len() == 1 {
-                if self.expects_type && let Some(symbol) = self.builtin_type(name)? {
-                    return Ok(Closed::Type(self.named(symbol, name)));
-                }
-                if name.declaration.is_none() && name.builtin_type.is_none() {
-                    match name.text.as_str() {
-                        "true" => return Ok(Closed::Boolean(true)),
-                        "false" => return Ok(Closed::Boolean(false)),
-                        _ => {}
-                    }
-                }
-                if let Some(supplied) = self.supplied(name)? {
-                    return Ok(supplied);
-                }
-            }
             let symbol = self.symbol(name, &path)?;
             return Ok(Closed::Type(self.named(symbol, name)));
         }
@@ -328,103 +317,128 @@ impl Lower<'_> {
             ));
         }
         let symbol = self.symbol(name, &path)?;
-        let parameters = self.program.declaration_type_parameters(symbol).to_vec();
         let inputs = self
             .graph
             .static_arguments
             .span_or_empty(application.arguments)
             .to_vec();
+        self.applied_arguments(symbol, name, &inputs, Self::argument)
+    }
+
+    fn bare_name(&mut self, name: &ProductOperandName, expects_type: bool) -> Formed<Closed> {
+        if expects_type && let Some(symbol) = self.builtin_type(name)? {
+            return Ok(Closed::Type(self.named(symbol, name)));
+        }
+        if name.declaration.is_none() && name.builtin_type.is_none() {
+            match name.text.as_str() {
+                "true" => return Ok(Closed::Boolean(true)),
+                "false" => return Ok(Closed::Boolean(false)),
+                _ => {}
+            }
+        }
+        if let Some(supplied) = self.supplied(name, expects_type)? {
+            return Ok(supplied);
+        }
+        let symbol = self.symbol(name, &name.text)?;
+        Ok(Closed::Type(self.named(symbol, name)))
+    }
+
+    /// The data declaration's own telescope gives each nested operand its role.
+    /// Both path applications and structural type arguments use this judgment.
+    fn applied_arguments<T: Copy>(
+        &mut self,
+        symbol: SymbolHandle,
+        name: &ProductOperandName,
+        inputs: &[T],
+        read: fn(&mut Self, T, bool) -> Formed<Closed>,
+    ) -> Formed<Closed> {
+        let parameters = self.program.declaration_type_parameters(symbol).to_vec();
         if parameters.len() != inputs.len() {
             return Err(Stop::Rejected(format!(
                 "static type `{}` needs {} arguments, received {}",
-                name.text,
-                parameters.len(),
-                inputs.len()
+                name.text, parameters.len(), inputs.len()
             )));
         }
-        let mut arguments = Vec::new();
-        for (argument, parameter) in inputs.into_iter().zip(&parameters) {
-            let outer = std::mem::replace(&mut self.expects_type, parameter.kind == TypeParameterKind::Type);
-            let result = self.argument(argument);
-            self.expects_type = outer;
-            let argument = bound(self.program, parameter, result?)?;
-            arguments.push(self.program.static_operand_type_reference(&argument).map_err(unserved)?);
+        let mut arguments = Vec::with_capacity(inputs.len());
+        for (&input, parameter) in inputs.iter().zip(&parameters) {
+            let closed = read(self, input, parameter.kind == TypeParameterKind::Type)?;
+            let argument = bound(self.program, parameter, closed)?;
+            arguments.push(
+                self.program
+                    .static_operand_type_reference(&argument)
+                    .map_err(unserved)?,
+            );
         }
         Ok(Closed::Type(self.applied(symbol, name, arguments)))
     }
 
-    fn nominal(&mut self, node: TypeReferenceNode, symbol: SymbolHandle, name: &ProductOperandName) -> TypeReferenceHandle {
+    fn nominal(
+        &mut self,
+        node: TypeReferenceNode,
+        symbol: SymbolHandle,
+        name: &ProductOperandName,
+    ) -> TypeReferenceHandle {
         use crate::source_state::types::{ProductTypeInput, TypeOperandOrigin};
         let reference = self.program.type_reference_table.insert(node);
         if self.program.symbols.get(symbol).kind == SymbolKind::Data {
-            self.program.type_reference_table.set_operand_origin(reference, TypeOperandOrigin::ProductInput(ProductTypeInput {
-                operand: self.selecting_operand,
-                occurrence: name.source_span,
-                declaration: symbol,
-            }));
+            self.program.type_reference_table.set_operand_origin(
+                reference,
+                TypeOperandOrigin::ProductInput(ProductTypeInput {
+                    operand: self.selecting_operand,
+                    occurrence: name.source_span,
+                    declaration: symbol,
+                }),
+            );
         }
         reference
     }
 
     fn named(&mut self, symbol: SymbolHandle, name: &ProductOperandName) -> TypeReferenceHandle {
-        self.nominal(TypeReferenceNode::Named {
+        self.nominal(
+            TypeReferenceNode::Named {
+                symbol,
+                name: Identifier::generated(&name.text),
+            },
             symbol,
-            name: Identifier::generated(&name.text),
-        }, symbol, name)
+            name,
+        )
     }
 
-    fn applied(&mut self, symbol: SymbolHandle, name: &ProductOperandName, arguments: Vec<TypeReferenceHandle>) -> TypeReferenceHandle {
-        let arguments = self.program.type_reference_table.insert_type_reference_handles(arguments);
-        self.nominal(TypeReferenceNode::Generic {
-            base_symbol: symbol,
-            base_name: Identifier::generated(&name.text),
-            lifetime_arguments: Vec::new(),
-            arguments,
-        }, symbol, name)
+    fn applied(
+        &mut self,
+        symbol: SymbolHandle,
+        name: &ProductOperandName,
+        arguments: Vec<TypeReferenceHandle>,
+    ) -> TypeReferenceHandle {
+        let arguments = self
+            .program
+            .type_reference_table
+            .insert_type_reference_handles(arguments);
+        self.nominal(
+            TypeReferenceNode::Generic {
+                base_symbol: symbol,
+                base_name: Identifier::generated(&name.text),
+                lifetime_arguments: Vec::new(),
+                arguments,
+            },
+            symbol,
+            name,
+        )
     }
 
-    fn reference(&mut self, closed: Closed) -> Formed<TypeReferenceHandle> {
-        match closed {
-            Closed::Type(reference) => Ok(reference),
-            Closed::Integer(literal) => {
-                let value = self
-                    .program
-                    .expression_table
-                    .insert(ExpressionNode::Integer(literal));
-                Ok(self
-                    .program
-                    .type_reference_table
-                    .insert(TypeReferenceNode::ConstExpression(value)))
-            }
-            Closed::Boolean(_) => Err(unserved(
-                "a Boolean argument of applied data in a provider choice",
-            )),
-        }
-    }
-
-    fn ty(&mut self, handle: Handle<ProductOperandType>) -> Formed<TypeReferenceHandle> {
+    fn ty(&mut self, handle: Handle<ProductOperandType>, expects_type: bool) -> Formed<Closed> {
         self.deeper()?;
         if !self.graph.types.is_valid(handle) {
             return Err(unserved("a static type its request does not hold"));
         }
         match self.graph.types.get(handle).clone() {
-            ProductOperandType::Unit => Ok(self
+            ProductOperandType::Unit => Ok(Closed::Type(self
                 .program
                 .type_reference_table
-                .insert(TypeReferenceNode::Unit)),
+                .insert(TypeReferenceNode::Unit))),
             ProductOperandType::Named(name) => {
                 let name = self.graph.names.get(name).clone();
-                if let Some(symbol) = self.builtin_type(&name)? {
-                    return Ok(self.named(symbol, &name));
-                }
-                match self.supplied(&name)? {
-                    Some(Closed::Type(reference)) => Ok(reference),
-                    Some(other) => self.reference(other),
-                    None => {
-                        let symbol = self.symbol(&name, &name.text)?;
-                        Ok(self.named(symbol, &name))
-                    }
-                }
+                self.bare_name(&name, expects_type)
             }
             ProductOperandType::Generic {
                 name,
@@ -436,18 +450,15 @@ impl Lower<'_> {
                 }
                 let name = self.graph.names.get(name).clone();
                 let symbol = self.symbol(&name, &name.text)?;
-                let mut lowered = Vec::new();
-                for argument in self.graph.type_arguments.span_or_empty(arguments).to_vec() {
-                    lowered.push(self.ty(argument)?);
-                }
-                Ok(self.applied(symbol, &name, lowered))
+                let inputs = self.graph.type_arguments.span_or_empty(arguments).to_vec();
+                self.applied_arguments(symbol, &name, &inputs, Self::ty)
             }
             ProductOperandType::Array { element, length } => {
                 let length = match length {
                     ProductArrayLength::Literal(length) => length,
                     ProductArrayLength::Parameter(name) => {
                         let name = self.graph.names.get(name).clone();
-                        let Some(Closed::Integer(literal)) = self.supplied(&name)? else {
+                        let Some(Closed::Integer(literal)) = self.supplied(&name, false)? else {
                             return Err(unserved(
                                 "an array extent that is not a literal or a helper's value",
                             ));
@@ -461,14 +472,16 @@ impl Lower<'_> {
                         return Err(unserved("a computed array extent"));
                     }
                 };
-                let element_type = self.ty(element)?;
-                Ok(self
+                let Closed::Type(element_type) = self.ty(element, true)? else {
+                    return Err(Stop::Rejected("an array element in a Product operand must be a type".into()));
+                };
+                Ok(Closed::Type(self
                     .program
                     .type_reference_table
                     .insert(TypeReferenceNode::FixedArray {
                         element_type,
                         length: FixedArrayLength::Literal(length),
-                    }))
+                    })))
             }
             ProductOperandType::CanonicalConst(_)
             | ProductOperandType::ConstExpression(_)
@@ -693,11 +706,10 @@ pub(super) fn form(
             } else {
                 author
             },
-            expects_type: parameter.kind == TypeParameterKind::Type,
             selecting_operand: operand.source_span,
             nodes: 0,
         };
-        let argument = lower.argument(argument)?;
+        let argument = lower.argument(argument, parameter.kind == TypeParameterKind::Type)?;
         closed.push(bound(program, parameter, argument)?);
     }
     let whole = StaticMachineArgument {
@@ -913,11 +925,10 @@ mod tests {
                 graph: &graph,
                 environment: None,
                 helper: SymbolHandle::invalid(),
-                expects_type: true,
                 selecting_operand: Default::default(),
                 nodes: 0,
             };
-            match lower.argument(operand) {
+            match lower.argument(operand, true) {
                 Ok(Closed::Type(reference)) if name != "u0" => {
                     let TypeReferenceNode::Named { symbol, .. } =
                         lower.program.type_reference_table.type_reference(reference)

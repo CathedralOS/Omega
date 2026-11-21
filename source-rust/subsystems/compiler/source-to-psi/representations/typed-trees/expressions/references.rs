@@ -1333,11 +1333,16 @@ pub trait TypedReferences: Extend<SymbolHandle> {
         _: crate::source_state::AuthoredDeclarationSelectionOccurrenceId,
     ) {
     }
-    /// The forming declaration supplies the application's lexical context. It
-    /// remains reachable metadata, not an authored selection by its later user.
-    fn product_type_input(&mut self, _: crate::source_state::types::ProductTypeInput, symbol: SymbolHandle) {
+    /// The nominal type retained in an already-formed Product selection.
+    fn product_type_input(
+        &mut self,
+        _: crate::source_state::types::ProductTypeInput,
+        symbol: SymbolHandle,
+    ) {
         self.extend([symbol]);
     }
+    /// The forming declaration supplies the application's lexical context. It
+    /// remains reachable metadata, not an authored selection by its later user.
     fn static_application(
         &mut self,
         _: StaticMachineApplicationHandle,
@@ -1459,7 +1464,11 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
     ) {
         self.0.authored_selection(occurrence);
     }
-    fn product_type_input(&mut self, input: crate::source_state::types::ProductTypeInput, symbol: SymbolHandle) {
+    fn product_type_input(
+        &mut self,
+        input: crate::source_state::types::ProductTypeInput,
+        symbol: SymbolHandle,
+    ) {
         self.0.product_type_input(input, symbol);
     }
     fn static_application(
@@ -3340,7 +3349,9 @@ fn visit_type_name(
     symbol: SymbolHandle,
 ) {
     match program.type_reference_table.operand_origin(reference) {
-        crate::source_state::types::TypeOperandOrigin::ProductInput(input) => retained.product_type_input(input, symbol),
+        crate::source_state::types::TypeOperandOrigin::ProductInput(input) => {
+            retained.product_type_input(input, symbol)
+        }
         _ => visit_symbol(retained, symbol),
     }
 }

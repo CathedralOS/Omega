@@ -2097,11 +2097,11 @@ pub mod types {
     pub enum TypeOperandOrigin {
         #[default]
         Lexical,
-        ProductInput(ProductTypeInput),
         MachineParameter {
             instance: SymbolHandle,
             parameter: SymbolHandle,
         },
+        ProductInput(ProductTypeInput),
     }
 
     #[derive(Clone, PartialEq, Eq, record_storage::Record)]
