@@ -44,7 +44,7 @@ is claimed here.
   closure, never the dependency's full inventory.
 - Dependencies are discovered while checking; deferred bodies stay in name
   resolution; a demanded declaration gets every ordinary check.
-- `Build::validate(builder, &registration)` borrows an exact direct dependency
+- `Build::validate(builder, @registration)` borrows an exact direct dependency
   registration from the supplied root Build, in Build or Product scope. It
   records a full-check request, only widens subjects, and is satisfied by the
   ordinary pipeline before success; it does not immediately execute preparation.
@@ -104,7 +104,7 @@ package is the "real" one.
 | Dependency needed only through a type, proof, cleanup, callable value or conformance | Its required checks run and reject if invalid |
 | Dependency Build executes during preparation | Its closure checks before execution; unrelated dependency bodies stay outside the job |
 | Dependency gains an unrelated valid private function | Consumer body-checking work does not grow |
-| `Build::validate(builder, &registered)` on a direct dependency | Its invalid unused declaration fails the product check; another Build activation cannot add subjects |
+| `Build::validate(builder, @registered)` on a direct dependency | Its invalid unused declaration fails the product check; another Build activation cannot add subjects |
 | Optional optimizations disabled | Coverage and verdicts unchanged |
 
 ### Registration and root controls

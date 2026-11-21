@@ -30,7 +30,7 @@ Delete this record when the implementation and acceptance are complete.
 
 ## Decisions
 
-1. `AccessPlan::new(&schema, issuance)` takes an `Issuance`. No valid plan
+1. `AccessPlan::new(@schema, issuance)` takes an `Issuance`. No valid plan
    omits it, including a plan built as a record literal.
 2. `Issuance` is `Only(routes)` or `Unrestricted`. `Only` with an empty list
    admits nobody; existing qualified values still move, lend and forward.

@@ -104,7 +104,7 @@ ensures pair in Pair::Ordered
 
 `finish` receives a plain `Pair`, which any two numbers satisfy, and
 establishes `Ordered`. A caller that stores a `Pair in Pair::Ordered` lends it
-out as `&mutable pair as -Pair::Ordered` and gets it back ordered.
+out as `@mutable pair as -Pair::Ordered` and gets it back ordered.
 
 | Guarantee | Must hold |
 | --- | --- |

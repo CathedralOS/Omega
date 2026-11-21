@@ -127,7 +127,7 @@ for (const ch of chapters) {
     } else if (needsStd) {
       const entry = /\bmachine start\b/.test(fig.code) ? "start" : "main";
       buildCode =
-        `machine build(builder: &mut Build) {\n` +
+        `machine build(builder: @mutable Build) {\n` +
         `    Build::application(builder, "omegalearn_fixture");\n` +
         `    let package_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path { location: ${JSON.stringify(STD).replace(/\\/g, "/")} }));\n` +
         ["windows_x86_64", "linux_x86_64", "linux_arm64", "macos_arm64"]

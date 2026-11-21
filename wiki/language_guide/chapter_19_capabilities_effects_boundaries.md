@@ -104,7 +104,7 @@ machine build(builder: @mutable Build) {
 }
 ```
 
-Call either by path: `WallClock::now(&mutable none)`.
+Call either by path: `WallClock::now(@mutable none)`.
 
 ## Code that should run against a substitute
 

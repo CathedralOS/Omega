@@ -159,20 +159,20 @@ data Level {
     ticks: i32 in Wrapping;
 }
 
-machine rename(level: &mut Level) {
+machine rename(level: @mutable Level) {
     level.rooms[1].label[0] = 82;   // 'R'
     level.ticks = level.ticks + 1;
 }
 
 machine main() {
-    let mut level: Level = Level {
+    let mutable level: Level = Level {
         rooms: [
             Room { label: "room" },
             Room { label: "hall" }
         ],
         ticks: 0 as +Wrapping,
     };
-    rename(&mut level);
+    rename(@mutable level);
 }`,
           highlight: [5, 6, 7, 8],
         },
@@ -180,9 +180,9 @@ machine main() {
           { for: 2, text: "`[u8; 4]` is a fixed-length array of four bytes stored inline. Capacity is part of the type, not a runtime allocation." },
           { for: 6, text: "`[Room; 2]` nests two `Room` records inline inside `Level`. The element count is part of the type, so `Level` has a fixed size." },
           { for: 7, text: "`i32 in Wrapping` qualifies the field with modular two's-complement arithmetic, allowing `level.ticks + 1` without an upper-bound proof. A plain literal never picks up a domain by itself, so the initial value is written `0 as +Wrapping` (line 21)." },
-          { for: 10, text: "`&mut Level` lends mutable access to `level` for the duration of the call. There is no implicit `self` parameter, and the data is always an ordinary parameter." },
+          { for: 10, text: "`@mutable Level` lends mutable access to `level` for the duration of the call. There is no implicit `self` parameter, and the data is always an ordinary parameter." },
           { for: 11, text: "Constant indices `1` and `0` are statically in bounds against `[Room; 2]` and `[u8; 4]`, so the checker discharges both array bounds automatically." },
-          { for: 16, text: "Record construction names every field. `let mut` is required here: writing a local's fields or lending it with `&mut` or `&write` both need a `mut` binding, and without it the call on line 23 is rejected (spec: owned local mutability)." },
+          { for: 16, text: "Record construction names every field. `let mutable` is required here: writing a local's fields or lending it with `@mutable` or `@write` both need a `mutable` binding, and without it the call on line 23 is rejected (spec: owned local mutability)." },
           { text: "If an agent starts threading five loose parameters through every nested machine, stop and have it group that state into a `data` record with explicit field types." },
         ],
       },
@@ -434,7 +434,7 @@ machine uptime() -> u64 reaches Clock {
         title: "Wiring, declared",
         figure: {
           kind: "code",
-          code: `machine build(builder: &mut Build) {
+          code: `machine build(builder: @mutable Build) {
     Build::application(builder, "learn_omega");
     let std_registration: DependencyRegistration = Build::dependency(builder, dependency::from_source(Source::Path {
         location: "../../source/library/std"
@@ -472,7 +472,7 @@ machine start() reaches Console + ProcessExit {
           highlight: [6, 11, 16],
         },
         notes: [
-          { for: 1, text: "`build.omg` defines `machine build(builder: &mut Build)`. It is parsed, type-checked, and evaluated under the same rules as application code." },
+          { for: 1, text: "`build.omg` defines `machine build(builder: @mutable Build)`. It is parsed, type-checked, and evaluated under the same rules as application code." },
           { for: 2, text: "`Build::application` declares an executable root (libraries use `Build::package`; workspaces use `Build::member`). Mixing or repeating kinds is rejected." },
           { for: 3, text: "`Build::dependency` registers the standard library from a source so `main.omg` can `use omega_language_std::console`. Dependencies come only from this registration; imports never add one." },
           { for: 6, text: "`Build::bind` connects a target's `ProgramEntry` slot to the free entry machine `start`. Naming `start` selects the entry without allocating hidden state." },
@@ -487,7 +487,7 @@ machine start() reaches Console + ProcessExit {
     id: "ch-6",
     num: "VIII",
     title: "Text Is a Block",
-    standfirst: "Core has no format strings or `String` type; text is bytes. Fixed `[u8; N]` byte arrays and borrowed `&[u8]` slices make every buffer size and index proof explicit.",
+    standfirst: "Core has no format strings or `String` type; text is bytes. Fixed `[u8; N]` byte arrays and borrowed `@[u8]` slices make every buffer size and index proof explicit.",
     staves: [
       {
         title: "Pad it yourself",
@@ -497,17 +497,17 @@ machine start() reaches Console + ProcessExit {
 use omega_language_std::process_exit;
 use omega_language_std::console;
 
-machine clear(line: &mut [u8; 28]) {
+machine clear(line: @mutable [u8; 28]) {
     transition { _ -> scan(line, 0u64) }
 
-    machine scan(line: &mut [u8; 28], k: u64) {
+    machine scan(line: @mutable [u8; 28], k: u64) {
         transition k < 28u64 {
             true -> wipe(line, k),
             _    -> done()
         }
     }
 
-    machine wipe(line: &mut [u8; 28], k: u64) {
+    machine wipe(line: @mutable [u8; 28], k: u64) {
         line[k] = 32;
         transition { _ -> scan(line, k + 1u64) }
     }
@@ -516,22 +516,22 @@ machine clear(line: &mut [u8; 28]) {
 }
 
 machine main() reaches Console + ProcessExit {
-    let mut line: [u8; 28] =
+    let mutable line: [u8; 28] =
         "this text is about to vanish";
-    clear(&mut line);
-    Console::write_line(&line[..]);
+    clear(@mutable line);
+    Console::write_line(@line[..]);
     ProcessExit::exit_process(0);
 }`,
           highlight: [9, 16],
         },
         notes: [
-          { for: 5, text: "`&mut [u8; 28]` borrows a mutable 28-byte array. Its static length `28` travels with the type." },
+          { for: 5, text: "`@mutable [u8; 28]` borrows a mutable 28-byte array. Its static length `28` travels with the type." },
           { for: 8, text: "Nested machines do not capture the enclosing machine's parameters or locals, so `scan` takes both the borrowed `line` and the current index `k` explicitly." },
           { for: 9, text: "The guard `k < 28u64` is the bounds proof. `wipe` writes no `requires`, so the compiler infers one from its body (`k < 28`) and checks it at every call; on the `true` edge into `wipe` the call establishes it. Once you write a `requires` yourself, it must cover everything the body needs." },
           { for: 16, text: "`line[k] = 32` writes ASCII space (`0x20`). Zero-initialized bytes are NUL (`0x00`), so fixed-width output buffers are padded with spaces before printing." },
           { for: 17, text: "Because `wipe` is only entered with `k < 28u64`, `k + 1u64` is provably `<= 28` and cannot overflow `u64`." },
           { for: 24, text: "An ASCII string literal initializes a `[u8; N]` array of the exact matching byte length (here 28 bytes)." },
-          { for: 27, text: "`&line[..]` borrows the full `[u8; 28]` array as a `&[u8]` byte slice for `Console::write_line`." },
+          { for: 27, text: "`@line[..]` borrows the full `[u8; 28]` array as a `@[u8]` byte slice for `Console::write_line`." },
           { text: "Formatting integers works the same way: divide by 10, take `% 10`, add `48` (`'0'`), and write into a space-padded `[u8; N]` buffer." },
         ],
       },
@@ -610,7 +610,7 @@ machine start() reaches Console + ProcessExit {
           rows: [
             ["`reaches` ceiling", "Does each machine declare only the external services it genuinely needs?"],
             ["`data` layout", "Are all persistent values stored in fixed-size records with explicit `requires` or domain bounds?"],
-            ["Borrowing (`&` / `&mut`)", "Are parameters borrowed `&mut` only when the machine actually mutates them?"],
+            ["Borrowing (`@` / `@mutable`)", "Are parameters borrowed `@mutable` only when the machine actually mutates them?"],
             ["Machine graph", "Do machine names reflect domain steps, and does every loop edge shrink a clear measure?"],
             ["Transition coverage", "Are case dispatches exhaustive without silent catch-all arms hiding unhandled variants?"],
             ["Proof obligations", "Are bounds the true domain range rather than arbitrary buffer capacities or lazy `Wrapping`?"],

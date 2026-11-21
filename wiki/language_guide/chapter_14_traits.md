@@ -286,7 +286,7 @@ let mutable readers: [Reader; 2] = [
 ```
 
 Each reader pairs a state with a machine for that state. Pairing
-`&mutable constant` with `read_toggle` is rejected. This is Omega's replacement
+`@mutable constant` with `read_toggle` is rejected. This is Omega's replacement
 for trait objects and closures; see
 [some packages](../spec/language/some_packages.md), which also shows how a
 package can own its state.

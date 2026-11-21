@@ -10,7 +10,7 @@ section suffices.
 
 ## Context and gap
 
-The borrowed form admits `state: &'a mutable S` and descriptors over it. A
+The borrowed form admits `state: @'a mutable S` and descriptors over it. A
 reference to a helper's local cannot survive the helper through packaging, so a
 factory could not return an owned opaque object: the real owner had to live in
 a registry, in caller-supplied storage sized for a type the caller is not meant
@@ -29,7 +29,7 @@ the execution.
 
 1. Keep `some`. No new binder, keyword or privileged type.
 2. The delta is one admitted field form: a by-value field whose type owns the
-   witness through a uniform carrier. `&mutable Owner<S>` was already admitted as a
+   witness through a uniform carrier. `@mutable Owner<S>` was already admitted as a
    reference to a sized referent.
 3. Uniformity is an inductive structural judgment. The witness may occur only
    in custody or evidence indices or behind admitted references, never in a
@@ -41,7 +41,7 @@ the execution.
    allocator family wraps it with its return handle where one is needed. The
    first owner family lands in `alloc` as the first customer.
 5. Packing allocates nothing. It moves an established owner into the record.
-6. Stored operations take the owner, by reference or by value, not `&mutable S`.
+6. Stored operations take the owner, by reference or by value, not `@mutable S`.
    The consumer never specializes over the hidden type.
 7. Each stored operation keeps its own callable contract, checked at
    construction as for any machine value. One operation's reach or suspension

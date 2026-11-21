@@ -91,7 +91,7 @@ machine run_worker(worker: @mutable Worker, ring: @mutable Ring) {
 }
 ```
 
-`Task::request_cancel(&task)` asks. The worker finds out at its next wait, as
+`Task::request_cancel(@task)` asks. The worker finds out at its next wait, as
 ordinary data, and runs its own cleanup path. Nothing is unwound from outside,
 and the requester still has to `finish` the task.
 

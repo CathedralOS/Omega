@@ -27,9 +27,9 @@ or top-level mathematical definitions. Those surfaces retain their contracts.
 ## Proposed rule
 
 ```omega
-let message = "hello";        // &[u8], not implicitly Utf8-qualified.
+let message = "hello";        // @[u8], not implicitly Utf8-qualified.
 let count = 5u64;             // u64; the suffix chooses its carrier.
-let middle = @mutable view[2..4];  // &mutable [u8], given view: &mutable [u8].
+let middle = @mutable view[2..4];  // @mutable [u8], given view: @mutable [u8].
 let mutable next = 0u64;          // Mutable local, fixed u64 type.
 ```
 
@@ -75,7 +75,7 @@ a carrier from its later uses. Use a suffix or explicit local annotation.
 
 The accepted [borrowed range access](../spec/language/expressions.md#borrowed-range-access)
 rule remains independent: bare core ranges produce shared views when received
-as references; `&mutable` explicitly creates a mutable view. A local annotation
+as references; `@mutable` explicitly creates a mutable view. A local annotation
 cannot request that borrow implicitly. This proposal does not decide a new
 standalone value type for an unborrowed range place; use an explicit borrow or
 the existing typed shared-view destination when a reference is intended.

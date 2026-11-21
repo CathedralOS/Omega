@@ -49,7 +49,7 @@ requires player.health >= amount
 ```
 
 Data has no methods. A machine receives the value it works on as an ordinary
-parameter and is called as `take_damage(&mutable player, 4)`. The two `requires`
+parameter and is called as `take_damage(@mutable player, 4)`. The two `requires`
 lines are what make the subtraction provably in range;
 [Chapter 7](chapter_7_types_constraints_invariants.md) covers them.
 
@@ -257,6 +257,6 @@ covers serialization.
 
 ## Where next
 
-[Chapter 2](chapter_2_ownership_borrowing_moves.md) explains `&`, `&mutable` and
+[Chapter 2](chapter_2_ownership_borrowing_moves.md) explains `@`, `@mutable` and
 moving values. The complete rules for this chapter are in
 [data and literals](../spec/language/data_and_literals.md).

@@ -124,7 +124,7 @@ They are not ambient runtime captures. A capture-free body gains no global
 runtime authority. Lexical access rights remain those of the authoring scope;
 passing a private getter does not give its caller private field-access rights.
 
-Explicit environment receivers use `&self`, `&mutable self`, or owned `self`:
+Explicit environment receivers use `@self`, `@mutable self`, or owned `self`:
 
 ```omega
 let show = [output = @mutable output](@mutable self, value: @u32) {
@@ -133,13 +133,13 @@ let show = [output = @mutable output](@mutable self, value: @u32) {
 ```
 
 Here self denotes the environment, not an enclosing machine's receiver.
-Access to an outer receiver requires a capture such as `owner = &mutable self`;
+Access to an outer receiver requires a capture such as `owner = @mutable self`;
 its initializer resolves self in the outer scope. Bare capture bindings and
 explicit environment-field access denote the same captured fields. Neither
 route bypasses field access or borrowing checks.
 
 An erased capture uses ordinary [binding relevance](../spec/proofs/contracts.md#explicit-erased-bindings):
-`[buffer = &buffer, evidence [erased] = evidence](...) { ... }`.
+`[buffer = @buffer, evidence [erased] = evidence](...) { ... }`.
 The ellipses stand for ordinary parameters and body. Evidence retains exact
 subjects, validity, multiplicity, and provenance, but no runtime field, address,
 or cleanup. It cannot justify another buffer, survive invalidating mutation, or
@@ -221,7 +221,7 @@ requirement. It records the exact satisfaction edge. Association chooses the
 body; it does not prove satisfaction by itself. No ambient conformance search,
 whole-trait evidence, or additional runtime-callable eligibility is created.
 
-An abbreviated call such as `visit_items(items, &mutable show)` may recover the
+An abbreviated call such as `visit_items(items, @mutable show)` may recover the
 static Step selection from that checked association when argument and declared
 contract matching determine exactly one application. A named body plus explicit
 context follows the same checking. Conflicting or undetermined selections need

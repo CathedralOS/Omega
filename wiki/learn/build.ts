@@ -14,7 +14,7 @@ const pro = (s: string) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>");
 // Warm-palette syntax highlighting for Omega source lines. Diagnostic blocks
 // (`verify: false`) stay plain ink so compiler output reads as terminal text.
 const KW = new Set([
-  "use", "data", "case", "machine", "state", "transition", "let", "mut",
+  "use", "data", "case", "machine", "state", "transition", "let", "mutable",
   "public", "boundary", "trait", "reaches", "satisfies", "requires",
   "ensures", "where", "in", "as", "block", "suspend", "crashes",
 ]);
@@ -267,7 +267,7 @@ ${rail()}
         ["arithmetic policy", "The overflow contract on an integer type. Plain integers are Exact (every operation must be proven in range); `in Wrapping`, `in Saturating`, and `in Trapping` select defined overflow behavior."],
         ["proof obligation", "A static requirement the compiler must discharge — array bounds, exact arithmetic range, exhaustive dispatch, or precondition entailment — before accepting the program."],
         ["requires / ensures", "Machine contract clauses: `requires` states preconditions the caller must establish; `ensures` states postconditions guaranteed about `result` on normal return."],
-        ["build machine", "`machine build(builder: &mut Build)` in `build.omg`: ordinary checked Omega code that declares the package kind, dependencies (`Build::dependency`), and per-target `ProgramEntry` bindings (`Build::bind`)."],
+        ["build machine", "`machine build(builder: @mutable Build)` in `build.omg`: ordinary checked Omega code that declares the package kind, dependencies (`Build::dependency`), and per-target `ProgramEntry` bindings (`Build::bind`)."],
         ["ProcessExit", "The core boundary service (`ProcessExit::exit_process(code: i32)`) that ends the process domain with an explicit status code, separate from `Console`."],
       ]
         .map(([t, d]) => `<div class="gterm"><dt>${esc(t)}</dt><dd>${pro(d)}</dd></div>`)

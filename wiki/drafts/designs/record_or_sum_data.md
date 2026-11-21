@@ -19,7 +19,7 @@ data Command {
 
 machine inspect(command: @Command) -> bool {
     let Command { command_id as _, case as operation } = command;
-    targets_one_user(operation)                     // takes &Command::case
+    targets_one_user(operation)                     // takes @Command::case
 }
 
 // after
@@ -33,7 +33,7 @@ data Command {
 }
 
 machine inspect(command: @Command) -> bool {
-    targets_one_user(@command.op)                   // takes &Command::Operation
+    targets_one_user(@command.op)                   // takes @Command::Operation
 }
 ```
 
@@ -96,8 +96,8 @@ Delete this record when the implementation and acceptance are complete.
 | --- | --- |
 | Fields and cases in one body | A record with a field holding a sum |
 | `Command::GetUser { command_id: 17, user_id: 42 }` | `Command { command_id: 17, op: Command::Operation::GetUser { user_id: 42 } }` |
-| `Command { command_id as _, case as operation }` | `Command { command_id as _, op as operation }`, or `&command.op` |
-| `&Command::case` | `&Command::Operation` |
+| `Command { command_id as _, case as operation }` | `Command { command_id as _, op as operation }`, or `@command.op` |
+| `@Command::case` | `@Command::Operation` |
 | `command in Command::GetUser` | `command.op in Command::Operation::GetUser` |
 | `self in Command::GetUser` in `requires` | `self.op in Operation::GetUser` |
 
@@ -130,7 +130,7 @@ not appear.
 - The `Command<T>` fixture: `self.op in ...` in `requires` rejects a
   mismatched construction, and matching `command.op` yields the type equality
   in the arm.
-- A helper mutating through `&mutable command.op` leaves the caller to prove the
+- A helper mutating through `@mutable command.op` leaves the caller to prove the
   record's predicates again, and replacing the held sum through that
   reference leaves sibling fields and their loans intact.
 - Tuple dispatch over a field and the held sum, with a payload binding in an

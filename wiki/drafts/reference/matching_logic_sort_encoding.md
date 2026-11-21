@@ -31,7 +31,7 @@ junk (below) cannot satisfy them by accident.
 | `Int` | `Int(x)`, disjoint from `Nat(x)` | Signed range per width; no overlap with `Nat` — `Int` is not `Nat`'s nonneg half |
 | `addr` | `Addr(x)` | Interpreted under the selected target's address model; membership grants no storage or access authority |
 | `u64 in Small` for a predicate domain requiring `self <= 3` | `Nat(x) ∧ 0 ≤ x ∧ x ≤ 3` | Carrier membership and the declared bound predicate; revision at each predicate change |
-| `&[T]` slices | `∃b l. x = ⟨b, l⟩ ∧ Addr(b) ∧ Nat(l) ∧ ∀i < l. T(b + i)` | Bounded quantifier over the pointee region; pair constructor must be injective |
+| `@[T]` slices | `∃b l. x = ⟨b, l⟩ ∧ Addr(b) ∧ Nat(l) ∧ ∀i < l. T(b + i)` | Bounded quantifier over the pointee region; pair constructor must be injective |
 | user sum (`enum`) | `Sum(x) ⟺ ⋁_k (Tag_k(x) ∧ Payload_k(x))` | Pairwise tag disjointness, exhaustiveness, payload membership per arm |
 
 `Int` and `Nat` share the same underlying integer elements in most intended
@@ -92,8 +92,8 @@ it from the weaker one is a translation admission, not a derived step.
 
 ## Borrows and multiplicity
 
-Ownership is a type property, not a value shape: `&T`, `&mutable T`, and
-`&write T` are loan forms over the same carrier ([ownership and
+Ownership is a type property, not a value shape: `@T`, `@mutable T`, and
+`@write T` are loan forms over the same carrier ([ownership and
 multiplicity](../../spec/language/ownership.md)). In the one-sorted encoding a
 loan is a distinct membership class `Loan_k(x)` indexed by kind `k ∈ {shared,
 mutable, write}`, with multiplicity expressed as disjointness axioms: an element

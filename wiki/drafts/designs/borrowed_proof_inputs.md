@@ -18,13 +18,13 @@ The first example asks only about a collection's size; the second reads an
 integer reached through a field. In descriptive notation, not new source syntax:
 
 ```text
-Held<'a> has slot: &'a u64
+Held<'a> has slot: @'a u64
 
-has_two(items: &[Held<'a>]) = (items.length == 2)
+has_two(items: @[Held<'a>]) = (items.length == 2)
     observed input: items.length
     no observation of element contents or slot referents
 
-slot_positive(held: &Held<'a>) = (held.slot > 0)
+slot_positive(held: @Held<'a>) = (held.slot > 0)
     observed input: slot's referent identity and its contents version
     retain relevant intermediate field/path selections
 ```

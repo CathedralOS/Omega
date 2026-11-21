@@ -184,7 +184,7 @@ machine status_text(code: u32) -> @[u8] {
 
 Writing a lifetime that no input carries says the same thing explicitly. It
 also lets a machine that does take a reference return a result that does not
-borrow it: `machine kind_name<'name>(value: &Value) -> &'name [u8]`. The body
+borrow it: `machine kind_name<'name>(value: @Value) -> @'name [u8]`. The body
 must return storage that lasts for whatever the caller chooses, so returning a
 view into `value` or into a local is rejected.
 

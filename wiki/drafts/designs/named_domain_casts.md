@@ -80,7 +80,7 @@ declaration later turns every cast that ignores it into an error at that cast.
 - Every literal bound for a qualified place gains a cast: `5 as +Km`.
 - Every silent drop of a predicate-only domain gains one: `text as -Utf8`.
   A reviewer's text search of `source/library` counted about 250 machines
-  taking `&[u8] in Path`; each caller passing plain bytes, and each body
+  taking `@[u8] in Path`; each caller passing plain bytes, and each body
   passing those bytes to a plain-byte helper, is affected. That count is not
   re-verified here.
 - Each whole-type cast is respelled. `x as i32` on a qualified `x` becomes
@@ -135,7 +135,7 @@ One pass and fail pair per behavior, within the six-file limit per change:
   child while removing the parent rejects.
 - Operators: a builtin comparison on a qualified operand rejects; the same
   comparison declared by the domain against a plain operand passes.
-- Mutable views: removing a tag and a predicate through `&mutable` passes when a
+- Mutable views: removing a tag and a predicate through `@mutable` passes when a
   callee guarantee or a later write re-proves the predicate; an unrepaired
   predicate rejects at the next use; removing a routed domain rejects outside
   its authorized routes.
@@ -147,7 +147,7 @@ still reject, and no whole-type cast target remains in `source/library`,
 ## Left open
 
 - The spelling that removes a domain attached to an element type behind a
-  view, such as `&[f32 in Km]` read as `&[f32]`.
+  view, such as `@[f32 in Km]` read as `@[f32]`.
 - A shorthand for a domain that wants every comparison passed through to its
   carrier, in place of one declaration per operator.
 - Which qualified operand shapes core declares for indexing.

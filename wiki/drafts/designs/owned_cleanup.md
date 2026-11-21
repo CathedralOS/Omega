@@ -1,7 +1,7 @@
 # Owned cleanup consumers
 
 Ratified 2026-11-10. The machine a type selects with `dropped by` received the
-dying value as `&mutable T` and had to hand back a whole valid value before the
+dying value as `@mutable T` and had to hand back a whole valid value before the
 compiler destroyed it. A cleanup machine could therefore never give a
 component to an operation that consumes it, which is how the language models
 release, and no machine at all could take such a value apart. The selected
@@ -94,7 +94,7 @@ has to deal with it.
 
 ## What changes for source
 
-Each selected cleanup machine changes its parameter from `&mutable T` to `T` and
+Each selected cleanup machine changes its parameter from `@mutable T` to `T` and
 gains a consuming pattern, even one that only borrows its subject. A machine
 that used the fields through the reference then uses the bound components.
 `source/library` selects no cleanup machine. A text search on the ratification

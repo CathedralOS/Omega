@@ -103,7 +103,7 @@ For a call with no body to inspect, such as a boundary operation or a machine
 held in a field, the compiler assumes everything handed over may be written.
 Two things keep that from costing you:
 
-- Lend only what the callee needs: `&mutable entry.at` instead of `&mutable entry`.
+- Lend only what the callee needs: `@mutable entry.at` instead of `@mutable entry`.
 - Have the requirement say what is unchanged:
   `ensures entry.owner == old(entry.owner)`.
 

@@ -88,10 +88,10 @@ let first: Item = view[0];
 let tail: @[Item] = view[1..];
 ```
 
-`[T; N]` owns its elements and `&[T]` borrows a run of them. `&fixed` alone is
-a reference to the array, of type `&[Item; 4]`. It doesn't turn into a view
-when a parameter or a `let` asks for one: write `&fixed[..]` or
-`&mutable fixed[..]`, or call `ArrayAccess::as_slice`. The view knows its length
+`[T; N]` owns its elements and `@[T]` borrows a run of them. `@fixed` alone is
+a reference to the array, of type `@[Item; 4]`. It doesn't turn into a view
+when a parameter or a `let` asks for one: write `@fixed[..]` or
+`@mutable fixed[..]`, or call `ArrayAccess::as_slice`. The view knows its length
 is 4. See [views of a fixed array](../spec/language/expressions.md#views-of-a-fixed-array).
 Every index needs
 evidence that it is in bounds, usually from a `requires` or a branch:
