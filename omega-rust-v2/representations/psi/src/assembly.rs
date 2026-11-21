@@ -1,26 +1,33 @@
 use crate::{BlockId, OperationId, TargetIdentity, TypeId, ValueId};
-pub use omega_target_contract::{InstructionExit, InstructionInput, InstructionSemantics, InstructionValue, InstructionWrite};
+pub use omega_target_contract::{InstructionExit, InstructionInput, InstructionSemantics, InstructionValue, InstructionWrite, LocationLifetime, LocationRole};
 use std::sync::Arc;
 
+/// A catalog location with its declared role and lifetime. A write to a register
+/// location is a changed register whatever its lifetime. A persistent location
+/// keeps its value after its region ends.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct AssemblyRegister {
+pub struct AssemblyLocation {
     pub name: String,
     pub ty: TypeId,
+    pub role: LocationRole,
+    pub lifetime: LocationLifetime,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AssemblyOperand {
-    Register(AssemblyRegister),
+    /// A register named in source.
+    Register(AssemblyLocation),
     Value(ValueId),
     LocalBlock(BlockId),
 }
 
-/// All initial values are evaluated before any working register is written.
-/// Each execution of this operation establishes a fresh region.
+/// All initial values are evaluated before any bound register is written.
+/// Each execution of this operation starts a fresh region: region locations
+/// start unsupplied, and persistent locations keep their incoming values.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AssemblyEntry {
     pub target: TargetIdentity,
-    pub bindings: Vec<(AssemblyRegister, ValueId)>,
+    pub bindings: Vec<(AssemblyLocation, ValueId)>,
     pub clobbers: Option<Vec<String>>,
 }
 
@@ -30,7 +37,8 @@ pub struct AssemblyInstruction {
     pub target: TargetIdentity,
     pub mnemonic: String,
     pub operands: Vec<AssemblyOperand>,
-    pub implicit_registers: Vec<AssemblyRegister>,
+    /// Locations the selected semantics names directly, in name order.
+    pub implicit_locations: Vec<AssemblyLocation>,
     /// The selected executable state transition. A conditional exit produces
     /// its pre-instruction Boolean condition as this operation's scalar result.
     pub semantics: Arc<InstructionSemantics>,

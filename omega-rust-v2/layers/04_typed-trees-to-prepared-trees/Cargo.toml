@@ -23,3 +23,5 @@ omega-parser = { path = "../01_tokens-to-syntax-trees" }
 omega-resolver = { path = "../02_syntax-trees-to-symbol-resolved-trees" }
 omega-lexer = { path = "../00_bytes-to-tokens" }
 spec-corpus = { path = "../../tools/spec-corpus", features = ["parser"] }
+# A data client that links only the source products, as a later reader would.
+tree-handoff-consumer = { path = "../05_prepared-trees-to-terminal-psi/tests/tree-consumer" }

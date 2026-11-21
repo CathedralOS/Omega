@@ -427,4 +427,228 @@ mod tests {
             )
         );
     }
+
+    /// Run the checked countdown under one grant and one test-supplied ceiling.
+    fn sponsored_countdown<'text>(
+        source: &SourcePackage<'text>,
+        grant: PreparationGrant,
+        subject: &[u8],
+        ceiling: (u32, u64, u64),
+    ) -> Result<PreparedTrees<'text>, SponsoredPreparationError> {
+        let bound = checked(source, &[], None, subject, ceiling);
+        let round = crate::PreparationRound::begin_under_grant(source, &[], None, grant, Some(&bound))?;
+        let omega_typer::TypingProgress::Complete(trees) = round.typing() else {
+            panic!("the result type is already closed")
+        };
+        let evaluated = round
+            .evaluate(crate::invocation::termination::tests::countdown_evidence(trees))
+            .unwrap();
+        let crate::PreparationStep::Finished(crate::PreparationProgress::Complete(prepared)) = round.advance(evaluated).unwrap() else {
+            panic!("the admitted countdown freezes its result");
+        };
+        Ok(prepared)
+    }
+
+    /// Resolve several packages in one build without dependency edges, so each
+    /// may declare the same name.
+    fn resolve_packages<'text>(packages: &[(&'static str, &'text str)]) -> SourcePackage<'text> {
+        let syntax: Vec<_> = packages
+            .iter()
+            .map(|(_, text)| {
+                let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
+                let tree = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap();
+                (tokens, tree)
+            })
+            .collect();
+        let sources: Vec<_> = packages
+            .iter()
+            .zip(&syntax)
+            .map(|((package, text), (tokens, tree))| StageSource {
+                package,
+                source: ParsedSource {
+                    logical_path: "main.omg",
+                    text,
+                    tokens,
+                    tree,
+                },
+            })
+            .collect();
+        resolve_source_package(&sources).unwrap()
+    }
+
+    /// The single constant `path` declared by `package`, as a build would name it.
+    fn constant<'p>(
+        prepared: &'p PreparedTrees<'_>,
+        package: &str,
+        path: &str,
+    ) -> &'p omega_resolved::DeclarationId {
+        let matches: Vec<_> = prepared
+            .typed()
+            .constants
+            .iter()
+            .filter(|constant| constant.declaration.package == package && constant.declaration.path == path)
+            .collect();
+        let [only] = matches.as_slice() else {
+            panic!("{package} declares one constant {path}")
+        };
+        &only.declaration
+    }
+
+    /// A build report that links only the prepared product reads actual
+    /// sponsored packages. The six receipt values are pairwise distinct, so a
+    /// swapped or copied field changes the report. Each run differs from the
+    /// first in one input; the admission record changes in that field and the
+    /// selected value stays the same. Equal values do not identify a result,
+    /// and each constant is selected by its package as well as its name.
+    #[test]
+    fn a_build_report_keeps_the_admission_apart_from_the_selected_values() {
+        use crate::PreparedValue::Integer;
+        use tree_handoff_consumer::resource_report::{Admission, ReportError, Requested, build_report};
+        let source = resolve(COUNTDOWN);
+        let subject = b"checked-countdown-three".as_slice();
+        let grant = PreparationGrant {
+            work_budget: 1000,
+            peak_live_cells: 100,
+        };
+        let ceiling = (1, 640, 37);
+        let certified = |grant, subject: &[u8], (work_schedule, maximum_work, maximum_live_cells)| Admission::Certified {
+            grant,
+            ceiling: CertifiedResources {
+                checked_subject: Arc::from(subject),
+                work_schedule,
+                maximum_work,
+                maximum_live_cells,
+            },
+        };
+        let report = |grant, subject: &[u8], ceiling| {
+            let prepared = sponsored_countdown(&source, grant, subject, ceiling).unwrap();
+            build_report(&prepared, &[constant(&prepared, "app", "VALUE")], Requested::CheckedSubject(subject)).unwrap()
+        };
+        let countdown = sponsored_countdown(&source, grant, subject, ceiling).unwrap();
+        let value = constant(&countdown, "app", "VALUE");
+        let seven = [(value.clone(), Integer(7.into()))];
+        let other = b"checked-countdown-three-reissued".as_slice();
+        let runs = [
+            (grant, subject, ceiling),
+            (PreparationGrant { work_budget: 1001, ..grant }, subject, ceiling),
+            (PreparationGrant { peak_live_cells: 101, ..grant }, subject, ceiling),
+            (grant, other, ceiling),
+            (grant, subject, (1, 641, 37)),
+            (grant, subject, (1, 640, 38)),
+        ];
+        let reports = runs.map(|(grant, subject, ceiling)| report(grant, subject, ceiling));
+        spec_corpus::observe_handoff!(
+            "preparation-resource-receipts/consumer",
+            assert_eq!(
+                reports.map(|report| (report.values, report.admission)),
+                runs.map(|(grant, subject, ceiling)| (seven.to_vec(), certified(grant, subject, ceiling)))
+            )
+        );
+        // Whole-package equality includes the receipt, so a larger grant gives
+        // an unequal package with the same selected value.
+        let larger = PreparationGrant { work_budget: 1001, ..grant };
+        assert_ne!(countdown, sponsored_countdown(&source, larger, subject, ceiling).unwrap());
+        // The same inputs give an equal report.
+        assert_eq!(report(grant, subject, ceiling), report(grant, subject, ceiling));
+        // A source returning 8 freezes 8 for the same declaration under its own checked subject.
+        let eight_text = COUNTDOWN.replace("true -> 7u64", "true -> 8u64");
+        let eight = resolve(&eight_text);
+        let changed = sponsored_countdown(&eight, grant, b"checked-countdown-eight", ceiling).unwrap();
+        let changed = build_report(
+            &changed,
+            &[constant(&changed, "app", "VALUE")],
+            Requested::CheckedSubject(b"checked-countdown-eight"),
+        )
+        .unwrap();
+        assert_eq!(changed.values, [(value.clone(), Integer(8.into()))]);
+        // Equal values are not one result. A literal is a different
+        // implementation of the same declaration: its typed program differs
+        // from the countdown's, yet the report lists the same value.
+        let literal_source = resolve("const VALUE:u64 = 7u64;");
+        let literal_bound = checked(&literal_source, &[], None, b"literal-seven", ceiling);
+        let literal = prepare_source_package_under_grant(&literal_source, &[], None, grant, Some(&literal_bound)).unwrap();
+        assert_ne!(literal.typed(), countdown.typed());
+        let literal_report = build_report(&literal, &[constant(&literal, "app", "VALUE")], Requested::CheckedSubject(b"literal-seven")).unwrap();
+        assert_eq!(literal_report.values, seven);
+        // Two packages each declare `VALUE`. The report reads the declaration
+        // the build named, and never substitutes another package's.
+        let both = crate::prepare_source_package(&resolve_packages(&[
+            ("lib", "const VALUE:u64 = 8u64;"),
+            ("app", "const VALUE:u64 = 7u64;"),
+        ]))
+        .unwrap();
+        let (app, lib) = (constant(&both, "app", "VALUE"), constant(&both, "lib", "VALUE"));
+        assert_eq!(
+            build_report(&both, &[lib, app], Requested::Unsponsored)
+                .unwrap()
+                .values,
+            [
+                (lib.clone(), Integer(8.into())),
+                (app.clone(), Integer(7.into()))
+            ]
+        );
+        assert_eq!(
+            build_report(&literal, &[lib], Requested::CheckedSubject(b"literal-seven")),
+            Err(ReportError::MissingValue(lib.clone()))
+        );
+        // Schedule 2 is not a different report: admission refuses it and no package exists.
+        assert!(matches!(
+            sponsored_countdown(&source, grant, subject, (2, 640, 37)),
+            Err(SponsoredPreparationError::UnsupportedWorkSchedule(2))
+        ));
+        // A report describes the bound its build supplied, so it rejects a
+        // receipt for another subject and a missing or unexpected receipt.
+        let unsponsored = crate::prepare_source_package(&resolve("const VALUE:u8 = 7u8;")).unwrap();
+        let unsponsored_value = constant(&unsponsored, "app", "VALUE");
+        spec_corpus::observe_handoff!(
+            "preparation-resource-receipts/consumer-subject",
+            assert_eq!(
+                [
+                    build_report(&countdown, &[value], Requested::CheckedSubject(other)),
+                    build_report(&countdown, &[value], Requested::Unsponsored),
+                    build_report(&unsponsored, &[unsponsored_value], Requested::CheckedSubject(subject)),
+                ],
+                [
+                    Err(ReportError::WrongSubject {
+                        requested: other.to_vec(),
+                        found: subject.to_vec()
+                    }),
+                    Err(ReportError::UnexpectedReceipt),
+                    Err(ReportError::MissingReceipt),
+                ]
+            )
+        );
+    }
+
+    /// A package with no static demand truthfully needs a zero ceiling. Its
+    /// report still differs from the same package prepared without a grant.
+    #[test]
+    fn a_zero_ceiling_is_not_an_absent_receipt() {
+        use tree_handoff_consumer::resource_report::{Admission, Requested, build_report};
+        let source = resolve("machine same(x:u8)->u8 {x}");
+        let none = PreparationGrant {
+            work_budget: 0,
+            peak_live_cells: 0,
+        };
+        let bound = checked(&source, &[], None, b"no-static-demand", (1, 0, 0));
+        let sponsored = prepare_source_package_under_grant(&source, &[], None, none, Some(&bound)).unwrap();
+        let unsponsored = crate::prepare_source_package(&source).unwrap();
+        // Both packages come from the same typed trees; only the receipt differs.
+        assert_eq!(sponsored.typed(), unsponsored.typed());
+        let zero = build_report(&sponsored, &[], Requested::CheckedSubject(b"no-static-demand")).unwrap();
+        let absent = build_report(&unsponsored, &[], Requested::Unsponsored).unwrap();
+        spec_corpus::observe_handoff!(
+            "preparation-resource-receipts/consumer-zero",
+            assert_eq!(
+                (zero.admission, absent.admission),
+                (
+                    Admission::Certified {
+                        grant: none,
+                        ceiling: bound.resources.clone()
+                    },
+                    Admission::Unsponsored
+                )
+            )
+        );
+    }
 }

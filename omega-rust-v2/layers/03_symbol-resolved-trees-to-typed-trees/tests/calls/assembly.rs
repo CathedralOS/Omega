@@ -45,9 +45,9 @@ fn target_instruction_operands_are_checked_against_the_admitted_target() {
             semantics_version: 1,
             realization: vec![1].into(),
         },
-        registers: ["r0", "none", "scratch"]
+        locations: ["r0", "none", "scratch"]
             .into_iter()
-            .map(|r| (r.into(), byte.clone()))
+            .map(|r| (r.into(), omega_typer::AssemblyLocation::working_register(byte.clone())))
             .collect(),
         instructions: ["mov", "mov.byte"]
             .into_iter()
@@ -114,17 +114,23 @@ fn target_instruction_operands_are_checked_against_the_admitted_target() {
             .collect();
         assert_eq!(registers, expected);
     }
-    target.registers.insert("none".into(), ValueType::Bool);
+    target
+        .locations
+        .insert("none".into(), omega_typer::AssemblyLocation::working_register(ValueType::Bool));
     let mismatch = type_stage_for_target(&resolved, &target).unwrap_err();
     spec_corpus::observe_handoff!("mathematical-terms-and-assembly/refusal", assert_eq!(mismatch.span.slice(code.as_bytes()), Some(b"n".as_slice())));
     assert_eq!(mismatch.message, "expected bool, found u8");
-    target.registers.insert("none".into(), byte.clone());
-    target.registers.remove("scratch");
+    target
+        .locations
+        .insert("none".into(), omega_typer::AssemblyLocation::working_register(byte.clone()));
+    target.locations.remove("scratch");
     assert_eq!(
         type_stage_for_target(&resolved, &target).unwrap_err().message,
         "missing register type for scratch"
     );
-    target.registers.insert("scratch".into(), byte);
+    target
+        .locations
+        .insert("scratch".into(), omega_typer::AssemblyLocation::working_register(byte));
     target.instructions.get_mut("mov").unwrap()[0].parameters[1] = InstructionParameter::Scalar(ValueType::Bool);
     assert!(
         type_stage_for_target(&resolved, &target)
@@ -134,6 +140,101 @@ fn target_instruction_operands_are_checked_against_the_admitted_target() {
     );
 }
 
+/// Typing publishes each location's catalog role and lifetime wherever the program
+/// or the selected contract names it: a `registers` binding, a register operand and
+/// an implicit location. Fixture authority: the `test8` target of this test only.
+#[test]
+fn typed_assembly_records_carry_each_catalog_locations_role_and_lifetime() {
+    use omega_resolver::{AssemblyVocabulary, ParsedSource, StageSource, resolve_stage_for_target};
+    use omega_typer::{
+        AssemblyLocation, AssemblyTypes, InstructionExit, InstructionInput, InstructionParameter, InstructionSemantics, InstructionValue, InstructionVariant,
+        InstructionWrite, LocationLifetime, LocationRole, TypedInstructionOperand, type_stage_for_target,
+    };
+    let declare = |role, lifetime| AssemblyLocation {
+        ty: ValueType::Bool,
+        role,
+        lifetime,
+    };
+    let (ctl, dev) = (
+        declare(LocationRole::Register, LocationLifetime::Persistent),
+        declare(LocationRole::State, LocationLifetime::Persistent),
+    );
+    let contract = |parameters, destination, source| {
+        vec![InstructionVariant {
+            parameters,
+            semantics: std::sync::Arc::new(InstructionSemantics {
+                writes: vec![InstructionWrite {
+                    destination,
+                    value: InstructionValue::Copy(source),
+                }],
+                exit: InstructionExit::Continue,
+            }),
+        }]
+    };
+    let target = AssemblyTypes {
+        target: omega_target_contract::TargetIdentity {
+            profile: "test8".into(),
+            semantics_version: 1,
+            realization: vec![1].into(),
+        },
+        locations: [("ctl".into(), ctl.clone()), ("dev".into(), dev.clone())].into(),
+        instructions: [
+            (
+                "copy".into(),
+                contract(
+                    vec![InstructionParameter::Register(ValueType::Bool); 2],
+                    InstructionInput::Operand(0),
+                    InstructionInput::Operand(1),
+                ),
+            ),
+            (
+                "save".into(),
+                contract(vec![], InstructionInput::Location("dev".into()), InstructionInput::Location("ctl".into())),
+            ),
+        ]
+        .into(),
+    };
+    // Only the register is a source name; the toolchain builds the same vocabulary.
+    assert_eq!(target.register_names(), ["ctl"]);
+    assert!(target.register("dev").is_none());
+    let code = "asm machine keep() registers ctl = true clobbers ctl { copy ctl, ctl; save; }";
+    let tokens = omega_lexer::lex(code.as_bytes()).unwrap();
+    let tree = omega_parser::parse_file(code.as_bytes(), &tokens).unwrap();
+    let sources = [StageSource {
+        package: "game",
+        source: ParsedSource {
+            logical_path: "keep.omg",
+            text: code,
+            tokens: &tokens,
+            tree: &tree,
+        },
+    }];
+    let vocabulary = AssemblyVocabulary {
+        instructions: &["copy", "save"],
+        registers: &target.register_names(),
+    };
+    let resolved = resolve_stage_for_target(&sources, &[], &vocabulary).unwrap();
+    let stage = type_stage_for_target(&resolved, &target).unwrap();
+    let typed_tree = stage.trees().next().unwrap();
+    let region = (0..typed_tree.resolved().file.nodes.len())
+        .find_map(|node| typed_tree.assembly_region(node))
+        .unwrap();
+    let [(_, bound, location)] = region.bindings.as_slice() else {
+        panic!("expected the ctl binding")
+    };
+    assert_eq!((bound.as_str(), location), ("ctl", &ctl));
+    let [copy, save] = stage.instructions.as_slice() else {
+        panic!("expected copy and save")
+    };
+    assert!(
+        copy.operands
+            .iter()
+            .all(|operand| matches!(operand, TypedInstructionOperand::Register { name, ty: ValueType::Bool, lifetime: LocationLifetime::Persistent, .. } if name == "ctl"))
+    );
+    assert!(copy.implicit_locations.is_empty());
+    assert_eq!(save.implicit_locations, [("ctl".into(), ctl), ("dev".into(), dev)]);
+}
+
 #[test]
 fn a_local_block_operand_names_a_continuation_of_its_own_region() {
     use omega_resolver::{AssemblyVocabulary, ParsedSource, StageSource, resolve_stage_for_target};
@@ -141,7 +242,7 @@ fn a_local_block_operand_names_a_continuation_of_its_own_region() {
     let variant = |parameters, exit| vec![InstructionVariant { parameters, semantics: std::sync::Arc::new(InstructionSemantics { writes: vec![], exit }) }];
     let target = AssemblyTypes {
         target: omega_target_contract::TargetIdentity { profile: "test8".into(), semantics_version: 1, realization: vec![1].into() },
-        registers: Default::default(),
+        locations: Default::default(),
         instructions: [
             ("jmp".into(), variant(vec![InstructionParameter::LocalBlock], InstructionExit::Jump { target: 0 })),
             ("ret".into(), variant(vec![], InstructionExit::Return)),

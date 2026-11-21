@@ -27,34 +27,43 @@ impl Actual {
     }
 }
 
+/// Check a selected contract against its operands and the catalog. Returns the
+/// catalog declarations of the locations the contract names directly.
 fn validate(
     semantics: &crate::InstructionSemantics,
     operands: &[crate::TypedInstructionOperand],
-    registers: &std::collections::HashMap<String, crate::ValueType>,
-) -> Result<Vec<(String, crate::ValueType)>, &'static str> {
-    use crate::{InstructionExit as Exit, InstructionInput as Input, InstructionValue as Meaning, TypedInstructionOperand as Operand, ValueType};
+    target: &crate::AssemblyTypes,
+) -> Result<Vec<(String, crate::AssemblyLocation)>, &'static str> {
+    use crate::{InstructionExit as Exit, InstructionInput as Input, InstructionValue as Meaning, LocationRole, TypedInstructionOperand as Operand, ValueType};
     let mut implicit = std::collections::BTreeMap::new();
-    let mut resolve = |source: &Input| -> Result<(Option<String>, ValueType), &'static str> {
+    // A destination is a register operand or a declared location, with the role
+    // that decides how a repeated write is reported.
+    let mut resolve = |source: &Input| -> Result<(Option<(String, LocationRole)>, ValueType), &'static str> {
         match source {
-            Input::Register(name) => {
-                let ty = registers
+            Input::Location(name) => {
+                let location = target
+                    .locations
                     .get(name)
-                    .ok_or("instruction contract names an unavailable register")?;
-                implicit.insert(name.clone(), ty.clone());
-                Ok((Some(name.clone()), ty.clone()))
+                    .ok_or("instruction contract names an undeclared location")?;
+                implicit.insert(name.clone(), location.clone());
+                Ok((Some((name.clone(), location.role)), location.ty.clone()))
             }
             Input::Operand(index) => match operands.get(*index) {
                 Some(Operand::Value { ty, .. }) => Ok((None, ty.clone())),
-                Some(Operand::Register { name, ty, .. }) => Ok((Some(name.clone()), ty.clone())),
+                Some(Operand::Register { name, ty, .. }) => Ok((Some((name.clone(), LocationRole::Register)), ty.clone())),
                 _ => Err("instruction contract needs a scalar operand"),
             },
         }
     };
     let mut written = std::collections::HashSet::new();
     for write in &semantics.writes {
-        let (register, ty) = resolve(&write.destination)?;
-        if !written.insert(register.ok_or("instruction destination needs a register")?) {
-            return Err("instruction writes the same register twice");
+        let (destination, ty) = resolve(&write.destination)?;
+        let (name, role) = destination.ok_or("instruction destination needs a register")?;
+        if !written.insert(name) {
+            return Err(match role {
+                LocationRole::Register => "instruction writes the same register twice",
+                LocationRole::State => "instruction writes the same state twice",
+            });
         }
         let result = match &write.value {
             Meaning::Copy(input) => resolve(input)?.1,
@@ -132,17 +141,17 @@ impl BodyTyper<'_, '_> {
                     }
                     for occurrence in self.unit.names(part) {
                         let Symbol::TargetRegister(register) = &occurrence.target else { continue };
-                        let expected = target
-                            .registers
-                            .get(register)
+                        let location = target
+                            .register(register)
                             .ok_or_else(|| TypeError::at(source, part, format!("missing register type for {register}")))?;
+                        let expected = &location.ty;
                         if node.kind == Registers {
                             let expr = self.unit.single_child(part)?;
                             let value = self.type_expression_with_expected_type(expr, Some(expected))?;
                             self.check_destination(expr, &value, expected)?;
                             region
                                 .bindings
-                                .push((source.node_id(expr), register.clone(), expected.clone()));
+                                .push((source.node_id(expr), register.clone(), location.clone()));
                         } else if let Some(names) = &mut region.clobbers {
                             names.push(register.clone());
                         }
@@ -210,10 +219,15 @@ impl BodyTyper<'_, '_> {
                             ) => {
                                 self.check_destination(operand, &value, ty)?;
                                 if let Some(name) = register {
+                                    let lifetime = target
+                                        .register(&name)
+                                        .ok_or_else(|| TypeError::at(source, operand, format!("missing register type for {name}")))?
+                                        .lifetime;
                                     crate::TypedInstructionOperand::Register {
                                         node: id,
                                         name,
                                         ty: ty.clone(),
+                                        lifetime,
                                     }
                                 } else {
                                     crate::TypedInstructionOperand::Value { node: id, ty: ty.clone() }
@@ -222,15 +236,14 @@ impl BodyTyper<'_, '_> {
                             _ => unreachable!("matching variant selected above"),
                         });
                     }
-                    let implicit_registers =
-                        validate(&variant.semantics, &operands, &target.registers).map_err(|message| TypeError::at(source, part, message))?;
+                    let implicit_locations = validate(&variant.semantics, &operands, target).map_err(|message| TypeError::at(source, part, message))?;
                     self.output.instructions.push(crate::TypedInstruction {
                         node: source.node_id(part),
                         site: site_at(source, part),
                         target: target.target.clone(),
                         mnemonic: mnemonic.clone(),
                         operands,
-                        implicit_registers,
+                        implicit_locations,
                         semantics: variant.semantics.clone(),
                     });
                 }

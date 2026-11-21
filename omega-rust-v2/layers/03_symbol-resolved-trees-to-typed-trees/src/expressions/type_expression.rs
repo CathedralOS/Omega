@@ -392,8 +392,8 @@ impl BodyTyper<'_, '_> {
             Some(Symbol::TargetRegister(name)) => self
                 .catalog
                 .assembly
-                .and_then(|t| t.registers.get(name))
-                .cloned()
+                .and_then(|t| t.register(name))
+                .map(|location| location.ty.clone())
                 .ok_or_else(|| TypeError::at(source_file, node_index, format!("missing register type for {name}")))?,
             Some(Symbol::Builtin(name)) if matches!(name.as_str(), "result" | "self") => self
                 .subject

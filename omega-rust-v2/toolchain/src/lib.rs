@@ -90,7 +90,8 @@ fn resolve_package<'text>(
     let mut registers = Vec::new();
     if let Some(catalog) = assembly.as_ref() {
         instructions.extend(catalog.instructions.keys().map(String::as_str));
-        registers.extend(catalog.registers.keys().map(String::as_str));
+        // Source names registers only; other catalog state has no source spelling.
+        registers.extend(catalog.register_names());
     }
     let names = omega_resolver::AssemblyVocabulary {
         instructions: &instructions,

@@ -206,7 +206,7 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
                     region
                         .bindings
                         .iter()
-                        .map(|(_, _, ty)| (ty, site_at(tree, node))),
+                        .map(|(_, _, location)| (&location.ty, site_at(tree, node))),
                 );
             }
             for record in tree.semantics_at(node) {
@@ -217,7 +217,11 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
                         }
                         _ => None,
                     }));
-                    carriers.extend(i.implicit_registers.iter().map(|(_, ty)| (ty, i.site.clone())));
+                    carriers.extend(
+                        i.implicit_locations
+                            .iter()
+                            .map(|(_, location)| (&location.ty, i.site.clone())),
+                    );
                     if matches!(i.semantics.exit, crate::InstructionExit::Branch { .. }) {
                         carriers.push((&ValueType::Bool, i.site.clone()));
                     }

@@ -7,7 +7,7 @@ use super::{
     expressions::{EmitOperation, Expressions, OperationOutput},
 };
 use crate::{
-    AssemblyEntry, AssemblyInstruction, AssemblyOperand, AssemblyRegister, BlockId, BlockTerminator, InstructionExit, LoweringError, MachineBody, OperationId,
+    AssemblyEntry, AssemblyInstruction, AssemblyLocation, AssemblyOperand, BlockId, BlockTerminator, InstructionExit, LoweringError, MachineBody, OperationId,
     OperationKind, OperationResult, TypeId, ValueId, site_at,
 };
 use omega_resolved::{DeclarationId, Symbol};
@@ -31,7 +31,8 @@ fn entry(
         .ok_or_else(|| LoweringError::new(&site, "missing typed assembly region"))?;
     let mut bindings = Vec::with_capacity(region.bindings.len());
     let mut assigned = HashSet::new();
-    for (rhs, name, ty) in &region.bindings {
+    for (rhs, name, location) in &region.bindings {
+        let ty = &location.ty;
         if rhs.file != file.ordinal() || rhs.node >= file.nodes.len() {
             return Err(LoweringError::new(&site, "assembly register initializer belongs to a different tree"));
         }
@@ -51,9 +52,11 @@ fn entry(
             return Err(LoweringError::new(&site, "register initializer requires its selected scalar conversion"));
         }
         bindings.push((
-            AssemblyRegister {
+            AssemblyLocation {
                 name: name.clone(),
                 ty: register_type,
+                role: location.role,
+                lifetime: location.lifetime,
             },
             input,
         ));
@@ -116,11 +119,13 @@ fn instruction(
                         .ok_or_else(|| LoweringError::new(&site, "instruction target lies outside this assembly region"))?,
                 ),
             ),
-            TypedInstructionOperand::Register { node, name, ty } => (
+            TypedInstructionOperand::Register { node, name, ty, lifetime } => (
                 *node,
-                AssemblyOperand::Register(AssemblyRegister {
+                AssemblyOperand::Register(AssemblyLocation {
                     name: name.clone(),
                     ty: id_for(ty)?,
+                    role: crate::LocationRole::Register,
+                    lifetime: *lifetime,
                 }),
             ),
             TypedInstructionOperand::Value { node, ty } => {
@@ -154,13 +159,15 @@ fn instruction(
     } else {
         OperationOutput::Unit
     };
-    let implicit_registers = i
-        .implicit_registers
+    let implicit_locations = i
+        .implicit_locations
         .iter()
-        .map(|(name, ty)| {
-            Ok(AssemblyRegister {
+        .map(|(name, location)| {
+            Ok(AssemblyLocation {
                 name: name.clone(),
-                ty: id_for(ty)?,
+                ty: id_for(&location.ty)?,
+                role: location.role,
+                lifetime: location.lifetime,
             })
         })
         .collect::<Result<_, LoweringError>>()?;
@@ -169,7 +176,7 @@ fn instruction(
         target: i.target.clone(),
         mnemonic: i.mnemonic.clone(),
         operands,
-        implicit_registers,
+        implicit_locations,
         semantics: i.semantics.clone(),
     };
     let result = body.push_operation(output, OperationKind::AssemblyInstruction(Box::new(operation)), site);

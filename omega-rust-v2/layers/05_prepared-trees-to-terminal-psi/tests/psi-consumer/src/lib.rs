@@ -8,7 +8,7 @@ mod assembly;
 mod domain_completions;
 mod floats;
 mod trapping;
-pub use assembly::assembly_branch;
+pub use assembly::{LocationSupply, assembly_branch, assembly_changed_registers, assembly_location, assembly_location_supply, assembly_state_writes};
 pub use domain_completions::cast_completions;
 pub use floats::{FloatScalar, evaluate_float_body};
 pub use trapping::{DivisionOutcome, observe_byte_division};
