@@ -217,11 +217,17 @@ pub fn evaluate_with_source_consent(
                 .collect::<Vec<_>>();
             let invocation = prepared.prepare_entry(symbol, entry, &[])?;
             let module = invocation.accepted().module();
-            if module
-                .scalars.scalar_applications
-                .declarations()
-                .iter()
-                .any(|application| {
+            let applications = module.scalars.scalar_applications.declarations();
+            let deferred_geometry = targets.is_empty()
+                && (!module.layouts.target_layout_applications.is_empty()
+                    || applications.iter().any(|row| {
+                        matches!(
+                            row,
+                            terminal_psi::ScalarApplication::LayoutObservation { .. }
+                        )
+                    }));
+            if deferred_geometry
+                || applications.iter().any(|application| {
                     matches!(
                         application,
                         terminal_psi::ScalarApplication::Evaluate { .. }
@@ -234,8 +240,8 @@ pub fn evaluate_with_source_consent(
                         .is_some_and(|row| !row.execution.compiler_owned())
                 })
             {
-                // This value belongs to an actual selected closure. Keep its
-                // exact initializer for the product scalar evaluator.
+                // The checked initializer is the recipe until a deployment
+                // supplies its layout facts or selects its implementation.
                 program
                     .tables
                     .const_declarations

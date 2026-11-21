@@ -226,3 +226,52 @@ fn an_entryless_library_demands_only_the_selected_targets_layouts() {
         }
     }
 }
+
+#[test]
+fn an_unreached_layout_constant_keeps_its_initializer_without_target_geometry() {
+    use platform_custody::temporary_directory::TemporaryDirectory;
+    use terminal_psi::{LayoutMeasurement, ScalarApplication};
+    let root = TemporaryDirectory::create("entryless-layout-constant", false).unwrap();
+    std::fs::write(
+        root.path().join("build.omg"),
+        r#"machine build(builder: @mut Build) {
+        Build::package(builder, "observed_packet");
+    }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.path().join("main.omg"),
+        r#"use omega\language\core\CLayout;
+        public data Packet [copy] { first: u8; second: u64; last: u16; }
+        public const BYTES: u64 = size_of::<CLayout<Packet>>();
+        public machine packet_bytes() -> u64 reaches none crashes none { BYTES }"#,
+    )
+    .unwrap();
+    let report = omega(
+        &[
+            "--emit-psi",
+            "library.psi",
+            "--target",
+            "linux_x86_64",
+            "build.omg",
+        ],
+        root.path(),
+    );
+    let bytes =
+        std::fs::read(root.path().join("library.psi")).unwrap_or_else(|_| panic!("{report}"));
+    let saved = terminal_codec::CanonicalTerminalArtifact::from_bytes(&bytes).unwrap();
+    let module = saved.semantic_module();
+    let [pending] = module.layouts.target_layout_applications.as_slice() else {
+        panic!("one authored layout for Packet");
+    };
+    assert!(pending.target_inputs.is_empty() && pending.realizations.is_empty());
+    let recipes = module.scalars.scalar_applications.declarations();
+    assert!(
+        recipes
+            .iter()
+            .any(|row| matches!(row, ScalarApplication::Evaluate { .. }))
+    );
+    assert!(recipes.iter().any(|row| matches!(row,
+        ScalarApplication::LayoutObservation { subject, measurement: LayoutMeasurement::Size, .. }
+            if *subject == pending.record)));
+}
