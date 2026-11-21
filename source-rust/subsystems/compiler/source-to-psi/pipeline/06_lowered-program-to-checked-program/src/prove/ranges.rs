@@ -81,10 +81,13 @@ fn chain_operands(expression: &ScalarTerm) -> Vec<(&ScalarTerm, &ScalarTerm)> {
 }
 
 fn lift_endpoint_order(relation: ProofNode) -> Option<ProofNode> {
-    let Proposition::LessOrEqual(left, _) = &relation.conclusion else {
+    let Proposition::LessOrEqual(left, right) = &relation.conclusion else {
         return None;
     };
-    let conclusion = proof_admission::lift_exact_integer_order(&relation.conclusion)?;
+    let conclusion = Proposition::IntegerMathLessOrEqual(
+        IntegerMathTerm::embed(left.clone())?,
+        IntegerMathTerm::embed(right.clone())?,
+    );
     let unchanged = primitive(
         Proposition::Equal(left.clone(), left.clone()),
         PrimitiveJudgment::ReflexiveEquality,
