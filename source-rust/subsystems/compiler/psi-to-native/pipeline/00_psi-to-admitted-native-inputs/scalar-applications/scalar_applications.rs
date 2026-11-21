@@ -79,7 +79,8 @@ pub fn prepare<'scope>(
             let providers = selection.admit(artifact.view(), scope)?;
             let profile = target::TargetProfile::from_canonical_target_name(scope)
                 .map_err(|diagnostic| diagnostic.message)?;
-            let realizations = TargetRealizedIntrinsics::retain(artifact, selection, profile, x86_fma)?;
+            let realizations =
+                TargetRealizedIntrinsics::retain(artifact, selection, profile, x86_fma)?;
             let address_model =
                 target::TargetSemantics::close_address_model(profile).map(|model| {
                     semantic_vocabulary::ScalarAddressModel {
@@ -190,7 +191,14 @@ impl build_scalar_evaluation::TargetImportRealizations for TargetRealizedIntrins
                 ),
             &demanded,
         )
-        .and_then(|admitted| admitted.with_direct_numeric(self.artifact.view().into(), imports, self.profile, self.x86_fma))
+        .and_then(|admitted| {
+            admitted.with_direct_numeric(
+                self.artifact.view().into(),
+                imports,
+                self.profile,
+                self.x86_fma,
+            )
+        })
         .map_err(|diagnostics| {
             diagnostics
                 .into_iter()
