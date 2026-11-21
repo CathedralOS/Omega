@@ -120,7 +120,7 @@ impl<'a> NativeScopeBinding<'a> {
             source_provider_selection: selection.clone(),
             selected_provider_closure: *self
                 .parent
-                .map(crate::ScopedProviderSelection::selection)
+                .map(|parent| parent.selection().as_ref())
                 .unwrap_or(selection)
                 .identity_digest()
                 .as_bytes(),

@@ -6,10 +6,15 @@ mod catalog;
 
 pub use catalog::SettledCompilerBuiltin;
 pub use numeric_intrinsic_admission::signature::numeric_boundary_execution;
-use numeric_intrinsic_admission::signature::{boundary_contract_matches_selected_schema,float_arithmetic_signature};
-pub use numeric_intrinsic_admission::{AdmittedTerminalIntrinsics, admit_terminal_intrinsics, selection::validate_external_provider_owners};
+use numeric_intrinsic_admission::signature::{
+    boundary_contract_matches_selected_schema, float_arithmetic_signature,
+};
+pub use numeric_intrinsic_admission::{
+    AdmittedTerminalIntrinsics, admit_terminal_intrinsics,
+    selection::validate_external_provider_owners,
+};
 pub use provider_correspondence::CompilerIntrinsicPlanProvenance;
-use target_bound_program::builtins::BuiltinProvider;
+use target_bound_program::builtins::SelectedCompilerBuiltin;
 
 use crate::AdmittedTerminalMechanism;
 use crate::{AdmissionSource, ProviderAdmissionRequest};
@@ -20,6 +25,7 @@ use provider_plans::{ProviderPlan, ServiceSchema};
 use semantic_vocabulary::{
     BoundaryCompletion, ClosedScalarType, ExternalCompletionKind, IeeeFloatFormat, IntegerSign,
 };
+use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
     BoundarySettlementRealization, CompilerBuiltinExecution, HostedExitProcessI32Realization,
     HostedReadByteRealization, HostedWriteByteI32Realization,
@@ -40,8 +46,29 @@ pub(super) fn settle_compiler_builtins<'request>(
 > {
     let mut resolved = Vec::with_capacity(request.compiler_builtins.len());
     let mut refusals = Vec::new();
-    for &provider in request.compiler_builtins {
-        match ResolvedBuiltin::for_provider(provider) {
+    if request.compiler_builtins.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    let reached: BTreeMap<_, _> = input
+        .plan()
+        .boundary_machines
+        .iter()
+        .map(|boundary| (boundary.id, boundary))
+        .collect();
+    let published: BTreeSet<_> = input
+        .module()
+        .interfaces
+        .boundary_machines
+        .iter()
+        .map(|boundary| boundary.id)
+        .collect();
+    for provider in request.compiler_builtins {
+        // Private bodies can omit a published sibling's calls. An unknown boundary still
+        // goes through admission so that malformed selections are refused.
+        if !reached.contains_key(&provider.boundary()) && published.contains(&provider.boundary()) {
+            continue;
+        }
+        match ResolvedBuiltin::for_provider(provider, request.selected_provider_plans) {
             Ok(builtin) => resolved.push(builtin),
             Err(reason) => refusals.push(reason),
         }
@@ -52,14 +79,15 @@ pub(super) fn settle_compiler_builtins<'request>(
     admit_x86_fma_features(request, &resolved)?;
     let mut admitted = Vec::with_capacity(resolved.len());
     let mut mechanisms = Vec::with_capacity(resolved.len());
-    for ResolvedBuiltin { provider, mechanism, settled } in resolved {
+    for ResolvedBuiltin {
+        provider,
+        mechanism,
+        settled,
+    } in resolved
+    {
         let requirement = provider.requirement();
         let execution = settled.execution();
-        let boundary = terminal_psi::find_boundary_machine(
-            &input.plan().boundary_machines,
-            provider.boundary(),
-        )
-        .ok_or_else(|| {
+        let boundary = reached.get(&provider.boundary()).copied().ok_or_else(|| {
             vec![Diagnostic::error(format!(
                 "compiler-builtin proposal for `{requirement}` names an absent Terminal boundary"
             ))]
@@ -107,11 +135,9 @@ pub(super) fn settle_compiler_builtins<'request>(
                     "Windows process exit requires the exact checked core primitive",
                 )]);
             }
-            let physical = crate::normalized_foreign_terminal_mechanism(
-                import.locator(),
-                import.entry_plan(),
-            )
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            let physical =
+                crate::normalized_foreign_terminal_mechanism(import.locator(), import.entry_plan())
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
             if super::terminal_authority_policy::reviewed_windows_import(physical)
                 != Some(disposition)
             {
@@ -296,25 +322,50 @@ pub(super) fn settle_compiler_builtins<'request>(
 }
 
 struct ResolvedBuiltin<'a> {
-    provider: BuiltinProvider<'a>,
+    provider: &'a SelectedCompilerBuiltin,
     mechanism: native_intrinsics::CompilerIntrinsicExecutionIdentity,
     settled: SettledCompilerBuiltin,
 }
 
 impl<'a> ResolvedBuiltin<'a> {
-    fn for_provider(provider: BuiltinProvider<'a>) -> Result<Self, Diagnostic> {
+    fn for_provider(
+        provider: &'a SelectedCompilerBuiltin,
+        selection: &selected_provider_plans::SelectedProviderPlanFacts,
+    ) -> Result<Self, Diagnostic> {
         use native_intrinsics::CompilerIntrinsicExecutionIdentity as Intrinsic;
-        let refuse = |reason: &str| Diagnostic::error(format!(
-            "selected compiler intrinsic `{}` for Terminal boundary `{}` has {reason}",
-            provider.plan().name, provider.requirement()
-        ));
-        let mechanism = provider.identity().ok_or_else(|| refuse("no closed native catalog identity"))?;
+        if !provider.belongs_to(selection) {
+            return Err(Diagnostic::error(format!(
+                "compiler builtin `{}` belongs to a different provider selection",
+                provider.requirement()
+            )));
+        }
+        let refuse = |reason: &str| {
+            Diagnostic::error(format!(
+                "selected compiler intrinsic `{}` for Terminal boundary `{}` has {reason}",
+                provider.plan().name,
+                provider.requirement()
+            ))
+        };
+        let mechanism = provider
+            .identity()
+            .ok_or_else(|| refuse("no closed native catalog identity"))?;
         let settled = match mechanism {
             // These mechanisms require private lifecycle or installation evidence.
-            Intrinsic::AccessLifecycle(_) | Intrinsic::EmptyRunRelease | Intrinsic::StaticInterrupt(_) => None,
-            _ => SettledCompilerBuiltin::from_identity(mechanism, provider.boundary(), provider.format()),
-        }.ok_or_else(|| refuse("no native boundary realization"))?;
-        Ok(Self { provider, mechanism, settled })
+            Intrinsic::AccessLifecycle(_)
+            | Intrinsic::EmptyRunRelease
+            | Intrinsic::StaticInterrupt(_) => None,
+            _ => SettledCompilerBuiltin::from_identity(
+                mechanism,
+                provider.boundary(),
+                provider.format(),
+            ),
+        }
+        .ok_or_else(|| refuse("no native boundary realization"))?;
+        Ok(Self {
+            provider,
+            mechanism,
+            settled,
+        })
     }
 }
 

@@ -562,7 +562,8 @@ fn root_and_private_callable_require_the_same_fma_deployment() {
         &source,
         r"use omega\language\core\F32::fused_multiply_add;
 machine fused(value: f32) -> f32 { F32::fused_multiply_add(value, value, value) }
-machine main() { let result: f32 = fused(1.0f32); }",
+machine passthrough(value: f32) -> f32 { value }
+machine main() { let result: f32 = fused(passthrough(1.0f32)); }",
     )
     .unwrap();
     std::fs::write(
@@ -592,10 +593,7 @@ machine main() { let result: f32 = fused(1.0f32); }",
     let retained = product.into_retained_terminal_artifact().unwrap();
     let artifact = retained.artifact();
     let proposal = retained.native_realization_proposal();
-    let execution = prepare_program(proposal, retained.authorization())
-        .unwrap()
-        .with_operation_evidence(artifact, artifact.published_evidence().cloned())
-        .unwrap();
+    let execution = prepare_program(proposal, retained.authorization()).unwrap();
     let module = artifact.semantic_module();
     let (fused, boundary) = module
         .machines
@@ -619,6 +617,32 @@ machine main() { let result: f32 = fused(1.0f32); }",
         .next()
         .expect("the fused helper calls the selected FMA boundary");
     assert_ne!(execution.scope().reach().entry(), fused);
+    let passthrough = module
+        .machines
+        .iter()
+        .find_map(|machine| {
+            let identity = machine.declaration.as_ref()?.machine.identity();
+            module
+                .identities
+                .text(identity)?
+                .contains("passthrough")
+                .then_some(machine.id)
+        })
+        .expect("the program has a separate passthrough helper");
+    assert!(execution.scope().reach().contains_machine(passthrough));
+
+    let selected = execution
+        .compiler_builtins()
+        .iter()
+        .find(|row| row.boundary() == boundary)
+        .expect("the FMA boundary retains its selected builtin");
+    assert!(
+        execution
+            .selection()
+            .plans()
+            .iter()
+            .any(|plan| std::ptr::eq(plan, selected.plan()))
+    );
 
     let permissions = provider_admission::terminal_authority_permissions::admit_package_terminal_authority_permissions(
         proposal.package_terminal_authority_permissions().to_vec(),
@@ -642,9 +666,16 @@ machine main() { let result: f32 = fused(1.0f32); }",
         .x86_scalar_fma_provider
         .expect("Build selected AVX and FMA3");
     let mut root_context = None;
-    for entry in [
-        None,
-        Some(terminal_psi::TargetMachineCallable::Machine(fused)),
+    for (entry, needs_fma) in [
+        (None, true),
+        (
+            Some(terminal_psi::TargetMachineCallable::Machine(fused)),
+            true,
+        ),
+        (
+            Some(terminal_psi::TargetMachineCallable::Machine(passthrough)),
+            false,
+        ),
     ] {
         for deployment in [None, Some(features)] {
             let mut request = base;
@@ -663,7 +694,7 @@ machine main() { let result: f32 = fused(1.0f32); }",
                 lower_native_execution(proposal, &execution, &[], None).unwrap()
             };
             let result = admit_prepared_native_realization(input, artifact, &request);
-            if deployment.is_none() {
+            if needs_fma && deployment.is_none() {
                 let errors = result
                     .err()
                     .expect("an FMA call needs an admitted deployment");
@@ -675,13 +706,14 @@ machine main() { let result: f32 = fused(1.0f32); }",
                 );
             } else {
                 let admitted = result.unwrap();
-                assert!(admitted.providers.settlements.iter().any(|row| {
+                let settled_fma = admitted.providers.settlements.iter().any(|row| {
                     row.boundary == boundary
                         && matches!(
                             row.execution,
                             provider_admission::AdmittedBoundaryExecution::CompilerBuiltin(_)
                         )
-                }));
+                });
+                assert_eq!(settled_fma, needs_fma);
                 if entry.is_none() {
                     root_context = Some(Arc::clone(admitted.providers.program_provider_context()));
                 }

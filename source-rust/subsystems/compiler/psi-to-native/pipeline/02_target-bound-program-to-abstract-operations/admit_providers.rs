@@ -26,7 +26,6 @@ pub struct PreparedRetainedNativeProviders<'input> {
     proposal: &'input TerminalNativeRealizationProposal,
     bindings: PreparedSourceEvaluatedBindings<'input>,
     callbacks: &'input [crate::NativeCallbackArgumentProposal],
-    compiler_builtins: Vec<target_bound_program::builtins::BuiltinProvider<'input>>,
 }
 
 impl PreparedRetainedNativeProviders<'_> {
@@ -67,7 +66,7 @@ impl PreparedRetainedNativeProviders<'_> {
                 checked_adapters: self.execution.local_adapters(),
                 external_binding_rows: self.execution.external_bindings(),
                 settlements,
-                compiler_builtins: &self.compiler_builtins,
+                compiler_builtins: self.execution.compiler_builtins(),
                 native_bindings: &proposal.providers().native_bindings,
                 native_callbacks: self.callbacks,
                 installed_interrupts: &proposal.occurrences().installed_interrupts,
@@ -113,17 +112,11 @@ pub fn prepare_native_providers<'input>(
         inputs.execution.selection().identities(),
     )?;
 
-    let compiler_builtins = inputs.execution.compiler_builtins().iter()
-        .map(|builtin| builtin.bind_plan(inputs.execution.selection().plans()))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|diagnostic| vec![diagnostic])?;
-
     Ok(PreparedRetainedNativeProviders {
         execution: inputs.execution,
         proposal,
         bindings,
         callbacks,
-        compiler_builtins,
     })
 }
 
@@ -158,13 +151,6 @@ pub fn admit_prepared_native_realization<'execution>(
         .iter()
         .map(|boundary| boundary.id)
         .collect();
-    let module_boundaries: BTreeSet<BoundaryMachineId> = input
-        .context()
-        .module()
-        .interfaces.boundary_machines
-        .iter()
-        .map(|boundary| boundary.id)
-        .collect();
     let settlements = request
         .providers
         .settlements
@@ -196,16 +182,6 @@ pub fn admit_prepared_native_realization<'execution>(
                 .peekable();
             matching.peek().is_none()
                 || matching.any(|boundary| executed_boundaries.contains(&boundary.id))
-        })
-        .collect::<Vec<_>>();
-    let compiler_builtins = request
-        .providers
-        .compiler_builtins
-        .iter()
-        .copied()
-        .filter(|proposal| {
-            executed_boundaries.contains(&proposal.boundary())
-                || !module_boundaries.contains(&proposal.boundary())
         })
         .collect::<Vec<_>>();
     let (native_callbacks, installed_interrupts) = if request
@@ -307,7 +283,7 @@ pub fn admit_prepared_native_realization<'execution>(
         checked_adapters: request.providers.checked_adapters,
         external_binding_rows: request.providers.external_binding_rows,
         settlements: &settlements,
-        compiler_builtins: &compiler_builtins,
+        compiler_builtins: request.providers.compiler_builtins,
         native_bindings: request.providers.native_bindings,
         native_callbacks: &native_callbacks,
         installed_interrupts: &installed_interrupts,

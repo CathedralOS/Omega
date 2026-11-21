@@ -1,9 +1,7 @@
 // Request inputs and admitted provider, interrupt, and callback carriers
 // consumed by target lowering.
 //
-// `ProviderAdmissionRequest`, `NativeProviderSettlement`,
-// `NativeBoundaryRealization`, describe
-// the invocation-local inputs that native realization supplies to admission.
+// Native realization supplies the request, selected settlements and boundary realizations.
 // The admitted records (`AdmittedInstalledInterruptEntry`,
 // `AdmittedInstalledInterruptScope`, `AdmittedNativeCallbackArgument`,
 // `AdmittedCallbackEntry`, and `AdmittedBoundarySettlement`) carry sealed
@@ -72,7 +70,7 @@ pub struct ProviderAdmissionRequest<'request, 'execution> {
     pub checked_adapters: &'request [crate::SelectedProviderAdapter],
     pub external_binding_rows: &'request [calling_conventions::ExternalBindingRow],
     pub settlements: &'request [NativeProviderSettlement<'execution>],
-    pub compiler_builtins: &'request [target_bound_program::builtins::BuiltinProvider<'request>],
+    pub compiler_builtins: &'request [target_bound_program::builtins::SelectedCompilerBuiltin],
     pub native_bindings: &'request native_binding_admission::RetainedNativeBindings,
     pub native_callbacks: &'request [crate::NativeCallbackArgumentProposal],
     pub installed_interrupts: &'request [crate::InstalledInterruptNativeEntryProposal],

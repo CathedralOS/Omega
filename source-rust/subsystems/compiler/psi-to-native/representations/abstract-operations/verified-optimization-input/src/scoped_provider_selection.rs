@@ -2,11 +2,12 @@
 use crate::{NativeExecutionScope, TerminalNativeRealizationProposal};
 use diagnostics::Diagnostic;
 use selected_provider_plans::SelectedProviderPlanFacts;
+use std::sync::Arc;
 
 pub struct ScopedProviderSelection {
     authorization: psi_authorization::AuthorizedTerminalArtifact,
     scope: NativeExecutionScope,
-    selection: SelectedProviderPlanFacts,
+    selection: Arc<SelectedProviderPlanFacts>,
 }
 
 impl ScopedProviderSelection {
@@ -31,7 +32,7 @@ impl ScopedProviderSelection {
         Ok(Self {
             authorization: authorization.clone(),
             scope,
-            selection,
+            selection: Arc::new(selection),
         })
     }
 
@@ -41,7 +42,7 @@ impl ScopedProviderSelection {
     pub const fn scope(&self) -> &NativeExecutionScope {
         &self.scope
     }
-    pub const fn selection(&self) -> &SelectedProviderPlanFacts {
+    pub const fn selection(&self) -> &Arc<SelectedProviderPlanFacts> {
         &self.selection
     }
 }
