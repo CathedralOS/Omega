@@ -2047,15 +2047,13 @@ pub(crate) mod code_descriptors {
 }
 
 mod imports {
-    use super::{Error, host};
-    use crate::{ObjectArtifact, derive_normalized_foreign_call_custody};
+    use super::Error;
+    use crate::ObjectArtifact;
 
     use crate::object_input::ObjectEmissionInput;
     use machine_code::CallbackAddressEncoding;
     use object_file::{
-        RelocationKind, SectionKind, SymbolKind, SymbolSection, invocation_relocation_origin,
-        normalized_import_symbol_name, object_function_reference,
-        object_symbol_handle_by_import_locator,
+        SymbolKind, SymbolSection, normalized_import_symbol_name, object_function_reference,
     };
 
     use object_file::body_object::imports::call_for_import_field;
@@ -2064,16 +2062,12 @@ mod imports {
         artifact: &ObjectArtifact,
         private_address_records: usize,
     ) -> Result<(), Error> {
-        let calls = derive_normalized_foreign_call_custody(
-            source
-                .emission_facts()
-                .physical
-                .foreign_calls
-                .as_ref()
-                .map_err(|error| Error::ForeignCalls(error.clone().into()))?,
-            source.text_section(),
-        )
-        .map_err(Error::ForeignCalls)?;
+        let calls = object_file::body_object::imports::readback(
+            source.publication(),
+            &artifact.object,
+            &artifact.relocations,
+            &artifact.functions,
+        )?;
         let import_calls = calls
             .iter()
             .filter_map(|call| call.binding.import_locator().map(|locator| (call, locator)))
@@ -2162,13 +2156,7 @@ mod imports {
         if imports.next().is_some() || symbols.next().is_some() {
             return Err(Error::Mismatch("fragment import roster has extra rows"));
         }
-        let mut records = artifact.relocations.records();
-        for field in fields {
-            let (call, locator) = call_for_import_field(&import_calls, field)?;
-            let function = artifact
-                .function_on_machine(field.caller)
-                .ok_or(Error::Mismatch("fragment import caller is absent"))?;
-            let origin = invocation_relocation_origin(function.symbol, field.invocation_site);
+        for (call, _) in &import_calls {
             for callback in &call.callback_addresses {
                 let Some((callback_symbol, callback_plan)) =
                     object_function_reference(&artifact.object, callback.target.callback_function)
@@ -2202,68 +2190,6 @@ mod imports {
                         ));
                     }
                 }
-                let mut replay_callback_relocation = |relocation_offset: usize,
-                                                      kind: RelocationKind|
-                 -> Result<(), Error> {
-                    let offset = function
-                        .text_offset
-                        .checked_add(relocation_offset)
-                        .ok_or(Error::Overflow)?;
-                    let Some((_, relocation)) = records.next() else {
-                        return Err(Error::Mismatch("fragment import relocation roster changed"));
-                    };
-                    if relocation.origin != origin
-                        || relocation.section != SectionKind::Text
-                        || relocation.offset != offset
-                        || relocation.byte_width != 4
-                        || relocation.symbol_handle != callback_symbol
-                        || relocation.addend != 0
-                        || relocation.kind != kind
-                    {
-                        return Err(Error::Mismatch(
-                            "fragment import callback relocation differs",
-                        ));
-                    }
-                    Ok(())
-                };
-                match callback.encoding {
-                    CallbackAddressEncoding::X86_64Relative32 { relocation_offset } => {
-                        replay_callback_relocation(
-                            relocation_offset,
-                            RelocationKind::X86_64Relative32,
-                        )?
-                    }
-                    CallbackAddressEncoding::Aarch64PageAddress {
-                        page_relocation_offset,
-                        page_offset_relocation_offset,
-                    } => {
-                        replay_callback_relocation(
-                            page_relocation_offset,
-                            RelocationKind::Aarch64Page21,
-                        )?;
-                        replay_callback_relocation(
-                            page_offset_relocation_offset,
-                            RelocationKind::Aarch64PageOffset12,
-                        )?;
-                    }
-                }
-            }
-            let symbol = object_symbol_handle_by_import_locator(&artifact.object, locator);
-            let Some((_, relocation)) = records.next() else {
-                return Err(Error::Mismatch("fragment import relocation roster changed"));
-            };
-            if !layout.symbols.is_valid(symbol)
-                || relocation.origin != origin
-                || relocation.section != SectionKind::Text
-                || relocation.offset != host(field.field_section_offset)?
-                || relocation.byte_width != usize::from(field.field_byte_width)
-                || relocation.addend != field.addend
-                || relocation.kind != RelocationKind::from(field.kind)
-                || relocation.symbol_handle != symbol
-            {
-                return Err(Error::Mismatch(
-                    "fragment import relocation differs from source call",
-                ));
             }
         }
         Ok(())

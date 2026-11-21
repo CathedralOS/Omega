@@ -589,12 +589,22 @@ fn check_callback_publication(retain_body_source: bool) {
             object_file::object_function_reference(&sections.object, callback)
                 .expect("the body object already declares the callback before composition");
         assert_eq!(declaration.section, object_file::SymbolSection::None);
-        assert!(
-            sections
-                .relocations
-                .records()
-                .any(|(_, row)| row.symbol_handle == symbol)
-        );
+        let source = retained.publication();
+        let inspect = |relocations: &object_file::RelocationPlan| {
+            object_file::body_object::imports::readback(
+                &source, &sections.object, relocations, &sections.functions,
+            )
+        };
+        assert_eq!(inspect(&sections.relocations).unwrap(), sections.foreign_calls);
+        let (field, _) = sections.relocations.records()
+            .find(|(_, row)| row.symbol_handle == symbol)
+            .expect("the body materializes its callback address");
+        let mut redirected = sections.relocations.clone();
+        let registrar = sections.object.layout.normalized_imports.iter().next().unwrap().symbol;
+        redirected.record_set.records.get_mut(field).symbol_handle = registrar;
+        assert!(matches!(inspect(&redirected), Err(object_file::body_object::Error::Mismatch(
+            "fragment import callback relocation differs"
+        ))));
         assert_eq!(sections.relocations, *object.relocations());
         assert_eq!(sections.text_bytes, object.text_bytes());
         assert_eq!(sections.foreign_calls, object.foreign_calls());
