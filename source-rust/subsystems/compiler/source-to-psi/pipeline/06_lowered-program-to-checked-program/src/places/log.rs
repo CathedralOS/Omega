@@ -51,7 +51,7 @@ use terminal_psi::{
     Operation, OperationKind, RecordFieldValue, StructuralAccess, StructuralTypeShape,
 };
 
-use super::{Backing, Lineage, Shape, Storage, index, lineage};
+use super::{Backing, Lineage, Shape, Storage, StorageAddresses, index, lineage};
 use crate::checking::refusal;
 use terminal_check_tables::RefusalReason;
 
@@ -648,6 +648,55 @@ impl<'a> Storage<'a> {
             }
         }
         Ok(rows)
+    }
+
+    /// The authenticated store log is immutable once captured addresses and
+    /// byte-payload effects have been installed. Preserve the log's order,
+    /// including multiple writes at the same point.
+    pub(super) fn index_reaching_writes(&mut self) {
+        self.writes_by_root.clear();
+        for (index, row) in self.log.iter().enumerate() {
+            let mut previous = None;
+            for address in 0..row.backing.address_count() {
+                let root = row.backing.address(address).root;
+                if previous.replace(root) != Some(root) {
+                    self.writes_by_root
+                        .entry((row.block, root))
+                        .or_default()
+                        .push(index);
+                }
+            }
+        }
+    }
+
+    /// An overlap requires a common physical root. The ordinary overlap
+    /// and epoch checks still decide which of these writes can end a trace.
+    pub(super) fn reaching_writes(
+        &self,
+        block: BlockId,
+        up_to: usize,
+        watched: &Backing,
+    ) -> impl Iterator<Item = (usize, &Logged)> {
+        let root = watched.address(0).root;
+        let (selected, all) = if watched.address(watched.address_count() - 1).root == root {
+            let selected = self
+                .writes_by_root
+                .get(&(block, root))
+                .map_or(&[][..], Vec::as_slice);
+            (selected, 0..0)
+        } else {
+            // A query with several possible roots still considers every write
+            // in the block, once, in its authored order.
+            let begin = self.log.partition_point(|row| row.block < block);
+            let end = self.log.partition_point(|row| row.block <= block);
+            (&[][..], begin..end)
+        };
+        selected
+            .iter()
+            .copied()
+            .chain(all)
+            .map(|index| (index, &self.log[index]))
+            .take_while(move |(_, row)| row.position <= up_to)
     }
 
     /// Refuses a write log that is not, operation by operation and in

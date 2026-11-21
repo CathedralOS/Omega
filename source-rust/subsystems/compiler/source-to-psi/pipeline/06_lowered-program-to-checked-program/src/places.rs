@@ -1051,6 +1051,7 @@ pub(crate) struct Storage<'a> {
     /// Bound actual operations and structural edge bindings once per machine.
     reaching_budget: usize,
     log: Vec<Logged>,
+    writes_by_root: BTreeMap<(BlockId, PlaceId), Vec<usize>>,
     cleanup_writes: Vec<crate::checking::owned_cleanup::Write>,
     observations: Vec<BTreeMap<Lineage, Vec<Observation>>>,
     /// The `requires` clauses of each data type, by its identity
@@ -1151,6 +1152,7 @@ impl<'a> Storage<'a> {
             returned_contents: contents.calls,
             reaching_budget,
             log: Vec::new(),
+            writes_by_root: BTreeMap::new(),
             cleanup_writes: Vec::new(),
             observations: (0..graph.block_count()).map(|_| BTreeMap::new()).collect(),
             domains,
@@ -1190,6 +1192,7 @@ impl<'a> Storage<'a> {
             row.backing = destination;
         }
         storage.byte_payload_writes(references, tables)?;
+        storage.index_reaching_writes();
         for block in &lowered.blocks {
             for (before, operation) in block.operations.iter().enumerate() {
                 let Some(leaf) = storage.read_leaf(operation)? else {
@@ -3848,20 +3851,12 @@ impl<'a> Storage<'a> {
                 // the path: the latest position, and in one position the later
                 // log entry.
                 let mut last: Option<(usize, &Logged)> = None;
-                // Search this block before following its predecessors. stores emits
-                // Graph-checked block identity order, and byte_payload_writes
-                // sorts appended effects into that order. Keep the original
-                // forward check order and row identities within the block.
-                let begin = self.log.partition_point(|row| row.block < block);
-                let end = self.log.partition_point(|row| row.block <= block);
-                for index in begin..end {
-                    let row = &self.log[index];
+                for (index, row) in self.reaching_writes(block, up_to, resolved) {
                     #[cfg(test)]
                     {
                         budget.scanned_rows += 1;
                     }
-                    if row.position > up_to
-                        || !asked.ended_by(resolved, row, &budget.crossed_entries)
+                    if !asked.ended_by(resolved, row, &budget.crossed_entries)
                         // Installing a scalar, zero or established value in
                         // part of an already live array preserves initialization
                         // of every other element. Such a write cannot prove
