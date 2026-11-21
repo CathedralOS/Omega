@@ -23,34 +23,7 @@ numbers, and each directory keeps its entries sorted by name.
 
 use crate::host_filesystem::{KernelOperand, LINUX_AT_FDCWD};
 
-/// One Linux filesystem system call, independent of its per-target number.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum LinuxFilesystemOperation {
-    Openat,
-    Close,
-    Dup,
-    Lseek,
-    Mkdirat,
-    Unlinkat,
-    Newfstatat,
-    Fstat,
-    Getdents64,
-    Pread64,
-    Pwrite64,
-    Readlinkat,
-    Fchmodat,
-    Fchmod,
-    Renameat,
-    Linkat,
-    Symlinkat,
-    Ftruncate,
-    Utimensat,
-    Fsync,
-    Fdatasync,
-    Flock,
-    Fchownat,
-    Fchown,
-}
+use target::LinuxFilesystemOperation;
 
 const EPERM: i64 = 1;
 const ENOENT: i64 = 2;
