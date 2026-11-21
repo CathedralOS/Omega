@@ -65,7 +65,7 @@ identity!(
 );
 identity!(
     TargetRegisterEnvironmentIdentity,
-    b"omega.target-register-environment-identity.v31\0"
+    b"omega.target-register-environment-identity.v32\0"
 );
 
 pub(crate) fn physical_register_model_identity(
