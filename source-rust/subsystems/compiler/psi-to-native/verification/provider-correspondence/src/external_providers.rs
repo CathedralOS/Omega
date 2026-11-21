@@ -243,7 +243,7 @@ pub(super) fn reconcile_sealed_execution(
     Ok(expected)
 }
 
-pub(super) fn selected_sealed_native_provider<'a>(
+pub fn selected_sealed_native_provider<'a>(
     providers: &'a [ExternalProviderConformance],
     identities: &TerminalIdentityTable,
     required_or_realized_declaration: &str,

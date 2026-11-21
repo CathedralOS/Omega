@@ -64,4 +64,35 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None currently recorded.
+### 1. Which firmware operation may establish the UEFI application’s two storage grants?
+
+The returning UEFI application needs correspondence between its actual image
+handle and the mapped image, plus independent custody of its initial storage.
+The checked adapter must establish both before calling the selected
+continuation. The entry specification assigns these premises to selected
+firmware providers and leaves the public issuer interface open.
+[UEFI physical arrival and semantic roots](wiki/spec/build/uefi_entry.md#physical-arrival-and-semantic-roots)
+
+The shipped `UefiPhysicalEntry::enter` currently permits reaching and invoking
+only `ProgramImage`, whose sole operation returns an address. In an ordinary
+package using the shipped public declaration, a constant EFI-status adapter
+passes. Calling `ExtentRootProvider::grant` from its body exceeds both
+permissions. The Boot Services declaration returns a status and writes a raw
+address on page allocation. The Loaded Image declaration describes field
+layout. Neither declaration relates the physical invocation to a granted
+extent. [Physical entry](source/library/std/uefi_x86_64_entry.omg)
+[Boot Services](source/library/std/uefi_x86_64_handoff.omg)
+[Loaded Image layout](source/library/std/targets/uefi_x86_64/tables.omg)
+[Core grant and transport](source/library/core/extent.omg)
+
+Should the physical contract admit separate, lifecycle-scoped firmware
+operations for Loaded Image correspondence and allocation custody, or one
+selected firmware provider that takes the physical invocation and supplies
+the pair under a single public contract? The second option places more of the
+correspondence and allocation checks inside one trusted provider.
+
+Recommend separate operation contracts tied to the actual image-handle and
+allocation occurrences. Let checked adapter source validate bounds, disjointness
+and live stack exclusions and call `ProgramStorageEntry::enter` only when it
+can forward both grants. Grant issuance and the semantic transport each need
+an explicit place in the physical adapter’s published effect ceiling.

@@ -1,17 +1,13 @@
 //! Rejoin the nominated continuation's checked formals to the target's visible arrival contract.
 //! Capturing a parameter describes its required grant. Only the physical handoff can supply it.
 
-use application_identity::type_identity::encoding::{CoordinateTag, atom, byte_atom, compound};
-use application_identity::type_identity::vocabulary::{Label, NameForm, OwnerForm};
 use calling_conventions::terminal_layout::NativeGeometry;
 use program_entry_contracts::{
     ProgramEntryExtentValueLayout, ProgramEntryVisibleParameterSignature,
     ProgramStorageEntryRootRole, SelectedProgramEntrySignature,
 };
-use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use terminal_psi::{
-    BoundaryParameterKind, CheckedMachineDeclaration, StructuralAccess, StructuralFieldType,
-    StructuralMultiplicity, StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine,
+    BoundaryParameterKind, CheckedMachineDeclaration, StructuralTypeDeclaration, TerminalMachine,
     TerminalModule,
 };
 
@@ -90,10 +86,10 @@ pub(super) fn from_terminal(
     let requirement = ids
         .index_of(surface.identity_text(method.requirement_identity))
         .ok_or("storage entry lost the semantic requirement accepting the grants")?;
-    let owner = ids
-        .index_of(&extent_declaration(slot.semantic_arrival_requirement))
-        .map(terminal_psi::NominalDeclarationIdentity::new)
-        .ok_or("storage entry lost the bundled semantic requirement owner")?;
+    let granted = terminal_semantics::program_storage_entry::ProgramStorageGrant::from_module(
+        module,
+        requirement,
+    )?;
     let geometry = NativeGeometry::new(&module.types.structural_types)
         .map_err(|error| format!("storage entry has invalid type geometry: {error:?}"))?;
     let roles = [
@@ -111,37 +107,14 @@ pub(super) fn from_terminal(
             .structural_type(parameter.structural_type)
             .ok_or("storage entry lost its structural parameter declaration")?;
         let carrier_identity = surface.identity_text(claim.carrier_identity);
-        let [grant] = parameter.qualifications.as_slice() else {
-            return Err("storage entry parameter must carry exactly its whole Extent grant".into());
-        };
-        let domain = module
-            .structural_domain(*grant)
-            .ok_or("storage entry lost its grant domain")?;
-        let declared_domain = compound(
-            CoordinateTag::Declaration,
-            [
-                atom(CoordinateTag::Path, "Extent::Granted"),
-                compound(CoordinateTag::Owner, [carrier_identity.to_owned()]),
-            ],
-        );
-        if parameter.position as usize != ordinal
-            || parameter.access != StructuralAccess::Owned
-            || parameter.multiplicity != StructuralMultiplicity::Linear
-            || !parameter.projected_qualifications.is_empty()
-            || !parameter.additional_input_qualifications.is_empty()
-            || !carrier.owns_linear_claim
-            || carrier.multiplicity != StructuralMultiplicity::Linear
+        if !granted.accepts(ordinal, parameter)
+            || checked.parameter_types[ordinal] != granted.declared_type
             || ids.text(carrier.identity) != Some(carrier_identity)
-            || ids.text(carrier.declaration_identity) != Some("toolchain::Extent")
-            || claim.domain != "toolchain:product::Extent::Granted"
+            || claim.domain != terminal_semantics::program_storage_entry::SURFACE_GRANT
             || claim.authority_flow != provider_plans::ServiceEntryAuthorityFlow::Accepts
-            || domain.carrier != carrier.id
-            || domain.subject_identity != carrier.identity
-            || ids.text(domain.identity) != Some(extent_declaration(&declared_domain).as_str())
-            || !domain.authorizes_boundary_requirement(requirement, Some(&owner))
         {
             return Err(format!(
-                "storage entry parameter {ordinal} differs from the installed Extent grant"
+                "storage entry parameter {ordinal} must carry the installed whole Extent grant"
             ));
         }
         let layout = extent_layout(module, &geometry, carrier)?;
@@ -158,47 +131,12 @@ pub(super) fn from_terminal(
     Ok(signature)
 }
 
-fn extent_declaration(path: &str) -> String {
-    compound(
-        NameForm::Nominal,
-        [
-            byte_atom(
-                OwnerForm::ToolchainSource,
-                &language_core::bundled_files::core_revision::EXTENT,
-            ),
-            atom(Label::Path, path),
-        ],
-    )
-}
-
 fn extent_layout(
     module: &TerminalModule,
     geometry: &NativeGeometry<'_>,
     carrier: &StructuralTypeDeclaration,
 ) -> Result<ProgramEntryExtentValueLayout, String> {
-    let StructuralTypeShape::Record { fields, .. } = &carrier.shape else {
-        return Err("storage entry requires the checked Extent record".into());
-    };
-    let [base, length] = fields.as_slice() else {
-        return Err("storage entry requires the Extent base and length fields".into());
-    };
-    for (field, name, integer) in [
-        (base, "base", IntegerType::address(64).unwrap()),
-        (
-            length,
-            "length",
-            IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-        ),
-    ] {
-        if module.identities.text(field.identity) != Some(name)
-            || field.relevance.is_erased()
-            || field.field_type != StructuralFieldType::Scalar(ScalarType::Integer(integer))
-        {
-            return Err(
-                "the checked Extent layout lost its address base or unsigned length".into(),
-            );
-        }
-    }
+    let (base, length) = terminal_semantics::program_storage_entry::extent_fields(module, carrier)?;
     let geometry_error = |error| format!("storage entry Extent has invalid geometry: {error:?}");
     let base = geometry
         .field_placement(base, carrier.id, 0)

@@ -48,15 +48,12 @@ pub(super) fn selected<'m>(
                 "a sealed fixed-image supply requires its exact bundled implementation".into(),
             );
         }
-        if supply.sealed_intrinsic
-            != Some(TerminalSealedNativeIntrinsic::FixedImage(
-                FixedImageOperation::ProgramImageRetainedSuffixStart,
-            ))
-        {
+        let Some(TerminalSealedNativeIntrinsic::FixedImage(operation)) = supply.sealed_intrinsic
+        else {
             return Err(
                 "selected external operation has no admitted logical provider realization".into(),
             );
-        }
+        };
         if supply.target.as_deref() != Some(FixedImageOperation::TARGET)
             || choice.target != FixedImageOperation::TARGET
         {
@@ -68,22 +65,35 @@ pub(super) fn selected<'m>(
                     .into(),
             );
         }
-        verify_image_start(module, choice, supply, owner)?;
+        verify_fixed_image_member(module, choice, supply, owner, operation)?;
         matched = Some((position, supply));
     }
     Ok(matched)
 }
 
-fn verify_image_start(
+fn verify_fixed_image_member(
     module: &TerminalModule,
     choice: &TerminalProviderSelection,
     supply: &ExternalProviderConformance,
     owner: &terminal_psi::ExternalProviderOwner,
+    operation: FixedImageOperation,
 ) -> Result<(), String> {
-    let operation = FixedImageOperation::ProgramImageRetainedSuffixStart;
+    use crate::program_storage_entry::surface_parameter;
+    let (source_file, revision, parameters) = match operation {
+        FixedImageOperation::ProgramImageRetainedSuffixStart => (
+            BundledFile::CoreProgramImage,
+            core_revision::PROGRAM_IMAGE,
+            String::new(),
+        ),
+        FixedImageOperation::ProgramStorageEntry => (
+            BundledFile::CoreExtent,
+            core_revision::EXTENT,
+            [surface_parameter(), surface_parameter()].join(","),
+        ),
+    };
     let catalog_path = |intrinsic| {
         SealedIntrinsicCatalog::exact_declaration(intrinsic)
-            .filter(|member| member.source == BundledFile::CoreProgramImage)
+            .filter(|member| member.source == source_file)
             .map(|member| member.declaration)
             .ok_or("fixed-image operation lost its bundled declaration")
     };
@@ -99,7 +109,7 @@ fn verify_image_start(
         compound(
             NameForm::Nominal,
             [
-                byte_atom(OwnerForm::ToolchainSource, &core_revision::PROGRAM_IMAGE),
+                byte_atom(OwnerForm::ToolchainSource, &revision),
                 atom(Label::Path, path),
             ],
         )
@@ -115,7 +125,7 @@ fn verify_image_start(
                         [bare(OwnerForm::Toolchain), atom(Label::Path, path)],
                     ),
                 ),
-                atom(CoordinateTag::Parameters, ""),
+                atom(CoordinateTag::Parameters, &parameters),
                 atom(CoordinateTag::ResultDispatch, ""),
             ],
         )
@@ -134,7 +144,7 @@ fn verify_image_start(
         .as_ref()
         .ok_or("fixed-image requirement has no checked source")?;
     let declared = &checked.source;
-    let addr = IntegerType::address(64).map_err(|_| "invalid fixed-image address type")?;
+
     if supply.binding != ExternalBindingIdentity::CompilerIntrinsic
         || supply.numeric_intrinsic.is_some()
         || supply.requirement_schema.is_some()
@@ -170,22 +180,16 @@ fn verify_image_start(
             )
         || checked.execution != terminal_psi::CheckedBoundaryExecution::Provider
         || !checked.method_arguments.is_empty()
-        || !declared.parameter_types.is_empty()
         || declared.specialization.is_some()
         || declared.published_may_suspend
         || declared.published_may_block
-        || !empty_image_obligations(boundary)
+        || !no_additional_obligations(boundary)
         || boundary.kind != BoundaryRequirementKind::Trait
         || boundary.role != terminal_psi::BoundaryDeclarationRole::Callable
         || boundary.completion != terminal_psi::BoundaryCompletion::NormalReturn
-        || !boundary.crash_routes.is_empty()
-        || !boundary.parameter_order.is_empty()
-        || !boundary.structural_parameters.is_empty()
         || !boundary.scalar_parameters.is_empty()
-        || boundary.result != BoundaryMachineResult::Scalar(ScalarType::Integer(addr).into())
-        || !leaf.parameter_types.is_empty()
+        || leaf.parameter_types != declared.parameter_types
         || leaf.result_type != declared.result_type
-        || text(module, leaf.result_type)? != compiler_type_identity("address")
         || leaf.specialization.is_some()
         || leaf.published_may_suspend
         || leaf.published_may_block
@@ -194,20 +198,38 @@ fn verify_image_start(
             "fixed-image operation differs from its checked Core member or requirement".into(),
         );
     }
+    let matches = match operation {
+        FixedImageOperation::ProgramImageRetainedSuffixStart => {
+            let address =
+                IntegerType::address(64).map_err(|_| "invalid fixed-image address type")?;
+            declared.parameter_types.is_empty()
+                && boundary.parameter_order.is_empty()
+                && boundary.structural_parameters.is_empty()
+                && boundary.requires.is_empty()
+                && boundary.scalar_requires.is_empty()
+                && boundary.crash_routes.is_empty()
+                && boundary.result
+                    == BoundaryMachineResult::Scalar(ScalarType::Integer(address).into())
+                && text(module, declared.result_type)? == compiler_type_identity("address")
+        }
+        FixedImageOperation::ProgramStorageEntry => storage_transport(module, boundary, declared)?,
+    };
+    if !matches {
+        return Err(
+            "fixed-image operation differs from its checked Core member or requirement".into(),
+        );
+    }
     Ok(())
 }
 
-// The address is a scalar observation. No branch of this operation establishes
-// provenance, storage, a proof about the result, or any other service's authority.
-fn empty_image_obligations(boundary: &terminal_psi::BoundaryMachineDeclaration) -> bool {
+// Neither an address observation nor an ordinary storage transfer can issue roots.
+fn no_additional_obligations(boundary: &terminal_psi::BoundaryMachineDeclaration) -> bool {
     !boundary.unconditional_termination
         && boundary.numeric_intrinsic.is_none()
         && boundary.attachment.is_none()
         && boundary.result_lifetimes.as_deref() == Some(&[])
         && boundary.result_reference_regions.is_empty()
-        && boundary.scalar_requires.is_empty()
         && boundary.scalar_ensures.is_empty()
-        && boundary.requires.is_empty()
         && boundary.normal_qualifications.is_empty()
         && boundary.scalar_domain_requirements.is_empty()
         && boundary.membership_ensures.is_empty()
@@ -218,4 +240,42 @@ fn empty_image_obligations(boundary: &terminal_psi::BoundaryMachineDeclaration) 
         && boundary.published_service_ceiling.is_empty()
         && boundary.published_synchronous_entries.is_empty()
         && !boundary.service_reach_is_installation_bound
+}
+
+fn storage_transport(
+    module: &TerminalModule,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+    declared: &terminal_psi::CheckedMachineDeclaration,
+) -> Result<bool, String> {
+    use terminal_psi::{
+        BoundaryParameterKind, CrashCause, CrashRouteGuard, StructuralDomainRequirement,
+    };
+    let grant =
+        crate::program_storage_entry::ProgramStorageGrant::from_module(module, boundary.identity)?;
+    let [image, storage] = boundary.structural_parameters.as_slice() else {
+        return Ok(false);
+    };
+    let crashes = [CrashCause::Trap, CrashCause::Abort].iter().all(|cause| {
+        boundary
+            .crash_routes
+            .iter()
+            .any(|route| route.cause == *cause && route.alternatives == [CrashRouteGuard::Truth])
+    });
+    Ok(image.place != storage.place
+        && grant.accepts(0, image)
+        && grant.accepts(1, storage)
+        && declared.parameter_types == [grant.declared_type; 2]
+        && boundary.parameter_order == [BoundaryParameterKind::Structural; 2]
+        && boundary.scalar_requires == [grant.no_wrap(image.place), grant.no_wrap(storage.place)]
+        && boundary
+            .requires
+            .iter()
+            .cloned()
+            .eq(StructuralDomainRequirement::declared_roots(
+                &boundary.structural_parameters,
+            ))
+        && boundary.crash_routes.len() == 2
+        && crashes
+        && boundary.result == BoundaryMachineResult::Unit
+        && text(module, declared.result_type)? == "unit")
 }

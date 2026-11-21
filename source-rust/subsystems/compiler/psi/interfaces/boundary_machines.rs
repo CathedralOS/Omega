@@ -16,6 +16,21 @@ pub struct StructuralDomainRequirement {
     pub domain: StructuralDomainId,
 }
 
+impl StructuralDomainRequirement {
+    /// Memberships required on the complete value at each declared structural formal.
+    pub fn declared_roots(
+        parameters: &[StructuralParameterDeclaration],
+    ) -> impl Iterator<Item = Self> + '_ {
+        parameters.iter().flat_map(|formal| {
+            formal.qualifications.iter().map(move |domain| Self {
+                argument_index: formal.position,
+                path: Vec::new(),
+                domain: *domain,
+            })
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScalarDomainRequirement {
     pub argument_index: u32,
