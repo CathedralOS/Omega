@@ -3219,7 +3219,8 @@ pub(crate) mod primitive_storage {
                     },
                 )
             }
-            AbstractOperation::StorageAddress {
+            AbstractOperation::ObserveStorageLocation {
+                query,
                 psi_operation,
                 result,
                 source,
@@ -3251,7 +3252,8 @@ pub(crate) mod primitive_storage {
                 retain_result(*psi_operation, *result, live)?;
                 (
                     *psi_operation,
-                    TargetUnitOperation::StorageAddress {
+                    TargetUnitOperation::ObserveStorageLocation {
+                        query: *query,
                         psi_operation: *psi_operation,
                         result: *result,
                         source: *source,

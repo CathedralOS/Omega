@@ -2787,10 +2787,9 @@ mod tests {
             panic!("call expression")
         };
         node.target = crate::source_state::name::Identifier::generated("size_of");
-        node.layout_query = Some(crate::source_state::expression::DataLayoutQueryRequest {
+        node.layout_query = Some(crate::source_state::expression::DataLayoutQueryRequest::Type {
             kind: language_core::data_layout_queries::DataLayoutQueryKind::Size,
             operand: Default::default(),
-            nonempty_view: ExpressionHandle::invalid(),
         });
         assert_eq!(deferred(&program).unwrap(), Vec::new());
         let ExpressionNode::Call(node) = program.expression_table.expression_mut(unbound) else {

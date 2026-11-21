@@ -2543,14 +2543,52 @@ pub(crate) mod primitive_locals {
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
+        let LegalizedScalarInstructionKind::ObserveStorageLocation {
+            query,
+            source: place,
+            ..
+        } = &row.kind
+        else {
+            return Err(invalid());
+        };
         let address = projected_address(source, builder, row)?;
-        let result = row.result.ok_or_else(|| {
-            SelectedInstructionError::custody_because(
-                "storage address lost its declared addr result",
-            )
-        })?;
+        let result = row.result.ok_or_else(invalid)?;
+        let observed = match query {
+            terminal_psi::StorageLocationQuery::Address => address,
+            terminal_psi::StorageLocationQuery::Alignment => {
+                // All address bits zero also describe a location divisible by a power
+                // of two. Setting the top bit leaves every nonzero low bit intact,
+                // and gives zero a representable, positive alignment of 2^63.
+                let top = super::fragmented_scalar::constant(builder, row, *place, 1u64 << 63)?;
+                let address = super::fragmented_scalar::binary(
+                    builder,
+                    row,
+                    *place,
+                    SelectedInstructionKind::BitwiseOrI64,
+                    address,
+                    top,
+                )?;
+                let zero = super::fragmented_scalar::constant(builder, row, *place, 0)?;
+                let negative = super::fragmented_scalar::binary(
+                    builder,
+                    row,
+                    *place,
+                    SelectedInstructionKind::WrappingSubtractI64,
+                    zero,
+                    address,
+                )?;
+                super::fragmented_scalar::binary(
+                    builder,
+                    row,
+                    *place,
+                    SelectedInstructionKind::BitwiseAndI64,
+                    address,
+                    negative,
+                )?
+            }
+        };
         let output = builder.register(result.value, result.definition_site, result.scalar_type)?;
-        builder.emit_copy_i64(address, output, super::provenance(row))?;
+        builder.emit_copy_i64(observed, output, super::provenance(row))?;
         Ok(output)
     }
 
@@ -2565,7 +2603,7 @@ pub(crate) mod primitive_locals {
             )
         })?;
         let indices = match &row.kind {
-            LegalizedScalarInstructionKind::StorageAddress { indices, .. }
+            LegalizedScalarInstructionKind::ObserveStorageLocation { indices, .. }
             | LegalizedScalarInstructionKind::GlobalDescriptorTable { indices, .. } => indices,
             _ => return Err(invalid()),
         };

@@ -340,7 +340,7 @@ pub(crate) mod effect_summaries {
             | abstract_operations::bitwise_or_xor_pair_pattern!(..)
             | O::IntegerShift { .. }
             | O::IntegerArithmetic { .. } => (EffectClass::PureScalar, No, No, No, No),
-            O::StorageAddress { .. } => (EffectClass::StructuralState, Yes, Yes, No, No),
+            O::ObserveStorageLocation { .. } => (EffectClass::StructuralState, Yes, Yes, No, No),
             O::EstablishActivationClaim { .. }
             | O::SplitActivationClaim { .. }
             | O::MergeActivationClaim { .. }
@@ -948,7 +948,7 @@ pub(crate) mod place_access_summaries {
             O::RegisterAccess { .. } => {
                 pending.unsummarized = true;
             }
-            O::StorageAddress { source, path, .. } => {
+            O::ObserveStorageLocation { source, path, .. } => {
                 pending.attribute(context, *source, runtime_prefix(path), AccessKind::Read);
             }
             O::PrimitiveScalarRead { source, path, .. } => {

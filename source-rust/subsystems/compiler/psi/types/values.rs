@@ -275,6 +275,7 @@ pub(crate) mod places {
                 Self::ReleaseActivationClaim { source, .. }
                 | Self::SplitActivationClaim { source, .. }
                 | Self::StorageAddress { source }
+                | Self::StorageAlignment { source }
                 | Self::GlobalDescriptorTable { source, .. }
                 | Self::MoveStructuralValue { source }
                 | Self::DecomposeStructuralValue { subject: source }
@@ -469,6 +470,7 @@ pub(crate) mod places {
                     push(argument_projection(source).into(), Some(CompoundMutation));
                 }
                 Self::StorageAddress { source }
+                | Self::StorageAlignment { source }
                 | Self::EstablishAccessReference { source, .. }
                 | Self::EstablishReference { source, .. } => {
                     push(argument_projection(source).into(), None);
@@ -791,9 +793,7 @@ pub(crate) mod places {
             uses
         }
 
-        pub fn structural_projection_paths_mut(
-            &mut self,
-        ) -> Vec<&mut Vec<StructuralPathSegment>> {
+        pub fn structural_projection_paths_mut(&mut self) -> Vec<&mut Vec<StructuralPathSegment>> {
             let mut paths = Vec::new();
             match self {
                 Self::ActivateTaskRegister {
@@ -824,6 +824,7 @@ pub(crate) mod places {
                 Self::ReleaseActivationClaim { source, .. }
                 | Self::SplitActivationClaim { source, .. }
                 | Self::StorageAddress { source }
+                | Self::StorageAlignment { source }
                 | Self::GlobalDescriptorTable { source, .. }
                 | Self::MoveStructuralValue { source }
                 | Self::DecomposeStructuralValue { subject: source }

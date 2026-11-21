@@ -717,12 +717,14 @@ pub(super) fn encode(
                     super::structural_types::encode_structural_path(bytes, path);
                     encode_runtime_indices(bytes, indices);
                 }
-                LegalizedScalarInstructionKind::StorageAddress {
+                LegalizedScalarInstructionKind::ObserveStorageLocation {
+                    query,
                     source,
                     path,
                     indices,
                 } => {
                     bytes.push(122);
+                    bytes.push(match query { terminal_psi::StorageLocationQuery::Address => 0, terminal_psi::StorageLocationQuery::Alignment => 1 });
                     crate::codec_bytes::push_encoded(bytes, source.get().to_le_bytes());
                     super::structural_types::encode_structural_path(bytes, path);
                     encode_runtime_indices(bytes, indices);

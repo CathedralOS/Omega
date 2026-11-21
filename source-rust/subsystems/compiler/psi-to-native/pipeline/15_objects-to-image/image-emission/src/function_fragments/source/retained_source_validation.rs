@@ -596,7 +596,7 @@ pub(in crate::function_fragments) fn admit(
                             &original.target_for_correspondence().optimized().plan().structural_types,
                         )
                 }
-                AbstractOperation::StorageAddress { .. }
+                AbstractOperation::ObserveStorageLocation { .. }
                 | AbstractOperation::PrimitiveScalarRead { .. }
                 | AbstractOperation::WriteOnlyPrimitiveStore { .. } => {
                     primitive_accesses::retained(operation, targeted)

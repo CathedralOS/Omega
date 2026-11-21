@@ -886,6 +886,9 @@ impl<'t> Program<'t> {
         let expected = self.expected.take();
         // A layout query names no declaration; typing kept its operand.
         if let Some(query) = &call.layout_query {
+            if matches!(query, crate::source_state::expression::DataLayoutQueryRequest::LocationAlignment) {
+                return self.location_alignment(id, slots, call, source);
+            }
             return self.layout_query(id, call, query, source);
         }
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
@@ -1097,6 +1100,101 @@ impl<'t> Program<'t> {
     /// registered builtin storage. Forming a qualified type for this query
     /// establishes no value or permission. The selected target supplies the
     /// actual measurement.
+    fn location_alignment(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: &TableCallExpression,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use crate::lowering::body::StorageShape;
+        use semantic_vocabulary::ScalarType;
+        use terminal_psi::ByteSequenceCarrier;
+        let invalid = || {
+            crate::lowering::reject(
+                id,
+                source,
+                "location alignment needs an accessible place, reference or nonempty borrowed slice",
+            )
+        };
+        let [operand] = self
+            .typed
+            .expression_table
+            .expression_handles(call.arguments)
+        else {
+            return Err(invalid());
+        };
+        let mut place = self.expression(id, slots, *operand, None)?;
+        let mut first_element = None;
+        if let Some(ty @ ValueType::Record(record, _, _)) = place.result {
+            if let Some((referent, _)) = self.reference_referent(id, ty)? {
+                place = Expression {
+                    call_context: None,
+                    source: place.source,
+                    result: Some(referent),
+                    kind: ExpressionKind::Referent(Box::new(place)),
+                };
+            } else {
+                first_element = match self.data_type(id, record)?.shape {
+                    StorageShape::ElementView { element, .. } => Some(element),
+                    StorageShape::ByteSequence(
+                        ByteSequenceCarrier::BorrowedView { .. }
+                        | ByteSequenceCarrier::BoundedView { .. },
+                    ) => {
+                        let byte = semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            8,
+                        )
+                        .expect("u8 is valid");
+                        Some(self.plain_scalar_storage(id, ScalarType::Integer(byte))?)
+                    }
+                    _ => None,
+                };
+            }
+        }
+        if first_element.is_none()
+            && !matches!(place.kind, ExpressionKind::Referent(_))
+            && !names_storage(&place)
+        {
+            return Err(invalid());
+        }
+        let home = match (&place.kind, place.result) {
+            (ExpressionKind::Slot(slot), Some(value @ ValueType::Scalar(scalar, _)))
+                if !slots[*slot].homed && slots[*slot].borrowed.is_none() =>
+            {
+                let plain = self.plain_scalar_reference(id, scalar)?;
+                let reference = if let Some(policy) = value.policy() {
+                    let carrier = self.typed.type_reference_symbol(plain);
+                    self.typed
+                        .type_reference_table
+                        .find_arithmetic_result_type_reference(
+                            carrier,
+                            crate::lowering::body::Policy::domain(Some(policy)),
+                        )
+                        .ok_or_else(invalid)?
+                } else {
+                    plain
+                };
+                let storage = self.storage_type(id, reference, value)?;
+                Some(self.data_type(id, storage)?.identity.clone())
+            }
+            _ => None,
+        };
+        let count =
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid");
+        Ok(Expression {
+            call_context: None,
+            source,
+            result: Some(ValueType::plain(ScalarType::Integer(count))),
+            kind: ExpressionKind::LocationAlignment {
+                place: Box::new(place),
+                home,
+                first_element,
+            },
+        })
+    }
+
     pub(super) fn layout_query(
         &mut self,
         id: MachineId,
@@ -1106,22 +1204,25 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         use language_core::data_layout_queries::DataLayoutQueryKind;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
-        if query.nonempty_view.is_valid()
-            || !query.operand.type_reference.is_valid()
+        let crate::source_state::expression::DataLayoutQueryRequest::Type { kind, operand } = query
+        else {
+            return unserved("alignment of a live storage location");
+        };
+        if !operand.type_reference.is_valid()
             || !call.arguments.is_empty()
             || !call.evidence_arguments.is_empty()
             || call.receiver.is_valid()
         {
             return unserved("layout query without exactly one type operand");
         }
-        let subject = match self.value_type(id, query.operand.type_reference)? {
+        let subject = match self.value_type(id, operand.type_reference)? {
             ValueType::Record(subject, _, _) => subject,
             ValueType::Scalar(scalar, _) => self.plain_scalar_storage(id, scalar)?,
             ValueType::Rigid(_) => {
                 return unserved("layout query with an unresolved storage carrier");
             }
         };
-        let measurement = match query.kind {
+        let measurement = match kind {
             DataLayoutQueryKind::Size => terminal_psi::LayoutMeasurement::Size,
             DataLayoutQueryKind::Alignment => terminal_psi::LayoutMeasurement::Alignment,
         };
@@ -4244,6 +4345,7 @@ impl Touches<'_> {
             | ExpressionKind::Requalify(operand)
             | ExpressionKind::Establish { operand, .. }
             | ExpressionKind::CollectionView { base: operand, .. }
+            | ExpressionKind::LocationAlignment { place: operand, .. }
             | ExpressionKind::CollectionMeasure { base: operand, .. }
             | ExpressionKind::ByteSequencePredicate { base: operand, .. }
             | ExpressionKind::IsCase {

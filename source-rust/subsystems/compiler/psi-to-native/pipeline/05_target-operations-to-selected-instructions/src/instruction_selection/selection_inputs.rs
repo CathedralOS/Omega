@@ -607,7 +607,7 @@ pub(crate) mod aggregate_result_input {
                 } => [gdt, scratch]
                     .into_iter()
                     .any(|argument| argument.place == place),
-                LegalizedScalarInstructionKind::StorageAddress { source, .. }
+                LegalizedScalarInstructionKind::ObserveStorageLocation { source, .. }
                 | LegalizedScalarInstructionKind::GlobalDescriptorTable { source, .. }
                 | LegalizedScalarInstructionKind::PrimitiveScalarRead { source, .. }
                 | LegalizedScalarInstructionKind::StructuralLeafCopy { source, .. }
@@ -2504,7 +2504,7 @@ pub(crate) mod established_view_input {
                         [gdt, task_state, scratch].into_iter().any(|argument| argument.place == place && !argument.path.is_empty()),
     LegalizedScalarInstructionKind::ReloadSegmentDescriptors { gdt, scratch, .. } =>
                         [gdt, scratch].into_iter().any(|argument| argument.place == place && !argument.path.is_empty()),
-                    LegalizedScalarInstructionKind::StorageAddress { source, path, .. }
+                    LegalizedScalarInstructionKind::ObserveStorageLocation { source, path, .. }
                     | LegalizedScalarInstructionKind::GlobalDescriptorTable { source, path, .. }
                     | LegalizedScalarInstructionKind::PrimitiveScalarRead { source, path, .. } =>
                         *source == place && !path.is_empty(),
@@ -3417,12 +3417,13 @@ pub(crate) mod primitive_local_input {
                 ))
             }
 
-            Instruction::StorageAddress {
+            Instruction::ObserveStorageLocation {
+                query,
                 source: place,
                 path,
                 indices,
             } => {
-                if !matches!(scalar, semantic_vocabulary::ClosedScalarType::Integer(integer) if integer.is_address())
+                if !query.admits_result(scalar.as_checking())
                 {
                     return None;
                 }
@@ -5542,7 +5543,7 @@ pub(crate) mod storage_origin_input {
             I::ReloadSegmentDescriptors { gdt, scratch, .. } => {
                 borrowed_argument_sources(function, access.place, &[gdt, scratch])?
             }
-            I::StorageAddress { source, path, .. }
+            I::ObserveStorageLocation { source, path, .. }
             | I::GlobalDescriptorTable { source, path, .. } => {
                 function
                     .structural

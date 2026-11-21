@@ -74,7 +74,7 @@ pub use crate::machines::{
     CrashCause, ElementViewRegion, FenceOrdering, FloatResultPolicy, MemoryOrdering,
     ModuleInvocation, ModuleInvocationInputs, Operation, OperationKind, OperationResult,
     RecordFieldInitializer, RecordFieldValue, ReferenceStorageView, RegisterAccessEvent,
-    ScalarCaseField, StructuralCaseSuccessorEdge, StructuralOperationResult,
+    ScalarCaseField, StorageLocationQuery, StructuralCaseSuccessorEdge, StructuralOperationResult,
     StructuralResultClaimBinding, StructuralStoreDisposition, SuccessorEdge, TargetMachineCallable,
     TerminalBlockNaturalRank, TerminalIntegerRankValue, TerminalMachine, TerminalNaturalCycle,
     TerminalNaturalRankComparison, TerminalNaturalRankEdge, TerminalRankedScc, Terminator,

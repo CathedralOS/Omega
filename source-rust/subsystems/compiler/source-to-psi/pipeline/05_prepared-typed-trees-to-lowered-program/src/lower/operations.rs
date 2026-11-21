@@ -296,6 +296,9 @@ impl Lowering<'_> {
                 let scalar_type = self.result_type(expression)?;
                 self.read_field(base, *field, scalar_type, source)
             }
+            ExpressionKind::LocationAlignment { place, first_element, .. } => {
+                self.location_alignment(place, *first_element, self.result_type(expression)?, source)
+            }
             ExpressionKind::CollectionMeasure { base, measure } => {
                 self.measure_collection(base, *measure, source)
             }

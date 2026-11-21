@@ -768,6 +768,7 @@ fn adapt_flow(
                 OperationKind::AtomicAccess { .. }
                 | OperationKind::AtomicFence { .. }
                 | OperationKind::StorageAddress { .. }
+                | OperationKind::StorageAlignment { .. }
                 | OperationKind::StructuralLeafCopy { .. }
                 | OperationKind::StructuralCaseLeafCopy { .. }
                 | OperationKind::EstablishStructuralLocal { .. }

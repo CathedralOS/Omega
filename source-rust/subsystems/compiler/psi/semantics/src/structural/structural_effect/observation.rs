@@ -2,12 +2,15 @@ use super::*;
 use terminal_psi::StructuralArgument;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum StructuralEffectObservation {
-    NativeCodeLayoutEstablished {
+pub enum StructuralEffectObservation {    NativeCodeLayoutEstablished {
         destination: semantic_vocabulary::PlaceId,
         machine: semantic_vocabulary::MachineId,
     },
     StorageAddressExposed {
+        source: StructuralArgument,
+        result: ValueId,
+    },
+    StorageAlignmentObserved {
         source: StructuralArgument,
         result: ValueId,
     },
@@ -264,21 +267,22 @@ pub fn structural_effect_leaf_observation_in(
                 range_obligation: *range_obligation,
             }
         }
-        (
-            StructuralEffectAction::ExposeStorageAddress,
-            OperationKind::StorageAddress { source },
-        ) => {
-            let result = operation.result.scalar().filter(|result|
-                matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address()))
+        (StructuralEffectAction::ExposeStorageAddress, OperationKind::StorageAddress { source })
+        | (StructuralEffectAction::ObserveStorageAlignment, OperationKind::StorageAlignment { source }) => {
+            use terminal_psi::StorageLocationQuery;
+            let query = if matches!(&operation.kind, OperationKind::StorageAddress { .. }) {
+                StorageLocationQuery::Address
+            } else {
+                StorageLocationQuery::Alignment
+            };
+            let result = operation.result.scalar().filter(|result| query.admits_result(result.scalar_type))
                 .ok_or(OperationSemanticError::StructuralEffectResultShapeMismatch(tag))?;
             if source.access != terminal_psi::StructuralAccess::SharedBorrow {
-                return Err(OperationSemanticError::StructuralEffectResultShapeMismatch(
-                    tag,
-                ));
+                return Err(OperationSemanticError::StructuralEffectResultShapeMismatch(tag));
             }
-            StructuralEffectObservation::StorageAddressExposed {
-                source: source.clone(),
-                result: result.id,
+            match query {
+                StorageLocationQuery::Address => StructuralEffectObservation::StorageAddressExposed { source: source.clone(), result: result.id },
+                StorageLocationQuery::Alignment => StructuralEffectObservation::StorageAlignmentObserved { source: source.clone(), result: result.id },
             }
         }
         (

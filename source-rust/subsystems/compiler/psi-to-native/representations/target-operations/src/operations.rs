@@ -47,8 +47,7 @@ pub struct TargetInstruction {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TargetUnitOperation {
-    InstallStaticInterrupt {
+pub enum TargetUnitOperation {    InstallStaticInterrupt {
         psi_operation: OperationId,
         boundary: BoundaryMachineId,
         arguments: [StructuralArgument; 6],
@@ -193,7 +192,8 @@ pub enum TargetUnitOperation {
         destination: PlaceId,
         value: AbstractResult,
     },
-    StorageAddress {
+    ObserveStorageLocation {
+        query: terminal_psi::StorageLocationQuery,
         psi_operation: OperationId,
         result: AbstractResult,
         source: PlaceId,

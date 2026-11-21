@@ -46,8 +46,8 @@ pub use invocations::{
 pub use machine::{Block, TerminalMachine, structural_parameter_position};
 pub use operation::{
     ByteSequenceOperand, ElementViewRegion, Operation, OperationKind, OperationResult,
-    ReferenceStorageView, StructuralOperationResult, StructuralResultClaimBinding,
-    StructuralStoreDisposition,
+    ReferenceStorageView, StorageLocationQuery, StructuralOperationResult,
+    StructuralResultClaimBinding, StructuralStoreDisposition,
 };
 pub use ranking::{
     TerminalBlockNaturalRank, TerminalIntegerRankValue, TerminalNaturalCycle,

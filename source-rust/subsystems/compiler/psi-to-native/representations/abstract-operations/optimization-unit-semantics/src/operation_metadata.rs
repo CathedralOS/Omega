@@ -49,7 +49,7 @@ fn scalar_definition(operation: &AbstractOperation) -> Option<(ValueId, ScalarTy
         }
         | O::SelectImplementation { result, .. }
         | O::SelectMachine { result, .. }
-        | O::StorageAddress { result, .. }
+        | O::ObserveStorageLocation { result, .. }
         | O::PrimitiveScalarRead { result, .. }
         | O::StructuralCaseMembership { result, .. }
         | O::ByteSequenceRead { result, .. }
@@ -349,7 +349,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         }
         O::EstablishNativeCodeLayout { .. }
         | O::GlobalDescriptorTable { .. }
-        | O::StorageAddress { .. }
+        | O::ObserveStorageLocation { .. }
         | O::PrimitiveScalarRead { .. }
         | O::StructuralCaseMembership { .. }
         | O::StructuralByteViewFieldStore { .. }
@@ -452,7 +452,7 @@ pub(crate) fn expected_ownership(operation: &AbstractOperation) -> Vec<Ownership
         | O::ReadSegmentSelector { .. }
         | O::ReadTaskRegister { .. }
         | O::GlobalDescriptorTable { .. }
-        | O::StorageAddress { .. }
+        | O::ObserveStorageLocation { .. }
         | O::EstablishScalarArray { .. }
         | O::EstablishStructuralArray { .. }
         | O::EstablishPrimitiveLocal { .. }

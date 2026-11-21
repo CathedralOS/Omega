@@ -6825,20 +6825,22 @@ pub(crate) mod unit {
                 && operation == expected_kind
                 && source == expected_source => {}
             (
-                TargetUnitOperation::StorageAddress {
+                TargetUnitOperation::ObserveStorageLocation {
+                    query,
                     psi_operation,
                     result,
                     source,
                     path,
                     indices,
                 },
-                AbstractOperation::StorageAddress {
+                AbstractOperation::ObserveStorageLocation {
+                    query: expected_query,
                     psi_operation: expected_operation,
                     result: expected,
                     source: expected_source,
                     path: expected_path,
                 },
-            ) if psi_operation == expected_operation
+            ) if query == expected_query && psi_operation == expected_operation
                 && result == expected
                 && source == expected_source
                 && path == expected_path =>
@@ -6851,7 +6853,7 @@ pub(crate) mod unit {
                     .ok_or(LegalizationError::custody())?;
                 let geometry = storage_address_geometry(root, path, unit.geometry())
                     .ok_or(LegalizationError::custody())?;
-                if !matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address())
+                if !query.admits_result(result.scalar_type)
                     || !runtime_indices_rejoin(indices, &geometry.elements, sources)
                 {
                     return Err(LegalizationError::custody());

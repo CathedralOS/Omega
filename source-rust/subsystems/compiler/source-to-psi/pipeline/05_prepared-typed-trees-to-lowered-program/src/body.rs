@@ -1065,8 +1065,7 @@ impl AtomicOperation {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ExpressionKind {
-    /// Operand indices refer to the event's source evaluation order.
+pub enum ExpressionKind {    /// Operand indices refer to the event's source evaluation order.
     Atomic(AtomicOperation),
     /// The enclosing match's already captured place, never its selector again.
     SavedSubject(arena::Handle<crate::source_state::expression::CompletedValueCapture>),
@@ -1085,6 +1084,12 @@ pub enum ExpressionKind {
     },
     /// Actual immutable octets established at this expression's operation.
     ByteLiteral(Vec<u8>),
+    /// Observe a projected place once. A borrowed slice selects its first element.
+    LocationAlignment {
+        place: Box<Expression>,
+        home: Option<String>,
+        first_element: Option<StructuralTypeId>,
+    },
     /// The selected builtin observation, after evaluating its actual base.
     /// Even a statically known extent cannot erase that evaluation or its
     /// storage use. The observation itself neither moves nor lends backing.

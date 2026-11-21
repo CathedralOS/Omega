@@ -32,6 +32,19 @@ pub struct ReferenceStorageRegion {
     pub array: Option<ReferenceArrayWindow>,
 }
 
+impl ReferenceStorageRegion {
+    /// A base divisible by `base_alignment` and shifted by `byte_offset`
+    /// retains the smaller of their powers of two. Offset zero keeps the
+    /// entire base guarantee, including for the first field of a record.
+    pub fn alignment_at(&self, base_alignment: u64) -> Option<u64> {
+        base_alignment.is_power_of_two().then(|| {
+            1u64 << base_alignment
+                .trailing_zeros()
+                .min(self.byte_offset.trailing_zeros())
+        })
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ReferenceArrayWindow {
     pub declaration: StructuralTypeId,
@@ -611,8 +624,7 @@ where
         };
         if region.byte_length != width
             || target_align == 0
-            || !source_align.is_multiple_of(target_align)
-            || !region.byte_offset.is_multiple_of(target_align)
+            || !region.alignment_at(source_align).is_some_and(|alignment| alignment.is_multiple_of(target_align))
         {
             return false;
         }
@@ -666,8 +678,7 @@ where
             return false;
         };
         target_align != 0
-            && source_align.is_multiple_of(target_align)
-            && region.byte_offset.is_multiple_of(target_align)
+            && region.alignment_at(source_align).is_some_and(|alignment| alignment.is_multiple_of(target_align))
             && region.byte_length == target_size
             && region
                 .byte_offset

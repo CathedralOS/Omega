@@ -8428,8 +8428,8 @@ pub(crate) mod nodes {
                 } => result.scalar_type,
                 AbstractOperation::SelectImplementation { result, .. }
                 | AbstractOperation::SelectMachine { result, .. } => result.scalar_type,
-                AbstractOperation::StorageAddress { result, .. } => {
-                    if !matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address())
+                AbstractOperation::ObserveStorageLocation { query, result, .. } => {
+                    if !query.admits_result(result.scalar_type)
                     {
                         return Err(LegalizationError::custody());
                     }

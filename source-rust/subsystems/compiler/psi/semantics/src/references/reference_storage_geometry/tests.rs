@@ -27,6 +27,22 @@ fn field(
 }
 
 #[test]
+fn a_location_keeps_only_alignment_shared_by_its_base_and_offset() {
+    let region = |offset| ReferenceStorageRegion {
+        byte_offset: offset,
+        byte_length: 1,
+        scalar: None,
+        array: None,
+    };
+    assert_eq!(region(0).alignment_at(32), Some(32));
+    assert_eq!(region(24).alignment_at(32), Some(8));
+    assert_eq!(region(1).alignment_at(8), Some(1));
+    assert_eq!(region(64).alignment_at(8), Some(8));
+    assert_eq!(region(0).alignment_at(0), None);
+    assert_eq!(region(8).alignment_at(3), None);
+}
+
+#[test]
 fn primitive_placement_uses_target_addresses_without_granting_byte_codecs() {
     let address = ScalarType::Integer(IntegerType::address(64).unwrap());
     let narrow = scalar(13);

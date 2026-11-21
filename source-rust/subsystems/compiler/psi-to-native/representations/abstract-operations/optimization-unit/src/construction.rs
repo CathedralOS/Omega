@@ -779,7 +779,7 @@ fn direct_uses(operation: &AbstractOperation) -> Vec<ValueId> {
         }
         O::EstablishNativeCodeLayout { .. }
         | O::GlobalDescriptorTable { .. }
-        | O::StorageAddress { .. }
+        | O::ObserveStorageLocation { .. }
         | O::PrimitiveScalarRead { .. }
         | O::StructuralCaseMembership { .. }
         | O::StructuralByteViewFieldStore { .. }
@@ -1071,7 +1071,7 @@ pub fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent>
         | O::ReadSegmentSelector { .. }
         | O::ReadTaskRegister { .. }
         | O::GlobalDescriptorTable { .. }
-        | O::StorageAddress { .. }
+        | O::ObserveStorageLocation { .. }
         | O::EstablishScalarArray { .. }
         | O::EstablishStructuralArray { .. }
         | O::EstablishPrimitiveLocal { .. }
