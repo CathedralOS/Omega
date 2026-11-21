@@ -3277,6 +3277,7 @@ dependencies = [
  "source-symbol-table",
  "source-text",
  "symbols",
+ "syntax-trees",
  "wire",
 ]
 

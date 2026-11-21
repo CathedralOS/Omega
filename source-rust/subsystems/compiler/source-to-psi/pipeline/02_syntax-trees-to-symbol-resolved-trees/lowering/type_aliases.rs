@@ -31,5 +31,14 @@ pub(crate) fn lower_type_alias_definition(
         type_parameters,
         conformance_bounds,
         expansion,
+        body: lowerer
+            .constant_selection
+            .as_ref()
+            .and_then(|selection| selection.alias_body(alias.name.source_span()))
+            .cloned()
+            .ok_or_else(|| {
+                Diagnostic::error("missing authored type alias body")
+                    .with_source_span(alias.name.source_span())
+            })?,
     })
 }

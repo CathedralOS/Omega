@@ -15,6 +15,7 @@ use std::sync::Arc;
 
 use crate::resolution::names::constructor_type;
 use crate::source_inputs::SourceMap;
+use crate::source_resolved::type_aliases::AliasBody;
 use crate::source_symbols::{
     SourceScopedTopLevelBinding, SymbolTable, SymbolTableBuilder, builtin_function_symbols,
     builtin_type_symbols,
@@ -41,6 +42,7 @@ pub(crate) enum GenericParameterRole {
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub(crate) struct ConstantSelection<'base> {
     symbols: SymbolTable,
+    alias_bodies: Arc<[(source_text::SourceSpan, AliasBody)]>,
     retained: Option<SelectionBase<'base>>,
     // Geometry is derived for one structural-completion pass from its actual
     // resolved owner. A resumed pass reconstructs it from that owner's tree.
@@ -160,11 +162,14 @@ impl<'base> ConstantSelection<'base> {
         bindings: Vec<SourceScopedTopLevelBinding>,
         base: Option<Arc<crate::source_resolved::SymbolResolvedTrees>>,
     ) -> Result<ConstantSelection<'static>, Vec<Diagnostic>> {
-        let symbols =
-            ConstantSelection::with_retained_base(syntax, sources, bindings, base.as_deref())?
-                .symbols;
+        let ConstantSelection {
+            symbols,
+            alias_bodies,
+            ..
+        } = ConstantSelection::with_retained_base(syntax, sources, bindings, base.as_deref())?;
         Ok(ConstantSelection {
             symbols,
+            alias_bodies,
             array_lengths: Vec::new(),
             retained: base.map(SelectionBase::Shared),
         })
@@ -278,6 +283,7 @@ impl<'base> ConstantSelection<'base> {
         namespaces.register(&mut symbols)?;
         Ok(Self {
             symbols,
+            alias_bodies: AliasBody::collect(syntax).into(),
             retained: retained.map(SelectionBase::Borrowed),
             array_lengths: Vec::new(),
         })
@@ -839,14 +845,30 @@ impl<'base> ConstantSelection<'base> {
             .flatten()
     }
 
-    /*
-        The selected telescope's roles only. Reading a retained header does
-        not copy scratch syntax into the receiving forest or create work.
-    */
+    pub(crate) fn alias_body(&self, span: source_text::SourceSpan) -> Option<&AliasBody> {
+        let mut local = self.alias_bodies.iter().filter(|(name, _)| *name == span);
+        if let Some((_, body)) = local.next() {
+            return local.next().is_none().then_some(body);
+        }
+        let mut retained = self
+            .retained_base()?
+            .type_aliases
+            .iter()
+            .filter(|alias| alias.name.source_span() == span);
+        let selected = retained.next()?;
+        retained.next().is_none().then_some(&selected.body)
+    }
+
+    pub(crate) fn has_aliases(&self) -> bool {
+        !self.alias_bodies.is_empty()
+            || self
+                .retained_base()
+                .is_some_and(|base| !base.type_aliases.is_empty())
+    }
+
     pub(crate) fn generic_parameter_roles(
         &self,
         syntax: &SyntaxTrees,
-        declaration_syntax: &[&SyntaxTrees],
         name: &Identifier,
         kinds: &[SymbolKind],
     ) -> Option<Vec<GenericParameterRole>> {
@@ -858,44 +880,39 @@ impl<'base> ConstantSelection<'base> {
         let reference = self.symbols.symbol_source_span(selected)?;
         let selected_kind = self.symbols.get(selected).kind;
         let selected_name = self.symbols.name(selected);
-        let parameters = |forest: &SyntaxTrees| {
-            let mut headers = forest.root_items().filter_map(|item| {
-                let (kind, declaration, parameters) = match item {
-                    Item::Data(data) => (SymbolKind::Data, &data.name, data.type_parameters),
-                    Item::Domain(domain) => {
-                        (SymbolKind::Domain, &domain.name, domain.type_parameters)
-                    }
-                    Item::TypeAlias(alias) => {
-                        (SymbolKind::TypeAlias, &alias.name, alias.type_parameters)
-                    }
-                    Item::Machine(machine) => {
-                        (SymbolKind::Machine, &machine.name, machine.type_parameters)
-                    }
-                    Item::Trait(definition) => (
-                        SymbolKind::Trait,
-                        &definition.name,
-                        definition.type_parameters,
-                    ),
-                    Item::Conformance(definition) => (
-                        SymbolKind::Conformance,
-                        definition.alias.as_ref()?,
-                        definition.type_parameters,
-                    ),
-                    _ => return None,
-                };
-                (kind == selected_kind
-                    && declaration.source_span() == reference
-                    && declaration.as_str(forest) == selected_name)
-                    .then_some(parameters)
-            });
-            let Some(result) = headers.next() else {
-                return Ok(None);
+        let mut headers = syntax.root_items().filter_map(|item| {
+            let (kind, declaration, parameters) = match item {
+                Item::Data(data) => (SymbolKind::Data, &data.name, data.type_parameters),
+                Item::Domain(domain) => (SymbolKind::Domain, &domain.name, domain.type_parameters),
+                Item::TypeAlias(alias) => {
+                    (SymbolKind::TypeAlias, &alias.name, alias.type_parameters)
+                }
+                Item::Machine(machine) => {
+                    (SymbolKind::Machine, &machine.name, machine.type_parameters)
+                }
+                Item::Trait(definition) => (
+                    SymbolKind::Trait,
+                    &definition.name,
+                    definition.type_parameters,
+                ),
+                Item::Conformance(definition) => (
+                    SymbolKind::Conformance,
+                    definition.alias.as_ref()?,
+                    definition.type_parameters,
+                ),
+                _ => return None,
             };
+            (kind == selected_kind
+                && declaration.source_span() == reference
+                && declaration.as_str(syntax) == selected_name)
+                .then_some(parameters)
+        });
+        if let Some(result) = headers.next() {
             if headers.next().is_some() {
-                return Err(());
+                return None;
             }
-            Ok(Some(
-                forest
+            return Some(
+                syntax
                     .items
                     .type_parameters(result)
                     .iter()
@@ -918,17 +935,47 @@ impl<'base> ConstantSelection<'base> {
                         }
                     })
                     .collect::<Vec<_>>(),
-            ))
-        };
-        if let Some(parameters) = parameters(syntax).ok()? {
-            return Some(parameters);
+            );
         }
-        for forest in declaration_syntax {
-            if let Some(parameters) = parameters(forest).ok()? {
-                return Some(parameters);
+        use crate::source_resolved::data::TypeParameterKind as Kind;
+        let base = self.retained_base()?;
+        let parameters = match selected_kind {
+            SymbolKind::Data => base.data_definition_by_symbol(selected)?.type_parameters,
+            SymbolKind::Domain => base.domain_definition_by_symbol(selected)?.type_parameters,
+            SymbolKind::TypeAlias => {
+                base.type_aliases
+                    .iter()
+                    .find(|row| row.symbol == selected)?
+                    .type_parameters
             }
-        }
-        None
+            SymbolKind::Machine => base.machines.unique_by_symbol(selected)?.type_parameters,
+            SymbolKind::Trait => {
+                base.traits
+                    .iter()
+                    .find(|row| row.symbol == selected)?
+                    .type_parameters
+            }
+            SymbolKind::Conformance => {
+                base.conformances
+                    .iter()
+                    .find(|row| row.symbol == selected)?
+                    .type_parameters
+            }
+            _ => return None,
+        };
+        Some(
+            base.data_type_parameters(parameters)
+                .iter()
+                .map(|parameter| match parameter.kind {
+                    Kind::Type => GenericParameterRole::Type,
+                    Kind::Implementation => GenericParameterRole::Implementation,
+                    Kind::Const { .. } => GenericParameterRole::Const,
+                    Kind::Value { .. } => GenericParameterRole::Value,
+                    Kind::Machine { .. } => GenericParameterRole::Machine,
+                    Kind::Proposition { .. } => GenericParameterRole::Proposition,
+                })
+                .collect(),
+        )
     }
 
     pub(crate) fn constructor<'syntax>(

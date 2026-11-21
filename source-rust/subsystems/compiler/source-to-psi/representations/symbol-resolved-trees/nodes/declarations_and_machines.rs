@@ -507,6 +507,7 @@ pub mod declarations {
     }
 
     pub mod type_aliases {
+        pub use crate::alias_bodies::AliasBody;
         use crate::source_resolved::data::TypeParameter;
         use crate::source_resolved::machine::GenericConformanceBound;
         use crate::source_resolved::name::DiagnosticName;
@@ -523,6 +524,7 @@ pub mod declarations {
             pub type_parameters: HandleSpan<TypeParameter>,
             pub conformance_bounds: Vec<GenericConformanceBound>,
             pub expansion: TypeReference,
+            pub body: AliasBody,
         }
     }
 }

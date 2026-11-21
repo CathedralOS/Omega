@@ -305,59 +305,90 @@ mod tests {
         assert!(selected.retained_constant(fresh.symbol).is_err());
     }
 
-    /*
-        A later stratum applies a transparent alias its retained base
-        declares, as std's macOS filesystem ABI applies core's
-        `CLayout<T>`. The alias expands from the base's authored
-        declaration; without that forest the application is still refused
-        rather than left unexpanded.
-    */
     #[test]
-    fn extension_expands_an_alias_declared_by_its_retained_base() {
+    fn extension_instantiates_an_alias_from_a_saved_base() {
+        use crate::source_resolved::data::DataMember;
+        use crate::source_resolved::types::{FixedArrayLength, TypeReference};
+        use source_text::{SourceSpan, Span};
+
         let mut sources = crate::source_inputs::SourceMap::default();
-        let base_text = "public data Pair<T> = [T; 2];";
-        let base_source = sources
-            .add("aliases/base.omg".into(), base_text.into())
-            .source_id;
-        let base = Arc::new(
-            resolve(ResolutionRequest {
-                syntax: parse(base_text, base_source),
-                sources: Some(Arc::new(sources.clone())),
-                top_level_bindings: Vec::new(),
-                retained_base: None,
-            })
-            .unwrap(),
-        );
-        // The extension declares an alias of its own, as std does, so it
-        // enters alias expansion at all.
-        let text = "public data Byte = u8; public data Holder { value: Pair<Byte>; }";
-        let source = sources
-            .add("aliases/current.omg".into(), text.into())
-            .source_id;
-        let sources = Arc::new(sources);
-        let extend = |base_declarations: SyntaxTrees| {
-            crate::resolution::resolve_extension(crate::resolution::ExtensionRequest {
-                base: Arc::clone(&base),
-                base_declarations: Arc::new(base_declarations),
-                syntax: parse(text, source),
-                sources: Arc::clone(&sources),
-                top_level_bindings: Vec::new(),
-            })
+        let text = "public data Pair<T> = [T; 2];";
+        let source = sources.add("base.omg".into(), text.into()).source_id;
+        let base = resolve(ResolutionRequest {
+            syntax: parse(text, source),
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .unwrap();
+
+        // Reopen each predecessor before appending a file. The last file contains no aliases.
+        let extend = |base: &SymbolResolvedTrees, path: &str, text: &str| {
+            let bytes = record_storage::encode(base, Default::default()).unwrap();
+            let base: SymbolResolvedTrees =
+                record_storage::decode(&bytes, Default::default()).unwrap();
+            let mut sources = Arc::unwrap_or_clone(base.symbols.source_map().unwrap());
+            let source = sources.add(path.into(), text.into()).source_id;
+            let result =
+                crate::resolution::resolve_extension(crate::resolution::ExtensionRequest {
+                    base: Arc::new(base),
+                    syntax: parse(text, source),
+                    sources: Arc::new(sources),
+                    top_level_bindings: Vec::new(),
+                });
+            (result, source)
         };
-        let extended = extend(parse(base_text, base_source)).unwrap();
-        assert!(
-            extended
-                .trees()
-                .data_definitions
-                .iter()
-                .any(|data| data.name.as_str() == "Holder")
+
+        let (middle, _) = extend(&base, "middle.omg", "public data Byte = u8;");
+        let middle = middle.unwrap();
+        let (extended, _) = extend(
+            middle.trees(),
+            "use.omg",
+            "public data Holder { value: Pair<Byte>; }",
         );
-        let refused = extend(SyntaxTrees::new(base_source)).err().unwrap();
-        assert!(refused.iter().any(|diagnostic| {
-            diagnostic
-                .message
-                .contains("selected type alias has no retained source declaration")
-        }));
+        let extended = extended.unwrap();
+        let trees = extended.trees();
+        let holder = trees
+            .data_definitions
+            .iter()
+            .find(|data| data.name.as_str() == "Holder")
+            .unwrap();
+        let [DataMember::Field(field)] = trees.data_members(holder.members) else {
+            panic!("expected Holder.value")
+        };
+        fn expanded(mut ty: &TypeReference) -> &TypeReference {
+            while let TypeReference::AliasUse { expansion, .. } = ty {
+                ty = expansion;
+            }
+            ty
+        }
+        let TypeReference::FixedArray(array) = expanded(&field.type_reference) else {
+            panic!("expected Pair<Byte> to expand to an array")
+        };
+        assert_eq!(array.length, FixedArrayLength::Literal(2));
+        let TypeReference::Named { symbol, .. } =
+            expanded(trees.child_type_reference(array.element_type))
+        else {
+            panic!("expected a named array element")
+        };
+        assert_eq!(trees.symbols.name(*symbol), "u8");
+
+        let invalid = "public data Holder { value: Pair; }";
+        let (refused, source) = extend(middle.trees(), "missing-argument.omg", invalid);
+        let start = invalid.find("Pair").unwrap();
+        let span = SourceSpan::new(source, Span::new(start, start + "Pair".len()));
+        let Err(diagnostics) = refused else {
+            panic!("Pair requires a type argument");
+        };
+        assert!(
+            diagnostics
+                .iter()
+                .any(|error| error.source_span == Some(span)
+                    && error.message.contains(
+                        "type alias application does not supply its complete declared telescope"
+                    )),
+            "{diagnostics:?}"
+        );
     }
 
     #[test]

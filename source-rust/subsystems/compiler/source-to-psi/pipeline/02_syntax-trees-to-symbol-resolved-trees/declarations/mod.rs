@@ -69,7 +69,6 @@ pub(crate) fn prepare(
     top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
     constants: crate::resolution::lowering::lowerer::ConstResolutionMode,
     base: Option<Arc<crate::source_resolved::SymbolResolvedTrees>>,
-    base_declarations: Option<&SyntaxTrees>,
 ) -> Result<Prepared, Vec<Diagnostic>> {
     prepare_statement_bodies(&mut syntax)?;
     builtin_type_names::validate(&syntax)?;
@@ -80,11 +79,7 @@ pub(crate) fn prepare(
         top_level_bindings,
         base,
     )?;
-    declared_types::normalize(
-        &mut syntax,
-        &constant_selection,
-        base_declarations.as_slice(),
-    )?;
+    declared_types::normalize(&mut syntax, &constant_selection)?;
     // Closed literal widths must name carriers before constants land in them.
     // Named widths remain for resolution in their lexical scope.
     constant_selection.install_integer_types(integer_widths::normalize(&mut syntax)?);
