@@ -127,7 +127,7 @@ pub fn validate_current_resolved_layout(
     validate_layout_forms(program, allow_x86_short)
 }
 
-/// Stage 13 always publishes baseline forms, including when stage 14 may shorten them.
+/// The baseline uses the near branch forms even when the final layout may shorten them.
 pub fn validate_baseline_resolved_layout(
     program: &machine_code::ResolvedMachineProgram,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {

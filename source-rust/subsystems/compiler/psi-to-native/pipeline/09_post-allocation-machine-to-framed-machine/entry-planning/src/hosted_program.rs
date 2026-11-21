@@ -164,7 +164,7 @@ fn plan_storage(
         .and_then(|size| size.checked_next_multiple_of(16))
         .ok_or_else(invalid)?;
     // If the stack and recipes cannot fit even at origin zero, refuse them
-    // here. Stage 16 will locate each extent using the actual BSS origin.
+    // here. Image layout will locate each extent using the actual BSS origin.
     let mut minimum_end = 16u64.checked_add(stack_byte_count).ok_or_else(invalid)?;
     let mut private_ram = Vec::new();
     for recipe in recipes {

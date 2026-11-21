@@ -45,7 +45,7 @@ pub(super) type EncodedPrivateBody = PrivateBody<
 >;
 pub(super) type LaidOutPrivateBody = PrivateBody<
     super::callable_objects::LaidOutCallable,
-    function_layout::entry_placement::PlacedPrivateEntry,
+    placement::entry_layout::ResolvedPrivateEntry,
 >;
 
 pub(super) struct PrivateBody<Callable, Entry> {
@@ -124,8 +124,6 @@ impl EncodedPrivateBody {
         Ok(PrivateBody {
             callable: self.callable.layout()?,
             entry: placement::entry_layout::resolve_private_entry(self.entry)
-                .map(relaxation::retain_fixed_entry)
-                .map(function_layout::place_fixed_entry)
                 .map_err(|error| realization_error("callback entry layout", error))?,
         })
     }
@@ -141,7 +139,7 @@ impl LaidOutPrivateBody {
     pub(super) fn construct_object(self) -> Result<PrivateBodyObject, Vec<Diagnostic>> {
         let emitted = self.callable.construct_object()?;
         let object = image_emission::bind_private_function_entry(
-            object_file::PrivateEntryObject::from_placement(self.entry),
+            object_file::PrivateEntryObject::from_layout(self.entry),
             Arc::new(emitted.projection.into_object()),
         )
         .map_err(|error| realization_error("callback entry ABI", error))?;

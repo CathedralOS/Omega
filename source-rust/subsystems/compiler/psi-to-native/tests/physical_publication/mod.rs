@@ -193,7 +193,7 @@ fn emit_body_inspecting_physical<'execution>(
     assert_eq!(
         original.upgrade().is_some(),
         retain_native_stage_inputs,
-        "ordinary object publication releases the stage 12 instruction program"
+        "ordinary object publication releases the encoded instruction program"
     );
     if let Some(frame) = audit_frame {
         let encoding = &projection.originals.as_ref().unwrap().encoding;

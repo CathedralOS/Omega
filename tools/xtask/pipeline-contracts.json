@@ -988,22 +988,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "OptimizedVerifiedPhysicalPipelineError::Layout::field:0#1",
       "kind": "carried_record",
-      "meaning": "The originating Layout failure, carried through the native pipeline diagnostic.",
+      "meaning": "The original failure from assigning instruction offsets or settling branch forms under the selected policy.",
       "producer": "native compiler physical and object driver",
-      "signature": "702302cea4f79f0db791aebc0c9a8b6e3e136ba2cd8457259baaa4019e1a60c1"
-    },
-    {
-      "consumers": [
-        "native root compiler",
-        "private callable compilation",
-        "independent native correspondence tests"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
-      "item": "OptimizedVerifiedPhysicalPipelineError::LayoutOptimization::field:0#1",
-      "kind": "carried_record",
-      "meaning": "The originating LayoutOptimization failure, carried through the native pipeline diagnostic.",
-      "producer": "native compiler physical and object driver",
-      "signature": "4b0d4f68b8e7def1af265b9d6bafd73953af043e43adf7dffadaf75c722e5ed0"
+      "signature": "4fc7058df3ffc17a47b60bdc78d2bc94d3d4ef6f997192365084aa48307e37ee"
     },
     {
       "consumers": [
@@ -1178,7 +1165,7 @@
       "kind": "definition",
       "meaning": "The originating refusal from physical selection, encoding, placement or relative realization.",
       "producer": "native compiler physical and object driver",
-      "signature": "032588b00007d14a5641b8d91253ea5b30f4866182ed1705e3da35610ecc704a"
+      "signature": "47cdf59d6c2c3f0a330d6388d76ca5a88606a58406cca2afeca059cb1319ca4f"
     },
     {
       "consumers": [
@@ -1215,9 +1202,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/compile_body.rs",
       "item": "function:layout_encoded_body#1",
       "kind": "producer",
-      "meaning": "Pass the issued encoding to placement, its placed program to relaxation, and the relaxed program to function placement.",
+      "meaning": "Resolve the issued encoding, retain its baseline when replay is requested, and place the settled functions.",
       "producer": "native compiler physical and object driver",
-      "signature": "601f1744bba1f0a4d97d513027d9e37c1710c0ca5c47063bbf4815c2e9d0f71f"
+      "signature": "149c505cae5e7443e8144a04877e094269596fb58fa4ace18210aa6af796ba87"
     },
     {
       "consumers": [
@@ -1368,7 +1355,7 @@
       "kind": "definition",
       "meaning": "Preserve stage-specific native pipeline errors and format their source diagnostics.",
       "producer": "native compiler physical and object driver",
-      "signature": "1f40eb6f7e8cb36368dfc7c237feb31a845e1d85436e8fd9ad4971275271a843"
+      "signature": "2cb2128c893fb3c3a7c93e67a8707d6ffd8479d93542b03f941cd4c784bc76ed"
     },
     {
       "consumers": [
@@ -1381,7 +1368,7 @@
       "kind": "definition",
       "meaning": "Preserve or format the exact originating native pipeline failure.",
       "producer": "native compiler physical and object driver",
-      "signature": "f5ba2ee2b32fd4c9f99e5fb2800be3c31ef9d6e31538a85b34f3ff098859b0bd"
+      "signature": "4ebd69ccb19bb832e6d22cfaffce1e8e1a28c22ae95f6ac27b4cf372ee853414"
     },
     {
       "consumers": [
@@ -2447,9 +2434,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "alias:LaidOutPrivateBody#1",
       "kind": "carried_record",
-      "meaning": "Function placement issues the private callable and its arrival fragment for object construction.",
+      "meaning": "A placed callable body paired with its resolved fixed-width entry.",
       "producer": "native callback compilation driver",
-      "signature": "d89fc51c60227115d873861d26dd98053ea1a33a51d46b3a063cd1c671e3137b"
+      "signature": "c4085fc8971d877d0890e06c3b4bb7a647f3589702756845158744769d268485"
     },
     {
       "consumers": [
@@ -2540,7 +2527,7 @@
       "kind": "producer",
       "meaning": "The encoded private callable and its encoded entry transport.",
       "producer": "native callback compilation driver",
-      "signature": "a64dc87269f982e698fe42e4b0642066a8c184e9f00a09db3d31407299545a2c"
+      "signature": "c03cb2b127142dbb3083b02e232e69245dc8f88ebf3f3e42b77ee7daf03c49ae"
     },
     {
       "consumers": [
@@ -2551,9 +2538,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:EncodedPrivateBody::method:layout#1",
       "kind": "producer",
-      "meaning": "Place the callable body and pass its encoded entry through field resolution, fixed-width relaxation and function placement.",
+      "meaning": "Place the callable body and resolve its entry’s fixed-width call fields.",
       "producer": "native callback compilation driver",
-      "signature": "1da065739657b302b6b23b4bbb1bf481d1dda4a54c4386e7afb6e2ca95616008"
+      "signature": "10284efd4d8a89a09526e2475d35066d5d3cf17b06dd6a78ddda33171545434e"
     },
     {
       "consumers": [
@@ -2564,9 +2551,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/callback_thunks.rs",
       "item": "impl:LaidOutPrivateBody::implementation#1",
       "kind": "producer",
-      "meaning": "Construct the private function object from its placed callable body and entry.",
+      "meaning": "Construct the private function object from its placed callable body and resolved entry.",
       "producer": "native callback compilation driver",
-      "signature": "867c97957ec6d804916b41939f6fdb3206825166f95ff96ffb35cbe02c4fe64f"
+      "signature": "d4f3a20f40662a57ba155a6822ae2dac43d7cd489bdb3f96b4c95d5cc5c95ef9"
     },
     {
       "consumers": [
@@ -2579,7 +2566,7 @@
       "kind": "producer",
       "meaning": "Bind the completed callable object to its private entry and return the object and original together.",
       "producer": "native callback compilation driver",
-      "signature": "ca925fc7166e03adc93d1ddac857dceadb7e3c916f49f73436796d28ff0f1d74"
+      "signature": "d4bf473cd1a5c9f16f7630feb0f8c7b980682216af642ec3d5d0bc271f0dc2ef"
     },
     {
       "consumers": [
@@ -3019,9 +3006,9 @@
       "file": "source-rust/subsystems/compiler/psi-to-native/driver/image/object_emission.rs",
       "item": "function:emit_realization_object#1",
       "kind": "producer",
-      "meaning": "Pass root, private, hosted and physical entries through their layout stages before issuing objects for image construction.",
+      "meaning": "Resolve fixed-width program entries, construct their objects, and issue the root realization object.",
       "producer": "native compiler program driver",
-      "signature": "d40b95f13fe674bb79045070499eb0a4ee188656fff46c9aea3de8840165cddc"
+      "signature": "168ee22ca5d7f261689f7307d4d673ba796e62233d87a5ce61f8a247f38afbf8"
     },
     {
       "consumers": [
@@ -6772,345 +6759,119 @@
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "FixedEntry::field:0#1",
-      "kind": "carried_record",
-      "meaning": "The issued entry and its resolved fields.",
-      "producer": "layout relaxation",
-      "signature": "798d9816754a83b1a1b0dd74489ae249cd80e1b64daa087c4e48b4984092dea3"
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "use:encoding_admission :: layout :: OptimizedResolvedSelectedFormLayoutError#1",
+      "kind": "definition",
+      "meaning": "Report errors from constructing or independently checking the baseline instruction layout.",
+      "producer": "function-relative layout",
+      "signature": "425d3d5e9c1e2a2f3371c75c13d57cc1d98ce90cb891708195301915143ce8d3"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "FunctionExitLayout::field:custody#1",
-      "kind": "carried_record",
-      "meaning": "The baseline or relaxation run that produced the checked offsets.",
-      "producer": "layout relaxation",
-      "signature": "2958db4806930dc7b89e5647445f92f4448bf5419914eb5f9a5bb0a6c9fb9bed"
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "use:encoding_admission :: layout :: geometry :: declared_size_matches#1",
+      "kind": "definition",
+      "meaning": "Use declared instruction sizes to derive each ordinary row’s extent.",
+      "producer": "function-relative layout",
+      "signature": "9b85256ae807bfc6a9e1acf5aa7ac36f73258ff5cbb51c369f3e94f6ff842783"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "FunctionExitLayout::field:exit_requirements#1",
-      "kind": "carried_record",
-      "meaning": "The required return, trap and call effects with their byte spans and register footprints.",
-      "producer": "layout relaxation",
-      "signature": "41e07f81e162035ec2bb6930881f78c39e0c5b2eb59b8200d149b2812b898144"
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "use:machine_code :: { ResolvedBranchEvidence , ResolvedConditionalBranchEvidence , ResolvedJumpEvidence , ResolvedSelectedBlockLayout , ResolvedSelectedFormRow , ResolvedSelectedFunctionLayout , SelectedFunctionLayoutPolicy , }#1",
+      "kind": "definition",
+      "meaning": "Build function-relative rows from their selected branch and instruction forms.",
+      "producer": "function-relative layout",
+      "signature": "d9fe371a10cc4adf7959a8de0e0cfd662c42892c159b77fe7c1f676218c978db"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "FunctionExitLayout::field:fragment_origins#1",
-      "kind": "carried_record",
-      "meaning": "The source control edge and owning instruction for each exit.",
-      "producer": "layout relaxation",
-      "signature": "097da68be5696e85147f0d11e6dbdbd7ff34091624b94341f7f5b0f01a5132d3"
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "use:machine_code :: { ResolvedMachineLayout , SelectedFormEncoding , resolved_machine_layout_identity as layout_identity , }#1",
+      "kind": "definition",
+      "meaning": "Bind the resolved offsets to their target, block-order policy and original encoding.",
+      "producer": "function-relative layout",
+      "signature": "0529e4275c763ac55bcf5b4703534976298c93fa12303e90239b2e681d95c4c7"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "FunctionExitLayout::field:frame#1",
-      "kind": "carried_record",
-      "meaning": "Stack layout for callee-save and return-address permissions.",
-      "producer": "layout relaxation",
-      "signature": "67a1b2e5adb12bc2b21d317616283c451ce75d49d8b6612f7ef63c321d579bce"
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "use:std :: collections :: BTreeMap#1",
+      "kind": "definition",
+      "meaning": "Index the encoded and selected instructions by their identity while placing a function.",
+      "producer": "function-relative layout",
+      "signature": "9574b2fbc60a1cfc43657771931746bc78eef0f4838d713d01f4e4ca832dfbaf"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "FunctionExitLayout::field:frame_demands#1",
-      "kind": "carried_record",
-      "meaning": "The machine, target and register demands for the frame.",
-      "producer": "layout relaxation",
-      "signature": "e6400a5095526d03e679a2706ed4c8852d09a18916d743185364f79bade31547"
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "use:std :: sync :: Arc#1",
+      "kind": "definition",
+      "meaning": "Retain the immutable baseline layout for replay without copying its rows.",
+      "producer": "function-relative layout",
+      "signature": "7f756560eebd15dcf9a51d4078bc1ef2e1fa6a662fdc601c323d1ec347442c70"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "FunctionExitLayout::field:frame_identity#1",
-      "kind": "carried_record",
-      "meaning": "The identity of the assigned stack frame.",
-      "producer": "layout relaxation",
-      "signature": "723739634dc6dc56841672032eed47e0cc7182e94aab3f2e746959c453568dcb"
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "module:order_suite#1",
+      "kind": "test_support",
+      "meaning": "Exercise producer and validator block ordering against the same control-flow fixtures.",
+      "producer": "function-relative layout",
+      "signature": "d04d3e1de91419cebc6e8233cf0c51bf60127cff391f9d21c46c7dd3bdfe3448"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "FunctionExitLayout::field:layout#1",
-      "kind": "carried_record",
-      "meaning": "The settled bytes and offsets to compare with the encoded obligations.",
-      "producer": "layout relaxation",
-      "signature": "a594b9acdbb888ad205bb64f2f03b4de86578d55b09a49eba858b924dba3348d"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "FunctionExitLayout::field:physical#1",
-      "kind": "carried_record",
-      "meaning": "The physical model for the carried calling convention and register units.",
-      "producer": "layout relaxation",
-      "signature": "9083804233760b65b6d701e4f237ee373829df8816c6ddb31f3babd27fd77ba5"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "FunctionExitLayout::field:protocol#1",
-      "kind": "carried_record",
-      "meaning": "The target frame protocol to match against the function roster.",
-      "producer": "layout relaxation",
-      "signature": "7fb34398144d5ced64ab02921b4d7cdd56ca33a5bb0b456c17bc2ccce454facb"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "FunctionExitLayout::field:protocol_identity#1",
-      "kind": "carried_record",
-      "meaning": "The identity of the encoded frame protocol.",
-      "producer": "layout relaxation",
-      "signature": "26f86483f02c1400edf6be8565a1b8695da8a344d3b501eb34be67d9ac29af0b"
-    },
-    {
-      "consumers": [
-        "function placement"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "RelaxedLayout::field:contracts#1",
-      "kind": "carried_record",
-      "meaning": "The opaque contracts sealed to the encoded context and frame. Relaxation cannot inspect their fields.",
-      "producer": "layout relaxation",
-      "signature": "64526eb644fc706e825a537b99b72ef436636a8dd1b4f988e47baacfb92e51d7"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "RelaxedLayout::field:layout#1",
-      "kind": "carried_record",
-      "meaning": "The settled geometry and the trace produced by relaxation.",
-      "producer": "layout relaxation",
-      "signature": "c634c86e34ace3c0b799b7f6a48bcf05a8fcb7ae7e358d66ba81009bb3cf2b91"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "SettledFunctionLayout::field:current#1",
-      "kind": "carried_record",
-      "meaning": "The program and its roots after optimization.",
-      "producer": "layout relaxation",
-      "signature": "18d8799592b0932981b3154134289e117405d29c184a83a8f30042826194521f"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "SettledFunctionLayout::field:relaxation#1",
-      "kind": "carried_record",
-      "meaning": "The relaxation run when selected for this program.",
-      "producer": "layout relaxation",
-      "signature": "a24a857f6c5cb9fa9847f599bf3a6d1b808bb34963dc18529144d8352f8285b7"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "function:relax_resolved_layout#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "module:ordinary#1",
       "kind": "producer",
-      "meaning": "Relax the incoming resolved layout under its selected policy and budget. On an audit request check the changed rows against the baseline before releasing it.",
-      "producer": "layout relaxation",
-      "signature": "328658bddbda8167f6a0538626d90f22fee5ebfb5baa7dff6448be6846baaffa"
+      "meaning": "Place ordinary instructions and derive basic block order for the baseline layout.",
+      "producer": "function-relative layout",
+      "signature": "355b91551078433322fcab41d70616af97d3ec4e4768665e8b4da418494d8398"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "function:retain_fixed_entry#1",
-      "kind": "producer",
-      "meaning": "Carry a fixed-width entry through the relaxation stage.",
-      "producer": "layout relaxation",
-      "signature": "843ba74e923fd3f35b2695edffd852ba3ce8bd2b4235edd31d9d16620ca2b539"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "impl:FixedEntry < T >::implementation#1",
-      "kind": "definition",
-      "meaning": "Release the fixed entry layout to function placement.",
-      "producer": "layout relaxation",
-      "signature": "5fb9e79471264425ec61393c5eaccdaa8cb47c2b662bed244575003076f888a6"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "impl:FixedEntry < T >::method:into_layout#1",
-      "kind": "definition",
-      "meaning": "Transfer the entry’s resolved fields after relaxation.",
-      "producer": "layout relaxation",
-      "signature": "7df8e18c20067a3f5a39f320b806cda48e7b324c354452b5c75c1c70b4e4b1b4"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "impl:RelaxedLayout < Contracts >::implementation#1",
-      "kind": "definition",
-      "meaning": "Transfer the program and its still-opaque body contracts to placement.",
-      "producer": "layout relaxation",
-      "signature": "4d1366693847a601f1c84265890fca14df95e981478906003ec029bb41a57545"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "impl:RelaxedLayout < Contracts >::method:into_placement#1",
-      "kind": "producer",
-      "meaning": "Release the checked layout, its installed branch obligation and its opaque publication contracts after matching the context and frame.",
-      "producer": "layout relaxation",
-      "signature": "bc0e7ab1febb409b8e18b4333b4d9df0fd55ba1365c1442d11ab2c67944a8f51"
-    },
-    {
-      "consumers": [
-        "native compilation driver"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "impl:RelaxedLayout < Contracts >::method:layout_for_audit#1",
-      "kind": "definition",
-      "meaning": "The settled layout against which an explicitly retained allocation and encoding are checked.",
-      "producer": "layout relaxation",
-      "signature": "69f05ea4b5f63032ba0266ba989d94800151808a4036a42da00e80f33bf60077"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "impl:SettledFunctionLayout::implementation#1",
-      "kind": "definition",
-      "meaning": "Read the settled program, relaxation trace and ABI exit requirements.",
-      "producer": "layout relaxation",
-      "signature": "94265ec11a99ffe6ceddbd8ae6e5fef0a1d922772660b3791f3660c9cce4013a"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "impl:SettledFunctionLayout::method:current#1",
-      "kind": "definition",
-      "meaning": "Borrow the settled program and its optimization roots.",
-      "producer": "layout relaxation",
-      "signature": "67be667f99c630ef96ba3d3544877946cb6eb806ce3865ccd48fc6e31ed1f5cc"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "impl:SettledFunctionLayout::method:function_exits#1",
-      "kind": "producer",
-      "meaning": "Project the offsets and encoded facts required to judge function exits.",
-      "producer": "layout relaxation",
-      "signature": "d5699c5426998a4dbbfffc6a0debedc538a06f79eedadb816f6093a4a2111f81"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "impl:SettledFunctionLayout::method:trace#1",
-      "kind": "definition",
-      "meaning": "Borrow the relaxation trace when the pass ran.",
-      "producer": "layout relaxation",
-      "signature": "0cc1b28eb7b33f4944838baaaafbf330eb119cebe8754187357b0584cccf26e3"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "module:entry_layout#1",
-      "kind": "definition",
-      "meaning": "Expose the adapter and callable entry records carried through relaxation.",
-      "producer": "layout relaxation",
-      "signature": "c7752e03922916619427dc0d33dce324115dcd34ae6a57556d97f01512da54a5"
-    },
-    {
-      "consumers": [
-        "function placement",
-        "independent layout validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "module:program_entry_layout#1",
-      "kind": "definition",
-      "meaning": "Expose fixed-width hosted and physical program entries.",
-      "producer": "layout relaxation",
-      "signature": "04c80e8236d2022c75f5993d7b56064de8974b71d1b9d07ecf1cb2941efad257"
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "module:validation#1",
+      "kind": "test_support",
+      "meaning": "Exercise independent baseline checks against invalid instruction and control layouts.",
+      "producer": "function-relative layout",
+      "signature": "5670df364be65d5a1106b759a09a8bc72fd61daeca0092880b0822d78287d890"
     },
     {
       "consumers": [
         "layout relaxation",
         "explicit published-object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
       "item": "module:relaxation#1",
       "kind": "checker",
       "meaning": "Check the issued relaxation trace and compare relaxed rows with their incoming layout and allowed encodings.",
-      "producer": "layout relaxation",
+      "producer": "function-relative layout",
       "signature": "be7f2e56d1c4282d0fff6b15b2fe95840555d800c1d95b1a37df052f639ede4e"
     },
     {
@@ -7118,23 +6879,23 @@
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "module:tests#1",
-      "kind": "test_support",
-      "meaning": "Exercise the function-relative optimization catalog.",
-      "producer": "layout relaxation",
-      "signature": "f07752b0a4c457ab0704746df8c86e56958e315c3149240e09a6cdb0d3dc2a02"
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "module:settled#1",
+      "kind": "producer",
+      "meaning": "Settle branch forms and issue the final offsets and frame obligations.",
+      "producer": "function-relative layout",
+      "signature": "c6a6ef38948a37ceb755edd1bef336200a3ffb611ba2422e1e3aa23a8ee0d97c"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
       "item": "module:x86_branch_relaxation#1",
       "kind": "producer",
       "meaning": "Run the x86 conditional branch sweep over the issued forms.",
-      "producer": "layout relaxation",
+      "producer": "function-relative layout",
       "signature": "d28f4a63cdd0890adf32cb2afd8fb0807c941aa7ef974ae25be2d0070cdb772b"
     },
     {
@@ -7142,119 +6903,167 @@
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "program_entry_layout::use:placement :: program_entry_layout :: { ResolvedHostedProgram , ResolvedPhysicalProgram }#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "use:settled :: { FunctionExitLayout , ResolvedFunctionLayout , ResolvedLayoutOptimizationError , SettledFunctionLayout , }#1",
       "kind": "definition",
-      "meaning": "Name the resolved hosted and physical program entry types.",
-      "producer": "layout relaxation",
-      "signature": "5d8bc126f0c290d5bda3471c37d12c13771e84e60741109db39b531460ae568d"
+      "meaning": "Expose the issued final layout, its exit obligations and relaxation failures to consumers.",
+      "producer": "function-relative layout",
+      "signature": "b68556e0fcefb45b365ca43e8f522eefe6b4a60cedd3b180f33f16cfbd5ae1fe"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "struct:FixedEntry#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "use:x86_branch_relaxation :: StagedOptimizedX86BranchRelaxation#1",
       "kind": "carried_record",
-      "meaning": "A resolved entry whose fixed-width fields survive relaxation.",
-      "producer": "layout relaxation",
-      "signature": "beb7a88d59c87e4114317259c5ade78d90e60e37fa1b4f2a28a0d058385b3d9e"
+      "meaning": "The completed relaxation run and its immutable trace.",
+      "producer": "function-relative layout",
+      "signature": "f9142d9ca627a0ee5a4b0e1fb8633adb1dc5a4c61083cb5052c7708969c59ccd"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "struct:FunctionExitLayout#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "enum:LayoutError#1",
+      "kind": "definition",
+      "meaning": "Distinguish failures placing baseline instructions from failures settling selected branches.",
+      "producer": "function-relative layout",
+      "signature": "beee0af328da01ee96087f9c7208ee8721dc805597e4d7a351219d3069f7d4df"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "LayoutError::Baseline::field:0#1",
       "kind": "carried_record",
-      "meaning": "The settled offsets, frame and instruction obligations needed to judge exits.",
-      "producer": "layout relaxation",
-      "signature": "e1f94f0db034f4e866881b0fdf61086a1a8367784ec15c4dda4185b50acffd06"
+      "meaning": "Preserve the failure from computing or validating ordinary instruction placement.",
+      "producer": "function-relative layout",
+      "signature": "e16776f42e86e5c2a1ad6b51d3e91a4c41a01df5b40070555b724525b307a1eb"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "struct:RelaxedLayout#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "LayoutError::Relaxation::field:0#1",
       "kind": "carried_record",
-      "meaning": "The settled layout issued to function placement.",
-      "producer": "layout relaxation",
-      "signature": "5549aa6fff2ca5eef5f4fde22daaab9403641cfba29b9c48443c5daf60a75e18"
+      "meaning": "Preserve the failure from applying or independently checking the selected branch rewrite.",
+      "producer": "function-relative layout",
+      "signature": "a226280ccd7032b238b664146078e27076e9380bd809ffe61d08bdad902966b3"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "struct:SettledFunctionLayout#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "struct:LayoutResolution#1",
       "kind": "carried_record",
-      "meaning": "The optimized function layout and trace used to place the body.",
-      "producer": "layout relaxation",
-      "signature": "cd730cae92821c63a20b172087aa72cd61cc47b936ed2a7b40792a94d55588e1"
+      "meaning": "Deliver the issued layout and any separately requested baseline for independent replay.",
+      "producer": "function-relative layout",
+      "signature": "f165a081083fc6196c88f2721cf042dc3e58c26ab861ba40bab912f66583c1ba"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "tests::function:ordered_catalog_covers_every_declared_function_relative_layout_optimization_once#1",
-      "kind": "test_support",
-      "meaning": "Require the catalog to cover each function-relative optimization once.",
-      "producer": "layout relaxation",
-      "signature": "755f2ef79b4acd2832f89d677f081bc57e4f1915a041ab2f4bea9c202ee15e64"
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "LayoutResolution::field:layout#1",
+      "kind": "carried_record",
+      "meaning": "The final function-relative offsets and contracts consumed by text placement.",
+      "producer": "function-relative layout",
+      "signature": "4cf367c1d215d752c03466b3480e9374638c2be9ee6c08ac2ed39ddaa68465c4"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "tests::function:selection_vocabulary_routes_phases_and_rejects_foreign_phase_projections#1",
-      "kind": "test_support",
-      "meaning": "Check phase routing and rejection of a foreign projection.",
-      "producer": "layout relaxation",
-      "signature": "13a330afcc602b4eb73d0df29851699a6d6da407386707593b9b33755bdde91f"
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "LayoutResolution::field:baseline_for_audit#1",
+      "kind": "carried_record",
+      "meaning": "The original layout retained only for a requested independent publication check.",
+      "producer": "function-relative layout",
+      "signature": "e22afc67192be6f26c4131a624306bffb1d960dc055656bdc20d67ba8667abc0"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "tests::use:optimization_core :: OptimizationSelections#1",
-      "kind": "test_support",
-      "meaning": "Build phase-specific selections in the catalog tests.",
-      "producer": "layout relaxation",
-      "signature": "02f7988c44567a25fe4e8a71cda1ca2a3d822dbc7fc26e9699c2c59798b2059e"
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "function:resolve_program#1",
+      "kind": "producer",
+      "meaning": "Resolve one issued encoding under its placement and relaxation policies and retain a baseline when replay is requested.",
+      "producer": "function-relative layout",
+      "signature": "0d485d1806f2558c4cce6f47d4c17b4dac757c859d2cd4e5fbc88c9cc3243422"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "tests::use:super :: { Architecture , FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG , FunctionRelativeLayoutCatalogError , Optimization , OptimizationExecutionPhase , x86_rel8_selected , }#1",
-      "kind": "test_support",
-      "meaning": "Read the catalog, projection and refusal vocabulary in the tests.",
-      "producer": "layout relaxation",
-      "signature": "e1eac6820b48179e593666b98c7f6544deb5b0a887cd0e142090f84510dc6fef"
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "function:baseline#1",
+      "kind": "producer",
+      "meaning": "Bind initial instruction offsets and legal control-form alternatives to the issued physical encoding.",
+      "producer": "function-relative layout",
+      "signature": "7257ab2d9224a0b431809729169394a10ccbb508309be94a0e0ff986d9a6bd60"
     },
     {
       "consumers": [
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "function:compute#1",
+      "kind": "producer",
+      "meaning": "Build the per-function block and instruction offset rows from encoded sizes and layout requirements.",
+      "producer": "function-relative layout",
+      "signature": "cdfa6ba683831cef204a8978bb0627124340cb87b9457bf8c96954c16694c4e2"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "module:entry_layout#1",
+      "kind": "producer",
+      "meaning": "Resolve fixed-width private and foreign entry call fields before constructing their objects.",
+      "producer": "function-relative layout",
+      "signature": "c7752e03922916619427dc0d33dce324115dcd34ae6a57556d97f01512da54a5"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
+      "item": "module:program_entry_layout#1",
+      "kind": "producer",
+      "meaning": "Resolve the call fields and relocations of fixed-width hosted and physical process entries.",
+      "producer": "function-relative layout",
+      "signature": "04c80e8236d2022c75f5993d7b56064de8974b71d1b9d07ecf1cb2941efad257"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
       "item": "use:machine_code :: layout :: relaxation_policy :: ResolvedLayoutOptimizationError#1",
       "kind": "definition",
       "meaning": "Expose the reason the layout optimization refused its input.",
-      "producer": "layout relaxation",
+      "producer": "function-relative layout",
       "signature": "a16cc1888c8dafb1b9c6b9479b63540ab49a33b18304f9fbf3a626872b1e870b"
     },
     {
@@ -7262,11 +7071,11 @@
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
       "item": "use:machine_code :: layout :: relaxation_policy :: { FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG , FunctionRelativeLayoutCatalogError , }#1",
       "kind": "test_support",
       "meaning": "Compare the declared catalog and errors with phase selections.",
-      "producer": "layout relaxation",
+      "producer": "function-relative layout",
       "signature": "878f19965222ca3fa79d8774ed26c3a0991471acad4e8362e9dab02351a01efc"
     },
     {
@@ -7274,11 +7083,11 @@
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
       "item": "use:machine_code :: layout :: relaxation_policy :: { relaxation_roots , x86_rel8_selected }#1",
       "kind": "definition",
       "meaning": "Bind the selected rule and the resulting run to the layout.",
-      "producer": "layout relaxation",
+      "producer": "function-relative layout",
       "signature": "97a561fbb1a7bd23330dc8b4da4c1b869ffc08dd8155562d82ae57d34a48f2ce"
     },
     {
@@ -7286,11 +7095,11 @@
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
       "item": "use:optimization_core :: Optimization#1",
       "kind": "test_support",
       "meaning": "Name individual optimization choices exercised by catalog tests.",
-      "producer": "layout relaxation",
+      "producer": "function-relative layout",
       "signature": "e62d1b3c5eae2ea0a8a8df9849526cedf6e60dc73cb7f4b4b066e7088639fc18"
     },
     {
@@ -7298,11 +7107,11 @@
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
       "item": "use:optimization_core :: OptimizationExecutionPhase#1",
       "kind": "definition",
       "meaning": "Select the phase for function-relative layout.",
-      "producer": "layout relaxation",
+      "producer": "function-relative layout",
       "signature": "69c6aac0faa025e4656733a454f1338e39a663d41cf2725d1f0aa5b8dd66afb5"
     },
     {
@@ -7310,11 +7119,11 @@
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
       "item": "use:target :: Architecture#1",
       "kind": "test_support",
       "meaning": "Name the architecture used in catalog acceptance and refusal tests.",
-      "producer": "layout relaxation",
+      "producer": "function-relative layout",
       "signature": "2706f53c2c89c26e2f7ca765b45935eed6b4b8a75899276be6e4d7b7f3d4087d"
     },
     {
@@ -7322,189 +7131,370 @@
         "function placement",
         "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "use:x86_branch_relaxation :: StagedOptimizedX86BranchRelaxation#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "use:crate :: { StagedOptimizedX86BranchRelaxation , relaxation , x86_branch_relaxation }#1",
+      "kind": "definition",
+      "meaning": "Use the layout transition checker and the x86 rewrite implementation when settling the baseline.",
+      "producer": "function-relative layout",
+      "signature": "0d11c32b30fdf721a0296f444626f9030bed3145a334508e5cd05c6d2eda9fb5"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "struct:ResolvedFunctionLayout#1",
       "kind": "carried_record",
-      "meaning": "The completed relaxation run and its immutable trace.",
-      "producer": "layout relaxation",
-      "signature": "f9142d9ca627a0ee5a4b0e1fb8633adb1dc5a4c61083cb5052c7708969c59ccd"
+      "meaning": "The settled layout issued to function placement.",
+      "producer": "function-relative layout",
+      "signature": "e61a750713ca28becc37be6b65682dc24ee482011901a1ebf509f94d5d917369"
     },
     {
       "consumers": [
         "function placement"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
-      "item": "entry_layout::use:placement :: entry_layout :: { ResolvedBridge , ResolvedCallableEntry , ResolvedForeignAdapter , ResolvedPrivateEntry , }#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "ResolvedFunctionLayout::field:contracts#1",
+      "kind": "carried_record",
+      "meaning": "The opaque contracts sealed to the encoded context and frame. Relaxation cannot inspect their fields.",
+      "producer": "function-relative layout",
+      "signature": "64526eb644fc706e825a537b99b72ef436636a8dd1b4f988e47baacfb92e51d7"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "ResolvedFunctionLayout::field:layout#1",
+      "kind": "carried_record",
+      "meaning": "The settled geometry and the trace produced by relaxation.",
+      "producer": "function-relative layout",
+      "signature": "c634c86e34ace3c0b799b7f6a48bcf05a8fcb7ae7e358d66ba81009bb3cf2b91"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "impl:ResolvedFunctionLayout < Contracts >::implementation#1",
       "kind": "definition",
-      "meaning": "Expose the resolved bridge, callable, foreign adapter and private entry layouts to function placement.",
-      "producer": "layout relaxation",
-      "signature": "779b76cdbd385d1f871222a520c5a70662f5f34b808b3a25839219ae7758dd24"
+      "meaning": "Transfer the program and its still-opaque body contracts to placement.",
+      "producer": "function-relative layout",
+      "signature": "c3b3e64d161aba12953b09301334132e7642460d4d4d2bb359c51d44cc52a099"
     },
     {
       "consumers": [
-        "native body layout",
-        "object construction",
-        "independent native validation"
+        "native compilation driver"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "FunctionTextLayoutError::Fragment::field:0#1",
-      "kind": "carried_record",
-      "meaning": "Preserve the concrete fragment error when placement refuses the function.",
-      "producer": "function placement",
-      "signature": "86f2be4911743c965cc58c991b076f5e9487e626ab43b0faf7f83152b9c66b28"
-    },
-    {
-      "consumers": [
-        "native body layout",
-        "object construction",
-        "independent native validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "FunctionTextLayoutError::Frame::field:0#1",
-      "kind": "carried_record",
-      "meaning": "Preserve the concrete frame error when placement refuses the function.",
-      "producer": "function placement",
-      "signature": "d5c052269b6504421895fe8a8d83892d83fc6b30ed25dbc8435d680db06e615d"
-    },
-    {
-      "consumers": [
-        "native body layout",
-        "object construction",
-        "independent native validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "FunctionTextLayoutError::Placement::field:0#1",
-      "kind": "carried_record",
-      "meaning": "Preserve the concrete placement error when placement refuses the function.",
-      "producer": "function placement",
-      "signature": "c62dfede4c41c93289e377d2b9bbba80551e209134f5de4ecb3e47df45ada194"
-    },
-    {
-      "consumers": [
-        "native body layout",
-        "object construction",
-        "independent native validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "FunctionTextLayoutError::Realization::field:0#1",
-      "kind": "carried_record",
-      "meaning": "Preserve the concrete realization error when placement refuses the function.",
-      "producer": "function placement",
-      "signature": "edd22b75495347031e45dfa5a838e09899ef324db8e755bd66f0687b895b6299"
-    },
-    {
-      "consumers": [
-        "object construction"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "PlacedEntry::field:0#1",
-      "kind": "carried_record",
-      "meaning": "The entry layout carried by relaxation for this fragment.",
-      "producer": "function placement",
-      "signature": "e632b7095b0bf32c260fa4c539e9fd7b852d0de454e9be26f24d0d6f91d069d3"
-    },
-    {
-      "consumers": [
-        "object construction"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "entry_placement::alias:PlacedCallableEntry#1",
-      "kind": "carried_record",
-      "meaning": "Object construction accepts the callable and its optional bridge after function placement issues its fragment.",
-      "producer": "function placement",
-      "signature": "b685de8cf25809dd6caf701932f7788344208a9bcdb0f28b27b11c2f4dfd9bf5"
-    },
-    {
-      "consumers": [
-        "object construction"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "entry_placement::alias:PlacedForeignAdapter#1",
-      "kind": "carried_record",
-      "meaning": "Object construction accepts the foreign adapter and its import after function placement issues its fragment.",
-      "producer": "function placement",
-      "signature": "fda9699135112ad28a3577fd1ff72204724bae6730f1a1f1586d7d5a6325b6aa"
-    },
-    {
-      "consumers": [
-        "object construction"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "entry_placement::alias:PlacedPrivateEntry#1",
-      "kind": "carried_record",
-      "meaning": "Object construction accepts the private callable and its identity after function placement issues its fragment.",
-      "producer": "function placement",
-      "signature": "d73d17fc44348731b8e0bd703fd47d549137680d14020de81af34f3df67c0d3c"
-    },
-    {
-      "consumers": [
-        "object construction"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "entry_placement::use:relaxation :: entry_layout :: { ResolvedForeignAdapter , ResolvedPrivateEntry }#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "impl:ResolvedFunctionLayout < Contracts >::method:layout_for_audit#1",
       "kind": "definition",
-      "meaning": "Name the fixed entry layouts and fields carried forward by relaxation for this object interface.",
-      "producer": "function placement",
-      "signature": "fff6f7b946ca68ea168f0f359c29d7baf48a73071ae823bcf58c83cc1128aa07"
+      "meaning": "The settled layout against which an explicitly retained allocation and encoding are checked.",
+      "producer": "function-relative layout",
+      "signature": "69f05ea4b5f63032ba0266ba989d94800151808a4036a42da00e80f33bf60077"
     },
     {
       "consumers": [
-        "native body layout",
-        "object construction",
-        "independent native validation"
+        "function placement",
+        "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "enum:FunctionTextLayoutError#1",
-      "kind": "definition",
-      "meaning": "Expose the original function placement failure and the operation that reported it.",
-      "producer": "function placement",
-      "signature": "35879d081417be1040d76eaace056840d62f666ae9ce59cf6919137b3e66d839"
-    },
-    {
-      "consumers": [
-        "object construction"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "function:place_fixed_entry#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "impl:ResolvedFunctionLayout < Contracts >::method:into_placement#1",
       "kind": "producer",
-      "meaning": "Place the fixed-width entry at offset zero in its own fragment.",
-      "producer": "function placement",
-      "signature": "151e5b5fcbd2c131f42b833e1deaff64690dcfcf14b067f2a7e72c8abf274f34"
+      "meaning": "Release the checked layout, its installed branch obligation and its opaque publication contracts after matching the context and frame.",
+      "producer": "function-relative layout",
+      "signature": "bc0e7ab1febb409b8e18b4333b4d9df0fd55ba1365c1442d11ab2c67944a8f51"
     },
     {
       "consumers": [
-        "native body layout",
-        "object construction",
-        "independent native validation"
+        "function placement",
+        "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "function:place_function_text#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "struct:SettledFunctionLayout#1",
+      "kind": "carried_record",
+      "meaning": "The optimized function layout and trace used to place the body.",
+      "producer": "function-relative layout",
+      "signature": "cd730cae92821c63a20b172087aa72cd61cc47b936ed2a7b40792a94d55588e1"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "SettledFunctionLayout::field:current#1",
+      "kind": "carried_record",
+      "meaning": "The program and its roots after optimization.",
+      "producer": "function-relative layout",
+      "signature": "18d8799592b0932981b3154134289e117405d29c184a83a8f30042826194521f"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "SettledFunctionLayout::field:relaxation#1",
+      "kind": "carried_record",
+      "meaning": "The relaxation run when selected for this program.",
+      "producer": "function-relative layout",
+      "signature": "a24a857f6c5cb9fa9847f599bf3a6d1b808bb34963dc18529144d8352f8285b7"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "struct:FunctionExitLayout#1",
+      "kind": "carried_record",
+      "meaning": "The settled offsets, frame and instruction obligations needed to judge exits.",
+      "producer": "function-relative layout",
+      "signature": "d34b12006f8825cec523dc38cc63e886b604d7802bf4a096a5735b6fb0d779f3"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "FunctionExitLayout::field:exit_requirements#1",
+      "kind": "carried_record",
+      "meaning": "The required return, trap and call effects with their byte spans and register footprints.",
+      "producer": "function-relative layout",
+      "signature": "41e07f81e162035ec2bb6930881f78c39e0c5b2eb59b8200d149b2812b898144"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "FunctionExitLayout::field:fragment_origins#1",
+      "kind": "carried_record",
+      "meaning": "The source control edge and owning instruction for each exit.",
+      "producer": "function-relative layout",
+      "signature": "097da68be5696e85147f0d11e6dbdbd7ff34091624b94341f7f5b0f01a5132d3"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "FunctionExitLayout::field:frame_demands#1",
+      "kind": "carried_record",
+      "meaning": "The machine, target and register demands for the frame.",
+      "producer": "function-relative layout",
+      "signature": "e6400a5095526d03e679a2706ed4c8852d09a18916d743185364f79bade31547"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "FunctionExitLayout::field:physical#1",
+      "kind": "carried_record",
+      "meaning": "The physical model for the carried calling convention and register units.",
+      "producer": "function-relative layout",
+      "signature": "9083804233760b65b6d701e4f237ee373829df8816c6ddb31f3babd27fd77ba5"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "FunctionExitLayout::field:layout#1",
+      "kind": "carried_record",
+      "meaning": "The settled bytes and offsets to compare with the encoded obligations.",
+      "producer": "function-relative layout",
+      "signature": "a594b9acdbb888ad205bb64f2f03b4de86578d55b09a49eba858b924dba3348d"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "FunctionExitLayout::field:frame#1",
+      "kind": "carried_record",
+      "meaning": "Stack layout for callee-save and return-address permissions.",
+      "producer": "function-relative layout",
+      "signature": "67a1b2e5adb12bc2b21d317616283c451ce75d49d8b6612f7ef63c321d579bce"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "FunctionExitLayout::field:protocol#1",
+      "kind": "carried_record",
+      "meaning": "The target frame protocol to match against the function roster.",
+      "producer": "function-relative layout",
+      "signature": "7fb34398144d5ced64ab02921b4d7cdd56ca33a5bb0b456c17bc2ccce454facb"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "FunctionExitLayout::field:frame_identity#1",
+      "kind": "carried_record",
+      "meaning": "The identity of the assigned stack frame.",
+      "producer": "function-relative layout",
+      "signature": "723739634dc6dc56841672032eed47e0cc7182e94aab3f2e746959c453568dcb"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "FunctionExitLayout::field:protocol_identity#1",
+      "kind": "carried_record",
+      "meaning": "The identity of the encoded frame protocol.",
+      "producer": "function-relative layout",
+      "signature": "26f86483f02c1400edf6be8565a1b8695da8a344d3b501eb34be67d9ac29af0b"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "FunctionExitLayout::field:custody#1",
+      "kind": "carried_record",
+      "meaning": "The baseline or relaxation run that produced the checked offsets.",
+      "producer": "function-relative layout",
+      "signature": "2958db4806930dc7b89e5647445f92f4448bf5419914eb5f9a5bb0a6c9fb9bed"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "impl:SettledFunctionLayout::implementation#1",
+      "kind": "definition",
+      "meaning": "Read the settled program, relaxation trace and ABI exit requirements.",
+      "producer": "function-relative layout",
+      "signature": "94265ec11a99ffe6ceddbd8ae6e5fef0a1d922772660b3791f3660c9cce4013a"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "impl:SettledFunctionLayout::method:current#1",
+      "kind": "definition",
+      "meaning": "Borrow the settled program and its optimization roots.",
+      "producer": "function-relative layout",
+      "signature": "67be667f99c630ef96ba3d3544877946cb6eb806ce3865ccd48fc6e31ed1f5cc"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "impl:SettledFunctionLayout::method:function_exits#1",
       "kind": "producer",
-      "meaning": "Place the fragments and frame bytes from the issued layout. Resolve internal calls and expose external relocations.",
-      "producer": "function placement",
-      "signature": "b79817d2b6f8751be3fec60ef41d8632440b0912fe8134d750f15a3c0c4c4b24"
+      "meaning": "Project the offsets and encoded facts required to judge function exits.",
+      "producer": "function-relative layout",
+      "signature": "d5699c5426998a4dbbfffc6a0debedc538a06f79eedadb816f6093a4a2111f81"
     },
     {
       "consumers": [
-        "object construction"
+        "function placement",
+        "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "impl:PlacedEntry < T >::implementation#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "impl:SettledFunctionLayout::method:trace#1",
       "kind": "definition",
-      "meaning": "Object construction consumes the placed fragment and takes its layout.",
-      "producer": "function placement",
-      "signature": "7db2ef4f15fc6f010ddd7e726c3ec1c4143b5ceb3731869baee7e25e866b8d3b"
+      "meaning": "Borrow the relaxation trace when the pass ran.",
+      "producer": "function-relative layout",
+      "signature": "0cc1b28eb7b33f4944838baaaafbf330eb119cebe8754187357b0584cccf26e3"
     },
     {
       "consumers": [
-        "object construction"
+        "function placement",
+        "independent layout validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "impl:PlacedEntry < T >::method:into_layout#1",
-      "kind": "definition",
-      "meaning": "Transfer the placed fragment layout to the object producer.",
-      "producer": "function placement",
-      "signature": "0b843c0d307587df7e77d3b5f3deada8919c5cd4b4426e062c9813eea8dc8164"
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "function:settle#1",
+      "kind": "producer",
+      "meaning": "Apply the selected branch rule and work budget, retaining the original layout roots and concrete relaxation trace.",
+      "producer": "function-relative layout",
+      "signature": "a5ab37906f78e36326f55cef0fa1e738ac932ace7c117376d907c6da04014fd1"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "module:tests#1",
+      "kind": "test_support",
+      "meaning": "Exercise the function-relative optimization catalog.",
+      "producer": "function-relative layout",
+      "signature": "f07752b0a4c457ab0704746df8c86e56958e315c3149240e09a6cdb0d3dc2a02"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "tests::use:optimization_core :: OptimizationSelections#1",
+      "kind": "test_support",
+      "meaning": "Build phase-specific selections in the catalog tests.",
+      "producer": "function-relative layout",
+      "signature": "02f7988c44567a25fe4e8a71cda1ca2a3d822dbc7fc26e9699c2c59798b2059e"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "tests::use:super :: { Architecture , FUNCTION_RELATIVE_LAYOUT_RULE_CATALOG , FunctionRelativeLayoutCatalogError , Optimization , OptimizationExecutionPhase , x86_rel8_selected , }#1",
+      "kind": "test_support",
+      "meaning": "Read the catalog, projection and refusal vocabulary in the tests.",
+      "producer": "function-relative layout",
+      "signature": "e1eac6820b48179e593666b98c7f6544deb5b0a887cd0e142090f84510dc6fef"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "tests::function:ordered_catalog_covers_every_declared_function_relative_layout_optimization_once#1",
+      "kind": "test_support",
+      "meaning": "Require the catalog to cover each function-relative optimization once.",
+      "producer": "function-relative layout",
+      "signature": "755f2ef79b4acd2832f89d677f081bc57e4f1915a041ab2f4bea9c202ee15e64"
+    },
+    {
+      "consumers": [
+        "function placement",
+        "independent layout validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "item": "tests::function:selection_vocabulary_routes_phases_and_rejects_foreign_phase_projections#1",
+      "kind": "test_support",
+      "meaning": "Check phase routing and rejection of a foreign projection.",
+      "producer": "function-relative layout",
+      "signature": "13a330afcc602b4eb73d0df29851699a6d6da407386707593b9b33755bdde91f"
     },
     {
       "consumers": [
@@ -7512,12 +7502,12 @@
         "object construction",
         "independent native validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "impl:std :: error :: Error for FunctionTextLayoutError::implementation#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
+      "item": "use:wire :: codec_bytes#1",
       "kind": "definition",
-      "meaning": "Expose the original function placement failure and the operation that reported it.",
+      "meaning": "Use the common wire byte operations for placement records.",
       "producer": "function placement",
-      "signature": "6e0ede3674ea43c8a453ae069bcd2653457260e4af66bb95de9f1ebb5d8c580e"
+      "signature": "3df5da7fb21f13870988111ee18bddf55b5abff63925f7000b42d27585234886"
     },
     {
       "consumers": [
@@ -7525,33 +7515,7 @@
         "object construction",
         "independent native validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "impl:std :: fmt :: Display for FunctionTextLayoutError::implementation#1",
-      "kind": "definition",
-      "meaning": "Expose the original function placement failure and the operation that reported it.",
-      "producer": "function placement",
-      "signature": "2d47605c5fa76c33e912e22b6e52696eb92d709a7509a19523c12383d46f0d4f"
-    },
-    {
-      "consumers": [
-        "native body layout",
-        "object construction",
-        "independent native validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "impl:std :: fmt :: Display for FunctionTextLayoutError::method:fmt#1",
-      "kind": "definition",
-      "meaning": "Expose the original function placement failure and the operation that reported it.",
-      "producer": "function placement",
-      "signature": "ea539680d83f664b9eed73a91a4b3fbd547808b054212f7d667b2707ef5d8144"
-    },
-    {
-      "consumers": [
-        "native body layout",
-        "object construction",
-        "independent native validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
       "item": "module:code_layout#1",
       "kind": "definition",
       "meaning": "Map placed instruction spans to requested native code layouts.",
@@ -7564,20 +7528,7 @@
         "object construction",
         "independent native validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "module:entry_placement#1",
-      "kind": "definition",
-      "meaning": "Place encoded bridges and private entries.",
-      "producer": "function placement",
-      "signature": "9a3e3b935c77b570b5e6d74c2105872eaba7d30d0c535cb818df8dd2a1d44259"
-    },
-    {
-      "consumers": [
-        "native body layout",
-        "object construction",
-        "independent native validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
       "item": "module:exit_contract#1",
       "kind": "definition",
       "meaning": "Describe the realized entry, exit and return conventions of the function.",
@@ -7590,7 +7541,7 @@
         "object construction",
         "independent native validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
       "item": "module:fragment_emission#1",
       "kind": "definition",
       "meaning": "Emit function-relative bytes and fixups from the resolved machine layout.",
@@ -7603,7 +7554,7 @@
         "object construction",
         "independent native validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
       "item": "module:frame_application#1",
       "kind": "definition",
       "meaning": "Apply the frame protocol and carry its branch origins and placed readback.",
@@ -7616,7 +7567,7 @@
         "object construction",
         "independent native validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
       "item": "module:function_realization#1",
       "kind": "definition",
       "meaning": "Bind the optimized machine layout to its whole-function realization.",
@@ -7625,23 +7576,10 @@
     },
     {
       "consumers": [
-        "native body layout",
-        "object construction",
-        "independent native validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "module:program_entry_placement#1",
-      "kind": "definition",
-      "meaning": "Place the encoded hosted or physical program entry.",
-      "producer": "function placement",
-      "signature": "f6cae13a1699f2cdc37e2f6bd88e9f21290c75851871542b474e20ff98b1231c"
-    },
-    {
-      "consumers": [
         "frame application",
         "installed handler readback"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
       "item": "module:relative_branches#1",
       "kind": "definition",
       "meaning": "Check final branch bytes against their admitted form and actual destination.",
@@ -7654,7 +7592,7 @@
         "object construction",
         "independent native validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
       "item": "module:text_placement#1",
       "kind": "definition",
       "meaning": "Place frame-applied code into a text section and check its relocation evidence.",
@@ -7667,64 +7605,7 @@
         "object construction",
         "independent native validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "place_function_text::use:FunctionTextLayoutError :: *#1",
-      "kind": "definition",
-      "meaning": "Expose the original function placement failure and the operation that reported it.",
-      "producer": "function placement",
-      "signature": "9c2d05c222f0331f8fc6f31444c9941354f25efddd133bac02764b0cf175be87"
-    },
-    {
-      "consumers": [
-        "object construction"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "program_entry_placement::alias:PlacedHostedProgram#1",
-      "kind": "carried_record",
-      "meaning": "Object construction accepts the hosted entry and its import fields after function placement issues its fragment.",
-      "producer": "function placement",
-      "signature": "067970c025bbbf002c758667c91b9c52944d41ad6d24e2ce678ef45f5779bc50"
-    },
-    {
-      "consumers": [
-        "object construction"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "program_entry_placement::alias:PlacedPhysicalProgram#1",
-      "kind": "carried_record",
-      "meaning": "Object construction accepts the physical entry bridge and stack switch after function placement issues its fragment.",
-      "producer": "function placement",
-      "signature": "e273e39bb7633f51578ce2ee90c9199eae871a6c576f08523e599cec35c0bc0a"
-    },
-    {
-      "consumers": [
-        "object construction"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "program_entry_placement::use:relaxation :: program_entry_layout :: { ResolvedHostedProgram , ResolvedPhysicalProgram }#1",
-      "kind": "definition",
-      "meaning": "Name the fixed entry layouts and fields carried forward by relaxation for this object interface.",
-      "producer": "function placement",
-      "signature": "5e3c94bd02bf9986dc244e30a99fcd3325bc2ec63b0c0068bf261093bd05f03c"
-    },
-    {
-      "consumers": [
-        "object construction"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "struct:PlacedEntry#1",
-      "kind": "carried_record",
-      "meaning": "The issued entry fragment whose fields reside at their resolved offsets.",
-      "producer": "function placement",
-      "signature": "eb16fc9597cdd93a99225f757a35436bc3b03232b166b40405a1b85280c42299"
-    },
-    {
-      "consumers": [
-        "native body layout",
-        "object construction",
-        "independent native validation"
-      ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
       "item": "use:exit_contract :: { WholeFunctionEntryAssumption , WholeFunctionExitContract , WholeFunctionExitContractIdentity , WholeFunctionExitEvidence , WholeFunctionExitLayoutCustody , WholeFunctionExitPolicy , WholeFunctionFrameDisposition , WholeFunctionHardeningPolicy , WholeFunctionReturnEvidence , WholeFunctionReturnMechanism , WholeFunctionReturnValueEvidence , }#1",
       "kind": "definition",
       "meaning": "Describe the realized entry, exit and return conventions of the function.",
@@ -7737,7 +7618,7 @@
         "object construction",
         "independent native validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
       "item": "use:fragment_emission :: { FunctionFragmentEmissionError , FunctionFragmentEmissionManifest , FunctionFragmentEmissionManifestDecodeError , FunctionFragmentEmissionStage , FunctionFragmentEmissionStatistics , FunctionFragmentEmissionUnavailableData , StagedOptimizedFunctionFragmentEmissionSource , }#1",
       "kind": "definition",
       "meaning": "Emit function-relative bytes and fixups from the resolved machine layout.",
@@ -7750,7 +7631,7 @@
         "object construction",
         "independent native validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
       "item": "use:frame_application :: { CheckedFunctionBranches , FunctionAppliedFrameEpilogue , FunctionAppliedFrameProtocol , FunctionFragmentFrameApplication , FunctionFragmentFrameApplicationError , FunctionFragmentFrameApplicationIdentity , PlacedBodyEvidence , StagedFunctionFragmentFrameApplication , function_fragment_frame_application_identity , }#1",
       "kind": "definition",
       "meaning": "Expose frame application, installed branch readback and its checked result.",
@@ -7763,7 +7644,7 @@
         "object construction",
         "independent native validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
       "item": "use:function_realization :: { FunctionRelativeOptimizationRealizationError , StagedFixedFrameFunctionRelativeRealization , }#1",
       "kind": "definition",
       "meaning": "Bind the optimized machine layout to its whole-function realization.",
@@ -7774,7 +7655,7 @@
       "consumers": [
         "object construction"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
       "item": "use:text_placement :: { FunctionFragmentTextSectionManifest , FunctionFragmentTextSectionManifestDecodeError , FunctionFragmentTextSectionStage , FunctionFragmentTextSectionStatistics , FunctionFragmentTextSectionUnavailableData , FunctionPlacement , RelocationFreeTextSectionPlacementError , StagedOptimizedFixedFrameTextSection , validate_optimized_fixed_frame_text_section , }#1",
       "kind": "definition",
       "meaning": "Expose placed text, placement replay and the text validator.",
@@ -7787,23 +7668,129 @@
         "object construction",
         "independent native validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "use:wire :: codec_bytes#1",
-      "kind": "definition",
-      "meaning": "Use the common wire byte operations for placement records.",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
+      "item": "function:place_function_text#1",
+      "kind": "producer",
+      "meaning": "Place the fragments and frame bytes from the issued layout. Resolve internal calls and expose external relocations.",
       "producer": "function placement",
-      "signature": "3df5da7fb21f13870988111ee18bddf55b5abff63925f7000b42d27585234886"
+      "signature": "090010d174ae44f6559327d5d3bf5f72c0eb4997a2b982cb2bd9b0bc5a78e440"
     },
     {
       "consumers": [
-        "object construction"
+        "native body layout",
+        "object construction",
+        "independent native validation"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
-      "item": "entry_placement::use:relaxation :: entry_layout :: { ResolvedBridge , ResolvedCallableEntry }#1",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
+      "item": "place_function_text::use:FunctionTextLayoutError :: *#1",
       "kind": "definition",
-      "meaning": "Carry the resolved bridge and callable entry from relaxation into function placement.",
+      "meaning": "Expose the original function placement failure and the operation that reported it.",
       "producer": "function placement",
-      "signature": "377b1ec548d580849b6c4d03d972b908eb9535a1d966c856e71bc9ad05d0a9b5"
+      "signature": "9c2d05c222f0331f8fc6f31444c9941354f25efddd133bac02764b0cf175be87"
+    },
+    {
+      "consumers": [
+        "native body layout",
+        "object construction",
+        "independent native validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
+      "item": "enum:FunctionTextLayoutError#1",
+      "kind": "definition",
+      "meaning": "Expose the original function placement failure and the operation that reported it.",
+      "producer": "function placement",
+      "signature": "35879d081417be1040d76eaace056840d62f666ae9ce59cf6919137b3e66d839"
+    },
+    {
+      "consumers": [
+        "native body layout",
+        "object construction",
+        "independent native validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
+      "item": "FunctionTextLayoutError::Realization::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Preserve the concrete realization error when placement refuses the function.",
+      "producer": "function placement",
+      "signature": "edd22b75495347031e45dfa5a838e09899ef324db8e755bd66f0687b895b6299"
+    },
+    {
+      "consumers": [
+        "native body layout",
+        "object construction",
+        "independent native validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
+      "item": "FunctionTextLayoutError::Fragment::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Preserve the concrete fragment error when placement refuses the function.",
+      "producer": "function placement",
+      "signature": "86f2be4911743c965cc58c991b076f5e9487e626ab43b0faf7f83152b9c66b28"
+    },
+    {
+      "consumers": [
+        "native body layout",
+        "object construction",
+        "independent native validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
+      "item": "FunctionTextLayoutError::Frame::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Preserve the concrete frame error when placement refuses the function.",
+      "producer": "function placement",
+      "signature": "d5c052269b6504421895fe8a8d83892d83fc6b30ed25dbc8435d680db06e615d"
+    },
+    {
+      "consumers": [
+        "native body layout",
+        "object construction",
+        "independent native validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
+      "item": "FunctionTextLayoutError::Placement::field:0#1",
+      "kind": "carried_record",
+      "meaning": "Preserve the concrete placement error when placement refuses the function.",
+      "producer": "function placement",
+      "signature": "c62dfede4c41c93289e377d2b9bbba80551e209134f5de4ecb3e47df45ada194"
+    },
+    {
+      "consumers": [
+        "native body layout",
+        "object construction",
+        "independent native validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
+      "item": "impl:std :: fmt :: Display for FunctionTextLayoutError::implementation#1",
+      "kind": "definition",
+      "meaning": "Expose the original function placement failure and the operation that reported it.",
+      "producer": "function placement",
+      "signature": "2d47605c5fa76c33e912e22b6e52696eb92d709a7509a19523c12383d46f0d4f"
+    },
+    {
+      "consumers": [
+        "native body layout",
+        "object construction",
+        "independent native validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
+      "item": "impl:std :: fmt :: Display for FunctionTextLayoutError::method:fmt#1",
+      "kind": "definition",
+      "meaning": "Expose the original function placement failure and the operation that reported it.",
+      "producer": "function placement",
+      "signature": "ea539680d83f664b9eed73a91a4b3fbd547808b054212f7d667b2707ef5d8144"
+    },
+    {
+      "consumers": [
+        "native body layout",
+        "object construction",
+        "independent native validation"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
+      "item": "impl:std :: error :: Error for FunctionTextLayoutError::implementation#1",
+      "kind": "definition",
+      "meaning": "Expose the original function placement failure and the operation that reported it.",
+      "producer": "function placement",
+      "signature": "6e0ede3674ea43c8a453ae069bcd2653457260e4af66bb95de9f1ebb5d8c580e"
     },
     {
       "consumers": [
@@ -7811,7 +7798,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "ObjectPublication::field:body#1",
       "kind": "carried_record",
       "meaning": "The placed bindings, machine readback and fragment statistics.",
@@ -7824,7 +7811,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "ObjectPublication::field:contracts#1",
       "kind": "carried_record",
       "meaning": "The object contracts bound before layout.",
@@ -7837,7 +7824,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "ObjectPublication::field:custody#1",
       "kind": "carried_record",
       "meaning": "The receipt binding the object container to its placed text.",
@@ -7850,7 +7837,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "ObjectPublication::field:native_layouts#1",
       "kind": "carried_record",
       "meaning": "The native code layouts in request order, or the originating layout error.",
@@ -7863,7 +7850,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "ObjectPublication::field:object#1",
       "kind": "carried_record",
       "meaning": "The relocation-free object record or its receipt identity.",
@@ -7876,7 +7863,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "ObjectPublication::field:text#1",
       "kind": "carried_record",
       "meaning": "The placed text consumed by the native image.",
@@ -7887,7 +7874,7 @@
       "consumers": [
         "stage 17 image emission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "PublishedFunctionObject::field:publication#1",
       "kind": "carried_record",
       "meaning": "The current object, placed code and installation facts used by the image emitter.",
@@ -7898,7 +7885,7 @@
       "consumers": [
         "stage 17 image emission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "PublishedFunctionObject::field:replay#1",
       "kind": "carried_record",
       "meaning": "Holds the placement originals only when the request arrived with this body.",
@@ -7911,7 +7898,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "RelocationFreeObjectContainerError::InvalidContainer::field:0#1",
       "kind": "carried_record",
       "meaning": "Preserve the InvalidContainer failure returned by the object producer or validator.",
@@ -7924,7 +7911,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "RelocationFreeObjectContainerError::InvalidObject::field:0#1",
       "kind": "carried_record",
       "meaning": "Preserve the InvalidObject failure returned by the object producer or validator.",
@@ -7937,7 +7924,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "RelocationFreeObjectContainerError::Source::field:0#1",
       "kind": "carried_record",
       "meaning": "Preserve the Source failure returned by the object producer or validator.",
@@ -7950,7 +7937,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "StagedOptimizedRelocationFreeObjectContainer::field:container#1",
       "kind": "carried_record",
       "meaning": "The encoded relocation-free object container.",
@@ -7961,7 +7948,7 @@
       "consumers": [
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "StagedOptimizedRelocationFreeObjectContainer::field:frame_application#1",
       "kind": "carried_record",
       "meaning": "The original frame application retained alongside the placed text for replay.",
@@ -7974,7 +7961,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "StagedOptimizedRelocationFreeObjectContainer::field:manifest#1",
       "kind": "carried_record",
       "meaning": "The sealed object manifest or its receipt identity.",
@@ -7985,7 +7972,7 @@
       "consumers": [
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "StagedOptimizedRelocationFreeObjectContainer::field:publication#1",
       "kind": "carried_record",
       "meaning": "The exact object publication that requested this replay.",
@@ -7998,7 +7985,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "StagedOptimizedRelocationFreeObjectContainer::field:source#1",
       "kind": "carried_record",
       "meaning": "The placed text section with its encoding, frame application and optional replay.",
@@ -8011,7 +7998,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "StagedRelocationFreeObjectContainerCustodyReceipt::field:manifest#1",
       "kind": "carried_record",
       "meaning": "The sealed object manifest or its receipt identity.",
@@ -8024,7 +8011,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "StagedRelocationFreeObjectContainerCustodyReceipt::field:object#1",
       "kind": "carried_record",
       "meaning": "The relocation-free object record or its receipt identity.",
@@ -8037,7 +8024,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "StagedRelocationFreeObjectContainerCustodyReceipt::field:object_container#1",
       "kind": "carried_record",
       "meaning": "The identity of the encoded object container.",
@@ -8050,7 +8037,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "StagedRelocationFreeObjectContainerCustodyReceipt::field:source_text_section_manifest#1",
       "kind": "carried_record",
       "meaning": "The identity of the placed text manifest.",
@@ -8063,7 +8050,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "StagedRelocationFreeObjectContainerCustodyReceipt::field:text_section#1",
       "kind": "carried_record",
       "meaning": "The identity of the placed text section.",
@@ -8076,7 +8063,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "ValidatedFunctionFragmentObjectContainerManifest::field:record#1",
       "kind": "carried_record",
       "meaning": "The sealed object container manifest.",
@@ -8087,7 +8074,7 @@
       "consumers": [
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "alias:BodyPublication#1",
       "kind": "definition",
       "meaning": "The bound publication transported with each encoded body.",
@@ -8100,7 +8087,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "alias:PlacedFunctionText#1",
       "kind": "definition",
       "meaning": "The fully placed function text carrying the contracts object construction consumes.",
@@ -8113,7 +8100,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "enum:RelocationFreeObjectContainerError#1",
       "kind": "definition",
       "meaning": "Expose the original object publication, wire or placement failure.",
@@ -8126,7 +8113,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "function:construct_manifest#1",
       "kind": "producer",
       "meaning": "Seal the manifest with the identities and statistics of the emitted object and its source.",
@@ -8139,7 +8126,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "function:object_error#1",
       "kind": "definition",
       "meaning": "Preserve the originating text-to-object error at the object publication boundary.",
@@ -8152,7 +8139,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "function:receipt#1",
       "kind": "producer",
       "meaning": "Derive the custody receipt from the sealed object, container and manifest.",
@@ -8165,7 +8152,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "function:stage_optimized_relocation_free_object_container#1",
       "kind": "producer",
       "meaning": "Produce and seal the relocation-free object from placed code with its checked publication.",
@@ -8178,7 +8165,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "function:validate_manifest#1",
       "kind": "checker",
       "meaning": "Verify the object manifest against the placed text, object and container.",
@@ -8191,7 +8178,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "function:validate_optimized_relocation_free_object_container#1",
       "kind": "checker",
       "meaning": "Recheck the object contracts, placed text, relocation records, wire container, manifest and receipt.",
@@ -8204,7 +8191,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:ObjectPublication::implementation#1",
       "kind": "definition",
       "meaning": "Share the current object, placed code, body readback, installation authority and receipt with image construction.",
@@ -8217,7 +8204,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:ObjectPublication::method:bindings#1",
       "kind": "definition",
       "meaning": "Read the import and private function identities associated with the placed code.",
@@ -8230,7 +8217,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:ObjectPublication::method:body#1",
       "kind": "definition",
       "meaning": "The placed bindings, machine readback and fragment statistics.",
@@ -8243,7 +8230,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:ObjectPublication::method:custody#1",
       "kind": "definition",
       "meaning": "The receipt binding the object container to its placed text.",
@@ -8256,7 +8243,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:ObjectPublication::method:emission_facts#1",
       "kind": "definition",
       "meaning": "Borrow the checked semantic and physical publication for this object.",
@@ -8269,7 +8256,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:ObjectPublication::method:installation_authority#1",
       "kind": "definition",
       "meaning": "Borrow the installation receipt issued for the published code.",
@@ -8282,7 +8269,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:ObjectPublication::method:native_code_layouts#1",
       "kind": "definition",
       "meaning": "Return the placed native code layouts or their originating layout error.",
@@ -8295,7 +8282,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:ObjectPublication::method:object#1",
       "kind": "definition",
       "meaning": "The relocation-free object record or its receipt identity.",
@@ -8307,7 +8294,7 @@
         "image object readback",
         "independent object verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:ObjectPublication::method:same_issuance#1",
       "kind": "checker",
       "meaning": "Checks whether two publications share the exact object allocated by stage 16.",
@@ -8320,7 +8307,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:ObjectPublication::method:text#1",
       "kind": "definition",
       "meaning": "The placed text consumed by the native image.",
@@ -8331,7 +8318,7 @@
       "consumers": [
         "stage 17 image emission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:PublishedFunctionObject::implementation#1",
       "kind": "definition",
       "meaning": "Only the object stage constructs the publication and its optional replay.",
@@ -8342,7 +8329,7 @@
       "consumers": [
         "stage 17 image emission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:PublishedFunctionObject::method:into_parts#1",
       "kind": "definition",
       "meaning": "Releases the current object for emission and the matching originals for an explicit audit.",
@@ -8355,7 +8342,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedOptimizedRelocationFreeObjectContainer::implementation#1",
       "kind": "definition",
       "meaning": "Expose the placed code, object records and publication facts for object emission and comparison.",
@@ -8368,7 +8355,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedOptimizedRelocationFreeObjectContainer::method:container#1",
       "kind": "definition",
       "meaning": "The encoded relocation-free object container.",
@@ -8381,7 +8368,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedOptimizedRelocationFreeObjectContainer::method:custody#1",
       "kind": "definition",
       "meaning": "The receipt binding the object container to its placed text.",
@@ -8394,7 +8381,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedOptimizedRelocationFreeObjectContainer::method:emission_facts#1",
       "kind": "definition",
       "meaning": "Borrow the checked semantic and physical publication for this object.",
@@ -8405,7 +8392,7 @@
       "consumers": [
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedOptimizedRelocationFreeObjectContainer::method:frame_application_for_audit#1",
       "kind": "definition",
       "meaning": "The original frame application retained alongside the placed text for replay.",
@@ -8418,7 +8405,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedOptimizedRelocationFreeObjectContainer::method:installation_authority#1",
       "kind": "definition",
       "meaning": "Borrow the installation receipt issued for the published code.",
@@ -8431,7 +8418,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedOptimizedRelocationFreeObjectContainer::method:manifest#1",
       "kind": "definition",
       "meaning": "The sealed object manifest or its receipt identity.",
@@ -8444,7 +8431,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedOptimizedRelocationFreeObjectContainer::method:object#1",
       "kind": "definition",
       "meaning": "The relocation-free object record or its receipt identity.",
@@ -8456,7 +8443,7 @@
         "image object readback",
         "independent object verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedOptimizedRelocationFreeObjectContainer::method:original_encoding#1",
       "kind": "definition",
       "meaning": "Reads the physical instructions and encoding retained together by the encoder.",
@@ -8468,7 +8455,7 @@
         "image object readback",
         "independent object verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedOptimizedRelocationFreeObjectContainer::method:original_target#1",
       "kind": "definition",
       "meaning": "Reads the optional target replay carried in the placed body.",
@@ -8481,7 +8468,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedOptimizedRelocationFreeObjectContainer::method:publication#1",
       "kind": "producer",
       "meaning": "Project current shared object records without retaining the original compiler stages.",
@@ -8494,7 +8481,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedOptimizedRelocationFreeObjectContainer::method:source#1",
       "kind": "definition",
       "meaning": "The placed text section with its encoding, frame application and optional replay.",
@@ -8507,7 +8494,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedOptimizedRelocationFreeObjectContainer::method:verify_placement#1",
       "kind": "checker",
       "meaning": "Compare the supplied placement manifest and bound body contracts with the ones this object received.",
@@ -8520,7 +8507,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedRelocationFreeObjectContainerCustodyReceipt::implementation#1",
       "kind": "definition",
       "meaning": "Bind the identities of the input text and manifest to the produced object, container and manifest.",
@@ -8533,7 +8520,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedRelocationFreeObjectContainerCustodyReceipt::method:manifest#1",
       "kind": "definition",
       "meaning": "The sealed object manifest or its receipt identity.",
@@ -8546,7 +8533,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedRelocationFreeObjectContainerCustodyReceipt::method:object#1",
       "kind": "definition",
       "meaning": "The relocation-free object record or its receipt identity.",
@@ -8559,7 +8546,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedRelocationFreeObjectContainerCustodyReceipt::method:object_container#1",
       "kind": "definition",
       "meaning": "The identity of the encoded object container.",
@@ -8572,7 +8559,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedRelocationFreeObjectContainerCustodyReceipt::method:source_text_section_manifest#1",
       "kind": "definition",
       "meaning": "The identity of the placed text manifest.",
@@ -8585,7 +8572,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:StagedRelocationFreeObjectContainerCustodyReceipt::method:text_section#1",
       "kind": "definition",
       "meaning": "The identity of the placed text section.",
@@ -8598,7 +8585,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:ValidatedFunctionFragmentObjectContainerManifest::implementation#1",
       "kind": "definition",
       "meaning": "The object producer seals the manifest after binding the text, object and container.",
@@ -8611,7 +8598,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:ValidatedFunctionFragmentObjectContainerManifest::method:record#1",
       "kind": "definition",
       "meaning": "The sealed object container manifest.",
@@ -8624,7 +8611,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:crate :: ObjectPlan::check_bindings::use:machine_code :: import_code :: ImportCodeIdentity#1",
       "kind": "definition",
       "meaning": "Resolve the exact encoded import identity in the object symbol table.",
@@ -8637,7 +8624,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:crate :: ObjectPlan::implementation#1",
       "kind": "definition",
       "meaning": "Check the object symbols against the identities carried from encoding.",
@@ -8650,7 +8637,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:crate :: ObjectPlan::method:check_bindings#1",
       "kind": "checker",
       "meaning": "Require each encoded import and private address to match the symbol in the object.",
@@ -8663,7 +8650,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:std :: error :: Error for RelocationFreeObjectContainerError::implementation#1",
       "kind": "definition",
       "meaning": "Expose the original object publication, wire or placement failure.",
@@ -8676,7 +8663,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:std :: fmt :: Display for RelocationFreeObjectContainerError::implementation#1",
       "kind": "definition",
       "meaning": "Expose the original object publication, wire or placement failure.",
@@ -8689,7 +8676,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "impl:std :: fmt :: Display for RelocationFreeObjectContainerError::method:fmt#1",
       "kind": "definition",
       "meaning": "Format the specific object publication failure for the caller.",
@@ -8702,7 +8689,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "struct:ObjectPublication#1",
       "kind": "carried_record",
       "meaning": "Share the current object, placed code, body readback, installation authority and receipt with image construction.",
@@ -8713,12 +8700,12 @@
       "consumers": [
         "stage 17 image emission"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "struct:PublishedFunctionObject#1",
       "kind": "carried_record",
       "meaning": "One stage 16 result pairs the current object with any requested replay.",
       "producer": "stage 16 object construction",
-      "signature": "bc07bc95021a4b156485f0ae7ce29611f4d2a5eda0b55fee008621fa78209f2f"
+      "signature": "7180355aca025aa2b3eefc4cf725d5ff8a8fff1e9dd0153c87afd5ba04aafdcc"
     },
     {
       "consumers": [
@@ -8726,7 +8713,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "struct:StagedOptimizedRelocationFreeObjectContainer#1",
       "kind": "carried_record",
       "meaning": "Retain the placed source, publication facts, encoded object, manifest and receipt for independent comparison.",
@@ -8739,7 +8726,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "struct:StagedRelocationFreeObjectContainerCustodyReceipt#1",
       "kind": "carried_record",
       "meaning": "Bind the identities of the input text and manifest to the produced object, container and manifest.",
@@ -8752,7 +8739,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "struct:ValidatedFunctionFragmentObjectContainerManifest#1",
       "kind": "carried_record",
       "meaning": "The object producer seals the manifest after binding the text, object and container.",
@@ -8765,7 +8752,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "use:crate :: { FunctionFragmentObjectContainerManifest , FunctionFragmentObjectContainerStage , FunctionFragmentObjectContainerUnavailableData , RelocationFreeObjectContainer , RelocationFreeObjectDecodeError , RelocationFreeObjectError , RelocationFreeObjectFromTextError , RelocationFreeObjectPlan , construct_relocation_free_object_from_text , decode_relocation_free_object , encode_relocation_free_object , validate_relocation_free_object_from_text , }#1",
       "kind": "definition",
       "meaning": "Use the object plan, wire codec and manifest operations.",
@@ -8778,7 +8765,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "use:function_layout :: { RelocationFreeTextSectionPlacementError , validate_optimized_fixed_frame_text_section , }#1",
       "kind": "definition",
       "meaning": "Name the text-placement validator and its refusal.",
@@ -8791,7 +8778,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "use:machine_code :: code_layout :: { NativeCodeLayout , NativeCodeLayoutError }#1",
       "kind": "definition",
       "meaning": "Use the request-ordered native code layout records.",
@@ -8804,7 +8791,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "use:optimization_core :: { FunctionFragmentObjectContainerManifestIdentity , FunctionFragmentTextSectionManifestIdentity , RelocationFreeObjectContainerIdentity , RelocationFreeObjectPlanIdentity , TerminalRelocationFreeTextSectionIdentity , }#1",
       "kind": "definition",
       "meaning": "Use the stable identities of the text, object, container and manifest.",
@@ -8817,7 +8804,7 @@
         "image construction",
         "independent object replay"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "item": "use:std :: sync :: Arc#1",
       "kind": "definition",
       "meaning": "Use shared immutable publication records.",
@@ -8829,7 +8816,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "RuntimeCodeLayout::field:entry#1",
       "kind": "carried_record",
       "meaning": "Actual linked machine entry, read from the checked initialized descriptor.",
@@ -8841,7 +8828,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "RuntimeCodeLayout::field:machine#1",
       "kind": "carried_record",
       "meaning": "Root Terminal machine associated with this descriptor by the validated object.",
@@ -8853,7 +8840,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "RuntimeCodeLayout::field:regions#1",
       "kind": "carried_record",
       "meaning": "Sorted nonempty intervals from the completed descriptor checked against placed machine instructions.",
@@ -8865,7 +8852,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "RuntimeImageSections::field:data#1",
       "kind": "carried_record",
       "meaning": "Actual initialized section containing machine descriptors and region lists.",
@@ -8877,7 +8864,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "RuntimeImageSections::field:data_address#1",
       "kind": "carried_record",
       "meaning": "Linked base of the genuine initialized data section.",
@@ -8889,7 +8876,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "RuntimeImageSections::field:text#1",
       "kind": "carried_record",
       "meaning": "Actual linked executable section read from the checked native artifact.",
@@ -8901,7 +8888,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "RuntimeImageSections::field:text_address#1",
       "kind": "carried_record",
       "meaning": "Linked base of the genuine completed image text section.",
@@ -8913,7 +8900,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "function:belongs_to_root#1",
       "kind": "checker",
       "meaning": "Accept root descriptors only for the exact Terminal semantic identity and a non-private namespace.",
@@ -8925,7 +8912,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "impl:RuntimeImageSections < '_ >::implementation#1",
       "kind": "definition",
       "meaning": "Groups RuntimeImageSections < '_ > operations with their defining host or checked image.",
@@ -8937,7 +8924,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "impl:RuntimeImageSections < '_ >::method:read_attributed_descriptor#1",
       "kind": "checker",
       "meaning": "Match the persisted entry and every linked interval to the independently placed instructions for that exact machine.",
@@ -8949,7 +8936,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "impl:RuntimeImageSections < '_ >::method:read_descriptor#1",
       "kind": "checker",
       "meaning": "Read checked little-endian words at actual section offsets; verify geometry, ordering and entry membership.",
@@ -8961,7 +8948,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "impl:RuntimeImageSections < '_ >::read_descriptor::const:INVALID#1",
       "kind": "definition",
       "meaning": "Reserved diagnostic for malformed persisted descriptors.",
@@ -8973,7 +8960,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "impl:RuntimeImageSections < '_ >::read_descriptor::function:word#1",
       "kind": "checker",
       "meaning": "Read one complete 64-bit descriptor word in target little-endian order.",
@@ -8985,7 +8972,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "impl:crate :: RetainedNativeArtifact::implementation#1",
       "kind": "definition",
       "meaning": "Groups crate :: RetainedNativeArtifact operations with their defining host or checked image.",
@@ -8997,7 +8984,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "impl:crate :: RetainedNativeArtifact::method:inspect_root_code_layouts#1",
       "kind": "checker",
       "meaning": "Replay the complete artifact, validate linked object relocations, exclude private namespaces and decode each uniquely attributed descriptor.",
@@ -9009,7 +8996,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "module:tests#1",
       "kind": "definition",
       "meaning": "Exercise malformed native layouts and target/root binding.",
@@ -9021,7 +9008,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "struct:RuntimeCodeLayout#1",
       "kind": "carried_record",
       "meaning": "Public read-only observation of one linked root machine, with its validated entry and code spans.",
@@ -9033,7 +9020,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "struct:RuntimeImageSections#1",
       "kind": "carried_record",
       "meaning": "Private immutable section geometry borrowed exclusively from the checked native product.",
@@ -9045,7 +9032,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "tests::function:another_in_range_descriptor_cannot_replace_the_selected_machine_or_namespace#1",
       "kind": "test_support",
       "meaning": "Reject a different valid in-range descriptor, altered region and private or foreign semantic root.",
@@ -9057,7 +9044,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "tests::function:descriptor_must_resolve_inside_its_actual_text_and_initialized_data#1",
       "kind": "test_support",
       "meaning": "Reject malformed persisted pointers, counts, extents and entry membership.",
@@ -9069,7 +9056,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "tests::use:super :: *#1",
       "kind": "test_support",
       "meaning": "Imports the real artifact, interpreter or host capability exercised by these regressions.",
@@ -9081,7 +9068,7 @@
         "Build published-image execution",
         "native artifact inspection clients"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "item": "use:semantic_vocabulary :: MachineId#1",
       "kind": "definition",
       "meaning": "Imports semantic_vocabulary::MachineId for the owning host or inspector.",
@@ -21709,7 +21696,7 @@
         "published entry bridge inspection",
         "physical image verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/published_entry_bytes.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/published_entry_bytes.rs",
       "item": "use:diagnostics :: Diagnostic#1",
       "kind": "definition",
       "meaning": "Report a changed stack switch as a physical entry diagnostic.",
@@ -21721,7 +21708,7 @@
         "published entry bridge inspection",
         "physical image verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/published_entry_bytes.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/published_entry_bytes.rs",
       "item": "use:physical_recipes :: native_entry_bridge :: { NativeEntryBridgeCode , NativeEntryBridgeError as Error , }#1",
       "kind": "definition",
       "meaning": "Use the planned bridge bytes and effects to check the relocated entry.",
@@ -21733,7 +21720,7 @@
         "published entry bridge inspection",
         "physical image verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/published_entry_bytes.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/published_entry_bytes.rs",
       "item": "use:physical_recipes :: physical_stack_switch :: StackSwitch#1",
       "kind": "definition",
       "meaning": "Use the planned stack switch and fixups when checking published code.",
@@ -21745,7 +21732,7 @@
         "published entry bridge inspection",
         "physical image verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/published_entry_bytes.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/published_entry_bytes.rs",
       "item": "use:target :: Architecture#1",
       "kind": "definition",
       "meaning": "Select the decoder and call instruction check for the bridge architecture.",
@@ -21757,7 +21744,7 @@
         "published entry bridge inspection",
         "physical image verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/published_entry_bytes.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/published_entry_bytes.rs",
       "item": "function:verify_entry_bridge_bytes#1",
       "kind": "checker",
       "meaning": "Allow relocation only at the declared body call. Decode the published instructions and compare adapter and complete state effects to the planned bridge.",
@@ -21769,7 +21756,7 @@
         "published entry bridge inspection",
         "physical image verification"
       ],
-      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/published_entry_bytes.rs",
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/published_entry_bytes.rs",
       "item": "function:verify_stack_switch_bytes#1",
       "kind": "checker",
       "meaning": "Compare every byte outside the declared fixup fields, then decode the published switch and compare its control flow and effects with the planned switch.",
@@ -21953,7 +21940,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-resolved-layout/src/lib.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/lib.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",
@@ -21963,7 +21950,17 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_resolved-layout-to-placed-functions/src/lib.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/12_selected-form-encoding-to-resolved-layout/src/settled.rs",
+      "allowed_kinds": [
+        "carried_record",
+        "checker",
+        "definition",
+        "producer",
+        "test_support"
+      ]
+    },
+    {
+      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/13_resolved-layout-to-placed-functions/src/lib.rs",
       "allowed_kinds": [
         "carried_record",
         "definition",
@@ -21971,7 +21968,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_placed-functions-to-objects/src/fragment_container.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/fragment_container.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",
@@ -21980,7 +21977,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/native-artifact/src/runtime_image.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/native-artifact/src/runtime_image.rs",
       "allowed_kinds": [
         "carried_record",
         "checker",
@@ -22211,7 +22208,7 @@
       ]
     },
     {
-      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/16_objects-to-image/image-emission/src/published_entry_bytes.rs",
+      "path": "source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/published_entry_bytes.rs",
       "allowed_kinds": [
         "checker",
         "definition"

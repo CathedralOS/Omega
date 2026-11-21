@@ -75,8 +75,7 @@ pub(crate) enum OptimizedVerifiedPhysicalPipelineError {
     RegisterAllocation(allocation::RegisterAllocationError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
     Encoding(native_encoding::OptimizedSelectedFormEncodingError),
-    Layout(placement::OptimizedResolvedSelectedFormLayoutError),
-    LayoutOptimization(relaxation::ResolvedLayoutOptimizationError),
+    Layout(placement::LayoutError),
     FunctionRelativeRealization(FunctionRelativeOptimizationRealizationError),
 }
 
@@ -95,7 +94,6 @@ impl std::fmt::Display for OptimizedVerifiedPhysicalPipelineError {
             }
             Self::Encoding(error) => write!(formatter, "Encoding({error:?})"),
             Self::Layout(error) => write!(formatter, "Layout({error:?})"),
-            Self::LayoutOptimization(error) => write!(formatter, "LayoutOptimization({error:?})"),
             Self::FunctionRelativeRealization(error) => {
                 write!(formatter, "FunctionRelativeRealization({error:?})")
             }
@@ -240,20 +238,23 @@ pub(crate) fn layout_encoded_body(
     let EncodedBody { program, originals } = encoded;
     observation.enter(NativePipelineStage::ResolvedLayout);
     let originals = originals.map(|earlier| (earlier, program.current().clone()));
-    let placed = placement::place_encoded_program(program)
+    let placement::LayoutResolution { layout: output, baseline_for_audit } = placement::resolve_program(program)
         .map_err(OptimizedVerifiedPhysicalPipelineError::Layout)?;
-    let retained = originals.map(|(earlier, encoding)| {
-        Box::new(published_object_verification::RetainedPhysicalInputs {
-            allocation: earlier.allocation,
-            machine: earlier.machine,
-            encoding,
-            baseline_layout: placed.program().clone(),
-            selected_optimization: earlier.selected_optimization,
-        })
-    });
-    observation.enter(NativePipelineStage::LayoutOptimization);
-    let output = relaxation::relax_resolved_layout(placed)
-        .map_err(OptimizedVerifiedPhysicalPipelineError::LayoutOptimization)?;
+    let retained = match (originals, baseline_for_audit) {
+        (Some((earlier, encoding)), Some(baseline_layout)) => Some(Box::new(
+            published_object_verification::RetainedPhysicalInputs {
+                allocation: earlier.allocation,
+                machine: earlier.machine,
+                encoding,
+                baseline_layout,
+                selected_optimization: earlier.selected_optimization,
+            },
+        )),
+        (None, None) => None,
+        _ => return Err(BodyEmissionError::Object(vec![diagnostics::Diagnostic::error(
+            "layout and encoding disagree on independent replay custody",
+        )])),
+    };
     if retained
         .as_ref()
         .is_some_and(|originals| !originals.belongs_to(output.layout_for_audit()))
