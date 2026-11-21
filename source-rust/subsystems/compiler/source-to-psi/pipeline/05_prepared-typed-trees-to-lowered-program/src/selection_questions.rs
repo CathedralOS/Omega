@@ -15,7 +15,7 @@ use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
 use crate::source_state::references::StaticArgumentCall;
 use crate::source_state::references::{DeclarationSelection, TypedReferences};
 use crate::source_state::statement::{StatementHandle, StatementNode};
-use crate::source_state::types::TypeReferenceHandle;
+use crate::source_state::types::{ProductTypeInput, TypeOperandOrigin, TypeReferenceHandle};
 use symbols::{SymbolHandle, SymbolKind};
 
 /// Answers produced while this form reads an actual primitive operation.
@@ -364,12 +364,63 @@ struct Capture<'a> {
     )>,
     seen_expressions: Membership<(SymbolHandle, ExpressionHandle, bool)>,
     seen_types: Membership<(SymbolHandle, TypeReferenceHandle)>,
+    product_type_inputs: Membership<ProductTypeInput>,
     seen_facts: Membership<(
         SymbolHandle,
         arena::Handle<crate::source_state::domain::ProofFact>,
     )>,
     next_authored_symbol: Option<(SymbolHandle, RawSelectionRole)>,
     error: Option<SelectionCaptureError>,
+}
+
+/// The same live selection that supplied the normalized argument must contain
+/// this nominal occurrence. An unrelated argument, a stale lookup or a type
+/// merely carrying the same name cannot authorize the rejoined reference.
+fn formed_product_type_inputs(typed: &TypedTrees) -> Membership<ProductTypeInput> {
+    let mut inputs = Membership::default();
+    for handle in typed.live_product_operand_applications() {
+        let selected = typed.product_operand_applications.get(handle);
+        let Some(application) = &selected.argument.application else {
+            continue;
+        };
+        let names = selected
+            .operand
+            .application
+            .iter()
+            .flat_map(|graph| graph.names.iter().map(|(_, name)| name.source_span))
+            .chain(selected.environment.iter().flat_map(|environment| {
+                environment
+                    .graph
+                    .names
+                    .iter()
+                    .map(|(_, name)| name.source_span)
+            }))
+            .collect::<Membership<_>>();
+        let parameters = typed
+            .data_type_parameters
+            .span_or_empty(selected.declaration_parameters);
+        for (formal, actual) in parameters.iter().zip(application.arguments.iter()) {
+            if formal.kind != crate::source_state::data::TypeParameterKind::Type
+                || !actual.type_reference.is_valid()
+            {
+                continue;
+            }
+            for reference in
+                crate::source_state::references::type_reference_inputs(typed, actual.type_reference)
+                    .types
+            {
+                if let TypeOperandOrigin::ProductInput(input) =
+                    typed.type_reference_table.operand_origin(reference)
+                    && input.operand == selected.operand.source_span
+                    && names.contains(&input.occurrence)
+                    && typed.type_reference_symbol(reference) == input.declaration
+                {
+                    inputs.insert(*input);
+                }
+            }
+        }
+    }
+    inputs
 }
 
 impl Capture<'_> {
@@ -1173,6 +1224,15 @@ impl TypedReferences for Capture<'_> {
         // that forming declaration without claiming the use selects its code.
         self.formation_owner(formation_owner);
     }
+    fn product_type_input(&mut self, input: ProductTypeInput, symbol: SymbolHandle) {
+        if input.declaration != symbol || !self.product_type_inputs.contains(&input) {
+            self.fail("a retained Product type does not match its selected operand");
+        } else {
+            // The Build already issued the designation. Reading its resulting
+            // type in a prepared contract does not select code in Build.
+            self.formation_owner(symbol);
+        }
+    }
     fn formation_owner(&mut self, owner: SymbolHandle) {
         if self.valid_symbol(owner, "application formation owner") {
             self.output.declarations.push(owner);
@@ -1289,6 +1349,7 @@ pub(crate) fn capture_with_bodies(
         seen_dependencies: Membership::default(),
         seen_expressions: Membership::default(),
         seen_types: Membership::default(),
+        product_type_inputs: formed_product_type_inputs(typed),
         seen_facts: Membership::default(),
         next_authored_symbol: None,
         error: None,
@@ -1489,6 +1550,55 @@ mod tests {
             });
         }
         (typed, a, b, selected)
+    }
+
+    #[test]
+    fn a_marked_product_type_without_a_selecting_operand_is_refused() {
+        let mut builder = SymbolTableBuilder::default();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            [
+                (SymbolKind::Machine, SymbolNameRef::Static("build")),
+                (SymbolKind::Data, SymbolNameRef::Static("Role")),
+            ],
+        );
+        let owner = children.handle_at(0);
+        let role = children.handle_at(1);
+        let mut typed = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let reference = typed.type_reference_table.insert(
+            crate::source_state::types::TypeReferenceNode::Named {
+                symbol: role,
+                name: Identifier::generated("Role"),
+            },
+        );
+        typed.push_machine(Machine {
+            symbol: owner,
+            attached_data_application: reference,
+            ..Default::default()
+        });
+        let admitted = DeclarationSelection::from_symbols([owner]);
+        let completed = CompletedOperators::default();
+        let lexical = capture(&typed, &admitted, &completed, &[]).unwrap();
+        assert!(lexical.dependencies.iter().any(|row| row.target == role));
+        typed.type_reference_table.set_operand_origin(
+            reference,
+            TypeOperandOrigin::ProductInput(Arc::new(ProductTypeInput {
+                operand: Default::default(),
+                occurrence: Default::default(),
+                declaration: role,
+            })),
+        );
+        let refused = capture(&typed, &admitted, &completed, &[]).unwrap_err();
+        assert!(
+            refused
+                .to_string()
+                .contains("does not match its selected operand"),
+            "{refused}"
+        );
     }
 
     #[test]

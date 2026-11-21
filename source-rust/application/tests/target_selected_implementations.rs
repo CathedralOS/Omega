@@ -27,7 +27,7 @@ fn omega_run(directory: &Path, extra: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_omega"))
         .arg("run")
         .args(extra)
-        .arg("main.omg")
+        .arg("build.omg")
         .current_dir(directory)
         .stdin(std::process::Stdio::null())
         .output()

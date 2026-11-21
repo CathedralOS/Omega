@@ -1333,6 +1333,14 @@ pub trait TypedReferences: Extend<SymbolHandle> {
         _: crate::source_state::AuthoredDeclarationSelectionOccurrenceId,
     ) {
     }
+    /// The nominal type retained in an already-formed Product selection.
+    fn product_type_input(
+        &mut self,
+        _: crate::source_state::types::ProductTypeInput,
+        symbol: SymbolHandle,
+    ) {
+        self.extend([symbol]);
+    }
     /// The forming declaration supplies the application's lexical context. It
     /// remains reachable metadata, not an authored selection by its later user.
     fn static_application(
@@ -1455,6 +1463,13 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
         occurrence: crate::source_state::AuthoredDeclarationSelectionOccurrenceId,
     ) {
         self.0.authored_selection(occurrence);
+    }
+    fn product_type_input(
+        &mut self,
+        input: crate::source_state::types::ProductTypeInput,
+        symbol: SymbolHandle,
+    ) {
+        self.0.product_type_input(input, symbol);
     }
     fn static_application(
         &mut self,
@@ -3327,6 +3342,20 @@ fn visit_contract(
     visit_proof_facts(program, retained, contract.facts);
 }
 
+fn visit_type_name(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    reference: TypeReferenceHandle,
+    symbol: SymbolHandle,
+) {
+    match program.type_reference_table.operand_origin(reference) {
+        crate::source_state::types::TypeOperandOrigin::ProductInput(input) => {
+            retained.product_type_input(*input, symbol)
+        }
+        _ => visit_symbol(retained, symbol),
+    }
+}
+
 pub fn visit_type_reference(
     program: &TypedTrees,
     retained: &mut impl TypedReferences,
@@ -3416,7 +3445,7 @@ pub fn visit_type_reference(
             lifetime_arguments,
             ..
         } => {
-            visit_symbol(retained, *base_symbol);
+            visit_type_name(program, retained, type_reference, *base_symbol);
             let arguments = program.type_reference_handles(*arguments);
             // A universe level may use the same syntax node as a computed
             // type. Only its edge from the exact sort makes it a level.
@@ -3455,7 +3484,7 @@ pub fn visit_type_reference(
                     )
                     .is_some()) => {}
         TypeReferenceNode::Named { symbol, .. } => {
-            visit_symbol(retained, *symbol);
+            visit_type_name(program, retained, type_reference, *symbol);
         }
         TypeReferenceNode::Unit => {}
     }

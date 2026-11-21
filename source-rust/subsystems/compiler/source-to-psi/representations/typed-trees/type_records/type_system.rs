@@ -2084,7 +2084,16 @@ pub mod types {
         pub reference: source_text::SourceSpan,
     }
 
-    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    /// A nominal data declaration selected inside one checked Build Product operand.
+    /// Copies of the resulting type retain its original selection.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, record_storage::Record)]
+    pub struct ProductTypeInput {
+        pub operand: source_text::SourceSpan,
+        pub occurrence: source_text::SourceSpan,
+        pub declaration: SymbolHandle,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
     pub enum TypeOperandOrigin {
         #[default]
         Lexical,
@@ -2092,6 +2101,9 @@ pub mod types {
             instance: SymbolHandle,
             parameter: SymbolHandle,
         },
+        /// Most types have lexical origin. Keep the larger selection evidence
+        /// only once, shared by the types formed from that Product input.
+        ProductInput(std::sync::Arc<ProductTypeInput>),
     }
 
     #[derive(Clone, PartialEq, Eq, record_storage::Record)]
@@ -2329,10 +2341,12 @@ pub mod types {
         }
 
         pub fn operand_origin(&self, reference: TypeReferenceHandle) -> TypeOperandOrigin {
-            *self.operand_origins.get(Handle::from_parts(
-                reference.arena_index(),
-                reference.generation(),
-            ))
+            self.operand_origins
+                .get(Handle::from_parts(
+                    reference.arena_index(),
+                    reference.generation(),
+                ))
+                .clone()
         }
 
         pub fn set_operand_origin(
@@ -3722,7 +3736,7 @@ pub mod types {
                 instance: symbols::SymbolHandle::from_parts(1, 1),
                 parameter: symbols::SymbolHandle::from_parts(2, 1),
             };
-            source.set_operand_origin(reference, origin);
+            source.set_operand_origin(reference, origin.clone());
             let source_tables = crate::source_state::TypedTreeTables {
                 type_reference_table: source,
                 ..Default::default()
