@@ -31,6 +31,23 @@ pub(super) fn render(
         policy.public_consts().len(),
         policy.public_operators().len()
     )?;
+    match &policy.public_api().type_aliases {
+        Some(aliases) => {
+            writeln!(output, "  public type aliases {}", aliases.len())?;
+            for alias in aliases {
+                writeln!(
+                    output,
+                    "    {} = {}",
+                    names.name(&alias.identity),
+                    alias.expansion.canonical()
+                )?;
+            }
+        }
+        None => writeln!(
+            output,
+            "  public type aliases unavailable in this review format"
+        )?,
+    }
     for constant in policy.public_consts() {
         writeln!(output, "  constant {}", names.name(constant.identity()))?;
     }
@@ -149,6 +166,20 @@ pub(super) fn render(
         "  semantic-dependencies {}; complete owner/type relationships: --details",
         policy.semantic_dependencies().len()
     )?;
+    for dependency in policy.semantic_dependencies() {
+        if let review_evidence::record::PackagePolicySemanticDependency::CarriedType {
+            dependency,
+            exposure,
+            ..
+        } = dependency
+        {
+            writeln!(
+                output,
+                "    carried type {} ({exposure:?})",
+                names.name(dependency)
+            )?;
+        }
+    }
     for demand in policy.boundary_applications().demands() {
         writeln!(
             output,

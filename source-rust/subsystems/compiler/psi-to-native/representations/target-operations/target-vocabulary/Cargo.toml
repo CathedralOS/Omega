@@ -26,4 +26,5 @@ runtime-abi = { path = "../../../targets/runtime-abi" }
 
 
 optimization-core = { path = "../../optimization-records" }
-terminal-wire = { path = "../../../../psi/artifact/wire" }
+psi-declaration-encoding = { path = "../../../../psi/artifact/declaration-encoding" }
+psi-callable-encoding = { path = "../../../../psi/artifact/callable-encoding" }

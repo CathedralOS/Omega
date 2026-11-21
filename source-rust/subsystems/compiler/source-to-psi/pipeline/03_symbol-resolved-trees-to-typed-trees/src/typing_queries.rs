@@ -407,6 +407,25 @@ pub(crate) fn declared_callable_value_type(
             if !program.symbols.symbols().nodes().is_valid(binder) {
                 return Err(crate::typing::unavailable_judgment("contract value binder"));
             }
+            let static_value = if program.symbols.get(binder).kind == SymbolKind::TypeParameter {
+                program
+                    .declaration_type_parameters(owner)
+                    .iter()
+                    .find_map(|parameter| {
+                        use crate::source_state::data::TypeParameterKind;
+                        match parameter.kind {
+                            TypeParameterKind::Const { type_reference }
+                            | TypeParameterKind::Value { type_reference }
+                                if parameter.symbol == binder =>
+                            {
+                                Some(type_reference)
+                            }
+                            _ => None,
+                        }
+                    })
+            } else {
+                None
+            };
             let mut declarations = states
                 .into_iter()
                 .flatten()
@@ -418,7 +437,8 @@ pub(crate) fn declared_callable_value_type(
                         .iter()
                         .filter(move |parameter| parameter.symbol == binder)
                         .map(|parameter| parameter.type_reference)
-                }));
+                }))
+                .chain(static_value);
             let reference = declarations
                 .next()
                 .ok_or_else(|| crate::typing::unavailable_judgment("contract value declaration"))?;
@@ -1823,6 +1843,39 @@ fn core_integer_result(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_computed_array_index_keeps_the_const_parameters_integer_type() {
+        use crate::source_state::{expression::ExpressionNode, statement::StatementNode};
+        let resolved = crate::resolve_fixture(
+            "machine last<const Count: u64>(bytes: @[u8; Count]) -> u8 requires Count > 0 { bytes[Count - 1] }",
+        );
+        let program = crate::typing::lower_symbol_resolved_trees(&resolved).unwrap();
+        let state = &program.machine_states(&program.machines()[0])[0];
+        let indices = program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .filter_map(|statement| {
+                let StatementNode::LocalData(local) = statement else {
+                    return None;
+                };
+                (local.is_operand_capture
+                    && matches!(
+                        program.expression_table.expression(local.initial_value),
+                        ExpressionNode::Binary(_)
+                    ))
+                .then_some(local.type_reference)
+            })
+            .collect::<Vec<_>>();
+        let [reference] = indices.as_slice() else {
+            panic!("expected one computed index")
+        };
+        assert_eq!(
+            program.primitive_type_reference(*reference),
+            Some(crate::source_state::types::PrimitiveType::U64)
+        );
+    }
+
     #[test]
     fn exact_constructor_fields_keep_case_and_constructor_owners() {
         use crate::source_state::data::{DataDefinition, DataField, DataMember, DataVariant};

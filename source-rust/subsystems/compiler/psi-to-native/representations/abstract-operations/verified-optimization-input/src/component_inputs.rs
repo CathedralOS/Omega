@@ -1,25 +1,11 @@
 mod selected_exports;
 
-use crate::{RetainedTerminalArtifact, TerminalNativeRealizationProposal};
+use crate::RetainedTerminalArtifact;
 use calling_conventions::BoundaryCallingApplication;
 use component_description::VerifiedComponent;
 use provider_plans::ProviderPlan;
 use std::sync::Arc;
 use terminal_psi::ProviderCandidateConformance;
-
-pub struct ComponentExportInput<'input> {
-    pub candidate: &'input ProviderCandidateConformance,
-    pub calling_application: &'input BoundaryCallingApplication,
-}
-
-pub struct ComponentNativeInputs<'input> {
-    authorization: &'input psi_authorization::AuthorizedTerminalArtifact,
-    component: &'input VerifiedComponent,
-    evidence: Option<&'input Arc<terminal_codec::EvidenceSeals>>,
-    proposal: &'input TerminalNativeRealizationProposal,
-    exports: Vec<ComponentExportInput<'input>>,
-    plan_digest: provider_plans::ProviderPlanDigest,
-}
 
 #[derive(Debug)]
 pub struct AdmittedNativeComponentCall<'input> {
@@ -54,218 +40,232 @@ impl<'input> AdmittedNativeComponentCall<'input> {
 
 }
 
-impl<'input> ComponentNativeInputs<'input> {
-    pub const fn authorization(&self) -> &'input psi_authorization::AuthorizedTerminalArtifact {
-        self.authorization
-    }
-
-    pub const fn evidence(&self) -> Option<&'input Arc<terminal_codec::EvidenceSeals>> {
-        self.evidence
-    }
-
-    pub fn admit_native_calls(
-        &self,
-        receiver: terminal_codec::TerminalArtifactView<'_>,
-    ) -> Result<Vec<AdmittedNativeComponentCall<'input>>, String> {
-        let selections = self.admit_receiver(receiver)?;
-        if selections.len() != self.exports.len() {
-            return Err("component native call admission changed its exact export roster".into());
-        }
-        Ok(selections
-            .into_iter()
-            .zip(&self.exports)
-            .map(|(selected, export)| AdmittedNativeComponentCall {
-                selected,
-                component: self.component,
-                application: export.calling_application,
-                plan_digest: self.plan_digest,
-            })
-            .collect())
-    }
-
-    pub const fn component(&self) -> &'input VerifiedComponent {
-        self.component
-    }
-    pub const fn proposal(&self) -> &'input TerminalNativeRealizationProposal {
-        self.proposal
-    }
-    pub fn exports(&self) -> &[ComponentExportInput<'input>] {
-        &self.exports
-    }
-    pub const fn plan_digest(&self) -> &provider_plans::ProviderPlanDigest {
-        &self.plan_digest
-    }
-
-    pub fn admit_receiver(
-        &self,
-        receiver: terminal_codec::TerminalArtifactView<'_>,
-    ) -> Result<Vec<psi_provider_selections::AdmittedComponentProvider>, String> {
-        let module = self.component.module();
-        self.exports
-            .iter()
-            .map(|export| {
-                let requirement = module
-                    .identities
-                    .text(export.candidate.requirement_identity)
-                    .ok_or("component export lost its exact invocation identity")?;
-                let mut receiving = receiver
-                    .module()
-                    .interfaces.boundary_machines
-                    .iter()
-                    .filter(|boundary| {
-                        receiver.module().identities.text(boundary.identity) == Some(requirement)
-                            && receiver.module().calling_abi_identity(boundary.id).as_ref()
-                                == Ok(&export.calling_application.abi)
-                    });
-                let boundary = receiving.next().ok_or_else(|| {
-                    format!(
-                        "component import `{requirement}` has no receiving Terminal declaration",
-                    )
-                })?;
-                if receiving.next().is_some() {
-                    return Err(format!(
-                        "component import `{requirement}` has competing Terminal declarations"
-                    ));
-                }
-                let candidate = export.candidate;
-                let selected = psi_provider_selections::ProviderInstallationSelection {
-                    boundary: candidate.boundary,
-                    provider_identity: module
-                        .identities
-                        .text(candidate.provider_identity)
-                        .ok_or("component export lost its provider identity")?
-                        .to_owned(),
-                    provider_declaration: module
-                        .identities
-                        .text(candidate.provider_declaration.identity())
-                        .ok_or("component export lost its selecting declaration")?
-                        .to_owned(),
-                    candidate: candidate.candidate,
-                };
-                let admitted = psi_provider_selections::admit_component_provider(
-                    receiver,
-                    boundary.id,
-                    self.component.artifact().view(),
-                    &selected,
-                )?;
-                if !admitted.selection().contains_candidate(candidate) {
-                    return Err(
-                        "component export admission changed its exact checked candidate".into(),
-                    );
-                }
-                Ok(admitted)
-            })
-            .collect()
-    }
-}
-
+/// Exact cross-artifact calls for a whole selected service. Machine and boundary
+/// coordinates belong to their respective artifacts.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RetainedComponentNativeInputs {
+pub struct ComponentImport {
+    receiver: terminal_psi::TerminalPsiIdentity,
+    plan: provider_plans::ProviderPlanDigest,
     component: Arc<VerifiedComponent>,
-    retained: Arc<RetainedTerminalArtifact>,
-    exports: Vec<(usize, usize)>,
-    plan_digest: provider_plans::ProviderPlanDigest,
+    calls: Vec<psi_provider_selections::AdmittedComponentProvider>,
 }
 
-impl RetainedComponentNativeInputs {
-    pub fn borrow(&self) -> Result<ComponentNativeInputs<'_>, String> {
-        let proposal = self.retained.native_realization_proposal();
-        let exports = self
-            .exports
-            .iter()
-            .map(|&(candidate_position, application_position)| {
-                Ok(ComponentExportInput {
-                    candidate: self
-                        .component
-                        .module()
-                        .interfaces.provider_candidates
-                        .get(candidate_position)
-                        .ok_or("retained component lost its selected export")?,
-                    calling_application: proposal
-                        .boundary_applications()
-                        .calling
-                        .get(application_position)
-                        .ok_or("retained component lost its selected calling application")?,
-                })
-            })
-            .collect::<Result<Vec<_>, String>>()?;
-        Ok(ComponentNativeInputs {
-            authorization: self.retained.authorization(),
-            component: &self.component,
-            evidence: self.retained.artifact().published_evidence(),
-            proposal,
-            exports,
-            plan_digest: self.plan_digest,
-        })
-    }
-    pub fn join(
+impl ComponentImport {
+    pub fn admit(
+        receiver: terminal_codec::TerminalArtifactView<'_>,
         component: Arc<VerifiedComponent>,
-        retained: Arc<RetainedTerminalArtifact>,
         plan: &ProviderPlan,
-        receiving_applications: &[BoundaryCallingApplication],
     ) -> Result<Self, String> {
-        if component.artifact() != retained.artifact() {
-            return Err(
-                "component verdict and native product retain different canonical artifacts".into(),
-            );
-        }
-        let proposal = retained.native_realization_proposal();
-        if proposal.target_profile().target_name() != plan.target {
-            return Err("component native target differs from the selected provider plan".into());
-        }
         let candidates = selected_exports::selected_plan_export_positions(&component, plan)
             .map_err(|error| error.to_string())?;
-        let mut exports = Vec::with_capacity(candidates.len());
-        for candidate_position in candidates {
-            let candidate = &component.module().interfaces.provider_candidates[candidate_position];
-            let requirement = component
-                .module()
-                .identities
-                .text(candidate.requirement_identity)
-                .ok_or("component export has no canonical requirement identity")?;
-            let abi = component
-                .module()
-                .calling_abi_identity(candidate.boundary)?;
-            let expected = plan.schema.calling_application(&abi);
-            let target = proposal.target_profile().native_target();
-            let (producer_position, producer) = one_application(
-                &proposal.boundary_applications().calling,
-                &abi,
-                expected,
-                target,
-                "component export",
-            )?;
-            let (_, receiver) = one_application(
-                receiving_applications,
-                &abi,
-                expected,
-                target,
-                "component import",
-            )?;
-            for application in [producer, receiver] {
-                if application.dispatch_only_formal.is_some() {
-                    return Err(
-                        "component calling application cannot omit dispatch-only formals".into(),
-                    );
-                }
-                if application.recomputed_commitment()? != application.commitment {
-                    return Err(format!(
-                        "component calling application for `{requirement}` has a stale commitment"
-                    ));
-                }
-            }
-            if producer != receiver {
-                return Err(format!(
-                    "component import/export calling applications differ for `{requirement}`"
-                ));
-            }
-            exports.push((candidate_position, producer_position));
-        }
+        let calls = candidates
+            .iter()
+            .map(|position| {
+                admit_export(
+                    receiver,
+                    &component,
+                    &component.module().interfaces.provider_candidates[*position],
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(Self {
+            receiver: receiver.identity(),
+            plan: plan.identity_digest(),
             component,
-            retained,
-            exports,
-            plan_digest: plan.identity_digest(),
+            calls,
+        })
+    }
+
+    pub fn plan(&self) -> provider_plans::ProviderPlanDigest {
+        self.plan
+    }
+    pub fn matches(
+        &self,
+        receiver: terminal_psi::TerminalPsiIdentity,
+        plan: &ProviderPlan,
+    ) -> bool {
+        self.receiver == receiver && self.plan == plan.identity_digest()
+    }
+    pub fn component(&self) -> &Arc<VerifiedComponent> {
+        &self.component
+    }
+    pub fn calls(&self) -> &[psi_provider_selections::AdmittedComponentProvider] {
+        &self.calls
+    }
+}
+
+/// Require the exact reached Independent roster before suppressing any local
+/// adapter. An authenticated import from a different receiver cannot discharge it.
+pub(super) fn local_adapters(
+    artifact: terminal_codec::TerminalArtifactView<'_>,
+    profile: target::TargetProfile,
+    selected: &selected_provider_plans::SelectedProviderPlanFacts,
+    imports: &[ComponentImport],
+) -> Result<target_bound_program::SelectedProviderAdapters, String> {
+    let module = artifact.module();
+    let mut required = Vec::new();
+    for choice in &module.interfaces.provider_selections {
+        if choice.target != profile.target_name()
+            || choice.composition_mode
+                != semantic_vocabulary::source_selections::CompositionMode::Independent
+        {
+            continue;
+        }
+        let schema = module.service_schema(choice.schema_declaration, choice.schema_application)?;
+        for plan in selected.plans() {
+            if plan.target != choice.target
+                || plan.schema.declaration.as_ref() != schema.surface.as_ref()
+                || plan.provider_type_package_identity != choice.provider_package
+                || Some(plan.provider_type.as_str())
+                    != module.identities.text(choice.provider_identity)
+                || plan.provider_declaration.as_deref()
+                    != module.identities.text(choice.provider_declaration)
+                || plan.application_identity()
+                    != choice
+                        .provider_application
+                        .and_then(|index| module.identities.text(index))
+            {
+                continue;
+            }
+            let matching = imports
+                .iter()
+                .filter(|import| import.matches(artifact.identity(), plan))
+                .count();
+            if matching != 1 {
+                return Err(
+                    "independent native provider requires one exact receiving import".into(),
+                );
+            }
+            required.push(plan.identity_digest());
+        }
+    }
+    if required.len() != imports.len()
+        || imports
+            .iter()
+            .any(|import| !required.contains(&import.plan()))
+    {
+        return Err(
+            "native component import roster differs from the selected Independent occurrences"
+                .into(),
+        );
+    }
+    Ok(
+        target_bound_program::SelectedProviderAdapters::from_selected_plans(selected)?
+            .without_imports(&required),
+    )
+}
+
+fn admit_export(
+    receiver: terminal_codec::TerminalArtifactView<'_>,
+    component: &VerifiedComponent,
+    candidate: &ProviderCandidateConformance,
+) -> Result<psi_provider_selections::AdmittedComponentProvider, String> {
+    let module = component.module();
+    let abi = module.calling_abi_identity(candidate.boundary)?;
+    let requirement = module
+        .identities
+        .text(candidate.requirement_identity)
+        .ok_or("component export lost its exact invocation identity")?;
+    let mut receiving = receiver
+        .module()
+        .interfaces
+        .boundary_machines
+        .iter()
+        .filter(|boundary| {
+            receiver.module().identities.text(boundary.identity) == Some(requirement)
+                && receiver.module().calling_abi_identity(boundary.id).as_ref() == Ok(&abi)
+        });
+    let boundary = receiving.next().ok_or_else(|| {
+        format!("component import `{requirement}` has no receiving Terminal declaration",)
+    })?;
+    if receiving.next().is_some() {
+        return Err(format!(
+            "component import `{requirement}` has competing Terminal declarations"
+        ));
+    }
+
+    let selected = psi_provider_selections::ProviderInstallationSelection {
+        boundary: candidate.boundary,
+        provider_identity: module
+            .identities
+            .text(candidate.provider_identity)
+            .ok_or("component export lost its provider identity")?
+            .to_owned(),
+        provider_declaration: module
+            .identities
+            .text(candidate.provider_declaration.identity())
+            .ok_or("component export lost its selecting declaration")?
+            .to_owned(),
+        candidate: candidate.candidate,
+    };
+    let admitted = psi_provider_selections::admit_component_provider(
+        receiver,
+        boundary.id,
+        component.artifact().view(),
+        &selected,
+    )?;
+    if !admitted.selection().contains_candidate(candidate) {
+        return Err("component export admission changed its exact checked candidate".into());
+    }
+    Ok(admitted)
+}
+
+impl ComponentImport {
+    pub fn native_call<'input>(
+        &'input self,
+        index: usize,
+        producer: &'input RetainedTerminalArtifact,
+        plan: &ProviderPlan,
+        receiving_applications: &[BoundaryCallingApplication],
+    ) -> Result<AdmittedNativeComponentCall<'input>, String> {
+        let selected = self
+            .calls
+            .get(index)
+            .ok_or("component has no selected export at this position")?;
+        let proposal = producer.native_realization_proposal();
+        if self.plan != plan.identity_digest()
+            || self.component.artifact() != producer.artifact()
+            || proposal.target_profile().target_name() != plan.target
+            || !matches!(proposal.scope_source().root(), target_bound_program::NativeRoot::Component { export, .. } if export == selected)
+        {
+            return Err(
+                "component export, target or selection differs from its admitted import".into(),
+            );
+        }
+        let abi = self
+            .component
+            .module()
+            .calling_abi_identity(selected.provider_boundary())?;
+        let expected = plan.schema.calling_application(&abi);
+        let target = proposal.native_target();
+        let producer_application = one_application(
+            &proposal.boundary_applications().calling,
+            &abi,
+            expected,
+            target,
+            "component export",
+        )?;
+        let receiver_application = one_application(
+            receiving_applications,
+            &abi,
+            expected,
+            target,
+            "component import",
+        )?;
+        if producer_application != receiver_application
+            || producer_application.dispatch_only_formal.is_some()
+            || producer_application.recomputed_commitment()? != producer_application.commitment
+        {
+            return Err(format!(
+                "component import/export calling applications differ for {}",
+                abi.requirement_identity
+            ));
+        }
+        Ok(AdmittedNativeComponentCall {
+            selected: selected.clone(),
+            component: &self.component,
+            application: producer_application,
+            plan_digest: self.plan,
         })
     }
 }
@@ -276,8 +276,8 @@ fn one_application<'input>(
     expected: Option<&provider_plans::ServiceCallingPlan>,
     target: target::NativeTarget,
     role: &str,
-) -> Result<(usize, &'input BoundaryCallingApplication), String> {
-    let mut matching = applications.iter().enumerate().filter(|(_, row)| {
+) -> Result<&'input BoundaryCallingApplication, String> {
+    let mut matching = applications.iter().filter(|row| {
         &row.abi == abi
             && row.target == target
             && expected.map_or_else(
@@ -298,7 +298,7 @@ fn one_application<'input>(
         ));
     }
     if expected
-        .is_some_and(|expected| expected.report_fingerprint != application.1.report_fingerprint)
+        .is_some_and(|expected| expected.report_fingerprint != application.report_fingerprint)
     {
         return Err(format!(
             "{role} `{requirement}` has a stale calling report coordinate"

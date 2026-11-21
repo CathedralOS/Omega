@@ -4,9 +4,8 @@
 We implement the canonical binary wire codec (`PSITERM\0`), cryptographic domain fingerprinting
 (`SemanticFingerprint`, `TerminalPsiIdentity`), and receiving structural-foundation validation for
 `TerminalModule` and its companion sections (`TerminalArtifactManifest`, `TerminalDebugMap`
-and `OptimizationExecutionReceipt`), together with the canonical encoders of
-Terminal vocabulary (propositions, crash routes, access and quotient catalogs) that native forms
-use for their own identities.
+and `OptimizationExecutionReceipt`). The module format and native program identities
+use the same declaration encodings from `psi-declaration-encoding`.
 
 This crate does not define or hand out the sealed Terminal Psi module. `terminal-codec` owns
 `ClosedTerminalModule`, the canonical artifact envelope and entry receipts, and re-exports this
@@ -33,8 +32,9 @@ decoding, structural validation and carried proof data.
 */
 
 mod block_wire;
-mod callable_invocations_wire;
-pub use callable_invocations_wire::{decode_callable_invocations, encode_callable_invocations};
+pub use psi_declaration_encoding::invocations::{
+    decode_callable_invocations, encode_callable_invocations,
+};
 mod closed_types;
 pub mod contract_forms;
 pub use closed_types::ClosedTypeCatalog;
@@ -54,7 +54,7 @@ mod service_schema_wire;
 #[cfg(test)]
 mod spec_tag_tables;
 mod structural_wire;
-mod term_table;
+pub(crate) use psi_declaration_encoding::terms::table as term_table;
 mod term_wire;
 pub(crate) use semantic_module::*;
 
@@ -79,88 +79,12 @@ pub mod sealing {
     };
 }
 
-pub(crate) mod codec_error {
-
-    use semantic_vocabulary::PropositionError;
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub enum CodecError {
-        InvalidMagic,
-        UnsupportedFormatMarker(u16),
-        UnsupportedVocabularyMarker(u16),
-        UnexpectedEnd,
-        TrailingBytes(usize),
-        InvalidBoolean(u8),
-        InvalidTag(&'static str, u8),
-        ZeroIdentity(&'static str),
-        CollectionTooLong(&'static str),
-        NonCanonicalOrder(&'static str),
-        NonCanonicalEncoding,
-        NestedConjunction,
-        NestedDisjunction,
-        /// A term-table row names its own or a later entry.
-        TermTableForwardReference(&'static str),
-        /// A term-table row names entries other than the unconsumed ones
-        /// immediately before it, or a single-term table has other than one root.
-        NonCanonicalTermTable(&'static str),
-        StringTooLong(&'static str),
-        InvalidUtf8(&'static str),
-        MalformedStructuralFoundation(&'static str),
-        MalformedWriteFrame(String),
-        MalformedCallableResult {
-            machine: Option<semantic_vocabulary::MachineId>,
-            reason: String,
-        },
-        MalformedRanking(&'static str),
-        MalformedScalarReturnFoundation {
-            machine: String,
-            domain: String,
-            edge: semantic_vocabulary::EdgeId,
-            source: semantic_vocabulary::ValueId,
-            result: semantic_vocabulary::ValueId,
-            reason: String,
-        },
-        MalformedOperationFoundation {
-            machine: String,
-            state: String,
-            block: semantic_vocabulary::BlockId,
-            operation: semantic_vocabulary::OperationId,
-            reason: &'static str,
-        },
-        MalformedStructuralOperation {
-            machine: String,
-            operation: semantic_vocabulary::OperationId,
-            reason: String,
-        },
-        AccessPlan(String),
-        NativeLayout(String),
-        AccessViewPlan(terminal_semantics::AccessViewPlanError),
-        AccessRamCorrespondence(String),
-        AccessViewInput(terminal_semantics::AccessViewInputError),
-        MalformedMathematicalCertificate(&'static str),
-        InvalidIdentityFormation(String),
-        MalformedProposition(PropositionError),
-        IntegerWidthClosure(semantic_vocabulary::IntegerWidthClosureError),
-        ObligationLedgerMismatch,
-    }
-
-    impl std::fmt::Display for CodecError {
-        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(formatter, "{self:?}")
-        }
-    }
-
-    impl std::error::Error for CodecError {}
-
-    pub(crate) fn malformed<T>(message: &'static str) -> Result<T, CodecError> {
-        Err(CodecError::MalformedStructuralFoundation(message))
-    }
-}
 pub use indexed_theorem_roots::verify_indexed_theorem_roots;
 pub use mathematical_proof_actual::{
     MathematicalProofActualError, mathematical_carrier_key, verify_mathematical_proof_actual,
     verify_module_mathematical_actuals,
 };
+pub(crate) use psi_declaration_encoding::error as codec_error;
 pub(crate) mod cursor {
 
     pub(crate) use ::wire::cursor::Cursor;

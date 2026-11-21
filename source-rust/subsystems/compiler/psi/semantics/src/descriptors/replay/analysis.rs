@@ -1138,7 +1138,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 DescriptorStoredOrigin::IncomingContents {
                     position,
                     steps: query.steps.clone(),
-                    projection: projection.clone().without_runtime_coordinates(),
+                    projection: callee.export_input_projection(projection),
                 }
             }
             DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
@@ -1148,7 +1148,7 @@ impl<'a> DescriptorAnalysis<'a> {
                 let (position, _, _) = self.replay.parameter(callee, *source)?;
                 DescriptorStoredOrigin::Parameter {
                     position,
-                    projection: projection.clone().without_runtime_coordinates(),
+                    projection: callee.export_input_projection(projection),
                 }
             }
             DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Empty) => {
@@ -1522,19 +1522,71 @@ impl<'a> DescriptorAnalysis<'a> {
         &mut self,
         identity: MachineId,
         rules: &mut crate::descriptors::descriptor_lifetimes::DescriptorResidenceRules,
-    ) -> Option<BTreeMap<DescriptorPosition, DescriptorFlowStep>> {
-        rules.captures = rules
-            .captures
-            .iter()
-            .map(|(position, source, destination)| {
-                Some((
-                    *position,
-                    self.location(identity, *position, source)?,
-                    self.location(identity, *position, destination)?,
-                ))
-            })
-            .collect::<Option<_>>()?;
-        self.prepare_flow(identity, Some(rules)).ok()
+    ) -> Result<BTreeMap<DescriptorPosition, DescriptorFlowStep>, DescriptorGraphError> {
+        let formations = std::mem::take(&mut rules.captures);
+        let mut flow = self.prepare_flow(identity, Some(rules))?;
+        for (position, source, destination) in formations {
+            let failed = |detail| DescriptorGraphError::IncompleteMachine {
+                machine: identity,
+                position: Some(position),
+                successor: None,
+                detail: Some(detail),
+            };
+            let destination = self
+                .location(identity, position, &destination)
+                .ok_or_else(|| failed("captured reference has no local destination"))?;
+            if let Some(source) = self.location(identity, position, &source) {
+                rules.captures.insert((position, source, destination));
+                continue;
+            }
+            // A block input can borrow an indexed element without a local
+            // storage home. Keep each possible backing residence live through
+            // the new reference. An unknown address cannot supply this edge.
+            let origins = self
+                .captured_storage_family(identity, position, &source)
+                .map_err(failed)?;
+            let machine = self
+                .replay
+                .machine(identity)
+                .ok_or(DescriptorGraphError::MissingOrAmbiguousMachine(identity))?;
+            for origin in origins {
+                let DescriptorCallOrigin::Argument { source, projection } = origin else {
+                    return Err(failed("captured residence has no input-relative storage"));
+                };
+                if projection
+                    .has_captured_reference_crossing()
+                    .map_err(failed)?
+                {
+                    return Err(failed(
+                        "captured residence requires the storage on the far side of a reference",
+                    ));
+                }
+                let fixed = machine.export_input_projection(&projection);
+                let path = fixed
+                    .captured_storage_path()
+                    .ok_or_else(|| failed("captured residence has no fixed inline address"))?;
+                let location = descriptor_location(
+                    self.replay.types,
+                    source,
+                    *machine
+                        .place_types
+                        .get(&source)
+                        .ok_or_else(|| failed("captured residence has no local storage type"))?,
+                    &path,
+                    None,
+                )
+                .ok_or_else(|| failed("captured residence does not name storage in its input"))?;
+                let edge = (location, destination.clone());
+                let step = flow
+                    .get_mut(&position)
+                    .ok_or_else(|| failed("captured residence has no flow step"))?;
+                if !step.derivations.contains(&edge) {
+                    step.derivations.push(edge.clone());
+                }
+                rules.captures.insert((position, edge.0, edge.1));
+            }
+        }
+        Ok(flow)
     }
 
     fn prepare_flow(

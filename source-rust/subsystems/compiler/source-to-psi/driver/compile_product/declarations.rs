@@ -7,7 +7,6 @@ use crate::declaration_selection::BuildOperation;
 use crate::declaration_selection::ExecutedProductSelection;
 use crate::declaration_selection::ProductDeclarationRequest;
 use crate::declaration_selection::ProductOperandRole;
-use typed_trees_to_prepared_typed_trees::WireCompatibilityDemand;
 use crate::source_state::TypedTrees;
 use crate::source_state::product_operand::{ProductDeclarationLookup, ProductRequestAuthors};
 use diagnostics::Diagnostic;
@@ -16,8 +15,10 @@ use source_declarations::source_selections::{
 };
 use std::sync::Arc;
 use symbols::SymbolHandle;
+use typed_trees_to_prepared_typed_trees::WireCompatibilityDemand;
 
 pub struct AdmittedProductDeclarations {
+    pub service_audits: Vec<SymbolHandle>,
     pub assumed_bindings: Vec<AssumedBindingContract>,
     pub wire_demands: Vec<WireCompatibilityDemand>,
     pub test_groups: Vec<TestGroupRegistration>,
@@ -59,9 +60,10 @@ pub fn admit(
         )]);
     }
     let formations = AuthoredFormations::new(typed, formations)?;
-    validate_service_audits(typed, activation, executed, &formations)?;
+    let service_audits = admit_service_audits(typed, activation, executed, &formations)?;
     let test_groups = admit_test_groups(typed, activation, executed, &formations)?;
     Ok(AdmittedProductDeclarations {
+        service_audits,
         assumed_bindings: Vec::new(),
         wire_demands: Vec::new(),
         test_groups,
@@ -201,18 +203,18 @@ impl<'request> AuthoredFormations<'request> {
     }
 }
 
-fn validate_service_audits(
+fn admit_service_audits(
     typed: &TypedTrees,
     activation: Option<SymbolHandle>,
     executed: &[ExecutedProductSelection],
     formations: &AuthoredFormations<'_>,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
     let mut audits = executed
         .iter()
         .filter(|event| event.request.operation == BuildOperation::ServiceAudit)
         .peekable();
     if formations.of(BuildOperation::ServiceAudit).next().is_none() && audits.peek().is_none() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     let declarations = ProductDeclarationLookup::new(typed, &[ProductOperandRole::BoundarySubject]);
     // Every authored audit names a real boundary service, whether or not the
@@ -228,11 +230,11 @@ fn validate_service_audits(
     }
     services.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
     services.dedup();
-    for symbol in services {
+    for &symbol in &services {
         crate::source_symbols::retain_declaration(&typed.symbols, symbol)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
     }
-    Ok(())
+    Ok(services)
 }
 
 /*

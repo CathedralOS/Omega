@@ -34,11 +34,14 @@ fn policy(positions: Option<Vec<u32>>) -> PackagePolicyBaseline {
         BASELINE_WITHOUT_STRUCTURAL_PARAMETERS
     };
     requirement.structural_parameter_positions = positions;
+    let mut public_api = api(shape);
+    public_api.type_aliases =
+        (schema_version >= crate::encoding::BASELINE_WITH_TYPE_ALIASES).then(Vec::new);
     PackagePolicyBaseline {
         schema_version,
         package,
         target,
-        public_api: api(shape),
+        public_api,
         callables: PackagePolicyCallables {
             package,
             target,
@@ -164,6 +167,7 @@ fn older_reviews_can_only_make_claims_that_do_not_need_the_missing_positions() {
     let old_rows = rows(&old);
     let mut current = old.clone();
     current.schema_version = PACKAGE_POLICY_BASELINE_VERSION;
+    current.public_api.type_aliases = Some(Vec::new());
     current.public_api.traits[0].requirements[0].structural_parameter_positions = Some(vec![1, 3]);
     for row in rows(&current) {
         let previous = old_rows
@@ -184,4 +188,140 @@ fn older_reviews_can_only_make_claims_that_do_not_need_the_missing_positions() {
             Err(PackagePolicyRecoveryError::InvalidValue)
         );
     }
+}
+
+#[test]
+fn adding_an_alias_keeps_existing_trait_and_consent_rows_identical() {
+    let mut previous = policy(Some(vec![1, 3]));
+    previous.schema_version = crate::encoding::BASELINE_WITH_STRUCTURAL_PARAMETERS;
+    previous.public_api.type_aliases = None;
+    assert_eq!(recover(&previous), Ok(previous.clone()));
+    previous.schema_version = crate::encoding::BASELINE_WITH_PROVIDER_APPLICATION_GRANTS;
+    assert_eq!(recover(&previous), Ok(previous.clone()));
+    let mut current = previous.clone();
+    current.schema_version = PACKAGE_POLICY_BASELINE_VERSION;
+    current.public_api.type_aliases = Some(vec![PackagePolicyTypeAlias {
+        identity: identity("Word"),
+        lifetime_parameter_count: 0,
+        type_parameters: Vec::new(),
+        conformance_bounds: Vec::new(),
+        expansion: type_identity(U64),
+    }]);
+    assert_eq!(recover(&current), Ok(current.clone()));
+    let rows = |policy: &PackagePolicyBaseline| {
+        policy
+            .canonical_rows_with_limits(Default::default())
+            .unwrap()
+            .0
+    };
+    let mut before = rows(&previous);
+    let after = rows(&current);
+    let alias = after
+        .iter()
+        .find(|row| row.kind() == PackagePolicyRowKind::PublicTypeAlias)
+        .unwrap();
+    assert!(alias.canonical_text().contains("Word"));
+    let mut narrowed = current.clone();
+    narrowed.public_api.type_aliases.as_mut().unwrap()[0].expansion =
+        type_identity(&U64.replace("u64", "u32"));
+    let changed = rows(&narrowed)
+        .into_iter()
+        .find(|row| row.kind() == PackagePolicyRowKind::PublicTypeAlias)
+        .unwrap();
+    assert_eq!(alias.key_bytes(), changed.key_bytes());
+    assert_ne!(alias.canonical_bytes(), changed.canonical_bytes());
+    assert!(!alias.initial_requires_decision());
+    before.push(alias.clone());
+    before.sort_by(|left, right| {
+        (left.kind(), left.key_bytes()).cmp(&(right.kind(), right.key_bytes()))
+    });
+    assert_eq!(after, before);
+    assert_eq!(
+        previous
+            .acceptance_rows_with_limits(Default::default())
+            .unwrap()
+            .0,
+        current
+            .acceptance_rows_with_limits(Default::default())
+            .unwrap()
+            .0
+    );
+    current.schema_version = crate::encoding::BASELINE_WITH_PROVIDER_APPLICATION_GRANTS;
+    assert!(current.canonical_bytes().is_err());
+}
+
+#[test]
+fn carried_nominals_bind_one_supplier_occurrence_and_preserve_earlier_reviews() {
+    use semantic_vocabulary::PackageKeyIdentity;
+    use source_provenance::PackageSourceConsumptionCommitment;
+
+    let mut reviewed = policy(Some(vec![1, 3]));
+    reviewed.schema_version = crate::encoding::BASELINE_WITH_TYPE_ALIASES;
+    assert_eq!(recover(&reviewed), Ok(reviewed.clone()));
+
+    let owner = PackageKeyIdentity::from_digest([0x62; 32]).unwrap();
+    assert_ne!(owner, reviewed.package);
+    let carried = |path: &str, digest, exposure| PackagePolicySemanticDependency::CarriedType {
+        dependency: PackageReviewNominalIdentity {
+            owner: PackageReviewNominalOwner::Package(owner),
+            path: path.into(),
+        },
+        supplier_sources: PackageSourceConsumptionCommitment::from_retained_digest([digest; 32]),
+        exposure,
+    };
+    use PackageReviewSemanticDependencyExposure::{PrivateImplementation, PublicInterface};
+    reviewed.semantic_dependencies = vec![
+        carried("Packet", 1, PublicInterface),
+        carried("Token", 1, PrivateImplementation),
+    ];
+    assert!(reviewed.canonical_bytes().is_err());
+    reviewed.schema_version = PACKAGE_POLICY_BASELINE_VERSION;
+    assert_eq!(recover(&reviewed), Ok(reviewed.clone()));
+    let packet_row = |policy: &PackagePolicyBaseline| {
+        policy
+            .canonical_rows_with_limits(Default::default())
+            .unwrap()
+            .0
+            .into_iter()
+            .find(|row| {
+                row.kind() == PackagePolicyRowKind::SemanticDependency
+                    && row.canonical_text().contains("Packet")
+            })
+            .unwrap()
+    };
+    let acceptance = |policy: &PackagePolicyBaseline| {
+        policy
+            .acceptance_rows_with_limits(Default::default())
+            .unwrap()
+            .0
+    };
+    let before = packet_row(&reviewed);
+    let granted = acceptance(&reviewed);
+    assert!(!before.initial_requires_decision());
+    assert!(!before.update_requires_decision());
+    let mut without_types = reviewed.clone();
+    without_types.semantic_dependencies.clear();
+    assert_eq!(granted, acceptance(&without_types));
+    reviewed.semantic_dependencies = vec![
+        carried("Packet", 2, PublicInterface),
+        carried("Token", 2, PrivateImplementation),
+    ];
+    let changed_supplier = packet_row(&reviewed);
+    assert_eq!(before.key_bytes(), changed_supplier.key_bytes());
+    assert_ne!(before.canonical_bytes(), changed_supplier.canonical_bytes());
+    assert_eq!(granted, acceptance(&reviewed));
+    reviewed.semantic_dependencies[0] = carried("Packet", 2, PrivateImplementation);
+    let private_use = packet_row(&reviewed);
+    assert_eq!(before.key_bytes(), private_use.key_bytes());
+    assert_ne!(
+        changed_supplier.canonical_bytes(),
+        private_use.canonical_bytes()
+    );
+    assert_eq!(granted, acceptance(&reviewed));
+
+    reviewed.semantic_dependencies[1] = carried("Token", 1, PrivateImplementation);
+    assert!(reviewed.canonical_bytes().is_err());
+    reviewed.semantic_dependencies[1] = carried("Packet", 2, PublicInterface);
+    reviewed.semantic_dependencies.sort();
+    assert!(reviewed.canonical_bytes().is_err());
 }

@@ -147,7 +147,7 @@ impl ProductStage<'_> {
                 subject: self.product.package_inputs().map(|inputs| inputs.root()),
                 root_binding_requests: &self.entries,
                 policy: ProductPolicyInputs {
-                    activation: build.selected_build_declaration.as_ref(),
+                    activation: build.selected_build_declaration(),
                     declared: &build.declared_product_selections,
                     executed: &build.product_selection_requests,
                     native_bindings: &build.native_binding_requests,
@@ -179,6 +179,7 @@ impl ProductStage<'_> {
     ) -> Result<Program<'_>, Vec<Diagnostic>> {
         Ok(Program::Source {
             source: self.source(),
+            suppliers: self.product,
             runtime_consent: self.runtime_consent(profile)?,
             target: self.native_target(profile, installation_assumptions)?,
         })
@@ -246,6 +247,45 @@ impl ProductStage<'_> {
                 .flat_map(|inputs| inputs.accepted_semantic_bindings().cloned())
                 .collect(),
             installation_assumptions,
+        })
+    }
+}
+
+impl compiler::ComponentSuppliers for PlannedProduct {
+    fn publish(
+        &self,
+        package: semantic_vocabulary::PackageKeyIdentity,
+        profile: TargetProfile,
+    ) -> Result<compiler::ComponentSourcePublication, Vec<Diagnostic>> {
+        let supplier = self.suppliers.get(&package).ok_or_else(|| {
+            vec![Diagnostic::error(
+                "independent provider is outside the receiving Product's captured package graph",
+            )]
+        })?;
+        let stage = supplier.product_stage(&[profile])?;
+        let published =
+            source_compiler::compile_for_target(stage.source(), profile.target_name(), None)?;
+        if published.subject() != Some(package) {
+            return Err(vec![Diagnostic::error(
+                "independent supplier has a different package owner",
+            )]);
+        }
+        let (artifact, providers, exclusions) = published.into_parts();
+        let producer =
+            psi_authorization::HostProducerTrust::accept("current dependency Product compilation");
+        let authorization =
+            psi_authorization::authorize_terminal_artifact(artifact, Some(&producer))
+                .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
+        let choices = stage.native_target(profile, Vec::new())?;
+        Ok(compiler::ComponentSourcePublication {
+            package,
+            authorization,
+            providers,
+            exclusions,
+            optimizations: choices.settings.optimizations.clone(),
+            x86_scalar_fma_provider: choices.settings.x86_scalar_fma_provider,
+            package_permissions: choices.package_permissions,
+            semantic_bindings: choices.semantic_bindings,
         })
     }
 }

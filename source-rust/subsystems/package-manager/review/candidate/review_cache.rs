@@ -16,7 +16,9 @@
     `IndependentComponentDescription`).
 */
 
-use package_compilation::build_execution::{BuildEvaluationUsage, BuildObservationSummary, RestrictedBuildRequest};
+use package_compilation::build_execution::{
+    BuildEvaluationUsage, BuildObservationSummary, RestrictedBuildRequest,
+};
 use std::process::id;
 mod key;
 mod record_codec;
@@ -25,11 +27,8 @@ pub(crate) use key::compiled_review_key;
 
 use key::{lineage_digest, resolution_digest};
 use package_compilation::{
-    CheckedSourceCacheLimits,
-    ConsumedSourceUnit,
-    IndependentComponentDescription,
-    PackageBuildHandoff,
-    PackageSourceConsumptionCommitment,
+    CheckedSourceCacheLimits, ConsumedSourceUnit, IndependentComponentDescription,
+    PackageBuildHandoff, PackageSourceConsumptionCommitment,
 };
 use provider_acceptance::AcceptedSemanticBinding;
 use record_codec::{decode_record, encode_record};
@@ -252,9 +251,9 @@ impl CompiledReviewCache {
 pub(crate) fn record_compiled_review(
     review: &CompilerIssuedPackageReview,
     facts: CachedOccurrenceFacts,
-    policy_canonical_bytes: usize,
+    policy_bytes: Vec<u8>,
 ) -> Option<CachedCompiledReview> {
-    let policy_bytes = review.policy().canonical_bytes().ok()?;
+    let policy_canonical_bytes = u64::try_from(policy_bytes.len()).ok()?;
     Some(CachedCompiledReview {
         package_identity: review.key().identity(),
         name: review.key().name().as_str().to_owned(),
@@ -272,7 +271,7 @@ pub(crate) fn record_compiled_review(
         build_handoff: review.build_handoff().clone(),
         policy_bytes,
         facts,
-        policy_canonical_bytes: u64::try_from(policy_canonical_bytes).ok()?,
+        policy_canonical_bytes,
     })
 }
 

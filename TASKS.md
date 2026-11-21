@@ -6,12 +6,8 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## Development-health outcomes
 
-- **ITERATION-PERFORMANCE.** Reduce measured delays in the edit/build/run cycle.
-  - Use the [worktree assignment](tools/xtask/src/worktree.rs) to prefer collecting idle build outputs under disk pressure. Exercise independent collectors with one target's worth of space, an assignment and a release. Preserve explicit keep/evict settings, command leases and Cargo locks.
-  - After real-program bottlenecks, measure arena growth and copied nodes on repeated aggregate [constant substitutions](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/constants/substitution.rs). Preserve per-occurrence metadata when sharing definition content.
-  - Measure ascending, descending, repeated and tiny sets of [specializations](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/passes/specialization.rs). Count movement in the sorted index before changing storage. Preserve application identity, encounter order and deduplication.
 - **VALIDATION-ENVIRONMENT.** Restore missing test coverage on the affected host or service while preserving the original program and oracle.
-  - Bind `FilesystemHost`, `TimeHost` and direct foreign services to the exact operation and owner. Keep insufficient or installation-dependent evidence a refusal.
+  - Bind `FilesystemHost` and direct foreign services to the exact operation and owner. [Native review](source-rust/subsystems/compiler/psi-to-native/verification/provider-admission/src/terminal_authority_policy/host_cohorts.rs) still classifies non-Windows filesystem and Console operations from their method names. Check the selected operation itself and refuse insufficient or installation-dependent evidence.
 - **CLAIMS-LEGACY-READ-REMOVAL.** After 2026-11-22, once the old claims ref has been quiet for two hours, remove its parallel read, ticket seeding and merged status from [claims](tools/xtask/src/claims.rs). Delete its two migration tests and the [migration instructions](wiki/development/claims.md#migration-from-the-coordination-ref).
 
 ## Priority (human-set only)
@@ -271,7 +267,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **OBSERVATION-PROFILE.** Derive the [observation profile](wiki/spec/terminal-psi/observations.md) from the validated Psi module, including its identity, ordinary events, crashes and terminal external sites. Encode it in the [wire format](source-rust/subsystems/compiler/psi/artifact/wire). Have an independent consumer compare the decoded rows with the program and reject a changed association.
 
 - **STRUCTURAL-BORROW-IDENTITY.** (covers **WRITE-ONLY-BORROW**, **PLACED-ACCESS-NATIVE-OPS**, **GENERIC-FIXED-ARRAY-VIEWS**, **BORROW-PROOF-CONVERGENCE**, **TERMINAL-SLICE-VIEW-VOCABULARY**) Carry structural loans and slice views through native and Psi, including nested element views. Exercise lending an owned sequence as `&[T]` when its elements themselves retain borrowed views. Preserve each backing and its exact loan through return and cleanup.
-  - Run [case-selected slice references](samples/cli/probes/case_selected_slice_reference/main.omg) unchanged with native/Psi agreement: establish the mutable typed slice's actual backing and loan, then preserve the selected child through the return, including a rebound slice. Its recorded refusal precedes the returned-window checks; those checks and the independent projection-bound rejection remain required.
   - Check an unused `Observe<T>` machine taking `&T` under its declared lifetime and requirements. Run closed applications through both engines and reject mutation through a shared formal.
 
 <a id="normalized-abi-lowering"></a>

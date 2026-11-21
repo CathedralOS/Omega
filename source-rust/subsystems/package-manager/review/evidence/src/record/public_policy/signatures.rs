@@ -10,8 +10,8 @@ use crate::record::{
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyTypeParameter {
-    pub(crate) kind: PackagePolicyTypeParameterKind,
-    pub(crate) bounds: PackageReviewDataProperties,
+    pub kind: PackagePolicyTypeParameterKind,
+    pub bounds: PackageReviewDataProperties,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

@@ -1,6 +1,8 @@
 //! Cross-target provider authority on the public source and saved-Psi paths.
 #[path = "../../../../../tests/support/fixture_repository.rs"]
 mod fixture_repository;
+#[path = "provider_publication/provider_grants.rs"]
+mod provider_grants;
 
 use compiler::{Artifact, CompileRequest, NativeTarget, Program, TargetProviderInstallation};
 use host_provider_inputs::ProviderInstallationInputs;
@@ -18,6 +20,17 @@ use target::TargetProfile;
 use terminal_codec::CanonicalTerminalArtifact;
 
 fn open_project(path: &Path, targets: &[TargetProfile]) -> PlannedProduct {
+    let (returned, inputs) = run_project_build(path, targets);
+    returned.open_product(Some(&inputs)).unwrap()
+}
+
+fn run_project_build(
+    path: &Path,
+    targets: &[TargetProfile],
+) -> (
+    project_build::ReturnedPlanningStage,
+    package_compilation::PackageCompilationInputs,
+) {
     static LIBRARY: OnceLock<()> = OnceLock::new();
     LIBRARY.get_or_init(|| {
         package_compilation::toolchain_library::configure(
@@ -54,7 +67,7 @@ fn open_project(path: &Path, targets: &[TargetProfile]) -> PlannedProduct {
     let inputs = graph
         .join_source_result(subject, &mut returned.source_result().unwrap())
         .unwrap();
-    returned.open_product(Some(&inputs)).unwrap()
+    (returned, inputs)
 }
 
 #[test]
@@ -238,7 +251,7 @@ fn private_entry_requires_the_target_of_its_parent() {
     assert_ne!(republished.identity(), x64.authorization().identity());
     let proposal = x64.native_realization_proposal();
     let providers = proposal.providers();
-    let mut entry = proposal.program_entry().clone();
+    let mut entry = proposal.program_entry().unwrap().clone();
     assert_eq!(
         entry
             .bind_physical_adapter(
@@ -260,7 +273,7 @@ fn private_entry_requires_the_target_of_its_parent() {
         x64.native_realization_proposal(),
         &parent,
         republished.artifact(),
-        x64.native_realization_proposal().target_program_entry(),
+        x64.native_realization_proposal().root_callable(),
     )
     .err()
     .expect("the private entry must use the publication authorized by its parent");
@@ -275,7 +288,7 @@ fn private_entry_requires_the_target_of_its_parent() {
         arm64.native_realization_proposal(),
         &parent,
         x64.artifact(),
-        x64.native_realization_proposal().target_program_entry(),
+        x64.native_realization_proposal().root_callable(),
     )
     .err()
     .expect("the x64 parent cannot supply layouts for an Arm64 entry");
@@ -670,7 +683,7 @@ fn folded_layout_reopens_only_with_its_selected_target_and_plan_preimages() {
 fn root_and_private_callable_enforce_the_selected_process_exit() {
     use artifact_lowering::{
         RetainedNativeProviderInputs, admit_prepared_native_realization, lower_native_callable,
-        lower_native_execution, prepare_native_providers,
+        test_support::{lower_native_execution, prepare_native_providers},
     };
     use provider_realization::native_execution::{BoundNativeCallable, prepare_program};
 
@@ -870,4 +883,280 @@ machine main() reaches ProcessExit crashes none terminates {{ exit_helper(passth
             }
         }
     }
+}
+
+#[test]
+fn fresh_review_records_the_build_that_declared_the_package() {
+    use review_evidence::record::{PackagePolicyCallableRole, PackageReviewNominalOwner};
+
+    let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "fresh-build-identity",
+        false,
+    )
+    .unwrap();
+    let root = temp.path();
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: @mut Build) { Build::application(builder, "review_example"); Build::bind(builder, linux_x86_64\ProgramEntry, main); }"#,
+    )
+    .unwrap();
+    std::fs::write(root.join("main.omg"), "machine main() {}").unwrap();
+
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
+    let owner = inputs.root();
+    let settled = returned.settle_dependency(inputs.clone()).unwrap();
+    let product = settled.open_product(inputs).unwrap();
+    let checked = product.product_stage(&[target]).unwrap().review_policy(target).unwrap();
+    let mut builds = checked.policy.callables.callables().iter()
+        .filter(|callable| callable.role == PackagePolicyCallableRole::Build);
+    let build = builds.next().expect("the executed Build is part of the review");
+    assert!(builds.next().is_none());
+    assert_eq!(build.identity.owner, PackageReviewNominalOwner::Package(owner));
+    assert_eq!(build.identity.path, "build");
+}
+
+#[test]
+fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant() {
+    let target = TargetProfile::LinuxX64;
+    for (service, critical) in [
+        (r"use omega\language\core\ProcessOutput;", true),
+        ("public boundary trait ProcessOutput {}", false),
+    ] {
+        let project = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "review-callable-service-ceiling",
+            false,
+        )
+        .unwrap();
+        let root = project.path();
+        std::fs::write(
+            root.join("build.omg"),
+            r#"machine build(builder: @mut Build) { Build::package(builder, "review_ceiling"); }"#,
+        )
+        .unwrap();
+        std::fs::write(root.join("main.omg"), format!("{service}\npublic machine inspect_value(value: u32) -> u32 reaches ProcessOutput crashes none {{ value }}\n")).unwrap();
+        let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
+        let settled = returned.settle_dependency(inputs.clone()).unwrap();
+        let product = settled.open_product(inputs).unwrap();
+        let checked = product
+            .product_stage(&[target])
+            .unwrap()
+            .review_policy(target)
+            .unwrap();
+        let callable = checked
+            .policy
+            .callables
+            .callables
+            .iter()
+            .find(|row| row.identity.path == "inspect_value")
+            .unwrap();
+        let reach = callable.declared_service_reach.as_deref().unwrap();
+        assert_eq!(reach.len(), 1);
+        assert_eq!(reach[0].path, "ProcessOutput");
+        assert_eq!(
+            checked.policy.dangerous_capabilities.len(),
+            usize::from(critical)
+        );
+        assert_eq!(checked.policy.slack_uses.len(), usize::from(critical));
+        assert!(checked.policy.selected_providers.plans.is_empty());
+        assert!(checked.policy.terminal_permissions.services.is_empty());
+        assert!(checked.semantic_binding_candidates.is_empty());
+    }
+}
+
+#[test]
+fn review_records_an_explicit_empty_grant_and_the_unpermitted_sibling() {
+    use provider_acceptance::{
+        AcceptedSemanticBinding, AcceptedSemanticBindingRole, ServiceTerminalAuthorityPermission,
+        accepted_service_schema_digest,
+    };
+    use provider_plans::ServiceSchema;
+    use semantic_vocabulary::TerminalAuthorityDisposition;
+
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-receiver-policy",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path();
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: @mut Build) { Build::package(builder, "receiver_review"); }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        r#"
+public boundary trait TimeHost {
+    machine ticks() -> u64 reaches none crashes none;
+    machine frequency() -> u64 reaches none crashes none;
+}
+"#,
+    )
+    .unwrap();
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
+    let settled = returned.settle_dependency(inputs.clone()).unwrap();
+    let product = settled.open_product(inputs.clone()).unwrap();
+    let stage = product.product_stage(&[target]).unwrap();
+    let (declarations, _) = source_compiler::review_package(
+        stage.source(),
+        target.target_name(),
+        &mut Default::default(),
+    )
+    .unwrap();
+    let checked = declarations.accepted().unwrap();
+    let source = checked.source();
+    let service = source
+        .traits()
+        .iter()
+        .find(|decl| {
+            decl.name.as_str() == "TimeHost"
+                && source.symbols.symbol_package_identity(decl.symbol) == Some(inputs.root())
+        })
+        .unwrap();
+    let declaration = source.symbols.display_path(service.symbol, "::");
+    let schema = ServiceSchema::from_declaration(checked.slot_schema(service.symbol).unwrap());
+    let role = AcceptedSemanticBindingRole::TimeHostService;
+    let digest = accepted_service_schema_digest(role, &schema);
+    let binding =
+        AcceptedSemanticBinding::new_service(role, inputs.root(), declaration, digest).unwrap();
+    let ticks = schema
+        .declaration
+        .methods
+        .iter()
+        .find(|row| row.name == "ticks")
+        .unwrap();
+    let review = |requirement: &str| {
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let grant = ServiceTerminalAuthorityPermission::new(
+            digest,
+            identities.intern(requirement),
+            TerminalAuthorityDisposition::from_classes([]),
+        );
+        let accepted = binding
+            .clone()
+            .with_terminal_authority_permissions(vec![grant], &identities.build())
+            .unwrap();
+        let bound = inputs
+            .clone()
+            .with_accepted_semantic_bindings(vec![accepted])
+            .unwrap();
+        let product = settled.open_product(bound).unwrap();
+        product
+            .product_stage(&[target])
+            .unwrap()
+            .review_policy(target)
+    };
+    let checked = review(schema.identity_text(ticks.requirement_identity)).unwrap();
+    let [service] = checked.policy.terminal_permissions.services.as_slice() else {
+        panic!("expected one receiver permission service")
+    };
+    assert_eq!(
+        service
+            .methods
+            .iter()
+            .map(|row| row.name.as_str())
+            .collect::<Vec<_>>(),
+        schema
+            .declaration
+            .methods
+            .iter()
+            .map(|method| method.name.as_str())
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(service.methods.len(), 2);
+    let frequency = &service
+        .methods
+        .iter()
+        .find(|method| method.name == "frequency")
+        .unwrap()
+        .requirement;
+    assert!(
+        checked
+            .policy
+            .callables
+            .callables()
+            .iter()
+            .any(|callable| callable.identity() == frequency)
+    );
+    let host = checked
+        .policy
+        .public_api
+        .traits
+        .iter()
+        .find(|item| item.identity == service.service)
+        .unwrap();
+    assert!(
+        host.requirements
+            .iter()
+            .any(|requirement| &requirement.identity == frequency)
+    );
+    let method = service
+        .methods
+        .iter()
+        .find(|method| method.name == "ticks")
+        .unwrap();
+    let [grant] = service.permissions.as_slice() else {
+        panic!("only the supplied permission belongs to the receiver")
+    };
+    assert_eq!(grant.requirement, method.requirement);
+    assert!(grant.permitted.classes().is_empty());
+    assert!(review("unrelated::ticks").is_err());
+}
+
+#[test]
+fn review_retains_public_alias_names_with_their_normalized_expansions() {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-public-aliases",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path();
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: @mut Build) { Build::package(builder, "public_aliases"); }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        r#"
+public data KeyHash<K> = machine(key: @K) -> u64;
+public data Renamed<T> = machine(key: @T) -> u64;
+public data Word = u32;
+public data SameWord = Word;
+public data WordPair = [Word; 2];
+data LocalAlias = i64;
+"#,
+    )
+    .unwrap();
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
+    let settled = returned.settle_dependency(inputs.clone()).unwrap();
+    let product = settled.open_product(inputs).unwrap();
+    let policy = product
+        .product_stage(&[target])
+        .unwrap()
+        .review_policy(target)
+        .unwrap()
+        .policy;
+    let aliases = policy.public_api.type_aliases.as_deref().unwrap();
+    let [hash, renamed, same, word, pair] = aliases else {
+        panic!("expected all five public aliases")
+    };
+    assert_eq!(
+        (
+            &*same.identity.path,
+            &*word.identity.path,
+            &*pair.identity.path
+        ),
+        ("SameWord", "Word", "WordPair")
+    );
+    assert_eq!(hash.identity.path, "KeyHash");
+    assert_eq!(renamed.identity.path, "Renamed");
+    assert_eq!(hash.type_parameters.len(), 1);
+    assert_eq!(hash.expansion, renamed.expansion);
+    assert_eq!(same.expansion, word.expansion);
+    assert_ne!(pair.expansion, word.expansion);
+    assert!(policy.public_data().is_empty());
 }

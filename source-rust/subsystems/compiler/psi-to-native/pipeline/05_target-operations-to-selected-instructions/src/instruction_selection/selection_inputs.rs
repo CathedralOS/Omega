@@ -76,7 +76,7 @@ pub(crate) mod address_join_input {
         PointerSlot, owner_loan_geometry, projected_scalar_codec, reference_source_geometry,
         scalar_storage_type,
     };
-    use structural_storage::address_joins::is_address_join_in;
+    use structural_storage_queries::address_joins::is_address_join_in;
 
     use calling_conventions::ValueShape;
 
@@ -127,7 +127,7 @@ pub(crate) mod address_join_input {
     > {
         let signature = source.structural.as_ref()?;
         if argument.access != parameter.access
-            || !structural_storage::address_joins::is_address_projection(&argument.path)
+            || !structural_storage_queries::address_joins::is_address_projection(&argument.path)
             || join(source, parameter.place)?.0 != target
         {
             return None;
@@ -139,7 +139,7 @@ pub(crate) mod address_join_input {
                     argument.place,
                 )?;
             (argument.path.is_empty()
-                && structural_storage::owner_loans::is_bounded_owner_loan_in(
+                && structural_storage_queries::owner_loans::is_bounded_owner_loan_in(
                     parameter,
                     source.geometry(),
                 )
@@ -167,7 +167,7 @@ pub(crate) mod address_join_input {
         {
             return None;
         }
-        if structural_storage::address_joins::borrowed_referent_type(
+        if structural_storage_queries::address_joins::borrowed_referent_type(
             signature.structural_types.iter(),
             root,
             &argument.path,
@@ -177,8 +177,10 @@ pub(crate) mod address_join_input {
         {
             return None;
         }
-        let owner_loan =
-            structural_storage::owner_loans::is_bounded_owner_loan_in(parameter, source.geometry());
+        let owner_loan = structural_storage_queries::owner_loans::is_bounded_owner_loan_in(
+            parameter,
+            source.geometry(),
+        );
         let mut geometry = if owner_loan {
             owner_loan_geometry(root, &argument.path, source.geometry())
         } else {
@@ -350,7 +352,7 @@ pub(crate) mod address_join_input {
     ) -> Option<StructuralTypeId> {
         if matches!(access, terminal_psi::exclusive_borrow_pair_pattern!()) {
             let permits = |parameter: &StructuralParameterDeclaration| {
-                structural_storage::address_joins::loan_access_permitted(
+                structural_storage_queries::address_joins::loan_access_permitted(
                     source
                         .structural
                         .as_ref()
@@ -393,7 +395,7 @@ pub(crate) mod address_join_input {
                 semantic_vocabulary::StructuralPlaceKind::Parameter { .. }
             );
             return ((is_input
-                || structural_storage::address_joins::is_descriptor_join_in(
+                || structural_storage_queries::address_joins::is_descriptor_join_in(
                     parameter,
                     source.geometry(),
                 ))
@@ -1295,7 +1297,7 @@ pub(crate) mod aggregate_result_input {
         ) {
             // A control edge copies the complete descriptor, rather than
             // retaining an address the next iteration may overwrite.
-            if !structural_storage::address_joins::is_descriptor_join_in(
+            if !structural_storage_queries::address_joins::is_descriptor_join_in(
                 parameter,
                 &signature.structural_types,
             ) {
@@ -1334,9 +1336,9 @@ pub(crate) mod aggregate_result_input {
         use terminal_semantics::BorrowedReferentPresentation;
         if argument.access != parameter.access
             || !(if argument.access == StructuralAccess::Owned {
-                structural_storage::address_joins::is_static_projection(&argument.path)
+                structural_storage_queries::address_joins::is_static_projection(&argument.path)
             } else {
-                structural_storage::address_joins::is_address_projection(&argument.path)
+                structural_storage_queries::address_joins::is_address_projection(&argument.path)
             })
         {
             return None;
@@ -2363,7 +2365,7 @@ pub(crate) mod established_view_input {
             budget: usize,
         ) -> Option<()> {
             use crate::instruction_selection::structural_inputs::structural_reference_input as geometry;
-            use structural_storage::storage_projection::StructuralStorageProjection;
+            use structural_storage_queries::storage_projection::StructuralStorageProjection;
             let signature = function.structural.as_ref()?;
             let types = function.geometry();
             let mut current = crate::instruction_selection::selection::reference_input::root_type(
@@ -2423,7 +2425,7 @@ pub(crate) mod established_view_input {
                 prefix_start = position + 1;
             }
             let selected =
-                structural_storage::storage_projection::structural_borrowed_storage_projection(
+                structural_storage_queries::storage_projection::structural_borrowed_storage_projection(
                     types.iter(),
                     current,
                     &source.path[prefix_start..],
@@ -4246,7 +4248,7 @@ pub(crate) mod reference_input {
                     owner == Some(correspondence.source_type())
                         && (correspondence.resident_source().is_some()
                             || actual == Some(correspondence.schema()))
-                        && structural_storage::access_reference_validation::validate_backing(
+                        && structural_storage_queries::access_reference_validation::validate_backing(
                             declarations,
                             signature.structural_types.access_views(),
                             plan,

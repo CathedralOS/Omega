@@ -29,24 +29,67 @@ pub fn prepare_source_program(
     authorization: psi_authorization::AuthorizedTerminalArtifact,
     publication: provider_demand::PublishedTargetProviders,
     exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
+    components: Vec<super::components::ComponentSourcePublication>,
     target: SourceNativeTarget<'_>,
 ) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
-    let artifact = authorization.shared_artifact();
-    let demand = publication.receive(artifact, target.profile.target_name())?;
-    let issued = provider_demand::IssuedProviderDemand::from_publication(
-        artifact.manifest().identity(),
-        Arc::clone(artifact),
-        Some(target.profile),
-        demand,
+    let issued = source_demand(
+        &authorization,
+        publication,
+        target.profile,
         target.package_permissions,
         target.semantic_bindings,
     )?;
+    let supplied = super::components::verify(components, target.profile)?;
     prepare_issued_program(
         authorization,
         issued,
+        supplied,
         target.settings,
         exclusions,
         target.installation_assumptions,
+    )
+}
+
+/// Determine the checked target supply for a package, including an entryless library.
+/// Selecting providers does not require a process-entry ABI.
+pub fn review_source_providers(
+    authorization: psi_authorization::AuthorizedTerminalArtifact,
+    publication: provider_demand::PublishedTargetProviders,
+    target: SourceNativeTarget<'_>,
+) -> Result<provider_realization::SelectedProviderResult, Vec<Diagnostic>> {
+    let issued = source_demand(
+        &authorization,
+        publication,
+        target.profile,
+        target.package_permissions,
+        target.semantic_bindings,
+    )?;
+    let admitted = native_inputs::admit(authorization, issued)
+        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+    Ok(provider_realization::select_published_providers(admitted, Default::default())?
+        .result()
+        .clone())
+}
+
+fn source_demand(
+    authorization: &psi_authorization::AuthorizedTerminalArtifact,
+    publication: provider_demand::PublishedTargetProviders,
+    profile: target::TargetProfile,
+    permissions: Option<declaration_scope::ProductDeclarationScope>,
+    bindings: Arc<[provider_acceptance::AcceptedSemanticBinding]>,
+) -> Result<
+    provider_demand::IssuedProviderDemand<terminal_codec::TerminalArtifactIdentity>,
+    Vec<Diagnostic>,
+> {
+    let artifact = authorization.shared_artifact();
+    let demand = publication.receive(artifact, profile.target_name())?;
+    provider_demand::IssuedProviderDemand::from_publication(
+        artifact.manifest().identity(),
+        Arc::clone(artifact),
+        Some(profile),
+        demand,
+        permissions,
+        bindings,
     )
 }
 
@@ -63,6 +106,7 @@ pub fn prepare_saved_program(
     prepare_issued_program(
         authorization,
         issued,
+        Default::default(),
         NativeApplicationSettings {
             application: target.application,
             optimizations: target.optimizations,
@@ -78,16 +122,22 @@ pub fn prepare_saved_program(
 fn prepare_issued_program<Publisher>(
     authorization: psi_authorization::AuthorizedTerminalArtifact,
     issued: provider_demand::IssuedProviderDemand<Publisher>,
+    components: super::components::VerifiedSuppliers,
     settings: NativeApplicationSettings<'_>,
     behavior_exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
     installation_assumptions: Vec<installation_conditions::InstallationEnvironmentAssumption>,
 ) -> Result<crate::NativeProgram, Vec<Diagnostic>> {
     let admitted = native_inputs::admit(authorization, issued)
         .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
+    let descriptions = components
+        .iter()
+        .map(|(&package, supplier)| (package, Arc::clone(&supplier.component)))
+        .collect();
     let (terminal, permissions) =
-        bind_published_application(admitted, settings, behavior_exclusions)?;
+        bind_published_application(admitted, settings, descriptions, behavior_exclusions)?;
     Ok(crate::NativeProgram {
         terminal,
+        suppliers: components,
         permissions,
         installation_assumptions,
     })

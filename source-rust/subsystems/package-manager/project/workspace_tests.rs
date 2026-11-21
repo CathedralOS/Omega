@@ -49,7 +49,7 @@ fn check_catalog(directory: &Path, fixture: &Path) {
         session.dispose(result)
     };
     let before = source_build_execution_count();
-    let graph = resolve().unwrap();
+    let graph = resolve().unwrap().sources;
     let review = CanonicalSourceClosureSubject::from_resolved(
         &graph.closure.for_exact_target(host),
         Default::default(),

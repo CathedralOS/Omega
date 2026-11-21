@@ -171,9 +171,9 @@ impl PackageReviewContractEvidenceArgument {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewOperatorCoordinate {
-    pub(crate) identity: PackageReviewNominalIdentity,
-    pub(crate) parameter_dispatch: String,
-    pub(crate) result_dispatch: String,
+    pub identity: PackageReviewNominalIdentity,
+    pub parameter_dispatch: String,
+    pub result_dispatch: String,
 }
 
 impl PackageReviewOperatorCoordinate {

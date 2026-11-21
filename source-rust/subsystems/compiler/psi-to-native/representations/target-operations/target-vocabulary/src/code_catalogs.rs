@@ -26,9 +26,10 @@ impl NativeCodeCatalogs {
     pub fn seal(
         dynamic_dispatch: TerminalDynamicDispatchCatalog,
         callables: TerminalCallableCatalog,
-    ) -> Result<Self, terminal_wire::CodecError> {
-        let dynamic_bytes = terminal_wire::encode_dynamic_dispatch_catalog(&dynamic_dispatch)?;
-        let callable_bytes = terminal_wire::encode_callable_catalog(&callables)?;
+    ) -> Result<Self, psi_declaration_encoding::CodecError> {
+        let dynamic_bytes =
+            psi_declaration_encoding::dispatch::encode_dynamic_dispatch_catalog(&dynamic_dispatch)?;
+        let callable_bytes = psi_callable_encoding::encode_callable_catalog(&callables)?;
         Ok(Self(Arc::new(CatalogRows {
             dynamic_dispatch,
             callables,
@@ -89,7 +90,7 @@ mod tests {
         assert_eq!(catalogs.callables(), &callables);
         assert_eq!(
             catalogs.0.callable_bytes,
-            terminal_wire::encode_callable_catalog(&callables).unwrap()
+            psi_callable_encoding::encode_callable_catalog(&callables).unwrap()
         );
         let mut bytes = Vec::new();
         catalogs.encode(|part| bytes.extend_from_slice(part));

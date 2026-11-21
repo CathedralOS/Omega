@@ -278,6 +278,7 @@ fn adapt_flow(
         )),
         scalar_payload_writes: BTreeMap::new(),
         scalar_payload_reads: BTreeMap::new(),
+        unsigned_index_literals: Vec::new(),
         payload_scalar_definitions: BTreeMap::new(),
         payload_scalar_postconditions: BTreeMap::new(),
         payload_scalar_parameters: BTreeMap::new(),
@@ -343,6 +344,13 @@ fn adapt_flow(
                     .extend(postconditions.stored);
             }
             if let Some(result) = operation.result.scalar_ref() {
+                if let OperationKind::IntegerConstant {
+                    value: semantic_vocabulary::IntegerValue::Unsigned(value),
+                } = operation.kind
+                    && let Ok(index) = u64::try_from(value)
+                {
+                    graph.unsigned_index_literals.push((result.id, index));
+                }
                 graph
                     .payload_scalar_definitions
                     .insert(position, vec![result.id]);
@@ -2391,7 +2399,7 @@ fn adapt_flow(
             return None;
         }
     }
-    Some(graph)
+    graph.finish_index_literals()
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

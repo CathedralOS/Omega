@@ -469,10 +469,7 @@ impl crate::source_state::TypedTrees {
                         return Err("a callable type argument requires its resolved type");
                     }
                     let reference = self.static_operand_type_reference_in_scope(argument, owner)?;
-                    if matches!(
-                        self.type_reference_node(reference),
-                        TypeReferenceNode::ConstExpression(_)
-                    ) {
+                    if self.type_argument_names_value(reference) {
                         return Err("a callable type argument cannot be a value");
                     }
                     reference
@@ -6020,6 +6017,42 @@ pub(crate) mod selected_operands {
                 return Err("static operand changed its retained selected application");
             }
             Ok(supplier)
+        }
+
+        /// Both callable and type-alias applications use the same type-reference
+        /// arena for type and value arguments. A type binder cannot accept a
+        /// value, including when substitution would erase the argument.
+        pub fn type_argument_names_value(&self, reference: types::TypeReferenceHandle) -> bool {
+            use crate::source_state::data::TypeParameterKind;
+            use symbols::SymbolKind;
+            let symbol = match self.type_reference_table.type_reference(reference) {
+                types::TypeReferenceNode::ConstExpression(_) => return true,
+                types::TypeReferenceNode::Named { symbol, .. } => *symbol,
+                _ => return false,
+            };
+            if !self.symbols.symbols().nodes().is_valid(symbol) {
+                return self
+                    .static_const_literal_from_type_reference(reference)
+                    .is_some();
+            }
+            match self.symbols.get(symbol).kind {
+                SymbolKind::TypeParameter => {
+                    self.data_type_parameter_by_symbol(symbol)
+                        .is_some_and(|parameter| {
+                            matches!(
+                                parameter.kind,
+                                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                            )
+                        })
+                }
+                SymbolKind::Const
+                | SymbolKind::Parameter
+                | SymbolKind::Local
+                | SymbolKind::Machine
+                | SymbolKind::MachineParameter
+                | SymbolKind::ConformanceParameter => true,
+                _ => false,
+            }
         }
 
         pub fn static_operand_from_type_reference(

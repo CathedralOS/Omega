@@ -639,16 +639,57 @@ impl Projection {
         self
     }
 
-    pub fn without_runtime_coordinates(mut self) -> Self {
+    pub fn without_runtime_coordinates(self) -> Self {
+        self.without_runtime_coordinates_with(|_| None)
+    }
+
+    pub(crate) fn without_runtime_coordinates_with(
+        mut self,
+        known_index: impl Fn(ValueId) -> Option<u64>,
+    ) -> Self {
+        let has_window = self.window.is_some()
+            || self
+                .path
+                .iter()
+                .any(|step| matches!(step, StructuralPathSegment::FixedRange { .. }));
+        if has_window
+            && let Some(segments) = self.origin_path_with(|_, index| known_index(index))
+            && let Some(path) = segments
+                .into_iter()
+                .map(|segment| match segment {
+                    terminal_psi::ReferenceOriginProjection::Exact(step) => Some(step),
+                    terminal_psi::ReferenceOriginProjection::Element => None,
+                })
+                .collect::<Option<Vec<_>>>()
+        {
+            // A sequence of slices followed by selection names one offset in
+            // the original backing. Each window and element still owes its
+            // own bounds check. The descriptor that supplied it stays intact.
+            let fixed = Self::new(&path);
+            self.address = fixed.address;
+            self.path = fixed.path;
+            self.exact = fixed.exact;
+            self.window = None;
+            self.captured_at = None;
+            return self;
+        }
+        let mut resolved_index = false;
         if let Some(steps) = self.address.take() {
             let mut erased = Vec::with_capacity(steps.len());
             for step in steps {
                 match step {
                     AddressStep::Window { .. } => erased.push(AddressStep::ErasedWindow),
-                    AddressStep::Path(path, _) => {
+                    AddressStep::Path(path, at) => {
                         let mut run = Vec::new();
                         for segment in path {
-                            if segment.runtime_index().is_some() {
+                            if let Some((value, _)) = segment.runtime_index() {
+                                if at.is_some()
+                                    && let Some(index) = known_index(value)
+                                {
+                                    resolved_index = true;
+                                    run.push(StructuralPathSegment::FixedIndex(index));
+                                    continue;
+                                }
                                 if !run.is_empty() {
                                     erased.push(AddressStep::Path(
                                         std::mem::take(&mut run),
@@ -671,7 +712,13 @@ impl Projection {
             }
             self.address = Some(erased);
         }
-        if let Some(position) = self
+        if resolved_index && let Ok(path) = self.captured_address_path() {
+            // All selectors in this address survived as fixed ordinals. Publish
+            // the resulting child path using the ordinary static-path rules.
+            let fixed = Self::new(&path);
+            self.path = fixed.path;
+            self.exact = fixed.exact;
+        } else if let Some(position) = self
             .path
             .iter()
             .position(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))

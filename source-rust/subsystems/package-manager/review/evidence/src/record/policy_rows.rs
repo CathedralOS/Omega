@@ -44,6 +44,7 @@ pub enum PackagePolicyRowKind {
     ServiceAudit,
     NativeBinding,
     ComponentAssumption,
+    PublicTypeAlias,
 }
 
 impl PackagePolicyRowKind {
@@ -84,6 +85,7 @@ impl PackagePolicyRowKind {
             Self::ServiceAudit => (24, "service_audit"),
             Self::NativeBinding => (25, "native_binding"),
             Self::ComponentAssumption => (26, "component_assumption"),
+            Self::PublicTypeAlias => (27, "public_type_alias"),
         }
     }
 
@@ -118,6 +120,7 @@ impl PackagePolicyRowKind {
             | Self::PublicConst
             | Self::PublicOperator
             | Self::PublicData
+            | Self::PublicTypeAlias
             | Self::Callable
             | Self::SelectedProviderAssociation
             | Self::TerminalService

@@ -4187,6 +4187,11 @@ pub(crate) mod native_layouts {
                     ));
                 }
             };
+            if semantic
+                .is_some_and(|application| application.policy_identity != native.policy_identity)
+            {
+                return Err(fail("native layout changed its selected semantic policy"));
+            }
             let expected_targets = semantic.map(|application| {
                 application
                     .realizations
@@ -4966,8 +4971,6 @@ pub(crate) mod scalar_applications {
             .iter()
             .map(|(_, owner)| *owner)
             .collect::<std::collections::BTreeSet<_>>();
-        let application_sized_storage = terminal_semantics::application_sized_storage(module)
-            .map_err(CodecError::MalformedStructuralFoundation)?;
         for machine in &module.machines {
             for (_, expected) in module
                 .layout_call_conditions(machine)
@@ -5002,7 +5005,6 @@ pub(crate) mod scalar_applications {
                     module,
                     machine,
                     &types,
-                    &application_sized_storage,
                 )
                 .map_err(CodecError::MalformedStructuralFoundation)?
                 {
@@ -5317,7 +5319,7 @@ pub(crate) mod scalar_applications {
             )
             .unwrap();
             let [range]: [terminal_semantics::TargetScalarRange; 1] =
-                terminal_semantics::target_scalar_ranges(&module, &module.machines[0], &types, &[])
+                terminal_semantics::target_scalar_ranges(&module, &module.machines[0], &types)
                     .unwrap()
                     .try_into()
                     .unwrap();
@@ -10026,6 +10028,21 @@ pub(crate) mod target_layouts {
             {
                 return malformed("layout schema differs from the semantic custody shape");
             }
+            // Field coordinates belong to their own records. Their ordered
+            // source types and relevance already agree before any target
+            // supplies an offset or an invocation receipt.
+            if fields.len() != schema_fields.len()
+                || fields
+                    .iter()
+                    .zip(schema_fields)
+                    .any(|(represented, semantic)| {
+                        represented.relevance != semantic.relevance
+                            || represented.field_type != semantic.field_type
+                            || represented.inline_carrier != semantic.inline_carrier
+                    })
+            {
+                return malformed("layout record differs from its semantic field schema");
+            }
             let live_fields = fields
                 .iter()
                 .filter(|field| !field.relevance.is_erased())
@@ -10066,7 +10083,6 @@ pub(crate) mod target_layouts {
                 if realization.schema_argument.abi_version != 4
                     || realization.schema_argument.fields.len() > 32
                     || live_fields.len() != realization.schema_argument.fields.len()
-                    || live_schema.len() != live_fields.len()
                 {
                     return malformed("layout schema argument does not cover exact live fields");
                 }
@@ -10104,13 +10120,10 @@ pub(crate) mod target_layouts {
                     else {
                         return malformed("layout schema argument names an absent record field");
                     };
-                    let field = live_fields[position];
                     let source = live_schema[position];
                     if !captured.insert(input.record_field)
                         || (!numbered && position != ordinal)
                         || input.schema_field != source.id
-                        || field.field_type != source.field_type
-                        || field.inline_carrier != source.inline_carrier
                         || input.key == 0
                         || !keys.insert(input.key)
                         || input

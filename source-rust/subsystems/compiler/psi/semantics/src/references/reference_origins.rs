@@ -345,7 +345,7 @@ pub fn captured_reference_origin_type<'types>(
             _ => projection.clone(),
         })
         .collect::<Vec<_>>();
-    resolve_reference_origin_type(types, root, &geometry)
+    resolve_reference_origin_type(types, root, &geometry).ok()
 }
 
 pub fn reference_origin_type<'types>(
@@ -364,38 +364,40 @@ pub fn reference_origin_type<'types>(
     }) {
         return None;
     }
-    resolve_reference_origin_type(types, root, path)
+    resolve_reference_origin_type(types, root, path).ok()
 }
 
 fn resolve_reference_origin_type<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     mut root: StructuralTypeId,
     path: &[ReferenceOriginProjection],
-) -> Option<StructuralTypeId> {
+) -> Result<StructuralTypeId, &'static str> {
+    const NO_ENDPOINT: &str = "reference result input path has no exact typed endpoint";
     let mut exact = Vec::new();
     for projection in path {
         match projection {
             ReferenceOriginProjection::Exact(StructuralPathSegment::FixedIndex(index)) => {
-                root = exact_origin_type(types.clone(), root, &exact)?;
+                root = exact_origin_type(types.clone(), root, &exact).ok_or(NO_ENDPOINT)?;
                 exact.clear();
-                let collection = crate::structural_declaration(types.clone(), root)?;
+                let collection =
+                    crate::structural_declaration(types.clone(), root).ok_or(NO_ENDPOINT)?;
                 if matches!(collection.shape, StructuralTypeShape::FixedArray { length: terminal_psi::ArrayExtent::Literal(length), .. } if *index >= length)
                 {
-                    return None;
+                    return Err("reference result storage index is outside its fixed array bounds");
                 }
-                root = collection_element_type(types.clone(), root)?;
+                root = collection_element_type(types.clone(), root).ok_or(NO_ENDPOINT)?;
             }
             ReferenceOriginProjection::Exact(segment) => {
                 exact.push(segment.clone());
             }
             ReferenceOriginProjection::Element => {
-                root = exact_origin_type(types.clone(), root, &exact)?;
+                root = exact_origin_type(types.clone(), root, &exact).ok_or(NO_ENDPOINT)?;
                 exact.clear();
-                root = collection_element_type(types.clone(), root)?;
+                root = collection_element_type(types.clone(), root).ok_or(NO_ENDPOINT)?;
             }
         }
     }
-    exact_origin_type(types, root, &exact)
+    exact_origin_type(types, root, &exact).ok_or(NO_ENDPOINT)
 }
 
 fn exact_origin_type<'types>(

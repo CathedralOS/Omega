@@ -1,15 +1,13 @@
-/*
-Canonical settled host-cohort dispositions for `FilesystemHost`, `TimeHost`,
-`Console`, `ProcessExit`, and `DarwinClock`.
+// Package permissions name the checked service and the particular operation
+// the package may call. A TimeHost permission alone cannot establish what a
+// native import does. The target must recognize the selected clock operation.
+//
+// Filesystem close operations need a checked release contract before the
+// receiver can classify them.
 
-Requirement names only locate rows inside the canonical checked schema; emitted
-permission and classification rows remain keyed by the exact schema commitment,
-the complete normalized requirement identity, and the exact role-tagged
-mechanism identity. Names outside a canonical cohort fail closed, and
-ordinary-release filesystem requirements (`close`, `find_close`, `close_handle`)
-refuse unconstrained mechanism rows until an occurrence-specific release
-contract is established.
-*/
+#[cfg(test)]
+#[path = "host_cohorts/tests.rs"]
+mod tests;
 
 use provider_acceptance::ServiceTerminalAuthorityPermission;
 use semantic_vocabulary::{
@@ -136,7 +134,7 @@ pub(crate) fn filesystem_mechanism_row(
     ))
 }
 
-pub(crate) fn settled_time_host_cohort(name: &str) -> bool {
+fn settled_time_host_cohort(name: &str) -> bool {
     matches!(
         name,
         "monotonic_ticks"
@@ -175,15 +173,6 @@ pub fn time_host_permission_rows(
         .iter()
         .map(|method| time_host_permission_row(schema, digest, method, identities))
         .collect()
-}
-
-pub(crate) fn time_host_mechanism_row(
-    mechanism: TerminalMechanismIdentity,
-    method: &ServiceMethod,
-) -> Option<TerminalAuthorityPolicyRow> {
-    settled_time_host_cohort(&method.name).then(|| {
-        TerminalAuthorityPolicyRow::new(mechanism, TerminalAuthorityDisposition::from_classes([]))
-    })
 }
 
 pub(crate) fn settled_console_cohort(name: &str) -> Option<TerminalAuthorityClass> {

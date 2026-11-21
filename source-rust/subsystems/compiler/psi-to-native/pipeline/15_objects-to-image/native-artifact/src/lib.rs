@@ -31,6 +31,7 @@ pub(crate) use ::wire::codec_bytes;
 pub(crate) use ::wire::digest_encoder;
 mod component_description;
 mod component_product;
+pub use component_description::describe_portable_component;
 mod fragment_object_publication;
 mod native_artifact;
 mod runtime_image;

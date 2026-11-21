@@ -6,6 +6,7 @@ pub use compiler_identity::compiler_identity;
 
 mod request_outcome;
 mod runtime_consent;
+pub use provider_correspondence::trust::selected_provider_grants;
 pub use request_outcome::CompilerRequestOutcome;
 
 use diagnostics::Diagnostic;
@@ -13,12 +14,41 @@ use psi_authorization::{
     AuthorizedTerminalArtifact, HostProducerTrust, authorize_terminal_artifact,
 };
 
+pub use native_compiler::SelectedProviderResult;
 pub use native_compiler::{
-    NativeApplicationSettings, SavedProgramTarget as NativeTarget, SourceNativeTarget,
-    TargetProviderInstallation, stage_validators,
+    ComponentSourcePublication, NativeApplicationSettings, SavedProgramTarget as NativeTarget,
+    SourceNativeTarget, TargetProviderInstallation, stage_validators,
 };
 use source_compiler as source_to_psi;
 pub use source_compiler::{PublishedPsi, StageSource, check, inspect};
+
+/// Complete package declaration and target-supply findings from one publication.
+pub fn review_package(
+    source: StageSource<'_>,
+    target: SourceNativeTarget<'_>,
+    accounting: &mut source_compiler::compile_time_invocations::SourceCompletionAccounting,
+) -> Result<
+    (
+        source_compiler::CheckedPackageDeclarations,
+        SelectedProviderResult,
+    ),
+    Vec<Diagnostic>,
+> {
+    let (declarations, publication) =
+        source_to_psi::review_package(source, target.profile.target_name(), accounting)?;
+    let (artifact, providers, _) = publication.into_parts();
+    let authorized = authorize_current_compilation(artifact)?;
+    let selected = native_compiler::review_source_providers(authorized, providers, target)?;
+    Ok((declarations, selected))
+}
+
+fn authorize_current_compilation(
+    artifact: PublishedPsi,
+) -> Result<AuthorizedTerminalArtifact, Vec<Diagnostic>> {
+    let producer = HostProducerTrust::accept("current compiler invocation");
+    authorize_terminal_artifact(artifact, Some(&producer))
+        .map_err(|reason| vec![Diagnostic::error(reason.to_string())])
+}
 
 pub enum CompileRequest<'a> {
     Psi(StageSource<'a>),
@@ -33,17 +63,28 @@ pub enum CompileRequest<'a> {
     },
 }
 
-/// The source producer supplies its checked deployment; a saved program uses the
+/// Publishes one dependency using its own settled Build, package graph and target policy.
+pub trait ComponentSuppliers {
+    fn publish(
+        &self,
+        package: semantic_vocabulary::PackageKeyIdentity,
+        target: target::TargetProfile,
+    ) -> Result<native_compiler::ComponentSourcePublication, Vec<Diagnostic>>;
+}
+
+/// The source producer supplies its checked deployment. A saved program uses the
 /// receiving host's installation already pinned to the authorized manifest.
 pub enum Program<'a> {
     Source {
         source: StageSource<'a>,
         target: SourceNativeTarget<'a>,
+        suppliers: &'a dyn ComponentSuppliers,
         runtime_consent:
             Option<&'a review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
     },
     CheckedSource {
         publication: source_compiler::PublishedTargetProgram,
+        suppliers: &'a dyn ComponentSuppliers,
         runtime_consent:
             Option<&'a review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
         target: SourceNativeTarget<'a>,
@@ -158,6 +199,7 @@ impl Program<'_> {
                 source,
                 target,
                 runtime_consent,
+                suppliers,
             } => {
                 let publication = source_to_psi::compile_for_target(
                     source,
@@ -168,6 +210,7 @@ impl Program<'_> {
                     publication,
                     target,
                     runtime_consent,
+                    suppliers,
                 }
                 .prepare(None)
             }
@@ -175,7 +218,14 @@ impl Program<'_> {
                 publication,
                 target,
                 runtime_consent,
+                suppliers,
             } => {
+                let components = publication
+                    .independent_packages()
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?
+                    .into_iter()
+                    .map(|package| suppliers.publish(package, target.profile))
+                    .collect::<Result<Vec<_>, _>>()?;
                 let subject = publication.subject();
                 let consent = runtime_consent
                     .map(|accepted| {
@@ -188,13 +238,12 @@ impl Program<'_> {
                     })
                     .transpose()?;
                 let (artifact, providers, exclusions) = publication.into_parts();
-                let producer = HostProducerTrust::accept("current compiler invocation");
-                let authorized = authorize_terminal_artifact(artifact, Some(&producer))
-                    .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
+                let authorized = authorize_current_compilation(artifact)?;
                 let program = native_compiler::prepare_source_program(
                     authorized,
                     providers,
                     &exclusions,
+                    components,
                     target,
                 )?;
                 if let Some((accepted, declarations, bindings)) = consent {

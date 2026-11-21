@@ -121,6 +121,7 @@ fn api(shape: PackagePolicyTraitShape) -> PackagePolicyPublicApi {
         consts: Vec::new(),
         operators: Vec::new(),
         data: Vec::new(),
+        type_aliases: None,
     }
 }
 

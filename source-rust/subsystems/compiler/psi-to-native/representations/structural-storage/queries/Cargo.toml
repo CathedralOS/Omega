@@ -1,0 +1,12 @@
+[package]
+name = "structural-storage-queries"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+operation-operands = { path = "../../operation-operands" }
+semantic-vocabulary = { path = "../../../../foundation/semantic-records" }
+structural-storage = { path = ".." }
+terminal-psi = { path = "../../../../psi" }
+terminal-semantics = { path = "../../../../psi/semantics" }

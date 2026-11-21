@@ -39,6 +39,7 @@ pub(crate) struct TerminalNativeBodyProposal {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalNativeRealizationProposal {
+    imports: Vec<crate::ComponentImport>,
     application: target::NativeApplicationMetadata,
     scope_source: std::sync::Arc<target_bound_program::NativeScopeSource>,
     post_terminal_optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
@@ -52,8 +53,12 @@ pub struct TerminalNativeRealizationProposal {
 }
 
 impl TerminalNativeRealizationProposal {
+    pub fn component_imports(&self) -> &[crate::ComponentImport] {
+        &self.imports
+    }
+
     pub fn target_profile(&self) -> target::TargetProfile {
-        self.program_entry().source().target_slot().owner
+        self.scope_source.root().target()
     }
 
     pub fn target_provider_proposals(
@@ -63,20 +68,20 @@ impl TerminalNativeRealizationProposal {
     }
 
     pub fn native_target(&self) -> target::NativeTarget {
-        self.program_entry().target()
+        self.target_profile().native_target()
     }
 
     pub const fn application(&self) -> &target::NativeApplicationMetadata {
         &self.application
     }
 
-    pub fn program_entry(&self) -> &crate::ValidatedNativeProgramEntrySettlement {
-        self.scope_source.program_entry()
+    pub fn program_entry(&self) -> Option<&crate::ValidatedNativeProgramEntrySettlement> {
+        self.scope_source.root().program()
     }
 
     /// Target callable named by the checked program entry and its optional physical adapter.
-    pub fn target_program_entry(&self) -> terminal_psi::TargetMachineCallable {
-        self.program_entry().target_callable()
+    pub fn root_callable(&self) -> terminal_psi::TargetMachineCallable {
+        self.scope_source.root().callable()
     }
 
     pub fn scope_source(&self) -> &std::sync::Arc<target_bound_program::NativeScopeSource> {
@@ -150,6 +155,15 @@ mod proposal {
     };
     use diagnostics::Diagnostic;
 
+    pub enum NativeRootNomination<'input> {
+        Program {
+            receipt: &'input psi_publication_records::CheckedProgramEntryTerminalReceipt,
+            entry: crate::NativeProgramEntrySettlement<'input>,
+            bind_physical_adapter: bool,
+        },
+        Component(&'input psi_provider_selections::AdmittedComponentProvider),
+    }
+
     pub struct TerminalNativeProposalRequest<'input> {
         pub evaluated_binding_identities: &'input terminal_psi::TerminalIdentityTable,
         pub native_bindings: &'input [native_binding_admission::NativeBindingInput<'input>],
@@ -157,8 +171,8 @@ mod proposal {
         pub target_profile: target::TargetProfile,
         pub boundaries: crate::BoundaryApplicationSettlement<'input>,
         pub target_provider: target_provider_admission::TerminalTargetProviderProposal,
-        pub bind_physical_adapter: bool,
-        pub program_entry: crate::NativeProgramEntrySettlement<'input>,
+        pub root: NativeRootNomination<'input>,
+        pub imports: Vec<crate::ComponentImport>,
         pub application: target::NativeApplicationMetadata,
         pub optimizations: optimization_selections::PostTerminalOptimizationSelectionProjection,
         pub external_bindings: &'input [calling_conventions::ExternalBindingRow],
@@ -173,40 +187,54 @@ mod proposal {
         /// Bind the entry, target and providers to the authorized program they describe.
         pub fn project(
             authorization: psi_authorization::AuthorizedTerminalArtifact,
-            checked_entry: &psi_publication_records::CheckedProgramEntryTerminalReceipt,
             request: TerminalNativeProposalRequest<'_>,
         ) -> Result<Self, Vec<Diagnostic>> {
             let artifact = authorization.shared_artifact();
             let target_profile = request.target_profile;
-            if request.program_entry.source().target_slot().owner != target_profile {
-                return Err(vec![Diagnostic::error(
-                    "Terminal native proposal target, profile, and ProgramEntry disagree",
-                )]);
-            }
-            let mut program_entry = crate::validate_native_program_entry_settlement(
-                artifact,
-                checked_entry,
-                request.program_entry.with_checked_entry(checked_entry),
-                target_profile.native_target(),
-            )
-            .map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "Terminal native proposal ProgramEntry settlement failed: {error}"
-                ))]
-            })?;
             let body = project_terminal_native_body(artifact, target_profile, &request)?;
-            if request.bind_physical_adapter {
-                program_entry
-                    .bind_physical_adapter(
+            let root = match request.root {
+                NativeRootNomination::Program {
+                    receipt,
+                    entry,
+                    bind_physical_adapter,
+                } => {
+                    if entry.source().target_slot().owner != target_profile {
+                        return Err(vec![Diagnostic::error(
+                            "Terminal native proposal target, profile, and ProgramEntry disagree",
+                        )]);
+                    }
+                    let mut entry = crate::validate_native_program_entry_settlement(
                         artifact,
-                        &body.providers.selection,
-                        &body.providers.checked_adapters,
+                        receipt,
+                        entry.with_checked_entry(receipt),
+                        target_profile.native_target(),
                     )
-                    .map_err(|error| vec![Diagnostic::error(error)])?;
-            }
+                    .map_err(|error| {
+                        vec![Diagnostic::error(format!(
+                            "Terminal native proposal ProgramEntry settlement failed: {error}"
+                        ))]
+                    })?;
+                    if bind_physical_adapter {
+                        entry
+                            .bind_physical_adapter(
+                                artifact,
+                                &body.providers.selection,
+                                &body.providers.checked_adapters,
+                            )
+                            .map_err(|error| vec![Diagnostic::error(error)])?;
+                    }
+                    target_bound_program::NativeRoot::Program(entry)
+                }
+                NativeRootNomination::Component(export) => {
+                    target_bound_program::NativeRoot::Component {
+                        target: target_profile,
+                        export: export.clone(),
+                    }
+                }
+            };
             let scope_source = target_bound_program::NativeScopeSource::admit(
                 &authorization,
-                program_entry,
+                root,
                 body.providers.selection.clone(),
                 body.providers.checked_adapters.clone(),
                 body.occurrences.callbacks.clone(),
@@ -228,6 +256,7 @@ mod proposal {
             Ok(Self {
                 artifact: authorization,
                 native_realization_proposal: TerminalNativeRealizationProposal {
+                    imports: request.imports,
                     target_provider: request.target_provider,
                     application: request.application,
                     scope_source: std::sync::Arc::new(scope_source),
@@ -260,9 +289,13 @@ mod proposal {
             &selected,
             target_profile,
         )?;
-        let checked_adapters =
-            target_bound_program::SelectedProviderAdapters::from_selected_plans(&selected)
-                .map_err(|message| vec![Diagnostic::error(message)])?;
+        let checked_adapters = crate::component_inputs::local_adapters(
+            artifact.view(),
+            target_profile,
+            &selected,
+            &request.imports,
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
         provider_admission::validate_external_provider_owners(terminal_module, &selected)
             .map_err(|message| vec![Diagnostic::error(message)])?;
         if selected.plans().len() != request.boundaries.selected_provider_provenance.len() {
@@ -582,7 +615,7 @@ mod proposal {
     }
 }
 
-pub use proposal::TerminalNativeProposalRequest;
+pub use proposal::{NativeRootNomination, TerminalNativeProposalRequest};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct RetainedTerminalArtifact {

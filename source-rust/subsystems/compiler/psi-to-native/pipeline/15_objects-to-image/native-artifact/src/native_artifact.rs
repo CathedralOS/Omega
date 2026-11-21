@@ -195,6 +195,7 @@ impl FinishedNativeImage {
 
 /// The root object and its admitted runtime requirements advance together.
 pub struct ProgramImageInput {
+    pub components: Vec<std::sync::Arc<crate::NativeComponentProduct>>,
     pub terminal: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     pub published: crate::PublishedFragmentObject,
     pub image: ExecutableImageEmissionRequest,
@@ -219,11 +220,22 @@ impl ProgramImageInput {
                 "runtime admission differs from the image manifest, native entry, target or provider selection",
             ));
         }
-        let runtime = runtime.map(|plan| {
-            crate::TerminalRuntimeProvisions::from_plan(
-                plan.map_adapters(crate::emit_runtime_adapter),
-            )
-        });
+        let runtime = match runtime {
+            Some(plan) => Some(
+                crate::TerminalRuntimeProvisions::from_plan(
+                    plan.map_adapters(crate::emit_runtime_adapter),
+                )
+                .with_component_products(self.components)
+                .map_err(|why| crate::native_artifact_error("runtime component roster", why))?,
+            ),
+            None if self.components.is_empty() => None,
+            None => {
+                return Err(crate::native_artifact_error(
+                    "runtime component roster",
+                    "component products have no receiving runtime",
+                ));
+            }
+        };
         crate::TerminalRuntimeProvisions::validate_root_object(&object, runtime.as_ref())
             .map_err(|reason| crate::native_artifact_error("runtime provisions", reason))?;
         let artifact = RequestedNativeArtifact::emit_admitted(

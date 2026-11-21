@@ -39,7 +39,6 @@ fn prepare_published_application<Publisher>(
     let profile = execution
         .target_profile()
         .ok_or_else(|| refuse("saved Psi native selection has no deployment target".into()))?;
-    let declarations = realization.provider_declarations();
     let selection = PublishedNativeEntry::for_program(artifact, execution)?;
     let requester = publication
         .entry_schema_custody(selection.schema_declaration())
@@ -51,7 +50,7 @@ fn prepare_published_application<Publisher>(
             .find(|binding| binding.role() == role)
     });
     let entry = selection.settle_calling_plans(requester, binding, inputs.package_permissions)?;
-    let calls = crate::execution::selected_boundary_implementations(module, declarations)?
+    let calls = crate::execution::selected_boundary_implementations(module, realization)?
         .into_iter()
         .map(|body| (body.boundary, body.machine));
     let root = module
@@ -123,15 +122,136 @@ fn prepare_published_application<Publisher>(
     }
     roots.sort_unstable();
     roots.dedup();
-    let mut provider_proposal = execution
-        .provider_proposal(artifact.view(), inputs.optimizations.identity())
-        .ok_or_else(|| {
-            refuse("executable application requires an explicit deployment target".into())
-        })?;
-    provider_proposal.application_roots = Some(roots);
     let plans = entry
         .calling_plans()
         .ok_or_else(|| refuse("executable entry lost its paired arrival plans".into()))?;
+    let root = verified_optimization_input::NativeRootNomination::Program {
+        receipt: &receipt,
+        bind_physical_adapter: entry.physical_adapter().is_some(),
+        entry: NativeProgramEntrySettlement::new(
+            entry.source_signature(),
+            Some((
+                &plans.semantic_calling_application,
+                &plans.physical_calling_application,
+                &plans.storage_entry,
+            )),
+        ),
+    };
+    let imports = realization
+        .component_imports()
+        .map(|(plan, import)| (plan.clone(), import.clone()))
+        .collect::<Vec<_>>();
+    let mut calling = realization.calling_applications().to_vec();
+    for (_, import) in &imports {
+        for selected in import.calls() {
+            add_component_calling(
+                artifact,
+                profile,
+                selected.receiving_boundary(),
+                &mut calling,
+            )?;
+        }
+    }
+    project_root(
+        execution,
+        artifact,
+        root,
+        roots,
+        calling,
+        NativeApplicationSettings {
+            application: inputs.application,
+            optimizations: inputs.optimizations,
+            x86_scalar_fma_provider: inputs.x86_scalar_fma_provider,
+        },
+        inputs.behavior_exclusions,
+    )
+}
+
+fn add_component_calling(
+    artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
+    profile: target::TargetProfile,
+    boundary: semantic_vocabulary::BoundaryMachineId,
+    calling: &mut Vec<calling_conventions::BoundaryCallingApplication>,
+) -> Result<(), Vec<Diagnostic>> {
+    let program = crate::calling_policy_plans::CallingProgram {
+        artifact: Arc::clone(artifact),
+    };
+    let application = crate::calling_policy_plans::component_calling_application(
+        &program, profile, boundary, calling,
+    )
+    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    if !calling.contains(&application) {
+        calling.push(application);
+    }
+    Ok(())
+}
+
+/// Bind a supplier root to its own publication, target providers and crossing ABI.
+pub fn bind_component_export<Publisher>(
+    execution: &PublishedSelection<Publisher, SelectedExecution>,
+    selected: &psi_provider_selections::AdmittedComponentProvider,
+    settings: NativeApplicationSettings<'_>,
+    exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
+) -> Result<(RetainedTerminalArtifact, TerminalAuthorityPermissionPolicy), Vec<Diagnostic>> {
+    let artifact = execution.published_authorization().shared_artifact();
+    if selected.provider() != artifact.view().identity() {
+        return Err(vec![Diagnostic::error(
+            "component export belongs to another supplier publication",
+        )]);
+    }
+    let profile = execution
+        .target_profile()
+        .ok_or_else(|| vec![Diagnostic::error("component export has no target")])?;
+    let mut calling = execution.realization().calling_applications().to_vec();
+    add_component_calling(
+        artifact,
+        profile,
+        selected.provider_boundary(),
+        &mut calling,
+    )?;
+    let entry = terminal_psi::TargetMachineCallable::Machine(selected.candidate());
+    let root = artifact
+        .semantic_module()
+        .scalars
+        .scalar_applications
+        .proof_scope
+        .callable_declaration(entry)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "component export lacks its checked declaration",
+            )]
+        })?;
+    project_root(
+        execution,
+        artifact,
+        verified_optimization_input::NativeRootNomination::Component(selected),
+        vec![root],
+        calling,
+        settings,
+        exclusions,
+    )
+}
+
+fn project_root<Publisher>(
+    execution: &PublishedSelection<Publisher, SelectedExecution>,
+    artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
+    root: verified_optimization_input::NativeRootNomination<'_>,
+    roots: Vec<terminal_psi::ProofDeclarationId>,
+    calling: Vec<calling_conventions::BoundaryCallingApplication>,
+    settings: NativeApplicationSettings<'_>,
+    exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
+) -> Result<(RetainedTerminalArtifact, TerminalAuthorityPermissionPolicy), Vec<Diagnostic>> {
+    let refuse = |reason: String| vec![Diagnostic::error(reason)];
+    let realization = execution.realization();
+    let declarations = realization.provider_declarations();
+    let original = execution.published_authorization();
+    let profile = execution
+        .target_profile()
+        .ok_or_else(|| refuse("native root has no deployment target".into()))?;
+    let mut provider_proposal = execution
+        .provider_proposal(artifact.view(), settings.optimizations.identity())
+        .ok_or_else(|| refuse("native root lost its provider proposal".into()))?;
+    provider_proposal.application_roots = Some(roots);
     let provenance = declarations
         .iter()
         .zip(realization.row_executions())
@@ -161,31 +281,27 @@ fn prepare_published_application<Publisher>(
         direct_boundary_leaves: realization.direct_boundary_leaves().iter().collect(),
         target_profile: profile,
         target_provider: provider_proposal,
-        bind_physical_adapter: entry.physical_adapter().is_some(),
         boundaries: BoundaryApplicationSettlement {
             selected_provider_plans: realization.plans(),
             selected_provider_provenance: provenance,
-            calling_applications: realization.calling_applications().to_vec(),
+            calling_applications: calling,
         },
-        program_entry: NativeProgramEntrySettlement::new(
-            entry.source_signature(),
-            Some((
-                &plans.semantic_calling_application,
-                &plans.physical_calling_application,
-                &plans.storage_entry,
-            )),
-        ),
-        application: inputs.application,
-        optimizations: inputs.optimizations.project_post_terminal(),
+        root,
+        imports: realization
+            .component_imports()
+            .map(|(_, import)| import.clone())
+            .collect(),
+        application: settings.application,
+        optimizations: settings.optimizations.project_post_terminal(),
         external_bindings: realization.external_bindings(),
-        behavior_exclusions: inputs.behavior_exclusions,
+        behavior_exclusions: exclusions,
         package_terminal_authority_permissions: realization
             .terminal_authority_permissions()
             .to_vec(),
         package_terminal_authority_permission_identities: realization
             .terminal_authority_permission_identities()
             .clone(),
-        x86_scalar_fma_provider: inputs.x86_scalar_fma_provider,
+        x86_scalar_fma_provider: settings.x86_scalar_fma_provider,
     };
     let authorized = if Arc::ptr_eq(original.shared_artifact(), artifact) {
         original.clone()
@@ -195,11 +311,12 @@ fn prepare_published_application<Publisher>(
         psi_authorization::authorize_terminal_artifact(Arc::clone(artifact), Some(&producer))
             .map_err(|reason| refuse(reason.to_string()))?
     };
-    let terminal = RetainedTerminalArtifact::project(authorized, &receipt, native)?;
+    let terminal = RetainedTerminalArtifact::project(authorized, native)?;
     Ok((terminal, permissions))
 }
 
 /// Target application settings used after stage 00 has bound the issued demand.
+#[derive(Clone)]
 pub struct NativeApplicationSettings<'a> {
     pub application: target::NativeApplicationMetadata,
     pub optimizations: &'a optimization_core::OptimizationSelections,
@@ -210,6 +327,10 @@ pub struct NativeApplicationSettings<'a> {
 pub fn bind_published_application<Publisher>(
     admitted: native_inputs::AdmittedProviderDemand<Publisher>,
     settings: NativeApplicationSettings<'_>,
+    components: std::collections::BTreeMap<
+        semantic_vocabulary::PackageKeyIdentity,
+        Arc<component_description::VerifiedComponent>,
+    >,
     behavior_exclusions: &[behavior_exclusion_requests::AuthoredBehaviorExclusion],
 ) -> Result<(RetainedTerminalArtifact, TerminalAuthorityPermissionPolicy), Vec<Diagnostic>> {
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
@@ -220,7 +341,7 @@ pub fn bind_published_application<Publisher>(
     };
     let package_permissions = origins.inputs().package_permissions.clone();
     let entry_bindings = Arc::clone(&origins.inputs().semantic_bindings);
-    let mut execution = select_published_providers(admitted)?;
+    let mut execution = select_published_providers(admitted, components)?;
     let artifact = Arc::clone(execution.published_authorization().shared_artifact());
     execution
         .bind_folded_entry(&artifact, artifact.published_evidence().map(Arc::as_ref))

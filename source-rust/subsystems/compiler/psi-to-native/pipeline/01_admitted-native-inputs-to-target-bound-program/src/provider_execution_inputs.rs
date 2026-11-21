@@ -438,6 +438,7 @@ pub(crate) fn plan_inputs_and_review(
     }
     Ok((
         TargetSupplyExecutionInputs {
+            components: None,
             calling_applications,
             external_bindings,
             evaluated_native_bindings,

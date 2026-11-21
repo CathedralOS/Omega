@@ -2265,6 +2265,20 @@ pub mod types {
                 })
         }
 
+        /// Applications created while typing a source suffix. Older occurrences
+        /// have already been checked against the same declaration headers.
+        pub fn type_alias_applications_after(
+            &self,
+            completed_references: usize,
+        ) -> impl Iterator<Item = &crate::source_state::type_aliases::TypeAliasApplication> {
+            self.type_alias_applications
+                .iter()
+                .filter_map(move |(_, application)| {
+                    (application.instance.arena_index() as usize > completed_references)
+                        .then_some(application)
+                })
+        }
+
         pub fn retain_type_alias_application(
             &mut self,
             application: crate::source_state::type_aliases::TypeAliasApplication,

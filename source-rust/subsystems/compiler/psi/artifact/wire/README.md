@@ -2,21 +2,14 @@
 
 The wire codec turns a [Psi program](../../../../../../wiki/spec/terminal-psi/product.md) into bytes and checks the structure of a program it reads. The [encoding specification](../../../../../../wiki/spec/terminal-psi/encoding.md) defines the canonical form and identifies each section. The individual operation payloads currently live in the vocabulary reference.
 
-This crate holds the canonical `PSITERM\0` encoding, fingerprints,
-structural-foundation validation, the companion sections and the encoders of
-Terminal vocabulary (propositions, crash routes, access and quotient catalogs).
-It does not define the sealed module: [terminal-codec](../codec/README.md) owns
-`ClosedTerminalModule` and the artifact envelope and re-exports this crate.
-Native forms that need a vocabulary encoder for their own identities depend on
-this crate only, so they cannot name the sealed module; `mbx xtask
-check-boundary` enforces that.
+This crate reads and writes the complete program, validates incoming records, computes fingerprints and handles companion sections. The [artifact codec](../codec/README.md) seals each program with its bytes and manifest. The optimizer and native structural catalog get the bytes for structural domains, access plans and quotient declarations directly from [declaration encoding](../declaration-encoding/src/lib.rs). Both the complete artifact and the native compiler use those same field definitions.
 
 [lib.rs](src/lib.rs) exposes the public API. Start with the operation's file:
 
 - [semantic_module.rs](src/semantic_module.rs) runs canonical ordering,
   representation checks, encoding, decoding and semantic identity.
   The `*_wire` files beside it handle individual payloads; [foundation_validation.rs](src/foundation_validation.rs)
-  checks representation shape and [wire_fields.rs](src/wire_fields.rs) owns byte cursors.
+  checks representation shape and [wire_fields.rs](src/wire_fields.rs) defines fields specific to complete programs.
 - [closed_types.rs](src/closed_types.rs) records the closed integer types one
   complete encoding retains.
 
@@ -40,7 +33,7 @@ results. Shared input and total-work limits must cover these paths; per-query
 search caps alone cannot bound loading cost to the host's budget.
 
 The other modules under [sections.rs](src/sections.rs) encode manifest, debug and optimization data.
-[lib.rs](src/lib.rs) defines the shared encoding errors.
+The [shared encoding error](../declaration-encoding/src/error.rs) identifies failures from declaration fields and complete programs.
 Do not infer one section's identity from another section's current version.
 
 Current markers live with their users: semantic format in [semantic_module.rs](src/semantic_module.rs),

@@ -10,9 +10,9 @@ use service_surface::{ServiceProgressEstablishmentRouteKind, ServiceProgressSubj
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackagePolicyServiceAuthority {
-    pub(crate) service_reach: Vec<PackageReviewNominalIdentity>,
-    pub(crate) synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
-    pub(crate) progress_premises: Vec<PackagePolicyServiceProgressPremise>,
+    pub service_reach: Vec<PackageReviewNominalIdentity>,
+    pub synchronous_invocations: Vec<PackageReviewSynchronousInvocation>,
+    pub progress_premises: Vec<PackagePolicyServiceProgressPremise>,
 }
 
 impl PackagePolicyServiceAuthority {

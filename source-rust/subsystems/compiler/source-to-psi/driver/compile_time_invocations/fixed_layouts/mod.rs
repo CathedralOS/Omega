@@ -198,36 +198,9 @@ fn evaluate_application(
         .as_ref()
         .ok_or("target has no complete layout facts")?;
     let policy = typed.static_operand_from_type_reference(storage.policy)?;
-    let (requirement_symbol, environment) = {
-        let contract = typed
-            .trait_definition_by_symbol(storage.contract)
-            .ok_or("layout storage lost its exact core contract")?;
-        let Some([requirement]) = typed.trait_machine_signatures(contract).as_array() else {
-            return Err("fixed layout contract has no exact plan requirement".into());
-        };
-        if typed.trait_type_parameters(contract).len() != 1 {
-            return Err("core layout contract lost its exact semantic parameter".into());
-        }
-        // Authenticate the actual applied policy, including generic maps.
-        // Its declaring trait supplies T; an unrelated map argument does not.
-        let applied = typed
-            .applied_requirement_scope(requester, storage.policy)
-            .and_then(|scope| scope.declaring_scope(typed, storage.contract))
-            .ok_or("selected policy does not retain the core layout application")?;
-        (requirement.symbol, applied.environment())
-    };
-    let arguments = typed.materialize_trait_application_arguments(&environment)?;
-    let [semantic] = arguments.as_slice() else {
-        return Err("core layout contract lost its exact semantic argument".into());
-    };
-    if !typed
-        .type_reference_table
-        .contains_type_reference(*semantic)
-        || typed.normalized_type_identity(*semantic)
-            != typed.normalized_type_identity(storage.semantic_type)
-    {
-        return Err("selected layout policy belongs to another semantic type".into());
-    }
+    let requirement_symbol = storage
+        .plan_requirement(typed, requester)
+        .map_err(|issue| issue.message())?;
     let data = typed
         .closed_data_definition(storage.semantic_type)
         .ok_or("layout application lost its closed semantic type")?;

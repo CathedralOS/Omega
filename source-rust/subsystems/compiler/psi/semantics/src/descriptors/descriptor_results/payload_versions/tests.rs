@@ -74,6 +74,7 @@ fn copy_graph() -> (Vec<StructuralTypeDeclaration>, DescriptorMachine) {
         contents_queries: BTreeMap::new(),
         contents_transfers: BTreeMap::new(),
         payload_entry_predicates: None,
+        unsigned_index_literals: Vec::new(),
         payload_scalar_definitions: BTreeMap::new(),
         payload_scalar_postconditions: BTreeMap::new(),
         payload_scalar_parameters: BTreeMap::new(),

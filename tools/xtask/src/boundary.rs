@@ -363,8 +363,8 @@ const AFTER_PREPARATION: &[&str] = &[
 
 /// The crate that defines the sealed Terminal Psi module
 /// (`ClosedTerminalModule`) and the canonical artifact. Native forms use the
-/// canonical vocabulary encoders from `terminal-wire`, which `terminal-codec`
-/// re-exports; reaching `terminal-codec` would let them name the sealed module.
+/// Psi record encoders for their identities. Reaching `terminal-codec` would let
+/// those forms name the sealed module.
 const SEALED_TERMINAL_MODULE: &str =
     "source-rust/subsystems/compiler/psi/artifact/codec";
 
@@ -395,6 +395,7 @@ const SELECTION_REPRESENTATIONS: &[&str] = &[
     "source-rust/subsystems/compiler/psi-to-native/representations/operation-operands",
     "source-rust/subsystems/compiler/psi-to-native/representations/operation-evidence",
     "source-rust/subsystems/compiler/psi-to-native/representations/structural-storage",
+    "source-rust/subsystems/compiler/psi-to-native/representations/structural-storage/queries",
     "source-rust/subsystems/compiler/psi-to-native/representations/target-operations",
     "source-rust/subsystems/compiler/psi-to-native/representations/target-operations/legalized-operations",
     "source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions",
@@ -1164,7 +1165,35 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             &metadata,
             &native_forms(),
             SEALED_TERMINAL_MODULE,
-            "a native form reaches the sealed Terminal Psi module; name the encoder from terminal-wire",
+            "a native form reaches the sealed Terminal Psi module; use the Psi encoder for the record it carries",
+        )?);
+        violations.extend(transitive_exact_violations(
+            &metadata,
+            &[
+                "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations",
+                "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit",
+                "source-rust/subsystems/compiler/psi-to-native/representations/structural-storage",
+            ],
+            "source-rust/subsystems/compiler/psi-to-native/representations/structural-storage/queries",
+            "a native record depends on storage queries that belong to the stages that call them",
+        )?);
+        let declaration_encoding =
+            "source-rust/subsystems/compiler/psi/artifact/declaration-encoding";
+        violations.extend(transitive_exact_violations(
+            &metadata,
+            &[declaration_encoding],
+            PSI_SEMANTICS,
+            "writing Psi declaration records must not compile the storage checker",
+        )?);
+        violations.extend(transitive_exact_violations(
+            &metadata,
+            &[
+                declaration_encoding,
+                "source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit",
+                "source-rust/subsystems/compiler/psi-to-native/representations/structural-storage",
+            ],
+            "source-rust/subsystems/compiler/psi/artifact/wire",
+            "native declaration identities must use psi-declaration-encoding to keep the full artifact reader out of these crates",
         )?);
         let mut native_driver_owners = PERMITTED_OWNERS.to_vec();
         native_driver_owners.push(SOURCE_PROVIDER_PUBLICATION);

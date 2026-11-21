@@ -8,15 +8,15 @@ use super::{PackagePolicyServiceMethod, provider_policy::validate_service_method
 use crate::record::accessors::field_projection_accessors;
 use crate::record::validation::ordered_by;
 use crate::record::{PackagePolicyTypeParameter, PackageReviewNominalIdentity};
-use semantic_vocabulary::TerminalAuthorityDisposition;
 use semantic_vocabulary::PackageKeyIdentity;
+use semantic_vocabulary::TerminalAuthorityDisposition;
 use target::TargetProfile;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyTerminalPermissions {
-    pub(crate) package: PackageKeyIdentity,
-    pub(crate) target: TargetProfile,
-    pub(crate) services: Vec<PackagePolicyTerminalService>,
+    pub package: PackageKeyIdentity,
+    pub target: TargetProfile,
+    pub services: Vec<PackagePolicyTerminalService>,
 }
 
 impl PackagePolicyTerminalPermissions {
@@ -52,11 +52,11 @@ impl PackagePolicyTerminalPermissions {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyTerminalService {
-    pub(crate) service: PackageReviewNominalIdentity,
-    pub(crate) static_parameters: Vec<PackagePolicyTypeParameter>,
-    pub(crate) lifetime_parameter_count: u32,
-    pub(crate) methods: Vec<PackagePolicyServiceMethod>, // Complete schema in original declaration order, including unpermitted methods.
-    pub(crate) permissions: Vec<PackagePolicyTerminalPermission>,
+    pub service: PackageReviewNominalIdentity,
+    pub static_parameters: Vec<PackagePolicyTypeParameter>,
+    pub lifetime_parameter_count: u32,
+    pub methods: Vec<PackagePolicyServiceMethod>, // Complete schema in original declaration order, including unpermitted methods.
+    pub permissions: Vec<PackagePolicyTerminalPermission>,
 }
 
 impl PackagePolicyTerminalService {
@@ -70,8 +70,8 @@ impl PackagePolicyTerminalService {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyTerminalPermission {
-    pub(crate) requirement: PackageReviewNominalIdentity,
-    pub(crate) permitted: TerminalAuthorityDisposition,
+    pub requirement: PackageReviewNominalIdentity,
+    pub permitted: TerminalAuthorityDisposition,
 }
 
 impl PackagePolicyTerminalPermission {

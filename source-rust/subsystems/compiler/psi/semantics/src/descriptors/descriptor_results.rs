@@ -460,6 +460,9 @@ pub struct DescriptorMachine {
     pub contents_transfers: BTreeMap<DescriptorPosition, Vec<DescriptorContentsTransfer>>,
     pub payload_producers: BTreeMap<DescriptorPosition, PlaceId>,
     pub payload_entry_predicates: Option<(PropositionContext, Vec<Proposition>)>,
+    /// Only literal definitions have rows. Their value IDs are sorted and
+    /// unique within this machine. Their ordinals survive calls.
+    pub unsigned_index_literals: Vec<(ValueId, u64)>,
     pub payload_scalar_definitions: BTreeMap<DescriptorPosition, Vec<ValueId>>,
     pub payload_scalar_postconditions: BTreeMap<DescriptorPosition, Vec<Proposition>>,
     pub payload_scalar_parameters: BTreeMap<semantic_vocabulary::BlockId, Vec<ValueId>>,
@@ -510,6 +513,30 @@ pub fn insert_invocation(
 }
 
 impl DescriptorMachine {
+    /// Both Psi and native operations can present blocks out of value order.
+    /// A repeated definition cannot establish the ordinal of a captured index.
+    pub fn finish_index_literals(mut self) -> Option<Self> {
+        self.unsigned_index_literals
+            .sort_unstable_by_key(|&(id, _)| id);
+        self.unsigned_index_literals
+            .windows(2)
+            .all(|pair| pair[0].0 != pair[1].0)
+            .then_some(self)
+    }
+
+    /// Resolve only indices captured from this machine's input storage. Other
+    /// origins can carry coordinates formed in a different machine.
+    pub(super) fn export_input_projection(&self, projection: &Projection) -> Projection {
+        projection
+            .clone()
+            .without_runtime_coordinates_with(|index| {
+                self.unsigned_index_literals
+                    .binary_search_by_key(&index, |&(id, _)| id)
+                    .ok()
+                    .map(|row| self.unsigned_index_literals[row].1)
+            })
+    }
+
     pub fn calls_at(&self, position: DescriptorPosition) -> &[DescriptorInvocation] {
         self.calls
             .get(&position)

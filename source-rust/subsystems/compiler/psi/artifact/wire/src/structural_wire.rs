@@ -7,11 +7,7 @@ pub(crate) use crate::semantic_module::*;
 
 pub(crate) mod structural_field_wire {
 
-    use semantic_vocabulary::{
-        BoundedIntegerType, ByteSequenceStructuralField, CanonicalStructuralPathSegment,
-        IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatStructuralField, PlaceId,
-        ScalarRefinement,
-    };
+    use semantic_vocabulary::{BoundedIntegerType, ScalarRefinement};
     use terminal_psi::{
         BindingRelevance, ByteSequenceCarrier, StructuralFieldDeclaration, StructuralFieldType,
     };
@@ -22,148 +18,10 @@ pub(crate) mod structural_field_wire {
         decode_integer_type, decode_integer_value, decode_scalar_type, encode_integer_type,
         encode_integer_value, encode_scalar_type,
     };
-    use super::wire::{Reader, Writer, decode_counted};
+    use super::wire::{Reader, Writer};
     use terminal_psi::TerminalIdentityIndex;
 
-    pub(crate) fn encode_ieee_float_format(writer: &mut Writer, format: IeeeFloatFormat) {
-        writer.u8(match format {
-            IeeeFloatFormat::Binary32 => 1,
-            IeeeFloatFormat::Binary64 => 2,
-        });
-    }
-
-    pub(crate) fn encode_ieee_float_comparison_kind(
-        writer: &mut Writer,
-        kind: IeeeFloatComparisonKind,
-    ) {
-        writer.u8(match kind {
-            IeeeFloatComparisonKind::Equal => 1,
-            IeeeFloatComparisonKind::NotEqual => 2,
-            IeeeFloatComparisonKind::LessThan => 3,
-            IeeeFloatComparisonKind::LessOrEqual => 4,
-            IeeeFloatComparisonKind::NotLessThan => 5,
-            IeeeFloatComparisonKind::NotLessOrEqual => 6,
-        });
-    }
-
-    pub(crate) fn decode_ieee_float_comparison_kind(
-        reader: &mut Reader<'_>,
-    ) -> Result<IeeeFloatComparisonKind, CodecError> {
-        match reader.u8()? {
-            1 => Ok(IeeeFloatComparisonKind::Equal),
-            2 => Ok(IeeeFloatComparisonKind::NotEqual),
-            3 => Ok(IeeeFloatComparisonKind::LessThan),
-            4 => Ok(IeeeFloatComparisonKind::LessOrEqual),
-            5 => Ok(IeeeFloatComparisonKind::NotLessThan),
-            6 => Ok(IeeeFloatComparisonKind::NotLessOrEqual),
-            tag => Err(CodecError::InvalidTag("IeeeFloatComparisonKind", tag)),
-        }
-    }
-
-    pub(crate) fn decode_ieee_float_format(
-        reader: &mut Reader<'_>,
-    ) -> Result<IeeeFloatFormat, CodecError> {
-        match reader.u8()? {
-            1 => Ok(IeeeFloatFormat::Binary32),
-            2 => Ok(IeeeFloatFormat::Binary64),
-            tag => Err(CodecError::InvalidTag("IeeeFloatFormat", tag)),
-        }
-    }
-
-    pub(crate) fn encode_ieee_float_field(
-        writer: &mut Writer,
-        field: &IeeeFloatStructuralField,
-    ) -> Result<(), CodecError> {
-        encode_canonical_structural_field(
-            writer,
-            field.root(),
-            field.path(),
-            "IEEE float field path",
-        )
-    }
-
-    pub(crate) fn decode_ieee_float_field(
-        reader: &mut Reader<'_>,
-    ) -> Result<IeeeFloatStructuralField, CodecError> {
-        let (root, path) = decode_canonical_structural_field(reader)?;
-        IeeeFloatStructuralField::new(root, path).map_err(CodecError::MalformedProposition)
-    }
-
-    pub(crate) fn encode_byte_sequence_field(
-        writer: &mut Writer,
-        field: &ByteSequenceStructuralField,
-    ) -> Result<(), CodecError> {
-        encode_canonical_structural_field(
-            writer,
-            field.root(),
-            field.path(),
-            "byte-sequence field path",
-        )
-    }
-
-    pub(crate) fn decode_byte_sequence_field(
-        reader: &mut Reader<'_>,
-    ) -> Result<ByteSequenceStructuralField, CodecError> {
-        let (root, path) = decode_canonical_structural_field(reader)?;
-        ByteSequenceStructuralField::new(root, path).map_err(CodecError::MalformedProposition)
-    }
-
-    pub(crate) fn encode_canonical_structural_field(
-        writer: &mut Writer,
-        root: PlaceId,
-        path: &[CanonicalStructuralPathSegment],
-        length_label: &'static str,
-    ) -> Result<(), CodecError> {
-        writer.id(root);
-        encode_canonical_structural_path(writer, path, length_label)
-    }
-
-    pub(crate) fn encode_canonical_structural_path(
-        writer: &mut Writer,
-        path: &[CanonicalStructuralPathSegment],
-        length_label: &'static str,
-    ) -> Result<(), CodecError> {
-        writer.len(length_label, path.len())?;
-        for segment in path {
-            match segment {
-                CanonicalStructuralPathSegment::Referent => writer.u8(4),
-                CanonicalStructuralPathSegment::Field(field) => {
-                    writer.u8(1);
-                    writer.id(*field);
-                }
-                CanonicalStructuralPathSegment::FixedIndex(index) => {
-                    writer.u8(2);
-                    writer.u64(*index);
-                }
-                CanonicalStructuralPathSegment::Case(case) => {
-                    writer.u8(3);
-                    writer.id(*case);
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub(crate) fn decode_canonical_structural_field(
-        reader: &mut Reader<'_>,
-    ) -> Result<(PlaceId, Vec<CanonicalStructuralPathSegment>), CodecError> {
-        let root = reader.id("PlaceId")?;
-        let path = decode_counted(reader, |reader| match reader.u8()? {
-            1 => Ok(CanonicalStructuralPathSegment::Field(
-                reader.id("StructuralFieldId")?,
-            )),
-            2 => Ok(CanonicalStructuralPathSegment::FixedIndex(reader.u64()?)),
-            3 => Ok(CanonicalStructuralPathSegment::Case(
-                reader.id("StructuralCaseId")?,
-            )),
-            4 => Ok(CanonicalStructuralPathSegment::Referent),
-            tag => Err(CodecError::InvalidTag(
-                "CanonicalStructuralPathSegment",
-                tag,
-            )),
-        })?;
-        Ok((root, path))
-    }
+    pub(crate) use psi_declaration_encoding::structural_fields::*;
 
     pub(crate) fn encode_byte_sequence_carrier(writer: &mut Writer, carrier: ByteSequenceCarrier) {
         match carrier {
@@ -367,7 +225,8 @@ pub(crate) mod structural_field_wire {
     mod reference_path_wire_tests {
         use super::super::scalar_term_wire::{decode_scalar_term, encode_scalar_term};
         use semantic_vocabulary::{
-            ScalarReadProjection, ScalarTerm, ScalarType, StructuralFieldId,
+            CanonicalStructuralPathSegment, PlaceId, ScalarReadProjection, ScalarTerm, ScalarType,
+            StructuralFieldId,
         };
 
         use super::*;
@@ -408,14 +267,13 @@ pub(crate) mod structural_field_wire {
 pub(crate) mod structural_place_wire {
 
     use crate::codec_error::CodecError;
-    use crate::sections::semantic_module::scalar_wire::{decode_scalar_type, encode_scalar_type};
     use crate::sections::semantic_module::structural_signature_wire;
     use crate::sections::semantic_module::wire::{Reader, Writer, decode_counted, decode_ids};
 
-    use semantic_vocabulary::{ObligationId, StructuralPlaceKind};
+    use semantic_vocabulary::ObligationId;
     use terminal_psi::{
-        OwnedCleanupInvocation, StructuralAffineDiscard, StructuralArgument, StructuralPathSegment,
-        TerminalAffineCleanupAction, TerminalIdentityIndex,
+        OwnedCleanupInvocation, StructuralAffineDiscard, StructuralArgument,
+        TerminalAffineCleanupAction,
     };
 
     pub(crate) fn encode_structural_arguments(
@@ -465,121 +323,13 @@ pub(crate) mod structural_place_wire {
         Ok(())
     }
 
-    pub(crate) fn encode_structural_path(
-        writer: &mut Writer,
-        label: &'static str,
-        path: &[StructuralPathSegment],
-    ) -> Result<(), CodecError> {
-        require_operand_path(path)?;
-        encode_projection_path(writer, label, path)
-    }
-
-    fn encode_projection_path(
-        writer: &mut Writer,
-        label: &'static str,
-        path: &[StructuralPathSegment],
-    ) -> Result<(), CodecError> {
-        writer.len(label, path.len())?;
-        for segment in path {
-            encode_projection(writer, segment)?;
-        }
-        Ok(())
-    }
-
-    pub(crate) fn encode_reference_origin_path(
-        writer: &mut Writer,
-        label: &'static str,
-        path: &[terminal_psi::ReferenceOriginProjection],
-    ) -> Result<(), CodecError> {
-        writer.len(label, path.len())?;
-        for projection in path {
-            match projection {
-                terminal_psi::ReferenceOriginProjection::Exact(segment) => {
-                    if matches!(segment, StructuralPathSegment::AllElements) {
-                        return crate::codec_error::malformed(
-                            "qualification wildcard is not a reference origin",
-                        );
-                    }
-                    encode_projection(writer, segment)?
-                }
-                terminal_psi::ReferenceOriginProjection::Element => writer.u8(9),
-            }
-        }
-        Ok(())
-    }
-
-    fn encode_projection(
-        writer: &mut Writer,
-        segment: &StructuralPathSegment,
-    ) -> Result<(), CodecError> {
-        terminal_psi::structural_path_encoding::try_encode_structural_path_segment(
-            writer,
-            segment,
-            Writer::bytes,
-            encode_scalar_type,
-        )
-    }
-
+    pub(crate) use psi_declaration_encoding::places::*;
     pub(crate) fn encode_obligation_ids(
         writer: &mut Writer,
         obligations: &[ObligationId],
     ) -> Result<(), CodecError> {
         writer.ids("requirement obligations", obligations)?;
         Ok(())
-    }
-
-    pub(crate) fn encode_structural_place_kind(writer: &mut Writer, kind: StructuralPlaceKind) {
-        match kind {
-            StructuralPlaceKind::BlockParameter { block, position } => {
-                writer.u8(8);
-                writer.id(block);
-                writer.u32(position);
-            }
-            StructuralPlaceKind::Parameter { position } => {
-                writer.u8(1);
-                writer.u32(position);
-            }
-            StructuralPlaceKind::Result => writer.u8(2),
-            StructuralPlaceKind::OperationResult {
-                producer,
-                structural_type,
-            } => {
-                writer.u8(6);
-                writer.id(producer);
-                writer.id(structural_type);
-            }
-            StructuralPlaceKind::ByteSequenceLiteral {
-                declaration_ordinal,
-                structural_type,
-            } => {
-                writer.u8(4);
-                writer.u32(declaration_ordinal);
-                writer.id(structural_type);
-            }
-            StructuralPlaceKind::ProviderAttachment {
-                attachment,
-                field,
-                boundary,
-            } => {
-                writer.u8(5);
-                writer.id(attachment);
-                writer.id(field);
-                writer.id(boundary);
-            }
-            StructuralPlaceKind::TrivialAffineLocal {
-                declaration_ordinal,
-                structural_type,
-                construction,
-            } => {
-                writer.u8(if construction.is_some() { 7 } else { 3 });
-                writer.u32(declaration_ordinal);
-                writer.id(structural_type);
-                if let Some(construction) = construction {
-                    writer.id(construction.root_structural_type);
-                    writer.u64(construction.index);
-                }
-            }
-        }
     }
 
     pub(crate) fn decode_affine_cleanup_action(
@@ -627,167 +377,11 @@ pub(crate) mod structural_place_wire {
         })
     }
 
-    pub(crate) fn decode_structural_path(
-        reader: &mut Reader<'_>,
-    ) -> Result<Vec<StructuralPathSegment>, CodecError> {
-        let path = decode_projection_path(reader)?;
-        require_operand_path(&path)?;
-        Ok(path)
-    }
-
-    pub(crate) fn decode_reference_origin_path(
-        reader: &mut Reader<'_>,
-    ) -> Result<Vec<terminal_psi::ReferenceOriginProjection>, CodecError> {
-        decode_counted(reader, |reader| {
-            let tag = reader.u8()?;
-            if tag == 9 {
-                Ok(terminal_psi::ReferenceOriginProjection::Element)
-            } else if tag == 10 {
-                crate::codec_error::malformed("qualification wildcard is not a reference origin")
-            } else {
-                decode_projection(reader, tag).map(terminal_psi::ReferenceOriginProjection::Exact)
-            }
-        })
-    }
-
-    fn decode_projection(
-        reader: &mut Reader<'_>,
-        tag: u8,
-    ) -> Result<StructuralPathSegment, CodecError> {
-        use terminal_psi::structural_path_encoding::SegmentTag as Tag;
-        match Tag::from_byte(tag).ok_or(CodecError::InvalidTag("StructuralPathSegment", tag))? {
-            Tag::AllElements => Ok(StructuralPathSegment::AllElements),
-            Tag::Field => Ok(StructuralPathSegment::Field(TerminalIdentityIndex(
-                reader.u32()?,
-            ))),
-            Tag::FixedIndex => Ok(StructuralPathSegment::FixedIndex(reader.u64()?)),
-            Tag::Referent => Ok(StructuralPathSegment::Referent),
-            Tag::FixedRange => Ok(StructuralPathSegment::FixedRange {
-                start: reader.u64()?,
-                end: reader.u64()?,
-            }),
-            Tag::RuntimeIndex => Ok(StructuralPathSegment::RuntimeIndex {
-                index: reader.id("ValueId")?,
-                obligation: reader.id("ObligationId")?,
-            }),
-            Tag::Case => Ok(StructuralPathSegment::Case(reader.id("StructuralCaseId")?)),
-            Tag::RepresentationView => Ok(StructuralPathSegment::RepresentationView {
-                structural_type: reader.id("StructuralTypeId")?,
-                stored_scalar: if reader.boolean()? {
-                    Some(decode_scalar_type(reader)?)
-                } else {
-                    None
-                },
-            }),
-        }
-    }
-
-    fn require_operand_path(path: &[StructuralPathSegment]) -> Result<(), CodecError> {
-        if path.iter().any(|segment| {
-            matches!(
-                segment,
-                StructuralPathSegment::RepresentationView { .. }
-                    | StructuralPathSegment::AllElements
-            )
-        }) {
-            return crate::codec_error::malformed(
-                "returned-origin interpretation is not an operand or owned path",
-            );
-        }
-        Ok(())
-    }
-
-    pub(crate) fn decode_structural_place_kind(
-        reader: &mut Reader<'_>,
-    ) -> Result<StructuralPlaceKind, CodecError> {
-        Ok(match reader.u8()? {
-            8 => StructuralPlaceKind::BlockParameter {
-                block: reader.id("BlockId")?,
-                position: reader.u32()?,
-            },
-            1 => StructuralPlaceKind::Parameter {
-                position: reader.u32()?,
-            },
-            2 => StructuralPlaceKind::Result,
-            6 => StructuralPlaceKind::OperationResult {
-                producer: reader.id("OperationId")?,
-                structural_type: reader.id("StructuralTypeId")?,
-            },
-            4 => StructuralPlaceKind::ByteSequenceLiteral {
-                declaration_ordinal: reader.u32()?,
-                structural_type: reader.id("StructuralTypeId")?,
-            },
-            5 => StructuralPlaceKind::ProviderAttachment {
-                attachment: reader.id("StructuralTypeId")?,
-                field: reader.id("StructuralFieldId")?,
-                boundary: reader.id("BoundaryMachineId")?,
-            },
-            3 => StructuralPlaceKind::TrivialAffineLocal {
-                declaration_ordinal: reader.u32()?,
-                structural_type: reader.id("StructuralTypeId")?,
-                construction: None,
-            },
-            7 => StructuralPlaceKind::TrivialAffineLocal {
-                declaration_ordinal: reader.u32()?,
-                structural_type: reader.id("StructuralTypeId")?,
-                construction: Some(semantic_vocabulary::AffineConstructionElement {
-                    root_structural_type: reader.id("StructuralTypeId")?,
-                    index: reader.u64()?,
-                }),
-            },
-            tag => return Err(CodecError::InvalidTag("StructuralPlaceKind", tag)),
-        })
-    }
-
-    pub(crate) fn encode_qualification_path(
-        writer: &mut Writer,
-        path: &[StructuralPathSegment],
-    ) -> Result<(), CodecError> {
-        encode_projection_path(writer, "qualification pattern", path)
-    }
-
-    pub(crate) fn decode_qualification_path(
-        reader: &mut Reader<'_>,
-    ) -> Result<Vec<StructuralPathSegment>, CodecError> {
-        decode_projection_path(reader)
-    }
-
-    pub(crate) fn encode_declared_lifetime_path(
-        writer: &mut Writer,
-        path: &[StructuralPathSegment],
-    ) -> Result<(), CodecError> {
-        require_declared_lifetime_path(path)?;
-        encode_projection_path(writer, "declared lifetime path", path)
-    }
-
-    pub(crate) fn decode_declared_lifetime_path(
-        reader: &mut Reader<'_>,
-    ) -> Result<Vec<StructuralPathSegment>, CodecError> {
-        let path = decode_projection_path(reader)?;
-        require_declared_lifetime_path(&path)?;
-        Ok(path)
-    }
-
-    fn require_declared_lifetime_path(path: &[StructuralPathSegment]) -> Result<(), CodecError> {
-        if !terminal_semantics::references::declared_lifetime_path_is_static(path) {
-            return crate::codec_error::malformed("declared lifetime path is not a static family");
-        }
-        Ok(())
-    }
-
-    fn decode_projection_path(
-        reader: &mut Reader<'_>,
-    ) -> Result<Vec<StructuralPathSegment>, CodecError> {
-        decode_counted(reader, |reader| {
-            let tag = reader.u8()?;
-            decode_projection(reader, tag)
-        })
-    }
-
     #[cfg(test)]
     mod tests {
         use super::*;
         use semantic_vocabulary::{ClaimId, MachineId, PlaceId, StructuralTypeId};
+        use terminal_psi::{StructuralPathSegment, TerminalIdentityIndex};
 
         #[test]
         fn declared_lifetime_families_round_trip_without_becoming_operand_paths() {
@@ -974,23 +568,15 @@ pub(crate) mod structural_place_wire {
 pub(crate) mod structural_result_wire {
 
     use terminal_psi::{
-        ResultQualificationEstablishment, StructuralMultiplicity, StructuralOperationResult,
-        StructuralQualificationChange, StructuralResultDeclaration,
+        ResultQualificationEstablishment, StructuralOperationResult, StructuralQualificationChange,
     };
 
     use super::CodecError;
-    use super::structural_signature_wire::{
-        decode_projected_qualifications, encode_projected_qualifications,
-    };
-    use super::wire::{Reader, Writer, strictly_increasing};
+
+    use super::wire::{Reader, Writer};
     use super::wire_fields::{
         ClaimBinding, Field, Id, Ids, List, Multiplicity, PathQualification, U32, wire_record,
     };
-    use crate::sections::semantic_module::structural_place_wire::{
-        decode_reference_origin_path, decode_structural_path, encode_reference_origin_path,
-        encode_structural_path,
-    };
-    use crate::sections::semantic_module::wire::{decode_counted, decode_ids};
 
     pub(crate) fn validate_reference_sources(
         module: &terminal_psi::TerminalModule,
@@ -1045,122 +631,7 @@ pub(crate) mod structural_result_wire {
         Ok(())
     }
 
-    fn validate_reference_source_order(
-        result: &StructuralResultDeclaration,
-    ) -> Result<(), CodecError> {
-        if !strictly_increasing(result.reference_sources.iter().map(|source| &source.path)) {
-            return crate::codec_error::malformed(
-                "reference result sources must have unique ordered paths",
-            );
-        }
-        for reference in &result.reference_sources {
-            if reference.sources.is_empty() || !strictly_increasing(reference.sources.iter()) {
-                return crate::codec_error::malformed(
-                    "reference result alternatives must be nonempty, unique and ordered",
-                );
-            }
-        }
-        Ok(())
-    }
-
-    pub(crate) fn encode_function_result(
-        writer: &mut Writer,
-        result: &StructuralResultDeclaration,
-    ) -> Result<(), CodecError> {
-        writer.id(result.place);
-        writer.id(result.structural_type);
-        encode_multiplicity(writer, result.multiplicity);
-        writer.ids("structural result qualifications", &result.qualifications)?;
-        encode_projected_qualifications(writer, &result.projected_qualifications)?;
-        writer.len(
-            "structural reference result sources",
-            result.reference_sources.len(),
-        )?;
-        for reference in &result.reference_sources {
-            encode_structural_path(writer, "reference result path", &reference.path)?;
-            writer.len("reference source alternatives", reference.sources.len())?;
-            for source in &reference.sources {
-                match source {
-                    terminal_psi::StructuralReferenceOrigin::Parameter(source) => {
-                        writer.u8(1);
-                        writer.id(source.place);
-                    }
-                    terminal_psi::StructuralReferenceOrigin::Invocation {
-                        carrier_type, ..
-                    } => {
-                        writer.u8(2);
-                        writer.id(*carrier_type);
-                    }
-                }
-                super::structural_signature_wire::encode_structural_access(writer, source.access());
-                writer.u8(match source.extent() {
-                    semantic_vocabulary::ReferenceOriginExtent::Projected => 1,
-                    semantic_vocabulary::ReferenceOriginExtent::WithinRegion => 2,
-                });
-                encode_reference_origin_path(writer, "reference source path", source.path())?;
-            }
-        }
-        Ok(())
-    }
-
-    pub(crate) fn decode_function_result(
-        reader: &mut Reader<'_>,
-    ) -> Result<StructuralResultDeclaration, CodecError> {
-        let result = StructuralResultDeclaration {
-            place: reader.id("PlaceId")?,
-            structural_type: reader.id("StructuralTypeId")?,
-            multiplicity: decode_multiplicity(reader)?,
-            qualifications: decode_ids(reader, "StructuralDomainId")?,
-            projected_qualifications: decode_projected_qualifications(reader)?,
-            reference_sources: decode_counted(reader, |reader| {
-                Ok(terminal_psi::StructuralReferenceResultSource {
-                    path: decode_structural_path(reader)?,
-                    sources: decode_counted(reader, |reader| {
-                        let kind = reader.u8()?;
-                        let (parameter, carrier) = match kind {
-                            1 => (Some(reader.id("PlaceId")?), None),
-                            2 => (None, Some(reader.id("StructuralTypeId")?)),
-                            tag => {
-                                return Err(CodecError::InvalidTag(
-                                    "StructuralReferenceOrigin",
-                                    tag,
-                                ));
-                            }
-                        };
-                        let access =
-                            super::structural_signature_wire::decode_structural_access(reader)?;
-                        let extent = match reader.u8()? {
-                            1 => semantic_vocabulary::ReferenceOriginExtent::Projected,
-                            2 => semantic_vocabulary::ReferenceOriginExtent::WithinRegion,
-                            tag => {
-                                return Err(CodecError::InvalidTag("ReferenceOriginExtent", tag));
-                            }
-                        };
-                        let path = decode_reference_origin_path(reader)?;
-                        match kind {
-                            1 => Ok(terminal_psi::StructuralReferenceOrigin::Parameter(
-                                terminal_psi::ReferenceOriginSource {
-                                    place: parameter.ok_or(CodecError::NonCanonicalEncoding)?,
-                                    access,
-                                    extent,
-                                    path,
-                                },
-                            )),
-                            2 => Ok(terminal_psi::StructuralReferenceOrigin::Invocation {
-                                carrier_type: carrier.ok_or(CodecError::NonCanonicalEncoding)?,
-                                access,
-                                extent,
-                                path,
-                            }),
-                            tag => Err(CodecError::InvalidTag("StructuralReferenceOrigin", tag)),
-                        }
-                    })?,
-                })
-            })?,
-        };
-        validate_reference_source_order(&result)?;
-        Ok(result)
-    }
+    use psi_callable_encoding::results::validate_reference_source_order;
 
     wire_record! {
         OperationResult: StructuralOperationResult {
@@ -1209,40 +680,20 @@ pub(crate) mod structural_result_wire {
         OperationResult::read(reader)
     }
 
-    pub(crate) fn encode_multiplicity(writer: &mut Writer, multiplicity: StructuralMultiplicity) {
-        writer.u8(match multiplicity {
-            StructuralMultiplicity::Unrestricted => 1,
-            StructuralMultiplicity::Affine => 2,
-            StructuralMultiplicity::Linear => 3,
-        });
-    }
-
-    pub(crate) fn decode_multiplicity(
-        reader: &mut Reader<'_>,
-    ) -> Result<StructuralMultiplicity, CodecError> {
-        match reader.u8()? {
-            1 => Ok(StructuralMultiplicity::Unrestricted),
-            2 => Ok(StructuralMultiplicity::Affine),
-            3 => Ok(StructuralMultiplicity::Linear),
-            tag => Err(CodecError::InvalidTag("StructuralMultiplicity", tag)),
-        }
-    }
+    pub(crate) use psi_declaration_encoding::results::{decode_multiplicity, encode_multiplicity};
 }
 
 pub(crate) mod structural_signature_wire {
+    pub(crate) use psi_callable_encoding::signatures::{ParameterKind, StructuralParameter};
 
-    use semantic_vocabulary::{
-        ContentPlaceSegment, ContentPlaceVersion, ContentProjectionExpression,
-        ContentProjectionScalar, QualifiedScalarType, ServiceId,
-    };
+    use semantic_vocabulary::{ContentPlaceSegment, ContentPlaceVersion};
     use terminal_psi::{
         BoundaryCompletion, BoundaryContentGuarantee, BoundaryDeclarationRole,
-        BoundaryMachineDeclaration, BoundaryMachineResult, BoundaryParameterKind,
-        BoundaryReferenceOutput, BoundaryRequirementKind, BoundaryStructuralResultDeclaration,
+        BoundaryMachineDeclaration, BoundaryReferenceOutput, BoundaryRequirementKind,
         CheckedBoundaryCallable, CheckedBoundaryExecution, ExternalCompletionKind,
         ProgramLocalRootIntroductionSchema, RetainedBorrowContentProjection, RetainedBorrowCustody,
         RetainedBorrowPlace, RetainedBorrowPlaceRoot, ScalarDomainRequirement, StructuralAccess,
-        StructuralDomainRequirement, StructuralParameterDeclaration, StructuralPathQualification,
+        StructuralDomainRequirement, StructuralParameterDeclaration,
     };
 
     use super::CodecError;
@@ -1250,11 +701,10 @@ pub(crate) mod structural_signature_wire {
     use super::wire_fields::{
         Access, ContentAlgebra, ContentExpression, ContentProjection, CrashRoutes, Digest, Field,
         Flag, Id, Ids, Index, List, MachineDeclaration, Multiplicity, Nominal, Optional,
-        OptionalId, PathQualification, ProjectionIdentity, Proposition, QualificationPath,
-        QualificationSet, ReachArgument, Scalar, Text, U32, U64, wire_enum, wire_record,
+        OptionalId, ProjectionIdentity, Proposition, QualificationPath, ReachArgument, Scalar,
+        Text, U32, U64, wire_enum, wire_record,
     };
     use crate::sections::semantic_module::wire::decode_counted;
-    use crate::term_table::{TableChildren, TableTerm, decode_term_table, encode_term_table};
 
     pub(crate) mod reference_outputs {
 
@@ -1263,10 +713,7 @@ pub(crate) mod structural_signature_wire {
             CodecError, Reader, Writer, decode_counted, decode_structural_access,
             encode_structural_access,
         };
-        use terminal_psi::{
-            BoundaryLifetimeDependency, BoundaryReferenceDestination, BoundaryReferenceOutput,
-            StructuralPathSegment,
-        };
+        use terminal_psi::{BoundaryReferenceDestination, BoundaryReferenceOutput};
 
         pub(crate) fn encode(
             writer: &mut Writer,
@@ -1317,51 +764,7 @@ pub(crate) mod structural_signature_wire {
             })
         }
 
-        pub(crate) fn encode_dependency(
-            writer: &mut Writer,
-            dependency: &BoundaryLifetimeDependency,
-            write_path: impl FnOnce(&mut Writer, &[StructuralPathSegment]) -> Result<(), CodecError>,
-        ) -> Result<(), CodecError> {
-            match dependency {
-                BoundaryLifetimeDependency::Referent {
-                    argument_index,
-                    access,
-                } => {
-                    writer.u8(0);
-                    writer.u32(*argument_index);
-                    encode_structural_access(writer, *access);
-                }
-                BoundaryLifetimeDependency::Stored {
-                    argument_index,
-                    path,
-                    access,
-                } => {
-                    writer.u8(1);
-                    writer.u32(*argument_index);
-                    encode_structural_access(writer, *access);
-                    write_path(writer, path)?;
-                }
-            }
-            Ok(())
-        }
-
-        pub(crate) fn decode_dependency(
-            reader: &mut Reader<'_>,
-            read_path: impl FnOnce(&mut Reader<'_>) -> Result<Vec<StructuralPathSegment>, CodecError>,
-        ) -> Result<BoundaryLifetimeDependency, CodecError> {
-            match reader.u8()? {
-                0 => Ok(BoundaryLifetimeDependency::Referent {
-                    argument_index: reader.u32()?,
-                    access: decode_structural_access(reader)?,
-                }),
-                1 => Ok(BoundaryLifetimeDependency::Stored {
-                    argument_index: reader.u32()?,
-                    access: decode_structural_access(reader)?,
-                    path: read_path(reader)?,
-                }),
-                tag => Err(CodecError::InvalidTag("BoundaryLifetimeDependency", tag)),
-            }
-        }
+        pub(crate) use psi_callable_encoding::signatures::{decode_dependency, encode_dependency};
     }
 
     wire_record! {
@@ -1420,16 +823,6 @@ pub(crate) mod structural_signature_wire {
             capacity: ContentExpression,
             compatibility_report_identity: U64,
         }
-        StructuralParameter: StructuralParameterDeclaration {
-            place: Id,
-            position: U32,
-            structural_type: Id,
-            multiplicity: Multiplicity,
-            access: Access,
-            qualifications: Ids,
-            projected_qualifications: List<PathQualification>,
-            additional_input_qualifications: List<PathQualification>,
-        }
         BorrowPlace: RetainedBorrowPlace {
             version: PlaceVersion,
             root: PlaceRoot,
@@ -1456,13 +849,6 @@ pub(crate) mod structural_signature_wire {
             source_projection: BorrowProjection,
             result_projection: BorrowProjection,
         }
-        StructuralResult: BoundaryStructuralResultDeclaration {
-            structural_type: Id,
-            multiplicity: Multiplicity,
-            qualifications: Ids,
-            projected_qualifications: List<PathQualification>,
-        }
-        QualifiedScalar: QualifiedScalarType { scalar_type: Scalar, qualifications: QualificationSet }
     }
 
     struct HostedOperationWire;
@@ -1509,7 +895,6 @@ pub(crate) mod structural_signature_wire {
             1 => Trait,
             2 => Operator,
         }
-        ParameterKind: BoundaryParameterKind, "BoundaryParameterKind" { 0 => Scalar, 1 => Structural }
         ContentGuarantee: BoundaryContentGuarantee, "BoundaryContentGuarantee" {
             1 => Conservation(guarantee: super::content_wire::Guarantee),
             2 => RetainedBorrow(custody: BorrowCustody),
@@ -1524,12 +909,9 @@ pub(crate) mod structural_signature_wire {
             2 => Field(identity: Text),
             3 => FixedIndex(index: U64),
         }
-        CallResult: BoundaryMachineResult, "BoundaryMachineResult" {
-            0 => Unit,
-            1 => Scalar(result: QualifiedScalar),
-            2 => Structural(result: StructuralResult),
-        }
     }
+
+    pub(crate) use psi_declaration_encoding::results::CallResult;
 
     struct OptionalCallable;
     impl Field<Option<CheckedBoundaryCallable>> for OptionalCallable {
@@ -1641,191 +1023,10 @@ pub(crate) mod structural_signature_wire {
         List::<StructuralParameter>::read(reader)
     }
 
-    pub(crate) fn encode_service_ceiling(
-        writer: &mut Writer,
-        services: &[ServiceId],
-    ) -> Result<(), CodecError> {
-        writer.ids("published service ceiling", services)
-    }
-
-    pub(crate) fn encode_projected_qualifications(
-        writer: &mut Writer,
-        qualifications: &[StructuralPathQualification],
-    ) -> Result<(), CodecError> {
-        writer.counted(
-            "projected structural parameter qualifications",
-            qualifications,
-            PathQualification::write,
-        )
-    }
-
-    pub(crate) fn decode_projected_qualifications(
-        reader: &mut Reader<'_>,
-    ) -> Result<Vec<StructuralPathQualification>, CodecError> {
-        List::<PathQualification>::read(reader)
-    }
-
-    pub(crate) fn encode_call_result(
-        writer: &mut Writer,
-        result: &BoundaryMachineResult,
-    ) -> Result<(), CodecError> {
-        CallResult::write(writer, result)
-    }
-
-    pub(crate) fn decode_call_result(
-        reader: &mut Reader<'_>,
-    ) -> Result<BoundaryMachineResult, CodecError> {
-        CallResult::read(reader)
-    }
-
-    pub(crate) fn encode_content_projection_expression(
-        writer: &mut Writer,
-        capacity: &ContentProjectionExpression,
-    ) -> Result<(), CodecError> {
-        match capacity {
-            ContentProjectionExpression::IntervalSet(members) => {
-                writer.u8(1);
-                writer.len("program-local interval members", members.len())?;
-                for (start, end) in members {
-                    encode_capacity_scalar(writer, start)?;
-                    encode_capacity_scalar(writer, end)?;
-                }
-            }
-            ContentProjectionExpression::CountedQuantity(magnitude) => {
-                writer.u8(2);
-                encode_capacity_scalar(writer, magnitude)?;
-            }
-        }
-        Ok(())
-    }
-
-    /// A capacity scalar is one postorder table (`crate::term_table`).
-    fn encode_capacity_scalar(
-        writer: &mut Writer,
-        scalar: &ContentProjectionScalar,
-    ) -> Result<(), CodecError> {
-        encode_term_table(writer, scalar)
-    }
-
-    impl TableTerm for ContentProjectionScalar {
-        const LABEL: &'static str = "capacity scalar";
-
-        fn children<'term>(&'term self, children: &mut Vec<&'term Self>) {
-            match self {
-                ContentProjectionScalar::Successor(inner) => children.push(inner),
-                ContentProjectionScalar::Add(left, right)
-                | ContentProjectionScalar::Subtract(left, right)
-                | ContentProjectionScalar::Multiply(left, right) => {
-                    children.extend([left.as_ref(), right.as_ref()])
-                }
-                ContentProjectionScalar::SubjectField(_)
-                | ContentProjectionScalar::RuntimeScalarEmbedding(_)
-                | ContentProjectionScalar::Natural(_) => {}
-            }
-        }
-
-        fn write_row(&self, writer: &mut Writer) -> Result<(), CodecError> {
-            match self {
-                ContentProjectionScalar::SubjectField(path) => {
-                    writer.u8(1);
-                    writer.strings("program-local capacity field path", path)?;
-                }
-                ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
-                    writer.u8(2);
-                    writer.strings("program-local capacity field path", path)?;
-                }
-                ContentProjectionScalar::Natural(value) => {
-                    writer.u8(3);
-                    writer.string("program-local natural", value)?;
-                }
-                ContentProjectionScalar::Successor(_) => writer.u8(4),
-                ContentProjectionScalar::Add(_, _) => writer.u8(5),
-                ContentProjectionScalar::Subtract(_, _) => writer.u8(6),
-                ContentProjectionScalar::Multiply(_, _) => writer.u8(7),
-            }
-            Ok(())
-        }
-
-        fn read_row(
-            reader: &mut Reader<'_>,
-            children: &mut TableChildren<'_, Self>,
-        ) -> Result<Self, CodecError> {
-            let tag = reader.u8()?;
-            let arity = match tag {
-                1..=3 => 0,
-                4 => 1,
-                5..=7 => 2,
-                tag => return Err(CodecError::InvalidTag("ContentProjectionScalar", tag)),
-            };
-            let leaf = match tag {
-                1 => Some(ContentProjectionScalar::SubjectField(
-                    reader.strings("program-local capacity field path")?,
-                )),
-                2 => Some(ContentProjectionScalar::RuntimeScalarEmbedding(
-                    reader.strings("program-local capacity field path")?,
-                )),
-                3 => Some(ContentProjectionScalar::Natural(
-                    reader.string("program-local natural")?,
-                )),
-                _ => None,
-            };
-            if let Some(leaf) = leaf {
-                return Ok(leaf);
-            }
-            let mut operands = children.take(reader, arity)?.into_iter().map(Box::new);
-            let mut operand = || {
-                operands
-                    .next()
-                    .ok_or(CodecError::NonCanonicalTermTable(Self::LABEL))
-            };
-            Ok(match tag {
-                4 => ContentProjectionScalar::Successor(operand()?),
-                5 => ContentProjectionScalar::Add(operand()?, operand()?),
-                6 => ContentProjectionScalar::Subtract(operand()?, operand()?),
-                _ => ContentProjectionScalar::Multiply(operand()?, operand()?),
-            })
-        }
-    }
-
-    pub(crate) fn decode_content_projection_expression(
-        reader: &mut Reader<'_>,
-    ) -> Result<ContentProjectionExpression, CodecError> {
-        match reader.u8()? {
-            1 => Ok(ContentProjectionExpression::IntervalSet(decode_counted(
-                reader,
-                |reader| Ok((decode_term_table(reader)?, decode_term_table(reader)?)),
-            )?)),
-            2 => Ok(ContentProjectionExpression::CountedQuantity(
-                decode_term_table(reader)?,
-            )),
-            tag => Err(CodecError::InvalidTag("ContentProjectionExpression", tag)),
-        }
-    }
-
-    pub(crate) fn encode_structural_access(writer: &mut Writer, access: StructuralAccess) {
-        writer.u8(match access {
-            StructuralAccess::Owned => 1,
-            StructuralAccess::SharedBorrow => 2,
-            StructuralAccess::MutableBorrow => 3,
-            StructuralAccess::WriteOnlyBorrow => 4,
-        });
-    }
-
-    pub(crate) fn decode_structural_access(
-        reader: &mut Reader<'_>,
-    ) -> Result<StructuralAccess, CodecError> {
-        decode_structural_access_tag(reader.u8()?)
-    }
-
-    fn decode_structural_access_tag(tag: u8) -> Result<StructuralAccess, CodecError> {
-        match tag {
-            1 => Ok(StructuralAccess::Owned),
-            2 => Ok(StructuralAccess::SharedBorrow),
-            3 => Ok(StructuralAccess::MutableBorrow),
-            4 => Ok(StructuralAccess::WriteOnlyBorrow),
-            tag => Err(CodecError::InvalidTag("StructuralAccess", tag)),
-        }
-    }
+    use psi_declaration_encoding::access::mode::decode_structural_access_tag;
+    pub(crate) use psi_declaration_encoding::access::mode::{
+        decode_structural_access, encode_structural_access,
+    };
 
     pub(crate) fn decode_optional_structural_access(
         reader: &mut Reader<'_>,

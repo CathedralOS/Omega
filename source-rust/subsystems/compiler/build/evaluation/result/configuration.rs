@@ -29,6 +29,25 @@ pub struct BuildConfig {
     pub test_groups: Vec<TestGroupRegistration>,
 }
 
+/// The Build declaration and its callable identity in the program that ran.
+/// After acquisition the same source can have a package-qualified name.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExecutedBuildEntry {
+    pub declaration: source_admission::RetainedDeclaration,
+    pub callable_identity: String,
+}
+
+impl ExecutedBuildEntry {
+    pub fn rejoin(
+        &self,
+        typed: &typed_trees::source_state::TypedTrees,
+    ) -> Result<symbols::SymbolHandle, Vec<diagnostics::Diagnostic>> {
+        typed_trees::source_state::source_subjects::rejoin_build_activation(
+            typed, self.declaration.source().package_identity, &self.declaration,
+        ).map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])
+    }
+}
+
 #[derive(Clone)]
 pub struct ComputedBuildConfig {
     /// Published programs in execution order. Review can read their checked
@@ -52,7 +71,7 @@ pub struct ComputedBuildConfig {
     pub evaluation_usage: Option<evaluation_contracts::BuildEvaluationUsage>,
     pub observation_summary: Option<package_compilation::BuildObservationSummary>,
     /// Exact declaration of the machine whose checked invocation returned this Build.
-    pub selected_build_declaration: Option<source_admission::RetainedDeclaration>,
+    pub executed_entry: Option<ExecutedBuildEntry>,
     pub generated_sources: Vec<build_output::PackageGeneratedSource>,
 }
 
@@ -75,7 +94,7 @@ impl PartialEq for ComputedBuildConfig {
             optimization_report_request,
             evaluation_usage,
             observation_summary,
-            selected_build_declaration,
+            executed_entry,
             generated_sources,
         } = self;
         execution_history == &other.execution_history
@@ -90,7 +109,7 @@ impl PartialEq for ComputedBuildConfig {
             && optimization_report_request == &other.optimization_report_request
             && evaluation_usage == &other.evaluation_usage
             && observation_summary == &other.observation_summary
-            && selected_build_declaration == &other.selected_build_declaration
+            && executed_entry == &other.executed_entry
             && generated_sources == &other.generated_sources
     }
 }
@@ -129,8 +148,8 @@ impl std::fmt::Debug for ComputedBuildConfig {
             .field("evaluation_usage", &self.evaluation_usage)
             .field("observation_summary", &self.observation_summary)
             .field(
-                "selected_build_declaration",
-                &self.selected_build_declaration,
+                "executed_entry",
+                &self.executed_entry,
             )
             .field("generated_sources", &self.generated_sources)
             .finish()
@@ -138,15 +157,17 @@ impl std::fmt::Debug for ComputedBuildConfig {
 }
 
 impl ComputedBuildConfig {
+    pub fn selected_build_declaration(&self) -> Option<&source_admission::RetainedDeclaration> {
+        self.executed_entry.as_ref().map(|entry| &entry.declaration)
+    }
+
     pub fn selected_machine_identity(
         &self,
         typed: &typed_trees::source_state::TypedTrees,
     ) -> Result<Option<String>, Vec<diagnostics::Diagnostic>> {
-        self.selected_build_declaration.as_ref()
-            .map(|declaration| {
-                let selected = typed_trees::source_state::source_subjects::rejoin_build_activation(
-                    typed, declaration.source().package_identity, declaration,
-                ).map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
+        self.executed_entry.as_ref()
+            .map(|entry| {
+                let selected = entry.rejoin(typed)?;
                 let machine = typed.machine(selected).ok_or_else(|| {
                     vec![diagnostics::Diagnostic::error(
                         "selected build machine disappeared before final checking",

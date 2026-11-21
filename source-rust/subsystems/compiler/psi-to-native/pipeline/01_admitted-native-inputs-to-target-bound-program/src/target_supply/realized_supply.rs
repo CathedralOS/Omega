@@ -13,6 +13,7 @@ use terminal_psi::TerminalModule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPlanRealizationInput {
+    pub component: Option<verified_optimization_input::ComponentImport>,
     pub composition_mode: semantic_vocabulary::source_selections::CompositionMode,
     pub schema_declaration: terminal_psi::TerminalIdentityIndex,
     pub schema_application: terminal_psi::TerminalIdentityIndex,
@@ -36,6 +37,7 @@ pub struct TargetSupplyRealizationInput {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct PlanRealization {
+    component: Option<verified_optimization_input::ComponentImport>,
     composition_mode: semantic_vocabulary::source_selections::CompositionMode,
     executions: Vec<Option<CompilerIntrinsicExecutionIdentity>>,
 }
@@ -137,6 +139,8 @@ impl RealizedTargetSupply {
         let profile = target::TargetProfile::from_canonical_target_name(&input.target)
             .map_err(|error| error.to_string())?;
         let native_target = profile.native_realization();
+        let program =
+            terminal_codec::terminal_psi_identity(module).map_err(|reason| reason.to_string())?;
         for selected in &input.plans {
             let declaration = &selected.declaration;
             let plan = declaration;
@@ -155,10 +159,16 @@ impl RealizedTargetSupply {
             if selected.composition_mode != choice.composition_mode {
                 return Err("provider realization changes its selected composition mode".into());
             }
-            if choice.composition_mode
-                == semantic_vocabulary::source_selections::CompositionMode::Independent
-            {
-                return Err("reached independent provider composition needs its canonical verified component evidence".into());
+            use semantic_vocabulary::source_selections::CompositionMode;
+            match (choice.composition_mode, &selected.component) {
+                (CompositionMode::Fused, None) => {}
+                (CompositionMode::Independent, Some(component)) if component.matches(program, plan) => {}
+                (CompositionMode::Independent, _) => return Err(
+                    "reached independent provider composition needs its canonical verified component evidence".into()
+                ),
+                (CompositionMode::Fused, Some(_)) => return Err(
+                    "a fused provider cannot import a separate component".into()
+                ),
             }
             let provider_application = choice.provider_application.map(|identity| {
                 module.identities.text(identity).filter(|value| !value.is_empty())
@@ -403,6 +413,7 @@ impl RealizedTargetSupply {
         for selected in input.plans {
             plans.push(selected.declaration);
             realizations.push(PlanRealization {
+                component: selected.component,
                 composition_mode: selected.composition_mode,
                 executions: selected.row_executions,
             });
@@ -486,9 +497,7 @@ impl RealizedTargetSupply {
                 "folded constant closure differs from this exact provider realization".into(),
             );
         }
-        let mut derived = realization.clone();
-        derived.program = artifact.identity();
-        Ok(derived)
+        realization.rebind_components(artifact)
     }
 
     pub(crate) fn close_folded_entry(
@@ -506,13 +515,34 @@ impl RealizedTargetSupply {
             return Ok(None);
         }
         let folded = crate::FoldedTargetProgram::close(original, evidence, closure)?;
-        let mut derived = realization.clone();
-        derived.program = folded.artifact().view().identity();
+        let derived = realization.rebind_components(folded.artifact().view())?;
         Ok(Some((derived, folded)))
     }
 }
 
 impl SelectedProviderRealization {
+    fn rebind_components(
+        &self,
+        artifact: terminal_codec::TerminalArtifactView<'_>,
+    ) -> Result<Self, String> {
+        let mut derived = self.clone();
+        for (plan, row) in self
+            .provider_declarations()
+            .iter()
+            .zip(&mut derived.realizations)
+        {
+            if let Some(previous) = &row.component {
+                row.component = Some(verified_optimization_input::ComponentImport::admit(
+                    artifact,
+                    Arc::clone(previous.component()),
+                    plan,
+                )?);
+            }
+        }
+        derived.program = artifact.identity();
+        Ok(derived)
+    }
+
     pub fn program(&self) -> terminal_psi::TerminalPsiIdentity {
         self.program
     }
@@ -538,6 +568,14 @@ impl SelectedProviderRealization {
     }
     pub fn provider_declarations(&self) -> &[ProviderPlan] {
         self.plans.plans()
+    }
+    pub fn component_imports(
+        &self,
+    ) -> impl Iterator<Item = (&ProviderPlan, &verified_optimization_input::ComponentImport)> {
+        self.provider_declarations()
+            .iter()
+            .zip(&self.realizations)
+            .filter_map(|(plan, row)| row.component.as_ref().map(|component| (plan, component)))
     }
     pub fn composition_modes(
         &self,

@@ -351,6 +351,70 @@ impl Program<'_> {
         Ok(self.intern_regions(vec![loan]))
     }
 
+    /// A dereference or a slice index crosses from the descriptor's home into
+    /// its backing storage. An index into an owned array stays inside the home.
+    fn projected_loan(
+        &self,
+        machine: MachineId,
+        slots: &[super::Slot],
+        projection: &crate::lowering::Expression,
+        descriptor: &crate::lowering::Expression,
+    ) -> Checked<Option<(StructuralAccess, crate::lowering::body::Regions)>> {
+        use crate::lowering::ExpressionKind;
+        use terminal_psi::ByteSequenceCarrier::{BorrowedView, BoundedView};
+
+        let is_referent = match projection.kind {
+            ExpressionKind::Referent(_) => true,
+            ExpressionKind::Index { .. } | ExpressionKind::ByteElement { .. } => false,
+            _ => return Ok(None),
+        };
+        let Some(ValueType::Record(row, _, regions)) = descriptor.result else {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Type("loan projection without its declared descriptor"),
+            ));
+        };
+        let shape = &self.data_type(machine, row)?.shape;
+        match (is_referent, shape) {
+            (true, StorageShape::Reference { access, .. }) => Ok(Some((*access, regions))),
+            (true, _) => Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Type("reference crossing through a different structural type"),
+            )),
+            (
+                false,
+                StorageShape::ElementView { access, .. }
+                | StorageShape::ByteSequence(BorrowedView { access } | BoundedView { access, .. }),
+            ) => {
+                if let Some(access) = access {
+                    return Ok(Some((*access, regions)));
+                }
+                // An unqualified descriptor formal carries the caller's loan
+                // separately from the underlying element type's region tuple.
+                let invalid = || {
+                    refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Type("indexed view has no retained source access"),
+                    )
+                };
+                let ExpressionKind::Slot(slot) = descriptor.kind else {
+                    return Err(invalid());
+                };
+                let slot = slots.get(slot).ok_or_else(invalid)?;
+                let access = match slot.borrowed.ok_or_else(invalid)? {
+                    language_core::ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
+                    language_core::ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
+                    language_core::ReferenceAccess::WriteOnly => StructuralAccess::WriteOnlyBorrow,
+                };
+                Ok(Some((access, slot.borrowed_regions)))
+            }
+            (false, _) => Ok(None),
+        }
+    }
+
     /// Borrowing a descriptor's home is distinct from borrowing the storage
     /// the descriptor views. Its backing lifetime cannot keep that home live.
     pub(super) fn storage_loan_regions(
@@ -365,26 +429,10 @@ impl Program<'_> {
             place,
             |capture| captures.resolve(capture),
             |projection, descriptor| {
-                if crossing.is_none()
-                    && matches!(
-                        projection.kind,
-                        crate::lowering::ExpressionKind::Referent(_)
-                    )
-                {
-                    crossing = Some(
-                        descriptor
-                            .result
-                            .ok_or_else(|| {
-                                refuse(
-                                    machine,
-                                    Construct::Machine,
-                                    Unserved::Typing(
-                                        "reference crossing without a descriptor value",
-                                    ),
-                                )
-                            })?
-                            .regions(),
-                    );
+                if crossing.is_none() {
+                    crossing = self
+                        .projected_loan(machine, slots, projection, descriptor)?
+                        .map(|(_, regions)| regions);
                 }
                 Ok(())
             },
@@ -450,79 +498,9 @@ impl Program<'_> {
             place,
             |capture| captures.resolve(capture),
             |projection, descriptor| {
-                let crossing = match projection.kind {
-                    crate::lowering::ExpressionKind::Referent(_) => true,
-                    crate::lowering::ExpressionKind::Index { .. }
-                    | crate::lowering::ExpressionKind::ByteElement { .. } => false,
-                    _ => return Ok(()),
-                };
-                let Some(ValueType::Record(row, _, _)) = descriptor.result else {
-                    return Err(refuse(
-                        machine,
-                        Construct::Machine,
-                        Unserved::Type("permission crossing without its declared descriptor"),
-                    ));
-                };
-                let shape = &self.data_type(machine, row)?.shape;
-                let access = if crossing {
-                    let StorageShape::Reference { access, .. } = shape else {
-                        return Err(refuse(
-                            machine,
-                            Construct::Machine,
-                            Unserved::Type(
-                                "reference crossing through a different structural type",
-                            ),
-                        ));
-                    };
-                    Some(*access)
-                } else {
-                    match shape {
-                        StorageShape::ElementView { access, .. }
-                        | StorageShape::ByteSequence(
-                            terminal_psi::ByteSequenceCarrier::BorrowedView { access }
-                            | terminal_psi::ByteSequenceCarrier::BoundedView { access, .. },
-                        ) => match access {
-                            Some(access) => Some(*access),
-                            None => {
-                                let crate::lowering::ExpressionKind::Slot(slot) = descriptor.kind
-                                else {
-                                    return Err(refuse(
-                                        machine,
-                                        Construct::Machine,
-                                        Unserved::Type(
-                                            "indexed view has no retained source access",
-                                        ),
-                                    ));
-                                };
-                                let borrowed = slots
-                                    .get(slot)
-                                    .and_then(|slot| slot.borrowed)
-                                    .ok_or_else(|| {
-                                        refuse(
-                                            machine,
-                                            Construct::Machine,
-                                            Unserved::Type(
-                                                "indexed view has no retained source access",
-                                            ),
-                                        )
-                                    })?;
-                                Some(match borrowed {
-                                    language_core::ReferenceAccess::Shared => {
-                                        StructuralAccess::SharedBorrow
-                                    }
-                                    language_core::ReferenceAccess::Mutable => {
-                                        StructuralAccess::MutableBorrow
-                                    }
-                                    language_core::ReferenceAccess::WriteOnly => {
-                                        StructuralAccess::WriteOnlyBorrow
-                                    }
-                                })
-                            }
-                        },
-                        _ => None,
-                    }
-                };
-                if let Some(access) = access {
+                if let Some((access, _)) =
+                    self.projected_loan(machine, slots, projection, descriptor)?
+                {
                     // loans.md, "Reborrow lineage and access": a `Read`
                     // parent rejects a mutable and a write-only child, and a
                     // `Write-only` parent a shared and a mutable one. So a

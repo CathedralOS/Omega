@@ -217,11 +217,16 @@ pub fn evaluate_with_source_consent(
                 .collect::<Vec<_>>();
             let invocation = prepared.prepare_entry(symbol, entry, &[])?;
             let module = invocation.accepted().module();
-            if module
-                .scalars.scalar_applications
-                .declarations()
-                .iter()
-                .any(|application| {
+            let applications = module.scalars.scalar_applications.declarations();
+            // A scalar produced with target inputs belongs to that deployment.
+            // Publish the initializer so each use closes it with its own facts.
+            let observes_target =
+                !module.layouts.target_layout_applications.is_empty() || !applications.is_empty();
+            let scalar_result = matches!(module.entry,
+                Some(terminal_psi::TargetMachineCallable::Machine(entry))
+                    if module.machine(entry).is_some_and(|machine| machine.result.scalar().is_some()));
+            if observes_target && (targets.is_empty() || scalar_result)
+                || applications.iter().any(|application| {
                     matches!(
                         application,
                         terminal_psi::ScalarApplication::Evaluate { .. }
@@ -234,8 +239,8 @@ pub fn evaluate_with_source_consent(
                         .is_some_and(|row| !row.execution.compiler_owned())
                 })
             {
-                // This value belongs to an actual selected closure. Keep its
-                // exact initializer for the product scalar evaluator.
+                // The checked initializer is the recipe until a deployment
+                // supplies its layout facts or selects its implementation.
                 program
                     .tables
                     .const_declarations

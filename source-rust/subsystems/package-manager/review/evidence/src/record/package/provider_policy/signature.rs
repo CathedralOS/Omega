@@ -10,16 +10,16 @@ use crate::record::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackagePolicyServiceSignature {
-    pub(crate) schema_arguments: Vec<PackageReviewTypeIdentity>,
-    pub(crate) schema_lifetime_parameter_count: u32,
-    pub(crate) schema_lifetime_arguments: Vec<u32>,
-    pub(crate) application_lifetime_parameter_count: u32,
-    pub(crate) requirement_arguments: Vec<PackageReviewTypeIdentity>,
-    pub(crate) requirement_lifetime_arguments: Vec<u32>,
-    pub(crate) requirement_lifetime_parameter_count: u32,
-    pub(crate) static_parameters: Vec<PackagePolicyTypeParameter>,
-    pub(crate) parameters: Vec<PackageReviewSignatureParameter>,
-    pub(crate) result: Option<PackageReviewTypeIdentity>,
+    pub schema_arguments: Vec<PackageReviewTypeIdentity>,
+    pub schema_lifetime_parameter_count: u32,
+    pub schema_lifetime_arguments: Vec<u32>,
+    pub application_lifetime_parameter_count: u32,
+    pub requirement_arguments: Vec<PackageReviewTypeIdentity>,
+    pub requirement_lifetime_arguments: Vec<u32>,
+    pub requirement_lifetime_parameter_count: u32,
+    pub static_parameters: Vec<PackagePolicyTypeParameter>,
+    pub parameters: Vec<PackageReviewSignatureParameter>,
+    pub result: Option<PackageReviewTypeIdentity>,
 }
 
 impl PackagePolicyServiceSignature {
@@ -32,7 +32,7 @@ impl PackagePolicyServiceSignature {
 
 impl super::PackagePolicyServiceMethod {
     /// External completion retains its source return type without a calling result.
-    pub(crate) fn calling_result_type(&self) -> Option<&PackageReviewTypeIdentity> {
+    pub fn calling_result_type(&self) -> Option<&PackageReviewTypeIdentity> {
         match self.completion {
             semantic_vocabulary::BoundaryCompletion::NormalReturn => self.signature.result(),
             semantic_vocabulary::BoundaryCompletion::External(_) => None,

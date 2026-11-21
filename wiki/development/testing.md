@@ -40,8 +40,9 @@ failures in what it affects; a release runs the full release matrix. An
 unrelated failing base need not block a checkpoint but does not pass a release.
 Add tests for behavior no test yet distinguishes, not combinations or counts.
 
-An agent may take **VALIDATION-ENVIRONMENT** or **ITERATION-PERFORMANCE** after
-a round of compiler work (see [development-health outcomes](../../TASKS.md#development-health-outcomes)).
+After a round of compiler work, an agent may take a
+[development-health outcome](../../TASKS.md#development-health-outcomes) to address
+a slow build or missing test coverage.
 Name the blocked workflow and what would be good enough, fix the bottleneck
 or test path, show the result and stop. Do not quietly turn a feature task into
 profiling or repeated broad runs.
@@ -656,26 +657,21 @@ rustup toolchain ships, because the flavor alone makes rustc look for a program
 named `lld` on `PATH`. The MSVC ABI and SDK/runtime libraries are still
 used. The setting changes Rust host builds, not Omega's native code emission.
 
-Managed setup (`tools/agent_setup.sh`, including `--mbx-only`) keeps the shared
-`.agents/worktree` pool in mbx's global `target.keep` list through
-`mbx xtask managed-cache-retention`. The managed path bootstraps this Rust helper
-with the repository toolchain; a command-local `MBX_GC_AUTO=false` protects that
-bootstrap without changing global GC policy. It resolves the primary Git root
-even when setup runs from a detached worker, appends only that pool's absolute
-path and preserves existing entries and GC settings for other targets and
-shared cache state. Local sessions do not change settings. An explicit
-`MBX_TARGET_KEEP` remains the operator's override.
+When build outputs exceed the disk budget, mbx collects idle worker targets
+before assigned ones. The repository's `.mbx.toml` names the Git worktree's
+`topic` file. Acquiring a worker writes its topic and releasing the worker
+removes it. Each collector reads the current assignment, including a collector
+started from another checkout after a build has finished.
 
-mbx 1.29.2 rejects collection settings in workspace `.mbx.toml`; its
-`settings get/ls` commands read environment/global policy, not that file.
-`target.keep` protects live pool targets and their unused units from size/age
-collection, including low-disk sweeps. Deleted checkouts are still collectible,
-and a matching `target.evict_first` entry that reaches deeper wins (ties keep).
-Kept data can exceed the target budget and free-space floor, so disk pressure
-needs deliberate review rather than removing a warm worker cache mid-task.
-Do not move caches, change running jobs' settings, or collect peers' outputs
-during validation. Use `mbx gc --dry-run --json` to inspect the selected policy;
-the preview does not delete data or prove that a live compiler's locks are free.
+An assigned target can still be collected when idle targets do not free enough
+space. Explicit `target.keep` and `target.evict_first` settings take precedence.
+The existing age limit, running-command leases and Cargo locks still apply.
+Inspect a collection with `mbx gc --dry-run --json`.
+
+Older managed setups added the shared worker pool to the global `target.keep`
+list. The installer preserves those entries because the same list holds
+operator choices. To enable assignment-based ordering for a previously pinned
+pool, remove its path from `target.keep` while preserving the other entries.
 
 The hook also sets `gc.min_free_size` to 5 GiB when it is unset. The
 container's disk reports 252 GB while a session may use about 30 GB of it, so

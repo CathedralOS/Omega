@@ -4,7 +4,7 @@ use native_scalar_inputs::EvaluationReceipt;
 use psi_scalar_applications::AdmittedScalarApplications;
 use verified_optimization_input::TerminalNativeRealizationProposal;
 
-pub(super) fn complete(
+pub(crate) fn complete(
     artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     proposal: &TerminalNativeRealizationProposal,
     demand: &[semantic_vocabulary::ScalarApplicationId],
