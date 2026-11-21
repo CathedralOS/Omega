@@ -88,7 +88,7 @@ machine main() crashes Trap {
     let native = compile(&project, Product::Native);
 
     let execution = std::process::Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "main.omg"])
+        .args(["run", "--both", "build.omg"])
         .current_dir(&project)
         .env("OMEGA_LIBRARY_ROOT", &library)
         .output()
