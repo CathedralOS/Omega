@@ -1879,12 +1879,12 @@ pub(crate) mod address_joins {
     use crate::unit_validation::references::ReferenceOrigin;
     use crate::{OperationSite, OptimizationUnitValidationError};
     use abstract_operations::AbstractOperation as O;
-    use abstract_operations::control_flow::address_joins::is_address_join;
     use borrowed_regions::{BorrowedRegions, Projection, Region};
     use descriptor_loans::DescriptorLoans;
     use optimization_unit::{OptimizationEdge, PsiOptimizationFunction};
     use semantic_vocabulary::{BlockId, MachineId, PlaceId, StructuralTypeId};
     use std::collections::{BTreeMap, BTreeSet};
+    use structural_storage_queries::address_joins::is_address_join;
     use terminal_psi::exclusive_borrow_pair_pattern;
     use terminal_psi::{StructuralAccess, StructuralTypeDeclaration};
 

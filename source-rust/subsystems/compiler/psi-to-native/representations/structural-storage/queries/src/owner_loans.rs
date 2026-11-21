@@ -5,8 +5,8 @@
 // from authorizing an address join or turning an owned argument into a borrowed
 // pointer.
 
-use crate::structural_type_catalog::unique_structural_type;
 use semantic_vocabulary::StructuralTypeId;
+use structural_storage::structural_type_catalog::unique_structural_type;
 use terminal_psi::{
     ByteSequenceCarrier, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, reading_borrow_pair_pattern,

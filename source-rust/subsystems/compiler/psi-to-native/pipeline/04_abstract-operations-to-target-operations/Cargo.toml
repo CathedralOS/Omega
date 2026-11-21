@@ -16,6 +16,7 @@ function-identity = { path = "../../representations/function-identity" }
 language-core = { path = "../../../foundation/language-core" }
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 structural-storage = { path = "../../representations/structural-storage" }
+structural-storage-queries = { path = "../../representations/structural-storage/queries" }
 optimization-core = { path = "../../representations/optimization-records" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
 optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit-semantics" }

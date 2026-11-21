@@ -61,7 +61,7 @@ pub fn validate_backing(
 }
 
 pub fn borrowed_view_formation(
-    types: &crate::structural_type_catalog::StructuralTypeCatalog,
+    types: &structural_storage::structural_type_catalog::StructuralTypeCatalog,
     declaration: &terminal_psi::BoundaryMachineDeclaration,
     result: &terminal_psi::StructuralOperationResult,
 ) -> Option<(

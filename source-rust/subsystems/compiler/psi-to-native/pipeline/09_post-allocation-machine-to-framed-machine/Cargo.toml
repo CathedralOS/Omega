@@ -9,7 +9,7 @@ operation-operands = { path = "../../representations/operation-operands" }
 runtime-abi = { path = "../../targets/runtime-abi" }
 machine = { package = "register-homes-to-post-allocation-machine", path = "../08_register-homes-to-post-allocation-machine" }
 installation-admission = { path = "../../verification/installation-admission" }
-structural-storage = { path = "../../representations/structural-storage" }
+structural-storage-queries = { path = "../../representations/structural-storage/queries" }
 physical-program = { path = "../../representations/post-allocation-machine/body-facts" }
 target-vocabulary = { path = "../../representations/target-operations/target-vocabulary" }
 terminal-psi = { path = "../../../psi" }
