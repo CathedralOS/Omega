@@ -19625,9 +19625,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
       "item": "impl:SourcePublication::implementation#1",
       "kind": "definition",
-      "meaning": "Retain the accepted source and roster and publish one shared canonical Psi artifact for the fixed optimization selection.",
+      "meaning": "Retain the accepted source and roster and publish one canonical Psi artifact for the optimization selection the checked closure executed.",
       "producer": "stage 07 checked source publication",
-      "signature": "f34939e2e46c3152e881e3f26896a965193b622790ed64558a9e94d2a592c576"
+      "signature": "7778a7773ed899da013659e89d9d45e5feb3760eaca806d65f9cf15022670ccd"
     },
     {
       "consumers": [
@@ -19662,9 +19662,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
       "item": "impl:SourcePublication::method:accepted_owner#1",
       "kind": "carried_record",
-      "meaning": "Borrow the issued Arc used to check provider fact provenance without retaining the source in the facts.",
-      "producer": "01 source compilation",
-      "signature": "0cb0cd4c4b5b30de9c8b6db900695dff67728b9ba0b47574e975c3100070f2b9"
+      "meaning": "Borrow the source owner issued by the whole lowered-form judgment, including the transformed judgment when a pass ran.",
+      "producer": "stage 07 checked source publication",
+      "signature": "d232b61a628b38303097794eb012d69ded0929f9981f028354b0abe37d9a8b53"
     },
     {
       "consumers": [
@@ -19811,19 +19811,6 @@
         "checked source inspection"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
-      "item": "tests::function:accepted_publication_refuses_unexecuted_psi_optimizations#1",
-      "kind": "test_support",
-      "meaning": "Test the source publicationâ€™s fixed judgment, optimization selection and refusal custody.",
-      "producer": "01 source compilation",
-      "signature": "4dda1d3287f5e503127ddda427f29e11639df869a9e027811aab554e794f8b81"
-    },
-    {
-      "consumers": [
-        "01 source provider fact issuance",
-        "02 portable publication",
-        "checked source inspection"
-      ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
       "item": "tests::function:publication_keeps_its_projection_and_one_refusal_without_retry#1",
       "kind": "test_support",
       "meaning": "Test the source publicationâ€™s fixed judgment, optimization selection and refusal custody.",
@@ -19927,9 +19914,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
       "item": "impl:SourcePublication::method:from_judgment#1",
       "kind": "producer",
-      "meaning": "Retain the accepted lowered-form judgment together with the exact product roster returned by the checker. Refuse a judgment missing that roster.",
+      "meaning": "Retain the accepted source and its product roster, and read the publication selection from its checked closure.",
       "producer": "checked source publication",
-      "signature": "8c8958cf6d544b7255f6dc2897ab2fe8a3a4e293ce092a579cbcd43506d23dc2"
+      "signature": "03898a4bbfdfd1a9ca49a0bda2350df4140113def1013d5d1e119a90eaf43b47"
     },
     {
       "consumers": [
