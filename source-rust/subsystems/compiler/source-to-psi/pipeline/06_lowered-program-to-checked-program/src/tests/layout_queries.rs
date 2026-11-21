@@ -111,7 +111,7 @@ fn assert_deferred_wrong_size(closure: &crate::checking::AcceptedClosure) {
     let mut pending = 0;
     let mut false_at_four = 0;
     for machine in &module.machines {
-        for (obligation, condition) in module.layout_call_conditions(machine).unwrap() {
+        for (obligation, condition) in terminal_semantics::layout_call_conditions(module, machine).unwrap() {
             let verdict = closure
                 .discharge
                 .machines
@@ -155,6 +155,47 @@ fn assert_deferred_wrong_size(closure: &crate::checking::AcceptedClosure) {
         false_at_four, 1,
         "the changed size-8 requirement refuses the size-4 observation"
     );
+}
+
+#[test]
+fn layout_call_requirements_apply_only_on_their_incoming_path() {
+    use numerics::scalar_predicates::ScalarValue;
+    use terminal_psi::ScalarRangeObservation;
+
+    let text = r#"
+machine use_layout() requires size_of::<u32>() == 8u64 {}
+machine main() {
+    transition size_of::<u32>() == 4u64 {
+        true -> done(),
+        false -> use_layout()
+    }
+    machine done() requires true {}
+}
+"#;
+    let typed = super::boundary_calls::typed(text);
+    let prepared = crate::preparation::prepare_typed_trees(typed, &[]).unwrap();
+    let Ok(RouteVerdict::Accepted(closure)) =
+        super::entryless::judged_typed_result(&prepared, false)
+    else {
+        panic!("the portable call must preserve its deployment prerequisite");
+    };
+    let module = &closure.elaboration.module;
+    let conditions = module
+        .machines
+        .iter()
+        .flat_map(|machine| terminal_semantics::layout_call_conditions(module, machine).unwrap())
+        .map(|(_, condition)| condition)
+        .collect::<Vec<_>>();
+    let [condition] = conditions.as_slice() else {
+        panic!("expected one layout prerequisite");
+    };
+    for (size, permitted) in [(4, true), (8, true), (16, false)] {
+        let checked = condition.evaluate(&mut |value| {
+            matches!(value, ScalarRangeObservation::Application(_))
+                .then(|| ScalarValue::Integer(bignum::BigInt::from_u64(size)))
+        });
+        assert_eq!(checked, Some(ScalarValue::Boolean(permitted)));
+    }
 }
 
 #[test]

@@ -5,6 +5,20 @@
 use super::*;
 use terminal_psi::Terminator;
 
+#[derive(Clone, Copy)]
+enum Comparison {
+    Equal,
+    Less,
+}
+
+struct Test {
+    left: ValueId,
+    right: ValueId,
+    comparison: Comparison,
+    positive: bool,
+    cut: Point,
+}
+
 pub(super) struct Branch {
     entered: BlockId,
     condition: ValueId,
@@ -88,33 +102,13 @@ impl GroundRange<'_, '_> {
         positive: bool,
         depth: usize,
     ) -> Option<()> {
-        self.visit(depth)?;
-        let (source, position) = self.definition(condition, at)?;
-        let operation = &source.operations[position];
-        let cut = (source.id, position);
-        let (left, right, comparison, positive) = match operation.kind {
-            OperationKind::BooleanNot { operand } => {
-                return self.indicator(operand, cut, !positive, depth + 1);
-            }
-            OperationKind::BooleanEqual { left, right } => {
-                for (tested, constant) in [(left, right), (right, left)] {
-                    if let Some((owner, pos)) = self.definition(constant, cut)
-                        && let OperationKind::BooleanConstant { value } = owner.operations[pos].kind
-                    {
-                        return self.indicator(tested, cut, value == positive, depth + 1);
-                    }
-                }
-                return None;
-            }
-            OperationKind::IntegerEqual { left, right } => (left, right, Step::Equal, positive),
-            OperationKind::IntegerLessThan { left, right } => {
-                (left, right, Step::LessThan, positive)
-            }
-            OperationKind::IntegerLessOrEqual { left, right } => {
-                (right, left, Step::LessThan, !positive)
-            }
-            _ => return None,
-        };
+        let Test {
+            left,
+            right,
+            comparison,
+            positive,
+            cut,
+        } = self.comparison(condition, at, positive, depth)?;
         if !positive {
             self.steps
                 .push(Step::Observation(ScalarRangeObservation::Literal(
@@ -124,10 +118,123 @@ impl GroundRange<'_, '_> {
         let ty = self.index.value_type(left)?;
         self.value(left, ty, cut, depth + 1)?;
         self.value(right, ty, cut, depth + 1)?;
-        self.steps.push(comparison);
+        self.steps.push(match comparison {
+            Comparison::Equal => Step::Equal,
+            Comparison::Less => Step::LessThan,
+        });
         if !positive {
             self.steps.push(Step::Subtract);
         }
         Some(())
+    }
+    fn comparison(
+        &mut self,
+        condition: ValueId,
+        at: Point,
+        positive: bool,
+        depth: usize,
+    ) -> Option<Test> {
+        self.visit(depth)?;
+        let (source, position) = self.definition(condition, at)?;
+        let operation = &source.operations[position];
+        let cut = (source.id, position);
+        let (left, right, comparison, positive) = match operation.kind {
+            OperationKind::BooleanNot { operand } => {
+                return self.comparison(operand, cut, !positive, depth + 1);
+            }
+            OperationKind::BooleanEqual { left, right } => {
+                for (tested, constant) in [(left, right), (right, left)] {
+                    if let Some((owner, pos)) = self.definition(constant, cut)
+                        && let OperationKind::BooleanConstant { value } = owner.operations[pos].kind
+                    {
+                        return self.comparison(tested, cut, value == positive, depth + 1);
+                    }
+                }
+                return None;
+            }
+            OperationKind::IntegerEqual { left, right } => (left, right, Comparison::Equal, positive),
+            OperationKind::IntegerLessThan { left, right } => {
+                (left, right, Comparison::Less, positive)
+            }
+            OperationKind::IntegerLessOrEqual { left, right } => {
+                (right, left, Comparison::Less, !positive)
+            }
+            _ => return None,
+        };
+        Some(Test {
+            left,
+            right,
+            comparison,
+            positive,
+            cut,
+        })
+    }
+
+    /// Only exact target operands can name a Boolean deployment guard. A
+    /// runtime alternative supplies no premise about which branch executes.
+    pub(super) fn call_guards(&mut self, block: BlockId, branches: &[Branch]) -> Vec<Proposition> {
+        let mut guards = Vec::new();
+        for branch in branches {
+            if !self
+                .tree()
+                .is_some_and(|tree| tree.dominates(branch.entered, block))
+            {
+                continue;
+            }
+            self.remaining = 4096;
+            let Some(test) = self.comparison(branch.condition, branch.at, branch.when_true, 0)
+            else {
+                continue;
+            };
+            let Some(left) = self.exact_operand(test.left, test.cut) else {
+                continue;
+            };
+            let Some(right) = self.exact_operand(test.right, test.cut) else {
+                continue;
+            };
+            let predicate = match test.comparison {
+                Comparison::Equal => Proposition::Equal(left, right),
+                Comparison::Less => Proposition::LessThan(left, right),
+            };
+            guards.push(if test.positive {
+                predicate
+            } else {
+                Proposition::Implication {
+                    premise: Box::new(predicate),
+                    conclusion: Box::new(Proposition::Falsehood),
+                }
+            });
+        }
+        guards
+    }
+
+    fn exact_operand(&mut self, id: ValueId, cut: Point) -> Option<ScalarTerm> {
+        let ty = self.index.value_type(id)?;
+        let ScalarType::Integer(integer) = ty else {
+            return None;
+        };
+        self.steps.clear();
+        self.value(id, ty, cut, 0)?;
+        let [Step::Observation(observation)] = self.steps.as_slice() else {
+            return None;
+        };
+        match observation {
+            ScalarRangeObservation::Application(application) => Some(ScalarTerm::Application {
+                application: *application,
+                scalar_type: ty,
+            }),
+            ScalarRangeObservation::Literal(literal) => {
+                let value = match integer.sign() {
+                    semantic_vocabulary::IntegerSign::Signed => {
+                        IntegerValue::Signed(literal.to_i128()?)
+                    }
+                    semantic_vocabulary::IntegerSign::Unsigned => {
+                        IntegerValue::Unsigned(literal.to_u128()?)
+                    }
+                };
+                ScalarTerm::integer(integer, value).ok()
+            }
+            _ => None,
+        }
     }
 }

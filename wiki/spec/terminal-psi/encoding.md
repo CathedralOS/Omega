@@ -296,6 +296,13 @@ from zero through one otherwise. Multiplying an operation's result range by
 a necessary branch indicator therefore tests representability on targets where
 the operation can execute. Every integer carrier contains zero.
 
+A deployment-dependent call prerequisite applies on paths reaching its
+invocation. A retained predicate can express this as an implication from a
+dominating branch comparison over the selected layout. The artifact reader
+reconstructs the guard from the caller's control flow and the comparison's
+actual operands. A branch whose outcome depends on runtime input supplies no
+deployment-only premise.
+
 Predicate node tags are integer literal (1),
 Boolean literal (2), scalar observation (3), forwarding (4), negation (5), and
 binary operator (6). Binary operators are `and`, `or`, equality, inequality,
