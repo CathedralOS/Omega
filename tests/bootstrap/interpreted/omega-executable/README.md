@@ -263,6 +263,7 @@ answer-changing mutation, first-match order, once-only and short-circuit guard
 evaluation, checked nested arrivals, and rejection of ill-typed unselected arms.
 Every refusal requires an exact outcome and no Alpha tape. Coverage through a
 wildcard or literal `true` is supported; more general coverage proofs return
-`Incomplete`. The actual product's nominal enum comparisons remain a separate
-compiler facility, so the scalar-field execution controls do not claim complete
-compilation of the original `same_type_form` machine.
+`Incomplete`. The `sum-equality-*` controls exercise case comparisons with the
+product's original enum declarations. Four execute the complete
+`static_integer_is_valid` machine from a separate source unit, covering an
+exact unsuffixed integer, an inexact integer, missing digits and a suffix.

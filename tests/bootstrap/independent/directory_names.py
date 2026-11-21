@@ -146,6 +146,7 @@ def cases():
     yield from record_bound_cases(encode)
     yield from record_reference_cases(encode)
     yield from nominal_sum_cases(encode)
+    yield from sum_equality_cases(encode)
     yield from nominal_array_cases(encode)
     yield from nested_state_cases(encode)
     yield from nested_parameter_cases(encode)
@@ -457,6 +458,108 @@ def nominal_sum_cases(encode):
     coordinate = rows[2][1] + hit.index(b"item:Packet")
     yield "private-type-in-case-payload", data, struct.pack("<BII", 0, 1, coordinate)
 
+
+
+def sum_equality_cases(encode):
+    """Intrinsic nominal equality, including the product's type-form fields."""
+    def packet(source):
+        data, _, _, rows = encode([("app", 0)], [], [(0, source)], 0, b"main",
+                                  paths=["main.omg"])
+        return data, rows[0][1]
+
+    carrier = b"data Mode [copy]{case First;case Second;}"
+    finish = b"{true->42,_->7}"
+    for name, source in [
+        ("sum-equality-distinct-storage", carrier +
+         b"machine main()->u8{let a:Mode=Mode::First;let b:Mode=Mode::First;"
+         b"transition a==b && a!=Mode::Second && !(a!=b)" + finish + b"}"),
+        ("sum-equality-reused-call-result", carrier +
+         b"machine echo(value:Mode)->Mode{value}machine main()->u8{"
+         b"transition echo(Mode::First)!=echo(Mode::Second) && "
+         b"echo(Mode::Second)==echo(Mode::Second)" + finish + b"}"),
+        ("sum-equality-left-observed-before-mutation", carrier +
+         b"data Holder{mode:Mode;}machine change(holder:@mut Holder)->Mode{"
+         b"holder.mode=Mode::Second;holder.mode}machine main()->u8{let mut holder:Holder;"
+         b"holder.mode=Mode::First;let different:bool=holder.mode!=change(@mut holder);"
+         b"transition different && holder.mode==Mode::Second" + finish + b"}"),
+        ("sum-equality-evaluation-order", carrier +
+         b"data Counter{value:u8;}machine first(counter:@mut Counter)->Mode{"
+         b"counter.value=1;Mode::First}machine second(counter:@mut Counter)->Mode{"
+         b"transition counter.value==1{true->Mode::Second,_->Mode::First}}"
+         b"machine main()->u8{let mut counter:Counter;"
+         b"transition first(@mut counter)!=second(@mut counter)" + finish + b"}"),
+        ("sum-equality-authorized-effect", carrier +
+         b"machine risky()->Mode crashes Trap{Mode::First}"
+         b"machine compare()->bool crashes Trap{Mode::First==risky()}"
+         b"machine main()->u8 crashes Trap{transition compare()" + finish + b"}"),
+        ("sum-equality-loan-independent-place", carrier + b"data Holder{mode:Mode;}"
+         b"machine blocked(holder:@mut Holder)->bool{transition{_->next(holder,Mode::First==Mode::First)}"
+         b"machine next(holder:@mut Holder,answer:bool)->bool{answer}}"
+         b"machine main()->u8{let mut holder:Holder;transition blocked(@mut holder)" + finish + b"}"),
+    ]:
+        yield name, packet(source)[0], 42
+
+    # Preserve the actual product's declarations. The projection guard is the
+    # front of syntax_trees::same_type_form; unrelated fields are omitted here.
+    definitions = (ROOT / "source/subsystems/compiler/source_to_psi/representations/syntax_trees/syntax_trees.omg").read_bytes()
+    numeric = (ROOT / "source/subsystems/compiler/source_to_psi/representations/tokens/numeric.omg").read_bytes()
+    integer = (copy_declaration(numeric, b"IntegerSuffix") +
+               copy_declaration(definitions, b"IntegerLiteral") +
+               declaration(definitions, b"public machine static_integer_is_valid("))
+    # Execute the entire original product machine, not a rewritten stand-in.
+    for name, exact, empty, suffix, negate in [
+        ("valid", b"true", b"false", b"None", b""),
+        ("inexact", b"false", b"false", b"None", b"!"),
+        ("empty", b"true", b"true", b"None", b"!"),
+        ("suffixed", b"true", b"false", b"U8", b"!"),
+    ]:
+        main = (b"machine main()->u8{let value:IntegerLiteral=IntegerLiteral{"
+                b"magnitude:42 as u64 +Wrapping,exact:" + exact +
+                b",empty_digits:" + empty + b",suffix:IntegerSuffix::" + suffix +
+                b"};transition " + negate + b"static_integer_is_valid(value)" + finish + b"}")
+        # Keep the declarations in a different source unit from their caller.
+        wire, _, _, _ = encode([("app", 0)], [], [(0, main), (0, integer)], 0, b"main",
+                               paths=["main.omg", "integers.omg"])
+        yield "sum-equality-product-static-integer-" + name, wire, 42
+
+    kinds = copy_declaration(definitions, b"TypeReferenceKind")
+    access = copy_declaration(definitions, b"ReferenceAccess")
+    source = (kinds + access +
+              b"data TypeReference [copy]{kind:TypeReferenceKind;access:ReferenceAccess;argument_count:u8;}"
+              b"machine same_type_form(left:TypeReference,right:TypeReference)->bool{"
+              b"transition left.kind!=right.kind || left.access!=right.access || "
+              b"left.argument_count!=right.argument_count{true->false,_->true}}"
+              b"machine main()->u8{let a:TypeReference=TypeReference{kind:TypeReferenceKind::Reference,"
+              b"access:ReferenceAccess::Shared,argument_count:0};"
+              b"let b:TypeReference=TypeReference{kind:TypeReferenceKind::Reference,"
+              b"access:ReferenceAccess::Mutable,argument_count:0};"
+              b"let c:TypeReference=TypeReference{kind:TypeReferenceKind::Array,"
+              b"access:ReferenceAccess::Shared,argument_count:0};"
+              b"transition same_type_form(a,a) && !same_type_form(a,b) && !same_type_form(a,c)" + finish + b"}")
+    yield "sum-equality-product-type-form", packet(source)[0], 42
+
+    for name, source, marker, status in [
+        ("sum-equality-different-nominals", carrier + b"data Other [copy]{case First;case Second;}"
+         b"machine main()->u8{transition Mode::First==Other::First" + finish + b"}", b"==", 1),
+        ("sum-equality-payload-bearing", b"data Mode [copy]{case First;case Second(value:u8);}"
+         b"machine main()->u8{transition Mode::First==Mode::First" + finish + b"}", b"==", 2),
+        ("sum-equality-record-conformance-required", b"data Record [copy]{value:u8;}"
+         b"machine main()->u8{let a:Record=Record{value:1};transition a==a" + finish + b"}", b"==", 2),
+        ("sum-equality-no-ordering", carrier + b"machine main()->u8{transition Mode::First<Mode::Second" + finish + b"}", b"<", 1),
+        ("sum-equality-no-scalar-coercion", carrier + b"machine main()->u8{transition Mode::First==0" + finish + b"}", b"==", 1),
+        ("sum-equality-retains-effects", carrier +
+         b"machine risky()->Mode crashes Trap{Mode::First}"
+         b"machine compare()->bool crashes none{Mode::First==risky()}"
+         b"machine main()->u8{42}", b"machine compare", 2),
+        ("sum-equality-retains-loans", carrier + b"data Holder{mode:Mode;}"
+         b"machine blocked(holder:@mut Holder)->bool{transition{_->next(holder,holder.mode==Mode::First)}"
+         b"machine next(holder:@mut Holder,answer:bool)->bool{answer}}"
+         b"machine main()->u8{let mut holder:Holder;transition blocked(@mut holder)" + finish + b"}", b"machine blocked", 1),
+        ("sum-equality-retains-copy-check", carrier.replace(b"[copy]", b"") +
+         b"machine main()->u8{let a:Mode=Mode::First;transition a==a" + finish + b"}", b"machine main", 2),
+    ]:
+        wire, start = packet(source)
+        yield name, wire, struct.pack("<BII", 0, status, start + source.index(marker))
 
 
 def nominal_array_cases(encode):
