@@ -176,3 +176,41 @@ machine entry(image: Extent in Granted, storage: Extent in Granted) reaches Prog
     assert_eq!(image.qualifications, storage.qualifications);
     assert_ne!(image.place, storage.place);
 }
+
+#[test]
+fn saved_psi_retains_private_grants_only_across_a_closed_observation() {
+    for (footprint, should_preserve) in [("none", true), ("ExternalState invokes ExternalState", false)] {
+        let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "firmware-observation-footprint", false,
+        ).unwrap();
+        let path = temporary.path().join("build.omg");
+        std::fs::write(&path, r#"machine build(b: @mut Build) {
+            Build::application(b, "firmware");
+            Build::bind(b, uefi_x86_64\ProgramEntry, entry);
+        }"#).unwrap();
+        let source = r"use omega\language\core\Extent;
+use omega\language\core\Extent\Granted;
+public boundary trait ExternalState { machine step() reaches none crashes none; }
+public boundary trait Probe { machine sense() -> addr reaches FOOTPRINT crashes none; }
+machine entry(image: Extent in Granted, storage: Extent in Granted)
+reaches Probe + ExternalState invokes Probe invokes ExternalState crashes none {
+    let observation: addr = Probe::sense();
+    transition { _ -> retain(image, storage) }
+    machine retain(image: Extent in Granted, storage: Extent in Granted) {
+        transition { _ -> retain(image, storage) }
+    }
+}";
+        std::fs::write(temporary.path().join("main.omg"), source.replace("FOOTPRINT", footprint)).unwrap();
+        let target = TargetProfile::UefiX64;
+        let project = super::open_project(&path, &[target]);
+        let stage = project.product_stage(&[target]).unwrap();
+        let issued = source_compiler::compile_for_target(stage.source(), target.target_name(), None).unwrap().into_parts().0;
+        let reopened = CanonicalTerminalArtifact::from_bytes(&issued.to_bytes());
+        if should_preserve {
+            reopened.unwrap();
+        } else {
+            let error = reopened.unwrap_err();
+            assert!(error.to_string().contains("unsupplied routed prerequisites"), "{error}");
+        }
+    }
+}
