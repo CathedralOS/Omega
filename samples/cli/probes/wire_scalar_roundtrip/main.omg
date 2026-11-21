@@ -1,6 +1,6 @@
 // Wire field tags and the generated codec pair: `#N name: T` on a data
-// declaration synthesizes `T::encode(&value, &mutable buffer, &mutable written)`
-// and `T::decode(&mutable value, &buffer, &mutable read, &mutable verdict)` —
+// declaration synthesizes `T::encode(@value, @mutable buffer, @mutable written)`
+// and `T::decode(@mutable value, @buffer, @mutable read, @mutable verdict)` —
 // no imports beyond the depend-free core set.
 //
 //   * `data Frame { #0 code: u32; #1 level: i32; }` — numbered fields

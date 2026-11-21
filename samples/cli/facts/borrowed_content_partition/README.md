@@ -23,8 +23,8 @@ a shared linear owner. Each `invalid` sibling changes
 only the first request from 16 to 17; the unchanged consuming obligation rejects.
 
 The `match_join` place
-selects `carve(&mutable strategy, 48, 16)` in both arms, then calls
-`carve(&mutable strategy, 32, 8)`. Each call restores the exact place with a
+selects `carve(@mutable strategy, 48, 16)` in both arms, then calls
+`carve(@mutable strategy, 32, 8)`. Each call restores the exact place with a
 different authentic returned claim. Checking retains those alternatives and
 lowering specializes the ordinary continuation's claim namespace without
 relocating the storage or manufacturing common lineage. Separate fixtures

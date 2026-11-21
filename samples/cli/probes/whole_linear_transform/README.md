@@ -1,6 +1,6 @@
 # whole_linear_transform
 
-First sample taking a whole linear owner out through `&mutable`
+First sample taking a whole linear owner out through `@mutable`
 (`let removed = inventory`), passing it through a conditional
 drop-and-rebuild transform, and storing it back — the place is
 empty for exactly the transform's duration.

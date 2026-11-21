@@ -7,7 +7,7 @@
 //   * `Table::weigh(table, index) -> u64 crashes Trap` — guards the
 //     index against `table.count` before element dispatch;
 //     out-of-range falls to `absent`.
-//   * `Table::weigh(&main.table, 1) as u64` — `as` cast on a call.
+//   * `Table::weigh(@main.table, 1) as u64` — `as` cast on a call.
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit

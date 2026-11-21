@@ -1,11 +1,11 @@
 // Predicate-gated data: `data Grid where
-// cells_valid(&board) == true` — the default domain is an
-// ordinary predicate machine walking `&board` one state per
+// cells_valid(@board) == true` — the default domain is an
+// ordinary predicate machine walking `@board` one state per
 // element. Every cell zero satisfies the walk, so the
 // zeroed `Grid` is established at boot and `main` may read
 // `grid.board[2]` before any store.
 //
-//   * `data Grid where cells_valid(&board) == true` on the
+//   * `data Grid where cells_valid(@board) == true` on the
 //     data header.
 //   * Per-element state chain `at_1`/`at_2`/`at_3`.
 //

@@ -6,7 +6,7 @@
 // R::Issued` and `crashes Trap`.
 //
 //   * `satisfies Acknowledgement` impl consumes via `drop(receipt)`
-//     after `verify_payload(&receipt)` — drop IS the discharge
+//     after `verify_payload(@receipt)` — drop IS the discharge
 //     when a drop plan exists.
 //
 // Compile-checked only: declaration surface, no standard-library

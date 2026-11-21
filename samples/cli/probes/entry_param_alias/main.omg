@@ -1,5 +1,5 @@
 // A machine parameter aliases caller storage directly: `alias_write(health:
-// &mutable i32)` writes `health = 1` through the alias — the caller's local
+// @mutable i32)` writes `health = 1` through the alias — the caller's local
 // receives it.
 machine alias_write(health: @mutable i32) {
     $health = 1;

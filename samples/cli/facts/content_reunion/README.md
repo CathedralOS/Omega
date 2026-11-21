@@ -95,7 +95,7 @@ different roots alone neither authorize nor forbid a combination.
 1. **Establishment:** `issue` is the only establishment of the base-10
    length-48 root. `partition` authors the split of that root. The reunion
    body consumes both live children and rebuilds one region. `result in Owned`
-   and the content equation with `old(&whole)` are that body's obligations.
+   and the content equation with `old(@whole)` are that body's obligations.
    The caller does not re-establish them with a later equality guard.
 2. **Identity and lifetime:** the reconstructed region keeps the input root's
    lineage. A second `issue()` of equal geometry is a different root. Dropping

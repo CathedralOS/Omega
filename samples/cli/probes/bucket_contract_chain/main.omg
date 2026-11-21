@@ -8,7 +8,7 @@
 //   clear ESTABLISHES spare room (ensures length < items.length),
 //   push CONSUMES it and GUARANTEES non-emptiness + the predecessor bound,
 //   get  CONSUMES push's length > index fact through the whole-window
-//        view `&bucket.items[..]`, which names the array's own storage,
+//        view `@bucket.items[..]`, which names the array's own storage,
 //   pop  CONSUMES non-emptiness + the predecessor bound.
 // Mutating calls invalidate carried facts, so each proof-obligated call is
 // fed by the guarantee of the call before it.

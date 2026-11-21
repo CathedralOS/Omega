@@ -1,13 +1,13 @@
-// A plain `let` binding (no `mutable`) still lends `&mutable`
+// A plain `let` binding (no `mutable`) still lends `@mutable`
 // into a callee's out-parameter: `mutable` gates rebinding of
 // the NAME, not the mutability of loans from the owned
-// storage. `find(2, &mutable found)` writes through the loan
+// storage. `find(2, @mutable found)` writes through the loan
 // and the caller's binding observes both writes.
 //
-//   * `machine find(key: i32, out: &mutable Item)` — whole-
-//     place `&mutable` out-param.
+//   * `machine find(key: i32, out: @mutable Item)` — whole-
+//     place `@mutable` out-param.
 //   * `let found: Item = Item { key: 0, val: 0 }` then
-//     `find(2, &mutable found)` — no `mutable` needed on the
+//     `find(2, @mutable found)` — no `mutable` needed on the
 //     binding.
 //
 // Compile-checked only: no standard-library dependency, no

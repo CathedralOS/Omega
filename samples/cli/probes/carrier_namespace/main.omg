@@ -2,10 +2,10 @@
 // lives on the Main carrier but takes whatever parameters the machine
 // declares — the receiver need not be the carrier type at all.
 //
-//   * `machine Main::bump(reward: &mutable Reward)` — attached machine
+//   * `machine Main::bump(reward: @mutable Reward)` — attached machine
 //     whose only parameter is an unrelated data type.
-//   * `machine count(bytes: &[u8])` — free machine with a structural
-//     byte-view parameter called on `&main.buf` (ambient receiver:
+//   * `machine count(bytes: @[u8])` — free machine with a structural
+//     byte-view parameter called on `@main.buf` (ambient receiver:
 //     the call's structural argument sits beside the forwarded
 //     carrier).
 //   * `hits` records the reached arm.

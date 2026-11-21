@@ -4,9 +4,9 @@ Compile-scope probe: wire `#N` tags combined with domain-qualified
 borrowed-slice members. No standard-library dependency.
 
 - `domain [u8]::Utf8 requires valid_utf8` — slice-carrier domain.
-- `LabelMessage { #0 count: u32; #1 label: &[u8] in Utf8 }` — the
+- `LabelMessage { #0 count: u32; #1 label: @[u8] in Utf8 }` — the
   generated `encode` emits the same length-varint + raw-bytes frame a
-  plain `&[u8]` uses; the qualification rides the referee slice.
+  plain `@[u8]` uses; the qualification rides the referee slice.
 - Members fill memberwise on a declared local — each store
   establishes its descriptor.
 - Frame for `{ count: 7, label: "hi" }`: era 0x00, tag0 0x00, 0x07,

@@ -1,9 +1,9 @@
 # write_only_domain_store
 
 Whole-array store of a domain-qualified leaf through a
-`&write` loan: `tagged.label = label` where `label:
+`@write` loan: `tagged.label = label` where `label:
 [u8; 8] in Utf8` discharges `valid_utf8` membership on
-the stored value — same write-side check as `&mutable`.
+the stored value — same write-side check as `@mutable`.
 
 ## Current implementation frontier
 

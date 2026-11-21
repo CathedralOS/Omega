@@ -39,7 +39,7 @@ The remainder supplies the unary expression's ordinary bound of two; it leaves
 both authored selected positions unchanged.
 
 Every reject inserts a read of `cell.value` through the callee's existing
-`&write Cell` parameter. It must reject specifically because write-only access
+`@write Cell` parameter. It must reject specifically because write-only access
 permits replacement without observation; a lowering refusal is not a passing
 reject.
 

@@ -1,5 +1,5 @@
 // Unused and erased static arguments keep their authored lexical scope:
-// `&Element` as a type argument inside a machine-call bound proposition, and an
+// `@Element` as a type argument inside a machine-call bound proposition, and an
 // unused `const Tag` forwarded through a relay.
 machine ceiling<Element>() -> u64 { 70 }
 data Bounded<Element> requires value <= ceiling::<@Element>() { value: u64; }

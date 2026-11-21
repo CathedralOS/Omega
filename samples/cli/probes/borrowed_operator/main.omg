@@ -1,12 +1,12 @@
 // Declared operator on borrowed operands: `machine +` whose
-// signature takes `&Wrapped`/`&Wrapped` and returns `u64` — the
+// signature takes `@Wrapped`/`@Wrapped` and returns `u64` — the
 // result type is independent of the operand type. The token is
 // also callable by name (`Wrapped::add`) and composes as a match
 // arm result. Anonymous comptime arithmetic accepts values beyond
 // u64 (`2^64 / 2^64 == 1`).
 //
 //   * `left + right` inside a `match` arm — declared `+` on
-//     `&Wrapped` operands.
+//     `@Wrapped` operands.
 //   * `18446744073709551616 / 18446744073709551616` — anonymous
 //     exact comptime arithmetic on an out-of-range literal.
 //   * `hits` records the reached arm.

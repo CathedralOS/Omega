@@ -3,9 +3,9 @@
 Compile-scope probe: a transition's guard subject evaluates exactly
 once per evaluation. No standard-library dependency.
 
-- `transition Main::roll(&mutable main.tally)` — call subject with a
+- `transition Main::roll(@mutable main.tally)` — call subject with a
   mutable borrow; both arms compare the same evaluation.
-- `Main::roll -> bool` counts its invocations through `&mutable Tally`
+- `Main::roll -> bool` counts its invocations through `@mutable Tally`
   and returns false; the second arm proves `calls == 41` — one
   execution, not one per arm.
 

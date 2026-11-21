@@ -1,4 +1,4 @@
-// A `&mutable` machine argument rebinds through an unranked cycle's
+// A `@mutable` machine argument rebinds through an unranked cycle's
 // block-parameter channel, then re-borrows whole into a unit machine call.
 data Sink { value: u64 in Wrapping; }
 machine Sink::bump(sink: @mutable Sink) {

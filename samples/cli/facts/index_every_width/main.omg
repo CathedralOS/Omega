@@ -3,7 +3,7 @@
 //
 //   * `combine_fixed` takes one bounded parameter per width and
 //     folds `values[...]` reads with `^`.
-//   * `read_slice` indexes a `&[u64]` view by a signed bound +
+//   * `read_slice` indexes a `@[u64]` view by a signed bound +
 //     `requires position < values.length`.
 //   * `hits` records the reached arm.
 

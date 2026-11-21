@@ -4,8 +4,8 @@
 // operand (`made` counts every `make`, so the unselected arm leaves
 // no effect).
 //
-//   * `take_field(main.pair)`, `take_call(make(&mutable c, 5), 6)`,
-//     `take_owned(settle(3))`, `take_view(&main.pair)` edges.
+//   * `take_field(main.pair)`, `take_call(make(@mutable c, 5), 6)`,
+//     `take_owned(settle(3))`, `take_view(@main.pair)` edges.
 //   * `main.made == 1` proves the losing arm never ran `make`.
 //   * `hits` records the reached arm.
 //

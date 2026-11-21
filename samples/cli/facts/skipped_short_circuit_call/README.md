@@ -8,7 +8,7 @@ Parent outcome: **STATE-LOCAL-VALUE-FRONTIER** (`TASKS.md`), acceptance clause
 and [argument and result ordering](../../../../wiki/spec/terminal-psi/calls_and_outcomes.md#argument-and-result-ordering)
 ("Short-circuit control remains selective").
 
-Every place evaluates `let first: bool = <left> && bump(&mutable counter);` and
+Every place evaluates `let first: bool = <left> && bump(@mutable counter);` and
 then calls `untouched(counter)`, whose `requires counter == 0u64` is proved
 only because the checker knows `bump` did not run. Only the transport of the
 left operand changes: a local, a record field between canaries, a parameter

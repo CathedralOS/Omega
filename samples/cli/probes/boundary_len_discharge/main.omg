@@ -1,8 +1,8 @@
 // Boundary byte-extent requirement discharged against the
 // caller's sized storage: `count <= buffer.length` on
-// `ByteHost::read` proves at `&mutable main.control` — the
+// `ByteHost::read` proves at `@mutable main.control` — the
 // `[u8; 64]` extent resolves through the caller's attached
-// data, and `pump(buffer: &mutable [u8])` re-proves the same length
+// data, and `pump(buffer: @mutable [u8])` re-proves the same length
 // across the second boundary.
 //
 //   * `public boundary trait ByteHost` with `reaches ByteHost`

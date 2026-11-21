@@ -1,8 +1,8 @@
-// Borrowed case dispatch: `transition duo` on `&Duo` and `&mutable Duo`
+// Borrowed case dispatch: `transition duo` on `@Duo` and `@mutable Duo`
 // receivers — the subject is borrowed, the arms still read payload
 // fields and fold them into the result.
 //
-//   * `Duo::code(&Duo)` / `Duo::code_mutable(&mutable Duo)` borrowed
+//   * `Duo::code(@Duo)` / `Duo::code_mutable(@mutable Duo)` borrowed
 //     dispatch, payload reads `a` / `b + c`.
 //   * `hits` records the reached arm.
 //

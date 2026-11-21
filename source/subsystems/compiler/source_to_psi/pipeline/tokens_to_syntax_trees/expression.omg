@@ -266,8 +266,8 @@ crashes Trap
         transition { _ -> operand(parser, input, ParseDiagnosticCode::ExpectedOperand) }
     }
 
-    // `&mutable` borrows exclusively, `&write` exclusively without observation;
-    // a bare `&` borrows shared.
+    // `@mutable` borrows exclusively, `@write` exclusively without observation;
+    // a bare `@` borrows shared.
     machine borrow(parser: @mutable Parser, input: @TokenStream) {
         take_current(parser, input);
         let start: u64 in Trapping = parser.token_start;

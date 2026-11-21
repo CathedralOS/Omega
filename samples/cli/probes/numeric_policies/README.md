@@ -10,8 +10,8 @@ Compile-scope probe. No standard-library dependency.
 - record_array_members: `[i32;4]` and `[[i32;2];2]` members in
   record literals + negative operands `0 - 2` inside array
   literals.
-- borrowed_operator: `machine + Wrapped::add(left: &Wrapped,
-  right: &Wrapped) -> u64` — declared operator on borrows,
+- borrowed_operator: `machine + Wrapped::add(left: @Wrapped,
+  right: @Wrapped) -> u64` — declared operator on borrows,
   result type independent of operands; named call; match-arm
   operator result; `2^64` anonymous comptime literal.
 

@@ -1,7 +1,7 @@
-// An indexed element lends &mutable into a call parameter: bump(&mutable rooms[from_index]) loans the selected element exclusively.
+// An indexed element lends @mutable into a call parameter: bump(@mutable rooms[from_index]) loans the selected element exclusively.
 // Expected exit: 0
 //
-//   * `&mutable rooms[from_index]` — runtime-indexed
+//   * `@mutable rooms[from_index]` — runtime-indexed
 //     mutable loan as a call argument.
 //   * The callee's writes (`room.exit_count + 1`)
 //     observe through the loaned element only.

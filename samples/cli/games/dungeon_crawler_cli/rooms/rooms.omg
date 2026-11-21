@@ -27,7 +27,7 @@ requires self.room_count <= 16
 }
 
 // Appending an exit is the room's own business. Keeping it here rather than on
-// MazeBuilder is what lets a caller hold `&mutable Room` and still append: a
+// MazeBuilder is what lets a caller hold `@mutable Room` and still append: a
 // builder-owned appender would need the builder receiver at the same time.
 machine append_exit(
     room: @mutable Room,
@@ -103,7 +103,7 @@ requires command.length <= 8
 }
 
 // The level owns its rooms, so it hands out the borrow. A builder-owned
-// lookup would tie every `&mutable Room` to the builder receiver and block the
+// lookup would tie every `@mutable Room` to the builder receiver and block the
 // builder calls the caller still needs while that room is live.
 machine room_mut(level: @mutable Level, cell: CellId) -> @mutable Room {
     let slots: @mutable [Room] = @mutable level.rooms[..];

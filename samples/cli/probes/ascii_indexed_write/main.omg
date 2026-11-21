@@ -1,6 +1,6 @@
 // An indexed write through a qualified byte owner
 // re-discharges membership: `bytes[at] = value` on
-// `&mutable [u8; 8] in Ascii` succeeds because the
+// `@mutable [u8; 8] in Ascii` succeeds because the
 // dominating `value < 128` guard proves the stored
 // byte preserves `ascii_only`.
 //

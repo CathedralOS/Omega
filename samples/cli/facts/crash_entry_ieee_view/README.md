@@ -56,7 +56,7 @@ measured at.
 
 ## Requirements and Evidence
 
-- **Establishment:** `requires value == 1065353216` (or `packet.bits` / `ONE_BITS` / the successor machine's same equality) establishes the entry integer before `&value as &f32` observes it.
+- **Establishment:** `requires value == 1065353216` (or `packet.bits` / `ONE_BITS` / the successor machine's same equality) establishes the entry integer before `@value as @f32` observes it.
 - **Identity and lifetime:** the view records the IEEE value of the entry integer's bits. The crash guard reads that record. A writable local keeps that record only while nothing between its declaration and the read can overwrite it or lend it exclusive access: the write window the shared entry-provenance law applies, witnessed by the writable and written local pins.
 - **Composition:** the same sentence is the local copy, the `Packet.bits` field, the direct parameter, the returned parameter, the match join, the const name, the successor machine, the forwarding machine, and the Build-selected `forward` implementation.
 - **Soundness boundaries:** the recast reinterprets bits. It does not convert the integer numerically. A missing proof or a zero bit pattern keeps the Trap route.

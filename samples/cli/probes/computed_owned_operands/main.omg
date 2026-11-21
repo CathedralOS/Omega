@@ -14,7 +14,7 @@
 //   * `Receipt` is linear; `settle` consumes it with `drop`.
 //   * `Shape` is a sum; `measure` matches the case `box` built.
 //   * `take(unwrap(wrap(make(..))))` nests three owned producers.
-//   * `pair(&base, make(..))` lends `base` before it moves the temporary.
+//   * `pair(@base, make(..))` lends `base` before it moves the temporary.
 //   * `label("Owned")` builds its result from a byte literal before the
 //     result moves into `labelled`.
 //   * `later` receives `make(..)` through a state transition and passes

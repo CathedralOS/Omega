@@ -5,7 +5,7 @@ items[index] expose the same nonzero addr and differ from the other live
 element address.
 
 Every place copies that sentence and performs the same
-`address_of(&items[index])` query with the same strict `index < 2` bound; only
+`address_of(@items[index])` query with the same strict `index < 2` bound; only
 how the indexed storage reaches the query changes. Each placement runs
 indices 0 and 1, and `match_join` runs both arms. Every positive compares
 repeated exposure (`selected == again`), nonzero identity (`selected != 0`),
@@ -44,7 +44,7 @@ foreign bodies on every host.
 
 Each `invalid/main.omg` twin (and `controls/held_element/main.omg`) keeps the same
 program shape, bounds and initialization, and changes only the custody around
-the query: an exclusive `&mutable` reference to the selected element stays live
+the query: an exclusive `@mutable` reference to the selected element stays live
 across it. Checking must reject the shared reference formed inside `address_of`
 because `held` remains active. Every twin rejects with exit 1:
 
@@ -62,7 +62,7 @@ Two further controls hold the row honest outside the per-place twins.
 `index <= 2` is known (`cannot prove index `index` is within length 2`), and
 `controls/raw_address_to_borrow` rejects using numeric address data as a
 reference with a different referent carrier (`argument `value` for state
-`entry` expects `&u64``), since the spec grants no inverse
+`entry` expects `@u64``), since the spec grants no inverse
 address-to-borrow conversion.
 
 Every positive records native exit 0 with Terminal Psi agreement on the hosts
@@ -76,11 +76,11 @@ and
 
 ## Requirements and Evidence
 
-- **Establishment:** The strict `requires index < 2` contract (or `index < ROOM_COUNT` with `const ROOM_COUNT: u64 = 2`) on runtime `u64` selector and live backing `[u64; 2]` array establish the valid element projection and reference before `address_of(&items[index])` executes. Proof obligations are satisfied at every call site without relying on any post-hoc caller equality guard (`transition x == ...`) or partial operand manufacturing.
-- **Identity and lifetime:** Repeated exposure of `&items[index]` yields the exact same nonzero `addr` value (`selected == again`, `selected != 0`), distinct from the other live element address (`selected == first` and `selected != second` for index 0; `selected == second` and `selected != first` for index 1), while respecting storage version, distinct array element slots, and borrow lifetime.
-- **Composition:** The indexed array storage and bound travel end to end across all nine fact places (`local`, record `field`, callee `parameter`, contracted `call_result`, `match_join` branches, named `const_name`, `other_state` transition, `other_machine` forwarding, and `target_body` foreign targets). In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` (and `<place>/controls/held_element/main.omg`) differ strictly in the held `&mutable` borrow conflict (`held` active across `address_of`), keeping the construct, bound, and operation identical.
-- **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins (and `<place>/controls/held_element/main.omg`) enforce loan exclusivity at compile time, rejecting with `state `unknown` receives `items[index]` while local borrow `held` is still active` (exit 1). Outside the per-place twins, `controls/missing_bound` rejects forming indexed references without strict bounds proof (`cannot prove index `index` is within length 2`), and `controls/raw_address_to_borrow` enforces the boundary prohibiting inverse conversion from raw numeric address data back to typed borrows (`argument `value` for state `entry` expects `&u64``).
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source `address_of(&items[index])` lowers into canonical target-neutral Terminal Psi (`PSITERM\0`) operations without loss, erasing proof-only obligation tags while preserving interpreted address identity semantics, materializing borrow restoration windows, and executing with exit 0 in the Terminal Psi interpreter (`omega run --both`).
+- **Establishment:** The strict `requires index < 2` contract (or `index < ROOM_COUNT` with `const ROOM_COUNT: u64 = 2`) on runtime `u64` selector and live backing `[u64; 2]` array establish the valid element projection and reference before `address_of(@items[index])` executes. Proof obligations are satisfied at every call site without relying on any post-hoc caller equality guard (`transition x == ...`) or partial operand manufacturing.
+- **Identity and lifetime:** Repeated exposure of `@items[index]` yields the exact same nonzero `addr` value (`selected == again`, `selected != 0`), distinct from the other live element address (`selected == first` and `selected != second` for index 0; `selected == second` and `selected != first` for index 1), while respecting storage version, distinct array element slots, and borrow lifetime.
+- **Composition:** The indexed array storage and bound travel end to end across all nine fact places (`local`, record `field`, callee `parameter`, contracted `call_result`, `match_join` branches, named `const_name`, `other_state` transition, `other_machine` forwarding, and `target_body` foreign targets). In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` (and `<place>/controls/held_element/main.omg`) differ strictly in the held `@mutable` borrow conflict (`held` active across `address_of`), keeping the construct, bound, and operation identical.
+- **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins (and `<place>/controls/held_element/main.omg`) enforce loan exclusivity at compile time, rejecting with `state `unknown` receives `items[index]` while local borrow `held` is still active` (exit 1). Outside the per-place twins, `controls/missing_bound` rejects forming indexed references without strict bounds proof (`cannot prove index `index` is within length 2`), and `controls/raw_address_to_borrow` enforces the boundary prohibiting inverse conversion from raw numeric address data back to typed borrows (`argument `value` for state `entry` expects `@u64``).
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source `address_of(@items[index])` lowers into canonical target-neutral Terminal Psi (`PSITERM\0`) operations without loss, erasing proof-only obligation tags while preserving interpreted address identity semantics, materializing borrow restoration windows, and executing with exit 0 in the Terminal Psi interpreter (`omega run --both`).
 - **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Build companion rows join `ProgramEntry` declarations across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) to the Terminal catalog without reopening source. Fixed-array `[u64; 2]` layout geometry (`size_of = 16`, element stride 8, align 8) resolves element offsets, and target `CallPlan`/`StatePlan` pass array, reference, and index carriers cleanly across registers and stack slots.
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Target backend lowering selects 64-bit indexed effective-address computation (`lea` with scaled index on `x86_64`, shifted add on `arm64`) and unsigned address comparisons, assigns disjoint stack-frame activation storage homes for the live `[u64; 2]` array so distinct elements occupy separate physical addresses, and inserts standard frame prologues and multi-return epilogues honoring the `StatePlan` ceiling.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve to concrete frame offsets for `items[0]` and `items[1]`, basic blocks lay out with branch relaxation and offset reflow, transitive machine-state footprint evidence is validated, and direct PE/ELF/Mach-O executable images are emitted, achieving native execution agreement with Terminal Psi (`omega run --both`, exit 0) across host targets including `windows_x86_64` and `macos_arm64`.
@@ -90,7 +90,7 @@ and
 This row discharges the `address_of` storage-operand requirement that
 "compatible views of the same storage location expose the same address while
 that location remains in place" for a runtime-indexed referent: the selected
-element of a live `[u64; 2]` is addressed through `&items[index]`, repeated
+element of a live `[u64; 2]` is addressed through `@items[index]`, repeated
 exposure of the same live location agrees, the address is nonzero (zero stays
 the absence encoding), and distinct live elements do not collide — matching
 the ADDRESS-EXPOSURE board acceptance clause "repeated exposure agrees and
@@ -104,7 +104,7 @@ query cannot establish a loan to storage an exclusive borrow still holds —
 
 Still open under ADDRESS-EXPOSURE: `address_of<Selected<Arguments>>()`
 selected machine applications, aggregate (record/array-typed) referents,
-write-only `&write` storage operands, proof-only entity refusal, and
+write-only `@write` storage operands, proof-only entity refusal, and
 exhausted-encoding refusal. `controls/raw_address_to_borrow` pins the "no
 inverse address-to-borrow conversion" boundary only for this carrier shape.
 Native execution rows for `windows_x86_64` and `linux_arm64` record on their

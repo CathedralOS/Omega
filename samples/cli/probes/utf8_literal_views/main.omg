@@ -1,5 +1,5 @@
 // The compiler-recognized `valid_utf8` predicate: string literals grant
-// `&[u8] in Utf8` directly (contrast: user-defined requires over slices
+// `@[u8] in Utf8` directly (contrast: user-defined requires over slices
 // have no grant path — filed gap), and `==` between a Utf8 view and a
 // literal is CONTENT equality, not descriptor-word compare.
 //

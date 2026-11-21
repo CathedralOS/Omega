@@ -16,7 +16,7 @@ Sources declare exit zero.
 
 An ordinary `run_main` wrapper preserves the original `hits = 0`, `a = 15`,
 `b = 3` setup, in that order, before calling the guarded code. That code has an
-unrestricted `&mutable Main` parameter and retains the original guard, indexed store,
+unrestricted `@mutable Main` parameter and retains the original guard, indexed store,
 transport place and failure route. At the target-body place it is an ordinary
 named implementation selected by four explicit Build rows. Its public requirement
 keeps empty service reach and `Trap`, with no added precondition or postcondition.

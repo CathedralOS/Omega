@@ -1,7 +1,7 @@
 // Foreign generic sums with user payloads:
 // `Optional<First>` / `Optional<Second>` instantiate the
 // core `option` package's closed sum over local data —
-// construction, `&Optional<T>` borrowed dispatch, and
+// construction, `@Optional<T>` borrowed dispatch, and
 // `Optional::Some { value }` payload destructure all work
 // through the ordinary sum machinery.
 //

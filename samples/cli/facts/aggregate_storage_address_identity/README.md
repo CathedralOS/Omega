@@ -9,7 +9,7 @@ requires the referent's address, including when a reference passes through a
 machine parameter. An address result carries no borrow or access authority.
 
 Every place copies the sentence above. It obtains an address directly with
-`address_of(&value)`, forwards `&value` to `expose`, and compares the two
+`address_of(@value)`, forwards `@value` to `expose`, and compares the two
 addresses. It then writes `value.left = 13` and checks the address again. The
 field place uses `holder.value` as the same Pair storage. All positives declare
 exit 0 and bind the four hosted ProgramEntry targets. Pair explicitly permits
@@ -32,7 +32,7 @@ Both match arms execute. Each invalid twin changes only the query operand from
 a storage reference to the Pair value. It must reject with `storage address_of
 requires exactly one ordinary storage reference and no static arguments`.
 
-An additional `controls/exclusive_reference` control holds `&mutable value` live
+An additional `controls/exclusive_reference` control holds `@mutable value` live
 across the shared address operand. It must still reject the overlapping loan.
 
 Reproduce one positive and its control:

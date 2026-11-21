@@ -1,4 +1,4 @@
-// Re-view a shared `&[i32]` as its bytes. The byte view keeps the same
+// Re-view a shared `@[i32]` as its bytes. The byte view keeps the same
 // backing and holds four bytes for every `i32`.
 machine bytes_of(words: @[i32]) -> u64 requires words.length <= 16 {
     let bytes: @[u8] = words as @[u8];

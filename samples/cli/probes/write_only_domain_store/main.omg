@@ -1,8 +1,8 @@
-// A domain-qualified leaf through a `&write` loan owes
-// the membership check on the stored value: `&write
+// A domain-qualified leaf through a `@write` loan owes
+// the membership check on the stored value: `@write
 // [u8; 8] in Utf8` admits a whole-array store whose
 // bytes discharge `valid_utf8` — the same check a
-// `&mutable` store performs, on a loan that cannot read.
+// `@mutable` store performs, on a loan that cannot read.
 //
 //   * `domain [u8; 8]::Utf8 requires valid_utf8` — the
 //     declared-membership predicate.

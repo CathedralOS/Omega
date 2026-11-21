@@ -1,5 +1,5 @@
 // Transition subjects and edge operands are scheduled
-// expressions: `false && clear(&mutable flag)` skips the
+// expressions: `false && clear(@mutable flag)` skips the
 // effect, `flag && demand(flag)` evaluates the operand
 // once and discharges the callee's `requires`, and edge
 // arguments evaluate in order before the transfer.
@@ -8,7 +8,7 @@
 //     machine whose whole body is one transition result;
 //     the unreachable side effect never runs.
 //   * `checked_transfer` — `done(false &&
-//     clear(&mutable flag), flag)` passes the still-true flag
+//     clear(@mutable flag), flag)` passes the still-true flag
 //     observed before the skipped clear: the edge's second
 //     operand sees the pre-schedule state, `requires
 //     current` proves it.

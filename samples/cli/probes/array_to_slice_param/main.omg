@@ -1,10 +1,10 @@
 // An array borrow coerces to a slice parameter at the
-// call site: `count(&main.buf)` passes `&[u8; 8]` where
-// `bytes: &[u8]` is declared — the sized array view
+// call site: `count(@main.buf)` passes `@[u8; 8]` where
+// `bytes: @[u8]` is declared — the sized array view
 // weakens to an unsized slice implicitly.
 //
-//   * `machine count(bytes: &[u8]) -> u64` — slice param.
-//   * `count(&main.buf)` / `count(&owned)` — field array
+//   * `machine count(bytes: @[u8]) -> u64` — slice param.
+//   * `count(@main.buf)` / `count(@owned)` — field array
 //     and local array both coerce.
 //
 // Compile-checked only: no standard-library dependency, no

@@ -1,5 +1,5 @@
-// `[copy]` bounds satisfied at the call: `copy_it(&main.l)` and
-// `copy_it(&main.n)` instantiate `T [copy]` from argument types;
+// `[copy]` bounds satisfied at the call: `copy_it(@main.l)` and
+// `copy_it(@main.n)` instantiate `T [copy]` from argument types;
 // `wrap<U [copy]>` forwards its own bound as the callee's
 // requirement — nested generic bound forwarding.
 //

@@ -5,11 +5,11 @@
 // reference AND by-value calls after intervening work.
 //
 //   * `machine make() -> Choice ensures result in Choice::Cell`.
-//   * `observe(&Choice) requires choice in Choice::Cell` /
+//   * `observe(@Choice) requires choice in Choice::Cell` /
 //     `take(Choice) requires choice in Choice::Cell`.
 //   * The caller is a free `machine main()` — see README: the
 //     identical calls inside a carrier entry
-//     `Main::main(main: &mutable Main)` FAIL to inherit the saved
+//     `Main::main(main: @mutable Main)` FAIL to inherit the saved
 //     guarantee ('cannot prove requires contract').
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit

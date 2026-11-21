@@ -26,12 +26,12 @@ use omega\language\core\ProcessExit;
 //     case Freeze;                   // 4th - no payload
 //     ...
 //   }
-//   machine M::apply(main: &mutable M, idx: i32, tx: Transaction) {
+//   machine M::apply(main: @mutable M, idx: i32, tx: Transaction) {
 //     transition tx {
 //       Transaction::Transfer { to, amount } -> block check_xfer(main, idx, to, amount)
 //       ...
 //     }
-//     state check_xfer(main: &mutable M, idx: i32, to: i32, amount: i32) {
+//     state check_xfer(main: @mutable M, idx: i32, to: i32, amount: i32) {
 //       // In native: `amount` == `to` (3 instead of 40).
 //       // Confirmed: `to`==3 passes, `amount`==3 passes, `amount`==40 fails.
 //     }

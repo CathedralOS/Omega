@@ -1,6 +1,6 @@
 # Write-only IEEE store readback
 
-Fact: an IEEE f64 computed and stored through a write-only borrow (&write) preserves its exact bit pattern on readback, satisfying the 0.75 comparison across all nine places.
+Fact: an IEEE f64 computed and stored through a write-only borrow (@write) preserves its exact bit pattern on readback, satisfying the 0.75 comparison across all nine places.
 
 Owning Task: `WRITE-ONLY-BORROW` (`TASKS.md`) — "computed IEEE store/readback" acceptance item.
 
@@ -8,7 +8,7 @@ Owning Task: `WRITE-ONLY-BORROW` (`TASKS.md`) — "computed IEEE store/readback"
 
 | Place | Positive Program | Reject Twin (invalid) | Transport Mechanism |
 | --- | --- | --- | --- |
-| root | [`main.omg`](main.omg) | — | canonical witness: computed `6.0 / 8.0` through `&write f64`, read back and compared to `0.75` |
+| root | [`main.omg`](main.omg) | — | canonical witness: computed `6.0 / 8.0` through `@write f64`, read back and compared to `0.75` |
 | local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | read-back value bound to a local before the comparison |
 | field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | read-back value carried through a record field |
 | parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | read-back value passed as a machine parameter |
@@ -21,7 +21,7 @@ Owning Task: `WRITE-ONLY-BORROW` (`TASKS.md`) — "computed IEEE store/readback"
 
 ## Pinned Fixtures
 
-Each invalid twin adds one line — the store reads its `&write` referent — and rejects with `reads write-only parameter`; write-only authority is the enabling requirement of the fact's transport.
+Each invalid twin adds one line — the store reads its `@write` referent — and rejects with `reads write-only parameter`; write-only authority is the enabling requirement of the fact's transport.
 
 ## Build-owned target-body migration
 

@@ -2,13 +2,13 @@
 // default order over the slice's length; each recursive call forwards
 // `entries[1..]`, shortening the measure.
 //
-//   * `machine Main::walk(main: &Main, entries: &[Entry])
+//   * `machine Main::walk(main: @Main, entries: @[Entry])
 //      terminates by entries` — measure is the slice itself.
 //   * Runtime recursion is TAIL-ONLY: the measured machine carries
 //      its count in a `depth` accumulator — `walk(...) + 1` feeding
 //      an operand is rejected as non-tail self-recursion.
-//   * `&main.entries[..]` — whole-array shared slice view; the `&mutable`
-//      entry borrow weakens to `&` for the callee.
+//   * `@main.entries[..]` — whole-array shared slice view; the `@mutable`
+//      entry borrow weakens to `@` for the callee.
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit

@@ -1,5 +1,5 @@
 // Trait requirements carry default bodies:
-// `machine reset(subject: &mutable T) { set(&mutable
+// `machine reset(subject: @mutable T) { set(@mutable
 // subject, 30); }` inside a trait — a named
 // implementation of the child alone receives the
 // inherited machine. Two parents contributing

@@ -5,8 +5,8 @@
 // record beside a scalar sibling — none owes bytes, a move
 // window, or cleanup code.
 //
-//   * `replace(&mutable holder, Empty {})` — constructed arg
-//     into a `&mutable` field store.
+//   * `replace(@mutable holder, Empty {})` — constructed arg
+//     into a `@mutable` field store.
 //   * `transition { _ -> forward(main, kept, holder.value) }`
 //     goto edge carrying the empty value.
 //

@@ -3,7 +3,7 @@
 Fact: retiring a borrow restoration window restores full owner access and post-borrow invariant value >= 100u64 && value <= 100u64 for exact subtraction value - 100u64.
 
 Every positive place and reject twin defines or accesses a mutable `Cell` record containing `value: u64`.
-Passing `&mutable cell` to a mutating machine (`write_cell`) opens a borrowed-storage window that mutates `cell.value = 100u64`.
+Passing `@mutable cell` to a mutating machine (`write_cell`) opens a borrowed-storage window that mutates `cell.value = 100u64`.
 Upon return from the call, the borrow window completes and retires, restoring full owner access to the identical storage home.
 The owner observes the restored value under invariant `val >= 100u64 && val <= 100u64`, discharging exact subtraction `v - 100u64` with exit 0.
 
@@ -55,7 +55,7 @@ Measured 1-token perturbation on `local/main.omg` (`cell.value = 100u64;` -> `ce
 
 ### Invalid controls, reject twins, and obligation class
 
-Each place has an `invalid/` reject twin that creates a competing local borrow (`let held: &mutable Cell = &mutable cell;`)
+Each place has an `invalid/` reject twin that creates a competing local borrow (`let held: @mutable Cell = @mutable cell;`)
 held live across the write call (`held.value = 99u64` used after the call).
 Because the storage is already borrowed by `held`, attempting to loan `cell` to `write_cell` inside the active borrow window violates loan exclusivity and fails closed at compile time:
 
@@ -118,9 +118,9 @@ reject twins break.
 - **Pinned fixtures:**
 ### Specification and Lowering Layers
 
-1. **Establishment:** Passing a mutable borrow `&mutable cell` to mutating callee `write_cell` stores `cell.value = 100u64`. Upon callee return, the loan window retires and restored owner access establishes post-borrow invariant `val >= 100u64 && val <= 100u64` directly from the restored storage state without any post-hoc caller equality guard (`transition x == 100`).
+1. **Establishment:** Passing a mutable borrow `@mutable cell` to mutating callee `write_cell` stores `cell.value = 100u64`. Upon callee return, the loan window retires and restored owner access establishes post-borrow invariant `val >= 100u64 && val <= 100u64` directly from the restored storage state without any post-hoc caller equality guard (`transition x == 100`).
 2. **Identity and lifetime:** The borrow tracks the exact storage identity and version of `cell` during the active loan window. The owner cannot access or reborrow `cell` while the borrow is active; once the call retires, the borrow restoration window closes and restores full owner access to the identical storage version across all 9 places.
-3. **Composition:** The borrow restoration window composes through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming exact subtraction operation `v - 100u64`. In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ strictly in introducing a competing borrow (`let held: &mutable Cell = &mutable cell;`) that remains live across the write call site, keeping the construct, bound, and operation identical.
+3. **Composition:** The borrow restoration window composes through all 9 places (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, `target_body`) into the consuming exact subtraction operation `v - 100u64`. In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ strictly in introducing a competing borrow (`let held: @mutable Cell = @mutable cell;`) that remains live across the write call site, keeping the construct, bound, and operation identical.
 4. **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time (`--check`) with `error: state \`write_cell\` receives \`cell\` while local borrow \`held\` is still active` (or `receives \`holder.cell\`` / `state \`forward\` receives \`cell\``), enforcing borrow exclusivity and preventing overlapping mutable loans before storage restoration completes.
 5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Borrowed references, call edges, and loan lifespans lower without loss into canonical target-neutral Terminal Psi (`PSITERM\0`) with explicit borrow restoration windows (`reborrow restored call uses`) and affine cleanup actions while erasing static proof annotations. Both Terminal Psi interpreter and native execution agree with exit 0 (`omega run --both`).
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Record layout plans for `Cell` (size 8, align 8) validate, and `CallPlan`/`StatePlan` lower pointer and reference carriers across registers and stack slots according to target calling conventions.

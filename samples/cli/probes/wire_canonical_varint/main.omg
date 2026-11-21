@@ -5,8 +5,8 @@
 // returns `WireVerdict::Invalid` without partial writes
 // past the checked prefix.
 //
-//   * `Scalar::decode(&mutable overlong, &payload, &mutable
-//     read, &mutable verdict)` — the same decoder accepts
+//   * `Scalar::decode(@mutable overlong, @payload, @mutable
+//     read, @mutable verdict)` — the same decoder accepts
 //     malformed and canonical inputs, reporting per call.
 //
 // Compile-checked only: no standard-library dependency, no

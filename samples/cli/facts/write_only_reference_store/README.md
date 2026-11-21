@@ -1,11 +1,11 @@
 # Replacing a stored reference through write-only access
 
-Each program replaces a reference stored in a record through `&write`, which
+Each program replaces a reference stored in a record through `@write`, which
 permits writing the destination without reading its old contents. The new
 reference must point to a value of 85. The previous referent must remain 11,
 and the neighboring stamp must remain 17.
 
-Fact: a `&write` store into a record's reference leaf installs the incoming
+Fact: a `@write` store into a record's reference leaf installs the incoming
 descriptor — the stored target reads the new referent's 85 while the displaced
 referent's 11 and the sibling stamp's 17 stay untouched.
 
@@ -14,9 +14,9 @@ without reading old contents or losing their borrow obligations, and
 **BUILD-OWNED-TARGET-SELECTION**, for choosing the implementation that performs the store
 through explicit Build configuration.
 
-`Held` contains `target: &Cell` and a neighboring `stamp: i64`. Each positive
+`Held` contains `target: @Cell` and a neighboring `stamp: i64`. Each positive
 program creates `held` pointing at `left`, carries a write-only view of `held`
-through one place, and assigns `&right` to `slot.target`. It then reads the
+through one place, and assigns `@right` to `slot.target`. It then reads the
 record through its original owner and checks `held.target.value == 85`,
 `left.value == 11`, and `held.stamp == 17`. The invalid program instead reads
 `slot.target` through the write-only view to supply its own replacement.
@@ -69,7 +69,7 @@ its use after the call. Build chooses code; it does not choose another
 destination or grant readable access.
 
 The selected body performs the store directly. A requirement that only returns
-`&write Held` with an input-related lifetime does not promise that it returns
+`@write Held` with an input-related lifetime does not promise that it returns
 the same reference: a lifetime constrains validity, not the pointer's identity.
 The earlier forwarding program and its refusals remain in the PR records;
 this migration puts the store itself in the selected body. The ordinary

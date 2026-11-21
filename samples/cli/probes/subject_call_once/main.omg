@@ -1,11 +1,11 @@
 // A transition's guard subject evaluates exactly ONCE per evaluation.
-// `transition Main::roll(&mutable t) { false -> ... }` lowers to one guard
+// `transition Main::roll(@mutable t) { false -> ... }` lowers to one guard
 // per arm each holding the subject call; the callee must run a single
 // time with every arm's comparison reusing that result. The callee
-// counts invocations through `&mutable Tally` and returns false, so the
+// counts invocations through `@mutable Tally` and returns false, so the
 // second arm runs — the tally proves the subject fired exactly once.
 //
-//   * `transition Main::roll(&mutable main.tally)` — call subject with a
+//   * `transition Main::roll(@mutable main.tally)` — call subject with a
 //     mutable borrow, both arms comparing the same evaluation.
 //   * `Main::roll -> bool` — value machine whose side channel counts.
 //   * `hits` records the reached arm.

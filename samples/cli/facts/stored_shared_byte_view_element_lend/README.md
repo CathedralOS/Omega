@@ -7,7 +7,7 @@ first window and byte 29 from the second.
 Owning task: **RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY**. The requirement
 is the Terminal interpreter's custody of a shared byte descriptor that is copied
 out of an aggregate. Its acceptance fixture `traits/runtime_dyn_byte_array_result`
-(a `dyn` call returns `[&[u8]; 2]`, then the first window is lent to a reader)
+(a `dyn` call returns `[@[u8]; 2]`, then the first window is lent to a reader)
 ran natively with exit 0 and was declined by the Terminal interpreter with
 ``StructuralArgumentPreparation ... prepare byte backing loan:
 VerifiedOperationMalformed``. `dyn` is not needed to reach it: a local array of
@@ -30,7 +30,7 @@ an aggregate, and a move (custody transfer) still relocates them.
 
 Every place builds the same packet `[11, 23, 29, 31]`, the windows
 `packet[0..1]` and `packet[2..3]`, and lends the first element through a copied
-local and the second directly to `read(bytes: &[u8]) -> u8 requires bytes.length == 1`.
+local and the second directly to `read(bytes: @[u8]) -> u8 requires bytes.length == 1`.
 `main` crashes unless the two reads are 11 and 29, so a lend that reached the
 wrong window, or the wrong extent, changes a byte. Only the transport of the
 array changes.
@@ -52,7 +52,7 @@ The field place stores the array in `Bundle`; the parameter place passes it to
 both windows' extents; the const-name place indexes by named constants; the
 nested and other-machine places pass it to a machine that states
 `requires windows[0].length == 1 && windows[1].length == 1`. The match-join place
-settles a flag through `&mutable` so the checker cannot fold the `match`; its second
+settles a flag through `@mutable` so the checker cannot fold the `match`; its second
 arm holds the windows `packet[1..2]` and `packet[3..4]`, which read 23 and 31, so
 a join that took the wrong arm crashes `main`. The target-body place calls the
 boundary requirement `Observe::observe`, backed by four named providers with

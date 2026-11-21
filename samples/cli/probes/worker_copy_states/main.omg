@@ -1,5 +1,5 @@
 // Record cloning through states: `Worker::clone` accumulates into
-// `&mutable copied` across a count-bounded state cycle, then returns a
+// `@mutable copied` across a count-bounded state cycle, then returns a
 // FRESH record — mutating the source afterward cannot bleed into
 // the copy.
 //

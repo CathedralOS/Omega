@@ -3,7 +3,7 @@
 Copy-eligible fixed arrays pass by value without moving:
 `consume(main.items)` on `[u32; 2]` (Unrestricted
 multiplicity from scalar elements) copies — the live
-`&main.items[..]` view reads `view[0]` afterward.
+`@main.items[..]` view reads `view[0]` afterward.
 Affine arrays would reject (see
 fail/borrow/affine_array_move_under_live_view).
 

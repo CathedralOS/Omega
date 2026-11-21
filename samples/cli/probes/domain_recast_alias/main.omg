@@ -1,12 +1,12 @@
 // A mutable recast may retain facts when both views carry
-// the same normalized domain — `&mutable main.value as &mutable
-// u32` on a `u32 in Small` field stays `&mutable u32 in
+// the same normalized domain — `@mutable main.value as @mutable
+// u32` on a `u32 in Small` field stays `@mutable u32 in
 // Small`; either view denotes the same established value
 // set. The view suspends `main.value` until its last use,
 // so the owner reads again after.
 //
 //   * `domain u32::Small(value) requires value <= 100`.
-//   * `let view: &mutable u32 in Small = ...` — domain-
+//   * `let view: @mutable u32 in Small = ...` — domain-
 //     qualified mutable view type.
 //
 // Compile-checked only: no standard-library dependency, no

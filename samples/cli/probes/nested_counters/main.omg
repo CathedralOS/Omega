@@ -1,6 +1,6 @@
 use omega\language\core\ProcessExit;
 // Nested data: a struct field that is itself a struct, with field updates
-// through an explicit `&mutable` subject across multiple sub-machine calls.
+// through an explicit `@mutable` subject across multiple sub-machine calls.
 //
 // Exercises: deep nested field access (main.state.inner.value), mutation of
 // nested struct fields via separate sub-machines, and guards reading nested

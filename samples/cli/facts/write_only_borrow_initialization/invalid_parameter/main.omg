@@ -1,4 +1,4 @@
-// Fact: a write-only borrow (&write) initializes a destination slot to 100u64 and restores owner readability across call completion when subtracting 100u64.
+// Fact: a write-only borrow (@write) initializes a destination slot to 100u64 and restores owner readability across call completion when subtracting 100u64.
 // Place: parameter. The initialized slot value is passed as an explicit machine parameter before exact subtraction.
 // Expected diagnostic: exact subtraction underflow
 

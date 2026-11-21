@@ -7,7 +7,7 @@
 //
 //   * `domain [u8]::Utf8(bytes) requires
 //     valid_utf8(bytes)`.
-//   * `view: &[u8] = main.buffer[0..1]` slice param.
+//   * `view: @[u8] = main.buffer[0..1]` slice param.
 //
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.

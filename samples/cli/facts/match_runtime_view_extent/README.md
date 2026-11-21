@@ -11,7 +11,7 @@ establishes that requirement only.
 
 Each program owns `chosen: [i64; 4] = [3, 17, 18, 19]` and
 `other: [i64; 6] = [7, 23, 24, 25, 26, 27]`. The arms lend whole arrays of
-different extents, `&mutable chosen` and `&mutable other`, to one `&mutable [i64]` view, so
+different extents, `@mutable chosen` and `@mutable other`, to one `@mutable [i64]` view, so
 the view's length is 4 or 6 depending on the flag. `choose(counter, flag)`
 requires `counter == 0` and sets it to 1, so the subject runs once. The consumer
 computes `selected.length - 1` (proved from the join's extent, at least 4) and
@@ -27,7 +27,7 @@ constant length, or the wrong backing traps.
 | --- | --- | --- | --- |
 | local | [main](local/main.omg) | [invalid](invalid_local/main.omg) | both arrays are locals of `store` |
 | field | [main](field/main.omg) | [invalid](invalid_field/main.omg) | both arrays are fields of a `Pair` record |
-| parameter | [main](parameter/main.omg) | [invalid](invalid_parameter/main.omg) | both arrays and the counter arrive as `&mutable` parameters of `apply` |
+| parameter | [main](parameter/main.omg) | [invalid](invalid_parameter/main.omg) | both arrays and the counter arrive as `@mutable` parameters of `apply` |
 | call result | [main](call_result/main.omg) | [invalid](invalid_call_result/main.omg) | both arrays are produced by `make_chosen()` / `make_other()` |
 | match join | [main](match_join/main.omg) | [invalid](invalid_match_join/main.omg) | both arrays are produced by `match true` joins |
 | const name | [main](const_name/main.omg) | [invalid](invalid_const_name/main.omg) | both arrays are copies of `CHOSEN` and `UNSELECTED` |
@@ -36,7 +36,7 @@ constant length, or the wrong backing traps.
 | target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) | Build selects `X86Apply` or `ArmApply` for `SelectedApply::apply`; each checks its target tag (17 / 29) first |
 
 Each twin replaces the `true` arm's array with `let mutable empty: [i64; 0] = [];`
-and `&mutable empty`, so one arm records extent 0. The consumer's `selected.length - 1`
+and `@mutable empty`, so one arm records extent 0. The consumer's `selected.length - 1`
 then has no proof and the twin rejects with ``local `last` may overflow `u64`:
 the operands are not provably in range``. The twin keeps both arms whole-array
 loans, so it reaches the join's extent rather than the arm compatibility check.
@@ -53,7 +53,7 @@ parameter.
 - `checking/src/value_custody/expression_types/match_dispatch.rs`: loans of
   fixed arrays with the same access, lifetime and element identity and
   different extents are compatible arms; the destination's structural value
-  adapts each arm to its `[T]` view, as a direct `&mutable array` initializer does.
+  adapts each arm to its `[T]` view, as a direct `@mutable array` initializer does.
 - `06_checked-trees-to-lowered-psi/.../emission/element_views.rs`: an exclusive
   view transferred onto an owned join parameter is established affine, the same
   custody as a direct view.
@@ -66,7 +66,7 @@ parameter.
   `EstablishMutableElementView` loans of different extents, and the twins name a
   missing extent fact that its twins (source writes during the loan) do not.
 - [`write_only_match_join`](../write_only_match_join/README.md): the same
-  harness over scalar `&write` slots; no view length is involved.
+  harness over scalar `@write` slots; no view length is involved.
 
 ## Requirements and evidence
 
@@ -75,7 +75,7 @@ parameter.
 | Establishment | Each arm's view is formed from an existing array; its extent is that array's declared length. |
 | Identity and lifetime | The view's backing is the selected array; reads after the loan show the store reached it and not the other array. |
 | Composition | The join keeps only the fact both arms justify (`len >= 4`); the twin with an empty arm loses it. |
-| Soundness boundaries | Access, lifetime and element identity must agree across arms (`&a` with `&mutable b`, or `[i64]` with `[u64]`, still reject with `match arms produce incompatible values`). |
+| Soundness boundaries | Access, lifetime and element identity must agree across arms (`@a` with `@mutable b`, or `[i64]` with `[u64]`, still reject with `match arms produce incompatible values`). |
 | Psi 06–08 | Terminal Psi carries one `EstablishMutableElementView` per arm, moved affine onto the join parameter; the interpreter agrees with native execution. |
 | Omega 00–09 | macOS AArch64 native images read the runtime length from the descriptor and store at the selected array's last element. |
 
@@ -88,8 +88,8 @@ Linux and Windows native execution are not observed here.
 
 ## Open
 
-An array-typed destination (`let s: &mutable [i64; 4] = match ... { &mutable a4, &mutable a6 }`)
+An array-typed destination (`let s: @mutable [i64; 4] = match ... { @mutable a4, @mutable a6 }`)
 is now refused by lowering (`no executable body ... local data`) instead of by
-the dispatch check, the same refusal a plain `let s: &mutable [i64; 6] = &mutable a4`
+the dispatch check, the same refusal a plain `let s: @mutable [i64; 6] = @mutable a4`
 gets on the base. The dispatch diagnostic still carries no source location for
 borrow arms.

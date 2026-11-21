@@ -226,7 +226,7 @@ crashes Trap
         set_expression_type(@mutable typer.output, index, boolean_type);
     }
 
-    // A quoted literal is a shared byte view, `&[u8]`
+    // A quoted literal is a shared byte view, `@[u8]`
     // (wiki/spec/language/data_and_literals.md#quoted-bytes); its value is
     // its byte count, for a fixed byte array it copies into.
     machine string(typer: @mutable Typer, sources: @SourceSet, index: u64 in Trapping, expression: Expression) {
@@ -860,7 +860,7 @@ crashes Trap
 
 // Prefix operators. `!` needs a Boolean; `-` a signed integer or an
 // anonymous value, which it negates exactly; `~` a fixed integer; `&` and
-// `&mutable` lend their operand's storage, `&mutable` only a place's (through a
+// `@mutable` lend their operand's storage, `@mutable` only a place's (through a
 // reference, its referent's); a call acknowledgement keeps its call's type.
 machine type_unary(typer: @mutable Typer, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, expression: Expression)
 crashes Trap
@@ -983,7 +983,7 @@ crashes Trap
         set_expression_type(@mutable typer.output, index, handle);
     }
 
-    // `&mutable place` lends exclusive access the place's storage already
+    // `@mutable place` lends exclusive access the place's storage already
     // permits: a place reached through a shared reference cannot be lent
     // exclusively (wiki/spec/language/expressions.md#borrowed-range-access).
     machine borrow_mutable(typer: @mutable Typer, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
@@ -1002,7 +1002,7 @@ crashes Trap
         }
     }
 
-    // `&write place` lends exclusive mutation without observation
+    // `@write place` lends exclusive mutation without observation
     // (wiki/spec/language/ownership.md#borrows-and-aliases) of a place an
     // assignment could write.
     machine borrow_write(typer: @mutable Typer, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, expression: Expression, operand: u64 in Trapping) {
@@ -1128,7 +1128,7 @@ crashes Trap
 }
 
 // Whether an assignment may write the place `index`: the write passes through
-// an exclusive reference (a `&mutable` or `&write` value on its path, the place itself
+// an exclusive reference (a `@mutable` or `@write` value on its path, the place itself
 // included, writes its referent), or the place's root is a `let mutable` local
 // or a `mutable` parameter. Any other local or parameter, a pattern binder and a
 // shared reference's referent are read-only.
@@ -1245,7 +1245,7 @@ crashes Trap
         transition left_row.domain == DomainBinding::Unqualified && right_row.domain == DomainBinding::Unqualified {
             true -> builtin(typer, syntax, index, expression, left, right),
             // Only authorized scalar reads may reach a policy declaration.
-            // A remaining reference (notably &write) is not its referent.
+            // A remaining reference (notably @write) is not its referent.
             _ -> policy_side(typer, syntax, index, expression, left, right, left_outer, right_outer)
         }
     }
@@ -1734,8 +1734,8 @@ crashes Trap
         }
     }
 
-    // A recast's operand is a reference of the target's access (`&x as &T`
-    // or `&mutable x as &mutable T`), and both referents are the one type or scalars
+    // A recast's operand is a reference of the target's access (`@x as @T`
+    // or `@mutable x as @mutable T`), and both referents are the one type or scalars
     // of one width; checking judges their representations.
     machine recast(typer: @mutable Typer, expression: Expression, written: u64 in Trapping, target_row: TypeRow) {
         let given: TypeRow = type_table_row(@typer.output.types, written);

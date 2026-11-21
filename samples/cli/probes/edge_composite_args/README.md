@@ -3,7 +3,7 @@
 Compile-scope probe. No standard-library dependency.
 
 - Field paths, record literals, machine-call results, affine call
-  results and `&` views all ride a transition edge; only the
+  results and `@` views all ride a transition edge; only the
   selected edge evaluates its call operand (`main.made` stays 0 —
   the losing arm's `make` never ran).
 

@@ -1,7 +1,7 @@
 use omega\language\core\ProcessExit;
 // Look up an item by name in a small table of records -- a core serious-app shape
 // (name tables, inventories, registries). Each `Item` is a struct with an `id` and
-// a `&[u8] in Utf8` view `name`, stored in a fixed array `items: [Item; 3]`.
+// a `@[u8] in Utf8` view `name`, stored in a fixed array `items: [Item; 3]`.
 // This combines array-of-structs storage, literal-backed views as record fields, carrier
 // content comparison (`==`) inside guards, and array-element value reads (exiting
 // `main.items[k].id`). A guard chain searches for "Shield" and returns its id (20).

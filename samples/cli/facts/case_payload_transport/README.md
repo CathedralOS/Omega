@@ -75,7 +75,7 @@ omega --check samples/cli/facts/case_payload_transport/<place>/invalid/main.omg
   - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects tag comparisons, conditional jumps for match arms, payload loads/stores (`[base + payload_offset]`), and 64-bit integer addition (`add`). Register homes and activation stack-frame slots are assigned for `Outcome` instances, and entry prologues and multi-return epilogues honor the `StatePlan` ceiling.
   - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements and variant payload offsets resolve into final machine instructions, match-arm basic blocks and jump targets relax with offset reflow, machine-state footprint evidence (`actual_transitive_footprint ⊆ permitted_transitive_use`) validates against target host limits, and direct PE/ELF/Mach-O executables are emitted. Terminal Psi interpretation and native execution agree with exit 0 (`omega run --both`) across host platforms including `windows_x86_64` and `macos_arm64`.
 
-- **What remains open:** Reference borrowing of `case` payloads (`&payload`), recursive enum variants, and non-copyable affine resource cleanup in discarded variant payloads.
+- **What remains open:** Reference borrowing of `case` payloads (`@payload`), recursive enum variants, and non-copyable affine resource cleanup in discarded variant payloads.
 
 ## Build-owned target-body migration
 

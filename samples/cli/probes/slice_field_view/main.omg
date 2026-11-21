@@ -1,4 +1,4 @@
-// Records holding slice views: `Sample.readings: &[i32]` built from a
+// Records holding slice views: `Sample.readings: @[i32]` built from a
 // local array's subrange, read inside a callee through a record
 // borrow. A `state` may carry its own `requires` roster after the
 // signature — the callee's guard proves the bound the state's
@@ -8,7 +8,7 @@
 //     initialized from an exclusive subrange.
 //   * `inspect_values` transitions on `values.length`, the `read` state
 //     restates the bound as a requires clause.
-//   * `Counts::clone(&mutable merged)` — `&mutable` reborrow weakens to the
+//   * `Counts::clone(@mutable merged)` — `@mutable` reborrow weakens to the
 //     callee's shared loan.
 //   * `hits` records the reached arm.
 //

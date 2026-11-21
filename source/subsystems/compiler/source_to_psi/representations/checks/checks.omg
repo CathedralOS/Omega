@@ -63,7 +63,7 @@ public data CheckDiagnosticCode [copy] {
     // (pipeline/typed_trees_to_checked_trees/recasts.omg).
     case RepresentationUnproven;
     // A read, a shared or exclusive borrow, or an inspection of a place
-    // reached through a `&write` reference
+    // reached through a `@write` reference
     // (wiki/spec/language/ownership.md#borrows-and-aliases).
     case WriteOnlyObservation;
     // A `terminates by` witness's rank range the entry rank or a cyclic

@@ -83,7 +83,7 @@ cases cover two- and three-treatment feasible allocations, six-subject pair
 balance, a forbidden edge, carryover infeasibility and malformed input.
 
 Current main `39dd9145f461a75017141b7459913354bfee021c` initially rejected
-native production at the ordinary `&input` state-edge loan. The accompanying
+native production at the ordinary `@input` state-edge loan. The accompanying
 compiler repair keeps fixed byte references in their existing bounded view
 carrier, captures selected addresses across state forwarding, and validates
 their exact declared extent through codec, native and Terminal consumers. A

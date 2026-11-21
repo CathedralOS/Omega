@@ -28,7 +28,7 @@ public data TypeReferenceKind [copy] {
 public data ReferenceAccess [copy] {
     case Shared;
     case Mutable;
-    // `&write T`: exclusive mutation without observation
+    // `@write T`: exclusive mutation without observation
     // (wiki/spec/language/ownership.md#borrows-and-aliases).
     case WriteOnly;
 }
@@ -37,8 +37,8 @@ public data ReferenceAccess [copy] {
 // ends at its root: every row follows its children, and `first_row` is where
 // its own run begins. `Named` carries its `name`; an application
 // (`Pair<i32, u8>`) also carries `argument_count` argument rows listed in
-// `SyntaxTrees::type_arguments` from `first_argument`. `Reference` (`&T`,
-// `&mutable T`, `&write T`) carries its `access`. `Reference`, `Array` (`[T; N]`) and
+// `SyntaxTrees::type_arguments` from `first_argument`. `Reference` (`@T`,
+// `@mutable T`, `@write T`) carries its `access`. `Reference`, `Array` (`[T; N]`) and
 // `Slice` (`[T]`) name their referee or element in `inner`, and `Array` names
 // its length row, a `Literal` or a `Named` static value, in `length`.
 // `Literal` is an integer static argument or length spelled by `name`, its
@@ -59,7 +59,7 @@ public data TypeReference [copy] {
     length: u64 in Trapping;
     first_argument: u64 in Trapping;
     argument_count: u64 in Trapping;
-    // A reference's lifetime tag `&'tag T`, and an applied name's lifetime
+    // A reference's lifetime tag `@'tag T`, and an applied name's lifetime
     // arguments `Name<'tag, ...>`, a run in `type_lifetimes`
     // (wiki/spec/language/lifetimes.md#binders-and-source-applications).
     has_lifetime: bool;

@@ -10,9 +10,9 @@ heterogeneous residual custody. The arms' calls take custody, the subject call
 has an effect on storage an arm consumes, and each path leaves a different
 residual token. This row establishes those clauses only.
 
-`Token` is affine: it holds `&mutable Counter` and its drop hook adds its `mark`
+`Token` is affine: it holds `@mutable Counter` and its drop hook adds its `mark`
 to that counter. Each program owns `slot` (mark 11, counter `a`) and `other`
-(mark 13, counter `b`). The subject `refill(&mutable slot, c, flag)` replaces
+(mark 13, counter `b`). The subject `refill(@mutable slot, c, flag)` replaces
 `slot` with a token over counter `c` (mark 5), dropping the original. The
 `true` arm passes `slot` to `relay`, which sets the mark to 40; the `false`
 arm relays `other`. `main()` runs both flags. `true` expects `a == 11`,

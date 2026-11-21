@@ -1,4 +1,4 @@
-// The positive twin reads `handle.fd` beside `&mutable handle.status`. Here the
+// The positive twin reads `handle.fd` beside `@mutable handle.status`. Here the
 // read argument is inside the mutably lent field itself, so the call is
 // refused.
 data Status { size: u64; mode: u64; }

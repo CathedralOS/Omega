@@ -7,7 +7,7 @@
 //     { ... }` inside the `_` arm's construction.
 //   * Duplicate value patterns keep authored first-match order: in
 //     `choose`, `0 -> 7` shadows `0 -> 99`.
-//   * Match results bind through `let`, through fields on `&mutable`
+//   * Match results bind through `let`, through fields on `@mutable`
 //     carriers, and feed straight into `accept`.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit

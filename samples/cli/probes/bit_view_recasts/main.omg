@@ -1,15 +1,15 @@
 // Equal-width integer re-views read the viewed place's
 // two's-complement bits on the view carrier: a negative
-// `i32` through `&u32` is its modular image, an inline
-// `&u8` view of an `i8` guard operand likewise, and a
+// `i32` through `@u32` is its modular image, an inline
+// `@u8` view of an `i8` guard operand likewise, and a
 // `u8` byte region at a runtime offset re-viewed as
-// `&i16` assembles little-endian before the signed image.
+// `@i16` assembles little-endian before the signed image.
 //
-//   * `&main.value as &u32`, `&main.small as &u8`,
-//     `&main.bytes[offset] as &i16`.
+//   * `@main.value as @u32`, `@main.small as @u8`,
+//     `@main.bytes[offset] as @i16`.
 //   * Nested operand recasts inside a binary expression —
-//     `((bits.x & 0xffff) as u32) & (&bits.x as &u32)` and
-//     the `&mutable` spelling in expression position (no
+//     `((bits.x & 0xffff) as u32) & (@bits.x as @u32)` and
+//     the `@mutable` spelling in expression position (no
 //     reference-typed let binding needed).
 //
 // Compile-checked only: no standard-library dependency, no

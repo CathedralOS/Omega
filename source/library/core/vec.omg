@@ -3,7 +3,7 @@
 // Vec is the eventual arena-backed owner for contiguous storage. It owns an
 // allocation with a fixed capacity (`capacity`, always >= `len`) and is the
 // owned counterpart to the borrowed `Slice` view: `Vec::as_slice` lends the
-// elements as a `&[T]` window without giving up ownership.
+// elements as a `@[T]` window without giving up ownership.
 //
 // This module is the source-visible SURFACE: the length/capacity measures and
 // the push / as_slice / as_mut_slice requirement contracts with

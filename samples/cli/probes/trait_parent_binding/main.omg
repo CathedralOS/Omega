@@ -7,7 +7,7 @@
 //   * The implementing machine still carries
 //     `satisfies Sink<Counter, i32>::put` — the
 //     parent application, not the child.
-//   * `Counter::put(&mutable main.counter, 7)` calls the
+//   * `Counter::put(@mutable main.counter, 7)` calls the
 //     satisfied member directly.
 //
 // Compile-checked only: no standard-library dependency, no

@@ -45,5 +45,5 @@ once `img0.bmp` has been read to EOF and decoded, and stays alive in its
 window until Escape or close.
 
 The file service's `read` reaches libSystem's `_read` through the provider's
-`&mutable buffer[0]` on its `&mutable [u8]` parameter: an inline byte element with no
+`@mutable buffer[0]` on its `@mutable [u8]` parameter: an inline byte element with no
 declaration of its own.

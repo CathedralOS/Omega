@@ -34,14 +34,14 @@ runtime falsifier for an incorrect offset, truncated copy or changed canary.
 The [match-join](match_join/main.omg), [const-name](const_name/main.omg),
 [nested-machine](other_state/main.omg), [other-machine](other_machine/main.omg)
 and [selected-target](target_body/main.omg) places carry the region's end
-coordinate, 6, into `&source[1..end] as &[u8; 40]`. A window is fixed geometry,
+coordinate, 6, into `@source[1..end] as @[u8; 40]`. A window is fixed geometry,
 so its endpoint must name one value: every arm of a runtime-subject match, a
 named constant, a nested machine's singleton `requires`, one machine's ensured
 result passed to another, and a Build-selected implementation's ensured result.
 Recast checking and place lowering read that endpoint through one
 `window_coordinate` routine, so a window admitted by checking is the window
 lowering places. The match-join program calls its copy with both subject values.
-The selected implementations return the end rather than take `&mutable` storage,
+The selected implementations return the end rather than take `@mutable` storage,
 because exclusive-loan arguments behind a selected implementation remain open
 under **BUILD-OWNED-TARGET-SELECTION**.
 

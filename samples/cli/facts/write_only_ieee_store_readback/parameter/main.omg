@@ -1,4 +1,4 @@
-// Fact: an IEEE f64 computed and stored through a write-only borrow (&write) preserves its exact bit pattern on readback, satisfying the 0.75 comparison across all nine places
+// Fact: an IEEE f64 computed and stored through a write-only borrow (@write) preserves its exact bit pattern on readback, satisfying the 0.75 comparison across all nine places
 // Place: parameter. The read-back value is passed to a machine parameter before the comparison.
 // Expected exit: 0
 

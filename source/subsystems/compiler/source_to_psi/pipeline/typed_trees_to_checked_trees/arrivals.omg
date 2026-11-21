@@ -6,7 +6,7 @@ use representations\typed_trees\Typing;
 
 // Field paths an arrival carries. Besides a state's integer and Boolean
 // parameters, a jump projects the subject places it knows below an argument
-// that is a place (`table.count` for a parameter `table: &mutable Table`), so a
+// that is a place (`table.count` for a parameter `table: @mutable Table`), so a
 // guard on a field reaches the state the guard selects. A path is the parameter's
 // offset and up to four projections, each a field or a slice's `.length` with
 // the type of the place it reaches. A state keeps the up to 40 paths its

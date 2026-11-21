@@ -1,5 +1,5 @@
-// Sum retag with linear payloads, repaired through `&mutable`:
-// `repair(&mutable holder.choice, inc)` transitions the sum in
+// Sum retag with linear payloads, repaired through `@mutable`:
+// `repair(@mutable holder.choice, inc)` transitions the sum in
 // place — `transition choice` extracts the `token` payload
 // per case and rebuilds under the opposite tag when the
 // increment fires. A whole `choice = transform(choice)`

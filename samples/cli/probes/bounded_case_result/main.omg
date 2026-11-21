@@ -1,5 +1,5 @@
 // A bounded text local lends to a machine whose result is a case
-// value: `leading` forwards the `&[u8; 2] in Utf8` loan through
+// value: `leading` forwards the `@[u8; 2] in Utf8` loan through
 // states, reads the fixed length, and returns the first byte as a
 // case payload `(Leading::Byte { value })` vs `(Leading::Empty)`.
 domain [u8]::Utf8

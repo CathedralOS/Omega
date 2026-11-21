@@ -20,7 +20,7 @@ use omega\language\core\ProcessExit;
 // the next state through a guard arm and arrives bounded by that state's
 // `requires`; index arithmetic happens inside a state where the operands are
 // requires-bounded params. Field values are copied into `let` locals before
-// guarding because facts attach to values, not field paths, and a `&mutable`
+// guarding because facts attach to values, not field paths, and a `@mutable`
 // borrow cannot share a call with reads of its own fields.
 //
 // The scrambler (`core_perm`), plugboard wrapper (`enc_char`), and stepping

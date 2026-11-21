@@ -1,6 +1,6 @@
 // A borrowed scalar slice member encodes with its runtime element count:
 // `readings: main.source[1..4]` — record construction takes the interior
-// subslice without an `&` at the member value.
+// subslice without an `@` at the member value.
 data Telemetry<'view> {
     #0 readings: @'view [i32];
 }

@@ -1,6 +1,6 @@
 # build_log_observability
 
-`BuildLog::write_line(&mutable builder.log, "...")` — the `&mutable` is required;
+`BuildLog::write_line(@mutable builder.log, "...")` — the `@mutable` is required;
 an immutable lend rejects with "the caller lends only immutable access".
 
 Each build activation's log lines surface in `--check` output in

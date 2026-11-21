@@ -6,7 +6,7 @@ A borrowed configuration preserves exclusive access to the original Build
 activation, so binding through its stored view selects the authored entry
 without copying or replacing the activation.
 
-`Configuration` holds `&'activation mutable Build<'storage>`, not an owned
+`Configuration` holds `@'activation mutable Build<'storage>`, not an owned
 activation. A field states the lifetime arguments of every data it names, so
 the record binds `Build`'s own `'storage` as well as the borrow's lifetime
 ([lifetimes](../../../../wiki/spec/language/lifetimes.md#binders-and-source-applications));

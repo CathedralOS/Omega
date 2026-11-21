@@ -31,7 +31,7 @@ public data TypeFrame [copy] {
 
 // The one type grammar every type position shares:
 //
-//     type     = `&` [`'` tag] [`mutable`] type
+//     type     = `@` [`'` tag] [`mutable`] type
 //              | `[` type [`;` length] `]` [`in` Domain]
 //              | Name [`<` argument {`,` argument} `>`] [`in` Domain]
 //     argument = `'` tag | type | integer
@@ -39,7 +39,7 @@ public data TypeFrame [copy] {
 //     Domain   = Name {`::` Name}
 //
 // Types nest, so the grammar keeps an explicit frame stack instead of
-// recursing: `&`, `[` and `Name<` each open a frame, and each completed type
+// recursing: `@`, `[` and `Name<` each open a frame, and each completed type
 // closes the frames above it until one still expects more input. Every row
 // is appended after its children, so one type fills a contiguous run of
 // `SyntaxTrees::type_references` that ends at its root, and every row records
@@ -134,7 +134,7 @@ crashes Trap
         }
     }
 
-    // `&`, then an optional lifetime tag `'tag` before the access modifier
+    // `@`, then an optional lifetime tag `'tag` before the access modifier
     // (wiki/spec/language/lifetimes.md#binders-and-source-applications).
     machine reference_open(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
         take_current(parser, input);

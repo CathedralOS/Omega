@@ -241,8 +241,8 @@ nine reject at checking with status 1:
 | another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `cannot prove ensures contract for exit from forward` |
 
 Every diagnostic names the same obligation, and each prints
-`separate(Held.content(old(&left)), Held.content(old(&right))) ==
-separate(Held.content(&result.left), Held.content(&result.right))`. The call
+`separate(Held.content(old(@left)), Held.content(old(@right))) ==
+separate(Held.content(@result.left), Held.content(@result.right))`. The call
 result twin therefore weakens the inner `carry` requirement too: a wrapper that
 only relaxed its own requirement would fail at the call's requirement
 discharge instead, which is a different obligation.

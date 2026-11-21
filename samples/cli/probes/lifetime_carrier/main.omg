@@ -1,5 +1,5 @@
 // Lifetime-parameterized data: `Carrier<'storage>` holds a
-// `&'storage i32`; `transform<'storage>` passes the lifetime
+// `@'storage i32`; `transform<'storage>` passes the lifetime
 // through its signature so a carried loan round-trips unchanged
 // while a sibling field is rebuilt.
 //

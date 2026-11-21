@@ -3,7 +3,7 @@
 A match on one evaluation of a copyable flag selects an exclusive loan, that
 loan dies at its last use, and the source is usable again after that death.
 
-`choose(&mutable visits)` runs exactly once (`visits == 1` after), and the single
+`choose(@mutable visits)` runs exactly once (`visits == 1` after), and the single
 evaluation selects the exclusive range loan `chosen.value[0..2]` (or, on the
 false arm, `other.value[2..4]`). The write `selected[0] = 41` goes through that
 loan; the read `let written = selected[0]` is the loan's **last use**; after
@@ -30,8 +30,8 @@ same requirements and still replace a source while its selected loan is live.
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness |
 | local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the source is a local `Slot` value and the loan is a range of its case payload |
 | field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the source is a record field (`Box.chosen`) and the loan is a range of that field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the source arrives as a `&mutable Slot` parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `select(&mutable chosen, ...)` returns the exclusive range loan |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the source arrives as a `@mutable Slot` parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `select(@mutable chosen, ...)` returns the exclusive range loan |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | the copyable flag arrives from a match join (`visits == 1` still holds) |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the flag is the named constant `DECIDE` |
 | a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives the source and performs the death/replace sequence |
@@ -105,8 +105,8 @@ cannot drift.
 ### Specification and Lowering Layers
 
 1. **Establishment:** The loan is established where it originates: the single
-   evaluation `choose(&mutable visits)` fixes the first-match arm (requires/ensures
-   `visits == 0`/`true`), the arm expression `&mutable chosen.value[0..2]` forms the
+   evaluation `choose(@mutable visits)` fixes the first-match arm (requires/ensures
+   `visits == 0`/`true`), the arm expression `@mutable chosen.value[0..2]` forms the
    exclusive range loan of the source's case payload, and the match join binds
    it to `selected`. The death point is established at the loan's last use
    (`let written: i64 = selected[0]`), and only after that does the source write

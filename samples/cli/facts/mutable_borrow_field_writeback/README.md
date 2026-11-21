@@ -1,12 +1,12 @@
 # Mutable borrow field writeback
 
-Updating a record field through an exclusive mutable borrow (`&mutable Counter`) and retiring the loan establishes the updated field bound (`counter.used <= 80u64`) while preserving unrelated fields, discharging exact subtraction `80u64 - counter.used`.
+Updating a record field through an exclusive mutable borrow (`@mutable Counter`) and retiring the loan establishes the updated field bound (`counter.used <= 80u64`) while preserving unrelated fields, discharging exact subtraction `80u64 - counter.used`.
 
 The original root reproduction is preserved in [main.omg](main.omg) and [build.omg](build.omg).
 
 ## Mechanism
 
-A `&mutable Counter` projection forms an exclusive loan over the *aggregate* `c`,
+A `@mutable Counter` projection forms an exclusive loan over the *aggregate* `c`,
 naming a reference to the original storage rather than a copy of the field
 ([structural access](../../../../wiki/spec/terminal-psi/structural_access.md)).
 The store `r.used = 50u64` therefore writes through that reference into `c`'s
@@ -15,7 +15,7 @@ re-establishes the refined post-loan fact on the owner, so the aggregate later
 reports `c.used == 50u64` while the never-touched `c.limit == 80u64` is
 preserved. That restored field bound is what proves `80u64 - c.used` in range.
 
-This is distinct from `shared_borrow_field_projection` (a `&` projection grants
+This is distinct from `shared_borrow_field_projection` (a `@` projection grants
 no write authority), from `disjoint_field_borrow_windows` (two distinct fields
 held live at once), and from whole-aggregate mutation (the write is projected
 through the aggregate, not applied to a whole-referent replacement).
@@ -59,8 +59,8 @@ consumer reads back from the aggregate.
 | --- | --- | --- |
 | Write `81u64` into a field declared `where used <= 80u64` | static refusal, before native production (`--check` exit 1) | ``machine `main` state `entry` assignment stores a value not provably within its data's `requires` facts`` |
 | Construct `Counter { used: 95u64, … }` against `where used <= 80u64` | static refusal at the construction gate, independent of seeding (`ch12: construction is the gate`) | ``data `Counter` literal violates the default domain: a `requires` fact evaluates FALSE at this construction`` |
-| Two overlapping `&mutable c` loans of the same aggregate | static refusal | ```statement 2 creates local borrow `r2` while local borrow `r1` is still active``` |
-| Write `r.used = 50u64` through a *shared* `&Counter` | static refusal | `assignment requires mutable source access through every reference crossed by its destination` |
+| Two overlapping `@mutable c` loans of the same aggregate | static refusal | ```statement 2 creates local borrow `r2` while local borrow `r1` is still active``` |
+| Write `r.used = 50u64` through a *shared* `@Counter` | static refusal | `assignment requires mutable source access through every reference crossed by its destination` |
 
 The obligation's kind here is a construction/`where`-clause fact plus an exact
 subtraction range obligation, not a value boundary admitting a range, so no
@@ -92,16 +92,16 @@ Run each place with `omega run --both <place>/main.omg`.
 ## Requirements and Evidence
 
 - **Parent outcome:** `CONSERVATION-CONTRACT` / `STRUCTURAL-ACCESS` ([TASKS.md](../../../../TASKS.md)).
-- **Requirement established:** End-to-end nine-place exclusive mutable borrow writeback, loan retirement, and path-sensitive field bound restoration, verifying that mutating a record field through `&mutable Counter` and ending the borrow restores the refined field bound (`counter.used <= 80u64`) while preserving unrelated fields (`counter.limit == 80u64`), statically discharging exact subtraction `80u64 - counter.used`.
+- **Requirement established:** End-to-end nine-place exclusive mutable borrow writeback, loan retirement, and path-sensitive field bound restoration, verifying that mutating a record field through `@mutable Counter` and ending the borrow restores the refined field bound (`counter.used <= 80u64`) while preserving unrelated fields (`counter.limit == 80u64`), statically discharging exact subtraction `80u64 - counter.used`.
 
 Full 8-layer specification and lowering evidence:
 
-- **Establishment:** An exclusive mutable borrow `let r: &mutable Counter = &mutable c;` is created over record `Counter`. Writing `r.used = 50u64;` through the borrow updates the referent field in-place. When the mutable loan `r` retires, the loan restoration window re-establishes the refined post-loan invariant on the owner `c`: `c.used <= 80u64` (governed by `Counter where used <= 80u64`) while unrelated field `c.limit == 80u64` remains preserved without interference. The restored field bound directly proves non-negativity for exact subtraction `80u64 - c.used` without requiring any post-hoc caller equality guard (`transition diff == 30u64 && c.limit == 80u64` verifies the authored output at runtime, rather than manufacturing the proof premise).
-- **Identity and lifetime:** The referent identity is tied strictly to the root storage of `c`. The exclusive borrow `&mutable Counter` temporarily suspends shared or independent access to `c` during the loan duration. Upon loan retirement, the referent identity and all unmodified fields (`limit`) retain their exact pre-loan values, and the modified field `used` reflects the updated writeback value across local variable binding, nested record field projection, parameter passing, machine call returns, match joins, constant bounds, state transitions, machine forwarding, and target-scoped bodies.
+- **Establishment:** An exclusive mutable borrow `let r: @mutable Counter = @mutable c;` is created over record `Counter`. Writing `r.used = 50u64;` through the borrow updates the referent field in-place. When the mutable loan `r` retires, the loan restoration window re-establishes the refined post-loan invariant on the owner `c`: `c.used <= 80u64` (governed by `Counter where used <= 80u64`) while unrelated field `c.limit == 80u64` remains preserved without interference. The restored field bound directly proves non-negativity for exact subtraction `80u64 - c.used` without requiring any post-hoc caller equality guard (`transition diff == 30u64 && c.limit == 80u64` verifies the authored output at runtime, rather than manufacturing the proof premise).
+- **Identity and lifetime:** The referent identity is tied strictly to the root storage of `c`. The exclusive borrow `@mutable Counter` temporarily suspends shared or independent access to `c` during the loan duration. Upon loan retirement, the referent identity and all unmodified fields (`limit`) retain their exact pre-loan values, and the modified field `used` reflects the updated writeback value across local variable binding, nested record field projection, parameter passing, machine call returns, match joins, constant bounds, state transitions, machine forwarding, and target-scoped bodies.
 - **Composition:** The exclusive borrow writeback and post-loan restoration compose across all 9 standard places to statically discharge exact subtraction `80u64 - counter.used`:
   - `local`: loan is taken and retired, and updated field is bound to a local variable `used` before subtracting from `80u64`.
-  - `field`: record `Counter` is stored inside outer record `Container.counter`, and mutated through `&mutable cont.counter`.
-  - `parameter`: mutable reference `&mutable Counter` is passed as an explicit machine parameter `update_counter(&mutable c)`.
+  - `field`: record `Counter` is stored inside outer record `Container.counter`, and mutated through `@mutable cont.counter`.
+  - `parameter`: mutable reference `@mutable Counter` is passed as an explicit machine parameter `update_counter(@mutable c)`.
   - `call_result`: helper machine `mutate_and_return()` performs borrow writeback and returns the updated `Counter`.
   - `match_join`: updated counters converge across divergent match branches.
   - `const_name`: subtraction bound is defined by compile-time named constant `const LIMIT: u64 = 80u64`.

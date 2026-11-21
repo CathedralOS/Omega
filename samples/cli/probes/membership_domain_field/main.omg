@@ -5,7 +5,7 @@
 // construction.
 //
 //   * `data Message where text in NonEmpty` on the header.
-//   * `text: &[u8]` slice-typed field.
+//   * `text: @[u8]` slice-typed field.
 //
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.

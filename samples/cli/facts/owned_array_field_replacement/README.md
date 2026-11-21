@@ -13,8 +13,8 @@ or width variant.
 
 Holder neighbors start at 11/13, its items at [3,1]. Capture the whole previous
 array before install. Root install Requires both old original cells and
-installed(&incoming); its only body statement is holder.items = incoming and
-its Ensures is installed(&holder.items). Packet contains that completed Holder,
+installed(@incoming); its only body statement is holder.items = incoming and
+its Ensures is installed(@holder.items). Packet contains that completed Holder,
 the earlier owned previous array, and a marker. Consume requires the complete
 current installed predicate plus previous[0]==3 and previous[1]==1, and declares
 its result==3. No caller equality guard supplies any of those four value facts.

@@ -3,7 +3,7 @@
 // scalar out before `drop(g)`; `g = Guard { handle: snapshot }`
 // RE-ESTABLISHES the owner so reads after observe the new value.
 //
-//   * `drop_guard(&mutable Guard)` `dropped by` hook.
+//   * `drop_guard(@mutable Guard)` `dropped by` hook.
 //   * Whole-record replacement re-establishes a dropped owner.
 //   * `hits` records the reached arm.
 //

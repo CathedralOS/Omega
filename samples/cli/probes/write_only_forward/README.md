@@ -1,13 +1,13 @@
 # Write-Only Forward
 
-Compile-scope probe: `&write` write-only projected borrows. No
+Compile-scope probe: `@write` write-only projected borrows. No
 standard-library dependency.
 
-- `replace(destination: &write i32, value)` — the callee assigns
+- `replace(destination: @write i32, value)` — the callee assigns
   `destination = value` with no deref spelling and can never read
   the pointee.
-- A `&write` parameter forwards by re-projection:
-  `&write destination` passes the same write loan deeper through a
+- A `@write` parameter forwards by re-projection:
+  `@write destination` passes the same write loan deeper through a
   state hop.
 - `neighbor` untouched — the loan sees only its target.
 

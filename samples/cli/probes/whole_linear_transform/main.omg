@@ -1,11 +1,11 @@
-// Whole-owner extraction through `&mutable`: `repair(&mutable
+// Whole-owner extraction through `@mutable`: `repair(@mutable
 // Inventory)` lifts the whole linear owner out of its place,
 // feeds it through a conditional transform that may drop and
 // rebuild, then stores the result back. The place is empty for
 // exactly the transform's duration.
 //
 //   * `let removed: Inventory = inventory;` — affine take
-//     through a `&mutable` borrow.
+//     through a `@mutable` borrow.
 //   * Conditional state machine rebuilds or preserves.
 //
 // Compile-checked only: no standard-library dependency, no

@@ -10,7 +10,7 @@
 //     exact.
 //   * `calls = ((calls as +Wrapping) + 1) as -Wrapping`
 //     — domain-cast + erase around an increment gives
-//     wrapping count semantics through a `&mutable` param.
+//     wrapping count semantics through a `@mutable` param.
 //
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.

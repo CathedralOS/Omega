@@ -1,5 +1,5 @@
 // The compiler-owned build log facet takes an explicit operand:
-// `BuildLog::write_line(&mutable builder.log, text)` — the line is
+// `BuildLog::write_line(@mutable builder.log, text)` — the line is
 // retained in the build observation summary and emitted with the
 // compile's other output.
 machine build(builder: @mutable Build) {

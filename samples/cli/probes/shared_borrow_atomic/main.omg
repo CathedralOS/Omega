@@ -1,4 +1,4 @@
-// Atomic ops mutate an AtomicU32 through a SHARED `&Cell` borrow — no
+// Atomic ops mutate an AtomicU32 through a SHARED `@Cell` borrow — no
 // ordinary-write grant on the enclosing record is needed.
 data Cell { value: AtomicU32; }
 machine Cell::publish(cell: @Cell, value: u32) {

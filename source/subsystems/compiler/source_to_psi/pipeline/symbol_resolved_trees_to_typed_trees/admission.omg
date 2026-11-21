@@ -155,8 +155,8 @@ crashes Trap
     }
 
     // A bare range meets only a shared-reference destination: a mutable
-    // subrange is written `&mutable items[start..end]`, and an expected
-    // `&mutable [T]` never inserts the borrow
+    // subrange is written `@mutable items[start..end]`, and an expected
+    // `@mutable [T]` never inserts the borrow
     // (wiki/spec/language/expressions.md#borrowed-range-access).
     machine access(wanted: TypeRow, given: TypeRow, actual: u64 in Trapping) -> Admission {
         transition wanted.access == ReferenceAccess::Shared {
@@ -165,8 +165,8 @@ crashes Trap
         }
     }
 
-    // A `&write T` destination carries a mutable reference to `T`; whether
-    // the attenuation is spelled `&write` at the argument is judged where
+    // A `@write T` destination carries a mutable reference to `T`; whether
+    // the attenuation is spelled `@write` at the argument is judged where
     // the admission is bound (`typer_admit`), so a candidate taking it is
     // selected and its unspelled attenuation is named, not a missing
     // machine.
@@ -352,7 +352,7 @@ crashes Trap
         _ -> judged(typer, syntax, destination, expression, lend, admission, chosen, written, blamed)
     }
 
-    // A `&write` destination is met only by a `&write` borrow: attenuation
+    // A `@write` destination is met only by a `@write` borrow: attenuation
     // from mutable access, and forwarding, are spelled at the argument
     // (wiki/spec/language/expressions.md#calls-places-and-temporaries).
     machine judged(typer: @mutable Typer, syntax: @SyntaxTrees, destination: u64 in Trapping, expression: u64 in Trapping, lend: bool, admission: Admission, chosen: bool, written: Expression, blamed: u64 in Trapping) -> bool {

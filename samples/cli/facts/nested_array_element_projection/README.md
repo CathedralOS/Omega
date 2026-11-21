@@ -92,7 +92,7 @@ All 18 positive and reject places are pinned in the compiler corpus:
   - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects scaled-index memory loads (`[base + idx * 8]` or indexed addressing modes on `x86_64`/`arm64`), register moves, and 64-bit integer subtraction (`sub`). Low-level register allocators assign register homes and disjoint activation stack-frame slots for array records, and entry prologues and multi-return epilogues honor the `StatePlan` ceiling.
   - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements and indexed array element addresses encode into target ISA machine bytes, basic blocks and jump targets relax with offset reflow, machine-state footprint evidence (`actual_transitive_footprint ⊆ permitted_transitive_use`) validates against target host limits, and direct PE/ELF/Mach-O executables are emitted. Terminal Psi interpretation and native execution agree with exit 0 (`omega run --both`) across host platforms including `windows_x86_64` and `macos_arm64`.
 
-- **What remains open:** Dynamic array slice projections (`&row.cells[start..end]`), multi-dimensional nested array stride indexing, and mutable slice borrows (`&mutable row.cells[idx]`).
+- **What remains open:** Dynamic array slice projections (`@row.cells[start..end]`), multi-dimensional nested array stride indexing, and mutable slice borrows (`@mutable row.cells[idx]`).
 
 ## Build-owned target-body migration
 

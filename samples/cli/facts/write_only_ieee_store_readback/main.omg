@@ -1,4 +1,4 @@
-// Fact: a computed IEEE f64 stored through a write-only borrow (&write) preserves its exact bit pattern on readback, satisfying the 0.75 comparison across all nine places.
+// Fact: a computed IEEE f64 stored through a write-only borrow (@write) preserves its exact bit pattern on readback, satisfying the 0.75 comparison across all nine places.
 // Expected exit: 0
 
 machine store(r: @write f64) {

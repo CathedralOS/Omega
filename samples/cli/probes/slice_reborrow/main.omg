@@ -1,9 +1,9 @@
-// Slice reborrow: `&mutable [u64]` received as a param re-projects as
-// `&mutable buf` into a second machine — the borrow of a borrow keeps
+// Slice reborrow: `@mutable [u64]` received as a param re-projects as
+// `@mutable buf` into a second machine — the borrow of a borrow keeps
 // the unsized element surface. Unconditional `transition { _ -> }`
 // routes are plain jumps.
 //
-//   * `drain(buf: &mutable [u64], ...)` → `probe(&mutable buf, ...)` —
+//   * `drain(buf: @mutable [u64], ...)` → `probe(@mutable buf, ...)` —
 //     reborrow of a mutable slice param.
 //   * `hits` records the reached arm.
 //

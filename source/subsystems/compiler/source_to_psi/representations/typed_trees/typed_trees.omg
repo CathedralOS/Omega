@@ -22,7 +22,7 @@ public data TypeKind [copy] {
     case Builtin;
     // A data declaration (`item`), applied to the argument run.
     case Data;
-    // `&T` or `&mutable T`: `access` over `inner`.
+    // `@T` or `@mutable T`: `access` over `inner`.
     case Reference;
     // `[inner; length]`, with its `in` qualifier; `length` is the handle of
     // its extent's type, a static integer or a `const` generic parameter
@@ -158,7 +158,7 @@ public data TypeDiagnosticCode [copy] {
     // An assignment to a place no mutable binding or exclusive reference
     // reaches.
     case ImmutablePlace;
-    // A `&write` destination met by anything but a `&write` borrow:
+    // A `@write` destination met by anything but a `@write` borrow:
     // write-only attenuation is spelled where the loan forms
     // (wiki/spec/language/expressions.md#calls-places-and-temporaries).
     case ImplicitAttenuation;
@@ -838,7 +838,7 @@ public machine type_row_carrier(row: TypeRow) -> TypeRow {
 }
 
 // Whether two rows qualify one carrier: equal once their qualifiers are
-// removed, a reference's from its referent (`&[u8] in Path` qualifies the
+// removed, a reference's from its referent (`@[u8] in Path` qualifies the
 // slice it refers to).
 // The type a reference row's referent has, through every reference layer;
 // any other type itself.

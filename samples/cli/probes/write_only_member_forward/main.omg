@@ -1,11 +1,11 @@
-// Write-only loans project through members: `&write
-// Pair` forwards into a state that re-lends `&write
+// Write-only loans project through members: `@write
+// Pair` forwards into a state that re-lends `@write
 // destination.left` — the attenuation composes member-
 // wise while the sibling field stays untouched.
 //
-//   * `forward(&write pair, choose_left, value)` —
+//   * `forward(@write pair, choose_left, value)` —
 //     one write-only record loan, two member routes.
-//   * `replace(&write destination.left, value)` —
+//   * `replace(@write destination.left, value)` —
 //     member projection carries the qualifier.
 //
 // Compile-checked only: no standard-library dependency, no

@@ -3,7 +3,7 @@
 Compile-scope probe. No standard-library dependency (relation_trait_machine
 imports omega::language::core::relation — depend-free proof module).
 
-- shared_mut_borrow_params: `strike(attacker: &Player, defender: &mutable
+- shared_mut_borrow_params: `strike(attacker: @Player, defender: @mutable
   Player, damage)` — shared+mutable borrows of the SAME type as
   sibling params.
 - self_compare_fold: `transition value < value` self-compare —

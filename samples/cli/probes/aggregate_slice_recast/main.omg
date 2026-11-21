@@ -9,12 +9,12 @@
 // byte of native padding per element — success also
 // proves element stride.
 //
-//   * `&main.source as &[Wide]` — read-side weakening.
-//   * `&mutable main.source as &mutable [Exact]` — mutable
+//   * `@main.source as @[Wide]` — read-side weakening.
+//   * `@mutable main.source as @mutable [Exact]` — mutable
 //     re-view, exact sets.
 //   * Recast-carried views index like arrays
 //     (`read[0].unsigned_value`) — unlike whole-collection
-//     `&xs[..]` views, whose operators are package-blocked.
+//     `@xs[..]` views, whose operators are package-blocked.
 //
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.

@@ -1,9 +1,9 @@
 // Deep-field views from an owned arrival: `check(packet: Packet)`
-// receives owned state, then `&packet.samples.items[..]` lends the
+// receives owned state, then `@packet.samples.items[..]` lends the
 // doubly-nested array as a slice while the owning record stays
 // readable beside the loan.
 //
-//   * `&packet.samples.items[..]` nested-field view.
+//   * `@packet.samples.items[..]` nested-field view.
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit

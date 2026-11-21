@@ -3,9 +3,9 @@
 // `View<'left>` holding only `first`, so `second`
 // stays independently usable after the call.
 //
-//   * `data View<'buf> { body: &'buf mutable i32 }` —
+//   * `data View<'buf> { body: @'buf mutable i32 }` —
 //     erased lifetime argument on borrow-carrying data.
-//   * `first: &'left mutable i32` / `second: &'right mutable
+//   * `first: @'left mutable i32` / `second: @'right mutable
 //     i32` — two sources, the result keeps `'left`.
 //   * `second = 1` writes through the unretained loan
 //     while `selected.body` is live.

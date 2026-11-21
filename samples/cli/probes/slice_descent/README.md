@@ -9,8 +9,8 @@ standard-library dependency.
   count in a `depth` accumulator — `walk(...) + 1` feeding an
   operand is rejected as non-tail self-recursion (measured recursion
   amendment).
-- `&main.entries[..]` — whole-array shared slice view; the `&mutable`
-  entry borrow weakens to `&` for the callee.
+- `@main.entries[..]` — whole-array shared slice view; the `@mutable`
+  entry borrow weakens to `@` for the callee.
 
 Compile-checked only (no ProcessExit provider):
 

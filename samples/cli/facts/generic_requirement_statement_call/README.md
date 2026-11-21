@@ -26,7 +26,7 @@ counters read 9 and 5. `Counting::record` ignores the borrowed value and stores
 provider with its own arguments and with each instantiation of `T`.
 
 Each twin changes only the explicit operand from `T` to `u64`. The substituted
-formal is then `&u64` and the argument is `&T`.
+formal is then `@u64` and the argument is `@T`.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -46,10 +46,10 @@ arm reads the wrong counter. The target-body place selects four named
 implementations of `Mark`, one per hosted target, through `Build` rows; the
 bodies differ in their binder spellings and write the same label.
 
-Each twin passes `&label` where the substituted formal is `&T`. The repaired
+Each twin passes `@label` where the substituted formal is `@T`. The repaired
 checker rejects it in the generic template with ``argument `value` for state
-`record` expects `&T` ``. Before the repair the twin reported only the two
-instantiated copies, ``expects `&i32` `` and ``expects `&u8` ``, so the open-`T`
+`record` expects `@T` ``. Before the repair the twin reported only the two
+instantiated copies, ``expects `@i32` `` and ``expects `@u8` ``, so the open-`T`
 fragment pins the repair.
 
 On Windows x86_64, with the optimized producer built from `0402685c2f2` plus this change,
@@ -63,7 +63,7 @@ Linux, macOS, and QEMU were not run; the other hosted targets are bound, not exe
   `label`. No caller guard re-establishes either.
 - **Identity:** the requirement's `T` and the caller's `T` are distinct binders
   that share a spelling. The call substitutes one for the other, so the formal
-  `&T` of the requirement reads as the caller's `&T`.
+  `@T` of the requirement reads as the caller's `@T`.
 - **Composition:** every place hands the same borrow to the call through a local,
   a field, a parameter, a call result, a match join, a named constant, a nested
   machine, another machine, or a Build-selected implementation.

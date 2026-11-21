@@ -1,10 +1,10 @@
-// Selector evaluates once: `tokens[select(&mutable cursor)] =
-// replacement(&mutable cursor)` — the index computation runs
+// Selector evaluates once: `tokens[select(@mutable cursor)] =
+// replacement(@mutable cursor)` — the index computation runs
 // before the replacement call, and the store consumes its
 // saved coordinate rather than re-evaluating. `select`
 // mutates `index` but the array store still hits slot 0.
 //
-//   * `machine select(cursor: &mutable Cursor) -> u64 ensures
+//   * `machine select(cursor: @mutable Cursor) -> u64 ensures
 //     result == 0` contract on the selector.
 //   * Element-wise array member writes.
 //

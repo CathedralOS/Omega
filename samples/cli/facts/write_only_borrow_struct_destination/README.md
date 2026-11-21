@@ -1,6 +1,6 @@
 # Write-only borrow struct destination
 
-Fact: Initializing a destination storage slot through a write-only borrow (&write) establishes definite initialization and the post-write upper bound (written <= 95u64), discharging exact subtraction 95u64 - written across all nine places.
+Fact: Initializing a destination storage slot through a write-only borrow (@write) establishes definite initialization and the post-write upper bound (written <= 95u64), discharging exact subtraction 95u64 - written across all nine places.
 
 Owning Task: `CONSERVATION-CONTRACT` / `LAYOUT-PLANS` (`TASKS.md`)
 Claim Ticket: `0f97c9ed8ebe4f85a776303e1d14b298`
@@ -9,7 +9,7 @@ Claim Ticket: `0f97c9ed8ebe4f85a776303e1d14b298`
 
 | Place | Positive Program | Reject Twin (invalid) | Transport Mechanism |
 | --- | --- | --- | --- |
-| root | [`main.omg`](main.omg) | — | canonical root witness initializing destination slot via `&write` before exact subtraction |
+| root | [`main.omg`](main.omg) | — | canonical root witness initializing destination slot via `@write` before exact subtraction |
 | local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | The initialized slot value is bound to a local variable before exact subtraction. |
 | field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | The initialized slot value is stored in and retrieved from a record carrier field before exact subtraction. |
 | parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | The initialized slot value is passed as an explicit machine parameter before exact subtraction. |
@@ -44,9 +44,9 @@ Every positive place and the root witness observe `native exit 0` and `interp ex
 
 ### Measured Discrimination and Obligation Class
 
-In each positive place, caller storage starts at `DestinationSlot { written: 0u64 }` and is lent via `&write slot` to `initialize_destination(destination: &write DestinationSlot)`, which stores `35u64` into `destination.written` under domain `WrittenBound(v) requires v <= 95u64`.
+In each positive place, caller storage starts at `DestinationSlot { written: 0u64 }` and is lent via `@write slot` to `initialize_destination(destination: @write DestinationSlot)`, which stores `35u64` into `destination.written` under domain `WrittenBound(v) requires v <= 95u64`.
 Upon loan completion, owner read authority is restored with static guarantee `written <= 95u64`.
-Exact subtraction `95u64 - slot.written` discharges cleanly at compile time and evaluates to `60u64` at runtime (whereas an unexecuted `&write` store would leave `written == 0u64`, evaluating to `95u64` and trapping).
+Exact subtraction `95u64 - slot.written` discharges cleanly at compile time and evaluates to `60u64` at runtime (whereas an unexecuted `@write` store would leave `written == 0u64`, evaluating to `95u64` and trapping).
 The caller verifies `diff == 60u64`, transitioning to `done()` with exit 0.
 
 Measured on `windows_x86_64` with `omega-latest.exe run --both`:
@@ -57,7 +57,7 @@ Measured on `windows_x86_64` with `omega-latest.exe run --both`:
 | 1-token demanded-value perturbation | `diff == 60u64` -> `diff == 61u64` | `native exit -1073741795` (`0xC000001D` trap) | `interp crash: Trap (host presentation agrees)` |
 | 1-token stored-value perturbation | `destination.written = 35u64` -> `destination.written = 36u64` | `native exit -1073741795` (`0xC000001D` trap) | `interp crash: Trap (host presentation agrees)` |
 
-**Obligation class**: This fact combines a **compile-time loan/definite-initialization gate** (`&write` write-only borrow authority and post-loan readability restoration in `wiki/spec/terminal-psi/loans.md` and `wiki/spec/build/calling_plans.md`) with a **value-bound exact arithmetic proof obligation** (`WrittenBound(v) requires v <= 95u64` discharging `95u64 - written` under decision 17). Reading through `&write` or failing to initialize the borrowed destination is rejected statically by loan/initialization checking, and widening the post-write domain bound from `v <= 95u64` to `v <= 96u64` is rejected statically by exact-arithmetic proof checking across all nine places.
+**Obligation class**: This fact combines a **compile-time loan/definite-initialization gate** (`@write` write-only borrow authority and post-loan readability restoration in `wiki/spec/terminal-psi/loans.md` and `wiki/spec/build/calling_plans.md`) with a **value-bound exact arithmetic proof obligation** (`WrittenBound(v) requires v <= 95u64` discharging `95u64 - written` under decision 17). Reading through `@write` or failing to initialize the borrowed destination is rejected statically by loan/initialization checking, and widening the post-write domain bound from `v <= 95u64` to `v <= 96u64` is rejected statically by exact-arithmetic proof checking across all nine places.
 
 ### Invalid controls and reject twins
 
@@ -83,12 +83,12 @@ exact arithmetic in machine ... may overflow `u64`: the operands are not provabl
 
 ## Requirements and Evidence (AGENTS.md)
 
-- **Establishment**: Calling `initialize_destination(destination: &write DestinationSlot)` lends destination storage exclusively via write-only borrow authority, executing a verified store `destination.written = 35u64;` satisfying the `WrittenBound(v) requires v <= 95u64` domain predicate.
+- **Establishment**: Calling `initialize_destination(destination: @write DestinationSlot)` lends destination storage exclusively via write-only borrow authority, executing a verified store `destination.written = 35u64;` satisfying the `WrittenBound(v) requires v <= 95u64` domain predicate.
 - **Identity and lifetime**: The write-only loan suspends caller readability and preserves frame storage identity. Normal return concludes the loan window, restoring owner read authority along with the refined post-write domain fact `written <= 95u64` across value bindings, carrier fields, parameter passing, return values, branch joins, named constants, state transitions, helper machines, and target-scoped bodies.
 - **Composition**: In each place, the restored domain fact `written <= 95u64` composes directly with exact subtraction `95u64 - written` under contract `ensures result <= 95u64`, proving non-negative range without post-hoc caller equality guards.
 - **Soundness boundaries**: In every reject twin, widening the post-write bound to `v <= 96u64` causes the static checker to refuse compilation under decision 17 (exact arithmetic proof obligation), proving that potential underflow cannot bypass semantic checks.
 - **Checked-to-Terminal Psi lowering (`Psi 06–08`)**: The write-only borrow, indirect store, and post-loan owner readability restoration lower cleanly into canonical target-neutral Terminal Psi (`PSITERM\0`) with explicit `WriteOnlyBorrow` access and execute identically in the Terminal Psi interpreter (`omega run --both`).
-- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Backend provider planning maps destination record homes into target layout plans, lowering `&write DestinationSlot` into direct pointer passing across ABI register conventions (RCX on `windows_x86_64`, RDI on `linux_x86_64`, X0 on `macos_arm64` and `linux_arm64`).
+- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`)**: Backend provider planning maps destination record homes into target layout plans, lowering `@write DestinationSlot` into direct pointer passing across ABI register conventions (RCX on `windows_x86_64`, RDI on `linux_x86_64`, X0 on `macos_arm64` and `linux_arm64`).
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`)**: Backend code generation realizes the indirect 64-bit store and subsequent frame reload, maintaining disjoint stack activation storage and bounded stack frames without live-across-call spill corruption.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission)**: Native image emission links entry symbols and branch displacements into complete PE/ELF/Mach-O binaries that execute natively and agree with Terminal Psi on exit 0 across all four hosted platforms.
 ## Build-owned target selection migration

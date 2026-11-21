@@ -1,10 +1,10 @@
 // Inside a transition arm, the bound payload can be
-// borrowed and forwarded into another machine's `&`
-// parameter: `Payload::read_at(&p, position)` reads the
+// borrowed and forwarded into another machine's `@`
+// parameter: `Payload::read_at(@p, position)` reads the
 // arm-bound `p` without moving it.
 //
-//   * `Sum::Found { p } -> (Payload::read_at(&p,
-//     position))` — `&p` borrows the destructured
+//   * `Sum::Found { p } -> (Payload::read_at(@p,
+//     position))` — `@p` borrows the destructured
 //     payload inside the arm result.
 //   * Nested sums: the inner `Payload` has its own
 //     `transition payload` dispatching Leaf/Empty.

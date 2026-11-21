@@ -1,11 +1,11 @@
-// Two `&mutable` arguments from sibling fields of the same
-// owner in one call: `Sink::fill(&mutable main.sink,
-// &mutable main.buf[..])` — the receiver and a whole-array
+// Two `@mutable` arguments from sibling fields of the same
+// owner in one call: `Sink::fill(@mutable main.sink,
+// @mutable main.buf[..])` — the receiver and a whole-array
 // mutable byte slice are disjoint loans coexisting for
 // the call's duration.
 //
-//   * `&mutable main.buf[..]` — `[..]` projects a fixed byte
-//     array as a `&mutable [u8]` argument rooted at a field
+//   * `@mutable main.buf[..]` — `[..]` projects a fixed byte
+//     array as a `@mutable [u8]` argument rooted at a field
 //     path.
 //   * The callee mutates both sides: `bytes[0] = 9`
 //     through the slice, `sink.filled` on the receiver.

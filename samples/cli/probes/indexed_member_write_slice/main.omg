@@ -1,6 +1,6 @@
 // An indexed member write reads back through a slice view:
-// `main.rooms[index].exit_count = 7` then `&main.rooms[..]` —
-// `room_slice[index].exit_count` — plus `&Main` immutable receiver states.
+// `main.rooms[index].exit_count = 7` then `@main.rooms[..]` —
+// `room_slice[index].exit_count` — plus `@Main` immutable receiver states.
 data Room { exit_count: i32; }
 data Main { rooms: [Room; 2]; }
 machine Main::main(main: @mutable Main) {

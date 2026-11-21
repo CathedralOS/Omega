@@ -1,7 +1,7 @@
 // One call argument reads a field while another lends a sibling field. The
 // loans are judged per field path: reading `handle.fd` beside
-// `&mutable handle.status` touches no lent storage, and reading `table.count`
-// beside the shared loan `&table.items[..]` only reads.
+// `@mutable handle.status` touches no lent storage, and reading `table.count`
+// beside the shared loan `@table.items[..]` only reads.
 data Status { size: u64; mode: u64; }
 data Handle { fd: u64; status: Status; }
 data Table { count: u64; items: [u64; 4]; }

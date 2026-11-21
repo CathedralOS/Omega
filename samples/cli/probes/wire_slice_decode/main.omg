@@ -1,12 +1,12 @@
-// Wire round-trip on a borrowed `&[u8]` member: `#0 bytes:
-// &[u8]` synthesizes `Blob::encode`/`Blob::decode` — decode
+// Wire round-trip on a borrowed `@[u8]` member: `#0 bytes:
+// @[u8]` synthesizes `Blob::encode`/`Blob::decode` — decode
 // reads a byte-length varint, bounds-checks, then stores a
 // fat `{ptr, len}` descriptor VIEWING the decode buffer in
 // place (no allocator, no copy) and advances the cursor
 // past content. Re-encoding the decoded view reproduces
 // the same frame.
 //
-//   * `data Blob { #0 bytes: &[u8]; }` — wire-tagged
+//   * `data Blob { #0 bytes: @[u8]; }` — wire-tagged
 //     borrow member; `data BlobSample` is the plain decode
 //     target with the same shape.
 //   * `WireVerdict` sum: `Invalid` is ZII — an untouched

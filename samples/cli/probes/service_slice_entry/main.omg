@@ -1,13 +1,13 @@
 // A Fused entry receiver keeps its Terminal attachment
 // identity while it lends a fixed array field to a
 // checked-body callee on a borrowed slice view —
-// `&mutable main.items` seeds `buf: &mutable [u64]` through the
+// `@mutable main.items` seeds `buf: @mutable [u64]` through the
 // ordinary borrowed-view presentation.
 //
 //   * `boundary trait Ping` + `data PingProvider`
 //     satisfies — the provider is a static slot selected by
 //     build.omg; there is no carrier field.
-//   * `Worker::drain(buf: &mutable [u64], filter: &Filter,
+//   * `Worker::drain(buf: @mutable [u64], filter: @Filter,
 //     index: u64)` attached worker machine on an
 //     empty-carrier Worker.
 //

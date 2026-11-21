@@ -1,12 +1,12 @@
-// `&write` is a write-only projected borrow: the callee assigns
+// `@write` is a write-only projected borrow: the callee assigns
 // `destination = value` with no deref spelling and can never read
-// the pointee. A `&write` parameter forwards by re-projection —
-// `&write destination` passes the same write loan deeper.
+// the pointee. A `@write` parameter forwards by re-projection —
+// `@write destination` passes the same write loan deeper.
 //
-//   * `machine replace(destination: &write i32, value: i32)` —
+//   * `machine replace(destination: @write i32, value: i32)` —
 //     write-only leaf.
 //   * `forward` transitions through a state spelling
-//     `&write destination` at each hop.
+//     `@write destination` at each hop.
 //   * `neighbor` untouched: the write loan sees only its target.
 //   * `hits` records the reached arm.
 //

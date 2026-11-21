@@ -5,7 +5,7 @@
 // storage. `body`'s own `index < 3` requirement makes
 // `index + 1` exact, no re-guard states needed.
 //
-//   * `machine scan(numbers: &[i32; 3]) -> i32` — borrowed
+//   * `machine scan(numbers: @[i32; 3]) -> i32` — borrowed
 //     whole-array param riding a state cycle.
 //   * `requires index >= 0` + `transition index < 3` —
 //     range arithmetic inside the cycle.

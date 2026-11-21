@@ -1,8 +1,8 @@
-// Provably-disjoint mutable windows: items[0..2] ends where items[2..4] begins, so two live &mutable subslices borrow at once.
+// Provably-disjoint mutable windows: items[0..2] ends where items[2..4] begins, so two live @mutable subslices borrow at once.
 // Expected exit: 0
 //
-//   * `let a: &mutable [i32] = &mutable items[0..2]` + `let b: &mutable [i32] =
-//     &mutable items[2..4]` coexist; writes through both windows.
+//   * `let a: @mutable [i32] = @mutable items[0..2]` + `let b: @mutable [i32] =
+//     @mutable items[2..4]` coexist; writes through both windows.
 //   * `hits` records the reached arm.
 
 data Main {

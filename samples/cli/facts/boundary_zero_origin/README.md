@@ -23,7 +23,7 @@ four hosted targets. `omega run --both` on Linux x86-64 must report native and
 Terminal Psi exit `0`. No foreign host execution is claimed.
 
 1. **Establishment.** Fresh zero construction, a proved returned record or the receiving helper's explicit entry contract establishes the field equation. The changed-field twin cannot consume it.
-2. **Identity and lifetime.** The precondition observes the same live request field at invocation. It grants no post-call preservation through `&mutable Request`; a focused stale post-call consumer rejects.
+2. **Identity and lifetime.** The precondition observes the same live request field at invocation. It grants no post-call preservation through `@mutable Request`; a focused stale post-call consumer rejects.
 3. **Composition.** The request reaches the boundary through a local, record field, helper parameter, returned record, match join, named zero, successor state, forwarding machine or target body. The consumer supplies no new guard proving the field zero.
 4. **Soundness.** Boundary signature selection remains exact; argument effects and mutable writes remain visible. Focused changed-before-call and effectful-argument controls reject at acquire, and post-call stale-field use rejects at its later consumer.
 5. **Checked-to-Terminal Psi (Psi 06–08).** The precondition is checked before invocation; Terminal executes the selected source provider's real mutation and return.

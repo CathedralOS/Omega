@@ -1,11 +1,11 @@
 // Domain-qualified references and linear fields:
-// `counter: &Counter in Counter::Ready` — a borrowed parameter
+// `counter: @Counter in Counter::Ready` — a borrowed parameter
 // that must carry the domain — plus `domain X::Alias = X::Ready`
 // transparent alias, `[Receipt in Issued; 2]` array-of-domained
 // linear values, and `Slot { receipt: Receipt in Issued }`
 // domain'd linear field.
 //
-//   * `is_zero(&Counter in Counter::Ready)` domained borrow.
+//   * `is_zero(@Counter in Counter::Ready)` domained borrow.
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit

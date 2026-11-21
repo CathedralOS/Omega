@@ -1,5 +1,5 @@
 // A nonconstant checked selector reads a constrained scalar field through a
-// call: `data Byte where value >= 0 && value <= 1` + `&main.bytes[position]
+// call: `data Byte where value >= 0 && value <= 1` + `@main.bytes[position]
 // .value` element member borrow.
 data Byte requires value >= 0 && value <= 1 { value: u8; }
 data Main { bytes: [Byte; 4]; }

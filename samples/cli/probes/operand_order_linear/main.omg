@@ -5,7 +5,7 @@
 //
 //   * `drop_token` hook writes `token.value = 0` (mutating
 //     disposition).
-//   * `repair(&mutable Holder)` forwards the field place.
+//   * `repair(@mutable Holder)` forwards the field place.
 //
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.

@@ -1,10 +1,10 @@
-// Mutable-loan returns: a machine's `-> &mutable Room` selects the loan
-// in a transition arm (`true -> &mutable level.rooms[0]`). The returned
+// Mutable-loan returns: a machine's `-> @mutable Room` selects the loan
+// in a transition arm (`true -> @mutable level.rooms[0]`). The returned
 // borrow covers all of `level`, so sibling fields are read BEFORE
 // the loan forms; the disjoint-fields rule keeps the selected room
 // a single-loan target.
 //
-//   * `choose(level, first) -> &mutable Room` — loan as arm result.
+//   * `choose(level, first) -> @mutable Room` — loan as arm result.
 //   * `room.flag = ...` / `room.value = ...` — writes through the
 //     returned borrow.
 //   * `hits` records the reached arm.

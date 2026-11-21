@@ -702,7 +702,7 @@ crashes Trap
 
     // The argument slot holds what was passed; a reference parameter stands
     // for that argument's referent, as reading the parameter does, so a
-    // fact about `index` with `index: &mutable u64` binds to the lent storage.
+    // fact about `index` with `index: @mutable u64` binds to the lent storage.
     machine argument(checker: @mutable Checker, typing: @Typing, offset: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
         let value: Value = argument_value(checker, offset);
         let row: TypeRow = type_table_row(@typing.types, type_handle);

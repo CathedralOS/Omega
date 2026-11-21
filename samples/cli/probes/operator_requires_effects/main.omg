@@ -1,8 +1,8 @@
 // A boundary operator with an operand `requires` clause:
 // `boundary machine == Integer::equal(left, right)`
 // declares `right >= 0`, and the caller's effect-bearing
-// operand discharges it — `prepare(&mutable value)` carries
-// `ensures value >= 0`, so `prepare(&mutable value) == value`
+// operand discharges it — `prepare(@mutable value)` carries
+// `ensures value >= 0`, so `prepare(@mutable value) == value`
 // proves the right operand after the effect lands.
 //
 //   * Boundary operator decl + `requires right >= 0`. The token
@@ -11,7 +11,7 @@
 //     body rather than primitive equality.
 //   * The operands are `i32 in Counted`, the probe's own domain home:
 //     bare i32 operands would join the core's primitive `==` family.
-//   * `prepare` mutates through `&mutable` while returning —
+//   * `prepare` mutates through `@mutable` while returning —
 //     operand evaluation order: effect first, then `value`
 //     read. `prepare` stores 1 and returns 1, so the comparison
 //     holds only when the right operand observes the effect;

@@ -14,7 +14,7 @@ use omega\language\core\ProcessExit;
 // checks that never fire. The verified north star (design record, NOT yet
 // shipped syntax) replaces them entirely:
 //
-//     machine dutch_flag(before: &[Color], items: &mutable [Color])
+//     machine dutch_flag(before: @[Color], items: @mutable [Color])
 //     requires Bag(items) == Bag(before)              // Dafny: old(multiset)
 //     ensures  Seq(items) in Sorted<Color::FlagRank>  // Dafny: forall i,j
 //              Bag(items) == Bag(before)

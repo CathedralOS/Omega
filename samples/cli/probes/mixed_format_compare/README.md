@@ -6,7 +6,7 @@ operand promotes to the wider expression's format, so
 (f32 plateau vs exact f64 sum), while `widen(1.5f32)`
 lands exactly. Also `(calls as u64 in Wrapping) + 1` —
 domain-cast + erase for wrapping counter semantics
-through `&mutable`.
+through `@mutable`.
 
 Compile-checked only: no standard-library dependency and
 no `Main::exit` — run a check target, not native.

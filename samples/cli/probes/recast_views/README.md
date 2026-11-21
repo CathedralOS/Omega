@@ -4,11 +4,11 @@ Compile-scope probe: `as` applied to borrows re-carriers the viewed
 bytes without moving the value, for shared AND mutable views. No
 standard-library dependency.
 
-- `&main.value as &u32` — scalar bit reinterpret (-2 as i32 reads
-  4294967294 as u32); `&main.small as &u8` reads -56 as 200.
-- `&main.bytes[3] as &i16` — a byte pair re-viewed as little-endian
+- `@main.value as @u32` — scalar bit reinterpret (-2 as i32 reads
+  4294967294 as u32); `@main.small as @u8` reads -56 as 200.
+- `@main.bytes[3] as @i16` — a byte pair re-viewed as little-endian
   i16 (254, 255 -> -2).
-- `&mutable main.tail[3] as &mutable [u8]` — a mutable element viewed as the
+- `@mutable main.tail[3] as @mutable [u8]` — a mutable element viewed as the
   slice tail from that index (len 5 of [u8;8]).
 - Borrows forward through states with their established facts:
   `tail.length > 4` in the caller proves `tail[4]` in the callee; the

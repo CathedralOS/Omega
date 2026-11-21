@@ -7,7 +7,7 @@
 // the call. Inside `helper` the same requires then proves
 // the exact subtraction.
 //
-//   * `machine helper(main: &mutable Main) requires
+//   * `machine helper(main: @mutable Main) requires
 //     main.a <= main.b` — requires clause reading caller
 //     fields.
 //   * `machine bounded(param: u32) requires param <= 9` —

@@ -7,7 +7,7 @@ No standard-library dependency.
   predicate, so `classify("quit")` admits the literal without `as`
   (contrast: user-defined requires clauses over slices have no grant
   path — filed gap).
-- `transition text == "quit"` — `==` between a `&[u8] in Utf8` view and
+- `transition text == "quit"` — `==` between a `@[u8] in Utf8` view and
   a literal is content equality, lowered through the same TextEquals
   leaf String uses.
 - States return `u64 in Wrapping` — a result-position domain.

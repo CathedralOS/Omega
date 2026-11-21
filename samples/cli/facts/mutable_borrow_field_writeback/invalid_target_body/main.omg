@@ -1,4 +1,4 @@
-// Updating a record field through an exclusive mutable borrow (&mutable Counter) and retiring the loan establishes the updated field bound (counter.used <= 80u64) while preserving unrelated fields, discharging exact subtraction 80u64 - counter.used.
+// Updating a record field through an exclusive mutable borrow (@mutable Counter) and retiring the loan establishes the updated field bound (counter.used <= 80u64) while preserving unrelated fields, discharging exact subtraction 80u64 - counter.used.
 // Expected rejection: exact arithmetic in machine compute state entry terminal expression may overflow `u64`.
 data Counter [copy] requires used <= 81u64 {
     used: u64;

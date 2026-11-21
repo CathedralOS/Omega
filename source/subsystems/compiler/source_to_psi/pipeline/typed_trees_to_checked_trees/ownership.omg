@@ -57,7 +57,7 @@ use representations\typed_trees\typing_selection;
 // base, whose place the parent uses; `Borrow` lends it shared and
 // `Exclusive` exclusively; `Drop` discards it (a statement's value); `Write`
 // is an assignment's target; `WriteLend` lends it for writing without
-// observation (`&write`).
+// observation (`@write`).
 public data UseRole [copy] {
     case Inspect;
     case Value;
@@ -928,7 +928,7 @@ crashes Trap
     }
 
     // A place reached through a write-only reference is written or lent
-    // `&write`, never read, borrowed otherwise, or inspected
+    // `@write`, never read, borrowed otherwise, or inspected
     // (wiki/spec/language/ownership.md#borrows-and-aliases).
     machine place(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, role: UseRole, borrowed: bool) {
         let observes: bool = role != UseRole::WriteLend && role != UseRole::Measure

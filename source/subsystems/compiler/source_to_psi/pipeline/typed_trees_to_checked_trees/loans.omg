@@ -35,7 +35,7 @@ use representations\typed_trees\typing_expression_type;
 
 // Loans held by locals (wiki/spec/language/ownership.md#borrows-and-aliases).
 // A local whose type holds references holds a loan of every place its
-// initializer lends: a borrow `&place` or `&mutable place`, a range slice a
+// initializer lends: a borrow `@place` or `@mutable place`, a range slice a
 // destination lends, or a reference passed on, directly or as a call's
 // argument (a call's result may borrow from any of them) or a
 // construction's field. A loan lasts until its holder's last use in the
@@ -540,7 +540,7 @@ crashes Trap
     }
 }
 
-// A call lending a local `&write` replaces that local's whole value
+// A call lending a local `@write` replaces that local's whole value
 // without observing it (wiki/spec/language/ownership.md#borrows-and-aliases):
 // its old loans retire, and it holds whatever the call's other arguments
 // lend, as a value a call returns may. Entered at the call after its

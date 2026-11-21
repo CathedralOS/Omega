@@ -1,7 +1,7 @@
 // A sized-array domain borrowed mutably: `domain
 // [u8; 8]::Ascii(bytes) requires ascii_only(bytes)`
 // declares a domain over the whole array type, and
-// `&mutable [u8; 8] in Ascii` lends a domained array — writes
+// `@mutable [u8; 8] in Ascii` lends a domained array — writes
 // through the borrow must preserve the ASCII predicate.
 //
 //   * `ascii_only` — compiler-known byte predicate; no

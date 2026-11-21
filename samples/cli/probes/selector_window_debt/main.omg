@@ -4,7 +4,7 @@
 // the saved coordinate, not the mutated one.
 //
 //   * `let first: Token = tokens[at]` extract.
-//   * `reset(&mutable unrelated)` + `at = 2` mutation mid-window.
+//   * `reset(@mutable unrelated)` + `at = 2` mutation mid-window.
 //   * `tokens[1] = first` store at the literal coordinate.
 //
 

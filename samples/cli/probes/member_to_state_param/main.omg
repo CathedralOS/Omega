@@ -1,5 +1,5 @@
 // An arm-bound record member moves to a state parameter, and a nested leaf of
-// it loans onward as `&inner.leaf` to another state parameter.
+// it loans onward as `@inner.leaf` to another state parameter.
 data Leaf [copy] { v: i32 in Wrapping; }
 data Inner [copy] { leaf: Leaf; other: i32 in Wrapping; }
 data Shape {

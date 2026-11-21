@@ -7,7 +7,7 @@
 //     fixed-extent qualified byte owner.
 //   * `bytes == "gate"` — whole-array equality against
 //     a byte literal.
-//   * `head(&[u8; 4])` lends the plain array as a
+//   * `head(@[u8; 4])` lends the plain array as a
 //     bounded view.
 //
 // Compile-checked only: no standard-library dependency, no

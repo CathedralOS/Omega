@@ -1,10 +1,10 @@
-// Nested-field loans through a borrowed receiver: `&outer.inner`
+// Nested-field loans through a borrowed receiver: `@outer.inner`
 // lends the parameter's nested field — the path's head names the
 // state's own binding even though the member symbol's parent is
 // `Outer`. Works from the entry parameter and from a forwarded
 // state parameter.
 //
-//   * `Inner::inspect(&outer.inner)` and `&outer.inner.value`.
+//   * `Inner::inspect(@outer.inner)` and `@outer.inner.value`.
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit

@@ -1,6 +1,6 @@
 # Value-location alignment
 
-Fact: align_of(value) observes the storage location of a live u64 place, the referent of a &u64, or the first element of a nonempty [u64] slice, and reports that location's guaranteed alignment, at least 8u64 on every hosted target, discharging exact subtraction alignment - 8u64 across all nine places.
+Fact: align_of(value) observes the storage location of a live u64 place, the referent of a @u64, or the first element of a nonempty [u64] slice, and reports that location's guaranteed alignment, at least 8u64 on every hosted target, discharging exact subtraction alignment - 8u64 across all nine places.
 
 Before this row the compiler refused every value argument to `align_of`
 ("takes no value arguments; the queried type is its single `<T>` operand"),
@@ -11,7 +11,7 @@ actually holds. This row supports the `align_of(value)` bullet of
 and [layout queries](../../../../wiki/spec/layouts/plans.md#size-and-alignment-queries).
 
 For example, `align_of(cell)` on a local `cell: u64` reports 8, and
-`align_of(value)` on a parameter `value: &u64` reports the alignment of the
+`align_of(value)` on a parameter `value: @u64` reports the alignment of the
 `u64` it refers to, not of the 8-byte reference. Each positive subtracts 8
 from that result; the subtraction is accepted only because the query proves
 the result is at least 8.
@@ -33,12 +33,12 @@ A second production of the same query observes a borrowed slice:
 [twin](compositions/nonempty_slice/invalid/main.omg) that removes only
 `requires items.length >= 1`. A slice's location is its first element's, which
 exists only for a nonempty view, so the twin rejects with "needs the nonempty
-fact `items.length >= 1`". A `&[u8]` companion reports 1, not the 8 of the
+fact `items.length >= 1`". A `@[u8]` companion reports 1, not the 8 of the
 slice descriptor.
 
 A third production observes a parameter from its own contract:
 [contract requirement](compositions/contract_requirement/main.omg) states
-`requires align_of(value) >= 8u64` on a `&u64` parameter, and every caller
+`requires align_of(value) >= 8u64` on a `@u64` parameter, and every caller
 must satisfy it. Its [twin](compositions/contract_requirement/invalid/main.omg)
 changes only the referent to `u32`, so the clause is false for every caller
 and rejects with "scalar predicate is false: requires contract". Because each
@@ -49,7 +49,7 @@ subtraction fail, which is why the twin changes the storage, not the bound.
 
 The same contract production also observes a field path below a parameter:
 [contract field requirement](compositions/contract_field_requirement/main.omg)
-states `requires align_of(holder.cell) >= 8u64` on a `&Holder` parameter, and
+states `requires align_of(holder.cell) >= 8u64` on a `@Holder` parameter, and
 a companion clause observes the neighbouring `u8` and `u32` fields, whose
 results (1 and 4) the program checks at run time. Its
 [twin](compositions/contract_field_requirement/invalid/main.omg) changes only
@@ -68,7 +68,7 @@ local or parameter, a reference is followed to its referent, and the operand
 leaves the executable call. A borrowed slice is followed to its element
 type, and the request keeps a proof-only `view[0]` index that range checking
 discharges with the same length facts as an ordinary first-element index; it
-is never evaluated, so no element is read and no implicit `&view[0]` loan is
+is never evaluated, so no element is read and no implicit `@view[0]` loan is
 made. From there the query is the same portable
 selected-layout alignment request as `align_of<T>()` over the observed
 storage type, so checking, Terminal Psi, the interpreter and native code all
@@ -84,8 +84,8 @@ guarantee for the location, not its greatest power-of-two divisor.
 Every positive also observes narrower neighbours and checks the exact
 results at run time: a `u8` location must report 1 and a `u32` field 4. A
 query that measured the reference descriptor (8), the whole record, or the
-wrong field would trap. A `&u64` parameter alone cannot tell referent from
-descriptor, since both align to 8; the `&u8` companion in the parameter and
+wrong field would trap. A `@u64` parameter alone cannot tell referent from
+descriptor, since both align to 8; the `@u8` companion in the parameter and
 call-result places does, because its referent reports 1. The match join calls both arms with distinct results
 (8 and 16). The selected-implementation place checks its Build tag (17 for
 x86-64, 29 for AArch64) so a wrong provider row traps.

@@ -474,7 +474,7 @@ crashes Trap
     }
 }
 
-// Whether an expression supplies a live exclusive (`&mutable`) reference.
+// Whether an expression supplies a live exclusive (`@mutable`) reference.
 // A scalar Read consumes the referent's captured value instead.
 public machine exclusive_value(typing: @Typing, handle: u64 in Trapping) -> bool
 crashes Trap
@@ -485,7 +485,7 @@ crashes Trap
     row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared && adaptation != Adaptation::Read
 }
 
-// Whether an expression's value is a shared (`&`) reference.
+// Whether an expression's value is a shared (`@`) reference.
 machine shared_value(typing: @Typing, handle: u64 in Trapping) -> bool
 crashes Trap
 {

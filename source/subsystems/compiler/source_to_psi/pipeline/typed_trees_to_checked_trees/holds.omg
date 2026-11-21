@@ -30,7 +30,7 @@ use representations\typed_trees\typing_selection;
 
 // The places one call holds together (wiki/spec/language/ownership.md#borrows-and-aliases).
 // A call evaluates its arguments in order. An argument that lends a place
-// (`&mutable place`, `&place`, an implicit shared loan, or a reference value)
+// (`@mutable place`, `@place`, an implicit shared loan, or a reference value)
 // holds it until the call returns; a copied read or a computed value holds
 // nothing once the next argument begins. A place lent to a nested call
 // inside an argument stays held when that call, and every call around it,
@@ -518,7 +518,7 @@ crashes Trap
     machine done() {}
 }
 
-// Whether a place access is exclusive: lent `&mutable`, or an exclusive
+// Whether a place access is exclusive: lent `@mutable`, or an exclusive
 // reference passed on rather than read.
 machine exclusive_access(typing: @Typing, node: u64 in Trapping, role: UseRole) -> bool
 crashes Trap

@@ -1,4 +1,4 @@
-// Fact: a `&write` store into a record's reference leaf installs the incoming
+// Fact: a `@write` store into a record's reference leaf installs the incoming
 // descriptor — the stored target reads the new referent's 85 while the
 // displaced referent's 11 and the sibling stamp's 17 stay untouched.
 // Expected exit: 0

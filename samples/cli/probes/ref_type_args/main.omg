@@ -1,10 +1,10 @@
-// `&T` as a static type argument: `ceiling<&Element>()` passes a
-// reference TYPE at the call; `u64[0..=ceiling<&Element>()]` uses
-// the result as a symbolic array bound in a field; `unused<&Element,
+// `@T` as a static type argument: `ceiling<@Element>()` passes a
+// reference TYPE at the call; `u64[0..=ceiling<@Element>()]` uses
+// the result as a symbolic array bound in a field; `unused<@Element,
 // 7>` relays a reference type arg through a generic.
 //
 //   * `machine ceiling<Element>() -> u64`, `data Bounded<Element>`
-//     field bound `where value <= ceiling<&Element>()`.
+//     field bound `where value <= ceiling<@Element>()`.
 //   * `hits` records the reached arm.
 //
 // Compile-checked only: no standard-library dependency, no ProcessExit

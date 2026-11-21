@@ -1,5 +1,5 @@
 // Shared + mutable borrows of the SAME data type as sibling
-// parameters: `strike(attacker: &Player, defender: &mutable Player,
+// parameters: `strike(attacker: @Player, defender: @mutable Player,
 // damage)` — reads from the shared borrow and writes through the
 // unique one.
 //

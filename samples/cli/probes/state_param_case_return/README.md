@@ -1,7 +1,7 @@
 # state_param_case_return
 
 A returned case payload taken from an owned structural state parameter:
-`pc_err(probe: &mutable Probe, kind: Kind) -> Res` returns
+`pc_err(probe: @mutable Probe, kind: Kind) -> Res` returns
 `Res::Error { kind: kind }` — a formal is a Parameter source whose
 consumption is the call's own transfer.
 

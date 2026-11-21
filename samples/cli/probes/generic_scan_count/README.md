@@ -3,7 +3,7 @@
 The program scans borrowed collections with statically selected predicates and
 explicit context. It counts matches over integers, bytes and records, forwards a
 predicate through a generic batch, and returns the first matching integer through
-the bundled `Optional<&T>` type without copying its backing. Expected exit: 0;
+the bundled `Optional<@T>` type without copying its backing. Expected exit: 0;
 a wrong count or first match crashes.
 
 Run after ordinary package preparation:

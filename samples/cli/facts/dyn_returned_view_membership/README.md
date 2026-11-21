@@ -8,7 +8,7 @@ dispatch](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#call-and-forwar
 (structured results keep the requirement's exact type and qualifications) and [byte
 views](../../../../wiki/spec/terminal-psi/byte_views.md).
 
-`Payload::window` takes two `&[u8] in Utf8` views and returns one in `Utf8`.
+`Payload::window` takes two `@[u8] in Utf8` views and returns one in `Utf8`.
 `First` returns its first input and `Second` its second. The caller passes the
 returned view to `classify`, which requires `Utf8` and compares contents:
 `"é"` gives 2, `"abc"` gives 3, anything else 9. `First` must give 2 and
@@ -31,7 +31,7 @@ The places vary where the returned view comes from inside the selected row.
 | selected implementation | Build selects `Selected` for `Reader`; it returns the dispatched view through a local alias | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 The const-name place does not carry the fact. A constant cannot hold the
-returned view: at base `const WORD: &[u8] in Utf8 = "abc";` rejects with
+returned view: at base `const WORD: @[u8] in Utf8 = "abc";` rejects with
 `constant type must permit copying and contain no cleanup, shared ownership,
 or interior mutability`. Its program therefore keeps the local-place alias and
 only names the selectors as constants. It stays as selector-constant coverage;

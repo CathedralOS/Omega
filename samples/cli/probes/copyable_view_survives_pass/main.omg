@@ -4,7 +4,7 @@
 // type, so `consume(main.items)` copies while the live
 // shared view stays valid and reads afterward.
 //
-//   * `let view: &[u32] = &main.items[..]` — live view
+//   * `let view: @[u32] = @main.items[..]` — live view
 //     across the value pass.
 //   * `consume(main.items)` copies — the owner place
 //     keeps its establishment.

@@ -2,8 +2,8 @@
 
 First sample lending a fixed array field from a Fused
 entry receiver: `Ping` is a static provider slot selected
-by `build.omg`, while `Worker::drain(&mutable main.items, ...)`
-projects `[u64; 3]` into `buf: &mutable [u64]` through the
+by `build.omg`, while `Worker::drain(@mutable main.items, ...)`
+projects `[u64; 3]` into `buf: @mutable [u64]` through the
 ordinary borrowed-view presentation.
 
 Compile-checked only: no standard-library dependency and no

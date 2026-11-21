@@ -7,7 +7,7 @@ This probe writes application configuration through the `builder` value.
 - `identifier` sets the macOS `CFBundleIdentifier`.
 - `elf_interpreter.linux_x86_64` sets the exact `PT_INTERP` pathname.
 - `x86_deployment_features` selects `Baseline` or `AvxFma3`.
-- `Optimizations::enable(&mutable builder.optimizations, Optimization::<CaseName>)`
+- `Optimizations::enable(@mutable builder.optimizations, Optimization::<CaseName>)`
   selects an optimization from the shared 55-name vocabulary.
   `Optimizations::emit_report` increments `human_report`. Check mode rejects
   `--disable-optimization` because it executes no optimization stage.

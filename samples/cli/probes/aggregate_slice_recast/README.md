@@ -1,19 +1,19 @@
 # aggregate_slice_recast
 
 First sample re-viewing a typed fixed array as an unsized
-slice of a differently named aggregate: `&source as
-&[Wide]` weakens `signed_value in 0..=100` → `unsigned_value <= 200` on the
-read side; `&mutable source as &mutable [Exact]` uses the same
+slice of a differently named aggregate: `@source as
+@[Wide]` weakens `signed_value in 0..=100` → `unsigned_value <= 200` on the
+read side; `@mutable source as @mutable [Exact]` uses the same
 bit-pattern set both ways; element stride proves through
 trailing bool padding.
 
 ## Learnings
 
 - Recast-carried views index like arrays
-  (`read[0].unsigned_value`) — only whole-collection `&xs[..]` views
+  (`read[0].unsigned_value`) — only whole-collection `@xs[..]` views
   hit the package-blocked `Slice::index`/`range`
   operators.
-- A state holding a `&mutable` recast view may not also read
+- A state holding a `@mutable` recast view may not also read
   the original owner — reads go through the live view
   until its last use.
 

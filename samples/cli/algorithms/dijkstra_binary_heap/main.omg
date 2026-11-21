@@ -4,7 +4,7 @@ use omega\language\core\ProcessExit;
 // min-heap parameterized by an ordering machine binder.
 //
 // `Heap<T>` stores sixteen cells; `push_heap`/`pop_heap` sift by the
-// caller-supplied `machine Less(left: &T, right: &T) -> bool` ordering.
+// caller-supplied `machine Less(left: @T, right: @T) -> bool` ordering.
 // Entries pack `dist * 256 + node` into a u64, so `ent_less` is ordinary
 // u64 comparison ordered distance-major, node as tiebreak. Pop runs lazy
 // Dijkstra: stale heap entries are skipped by the `nd <= dist[node]`

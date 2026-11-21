@@ -205,8 +205,8 @@ machine](other_machine/reborrowed_reference/main.omg), and [another target
 body](target_body/reborrowed_reference/main.omg). Each has an `invalid/main.omg`
 twin changing only the initial window to empty.
 
-`capture` receives an outer `&'use mutable Wrapper`, traverses its stored mutable
-`Bundle` reference and fixed array, and returns a fresh `&'use mutable [u8]` child.
+`capture` receives an outer `@'use mutable Wrapper`, traverses its stored mutable
+`Bundle` reference and fixed array, and returns a fresh `@'use mutable [u8]` child.
 Its source can supply the shorter outer lifetime without becoming inline
 wrapper storage. The return check authenticates the exact state's incoming
 permission, outer referee carrier and stored leaf. It retains the captured

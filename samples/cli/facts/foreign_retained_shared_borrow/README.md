@@ -31,7 +31,7 @@ extent comes from the declared layout; the counted content projection is a
 semantic amount, not an inferred native pointer/count association. The lifetime
 obligation forbids overlapping writes and early disposal. It creates no pointer
 inside `Pending`, copying permission or implicit write-back. The completion's
-observed output has its own explicit `&mutable u64` contract.
+observed output has its own explicit `@mutable u64` contract.
 
 ## Reproduce on Linux
 

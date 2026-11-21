@@ -26,10 +26,10 @@ checks both selector values, so choosing the same arm twice fails at runtime.
 
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
-| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the qualified attributes are reached through a local `view: &Attributes` binding |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the qualified attributes are reached through a local `view: @Attributes` binding |
 | field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the view is stored in `Holder.view` and consumed through the field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `parameter(&attributes)` passes the reference as an explicit parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `keep(&attributes)` returns the same `&'scope Attributes` |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `parameter(@attributes)` passes the reference as an explicit parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `keep(@attributes)` returns the same `@'scope Attributes` |
 | match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `choose` returns the reference through both arm states |
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the zero written at word 3 arrives as the named constant `TERMINATOR = 0` |
 | a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine `inspect` receives the reference |

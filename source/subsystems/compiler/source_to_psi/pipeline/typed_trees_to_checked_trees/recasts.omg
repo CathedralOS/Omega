@@ -12,7 +12,7 @@ use representations\typed_trees\Typing;
 use representations\typed_trees\type_table_row;
 use representations\typed_trees\typing_expression_type;
 
-// A recast `reference as &T` views the operand's storage under `T`
+// A recast `reference as @T` views the operand's storage under `T`
 // (wiki/spec/layouts/recasts.md#shared-and-mutable-views): a shared view
 // needs every valid source representation to be a valid target one, and a
 // mutable view both directions, since every value written through the

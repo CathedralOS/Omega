@@ -30,7 +30,7 @@ use representations\typed_trees\typing_roster;
 
 // Declared domain qualification (wiki/spec/language/domains.md). A value
 // whose type a declared domain qualifies (`value: u64 in Positive`, through
-// a reference for `&[u8] in Path`) satisfies that domain's predicates,
+// a reference for `@[u8] in Path`) satisfies that domain's predicates,
 // decided with the domain's subject binder standing for the value: a
 // parameter's from its body's entry, a qualified local's after its binding.
 // Where a value meets a destination a domain qualifies (a call or jump

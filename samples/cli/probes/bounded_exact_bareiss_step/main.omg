@@ -1,7 +1,7 @@
 use omega\language\core\ProcessExit;
 // Exact Bareiss update after a mutable array store cites its ensures.
 //
-// metabolic_flux_analysis writes minors through `&mutable [i64 in Wrapping; N]`
+// metabolic_flux_analysis writes minors through `@mutable [i64 in Wrapping; N]`
 // and divides only after a hand-written remainder test. This sample stores
 // each Exact factor through one mutable fixed-array parameter. Literal
 // indices cite `cells[i] == n`. A second store cites `cells[index]` for a

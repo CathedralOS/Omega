@@ -1,11 +1,11 @@
 // A value argument auto-borrows at the call site when the
-// callee takes `&T`: `Payload::clone(payload)` passes the
-// arm-bound value where `source: &Payload` is declared —
+// callee takes `@T`: `Payload::clone(payload)` passes the
+// arm-bound value where `source: @Payload` is declared —
 // the call loans the binding, the original stays readable
 // for a later `Payload::read(payload)` on the same value.
 //
 //   * `Payload::clone(payload)` / `Payload::read(payload)`
-//     — auto-borrow into `&Payload` params.
+//     — auto-borrow into `@Payload` params.
 //   * `Selection::Found { payload: Payload::clone
 //     (payload) }` — structural result owns fresh
 //     contents, source payload unaffected.

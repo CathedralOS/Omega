@@ -16,7 +16,7 @@ Run `omega run --both samples/cli/facts/case_payload_stored_loan/main.omg`.
 The root must write 41 into the caller's original Cell, preserve the sibling's
 19, and exit 0 in both Terminal Psi and native execution. The consuming store
 requires its input equal 41. Each place's twin changes only the later
-`store_code(&sibling)` operand to `store_code(&backing)`: the same code still
+`store_code(@sibling)` operand to `store_code(@backing)`: the same code still
 returns 41, but reading the original backing conflicts with the first operand's
 captured exclusive loan. No caller equality guard re-establishes that loan.
 

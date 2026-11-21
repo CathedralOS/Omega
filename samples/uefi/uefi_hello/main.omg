@@ -9,7 +9,7 @@
 // How every piece fits, all in this file + build.omg:
 //   * build.omg sets Subsystem::EfiApplication. The uefi_x86_64 target
 //     emits the PE32+ image that firmware loads.
-//   * `boundary machine Main::run(main: &Main, handle, table: &EfiSystemTable)` is
+//   * `boundary machine Main::run(main: @Main, handle, table: @EfiSystemTable)` is
 //     the EXPORTED CALLABLE: firmware calls it, and the parameter list is the
 //     boundary-trusted shape imposed over the registers it hands us (handle in
 //     RCX, the SystemTable pointer in RDX). The boundary VOUCHES for that
@@ -58,7 +58,7 @@ invokes TextOutput
 {
     main.msg = utf16"Hello from Omega\r\n\0";
     // Project con_out through a frame local (the reference-param deref), then
-    // dispatch OutputString(con_out, &msg) through the firmware's vtable.
+    // dispatch OutputString(con_out, @msg) through the firmware's vtable.
     let con_out: addr = table.con_out;
     TextOutput::output_string(con_out, @main.msg);
     transition { _ -> (0) }

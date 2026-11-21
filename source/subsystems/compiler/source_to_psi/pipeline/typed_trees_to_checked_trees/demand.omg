@@ -43,7 +43,7 @@ use representations\typed_trees\typing_selection;
 //   below its parameters, a slice's length wherever it indexes one;
 // - what each state it jumps to demands below the parameter it passes,
 //   behind the path the argument names (`next(p)` passes the target's
-//   demand on `p` through, `next(&mutable p.output)` prefixes it with `output`);
+//   demand on `p` through, `next(@mutable p.output)` prefixes it with `output`);
 // - what each machine it calls reads below a parameter in its `requires`
 //   facts, behind the path the argument names;
 // - the fields a data declaration's `requires` fact names beside a demanded

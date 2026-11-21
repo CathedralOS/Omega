@@ -1,9 +1,9 @@
-// A `&mutable [u8; 17]` borrowed closed array is a bounded-view carrier:
+// A `@mutable [u8; 17]` borrowed closed array is a bounded-view carrier:
 // the referent stays caller-owned while a state graph forwards the
 // same borrow on every re-entry edge, storing each element through
 // it.
 //
-//   * `write_bytes(out: &mutable [u8; 17], value, width)` — sized-array
+//   * `write_bytes(out: @mutable [u8; 17], value, width)` — sized-array
 //     borrow parameter (not a slice).
 //   * `out[position] = value` through the borrow; `out.length` known.
 //   * `hits` records the reached arm.
