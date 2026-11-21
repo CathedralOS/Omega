@@ -1,0 +1,22 @@
+boundary trait Bytes {
+    machine last<const Count: u64, T [copy]>(bytes: @[T; Count]) -> T reaches none requires Count > 0 crashes none;
+}
+SelectedBytes satisfies Bytes {
+    machine last<const Count: u64, T [copy]>(bytes: @[T; Count]) -> T requires Count > 0 { bytes[Count - 1] }
+}
+
+data Ticket [copy] { number: u64; }
+machine pick<'a>(first: @'a Ticket, second: @'a Ticket, third: @'a Ticket) -> @'a Ticket {
+    let values: [@'a Ticket; 3] = [first, second, third];
+    let selected: @'a Ticket = Bytes::last::<3u64, @'a Ticket>(@values);
+    selected
+}
+machine main() crashes Trap {
+    let one: Ticket = Ticket { number: 7 };
+    let two: Ticket = Ticket { number: 11 };
+    let mut three: Ticket = Ticket { number: 13 };
+    let observed: @Ticket = pick(@one, @two, @three);
+    three.number = 21;
+    transition observed.number == 13 { true -> done(), _ -> bad() }
+    machine done() {} machine bad() { crash Trap; }
+}

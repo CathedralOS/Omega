@@ -29,6 +29,11 @@ program changes only the count supplied to the method.
 | other_machine | [positive](other_machine/main.omg) | [Count 4](invalid_other_machine/main.omg) | `forward` relays to `consume` |
 | target_body | [positive](target_body/main.omg) | [Count 4](invalid_target_body/main.omg) | Build selects `X86Bytes` or `ArmBytes`, the target entry checks tag 17 or 29 |
 
+The [returned reference](returned_reference/main.omg) copies a shared reference
+out of a local array and reads the selected ticket in its caller. The
+[mutation case](invalid_returned_reference/main.omg) writes the ticket before
+that read and must report a conflicting loan.
+
 ## What the programs check
 
 - The requirement and its selected implementation use the same count and

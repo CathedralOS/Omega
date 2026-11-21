@@ -202,7 +202,7 @@ fn boundary_output_dependencies(
     inputs: &[Input],
 ) -> Checked<Vec<BoundaryLifetimeDependency>> {
     use terminal_semantics::descriptor_lifetimes::descriptor_path;
-    use terminal_semantics::descriptor_results::DescriptorSlotKind;
+    use terminal_semantics::references::boundary_lifetime_slots;
 
     let mut dependencies = Vec::new();
     for (_, input) in inputs {
@@ -222,41 +222,18 @@ fn boundary_output_dependencies(
         if parameter.access == StructuralAccess::WriteOnlyBorrow {
             continue;
         }
-        let mut add_dependency = |path: Vec<StructuralPathSegment>| -> Checked<()> {
-            let access =
-                terminal_semantics::references::boundary_descriptor_access(types, parameter, &path)
-                    .ok_or("boundary output lifetime anchor has no readable descriptor")?;
+        for slot in boundary_lifetime_slots(types, parameter, path)? {
+            let path = descriptor_path(types, parameter.structural_type, &slot.path)
+                .ok_or("boundary output lifetime anchor has no exact descriptor path")?;
+            let access = terminal_semantics::references::boundary_descriptor_access(
+                types, parameter, &path,
+            )
+            .ok_or("boundary output lifetime anchor has no readable descriptor")?;
             dependencies.push(BoundaryLifetimeDependency::Stored {
                 argument_index: *argument_index,
                 path,
                 access,
             });
-            Ok(())
-        };
-        if !path.contains(&StructuralPathSegment::AllElements) {
-            add_dependency(path.clone())?;
-            continue;
-        }
-        // Expand a declared family only through the already checked finite
-        // slot inventory. A view with unresolved positions supplies no paths.
-        let mut found = false;
-        for kind in [DescriptorSlotKind::References, DescriptorSlotKind::Views] {
-            let slots = kind
-                .slots(types, parameter.place, parameter.structural_type)
-                .ok_or("boundary output lifetime anchor has no finite slot inventory")?;
-            for slot in slots {
-                let Some(leaf) = descriptor_path(types, parameter.structural_type, &slot.path)
-                else {
-                    continue;
-                };
-                if declared_storage_path(&leaf) == *path {
-                    add_dependency(leaf)?;
-                    found = true;
-                }
-            }
-        }
-        if !found {
-            return Err("boundary output lifetime family has no exact stored descriptor");
         }
     }
     dependencies.sort_unstable();
