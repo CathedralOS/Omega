@@ -79,8 +79,7 @@ pub struct ProductSourceInputs<'a> {
     pub root_binding_requests: &'a [crate::declaration_selection::ProductEntryBinding],
     pub policy: ProductPolicyInputs<'a>,
     /// Package-authenticated declarations and closed operands from dependency Builds.
-    pub default_provider_selections:
-        &'a [crate::compile_product::provider_declarations::RetainedProviderSelection],
+    pub default_provider_selections: &'a [retained_product_selections::RetainedProviderSelection],
     pub native_bindings: NativeBindingInputs<'a>,
     pub layout_selection_authority:
         Option<Arc<dyn crate::compile_time_invocations::BuildTimeSelectionAuthority>>,
