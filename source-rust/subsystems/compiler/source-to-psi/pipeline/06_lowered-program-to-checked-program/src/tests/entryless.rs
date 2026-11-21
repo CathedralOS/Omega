@@ -181,6 +181,57 @@ fn transparent_data_aliases_cannot_erase_a_parameter_property() {
 }
 
 #[test]
+fn declared_callback_lifetimes_bind_in_the_named_owners_parameter_identity() {
+    fn named_key(left: &str, right: &str, captured: &str) -> String {
+        let source = format!(
+            "public data Visit<'item,T> = machine(item: @'item T) -> u64 reaches none crashes none;
+                              machine visit<{left},{right}>(callback: Visit<{captured},u64>) {{}}"
+        );
+        let program = typed(&source);
+        let machine = program
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "visit")
+            .expect("visit declaration");
+        program
+            .machine_callable_identity_text(machine)
+            .expect("named callable identity")
+    }
+    assert_eq!(
+        named_key("'a", "'b", "'a"),
+        named_key("'left", "'right", "'left")
+    );
+    assert_ne!(named_key("'a", "'b", "'a"), named_key("'a", "'b", "'b"));
+}
+
+#[test]
+fn declared_callback_lifetime_aliases_publish_without_an_entry() {
+    let result = judged(
+        "public data Visit<'item,T> = machine(item: @'item T) -> u64;
+         public data VisitRenamed<'other,Element> = machine(item: @'other Element) -> u64;",
+        false,
+    );
+    let RouteVerdict::Accepted(accepted) = result else {
+        panic!("{result:?}");
+    };
+    assert!(accepted.elaboration.module.entry.is_none());
+    assert!(accepted.elaboration.module.machines.is_empty());
+}
+
+#[test]
+fn declared_callback_lifetimes_cannot_hide_an_undeclared_argument() {
+    let source = "public data Erased<'item,T> = T;
+                  machine consume<'owned>(value: Erased<'unknown,u64>) -> u64 { value }";
+    let Err(error) = super::boundary_calls::try_typed(source) else {
+        panic!("an alias may erase the region from the result, not its formation obligation");
+    };
+    assert!(
+        error.message.contains("lifetime argument `'unknown`"),
+        "{error:?}"
+    );
+}
+
+#[test]
 fn whole_subject_acceptance_requires_every_generic_check_form() {
     let typed = typed("machine identity<T>(value: T) -> T { move value }\n");
     let parts = judged_parts(&typed, false);

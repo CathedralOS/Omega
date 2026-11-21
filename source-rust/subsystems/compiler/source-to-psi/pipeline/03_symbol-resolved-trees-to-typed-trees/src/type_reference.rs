@@ -603,6 +603,31 @@ pub(crate) mod alias_uses {
                 )
                 .with_source_span(site));
             }
+            let regions = program
+                .type_reference_table
+                .operand_lifetimes(application.application);
+            for (ordinal, argument) in application.lifetime_arguments.iter().enumerate() {
+                let region = regions
+                    .get(ordinal)
+                    .copied()
+                    .filter(|region| region.declaration.is_valid())
+                    .or_else(|| {
+                        typed::type_identity::lifetime_parameter_identity(
+                            program,
+                            application.supplied_operand_owner,
+                            argument.as_str(),
+                        )
+                    });
+                if region
+                    .and_then(|region| typed::type_identity::lifetime_parameter_name(program, region))
+                    .is_none()
+                {
+                    return Err(Diagnostic::error(format!(
+                        "type alias lifetime argument `'{}` must name a lifetime in its supplying declaration",
+                        argument.as_str().trim_start_matches('\'')
+                    )).with_source_span(site));
+                }
+            }
             for (position, (formal, actual)) in formals.iter().zip(actuals).enumerate() {
                 if formal.kind != typed::data::TypeParameterKind::Type {
                     continue;

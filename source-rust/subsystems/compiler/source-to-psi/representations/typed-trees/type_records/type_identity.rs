@@ -10708,6 +10708,30 @@ impl TypedTrees {
         return_type: TypeReferenceHandle,
     ) -> callable_identity::CallableIdentityParts {
         let binders = callable_type_binders(owner_symbol, type_parameters);
+        // A callback parameter can capture one of this same machine's regions.
+        // Bind it here: identifying its owner by rebuilding this signature
+        // would ask for the identity currently being formed.
+        let lifetime_owner = self.lifetime_declaration_owner(owner_symbol);
+        let lifetimes = declaration_lifetime_parameters(self, lifetime_owner)
+            .unwrap_or_default()
+            .iter()
+            .enumerate()
+            .map(|(ordinal, _)| {
+                (
+                    LifetimeParameterIdentity {
+                        declaration: lifetime_owner,
+                        ordinal,
+                    },
+                    ordinal,
+                )
+            })
+            .collect::<Vec<_>>();
+        let context = TypeIdentityContext {
+            binders: &binders,
+            lifetime_binders: &lifetimes,
+            application_owner: owner_symbol,
+            ..TypeIdentityContext::default()
+        };
         let parameters = parameters
             .iter()
             .map(|parameter| {
@@ -10722,10 +10746,11 @@ impl TypedTrees {
                             CoordinateTag::Const,
                             if parameter.is_const { "yes" } else { "no" },
                         ),
-                        self.type_identity_request_text(TypeIdentityRequest {
-                            binders: &binders,
-                            ..TypeIdentityRequest::ordinary(parameter.type_reference)
-                        }),
+                        identity_context::normalize_type_reference(
+                            self,
+                            parameter.type_reference,
+                            &context,
+                        ),
                     ],
                 )
             })

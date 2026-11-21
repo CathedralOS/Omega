@@ -904,8 +904,7 @@ impl Program<'_> {
                 || parameter.bounds.carry.is_some()
                 || !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
                 || typed.symbols.get(parameter.symbol).parent != alias.symbol
-        }) || !alias.lifetime_parameters.is_empty()
-            || !alias.conformance_bounds.is_empty()
+        }) || !alias.conformance_bounds.is_empty()
         {
             return Err(refuse(
                 diagnostic,
@@ -913,6 +912,12 @@ impl Program<'_> {
                 Unserved::Declaration("type alias with unsupported binders"),
             ));
         }
+        super::places::lifetime_binders(
+            diagnostic,
+            &alias.lifetime_parameters,
+            self.declared_at(alias.symbol),
+        )?;
+        self.lifetime_owner = alias.symbol;
         self.scope = super::type_parameters::rigid_type_scope(parameters);
         self.generic_binders
             .extend(parameters.iter().map(|parameter| parameter.symbol));
