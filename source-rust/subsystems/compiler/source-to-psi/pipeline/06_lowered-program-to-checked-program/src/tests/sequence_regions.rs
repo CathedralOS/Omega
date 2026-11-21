@@ -370,9 +370,33 @@ fn a_returned_slice_element_keeps_the_region_of_its_backing_array() {
 fn each_selector_returns_only_the_child_created_on_its_own_arm() {
     let source = include_str!(
         "../../../../../../../../samples/cli/probes/case_selected_slice_reference/main.omg"
-    ).replace("machine main()", "machine build_entry()");
-    let verdict = judge_build(&source).unwrap();
-    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    )
+    .replace("machine main()", "machine build_entry()");
+    let wrong = source.replace("alternate[0].value == 11", "alternate[0].value == 12");
+    for (program, expect_trap) in [(&source, false), (&wrong, true)] {
+        let verdict = judge_build(program).unwrap();
+        let RouteVerdict::Accepted(accepted) = verdict else {
+            panic!("{verdict:?}")
+        };
+        let status = execute(*accepted, 10_000);
+        if expect_trap {
+            assert!(
+                matches!(status, terminal_interpreter::TerminalExecutionStatus::Crashed(ref crash)
+                    if crash.cause == semantic_vocabulary::CrashCause::Trap),
+                "{status:?}"
+            );
+        } else {
+            assert!(
+                matches!(
+                    status,
+                    terminal_interpreter::TerminalExecutionStatus::Complete(
+                        terminal_interpreter::TerminalExecutionResult::Unit
+                    )
+                ),
+                "{status:?}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -476,13 +500,20 @@ fn inferred_array_extent_is_retained_in_a_lexical_child() {
     assert_integer_result(*accepted, 3);
 }
 
-fn assert_integer_result(accepted: crate::checking::AcceptedClosure, expected: u128) {
+fn execute(
+    accepted: crate::checking::AcceptedClosure,
+    budget: u64,
+) -> terminal_interpreter::TerminalExecutionStatus {
     let publication = accepted.publish_invocation().unwrap();
     let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
     let mut instance = program.instantiate(Default::default()).unwrap();
-    let status = instance
-        .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
-        .unwrap();
+    instance
+        .invoke(&mut terminal_work::WorkMeter::with_budget(budget))
+        .unwrap()
+}
+
+fn assert_integer_result(accepted: crate::checking::AcceptedClosure, expected: u128) {
+    let status = execute(accepted, 1_000);
     assert!(
         matches!(status,
             terminal_interpreter::TerminalExecutionStatus::Complete(

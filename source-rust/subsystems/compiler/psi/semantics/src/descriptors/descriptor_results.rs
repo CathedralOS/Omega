@@ -516,7 +516,8 @@ impl DescriptorMachine {
     /// Both Psi and native operations can present blocks out of value order.
     /// A repeated definition cannot establish the ordinal of a captured index.
     pub fn finish_index_literals(mut self) -> Option<Self> {
-        self.unsigned_index_literals.sort_unstable_by_key(|&(id, _)| id);
+        self.unsigned_index_literals
+            .sort_unstable_by_key(|&(id, _)| id);
         self.unsigned_index_literals
             .windows(2)
             .all(|pair| pair[0].0 != pair[1].0)

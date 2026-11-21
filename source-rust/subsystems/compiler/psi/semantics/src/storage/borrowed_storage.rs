@@ -648,7 +648,10 @@ impl Projection {
         known_index: impl Fn(ValueId) -> Option<u64>,
     ) -> Self {
         let has_window = self.window.is_some()
-            || self.path.iter().any(|step| matches!(step, StructuralPathSegment::FixedRange { .. }));
+            || self
+                .path
+                .iter()
+                .any(|step| matches!(step, StructuralPathSegment::FixedRange { .. }));
         if has_window
             && let Some(segments) = self.origin_path_with(|_, index| known_index(index))
             && let Some(path) = segments
