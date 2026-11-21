@@ -1243,7 +1243,26 @@ mod tests {
         let missing = view(first, "missing");
         let mut program = Program::new(&typed, false);
         let machine = MachineId::new(1).unwrap();
+        let origin = SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent);
+        let quote = |program: &mut Program<'_>| {
+            let literal = program.byte_literal(machine, b"A", None, origin).unwrap();
+            let Some(ValueType::Record(row, Qualification::NONE, regions)) = literal.result else {
+                panic!("an unqualified quoted value has a structural byte view")
+            };
+            assert_eq!(program.region_tuple(regions).len(), 1);
+            row
+        };
+        let from_literal = quote(&mut program);
+        assert!(
+            program
+                .record_sources
+                .get(from_literal)
+                .unwrap()
+                .application
+                .is_none()
+        );
         let a = program.view_type(machine, a).unwrap().unwrap();
+        assert_eq!(quote(&mut program), from_literal);
         assert_eq!(program.view_type(machine, same).unwrap(), Some(a));
         assert_ne!(program.view_type(machine, b).unwrap(), Some(a));
         assert_ne!(program.view_type(machine, c).unwrap(), Some(a));
@@ -1257,6 +1276,7 @@ mod tests {
         let ValueType::Record(a, _, _) = a else {
             panic!("a byte descriptor is structural")
         };
+        assert_eq!(a, from_literal);
         program
             .record_sources
             .get_mut(a)
