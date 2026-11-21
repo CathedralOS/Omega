@@ -92,6 +92,10 @@ fn captured_address_prefix_keeps_field_extensions_and_each_selector_capture() {
 
     let nested = parent.then(&Projection::new(&[field.clone(), selector(2)]).at(second));
     let nested_child = nested.then(&Projection::new(std::slice::from_ref(&field)));
+    assert_eq!(
+        nested_child.index_captures().collect::<Vec<_>>(),
+        [(ValueId::new(1).unwrap(), first), (ValueId::new(2).unwrap(), second)]
+    );
     assert!(parent.captured_address_is_prefix_of(&nested_child));
     assert!(nested.captured_address_is_prefix_of(&nested_child));
     let recaptured = parent.then(&Projection::new(&[field, selector(2)]).at(later));

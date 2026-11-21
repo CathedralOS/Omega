@@ -184,7 +184,7 @@ struct PayloadCapture {
 impl LoanRegion {
     fn respects_parent(&self, parent: &Self) -> bool {
         match (self, parent) {
-            (Self::Storage(child), Self::Storage(parent)) => parent.definitely_contains(child),
+            (Self::Storage(child), Self::Storage(parent)) => parent.contains_reborrow(child),
             // Exact parent identity was already checked through descriptor
             // flow. This adds no assertion about where its bytes reside.
             (Self::Provider, Self::Provider) => true,

@@ -7963,18 +7963,9 @@ mod observation_tests {
         );
     }
 
-    #[test]
-    fn indexed_store_correspondence_expires_with_its_selector_entry() {
-        let source = r#"
-data Placement requires count <= 16 { count: u64; }
-data Plan { placements: [Placement; 2]; }
-machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
-    let selected: u64 = index + 0;
-    plan.placements[selected].count = 1;
-    plan.placements[selected].count
-}
-"#;
-        let typed = crate::prepare_fixture(crate::checking::tests::rankings::typed_with_ranking_catalog(source));
+    fn storage_fixture(source: &str) -> crate::lowering::Elaboration {
+        let typed = crate::checking::tests::rankings::typed_with_ranking_catalog(source);
+        let typed = crate::prepare_fixture(typed);
         let root = typed
             .machines()
             .iter()
@@ -7996,15 +7987,29 @@ machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
             },
             terminal_codec::TerminalPublication::Invocation,
         )
-        .expect("fixture must lower to checker input")
+        .expect("lower the storage fixture")
         .program;
         let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) = prepared
         else {
-            panic!("the indexed storage program must prepare");
+            panic!("prepare the storage fixture");
         };
-        let input = prepared
+        prepared
             .closure
-            .unwrap_or_else(|refusal| panic!("{}", refusal.detail));
+            .unwrap_or_else(|refusal| panic!("{}", refusal.detail))
+    }
+
+    #[test]
+    fn indexed_store_correspondence_expires_with_its_selector_entry() {
+        let source = r#"
+data Placement requires count <= 16 { count: u64; }
+data Plan { placements: [Placement; 2]; }
+machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
+    let selected: u64 = index + 0;
+    plan.placements[selected].count = 1;
+    plan.placements[selected].count
+}
+"#;
+        let input = storage_fixture(source);
         let module = &input.module;
         let machine = module
             .machines
@@ -8161,6 +8166,80 @@ machine entry(plan: @mut Plan, index: u64) -> u64 requires index < 2 {
                 .unwrap()
                 .is_none(),
             "an executable selector must retain its real definition"
+        );
+    }
+
+    #[test]
+    fn a_recaptured_index_cannot_identify_a_previous_iterations_cell() {
+        let input = storage_fixture(
+            include_str!("../tests/fixtures/ownership/run/recaptured_index/main.omg"),
+        );
+        let module = &input.module;
+        let mut compared = false;
+        for machine in &module.machines {
+            let tables = input.tables.machines.get(machine.id).unwrap();
+            let graph = Graph::new(machine.id, machine, tables).unwrap();
+            let types = tables.values.map(|_, row| row.scalar_type);
+            let descriptor_graph = reference_graph(module, machine.id).unwrap();
+            let mut references = DescriptorAnalysis::with_borrowed_storage_slots(
+                &module.types.structural_types,
+                &descriptor_graph,
+            );
+            let storage = Storage::new(
+                machine.id,
+                machine,
+                module,
+                &input.domains,
+                &graph,
+                tables,
+                &types,
+                &mut references,
+            )
+            .unwrap();
+            for block in &machine.blocks {
+                let mut reads = Vec::new();
+                for (before, operation) in block.operations.iter().enumerate() {
+                    let Some(leaf) = storage.read_leaf(operation).unwrap() else {
+                        continue;
+                    };
+                    let address = storage
+                        .backing(
+                            &mut references,
+                            &leaf,
+                            block.id,
+                            before,
+                            Construct::Operation(operation.id),
+                        )
+                        .unwrap();
+                    if address.possible_regions().any(|r| {
+                        r.segments
+                            .iter()
+                            .any(|s| matches!(s, Segment::RuntimeIndex { .. }))
+                    }) {
+                        reads.push(address);
+                    }
+                }
+                if let [saved, fresh] = reads.as_slice() {
+                    for old in saved.captured_regions().filter(|p| p.place == fresh.place) {
+                        compared = true;
+                        assert!(
+                            !old.same_single_region(fresh),
+                            "a new iteration selected another cell"
+                        );
+                        assert!(
+                            overlap(&old, fresh),
+                            "both captures can still reach the array"
+                        );
+                        let crossed = vec![false; graph.block_count()];
+                        assert_eq!(old.relative_suffix(fresh, &crossed), None);
+                        assert_eq!(fresh.relative_suffix(fresh, &crossed), Some(&[][..]));
+                    }
+                }
+            }
+        }
+        assert!(
+            compared,
+            "the saved and fresh reads must reach the recurring capture"
         );
     }
 
@@ -8442,37 +8521,7 @@ machine entry() {
     walk(@bytes[..], @bytes[..], 3, true);
 }
 "#;
-        let typed = crate::prepare_fixture(crate::checking::tests::rankings::typed_with_ranking_catalog(source));
-        let entry = typed
-            .machines()
-            .iter()
-            .find(|machine| machine.name.as_str() == "entry")
-            .unwrap()
-            .symbol;
-        let prepared = crate::lowering::prepare_compilation(
-            &typed,
-            crate::lowering::Compilation {
-                calling: None,
-                providers: None,
-                declaration_metadata: &[],
-                entries: &[entry],
-                subjects: &[],
-                purpose: source_provenance::DependencyScope::Product,
-                selected: &[],
-                bindings: &[],
-                supplies: &[],
-            },
-            terminal_codec::TerminalPublication::Invocation,
-        )
-        .expect("fixture must lower to checker input")
-        .program;
-        let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) = prepared
-        else {
-            panic!("the saved-slice program must prepare");
-        };
-        let input = prepared
-            .closure
-            .unwrap_or_else(|refusal| panic!("saved-slice preparation: {}", refusal.detail));
+        let input = storage_fixture(source);
         let module = &input.module;
         let machine = module
             .machines
