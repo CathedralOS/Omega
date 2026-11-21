@@ -2,6 +2,8 @@
 
 L4 computes the values that typing and lowering need. It consumes L3's selected calls, typed operands, constant initializers and application arguments. Its frozen product carries the typed package, owned constants, closed static identities and the inputs that determined them. For example, a machine returning `3u64` can determine an array extent. Lowering can read the element type and count directly from the prepared signature. [Prepared representation](../../representations/prepared/src/lib.rs) · [Frozen handoff](tests/frozen_handoff.rs) · [Fixed-array consumer](tests/closed_indices.rs)
 
+L3 supplies the exact operands of a wholly anonymous numeric comparison. L4 compares them as rationals and publishes the Boolean at the operation in its defining forest. Constant evaluation uses the same rule. [Preparation tests](tests/owned_floats.rs)
+
 ## Typing and target closure
 
 When preparation stops, its diagnosed entry point identifies the pass that refused the source. L3 can refuse during initial typing or after L4 returns a static value. For example, a computed array width can expose a mismatch only when L3 checks the resulting array type. Both passes retain the original type error and source span. A caller that steps through rounds, supplies a target later, or provides a resource grant receives the same phase and diagnostic. [Failure phases](tests/preparation_failure_phases.rs) · [Target closure](tests/target_layout.rs)

@@ -5,6 +5,14 @@ use omega_typed::{SpecializedIndexValue, TypeError, TypedTrees};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+/// A node number belongs to its defining forest. Library and package file
+/// ordinals can overlap when a library clause is instantiated in the package.
+#[derive(Debug, Default, Eq, PartialEq)]
+pub struct PreparedComparisons {
+    pub package: HashMap<TreeNodeId, bool>,
+    pub library: HashMap<TreeNodeId, bool>,
+}
+
 /// Typed trees whose demanded closed indices have been evaluated and materialized.
 #[derive(Debug, Eq, PartialEq)]
 pub struct PreparedTrees<'text> {
@@ -15,6 +23,7 @@ pub struct PreparedTrees<'text> {
     target_observations: Vec<TargetObservation>,
     resource_receipt: Option<PreparationResourceReceipt>,
     dependencies: PreparationDependencies,
+    exact_comparisons: PreparedComparisons,
     /// Sorted by node, then format.
     landed_floats: Vec<(TreeNodeId, PreparedFloat)>,
 }
@@ -30,6 +39,7 @@ impl<'text> PreparedTrees<'text> {
         target_observations: Vec<TargetObservation>,
         resource_receipt: Option<PreparationResourceReceipt>,
         dependencies: PreparationDependencies,
+        exact_comparisons: PreparedComparisons,
         mut landed_floats: Vec<(TreeNodeId, PreparedFloat)>,
     ) -> Self {
         landed_floats.sort_unstable_by_key(|(node, value)| (*node, value.format() == omega_target_contract::FloatFormat::Binary64));
@@ -43,6 +53,7 @@ impl<'text> PreparedTrees<'text> {
             resource_receipt,
             dependencies,
             landed_floats,
+            exact_comparisons,
         }
     }
 
@@ -62,6 +73,26 @@ impl<'text> PreparedTrees<'text> {
             .map(|(_, value)| *value);
         let first = matches.next()?;
         matches.next().is_none().then_some(first)
+    }
+
+    /// The truth of a selected comparison between two wholly anonymous numbers.
+    pub fn exact_comparison(
+        &self,
+        tree: &omega_typed::TypedTree<'_>,
+        node: usize,
+    ) -> Option<bool> {
+        let facts = if std::ptr::eq(tree.forest(), &self.typed) {
+            &self.exact_comparisons.package
+        } else if self
+            .typed
+            .library
+            .is_some_and(|library| std::ptr::eq(tree.forest(), library))
+        {
+            &self.exact_comparisons.library
+        } else {
+            return None;
+        };
+        facts.get(&tree.resolved().file.node_id(node)).copied()
     }
 
     pub fn typed(&self) -> &TypedTrees<'text> {

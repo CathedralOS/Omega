@@ -252,6 +252,10 @@ pub(crate) fn lower_predicate(
                 let Some(operation) = semantic.operation else {
                     return Err(unsupported("contract predicate has no selected primitive"));
                 };
+                if ty == &ValueType::Bool && let Some(value) = prepared.exact_comparison(tree, node) {
+                    predicate.push(PredicateStep::Boolean(value));
+                    continue;
+                }
                 if operation.token == "type ==" && matches!(owner, ClauseOwner::Template(_)) {
                     let [left, right] = operation.operands.as_slice() else {
                         return Err(unsupported("type equality requires two checked type operands"));

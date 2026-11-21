@@ -1154,6 +1154,16 @@ impl Expressions<'_> {
                     }
                 }
                 let op = selected.ok_or_else(|| unsupported_node(file, expression, "operator has no selected primitive"))?;
+                if carrier == &ValueType::Bool && obligations.is_empty()
+                    && let Some(value) = self.prepared.exact_comparison(tree, expression)
+                {
+                    values.push(block.push_operation(
+                        OperationOutput::Scalar(lookup_type()?),
+                        OperationKind::Constant(ScalarLiteral::Boolean(value)),
+                        site_at(file, expression),
+                    ));
+                    continue;
+                }
                 if node.kind == NodeKind::Cast {
                     let operand = *node
                         .children

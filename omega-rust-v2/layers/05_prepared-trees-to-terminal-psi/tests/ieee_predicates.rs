@@ -394,10 +394,9 @@ fn corrupted_requirements_change_the_reader_verdict() {
 }
 
 /// The parts this repair does not supply still refuse. A qualified formal is
-/// owned by its domain carrier. IEEE arithmetic has no predicate term. An
-/// anonymous rational comparison is exact arithmetic, not an IEEE comparison.
+/// owned by its domain carrier. IEEE arithmetic has no predicate term.
 #[test]
-fn qualified_formals_float_arithmetic_and_rational_comparisons_still_refuse() {
+fn qualified_float_formals_and_float_arithmetic_still_refuse() {
     for (source, at, message) in [
         (
             "domain f32::Small; machine l(a:f32 in Small)->f32 requires (a as -Small) < 1.0 { a as -Small }",
@@ -414,14 +413,37 @@ fn qualified_formals_float_arithmetic_and_rational_comparisons_still_refuse() {
             "-a",
             "float arithmetic in a contract predicate has no Psi term",
         ),
-        (
-            "machine l(a:f32)->f32 requires 1.0 < 0.5 { a }",
-            "1.0 < 0.5",
-            "unsupported contract predicate operator",
-        ),
     ] {
         let start = source.find(at).unwrap();
         let span = if at.starts_with("a as") { start..start + 1 } else { start..start + at.len() };
         sources::refuse(&[("case.omg", source)], "case.omg", span, message);
     }
+}
+
+#[test]
+fn exact_comparisons_publish_the_truth_in_each_psi_context() {
+    let original = "machine l(a:f32)->f32 requires 1.0 < 0.5 { a }";
+    let package = sources::lower(&[("case.omg", original)]).unwrap();
+    let requirement = sole(&machine(&package, "l").contract.requires);
+    let source = "machine g()->bool requires (1 / 3) == (2 / 6) ensures (1 / 3) != (2 / 6) { 1.000000000000000000000000000001 > 1.0 }";
+    let controls = sources::lower(&[("case.omg", source)]).unwrap();
+    let g = machine(&controls, "g");
+    let equal = sole(&g.contract.requires);
+    let unequal = sole(&g.contract.ensures);
+    spec_corpus::observe_handoff!(
+        psi "psi-output/exact-predicate",
+        assert_eq!(
+            (&requirement.predicate[..], &equal.predicate[..], &unequal.predicate[..],
+             g.body.operations.iter().map(|operation| &operation.kind).collect::<Vec<_>>()),
+            (&[PredicateStep::Boolean(false)][..], &[PredicateStep::Boolean(true)][..], &[PredicateStep::Boolean(false)][..],
+             vec![&OperationKind::Constant(ScalarLiteral::Boolean(true))])
+        )
+    );
+    spec_corpus::observe_handoff!(
+        psi "psi-output/exact-predicate-consumer",
+        assert_eq!(
+            [requirement, equal, unequal].map(|clause| evaluate_ieee_clause(clause, &[], None, None)),
+            [Some(false), Some(true), Some(false)]
+        )
+    );
 }

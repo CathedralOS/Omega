@@ -440,6 +440,10 @@ impl ConstantEvaluation<'_, '_> {
                 return Err(UNSUPPORTED_CONTRACT.into());
             };
             let selected = selected_boolean_operation(tree, node)?;
+            if let Some(value) = crate::evaluation::exact_comparisons::value(tree, selected) {
+                execution.values.push(PreparedValue::Bool(value));
+                return Ok(());
+            }
             let [left_type, right_type] = selected.operands.as_slice() else {
                 return Err(UNSUPPORTED_CONTRACT.into());
             };

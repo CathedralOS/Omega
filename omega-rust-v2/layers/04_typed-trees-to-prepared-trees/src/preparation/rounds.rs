@@ -329,6 +329,7 @@ impl<'input, 'text> PreparationRound<'input, 'text> {
                 },
             ) => {
                 // Float landing needs no target: it rounds once to the format.
+                let exact_comparisons = crate::evaluation::exact_comparisons::freeze(&typed);
                 let landed_floats = crate::evaluation::floating_point::landed_floats(&typed);
                 return Ok(PreparationStep::Finished(PreparationProgress::Complete(PreparedTrees::from_preparation(
                     typed,
@@ -338,6 +339,7 @@ impl<'input, 'text> PreparationRound<'input, 'text> {
                     state.target_observations,
                     state.resource_receipt,
                     state.dependencies,
+                    exact_comparisons,
                     landed_floats,
                 ))));
             }

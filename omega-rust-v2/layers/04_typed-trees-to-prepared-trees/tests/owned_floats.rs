@@ -290,3 +290,36 @@ fn runtime_float_literals_publish_their_landed_bits_without_a_target() {
     assert_eq!(landed("16777217.0"), (Some(PreparedFloat::Binary32(0x4B80_0000)), None));
     assert!(prepared.target_observations().is_empty());
 }
+
+#[test]
+fn anonymous_comparisons_keep_exact_order_through_preparation() {
+    for (operator, expected) in [
+        ("==", false),
+        ("!=", true),
+        ("<", false),
+        ("<=", false),
+        (">", true),
+        (">=", true),
+    ] {
+        let source = format!("const C:bool=1.000000000000000000000000000001 {operator} 1.0; machine f()->bool {{(1 / 3) == (2 / 6)}}");
+        let prepared = prepare(&source, None).unwrap();
+        assert_eq!(frozen(&prepared, "C"), &PreparedValue::Bool(expected));
+        let tree = prepared.typed().trees().next().unwrap();
+        let comparisons: Vec<_> = prepared
+            .typed()
+            .operations
+            .iter()
+            .filter_map(|op| Some((op.site.span.slice(source.as_bytes()).unwrap(), prepared.exact_comparison(&tree, op.node.node)?)))
+            .collect();
+        let declaration = format!("1.000000000000000000000000000001 {operator} 1.0");
+        assert_eq!(comparisons.len(), 2);
+        assert!(comparisons.contains(&(declaration.as_bytes(), expected)));
+        assert!(comparisons.contains(&(&b"(1 / 3) == (2 / 6)"[..], true)));
+
+        let other = prepare("machine f()->bool {1.0 != 1.0}", None).unwrap();
+        let foreign = other.typed().trees().next().unwrap();
+        for op in &other.typed().operations {
+            assert_eq!(prepared.exact_comparison(&foreign, op.node.node), None);
+        }
+    }
+}

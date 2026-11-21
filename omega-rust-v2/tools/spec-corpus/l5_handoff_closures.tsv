@@ -116,3 +116,4 @@ store through a write-only record view	checker-input	psi-output/write-only-view-
 reading a stored exclusive reference	checker-input	psi-output/stored-exclusive-transfer
 copy record replacement through a write-only loan	checker-input	psi-output/write-only-copy-record
 float comparison in a contract	product	psi-output/float-contract-requirement|psi-output/float-contract-requirement-consumer
+anonymous rational comparison in a contract predicate	product	psi-output/exact-predicate|psi-output/exact-predicate-consumer

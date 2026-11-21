@@ -1,4 +1,5 @@
 pub(crate) mod constant_evaluation;
+pub(crate) mod exact_comparisons;
 pub(crate) mod floating_point;
 pub(crate) mod integer_arithmetic;
 pub(crate) mod owned_values;
