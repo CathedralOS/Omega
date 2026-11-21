@@ -2138,7 +2138,7 @@ impl<'t> Program<'t> {
         self.inherit_requirement_contract(id, machine, &mut signature, &mut names)?;
         // A machine's header clauses belong to the machine declaration; its
         // formals belong to its one state, which `contract` was given.
-        signature.reaches = self.reach_ceiling(id, machine.symbol, false)?;
+        signature.reaches = self.reach_ceiling(id, machine.symbol, machine.service_reach_row)?;
         signature.invokes = self.entry_ceiling(
             id,
             self.typed.machine_invokes(machine),
@@ -2708,7 +2708,7 @@ impl<'t> Program<'t> {
             &[],
         )?;
         signature.termination = self.termination(id, machine)?;
-        signature.reaches = self.reach_ceiling(id, machine.symbol, false)?;
+        signature.reaches = self.reach_ceiling(id, machine.symbol, machine.service_reach_row)?;
         signature.invokes = self.entry_ceiling(
             id,
             self.typed.machine_invokes(machine),
@@ -3087,6 +3087,7 @@ impl<'t> Program<'t> {
         source: &StateSignature,
         signature: &mut Signature,
     ) -> Checked<()> {
+        signature.reaches = self.reach_ceiling(id, source.symbol, source.service_reach_row)?;
         signature.invokes = self.entry_ceiling(
             id,
             self.typed.state_signature_invokes(source),
@@ -3593,18 +3594,6 @@ impl<'t> Program<'t> {
                 ));
             }
         };
-        // A requirement closed at an application keeps the reach its
-        // requirement wrote: the typed trees hold authored reach rows
-        // against the declaration the author wrote them on.
-        let reach_author = self
-            .typed
-            .closed_requirement_application(owner)
-            .map_or(owner, |closed| closed.template);
-        let reaches = self.reach_ceiling(
-            id,
-            reach_author,
-            matches!(declared, Declarer::Requirement { .. }),
-        )?;
         let authored = requires.clone();
         let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
         // Each clause's text follows it into canonical order. A repeated
@@ -3640,7 +3629,7 @@ impl<'t> Program<'t> {
                 membership_ensures,
                 requires,
                 ensures,
-                reaches,
+                reaches: crate::lowering::Ceiling::Inferred,
                 // The declaration's own reader states this axis: a machine
                 // and a requirement keep their `invokes` rows in different
                 // tables and read omission differently.
