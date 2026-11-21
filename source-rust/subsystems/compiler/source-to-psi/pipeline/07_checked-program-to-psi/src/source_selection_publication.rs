@@ -1698,6 +1698,27 @@ impl<'source> Declarations<'source> {
         }
     }
 
+    fn written_callable(&self, mut symbol: SymbolHandle) -> Result<SymbolHandle, Diagnostic> {
+        // Applying a signature creates fresh binders and a fresh contract
+        // symbol. Its derivation points at the exact declaration it copied.
+        loop {
+            let origin = self.typed.symbols.get(symbol).generated_from;
+            if !origin.is_valid() {
+                return Ok(symbol);
+            }
+            self.valid(origin, "applied callable origin")?;
+            if origin.arena_index() >= symbol.arena_index() {
+                return Err(refused(
+                    "applied callable has no earlier declaration origin",
+                ));
+            }
+            if self.typed.symbols.get(origin).kind != SymbolKind::CallableContract {
+                return Ok(symbol);
+            }
+            symbol = origin;
+        }
+    }
+
     fn declaration(
         &mut self,
         output: &mut SelectionQuestions,
@@ -1707,8 +1728,13 @@ impl<'source> Declarations<'source> {
         if let Some(id) = self.ids.get(&symbol) {
             return Ok(*id);
         }
-        let occurrence = self.identity(symbol)?;
         let callable_identity = self.callable_identity(symbol)?;
+        let written = if callable_identity.is_some() {
+            self.written_callable(symbol)?
+        } else {
+            symbol
+        };
+        let occurrence = self.identity(written)?;
         let identity = match &callable_identity {
             Some(meaning) => callable_declaration_path(&occurrence, meaning),
             None => occurrence,
@@ -1723,14 +1749,13 @@ impl<'source> Declarations<'source> {
             .ok_or_else(|| refused("selected declaration has no retained source span"))?;
         let declaration = SelectionDeclaration {
             identity,
-            name: self.typed.symbols.display_path(symbol, "::"),
+            name: self.typed.symbols.display_path(written, "::"),
             custody,
             purpose,
             callable_identity,
         };
-        // A specialization may retain the same written callable span and contract
-        // under a different declaring path. Use the dictionary's complete
-        // identity, which includes that path, occurrence and applied contract.
+        // Use the written declaration and its applied meaning. Equal copies
+        // share a row; a different occurrence or contract needs its own row.
         let id = if declaration.callable_identity.is_some() {
             match self
                 .callable_declarations
@@ -2674,7 +2699,7 @@ machine entry() { repeat(0); }
     }
 
     #[test]
-    fn specialized_callbacks_keep_their_declaring_paths_at_a_shared_source_span() {
+    fn specialized_callbacks_publish_the_written_declaration_with_its_applied_meaning() {
         let source = accepted_source(
             r#"
 public data Observe = machine(value: u64) -> u64 reaches none crashes none;
@@ -2696,35 +2721,39 @@ machine entry() -> u64 crashes none { choose::<prepare>(read, 47u64) }
         .unwrap();
 
         let typed = source.source();
-        let mut occurrences = HashMap::new();
+        let mut reapplied = 0;
         for (handle, contract) in typed.runtime_callable_contracts.iter() {
             let symbol = contract.signature.symbol;
-            if typed.symbols.get(symbol).kind != SymbolKind::CallableContract {
+            let origin = typed.symbols.get(symbol).generated_from;
+            if !origin.is_valid()
+                || typed.symbols.get(origin).kind != SymbolKind::CallableContract
+                || typed.symbols.get(origin).generated_from.is_valid()
+            {
                 continue;
             }
-            let span = typed.symbols.symbol_provenance_source_span(symbol).unwrap();
-            let occurrence = typed.normalized_hermetic_symbol_identity(symbol).unwrap();
             let meaning = typed
                 .runtime_callable_contract_identity(handle, &[])
                 .unwrap();
-            let identity = callable_declaration_path(&occurrence, &meaning);
-            if let Some((id, _)) = prepared
-                .questions
-                .declarations
-                .iter()
-                .find(|(_, row)| row.identity == identity)
-            {
-                let ids = occurrences
-                    .entry((span, meaning))
-                    .or_insert_with(std::collections::BTreeSet::new);
-                ids.insert(id);
+            let original = typed.normalized_hermetic_symbol_identity(origin).unwrap();
+            let applied = typed.normalized_hermetic_symbol_identity(symbol).unwrap();
+            let written = callable_declaration_path(&original, &meaning);
+            let generated = callable_declaration_path(&applied, &meaning);
+            assert_ne!(
+                written, generated,
+                "the fixture must distinguish the fresh symbol"
+            );
+            let rows = &prepared.questions.declarations;
+            if rows.iter().any(|(_, row)| row.identity == written) {
+                assert!(
+                    !rows.iter().any(|(_, row)| row.identity == generated),
+                    "the compiler-created binder must not become a second authored declaration"
+                );
+                reapplied += 1;
             }
         }
         assert!(
-            occurrences
-                .values()
-                .any(|declarations| declarations.len() > 1),
-            "the applied and abstract owners must both be represented at the same source occurrence"
+            reapplied > 0,
+            "the concrete invocation must retain an applied callable"
         );
     }
 
