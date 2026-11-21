@@ -28,6 +28,7 @@ import preparation_reason_evidence
 import test_inventory
 import typing_sites
 import typing_reason_evidence
+import package_cases
 import product_controls
 import refusal_evidence
 import reviewed_comparisons
@@ -517,6 +518,41 @@ def failure_excerpt(lines):
     return [*(f"Failed comparison: {label}" for label in dict.fromkeys(labels)), *excerpt]
 
 
+def completion(report):
+    """Separate executable cases from unverified obligations. Complete means every blocking row is zero."""
+    if report.get("last_layer") != "L5":
+        return []
+    cases = report["cases"].values()
+    blocking = [case for case in cases if case_blocks_readiness(case)]
+    package = sum(case.get("measured_by") == "package command" for case in blocking)
+    low = report.get("lowering_evidence", {})
+    pending = sorted(kind for kind, row in low.get("obligations", {}).items()
+                     if row["state"] != lowering_evidence.OBLIGATION_STATES[0])
+    paragraphs = [row["line"] for row in lowering_evidence.paragraphs_without_output_check(low)]
+    unreconciled = sorted(report.get("package_cases", {}).get("unreconciled", {}))
+    judged = sum(case["status"] == "checker input compared; judgement pending" for case in cases)
+    rows = [
+        ("Executable cases measured by native tests", "program", len(blocking) - package, "yes"),
+        ("Executable cases measured only by the package command (no Psi product or consumer check)", "program", package, "yes"),
+        ("Confirmed limits whose package measurement is unreconciled", "program", len(unreconciled), "yes"),
+        ("Typed obligation kinds without a credited Psi property", "unverified obligation", len(pending), "yes"),
+        ("L5 contract paragraphs without a producer output check", "unverified obligation", len(paragraphs), "yes"),
+        ("L0–L4 contract entries awaiting evidence", "unverified obligation", len(report.get("unverified_contracts", ())), "yes"),
+        ("Incomplete measurements", "measurement", len(report["measurement_errors"]), "yes"),
+        ("Cases whose Psi is compared and await the L6 judgement", "program", judged, "no (L6 owns the verdict)"),
+    ]
+    complete = not readiness_exit(report) and not any(count for _, _, count, blocks in rows if blocks == "yes")
+    lines = ["", "## Completion through L5", "",
+             ("**All measured checks through L5 passed.**" if complete else "**Not complete through L5.**")
+             + " Layer sign-off also requires review against the spec. Unverified obligations are not program "
+             "cases and are never added to the case count.", "",
+             "| Evidence | Kind | Count | Blocks completion |", "| --- | --- | ---: | --- |"]
+    lines += [f"| {name} | {kind} | {count} | {blocks} |" for name, kind, count, blocks in rows]
+    if pending or paragraphs:
+        lines += ["", "Unverified obligations: " + ", ".join(pending + [f"CONTRACT.md paragraph at line {n}" for n in paragraphs]) + "."]
+    return lines + [""]
+
+
 def summarize(report):
     failed = sum(suite["counts"].get("failed", 0) for suite in report["suites"].values())
     blocking_cohorts = Counter(row["cohort"] for row in report["cases"].values() if case_blocks_readiness(row))
@@ -528,6 +564,7 @@ def summarize(report):
              f"**{verdict} through {report['last_layer']}.** Failed tests across layers and package commands: {failed}. Cases blocking readiness: {blocked}. Incomplete measurements: {len(report['measurement_errors'])}. "
              f"Of {len(gaps)} L0–L4 contract entries awaiting evidence at this cutoff, {deferred} have their outstanding comparison in a later suite.",
              "",
+             *completion(report),
              f"Revision {report['revision']}. Working changes, source fingerprint and per-test results are in [evidence.json](evidence.json).",
              "", "| Suite | Passed | Failed | Ignored | Runner exit | Log |",
              "| --- | ---: | ---: | ---: | ---: | --- |"]
@@ -611,13 +648,11 @@ def summarize(report):
                   f"Disagreements or missing fragments: {len(agreement['differences'])}. Each refusal is compared by producing layer, typing phase, source location and reason."])
     lines.extend(lowering_evidence.summary(report))
     lines.extend(refusal_evidence.summary(report))
+    lines.extend(package_cases.summary(report))
     lines.extend(lowering_origins.summary(report))
     lines.extend(lowering_sites.summary(report))
     lines.extend(lowering_cli.summary(report))
-    controls = report["product_controls"]
-    lines += ["", f"Psi corruption checks rejected {sum(row['verified'] for row in controls.values())} "
-              f"of {len(controls)} registered changes to branch targets, runtime-dispatch arms, call operands, restoration, residual cleanup, join arrivals or premised element stores. "
-              "Each check first accepts the real product. The evidence JSON records why it rejected each changed product."]
+    lines += ["", product_controls.summary(report["product_controls"])]
     if report["measurement_errors"]:
         lines += ["", "## Incomplete measurements", "", *["- " + error for error in report["measurement_errors"]]]
     return "\n".join(lines) + "\n"
@@ -750,6 +785,7 @@ def main():
         product_controls.finish(report)
         refusal_evidence.apply(report)
         handoff_closures.apply(report)
+        package_cases.apply(report)
         comparison = compare_fragment_runs(report)
         report["fragment_agreement"] = comparison
         report["measurement_errors"].extend(f"{label}: {detail}" for label, detail in comparison["differences"].items())

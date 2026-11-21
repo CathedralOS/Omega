@@ -1,0 +1,1 @@
+data Get = machine(x:@u8)->@u8 reaches none crashes none; machine keep(f:Get) {}

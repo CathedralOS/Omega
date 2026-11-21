@@ -1,0 +1,1 @@
+data R {v:u8;} domain R::Live; machine hold(r:R){}

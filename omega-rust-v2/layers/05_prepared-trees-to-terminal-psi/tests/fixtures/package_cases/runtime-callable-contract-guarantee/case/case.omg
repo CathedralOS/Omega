@@ -1,0 +1,10 @@
+data ByteReader = machine(offset: u32) -> u8
+    requires offset < 256
+    ensures result < 200
+    reaches none crashes none;
+
+machine read(reader: ByteReader, offset: u32) -> u8
+requires offset < 256
+{
+    reader(offset)
+}

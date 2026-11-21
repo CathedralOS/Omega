@@ -1,0 +1,1 @@
+data Token{v:u8;} data Lease dropped by release {mark:u8;} machine release(x:Lease){let Lease{mark as _}=x;} data Choice{case A(left:Token,right:Lease);case B(left:Token,right:Token);} machine discard(x:Choice){}

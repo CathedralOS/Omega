@@ -1,0 +1,1 @@
+data R {v:u8;} machine end(r:R){let R{v as _}=r;} domain R::Live; machine hold(r:R){}

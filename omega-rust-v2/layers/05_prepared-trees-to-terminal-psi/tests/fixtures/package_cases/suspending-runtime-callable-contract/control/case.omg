@@ -1,0 +1,1 @@
+data Pause = machine() -> u8 reaches none crashes none; machine keep(f:Pause) {}

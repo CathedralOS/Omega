@@ -42,3 +42,11 @@ def finish(report):
         observed.setdefault(label, {"test": test})["verified"] = verified
         if not verified and statuses.get(test) != "FAILED":
             report["measurement_errors"].append(f"missing product corruption check: {label} · {TARGET}::{test}")
+
+
+def summary(controls):
+    """One sentence naming each registered family, read from the labels rather than written by hand."""
+    families = sorted({label.split("/", 1)[0] for label in controls})
+    return (f"Psi corruption checks rejected {sum(bool(row.get('verified')) for row in controls.values())} "
+            f"of {len(controls)} registered changes in {len(families)} families: {', '.join(families)}. "
+            "Each check first accepts the real product. The evidence JSON records why it rejected each changed product.")

@@ -1,0 +1,1 @@
+data Item [copy] {key:u64;} machine wait(k:@u64) suspends {} machine f(x:Item) suspends { suspend wait(@x.key) }

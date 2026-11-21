@@ -1,0 +1,1 @@
+data T{v:u8;} data Cell{t:T;} machine wait() suspends {} machine f(p:@mut Cell) suspends { let old = move p.t; suspend wait(); p.t = move old; }
