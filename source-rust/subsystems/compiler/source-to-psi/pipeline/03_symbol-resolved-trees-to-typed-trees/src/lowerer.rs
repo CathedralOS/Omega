@@ -213,7 +213,7 @@ pub(crate) mod progress {
         };
         let subject = *subject;
         // Only the selected builtin length observation is nat-like. A field
-        // named `len` does not acquire a ranking theory from that spelling.
+        // named `length` does not acquire a ranking theory from that spelling.
         // All defaults are settled here, after typed subject custody exists;
         // resolution retains authored views without a competing recognizer.
         if let Some(member) = program.expression_table.member_node(subject)

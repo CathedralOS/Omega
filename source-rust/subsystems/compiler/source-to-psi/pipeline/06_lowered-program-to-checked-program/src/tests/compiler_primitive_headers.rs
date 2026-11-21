@@ -177,10 +177,10 @@ fn returned_fields_and_collection_measures_keep_their_exact_roles() {
     use crate::source_state::expression::{CollectionMeasure, ExpressionNode, MemberSelection};
     let program = typed(
         r#"
-data Counter { len: u64 }
-machine counter() -> Counter ensures result.len == 3 { Counter { len: 3 } }
+data Counter { length: u64 }
+machine counter() -> Counter ensures result.length == 3 { Counter { length: 3 } }
 machine same<'backing>(items: @'backing [u8]) -> @'backing [u8]
-ensures result.len == items.len { items }
+ensures result.length == items.length { items }
 "#,
         source_admission::SourceOrigin::User,
     )
@@ -189,7 +189,7 @@ ensures result.len == items.len { items }
         .data_definitions()
         .iter()
         .flat_map(|definition| program.data_member_fields(program.data_members(definition)))
-        .find(|field| field.name.as_str() == "len")
+        .find(|field| field.name.as_str() == "length")
         .unwrap()
         .symbol;
     let result_members = program
@@ -543,13 +543,13 @@ fn a_qualified_window_proves_its_domain_without_qualifying_the_raw_subslice() {
     let program = r#"
 domain [u8]::Utf8 requires byte_observation\valid_utf8(@self[..]);
 machine whole<'bytes>(bytes: @'bytes [u8] in Utf8) -> @'bytes [u8] in Utf8
-requires bytes.len >= 1
+requires bytes.length >= 1
 {
     (bytes as -Utf8)[..] as +Utf8
 }
 machine main() crashes Trap {
     let bytes: @[u8] in Utf8 = whole("é" as +Utf8);
-    transition bytes.len == 2 { true -> {}, false -> bad() }
+    transition bytes.length == 2 { true -> {}, false -> bad() }
     machine bad() crashes Trap { crash Trap; }
 }
 "#;

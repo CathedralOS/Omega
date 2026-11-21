@@ -753,7 +753,7 @@ fn generic_calls_without_borrowed_results_keep_their_public_storage_contract() {
     let source = super::boundary_calls::typed(
         r#"
         data Choice [copy] { selected: bool; }
-        machine length<T>(bytes: @[u8]) -> u64 { bytes.len }
+        machine length<T>(bytes: @[u8]) -> u64 { bytes.length }
         machine choose<T>() -> Choice { Choice { selected: true } }
         machine entry<T>(bytes: @[u8]) -> u64 {
             let choice: Choice = choose::<T>();
@@ -1075,8 +1075,8 @@ fn a_guard_after_a_callback_proves_the_call_until_storage_changes() {
 
     // The extra operand writes count after the guard observes it.
     let invalid = source.replace(
-        "transition context.valid && context.count <= context.storage.len {",
-        "transition context.valid && context.count <= context.storage.len && overwrite(@mut context) {",
+        "transition context.valid && context.count <= context.storage.length {",
+        "transition context.valid && context.count <= context.storage.length && overwrite(@mut context) {",
     );
     assert_ne!(source, invalid);
     let rejected = judge(&format!(
@@ -2576,12 +2576,12 @@ data Buffer<Element, const N: u64> { before: u64; items: [Element; N]; length: u
 machine inspect<Element, const N: u64>(value: @Buffer<Element, N>) -> u64
 requires Element == u8 || Element == u16
 {
-    transition value.length <= value.items.len {
+    transition value.length <= value.items.length {
         true -> live(value),
         false -> 0u64
     }
     machine live(value: @Buffer<Element, N>) -> u64
-    requires (Element == u8 || Element == u16) && value.length <= value.items.len
+    requires (Element == u8 || Element == u16) && value.length <= value.items.length
     { value.length }
 }
 machine main() crashes Trap {
@@ -2607,7 +2607,7 @@ machine main() crashes Trap {
         "the guarded record must keep its exact field facts in every check form: {accepted:?}"
     );
     let invalid = source.replace(
-        "transition value.length <= value.items.len {",
+        "transition value.length <= value.items.length {",
         "transition value.length >= 0u64 {",
     );
     assert_ne!(source, invalid);

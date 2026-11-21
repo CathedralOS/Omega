@@ -418,7 +418,7 @@ pub(crate) mod exhaustiveness {
                 "data Flags { flag: bool; } data Outer { good: bool; other: @mut Flags; } machine covered(flags: @Outer) { transition { flags.good == true -> {}, noise() == true -> {}, flags.good == false -> {} } }",
                 "machine covered(flag: @bool) { transition { $flag == true -> {}, noise() == true -> {}, $flag == false -> {} } }",
                 "machine covered(flags: @[bool; 2]) { transition { flags[0u64] == true -> {}, noise() == true -> {}, flags[0u64] == false -> {} } }",
-                "machine covered(flags: @[bool]) requires 0u64 < flags.len { transition { flags[0u64] == true -> {}, noise() == true -> {}, flags[0u64] == false -> {} } }",
+                "machine covered(flags: @[bool]) requires 0u64 < flags.length { transition { flags[0u64] == true -> {}, noise() == true -> {}, flags[0u64] == false -> {} } }",
                 "data Flags { flag: bool; } domain Flags::Seen; machine covered(flags: @Flags in Seen) { transition { flags.flag == true -> {}, noise() == true -> {}, flags.flag == false -> {} } }",
                 "data Flags { flag: bool; } data Holder<T> { flag: bool; other: T; } machine covered(flags: @Holder<@mut Flags>) { transition { flags.flag == true -> {}, noise() == true -> {}, flags.flag == false -> {} } }",
             ] {

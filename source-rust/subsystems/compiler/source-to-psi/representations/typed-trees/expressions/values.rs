@@ -4978,7 +4978,7 @@ pub mod expression {
                 let member = source.insert(ExpressionNode::Member(TableMemberExpression {
                     receiver,
                     selection: decoded,
-                    member: Identifier::generated("len"),
+                    member: Identifier::generated(CollectionMeasure::Length.authored_spelling()),
                     case_variant: None,
                 }));
                 let own_copy = source.insert_copy(member);

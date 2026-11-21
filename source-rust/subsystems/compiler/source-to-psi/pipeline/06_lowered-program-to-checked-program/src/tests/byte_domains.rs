@@ -835,9 +835,9 @@ fn sliced_cast(predicate: &str, source_domain: &str, bytes: &str) -> String {
     format!(
         r#"
 domain [u8]::Text requires byte_observation\{predicate}(@self[..]);
-machine length(text: @[u8] in Text) -> u64 {{ text.len }}
+machine length(text: @[u8] in Text) -> u64 {{ text.length }}
 machine prefix_length(text: @[u8]{source_domain}, end: u64) -> u64
-requires end <= text.len {{
+requires end <= text.length {{
     let prefix: @[u8] = @{collection}[0..end];
     length(prefix as +Text)
 }}
@@ -894,9 +894,9 @@ fn removing_a_domain_keeps_the_backing_bytes_of_a_prefix() {
 fn a_slice_uses_the_byte_predicate_of_the_current_loop_parameter() {
     let source = r#"
 domain [u8]::Text requires byte_observation\no_nul(@self[..]);
-machine length(text: @[u8] in Text) -> u64 { text.len }
+machine length(text: @[u8] in Text) -> u64 { text.length }
 machine prefix_length(text: @[u8] in Text, end: u64, remaining: u32) -> u64
-requires end <= text.len {
+requires end <= text.length {
     let prefix: @[u8] = @(text as -Text)[0..end];
     let measured: u64 = length(prefix as +Text);
     transition remaining > 0 {
@@ -1107,7 +1107,7 @@ fn a_byte_read_keeps_ascii_facts_about_its_own_view() {
 domain [u8]::Ascii requires byte_observation\ascii_only(@self[..]);
 
 machine ascii_byte(bytes: @[u8] in Ascii, other: @[u8], index: u64) -> u8
-requires index < bytes.len, index < other.len
+requires index < bytes.length, index < other.length
 ensures result <= 127
 {
     (bytes as -Ascii)[index]
@@ -1167,7 +1167,7 @@ data Packet { before: u8; bytes: [u8; 3]; after: u8; }
 machine build_entry() crashes Trap {
     let packet: Packet = Packet { before: 11, bytes: [65u8, 66u8, 67u8], after: 37 };
     let view: @[u8] = (@packet.bytes)[..];
-    transition view.len == 3 && view[1] == 66 && packet.before == 11 && packet.after == 37 {
+    transition view.length == 3 && view[1] == 66 && packet.before == 11 && packet.after == 37 {
         true -> done(),
         _ -> bad()
     }
@@ -1189,9 +1189,9 @@ machine build_entry() crashes Trap {
 #[test]
 fn shared_byte_view_domains_check_lengths_and_keep_their_names() {
     let source = r#"
-domain [u8]::FourBytes requires self.len == 4;
+domain [u8]::FourBytes requires self.length == 4;
 machine length(input: @[u8] in FourBytes) -> u64 {
-    (input as -FourBytes).len
+    (input as -FourBytes).length
 }
 machine build_entry() {
     let view: @[u8] in FourBytes = "room" as +FourBytes;
@@ -1241,7 +1241,7 @@ machine build_entry() {
             ));
             assert!(
                 unproved[0].statement.contains("FourBytes")
-                    && unproved[0].statement.contains("self.len == 4"),
+                    && unproved[0].statement.contains("self.length == 4"),
                 "{unproved:?}"
             );
         }

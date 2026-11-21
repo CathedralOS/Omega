@@ -58,7 +58,7 @@ fn assert_operator_value(verdict: Result<RouteVerdict, String>, expected: bool) 
 #[test]
 fn mutable_byte_formals_keep_their_source_operator_access() {
     let source = r#"
-machine store(bytes: @mut [u8], peer: @[u8]) requires bytes.len > 0u64 {
+machine store(bytes: @mut [u8], peer: @[u8]) requires bytes.length > 0u64 {
     bytes[0u64] = 7u8;
 }
 machine entry() -> bool {

@@ -73,12 +73,12 @@ fn mutable_sequence_fields_preserve_each_backing_loan() {
             second: @'right mut [Cell];
         }
         machine update(pair: @mut Pair) {
-            transition pair.first.len > 0u64 && pair.second.len > 0u64 {
+            transition pair.first.length > 0u64 && pair.second.length > 0u64 {
                 true -> fill(pair),
                 _ -> done()
             }
             machine fill(pair: @mut Pair)
-            requires pair.first.len > 0u64 && pair.second.len > 0u64
+            requires pair.first.length > 0u64 && pair.second.length > 0u64
             {
                 pair.first[0u64].value = 7u32;
                 pair.second[0u64].value = 9u32;
@@ -177,22 +177,22 @@ fn mutable_view_inputs_can_be_retained_in_a_local_context() {
             bytes: @'bytes mut [u8];
             fields: @'fields mut [Cell];
         }
-        machine byte(output: @mut [u8]) requires output.len > 0u64 {
+        machine byte(output: @mut [u8]) requires output.length > 0u64 {
             output[0u64] = 11u8;
         }
-        machine cells(fields: @mut [Cell]) requires fields.len > 0u64 {
+        machine cells(fields: @mut [Cell]) requires fields.length > 0u64 {
             fields[0u64].value = 22u32;
         }
         machine touch_bytes(bytes: @mut [u8]) {}
         machine touch_fields(fields: @mut [Cell]) {}
         machine populate(bytes: @mut [u8], fields: @mut [Cell]) {
             let mut context: Context = Context { bytes: bytes, fields: fields };
-            transition context.bytes.len > 0u64 && context.fields.len > 0u64 {
+            transition context.bytes.length > 0u64 && context.fields.length > 0u64 {
                 true -> fill(@mut context),
                 false -> done()
             }
             machine fill(context: @mut Context)
-            requires context.bytes.len > 0u64 && context.fields.len > 0u64 {
+            requires context.bytes.length > 0u64 && context.fields.length > 0u64 {
                 byte(context.bytes);
                 context.fields[0u64].value = 22u32;
             }
@@ -256,8 +256,8 @@ fn indexed_view_loans_capture_noncopy_elements_with_their_own_bounds() {
         data Cell { value: u32; }
         machine get(value: @u32) -> u32 { $value }
         machine fetch(items: @[Cell]) -> u32 {
-            transition items.len > 0u64 { true -> selected(items), false -> 0u32 }
-            machine selected(items: @[Cell]) -> u32 requires items.len > 0u64 {
+            transition items.length > 0u64 { true -> selected(items), false -> 0u32 }
+            machine selected(items: @[Cell]) -> u32 requires items.length > 0u64 {
                 get(@items[0u64].value)
             }
         }
@@ -436,8 +436,8 @@ fn bare_ranges_lend_shared_element_views_of_noncopy_records() {
     let source = r#"
         data Cell { value: u32; }
         machine first(items: @[Cell]) -> u32 {
-            transition items.len > 0u64 { true -> read(items), false -> 0u32 }
-            machine read(items: @[Cell]) -> u32 requires items.len > 0u64 {
+            transition items.length > 0u64 { true -> read(items), false -> 0u32 }
+            machine read(items: @[Cell]) -> u32 requires items.length > 0u64 {
                 items[0u64].value
             }
         }

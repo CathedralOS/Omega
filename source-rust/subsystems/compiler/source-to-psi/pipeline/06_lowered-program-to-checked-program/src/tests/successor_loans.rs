@@ -155,12 +155,12 @@ fn loop_element_reborrows_keep_distinct_incoming_backing() {
             $right = 2u32;
         }
         machine walk(items: @mut [u32], other: @mut [u32], index: u64) {
-            transition index < 4u64 && index < items.len && index < other.len {
+            transition index < 4u64 && index < items.length && index < other.length {
                 true -> step(items, other, index),
                 false -> done()
             }
             machine step(items: @mut [u32], other: @mut [u32], index: u64)
-            requires index < 4u64 && index < items.len && index < other.len
+            requires index < 4u64 && index < items.length && index < other.length
             {
                 update(@mut items[index], @mut other[index]);
                 transition { _ -> walk(items, other, index + 1u64) }
@@ -240,7 +240,7 @@ fn cleanup_must_keep_backing_on_the_edge_that_still_uses_its_view() {
     let typed = super::boundary_calls::typed(
         r#"
 data Packet { before: u8; bytes: [u8; 3]; after: u8; }
-machine inspect(bytes: @[u8]) -> bool { bytes.len == 3 }
+machine inspect(bytes: @[u8]) -> bool { bytes.length == 3 }
 machine entry(first: bool) -> bool {
     let packet: Packet = Packet { before: 11, bytes: [17, 42, 99], after: 97 };
     let view: @[u8] = @packet.bytes[..];
@@ -614,7 +614,7 @@ fn an_empty_shared_payload_keeps_its_owned_permission_at_a_call() {
     let typed = super::boundary_calls::typed(
         r#"
 data Holder<'held> { bytes: @'held [u8]; }
-machine inspect<'a>(value: @'a [u8]) -> u64 { value.len }
+machine inspect<'a>(value: @'a [u8]) -> u64 { value.length }
 machine entry() -> u64 {
     let mut holder: Holder;
     inspect(holder.bytes)

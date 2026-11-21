@@ -447,7 +447,7 @@ fn parses_slice_range_indexing_into_range_expression() {
             let values: [usize; 4] = [1, 2, 3, 4];
             let view: @[usize] = values.as_slice();
             let tail: @[usize] = view[1..];
-            tail.len
+            tail.length
         }
         "#;
 

@@ -31,12 +31,12 @@ fn witness<'program>(program: &'program TypedTrees, name: &str) -> &'program Ran
 fn ranking_defaults_follow_typed_carriers_and_selected_length() {
     let program = resolve_and_type(
         r#"
-        data Counter { len: i32; }
+        data Counter { length: i32; }
         machine natural(n: u64) terminates by n {}
         machine signed(n: i32) terminates by n {}
         machine slice(items: @[u8]) terminates by items {}
-        machine length(items: @[u8]) terminates by items.len {}
-        machine field(counter: @Counter) terminates by counter.len {}
+        machine length(items: @[u8]) terminates by items.length {}
+        machine field(counter: @Counter) terminates by counter.length {}
         machine explicit(n: i32) terminates by n -> Nat::Descending {}
         machine pair(index: u64, limit: u64) terminates by (index, limit) {}
         machine distance(index: u64, limit: u64) terminates by (index, limit) -> Nat::BoundedDistance {}

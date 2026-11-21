@@ -1182,7 +1182,7 @@ impl<'a> Prover<'a> {
     /// kernel recomputes both denotations from the same definitions. Only
     /// when those definitions do not decide it, an arrival's compound
     /// equality may define its otherwise undefined value too: a match arm
-    /// that read `window.len` crosses as `length == count - 0`, which the
+    /// that read `window.length` crosses as `length == count - 0`, which the
     /// window's later measurement `count - start` with `start == 0` meets
     /// only by transport.
     fn by_transport(&mut self, goal: &Proposition) -> Option<ProofNode> {
@@ -2986,7 +2986,7 @@ impl<'a> Prover<'a> {
                     }
                 }
                 // Guards and contracts often state arithmetic directly, such as
-                // `index + 1 < out.len` or `index <= out.len - 1`, without an
+                // `index + 1 < out.length` or `index <= out.length - 1`, without an
                 // SSA value naming the sum or difference in the callee.
                 Proposition::LessOrEqual(left, right) | Proposition::LessThan(left, right)
                     if !is_bare_scalar(left) || !is_bare_scalar(right) =>
@@ -3907,7 +3907,7 @@ impl<'a> Prover<'a> {
 
     /// Bounds `subject` from an order or non-axiom equality whose endpoints
     /// include exact additions or subtractions, such as `index + 1 < 4` or
-    /// `index + 1 < out.len`.
+    /// `index + 1 < out.length`.
     fn compound_bound_from_fact(
         &mut self,
         index: usize,

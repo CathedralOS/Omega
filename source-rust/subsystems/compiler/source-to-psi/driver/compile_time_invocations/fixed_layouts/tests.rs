@@ -170,7 +170,7 @@ fn authored_policy_observes_only_its_invocations_issued_target() {
 use omega\language\core\layout_target_facts;
 machine packet_size(target: @LayoutTarget) -> u64 reaches none terminates {
     let facts = layout_target_facts(target);
-    transition facts.profile.len == 12 { true -> 16u64, _ -> 24u64 }
+    transition facts.profile.length == 12 { true -> 16u64, _ -> 24u64 }
 }"#,
         )
         .replace("size_fixed: 16", "size_fixed: packet_size(@target)");

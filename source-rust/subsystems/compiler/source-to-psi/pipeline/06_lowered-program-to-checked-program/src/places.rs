@@ -9043,8 +9043,8 @@ machine walk<'a>(bytes: @'a [u8], saved: @'a [u8], count: u64, first: bool) {
     }
 }
 machine inspect<'a>(bytes: @'a [u8], saved: @'a [u8], count: u64, fresh: @'a [u8]) {
-    let current: u64 = fresh.len;
-    let previous: u64 = saved.len;
+    let current: u64 = fresh.length;
+    let previous: u64 = saved.length;
     transition count > 1 {
         true -> walk(bytes, saved, count - 1, false),
         false -> done()

@@ -1029,14 +1029,14 @@ fn a_bare_byte_range_borrows_its_array_reference() {
     let source = r#"
 domain [u8; 8]::Terminated requires self[7] == 0;
 data Packet { bytes: [u8; 8] in Terminated; }
-machine observe(bytes: @[u8]) requires bytes.len == 8u64 {}
+machine observe(bytes: @[u8]) requires bytes.length == 8u64 {}
 machine entry(packet: @Packet) {
     observe((@packet.bytes as -Terminated)[..]);
 }
 "#;
     let verdict = judge(invocation(source)).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
-    let wrong_extent = source.replace("bytes.len == 8u64", "bytes.len == 9u64");
+    let wrong_extent = source.replace("bytes.length == 8u64", "bytes.length == 9u64");
     let verdict = judge(invocation(&wrong_extent)).unwrap();
     assert!(
         matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
@@ -1050,7 +1050,7 @@ fn fresh_buffer_views_end_before_the_next_loop_iteration() {
     let source = r#"
 domain [u8; 8]::Terminated requires self[7] == 0;
 data Packet { bytes: [u8; 8] in Terminated; }
-machine observe(bytes: @[u8]) requires bytes.len == 8u64 {}
+machine observe(bytes: @[u8]) requires bytes.length == 8u64 {}
 machine entry(packet: @mut Packet, again: bool) {
     transition { _ -> block cycle(packet, again) }
     machine cycle(packet: @mut Packet, again: bool) {
@@ -1071,7 +1071,7 @@ machine entry(packet: @mut Packet, again: bool) {
 const CYCLIC_BYTE_WRITE: &str = r#"
 domain [u8; 8]::Terminated requires self[7] == 0;
 data Packet { bytes: [u8; 8] in Terminated; index: i32 in Wrapping; }
-machine observe(bytes: @[u8]) requires bytes.len == 8u64 {}
+machine observe(bytes: @[u8]) requires bytes.length == 8u64 {}
 machine entry(packet: @mut Packet, again: bool) {
     transition { _ -> block cycle(packet, again) }
     machine cycle(packet: @mut Packet, again: bool) {

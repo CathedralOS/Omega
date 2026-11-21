@@ -4451,7 +4451,7 @@ mod tests {
         let shared = || borrow(ReferenceAccess::Shared, field(1, record));
         // `f(fs.fd, &mut fs.buffer)`: distinct fields.
         assert!(check(&[field(0, scalar), mutable()], false).is_ok());
-        // `f(fs.buffer.len, &mut fs.buffer)`: inside the mutable loan.
+        // `f(fs.buffer.length, &mut fs.buffer)`: inside the mutable loan.
         let inner = Expression {
             call_context: None,
             kind: ExpressionKind::Field {
@@ -4469,7 +4469,7 @@ mod tests {
         );
         // `f(fs, &mut fs.buffer)`: the whole root contains the loan.
         assert!(check(&[root(), mutable()], true).is_err());
-        // `f(fs.buffer.len, &fs.buffer)`: reading beside a shared loan.
+        // `f(fs.buffer.length, &fs.buffer)`: reading beside a shared loan.
         assert!(check(&[inner, shared()], false).is_ok());
         // `f(fs, &fs.buffer)`: a shared reference passed whole only reads;
         // an owned record passed whole moves the lent storage.

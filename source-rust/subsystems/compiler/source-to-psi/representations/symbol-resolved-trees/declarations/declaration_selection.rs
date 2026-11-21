@@ -1028,7 +1028,7 @@ impl CollectionMeasure {
 
     pub const fn authored_spelling(self) -> &'static str {
         match self {
-            Self::Length => "len",
+            Self::Length => "length",
             Self::Capacity => "capacity",
         }
     }
@@ -1292,9 +1292,9 @@ mod tests {
     fn collection_measure_spellings_are_the_exact_authored_vocabulary() {
         assert_eq!(
             CollectionMeasure::ALL.map(CollectionMeasure::authored_spelling),
-            ["len", "capacity"]
+            ["length", "capacity"]
         );
-        for spelling in ["length", "Len", "LEN", "as_slice", "bytes", "cap", ""] {
+        for spelling in ["len", "Length", "LENGTH", "as_slice", "bytes", "cap", ""] {
             assert_eq!(
                 CollectionMeasure::from_authored_spelling(spelling),
                 None,
@@ -1349,7 +1349,7 @@ mod tests {
             "dependency",
             "build_dependency",
             "as_slice",
-            "len",
+            "length",
             "select_providers",
             "Select_Provider",
             "SELECT_PROVIDER",
