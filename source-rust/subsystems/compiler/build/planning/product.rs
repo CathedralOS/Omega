@@ -136,7 +136,7 @@ impl ProductStage<'_> {
         let source = self.product.source();
         let build = &self.product.evaluated().configuration;
         StageSource {
-            parsed: source.parsed.clone(),
+            parsed: Box::new(source.parsed.clone()),
             product: ProductSourceInputs {
                 declaration_authority: self.scope.as_deref().map(|scope| scope as &_),
                 build_host: self.build_host,

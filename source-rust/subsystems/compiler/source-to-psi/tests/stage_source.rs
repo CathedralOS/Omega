@@ -47,7 +47,11 @@ fn product<'a>(
     selections: &'a [ProductEntryBinding],
 ) -> Result<StageSource<'a>, Vec<diagnostics::Diagnostic>> {
     Ok(StageSource {
-        parsed: source_compiler::ParsedStageSources::parse(Arc::new(files), vec![root], vec![])?,
+        parsed: Box::new(source_compiler::ParsedStageSources::parse(
+            Arc::new(files),
+            vec![root],
+            vec![],
+        )?),
         product: ProductSourceInputs {
             build_accounting: None,
             declaration_authority: None,

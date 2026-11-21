@@ -155,14 +155,6 @@ framework or a list of unimplemented features.
 - Cost: The Build planner recognizes a call in a transition arm's target but misses the subject that ordinary resolution captures. Follow the authored call through that capture so both forms stop at the same preparation and admit the helper's return in the mounted scope.
 - Reported: 2026-11-20, Codex, while comparing ordinary and staged suspension placement.
 
-### A saved-Psi compile request reserves space for parsed source
-
-- Category: Knowledge crossing a boundary.
-- Where: [compiler request and Program variants](source-rust/subsystems/compiler/compiler.rs#L23), [source input](source-rust/subsystems/compiler/source-to-psi/source_to_psi.rs#L44), [parsed source](source-rust/subsystems/compiler/source-to-psi/driver/stage_sources.rs#L13), [syntax forest](source-rust/subsystems/compiler/source-to-psi/driver/parse_source_batch/parsed_files.rs#L11).
-- Saw: The public `Program::Source` stores `StageSource` inline. On the Linux x86-64 toolchain Clippy reports at least 20,752 bytes for that variant and 840 for the next largest. Runtime and native requests also accept an already authorized Psi artifact through the same enum.
-- Cost: Even a saved-Psi request reserves the enum’s largest inline layout. Check the size of both `Program` and `CompileRequest` when moving ownership of the large source value. No runtime slowdown was measured.
-- Reported: 2026-11-20, Codex, while checking the source and saved-Psi compiler entries.
-
 ### Copying a deep scalar proof expression consumes the Rust call stack
 
 - Category: One idea, several implementations.
