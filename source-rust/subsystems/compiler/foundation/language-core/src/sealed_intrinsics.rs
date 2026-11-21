@@ -66,11 +66,6 @@ pub enum SealedIntrinsic {
     HostedRequirement(HostedOperation),
     /// An exact compiler-owned primitive, separate from ordinary provider bodies.
     HostedPrimitive(HostedOperation),
-    /// A target's bundled realization of a hosted requirement.
-    HostedRealization {
-        operation: HostedOperation,
-        target: &'static str,
-    },
     /// A UEFI fixed-image requirement in bundled core source.
     FixedImageRequirement(FixedImageOperation),
     /// The bundled `uefi_x86_64` realization of a fixed-image requirement.
@@ -139,6 +134,11 @@ pub enum FixedImageOperation {
     ProgramStorageEntry,
     /// core `ProgramImage::retained_suffix_start`.
     ProgramImageRetainedSuffixStart,
+}
+
+impl FixedImageOperation {
+    /// The target with the physical fixed-image entry and residency contract.
+    pub const TARGET: &'static str = "uefi_x86_64";
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -523,7 +523,7 @@ const ROWS: &[SealedIntrinsicRow] = &[
     ),
     row(
         "extent.omg",
-        "ProgramStorageEntryNativeProvider::enter",
+        "ProgramStorageEntryNativeProvider::ProgramStorageEntry::enter",
         BundledFile::CoreExtent,
         SealedIntrinsic::FixedImageRealization(FixedImageOperation::ProgramStorageEntry),
     ),
@@ -537,7 +537,7 @@ const ROWS: &[SealedIntrinsicRow] = &[
     ),
     row(
         "program_image.omg",
-        "ProgramImageNativeProvider::retained_suffix_start",
+        "ProgramImageNativeProvider::ProgramImage::retained_suffix_start",
         BundledFile::CoreProgramImage,
         SealedIntrinsic::FixedImageRealization(
             FixedImageOperation::ProgramImageRetainedSuffixStart,
