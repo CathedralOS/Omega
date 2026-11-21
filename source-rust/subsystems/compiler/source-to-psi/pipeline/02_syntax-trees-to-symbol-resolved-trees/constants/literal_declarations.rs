@@ -2,7 +2,7 @@
 
 use crate::resolution::declarations::declaration_selection::ConstantSelection;
 use crate::resolution::declarations::generic_data::canonicalize_selected_declared_const_definition;
-use crate::resolution::tables::{syntax_expressions, syntax_type_references};
+use crate::resolution::tables::syntax_expressions;
 use diagnostics::Diagnostic;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionHandle;
