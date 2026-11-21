@@ -884,7 +884,7 @@ mod tests {
             terminal_codec::TerminalPublication::Invocation,
         );
         assert!(accepted.advisories.cached.get().is_none());
-        assert!(!accepted.advisories.additional.lock().unwrap().is_empty());
+        assert!(!accepted.advisories.pending.lock().unwrap().additional.is_empty());
         let diagnostics = accepted.advisories();
         let warnings: Vec<_> = diagnostics
             .iter()
@@ -896,7 +896,7 @@ mod tests {
         assert_eq!(warnings.len(), 1, "{diagnostics:?}");
         assert!(warnings[0].message.contains("machine `pick`"));
         assert!(warnings[0].source_span.is_some());
-        assert!(accepted.advisories.additional.lock().unwrap().is_empty());
+        assert!(accepted.advisories.pending.lock().unwrap().additional.is_empty());
         assert!(std::ptr::eq(
             diagnostics.as_ptr(),
             accepted.advisories().as_ptr()
@@ -913,7 +913,7 @@ mod tests {
         assert!(accepted.advisories.cached.get().is_none());
         assert!(accepted.advisories().is_empty());
         assert!(accepted.advisories.cached.get().is_some());
-        assert!(accepted.advisories.additional.lock().unwrap().is_empty());
+        assert!(accepted.advisories.pending.lock().unwrap().additional.is_empty());
         assert!(accepted.advisories().is_empty());
     }
 }
