@@ -732,7 +732,7 @@ fn prepare_generic_forms<'source>(
         {
             let mut program = read::Program::with_captures(typed, true, purpose, captures.clone());
             program.publication = publication;
-            program.generic_callable_alias(alias)?;
+            program.generic_type_alias(alias)?;
             forms.push(finish_reading(
                 program,
                 None,

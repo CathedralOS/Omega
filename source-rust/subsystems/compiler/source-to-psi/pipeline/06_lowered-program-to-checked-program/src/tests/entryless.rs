@@ -104,6 +104,83 @@ fn declaration_only_library_checks_requirements_without_an_executable_machine() 
 }
 
 #[test]
+fn transparent_data_aliases_form_in_their_own_binder_scope() {
+    let typed = typed(
+        "public data Word = u32;
+         public data Pair<T> = [T; 2];
+         public data Identity<T> = T;
+         public data Nested<T> = Pair<Identity<T>>;
+         public data KeyHash<K> = machine(key: @K) -> u64;",
+    );
+    let parts = judged_parts(&typed, false);
+    assert_eq!(parts.len(), 5, "expected the closure and its four generic forms");
+    for part in parts {
+        let Ok(RouteVerdict::Accepted(accepted)) = &part else {
+            panic!("declaration-only alias form failed: {part:?}");
+        };
+        assert_eq!(accepted.elaboration.module.entry, None);
+        assert!(accepted.elaboration.module.machines.is_empty());
+    }
+}
+
+#[test]
+fn transparent_data_aliases_reject_a_value_even_if_the_parameter_is_unused() {
+    for (uses, expected) in [
+        (
+            "public data Invalid = Erased<17u64>;",
+            "requires a type but was supplied a value",
+        ),
+        (
+            "public data Invalid = Erased<Absent>;",
+            "requires a type declaration for `Absent`",
+        ),
+        // Type lookup can leave Count unresolved: this lexical binder names a value.
+        (
+            "machine keep<const Count: u64>(value: Erased<Count>) -> u32 { value }",
+            "type alias argument 1 requires a type",
+        ),
+    ] {
+        let source = format!("public data Erased<T> = u32; {uses}");
+        let Err(error) = super::boundary_calls::try_typed(&source) else {
+            panic!("an unused parameter still requires a type argument: {uses}");
+        };
+        assert!(error.message.contains(expected), "{error:?}");
+    }
+}
+
+#[test]
+fn transparent_data_aliases_cannot_erase_a_parameter_property() {
+    let declarations = "data Ticket [linear] { value: u32; }
+                        public data CopyOnly<T [copy]> = u32;
+                        public data LinearOnly<T [linear]> = u32;";
+    let accepted = format!(
+        "{declarations}
+                           public data A = CopyOnly<u32>;
+                           public data B = LinearOnly<Ticket>;
+                           public data C = CopyOnly<@u32>;"
+    );
+    let result = judged(&accepted, false);
+    assert!(matches!(result, RouteVerdict::Accepted(_)), "{result:?}");
+    for (application, required) in [
+        ("CopyOnly<Ticket>", "[copy]"),
+        ("CopyOnly<@mut u32>", "[copy]"),
+        ("CopyOnly<@write u32>", "[copy]"),
+        ("LinearOnly<u32>", "[linear]"),
+    ] {
+        let source = format!("{declarations} public data Invalid = {application};");
+        let Err(error) = super::boundary_calls::try_typed(&source) else {
+            panic!("the property required by {application} was erased");
+        };
+        assert!(
+            error
+                .message
+                .ends_with(&format!("the binder requires `{required}`")),
+            "{error:?}"
+        );
+    }
+}
+
+#[test]
 fn whole_subject_acceptance_requires_every_generic_check_form() {
     let typed = typed("machine identity<T>(value: T) -> T { move value }\n");
     let parts = judged_parts(&typed, false);
