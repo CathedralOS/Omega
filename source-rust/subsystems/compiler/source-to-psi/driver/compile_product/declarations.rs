@@ -15,7 +15,7 @@ use source_declarations::source_selections::{
 };
 use std::sync::Arc;
 use symbols::SymbolHandle;
-use typed_trees_to_prepared_typed_trees::WireCompatibilityDemand;
+use crate::WireCompatibilityDemand;
 
 pub struct AdmittedProductDeclarations {
     pub service_audits: Vec<SymbolHandle>,

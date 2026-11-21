@@ -3905,6 +3905,7 @@ dependencies = [
  "arena",
  "diagnostics",
  "language-core",
+ "layout-plans",
  "numeric-literals",
  "numerics",
  "record-storage",

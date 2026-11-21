@@ -215,10 +215,11 @@ fn accepted_frontier_with_subjects(
         .find(|machine| machine.name.as_str() == "build")
         .unwrap()
         .symbol;
-    let frozen = source_compiler::test_support::preparation::prepare_typed_trees(typed, &[])?;
-    source_compiler::test_support::judge_terminal_source(
-        frozen,
-        source_compiler::test_support::lowering::Compilation {
+    source_compiler::test_support::SourcePreparationRequest {
+        program: typed,
+        accounting: Default::default(),
+        admission: Default::default(),
+        compilation: source_compiler::test_support::lowering::Compilation {
             declaration_metadata: &[],
             entries: &[entry],
             subjects,
@@ -229,8 +230,10 @@ fn accepted_frontier_with_subjects(
             bindings: &[],
             supplies: &[],
         },
-        publication,
-    )
+    }
+    .judge(publication)
+    .map(|judged| judged.accepted)
+    .map_err(|failure| failure.diagnostics)
 }
 
 fn produced(build: &str) -> Result<ProducedTerminalProgram, Vec<diagnostics::Diagnostic>> {
