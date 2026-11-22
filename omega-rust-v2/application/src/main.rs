@@ -9,8 +9,8 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage: omega source parse [--] <file>\n       omega source resolve [--package-root <directory>] [--] <package-relative file>...\n       omega source type [--package-root <directory>] [--] <package-relative file>...\n       omega source prepare [--package-root <directory>] [--] <package-relative file>...\n       omega source lower [--package-root <directory>] [--] <package-relative file>...";
-const HELP: &str = "Parse checks syntax. Resolve checks names. Type checks declarations, expressions and machine calls. Prepare evaluates constants and static indices and checks the resulting types. Lower constructs portable Psi bodies from prepared source. For resolve, type, prepare and lower, list the source files of one package rooted at the current directory. With --package-root, paths are relative to that directory. Build captures the complete package there and binds its anonymous owner. This mode requires a root without an authored build.omg. Success produces no output.";
+const USAGE: &str = "Usage: omega source parse [--] <file>\n       omega source resolve [--package-root <directory>] [--] <package-relative file>...\n       omega source type [--package-root <directory>] [--] <package-relative file>...\n       omega source prepare [--package-root <directory>] [--] <package-relative file>...\n       omega source lower [--package-root <directory>] [--] <package-relative file>...\n       omega source check --only scalar-replacements [--package-root <directory>] [--] <package-relative file>...";
+const HELP: &str = "Parse checks syntax. Resolve checks names. Type checks declarations, expressions and machine calls. Prepare evaluates constants and static indices and checks the resulting types. Lower constructs portable Psi bodies from prepared source. Check --only scalar-replacements checks scalar replacement casts in closed machine bodies under their entry contracts. For these package commands, list the source files of one package rooted at the current directory. With --package-root, paths are relative to that directory. Build captures the complete package there and binds its anonymous owner. This mode requires a root without an authored build.omg. Success produces no output.";
 
 enum Command<'a> {
     Help,
@@ -30,12 +30,24 @@ fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
             [flag] if flag != "--" => Err(format!("unknown option '{}'", flag.to_string_lossy())),
             _ => Err("source parse requires exactly one file".into()),
         },
-        [group, action, rest @ ..] if group == "source" && (action == "resolve" || action == "type" || action == "prepare" || action == "lower") => {
+        [group, action, rest @ ..]
+            if group == "source" && (action == "resolve" || action == "type" || action == "prepare" || action == "lower" || action == "check") =>
+        {
             if let [flag] = rest
                 && is_help(flag)
             {
                 return Ok(Command::Help);
             }
+            let (stage, rest) = match action.to_str() {
+                Some("check") => match rest {
+                    [flag, scope, tail @ ..] if flag == "--only" && scope == "scalar-replacements" => (source::Stage::CheckScalarReplacements, tail),
+                    _ => return Err("source check requires --only scalar-replacements".into()),
+                },
+                Some("lower") => (source::Stage::Lower, rest),
+                Some("prepare") => (source::Stage::Prepare, rest),
+                Some("type") => (source::Stage::Type, rest),
+                _ => (source::Stage::Resolve, rest),
+            };
             let (root, rest) = match rest {
                 [flag, directory, tail @ ..] if flag == "--package-root" => (Some(Path::new(directory)), tail),
                 [flag] if flag == "--package-root" => return Err("--package-root requires a directory".into()),
@@ -52,19 +64,7 @@ fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
             if files.is_empty() {
                 return Err(format!("source {} requires at least one file", action.to_string_lossy()));
             }
-            Ok(Command::Stage(
-                files,
-                if action == "lower" {
-                    source::Stage::Lower
-                } else if action == "prepare" {
-                    source::Stage::Prepare
-                } else if action == "type" {
-                    source::Stage::Type
-                } else {
-                    source::Stage::Resolve
-                },
-                root,
-            ))
+            Ok(Command::Stage(files, stage, root))
         }
         [group, action, ..] if group == "source" => Err(format!("unknown source command '{}'", action.to_string_lossy())),
         [group] if group == "source" => Err("expected a source command".into()),

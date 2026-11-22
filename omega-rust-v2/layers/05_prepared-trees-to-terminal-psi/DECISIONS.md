@@ -4,11 +4,10 @@ This is the starting map for the repair pass at `f572107080eda`. The readiness c
 
 ## Cases awaiting a language-owner ruling
 
-Four measured cases await four open decisions. A test that reproduces the current refusal keeps its case open. Follow the named entries in the repository owner queue for the ruling and then test its effect on the indicated input.
+Three measured cases await three open decisions. A test that reproduces the current refusal keeps its case open. Follow the named entries in the repository owner queue for the ruling and then test its effect on the indicated input.
 
 | Case | Decision that would change its expected output |
 | --- | --- |
-| Simultaneous domain removal and addition | [Checked replacement](../../../OWNER_QUESTIONS.md#named-domain-casts-checked-replacement) determines which Psi evidence can represent one authored cast. |
 | Non-exact computed ranking subject | [Descending rank entry expressions](../../../OWNER_QUESTIONS.md#descending-rank-entry-expressions) determines which arithmetic expressions are valid rank subjects. |
 | Carry policy on a transparent data alias | [Transparent alias carry assertions](../../../OWNER_QUESTIONS.md#transparent-alias-carry-assertions) determines whether an alias can declare a floor that leaves its effective policy unchanged. |
 | Hypothesis outside a theorem binder | [Machine hypotheses without a binder](../../../OWNER_QUESTIONS.md#machine-hypothesis-without-a-binder) determines whether the declaration is invalid or the citation owes an implicit evidence argument. |
@@ -49,7 +48,7 @@ The unchecked Psi body must already identify its executable operations and clean
 | `handoff/carry policy on a transparent data alias` | Alias semantics → normalized type | An alias can inherit its target’s policy. L3 now refuses a list that adds a demand the expansion lacks, including the original `u64` case. The outstanding language question is whether an alias may author a list that adds no demand. |
 | `handoff/add a tag and a predicate domain in one cast` | L5 qualification edge → domain checker | One arrival establishes two memberships with different reasons. Each added domain must retain its own origin on the same value. |
 | `handoff/add an inherited child with its own predicate` | Terminal Psi membership rule → domain checker | On an input that retains the parent, the child’s completion carries its own predicate obligation. The child declaration identifies the parent required on that arrival. |
-| `handoff/simultaneous domain removal and addition` | Terminal Psi cast form → lowering | Erasing alone and adding alone have operations. The canonical spec leaves the terminal form for a simultaneous removal and addition open. |
+| `handoff/simultaneous domain removal and addition` | L5 scalar replacement → domain checker | `a as -A +B` carries the original value to one fresh parameter. The edge names the replacement and the origin for `B`. Retaining `A` instead produces an addition. |
 
 ## Theorems and callback premises
 

@@ -147,7 +147,13 @@ impl BlockFlow {
             super::casts::ScalarChange::Ordinary(direction) => {
                 edge.scalar_qualification_changes.push(crate::ScalarQualificationChange { argument_index: 0, direction });
             }
-            super::casts::ScalarChange::Completion(domains) => {
+            super::casts::ScalarChange::Completion { replaces, domains } => {
+                if replaces {
+                    edge.scalar_qualification_changes.push(crate::ScalarQualificationChange {
+                        argument_index: 0,
+                        direction: crate::QualificationDirection::Replace,
+                    });
+                }
                 edge.domain_completions.extend(domains.into_iter().map(|(domain, origin)| crate::DomainCompletion { argument_index: 0, domain, origin }));
             }
         }

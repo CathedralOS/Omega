@@ -12,6 +12,8 @@ mod policy_call;
 mod policy_construction;
 pub use policy_construction::{CheckedPolicyConstruction, check_policy_construction};
 mod storage;
+mod scalar_replacements;
+pub use scalar_replacements::{ScalarReplacementError, check_scalar_replacements};
 
 pub use policy_call::{CheckedPolicyCall, check_selected_policy_call};
 
