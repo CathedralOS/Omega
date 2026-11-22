@@ -60,11 +60,11 @@ language/domains.md:1020  unresolved name Unit
 language/effects.md:51  unresolved trait ClockOps
 language/effects.md:101  accepted
 language/effects.md:203  unresolved name Counter
-language/effects.md:231  accepted
-language/effects.md:576  accepted
-language/effects.md:641  accepted
-language/effects.md:750  unresolved name Handler::read
-language/effects.md:878  unresolved name ordinary_call
+language/effects.md:236  accepted
+language/effects.md:581  accepted
+language/effects.md:646  accepted
+language/effects.md:755  unresolved name Handler::read
+language/effects.md:883  unresolved name ordinary_call
 language/expressions.md:157  unresolved name Vec2
 language/expressions.md:343  unavailable import units
 language/expressions.md:411  accepted
@@ -114,7 +114,7 @@ layouts/plans.md:154  unresolved name size_of
 layouts/plans.md:322  unresolved name LayoutStorage
 layouts/recasts.md:6  unresolved name GdtRaw
 layouts/recasts.md:18  accepted
-packages/review.md:136  unresolved name Build::audit_service
+packages/review.md:138  unresolved name Build::audit_service
 packages/topology.md:113  unavailable import build_support\deployment
 proofs/contracts.md:54  unresolved name T
 proofs/contracts.md:406  unresolved name Valid

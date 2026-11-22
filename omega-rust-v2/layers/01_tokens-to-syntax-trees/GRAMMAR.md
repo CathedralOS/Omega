@@ -349,7 +349,7 @@ mathematical declarations and in machine parameters
 - Clauses may come in any order after the result, and `requires` and
   `ensures` may repeat (V1's rule; the spec's examples vary the order and
   repeat `requires`, proofs/contracts.md:826).
-- Forms: language/effects.md:750, language/termination.md:35,
+- Forms: language/effects.md:755, language/termination.md:35,
   language/assembly.md:61 and :142, language/conformances.md:615.
 
 ## Statements
@@ -495,7 +495,7 @@ Bitwise operators bind tighter than comparisons, unlike C.
   cast therefore begins an entry, never an addition or subtraction"
   (language/expressions.md). Examples at language/domains.md:623 and :701.
 - **Call markers** `suspend`, `block`, `suspend block` come before a call
-  (language/effects.md:878). `move`, `suspend` and `block` are prefixes only
+  (language/effects.md:883). `move`, `suspend` and `block` are prefixes only
   directly before another word, so each is still a name everywhere else:
   `block(x)` calls a machine named `block`. A `$` operand also admits the `move` prefix.
 - **`mutable` and `write` after `@`** mark access only if an operand follows. `@mutable;`

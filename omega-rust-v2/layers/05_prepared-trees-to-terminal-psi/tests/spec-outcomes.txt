@@ -9,9 +9,9 @@ language/data_and_literals.md:90  L5 fragment only: unsupported Psi declaration:
 language/domains.md:116  L5 domain only u64::AlignmentSize
 language/domains.md:495  L5 domain only i32::Impossible
 language/domains.md:572  L5 lowered previous | domains i32::Km, i32::Positive
-language/effects.md:231  L5 trait declarations MotorControl
-language/effects.md:576  L5 machine templates forward
-language/effects.md:641  L5 lowered example, local, apply | aliases SuspendingTransform | machine templates apply
+language/effects.md:236  L5 trait declarations MotorControl
+language/effects.md:581  L5 machine templates forward
+language/effects.md:646  L5 lowered example, local, apply | aliases SuspendingTransform | machine templates apply
 language/generics.md:246  L5 schema only Index
 language/generics.md:367  L5 data templates TinyBytes | domains u64::AtMost
 language/generics.md:510  L5 trait declarations ByteScanner
