@@ -145,37 +145,41 @@ pub fn fixed_runtime_index_alternatives(
     {
         return None;
     }
-    let prefix = &path[..index_at];
+    fixed_element_paths(types, root, root_type, &path[..index_at], suffix, None)?
+        .map(|path| descriptor_location(types, root, root_type, &path, None))
+        .collect()
+}
+
+/// One member is selected at run time. A caller may check each member for
+/// overlap or availability, but cannot use the set as a single coordinate.
+pub(crate) fn fixed_element_paths<'path>(
+    types: &[StructuralTypeDeclaration],
+    root: PlaceId,
+    root_type: StructuralTypeId,
+    prefix: &'path [StructuralPathSegment],
+    suffix: &'path [StructuralPathSegment],
+    interval: Option<std::ops::Range<u64>>,
+) -> Option<impl Iterator<Item = Vec<StructuralPathSegment>> + use<'path>> {
     let prefix_location = descriptor_location(types, root, root_type, prefix, None)?;
     let prefix_type = descriptor_location_type(types, root_type, &prefix_location.path)?;
     let length = indexed_carrier_length(types, prefix_type)?;
-    if length == 0 || length > 4096 {
+    let interval = interval.unwrap_or(0..length);
+    if interval.is_empty() || interval.end > length || interval.end - interval.start > 4096 {
         return None;
     }
-    let mut alternatives = Vec::with_capacity(usize::try_from(length).ok()?);
-    for index in 0..length {
-        let mut structural = prefix.to_vec();
-        if !matches!(
-            declaration(types, prefix_type)?.shape,
-            StructuralTypeShape::FixedArray { .. }
-                | StructuralTypeShape::ByteSequence(
-                    ByteSequenceCarrier::BoundedView { .. }
-                        | ByteSequenceCarrier::BoundedOwned { .. }
-                )
-        ) {
-            structural.push(StructuralPathSegment::Referent);
+    let crosses_reference = matches!(
+        declaration(types, prefix_type)?.shape,
+        StructuralTypeShape::Reference { .. }
+    );
+    Some(interval.map(move |index| {
+        let mut path = prefix.to_vec();
+        if crosses_reference {
+            path.push(StructuralPathSegment::Referent);
         }
-        structural.push(StructuralPathSegment::FixedIndex(index));
-        structural.extend_from_slice(suffix);
-        alternatives.push(descriptor_location(
-            types,
-            root,
-            root_type,
-            &structural,
-            None,
-        )?);
-    }
-    Some(alternatives)
+        path.push(StructuralPathSegment::FixedIndex(index));
+        path.extend_from_slice(suffix);
+        path
+    }))
 }
 
 fn indexed_carrier_length(

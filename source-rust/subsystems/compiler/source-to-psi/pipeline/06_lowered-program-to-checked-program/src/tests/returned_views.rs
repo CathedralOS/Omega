@@ -1269,6 +1269,54 @@ machine entry() crashes Trap {
 }
 
 #[test]
+fn a_returned_dynamic_element_keeps_its_captured_index() {
+    let source = r#"
+data Cell [copy] { value: u32; }
+data Pair { cells: [Cell; 2]; }
+machine select(pair: @mutable Pair, index: u64) -> @mutable Cell
+requires index < 2u64 {
+    let cells: @mutable [Cell] = @mutable pair.cells[..];
+    transition { _ -> pick(cells, index) }
+    machine pick(cells: @mutable [Cell], index: u64) -> @mutable Cell
+    requires cells.length == 2u64, index < 2u64 {
+        @mutable cells[index]
+    }
+}
+machine entry() crashes Trap {
+    let mutable pair: Pair;
+    pair.cells[0u64].value = 7u32;
+    let mutable selector: u64 = 1u64;
+    let cell: @mutable Cell = select(@mutable pair, selector);
+    selector = 0u64;
+    cell.value = 42u32;
+    transition pair.cells[selector].value == 7u32 && pair.cells[1u64].value == 42u32 {
+        true -> done(), false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    assert_eq!(
+        super::stored_references::run(source),
+        Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ))
+    );
+    let conflict = source.replace(
+        "    cell.value =",
+        "    pair.cells[1u64].value = 29u32;\n    cell.value =",
+    );
+    assert_eq!(verdict(&conflict), "rejected: 1 conflicts");
+    let beyond = source.replace("@mutable cells[index]", "@mutable cells[index + 2u64]");
+    let result = crate::checking::judge(elaborate(&beyond)).unwrap();
+    assert!(
+        matches!(&result, RouteVerdict::Rejected { unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::OperationSafety { .. }))),
+        "{result:?}"
+    );
+}
+
+#[test]
 fn indexed_view_payloads_keep_their_actual_lender() {
     let source = r#"
 machine see(value: @u8) {}

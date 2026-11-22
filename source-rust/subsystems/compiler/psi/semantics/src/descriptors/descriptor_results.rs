@@ -538,7 +538,7 @@ impl DescriptorMachine {
                     .binary_search_by_key(&index, |&(id, _)| id)
                     .ok()
                     .map(|row| self.unsigned_index_literals[row].1)
-            })
+            }, |at| self.flow.contains_key(&at))
     }
 
     pub fn calls_at(&self, position: DescriptorPosition) -> &[DescriptorInvocation] {

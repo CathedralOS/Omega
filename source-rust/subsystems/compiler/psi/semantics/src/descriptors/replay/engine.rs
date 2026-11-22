@@ -1438,44 +1438,56 @@ impl<'a> Replay<'a> {
                                 return None;
                             }
                             let suffix = &full[prefix_path.len() + 1..];
-                            let target_path = match projection.captured_address_path() {
-                                Ok(path) => path,
-                                Err(_) => {
+                            let root_type = *machine.place_types.get(source)?;
+                            let candidates = match projection.captured_address_path() {
+                                Ok(path) if path.contains(&StructuralPathSegment::Referent) => {
                                     unavailable.get_or_insert(
-                                        "reference backing needs captured finite geometry",
+                                        "reference backing has no retained captured-entry identity",
                                     );
                                     continue;
                                 }
+                                Ok(path) => vec![(path, projection.clone())],
+                                Err(_) => {
+                                    let Some(paths) = projection.returned_element_addresses(
+                                        self.types, *source, root_type,
+                                    ) else {
+                                        unavailable.get_or_insert(
+                                            "reference backing needs captured finite geometry",
+                                        );
+                                        continue;
+                                    };
+                                    paths.into_iter()
+                                        .map(|path| {
+                                            let address = Projection::new(&path);
+                                            (path, address)
+                                        })
+                                        .collect()
+                                }
                             };
-                            let target_type = *machine.place_types.get(source)?;
-                            if !crate::reference_source_projection_compatible(
-                                self.types.iter(),
-                                target_type,
-                                &target_path,
-                                reference,
-                            ) {
-                                unavailable.get_or_insert(
-                                    "reference backing changes its declared referee type",
-                                );
-                                continue;
+                            for (path, projection) in candidates {
+                                if !crate::reference_source_projection_compatible(
+                                    self.types.iter(),
+                                    root_type,
+                                    &path,
+                                    reference,
+                                ) {
+                                    unavailable.get_or_insert(
+                                        "reference backing changes its declared referee type",
+                                    );
+                                    break;
+                                }
+                                projected.push(self.append_storage_capture(
+                                    machine,
+                                    state,
+                                    &StorageResolution::Projected(DescriptorCallOrigin::Argument {
+                                        source: *source,
+                                        projection,
+                                    }),
+                                    suffix,
+                                    depth,
+                                    expansions.clone(),
+                                )?);
                             }
-                            if projection.has_captured_reference_crossing().unwrap_or(true) {
-                                unavailable.get_or_insert(
-                                    "reference backing has no retained captured-entry identity",
-                                );
-                                continue;
-                            }
-                            projected.push(self.append_storage_capture(
-                                machine,
-                                state,
-                                &StorageResolution::Projected(DescriptorCallOrigin::Argument {
-                                    source: *source,
-                                    projection: projection.clone(),
-                                }),
-                                suffix,
-                                depth,
-                                expansions.clone(),
-                            )?);
                             continue;
                         }
                         Origin::CapturedStorage(account) => {

@@ -385,17 +385,21 @@ enum DescriptorPrefix {
 /// A forgotten public region has no address at all, which keeps the
 /// two kinds of inexact bound apart.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum AddressStep {
-    Path(Vec<StructuralPathSegment>, Option<Position>),
+enum AddressStep {    Path(Vec<StructuralPathSegment>, Option<Position>),
     Window {
         start: ValueId,
         end: ValueId,
         at: Position,
     },
-    /// A runtime element selector whose index was stripped.
-    ErasedElement,
+    /// A callee's ordinal cannot be used as a caller-local scalar. Only an
+    /// index captured at a live producer instruction can name a returned element.
+    ErasedElement {
+        captured: bool,
+    },
     /// A runtime window whose bounds were stripped.
-    ErasedWindow,
+    ErasedWindow {
+        interval: Option<(u64, u64)>,
+    },
 }
 
 impl Projection {
@@ -511,7 +515,7 @@ impl Projection {
                     }
                     window = true;
                 }
-                AddressStep::ErasedElement | AddressStep::ErasedWindow => {
+                AddressStep::ErasedElement { .. } | AddressStep::ErasedWindow { .. } => {
                     return Err("captured storage address has erased runtime coordinates");
                 }
             }
@@ -535,6 +539,80 @@ impl Projection {
     pub fn captured_address_path(&self) -> Result<Vec<StructuralPathSegment>, &'static str> {
         self.validate_captured_storage_address(|_| true)?
             .ok_or("captured storage window is not a finite structural path")
+    }
+
+    /// A callee returned one element of this finite input region. Keep the
+    /// suffix selecting storage inside that element, and enforce each nested
+    /// slice's original bounds before translating its offset.
+    pub(crate) fn returned_element_addresses(
+        &self,
+        types: &[terminal_psi::StructuralTypeDeclaration],
+        source: PlaceId,
+        root_type: semantic_vocabulary::StructuralTypeId,
+    ) -> Option<Vec<Vec<StructuralPathSegment>>> {
+        let mut prefix = Vec::new();
+        let mut suffix = None;
+        let mut interval: Option<std::ops::Range<u64>> = None;
+        for step in self.address.as_ref()? {
+            let window;
+            let segments = match step {
+                AddressStep::ErasedElement { captured: true } if suffix.is_none() => {
+                    suffix = Some(Vec::new());
+                    continue;
+                }
+                AddressStep::ErasedWindow {
+                    interval: Some((start, end)),
+                } => {
+                    window = StructuralPathSegment::FixedRange {
+                        start: *start,
+                        end: *end,
+                    };
+                    std::slice::from_ref(&window)
+                }
+                AddressStep::Path(segments, _) => segments.as_slice(),
+                _ => return None,
+            };
+            for segment in segments {
+                match segment {
+                    StructuralPathSegment::FixedRange { start, end }
+                        if suffix.is_none() && start <= end =>
+                    {
+                        interval = Some(match interval {
+                            Some(enclosing) if *end <= enclosing.end - enclosing.start => {
+                                enclosing.start + *start..enclosing.start + *end
+                            }
+                            None => *start..*end,
+                            _ => return None,
+                        });
+                    }
+                    StructuralPathSegment::Case(_)
+                    | StructuralPathSegment::Field(_)
+                    | StructuralPathSegment::FixedIndex(_)
+                    | StructuralPathSegment::RepresentationView { .. } => {
+                        if let Some(suffix) = &mut suffix {
+                            suffix.push(segment.clone());
+                        } else if interval.is_none() {
+                            prefix.push(segment.clone());
+                        } else {
+                            return None;
+                        }
+                    }
+                    _ => return None,
+                }
+            }
+        }
+        let suffix = suffix?;
+        let paths = crate::descriptor_lifetimes::locations::fixed_element_paths(
+            types, source, root_type, &prefix, &suffix, interval,
+        )?;
+        // A bounded descriptor can describe the extent of another object's
+        // storage. Only an inline member belongs to this captured source.
+        paths
+            .map(|path| {
+                crate::projection_stays_in_inline_storage(types.iter(), root_type, &path)
+                    .then_some(path)
+            })
+            .collect()
     }
 
     /// Each runtime index keeps the instruction that captured it, including
@@ -573,8 +651,8 @@ impl Projection {
                     | StructuralPathSegment::FixedRange { .. } => false,
                 }),
                 AddressStep::Window { .. }
-                | AddressStep::ErasedElement
-                | AddressStep::ErasedWindow => false,
+                | AddressStep::ErasedElement { .. }
+                | AddressStep::ErasedWindow { .. } => false,
             })
         };
         if !complete(parent) || !complete(child) {
@@ -640,12 +718,13 @@ impl Projection {
     }
 
     pub fn without_runtime_coordinates(self) -> Self {
-        self.without_runtime_coordinates_with(|_| None)
+        self.without_runtime_coordinates_with(|_| None, |_| false)
     }
 
     pub(crate) fn without_runtime_coordinates_with(
         mut self,
         known_index: impl Fn(ValueId) -> Option<u64>,
+        producer_position: impl Fn(Position) -> bool,
     ) -> Self {
         let has_window = self.window.is_some()
             || self
@@ -653,7 +732,7 @@ impl Projection {
                 .iter()
                 .any(|step| matches!(step, StructuralPathSegment::FixedRange { .. }));
         if has_window
-            && let Some(segments) = self.origin_path_with(|_, index| known_index(index))
+            && let Some(segments) = self.origin_path_with(|at, index| producer_position(at).then(|| known_index(index)).flatten())
             && let Some(path) = segments
                 .into_iter()
                 .map(|segment| match segment {
@@ -678,12 +757,16 @@ impl Projection {
             let mut erased = Vec::with_capacity(steps.len());
             for step in steps {
                 match step {
-                    AddressStep::Window { .. } => erased.push(AddressStep::ErasedWindow),
+                    AddressStep::Window { start, end, at } => {
+                        let interval = producer_position(at)
+                            .then(|| known_index(start).zip(known_index(end))).flatten();
+                        erased.push(AddressStep::ErasedWindow { interval });
+                    }
                     AddressStep::Path(path, at) => {
                         let mut run = Vec::new();
                         for segment in path {
                             if let Some((value, _)) = segment.runtime_index() {
-                                if at.is_some()
+                                if at.is_some_and(&producer_position)
                                     && let Some(index) = known_index(value)
                                 {
                                     resolved_index = true;
@@ -696,7 +779,9 @@ impl Projection {
                                         None,
                                     ));
                                 }
-                                erased.push(AddressStep::ErasedElement);
+                                erased.push(AddressStep::ErasedElement {
+                                    captured: at.is_some_and(&producer_position),
+                                });
                             } else {
                                 run.push(segment);
                             }
@@ -705,7 +790,7 @@ impl Projection {
                             erased.push(AddressStep::Path(run, None));
                         }
                     }
-                    step @ (AddressStep::ErasedElement | AddressStep::ErasedWindow) => {
+                    step @ (AddressStep::ErasedElement { .. } | AddressStep::ErasedWindow { .. }) => {
                         erased.push(step)
                     }
                 }
@@ -801,7 +886,7 @@ impl Projection {
             .address
             .as_ref()?
             .iter()
-            .any(|step| matches!(step, AddressStep::ErasedElement | AddressStep::ErasedWindow))
+            .any(|step| matches!(step, AddressStep::ErasedElement { .. } | AddressStep::ErasedWindow { .. }))
         {
             return None;
         }
@@ -830,8 +915,8 @@ impl Projection {
                 AddressStep::Window { start, at, .. } => {
                     append_offset(&mut offset, known_unsigned(*at, *start))?
                 }
-                AddressStep::ErasedWindow => append_offset(&mut offset, None)?,
-                AddressStep::ErasedElement => {
+                AddressStep::ErasedWindow { .. } => append_offset(&mut offset, None)?,
+                AddressStep::ErasedElement { .. } => {
                     offset = None;
                     result.push(Element);
                 }
@@ -904,8 +989,8 @@ impl Projection {
                         used.checked_add(match step {
                             AddressStep::Path(path, _) => path.len(),
                             AddressStep::Window { .. }
-                            | AddressStep::ErasedElement
-                            | AddressStep::ErasedWindow => 1,
+                            | AddressStep::ErasedElement { .. }
+                            | AddressStep::ErasedWindow { .. } => 1,
                         })
                     })?;
                     if work > 4096
