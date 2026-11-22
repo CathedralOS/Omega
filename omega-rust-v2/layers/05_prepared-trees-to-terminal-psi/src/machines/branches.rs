@@ -29,7 +29,9 @@ pub(crate) struct BlockFlow {
     operation_start: usize,
     // Binder identities, not spellings: only uses resolved in the successful arm
     // can refer to its backing, including in nested expression/terminal dispatch.
-    pub(super) payload_bindings: std::collections::BTreeMap<usize, value_patterns::PayloadPlace>,
+    pub(super) payload_bindings: std::collections::BTreeMap<usize, value_patterns::PayloadBinding>,
+    // An owned payload is copied into the selected arm before the arm can alter the subject.
+    pending_payload_captures: std::collections::BTreeMap<usize, Vec<(usize, value_patterns::PayloadPlace, Site)>>,
     parameter: Option<crate::Parameter>,
     scalar_domain_invariants: Vec<crate::ScalarDomainInvariant>,
 }
@@ -49,6 +51,7 @@ impl BlockFlow {
             active: BlockId(next_id(0)),
             operation_start: 0,
             payload_bindings: Default::default(),
+            pending_payload_captures: Default::default(),
             parameter: None,
             scalar_domain_invariants: Vec::new(),
         }
@@ -60,9 +63,13 @@ impl BlockFlow {
         id
     }
 
+    pub(super) fn capture_payload(&mut self, arm: BlockId, binder: usize, place: value_patterns::PayloadPlace, site: Site) {
+        self.pending_payload_captures.entry(arm.get()).or_default().push((binder, place, site));
+    }
+
     pub(crate) fn open(
         &mut self,
-        body: &MachineBody,
+        body: &mut MachineBody,
         id: BlockId,
         parameter: Option<crate::Parameter>,
     ) {
@@ -70,6 +77,11 @@ impl BlockFlow {
         self.operation_start = body.operations.len();
         self.parameter = parameter;
         self.scalar_domain_invariants.clear();
+        if let Some(captures) = self.pending_payload_captures.remove(&id.get()) {
+            for (binder, place, site) in captures {
+                self.payload_bindings.insert(binder, value_patterns::PayloadBinding::Captured(place.emit(body, site)));
+            }
+        }
     }
 
     pub(super) fn close(
