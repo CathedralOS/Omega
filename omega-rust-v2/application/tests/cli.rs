@@ -312,6 +312,42 @@ fn checking_a_replacement_uses_the_input_value_before_the_cast() {
 }
 
 #[test]
+fn checking_a_computed_rank_distinguishes_formation_from_descent() {
+    let directory = application_directory().join("../target").join(format!("checked-rank-{}", std::process::id()));
+    fs::create_dir_all(&directory).unwrap();
+    let decreasing = "match n == 0 {true -> 0, false -> count(n - 1),}";
+    let self_call = "match n == 0 {true -> 0, false -> count(n),}";
+    for (requires, rank, body, accepts) in [
+        ("requires n <= 100", "K + n", decreasing, true),
+        ("requires n <= 18446744073709551612", "K + n", "0", true),
+        ("requires n <= 18446744073709551613", "K + n", "0", false),
+        ("", "K + n", "0", false),
+        ("", "(K + n) - K", "0", false),
+        ("requires n <= 100", "K + n", self_call, false),
+        ("", "K -% n", "0", true),
+        ("", "K -| n", "0", true),
+    ] {
+        let source = format!("const K:u64 = 3; machine count(n:u64)->u64 {requires} terminates by {rank} {{ {body} }}");
+        fs::write(directory.join("rank.omg"), &source).unwrap();
+        let lowered = invoke(&directory, &["source", "lower", "rank.omg"]);
+        assert!(lowered.status.success(), "{source}: {}", String::from_utf8_lossy(&lowered.stderr));
+        let result = invoke(&directory, &["source", "check", "--only", "computed-ranks", "--", "rank.omg"]);
+        let diagnostic = String::from_utf8(result.stderr).unwrap();
+        assert_eq!(result.status.code(), Some(if accepts { 0 } else { 1 }), "{source}: {diagnostic}");
+        if accepts {
+            assert!(diagnostic.is_empty());
+        } else {
+            assert!(diagnostic.contains("checker:"), "{diagnostic}");
+            if requires.is_empty() {
+                let start = source.find("K + n").unwrap();
+                assert!(diagnostic.contains(&format!("(bytes {start}..{})", start + "K + n".len())), "{diagnostic}");
+            }
+        }
+    }
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn lowers_omitted_and_written_zero_initializers() {
     let omitted = "data Options {count:u8; retries:u16;} machine build(){let options=Options{count:1,..};}";
     let written = omitted.replace("count:1,..", "count:1,retries:0");

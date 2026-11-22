@@ -4,7 +4,7 @@ use omega_syntax::NodeKind;
 use omega_typed::{NodeSemantics, ObligationKind, TypedOperation, TypingObligation, ValueType};
 
 use super::body::{site_at, unsupported_node};
-use crate::{ArithmeticPolicy, IntegerObligation, IntegerOperation, IntegerPrimitive, LoweringError};
+use crate::{ArithmeticPolicy, IntegerOperation, IntegerPrimitive, LoweringError};
 
 /// Typing supplies the folded number. A concrete integer uses the landing on
 /// the operator or its enclosing parentheses. Only the result must fit, so
@@ -108,7 +108,7 @@ pub(crate) fn lower_integer(
     } else {
         (Some(ArithmeticPolicy::Exact), token)
     };
-    use ArithmeticPolicy::{Exact, Saturating, Wrapping};
+    use ArithmeticPolicy::Exact;
     use IntegerPrimitive::*;
     let primitive = match (token, operation.operands.len()) {
         ("+", 2) => Add,
@@ -191,16 +191,9 @@ pub(crate) fn lower_integer(
         };
         return Ok(LoweredInteger::Trapping(primitive));
     };
-    use IntegerObligation::*;
     let signed = matches!(first, ValueType::Integer { signed: true, .. });
-    let questions: &[IntegerObligation] = match (policy, primitive) {
-        (Exact, Add | Subtract | Multiply | Negate) => &[ResultFitsCarrier],
-        (Exact, Divide | Remainder) if signed => &[NonzeroDivisor, QuotientFitsCarrier],
-        (Exact | Wrapping | Saturating, Divide | Remainder) => &[NonzeroDivisor],
-        (Exact, ShiftLeft) => &[ShiftCountInRange, ResultFitsCarrier],
-        (Exact, ShiftRight) | (Saturating, ShiftLeft | ShiftRight) => &[ShiftCountInRange],
-        _ => &[],
-    };
+    let questions = IntegerOperation::required_obligations(primitive, policy, signed)
+        .ok_or_else(|| error("integer primitive has no formation contract under the selected policy"))?;
     Ok(LoweredInteger::Ordinary(IntegerOperation {
         primitive,
         policy,

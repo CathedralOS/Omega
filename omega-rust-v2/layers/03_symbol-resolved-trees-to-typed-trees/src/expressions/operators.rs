@@ -1,7 +1,7 @@
 use super::call_arguments::{CallOperand, PendingComparisons, SelectedMachine};
 use crate::declarations::operator_declarations::nominal_operator_operand;
 use crate::evaluation::numeric_literals;
-use crate::expressions::body_typer::BodyTyper;
+use crate::expressions::body_typer::{BodyTyper, ExpressionContext};
 use crate::type_error::SourceTypeError;
 use crate::type_relations::TypeRelations;
 use crate::type_system::dependent_subjects::DependentSubjects;
@@ -283,6 +283,9 @@ impl BodyTyper<'_, '_> {
             (if compare { Bool } else { carrier.clone() }, vec![carrier.clone(), count_ty.clone()])
         };
         if result.numeric() && operands.iter().any(ValueType::numeric) {
+            if token.ends_with('!') && matches!(self.context, ExpressionContext::Proof | ExpressionContext::ContractValue) {
+                return Err(TypeError::at(source, node_index, "a proof term cannot execute trapping arithmetic"));
+            }
             self.record_obligation(
                 node_index,
                 ObligationKind::OperationContract {

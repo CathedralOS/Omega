@@ -8,7 +8,8 @@ use omega_psi::{
 };
 
 /// The natural rank at the given entry formals. `None` where the rank is
-/// undefined (an exact difference below zero) or names a missing formal.
+/// undefined, names a missing formal, or exceeds this reader's u64 addition
+/// and subtraction fragment. It reads the original carrier policy at each step.
 pub fn entry_rank(
     rank: &RankExpression<usize>,
     formals: &[u64],
@@ -18,6 +19,32 @@ pub fn entry_rank(
         RankOperand::Constant(constant) => i128::try_from(constant).ok(),
     };
     match rank {
+        RankExpression::Arithmetic(steps) => {
+            use omega_psi::{ArithmeticPolicy, IntegerObligation, IntegerPrimitive, RankArithmeticStep, ScalarType};
+            let mut stack: Vec<u64> = Vec::new();
+            for step in steps {
+                let result = match step {
+                    RankArithmeticStep::Operand { operand, carrier: ScalarType::Integer {signed: false, width: 64} } => u64::try_from(value(operand)?).ok()?,
+                    RankArithmeticStep::Operand {..} => return None,
+                    RankArithmeticStep::Apply(op) => {
+                        let right = stack.pop()?;
+                        let left = stack.pop()?;
+                        match (op.primitive, op.policy, op.obligations.as_slice()) {
+                            (IntegerPrimitive::Add, ArithmeticPolicy::Exact, [IntegerObligation::ResultFitsCarrier]) => left.checked_add(right)?,
+                            (IntegerPrimitive::Add, ArithmeticPolicy::Wrapping, []) => left.wrapping_add(right),
+                            (IntegerPrimitive::Add, ArithmeticPolicy::Saturating, []) => left.saturating_add(right),
+                            (IntegerPrimitive::Subtract, ArithmeticPolicy::Exact, [IntegerObligation::ResultFitsCarrier]) => left.checked_sub(right)?,
+                            (IntegerPrimitive::Subtract, ArithmeticPolicy::Wrapping, []) => left.wrapping_sub(right),
+                            (IntegerPrimitive::Subtract, ArithmeticPolicy::Saturating, []) => left.saturating_sub(right),
+                            _ => return None,
+                        }
+                    }
+                };
+                stack.push(result);
+            }
+            let [result] = stack.as_slice() else { return None; };
+            Some(i128::from(*result))
+        }
         RankExpression::Operand(operand) => value(operand),
         RankExpression::SaturatingDistance { cursor, limit } => Some((value(limit)? - value(cursor)?).max(0)),
         RankExpression::ExactDifference { minuend, subtrahend } => Some(value(minuend)? - value(subtrahend)?).filter(|rank| *rank >= 0),

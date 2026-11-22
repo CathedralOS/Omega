@@ -258,6 +258,7 @@ dependencies = [
 name = "omega-checker"
 version = "0.0.0"
 dependencies = [
+ "num-bigint",
  "omega-lexer",
  "omega-lowering",
  "omega-parser",

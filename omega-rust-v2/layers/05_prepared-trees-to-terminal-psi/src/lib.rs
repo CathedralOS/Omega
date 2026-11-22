@@ -15,7 +15,7 @@ mod identity;
 pub use lowering::error::LoweringError;
 use lowering::error::site_at;
 pub use declarations::policy_answer::{FrozenPolicyInvocation, PolicyUnit};
-pub use identity::source as source_declaration;
+pub use identity::{portable as portable_declaration, source as source_declaration};
 pub use lowering::package::{lower_package, lower_pending_policies, lower_selected_policy_unit};
 pub use lowering::pending::{IssuersPending, PendingPolicyDomain, PendingPolicyPackage, PolicyIntroduction};
 pub use declarations::domains::{lower_selected_policy_definition, unanswered_policy_refusal};

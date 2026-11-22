@@ -16,7 +16,8 @@ const KINDS: [(NodeKind, omega_psi::DeclarationKind); 11] = [
     (NodeKind::AsmMachine, omega_psi::DeclarationKind::AsmMachine),
     (NodeKind::MathLet, omega_psi::DeclarationKind::MathLet),
 ];
-pub(crate) fn portable(id: &DeclarationId) -> Option<omega_psi::DeclarationId> {
+/// Map a resolved declaration, including its overload signature, into Psi's identity space.
+pub fn portable(id: &DeclarationId) -> Option<omega_psi::DeclarationId> {
     id.try_map_kind(&|kind| KINDS.iter().find(|(source, _)| source == kind).map(|(_, psi)| *psi))
 }
 /// The source declaration a Psi identity was lowered from. A value the

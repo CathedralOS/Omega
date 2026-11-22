@@ -9,8 +9,8 @@ use std::io::{self, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage: omega source parse [--] <file>\n       omega source resolve [--package-root <directory>] [--] <package-relative file>...\n       omega source type [--package-root <directory>] [--] <package-relative file>...\n       omega source prepare [--package-root <directory>] [--] <package-relative file>...\n       omega source lower [--package-root <directory>] [--] <package-relative file>...\n       omega source check --only scalar-replacements [--package-root <directory>] [--] <package-relative file>...";
-const HELP: &str = "Parse checks syntax. Resolve checks names. Type checks declarations, expressions and machine calls. Prepare evaluates constants and static indices and checks the resulting types. Lower constructs portable Psi bodies from prepared source. Check --only scalar-replacements checks scalar replacement casts in closed machine bodies under their entry contracts. For these package commands, list the source files of one package rooted at the current directory. With --package-root, paths are relative to that directory. Build captures the complete package there and binds its anonymous owner. This mode requires a root without an authored build.omg. Success produces no output.";
+const USAGE: &str = "Usage: omega source parse [--] <file>\n       omega source resolve [--package-root <directory>] [--] <package-relative file>...\n       omega source type [--package-root <directory>] [--] <package-relative file>...\n       omega source prepare [--package-root <directory>] [--] <package-relative file>...\n       omega source lower [--package-root <directory>] [--] <package-relative file>...\n       omega source check --only <scalar-replacements|computed-ranks> [--package-root <directory>] [--] <package-relative file>...";
+const HELP: &str = "Parse checks syntax. Resolve checks names. Type checks declarations, expressions and machine calls. Prepare evaluates constants and static indices and checks the resulting types. Lower constructs portable Psi bodies from prepared source. Check --only scalar-replacements checks scalar replacement casts in closed machine bodies under their entry contracts. Check --only computed-ranks checks computed integer ranks under each closed machine's entry contract and verifies calls within its recursive component. For these package commands, list the source files of one package rooted at the current directory. With --package-root, paths are relative to that directory. Build captures the complete package there and binds its anonymous owner. This mode requires a root without an authored build.omg. Success produces no output.";
 
 enum Command<'a> {
     Help,
@@ -40,8 +40,13 @@ fn command(arguments: &[OsString]) -> Result<Command<'_>, String> {
             }
             let (stage, rest) = match action.to_str() {
                 Some("check") => match rest {
-                    [flag, scope, tail @ ..] if flag == "--only" && scope == "scalar-replacements" => (source::Stage::CheckScalarReplacements, tail),
-                    _ => return Err("source check requires --only scalar-replacements".into()),
+                    [flag, scope, tail @ ..] if flag == "--only" && scope == "scalar-replacements" => {
+                        (source::Stage::Check(source::CheckScope::ScalarReplacements), tail)
+                    }
+                    [flag, scope, tail @ ..] if flag == "--only" && scope == "computed-ranks" => {
+                        (source::Stage::Check(source::CheckScope::ComputedRanks), tail)
+                    }
+                    _ => return Err("source check requires --only scalar-replacements or --only computed-ranks".into()),
                 },
                 Some("lower") => (source::Stage::Lower, rest),
                 Some("prepare") => (source::Stage::Prepare, rest),

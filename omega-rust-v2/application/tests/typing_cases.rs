@@ -549,6 +549,18 @@ fn an_explicit_ranking_view_must_be_admitted() {
     });
 }
 
+#[test]
+fn a_rank_subject_requires_total_arithmetic() {
+    check_source_change(
+        "machine f(n:u64) requires n < 100 terminates by (n + 1) - 1 {}",
+        "n + 1",
+        "n +! 1",
+        "n +! 1",
+        "a proof term cannot execute trapping arithmetic",
+        "Access plans and progress",
+    );
+}
+
 // Mathematical terms: ordinary arguments apply by prefix and cannot exceed the function type.
 #[test]
 fn a_mathematical_application_refuses_excess_arguments() {
