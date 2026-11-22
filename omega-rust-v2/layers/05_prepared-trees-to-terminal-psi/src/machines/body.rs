@@ -203,7 +203,14 @@ fn emit_body(
                     .semantics_at(statement)
                     .any(|r| matches!(r,NodeSemantics::Obligation(o) if matches!(o.kind,omega_typed::ObligationKind::ZeroValue(_)))) =>
             {
-                super::references::provision_local(&mut expressions, statement, *binder, data, &mut block)?;
+                let value = super::construction::local_zero(&expressions, statement, *binder, &mut block)?;
+                let home = home_borrowed_scalar(file, types, &borrowed, *binder, value, &mut block);
+                if let OperationResult::Structural(place) = home
+                    && tree.forest().mutable_bindings.contains(&file.node_id(*binder))
+                {
+                    block.mutable_homes.push(place);
+                }
+                expressions.bindings.push((*binder, home));
             }
             (NodeKind::Let, [binder, initializer] | [binder, _, initializer])
                 if file.nodes[*binder].kind == NodeKind::BindingPattern && resolved.pattern_binding(*binder).is_some() =>
@@ -449,7 +456,17 @@ fn binding_carrier<'a>(
             _ => return Err(unsupported_node(tree.resolved().file, node, "unsupported binding record")),
         }
     }
-    carrier.ok_or_else(|| unsupported_node(tree.resolved().file, node, "binding has no carrier"))
+    let file = tree.resolved().file;
+    if carrier.is_none() && let Some(parent) = file.nodes[node].parent
+        && file.nodes[parent].kind == NodeKind::Let && file.nodes[parent].children.first() == Some(&node)
+    {
+        // An initializer-free local's type is on the zero request at the let.
+        carrier = tree.semantics_at(parent).find_map(|row| match row {
+            NodeSemantics::Obligation(o) if let omega_typed::ObligationKind::ZeroValue(ty) = &o.kind => Some(ty),
+            _ => None,
+        });
+    }
+    carrier.ok_or_else(|| unsupported_node(file, node, "binding has no carrier"))
 }
 
 /// The discarded operand's carrier is its own typed expression record. Other

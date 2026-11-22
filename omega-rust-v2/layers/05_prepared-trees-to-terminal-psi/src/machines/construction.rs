@@ -5,6 +5,53 @@ use omega_typed::{NodeSemantics, ObligationKind, Site, TypedConstruction, Typing
 
 mod zero;
 
+/// A local without an initializer receives the zero of its declared type. The
+/// selected zero operation and the receiving home have separate responsibilities:
+/// a scalar needs a home only when its address is taken.
+pub(super) fn local_zero(
+    expressions: &Expressions<'_>,
+    node: usize,
+    binder: usize,
+    body: &mut MachineBody,
+) -> Result<OperationResult, LoweringError> {
+    let tree = expressions.tree;
+    let resolved = tree.resolved();
+    let site = site_at(tree, node);
+    let mut rows = tree.semantics_at(node);
+    let Some(NodeSemantics::Obligation(obligation)) = rows.next() else {
+        return Err(LoweringError::new(&site, "local lacks its zero-value requirement"));
+    };
+    let ObligationKind::ZeroValue(carrier) = &obligation.kind else {
+        return Err(LoweringError::new(&site, "unexpected local establishment requirement"));
+    };
+    if rows.next().is_some() || resolved.pattern_binding(binder).is_none()
+        || resolved.file.nodes[binder].kind != omega_syntax::NodeKind::BindingPattern
+        || obligation.site != site
+    {
+        return Err(LoweringError::new(&site, "unsupported zero-initialized pattern or obligation"));
+    }
+    let ty = expressions.types.id_for(carrier).map_err(|e| LoweringError::new(&site, e.to_string()))?;
+    // A zeroed scalar-leaf record local can already carry an authored cleanup:
+    // its home remains live until transfer or the scope's cleanup edge.
+    if let Some(TypeShape::Nominal(id)) = expressions.types.get(ty)
+        && super::references::zero_discardable_record(expressions.types, expressions.data, *id)
+    {
+        use super::expressions::{EmitOperation, OperationOutput};
+        return Ok(body.push_operation(OperationOutput::Structural(ty), OperationKind::EstablishZeroedStructural, site));
+    }
+    let roster = zero::admit(expressions.types, expressions.data, ty).map_err(|refusal| {
+        let reason = match refusal.stop {
+            zero::Stop::Reference => "zero cannot supply a borrowed reference",
+            zero::Stop::Callable => "zero cannot supply a callable",
+            zero::Stop::Host => "the zero needs more operations than this host can address",
+            zero::Stop::Blocked(why) => why,
+        };
+        let field = refusal.below.map_or_else(String::new, |f| format!(" at field `{}`", f.path));
+        LoweringError::new(&site, format!("cannot establish zero of local type `{carrier}`{field}: {reason}"))
+    })?;
+    zero::establish(expressions, body, None, ty, roster, &site)
+}
+
 pub(super) struct Constructor {
     case: Option<crate::DeclarationId>,
     written: Vec<(usize, crate::DeclarationId, TypeId)>,
@@ -38,7 +85,7 @@ impl Constructor {
         // All authored computations have completed. Supply a dominating value for
         // each omission; the establishment still consumes a complete, ordered roster.
         for (position, field, carrier, roster, origin) in self.zeros {
-            let value = zero::establish(expressions, body, &field, carrier, roster, &origin)?;
+            let value = zero::establish(expressions, body, Some(&field), carrier, roster, &origin)?;
             slots[position] = Some(FieldInitializer {
                 field,
                 operand: expressions.value_argument(value, body, &origin)?,

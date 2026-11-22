@@ -709,53 +709,6 @@ pub(super) fn zero_discardable_record(
     true
 }
 
-pub(super) fn provision_local(
-    expressions: &mut Expressions<'_>,
-    node: usize,
-    binder: usize,
-    data: &[crate::LoweredData],
-    body: &mut MachineBody,
-) -> Result<(), LoweringError> {
-    use super::expressions::{EmitOperation, OperationOutput};
-    let tree = expressions.tree;
-    let resolved = tree.resolved();
-    let file = resolved.file;
-    let site = site_at(tree, node);
-    let mut rows = tree.semantics_at(node);
-    let Some(NodeSemantics::Obligation(o)) = rows.next() else {
-        return Err(LoweringError::new(&site, "local lacks its zero-value requirement"));
-    };
-    let ObligationKind::ZeroValue(carrier) = &o.kind else {
-        return Err(LoweringError::new(&site, "unexpected local establishment requirement"));
-    };
-    if rows.next().is_some() || resolved.pattern_binding(binder).is_none() || file.nodes[binder].kind != NodeKind::BindingPattern {
-        return Err(LoweringError::new(&site, "unsupported zero-initialized pattern or obligation"));
-    }
-    let ty = expressions
-        .types
-        .id_for(carrier)
-        .map_err(|e| LoweringError::new(&site, e.to_string()))?;
-    let Some(crate::TypeShape::Nominal(id)) = expressions.types.get(ty) else {
-        return Err(LoweringError::new(&site, "zero-initialized local requires a supported nominal record"));
-    };
-    if !zero_discardable_record(expressions.types, data, *id) {
-        return Err(LoweringError::new(&site, "zero initialization requires cleanup evidence for this record"));
-    }
-    let value = body.push_operation(OperationOutput::Structural(ty), crate::OperationKind::EstablishZeroedStructural, site);
-    let OperationResult::Structural(home) = value else { unreachable!() };
-    if expressions
-        .tree
-        .forest()
-        .mutable_bindings
-        .contains(&file.node_id(binder))
-    {
-        body.mutable_homes.push(home);
-    }
-
-    expressions.bindings.push((binder, value));
-    Ok(())
-}
-
 pub(super) fn store_place(
     expressions: &Expressions<'_>,
     node: usize,
