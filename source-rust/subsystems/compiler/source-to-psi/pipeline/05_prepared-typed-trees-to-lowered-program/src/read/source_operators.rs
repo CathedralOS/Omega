@@ -304,6 +304,13 @@ impl Program<'_> {
             &value.kind,
             self.typed.expression_table.expression(expression),
         ) {
+            // Range formation already selected on the original collection.
+            // Its result can now be a window, a borrow, or a qualified view.
+            (_, ExpressionNode::Indexed(indexed))
+                if self.typed.expression_table.range_node(indexed.index).is_some() =>
+            {
+                Ok(())
+            }
             (
                 ExpressionKind::Index { base, index }
                 | ExpressionKind::ByteElement { base, index, .. },
