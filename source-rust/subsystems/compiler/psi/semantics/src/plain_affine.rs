@@ -99,6 +99,9 @@ impl Error {
 #[derive(Debug, Default)]
 pub struct Plan {
     pub affine_roots: IdSet<PlaceId>,
+    /// Homes whose cleanup is reconstructed from the ownership walk. This
+    /// includes copyable descriptors whose explicit release vacates the root.
+    pub scheduled_roots: IdSet<PlaceId>,
     /// Owned copyable storage with trivial cleanup may retire its binding.
     /// It owns no affine contents to discard.
     pub copyable_owned_roots: IdSet<PlaceId>,
@@ -1139,7 +1142,7 @@ fn verify_schedule(machine: &TerminalMachine, plan: Plan) -> Result<Plan, Error>
             }
             let actual = actions
                 .iter()
-                .filter(|action| plan.affine_roots.contains(action.place()));
+                .filter(|action| plan.scheduled_roots.contains(action.place()));
             let expected = plan
                 .cleanup
                 .binary_search_by_key(&edge, |(edge, _)| *edge)
@@ -1163,7 +1166,7 @@ fn verify_schedule(machine: &TerminalMachine, plan: Plan) -> Result<Plan, Error>
                 })
                 || actions
                     .iter()
-                    .filter(|action| plan.affine_roots.contains(action.place()))
+                    .filter(|action| plan.scheduled_roots.contains(action.place()))
                     .count()
                     != expected.len()
             {
@@ -1803,11 +1806,16 @@ fn analyze(
         });
     }
     let mut affine_roots = IdSet::new();
+    let mut scheduled_roots = IdSet::new();
     for (slot, root) in roots.iter().enumerate() {
-        if root.as_ref().is_some_and(|root| root.affine) {
-            affine_roots.insert(
-                PlaceId::new(slot as u64 + 1).ok_or(Error::malformed("place identity overflow"))?,
-            );
+        let Some(root) = root else { continue };
+        let place =
+            PlaceId::new(slot as u64 + 1).ok_or(Error::malformed("place identity overflow"))?;
+        if root.affine {
+            affine_roots.insert(place);
+        }
+        if root.affine || copyable_owned_roots.contains(place) {
+            scheduled_roots.insert(place);
         }
     }
     let regions = roots
@@ -2035,6 +2043,7 @@ fn analyze(
     analysis.stores.sort_by_key(|(operation, _)| *operation);
     Ok(Plan {
         affine_roots,
+        scheduled_roots,
         copyable_owned_roots,
         cleanup,
         stores: analysis.stores,
@@ -2530,13 +2539,14 @@ impl<'a> Analysis<'a> {
             flow.terminal(&mut state.claims, &block.terminator, entering.is_some())
                 .map_err(|error| error.at(site))?;
         }
-        // Release unused descriptors before a normal exit cleans their
-        // lenders, or a case dispatch reads its subject. Returned storage
-        // remains live at this cut. A branch that transfers a descriptor
-        // to its successor keeps the successor's release.
+        // End dead descriptors before a successor borrows their lenders.
+        // The flow observes every edge argument here, so a descriptor
+        // transferred or used on any successor stays available.
         if matches!(
             block.terminator,
-            Terminator::Return { .. }
+            Terminator::Jump { .. }
+                | Terminator::Conditional { .. }
+                | Terminator::Return { .. }
                 | Terminator::ReturnUnit { .. }
                 | Terminator::ReturnStructural { .. }
                 | Terminator::StructuralCase { .. }
@@ -2767,13 +2777,13 @@ impl<'a> Analysis<'a> {
                 }
             }
             let mut explicit_retirements = IdSet::new();
-            if bound_output {
-                for action in supplied {
-                    if let TerminalAffineCleanupAction::RetireHome(place) = action
-                        && self.root(*place)?.is_some_and(|root| !root.affine)
-                    {
-                        explicit_retirements.insert(*place);
-                    }
+            for action in supplied {
+                if let TerminalAffineCleanupAction::RetireHome(place) = action
+                    && self
+                        .root(*place)?
+                        .is_some_and(|root| root.owned && !root.affine)
+                {
+                    explicit_retirements.insert(*place);
                 }
             }
             let mut actions = Vec::new();
@@ -2794,9 +2804,7 @@ impl<'a> Analysis<'a> {
                             && root.multiplicity
                                 == terminal_psi::StructuralMultiplicity::Unrestricted;
                         if explicit || retired_at_join {
-                            if retired_at_join {
-                                actions.push(TerminalAffineCleanupAction::RetireHome(place));
-                            }
+                            actions.push(TerminalAffineCleanupAction::RetireHome(place));
                             outgoing.regions[raw] = None;
                         } else {
                             retained.push(place);

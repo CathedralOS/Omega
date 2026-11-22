@@ -87,8 +87,9 @@ fn a_structural_successor_owes_its_arrival_even_without_scalar_arguments() {
 fn a_successor_cannot_duplicate_one_exclusive_borrow_into_two_headers() {
     let verdict = judge(Ok(duplicated_borrow()));
     assert!(
-        matches!(verdict, Err(Refusal { reason: RefusalReason::Conflict, ref detail, .. })
-            if detail == "successor arguments duplicate an exclusive borrow"),
+        matches!(verdict, Ok(RouteVerdict::Rejected { conflicts, .. })
+            if conflicts.iter().any(|conflict| conflict.loan.is_none()
+                && conflict.conflict == crate::checking::LoanConflict::TwiceExclusive)),
         "the successor must reject the overlapping exclusive cohort"
     );
 }
@@ -132,7 +133,7 @@ fn an_attenuated_successor_still_conflicts_with_an_exclusive_sibling() {
     structural_arguments[1].access = StructuralAccess::SharedBorrow;
     let tables = input.tables.machines.get_mut(machine.id).unwrap();
     let captured = tables.roots.get(id(1)).copied().unwrap();
-    tables.obligations.push(ObligationRow {
+    let obligation = tables.obligations.push(ObligationRow {
         created_at: ProgramPoint::Edge(id(1)),
         kind: ObligationKind::Loan {
             captured,
@@ -140,10 +141,15 @@ fn an_attenuated_successor_still_conflicts_with_an_exclusive_sibling() {
             lender: terminal_check_tables::obligations::Lender::Incoming,
         },
     });
+    let sources = input.sources.get_mut(machine.id).unwrap();
+    let source = *sources.edges.get(id(1)).unwrap();
+    assert_eq!(sources.obligations.push(source), obligation);
+    let verdict = judge(Ok(input));
     assert!(
-        matches!(judge(Ok(input)), Err(Refusal { reason: RefusalReason::Conflict, ref detail, .. })
-        if detail == "successor arguments overlap shared and exclusive borrows"),
-        "attenuation cannot hide overlapping siblings"
+        matches!(&verdict, Ok(RouteVerdict::Rejected { conflicts, .. })
+            if conflicts.iter().any(|conflict| conflict.loan.is_none()
+                && conflict.conflict == crate::checking::LoanConflict::ExclusiveAndShared)),
+        "attenuation cannot hide overlapping siblings: {verdict:?}"
     );
 }
 
@@ -191,17 +197,94 @@ fn loop_element_reborrows_keep_distinct_incoming_backing() {
                     )),
                     "{conflicts:?}"
                 ),
-                Err(crate::checking::CompilationRefusal::Elaboration(refusal)) => assert!(
-                    refusal.reason == RefusalReason::Conflict
-                        && refusal
-                            .detail
-                            .starts_with("successor borrow conflicts with an original live loan"),
-                    "duplicating the input must fail its actual alias check: {refusal:?}"
-                ),
                 other => panic!("duplicating an exclusive element borrow must reject: {other:?}"),
             }
         }
     }
+}
+
+#[test]
+fn a_dispatch_releases_a_dead_view_before_lending_its_backing_to_the_next_state() {
+    let source = r#"
+        data Buffer { bytes: [u8; 4]; }
+        machine first(bytes: @[u8]) -> bool {
+            match bytes.length > 0 { true -> (bytes[0] == 1u8), false -> false }
+        }
+        machine entry(buffer: @mutable Buffer, count: u64) requires count <= 4 {
+            let command: @[u8] = buffer.bytes[0..count];
+            transition {
+                first(command) -> write(buffer),
+                _ -> done()
+            }
+            machine write(buffer: @mutable Buffer) {
+                buffer.bytes[0] = 0u8;
+                transition { _ -> entry(buffer, 0u64) }
+            }
+            machine done() {}
+        }
+    "#;
+    let check = |text: &str| judge(Ok(permission_inputs(text))).unwrap();
+    let valid = check(source);
+    let RouteVerdict::Accepted(accepted) = valid else {
+        panic!("{valid:?}")
+    };
+    let mut module = accepted.elaboration.module;
+    let owner = 'released: {
+        for machine in &mut module.machines {
+            for block in &mut machine.blocks {
+                for operation in &block.operations {
+                    if let terminal_psi::OperationKind::ReleaseReference { source, path } =
+                        &operation.kind
+                        && path.is_empty()
+                        && let Some((_, actions)) = block.terminator.cleanup_rosters_mut().next()
+                    {
+                        actions.push(terminal_psi::TerminalAffineCleanupAction::RetireHome(
+                            *source,
+                        ));
+                        break 'released machine.id;
+                    }
+                }
+            }
+        }
+        panic!("dispatch must release its old command view");
+    };
+    assert!(
+        matches!(
+            terminal_semantics::plain_affine::verify_in(&module, owner),
+            Err(terminal_semantics::plain_affine::Error::Malformed { detail, .. })
+                if detail == "normal edge affine disposal differs from its canonical schedule"
+        ),
+        "a released home cannot be retired again on its outgoing edge"
+    );
+
+    let invalid = source
+        .replace("-> write(buffer)", "-> write(buffer, command)")
+        .replace(
+            "machine write(buffer: @mutable Buffer)",
+            "machine write(buffer: @mutable Buffer, command: @[u8])",
+        )
+        .replace(
+            "_ -> entry(buffer, 0u64)",
+            "first(command) -> done(), _ -> entry(buffer, 0u64)",
+        );
+    let invalid_verdict = check(&invalid);
+    let RouteVerdict::Rejected { conflicts, .. } = invalid_verdict else {
+        panic!("the overlapping borrows must reject: {invalid_verdict:?}");
+    };
+    let conflict = conflicts
+        .iter()
+        .find(|conflict| conflict.conflict == crate::checking::LoanConflict::ExclusiveAndShared)
+        .expect("passing the window must conflict with the mutable successor borrow");
+    let source = conflict
+        .site
+        .span()
+        .expect("the successor has an authored source");
+    assert!(invalid[source.span.start..source.span.end].contains("write"));
+    assert!(
+        conflict
+            .statement
+            .starts_with("the successor would borrow one place as both mutable and read-only")
+    );
 }
 
 #[test]

@@ -118,6 +118,25 @@ pub enum Construct {
     Invocation(InvocationId),
 }
 
+/// Why a requested borrow conflicts with existing access.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoanConflict {
+    /// Both loans are exclusive.
+    TwiceExclusive,
+    /// One is exclusive and the other shared.
+    ExclusiveAndShared,
+    /// An exclusive loan of storage this machine holds only shared.
+    ExclusiveOfShared,
+    /// Observation bypasses a live exclusive descriptor.
+    ObserveWhileExclusive,
+    /// A write or move conflicts with a retained loan.
+    ChangeWhileBorrowed,
+    /// A parent is disposed before its children close.
+    ReleaseBeforeChildren,
+    /// The actual projected source does not grant the requested access.
+    AccessExceedsParent,
+}
+
 /// Why a checking step refused. Closed: a lane that needs a new reason adds a
 /// variant here, never a free-form code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -157,6 +176,9 @@ pub enum RefusalReason {
     NotConserved,
     /// Two live obligations or accesses conflict (overlap, aliasing, access).
     Conflict,
+    /// A semantic access conflict at a successor, which forwards existing
+    /// storage without necessarily creating a new loan obligation.
+    ConflictingLoan(LoanConflict),
     /// An identity is past the end of the table it was looked up in. This
     /// catches only out-of-range identities; see `row`.
     ForeignIdentity,
