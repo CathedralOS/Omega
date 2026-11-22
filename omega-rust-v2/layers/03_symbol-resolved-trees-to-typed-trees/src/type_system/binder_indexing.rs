@@ -255,39 +255,43 @@ impl<'a> ResolvedSourceFile<'a> {
             .nodes
             .iter()
             .enumerate()
-            .filter(|(_, d)| d.kind == NodeKind::Data)
+            .filter(|(_, d)| matches!(d.kind, NodeKind::Data | NodeKind::Machine | NodeKind::AsmMachine))
         {
             let owner = self.declaration(node_index)?;
             for &clause in &node.children {
                 if source.nodes[clause].kind != NodeKind::Requires {
                     continue;
                 }
-                let term = self.single_child(clause)?;
-                let Some((l, r)) = self.equality_operands(term)? else {
-                    continue;
-                };
-                let binding = |node_index| match self.symbol(node_index) {
-                    Some(Symbol::Binding {
-                        span,
-                        kind: NodeKind::TypeParam,
-                        ..
-                    }) => match self.parameters.get(span) {
-                        Some(ValueType::Parameter { owner: o, index }) if o.as_ref() == owner => Some(*index),
+                let mut terms = vec![self.single_child(clause)?];
+                while let Some(term) = terms.pop() {
+                    let machine = owner.kind != NodeKind::Data;
+                    let term = if machine { source.ungroup(term) } else { term };
+                    if machine && source.operator(term).is_some_and(|operator| operator.token == "&&") {
+                        terms.extend(source.nodes[term].children.iter().rev().copied());
+                        continue;
+                    }
+                    let Some((l, r)) = self.equality_operands(term)? else {
+                        continue;
+                    };
+                    let binding = |node_index| match self.symbol(node_index) {
+                        Some(symbol @ Symbol::Binding { span, kind, .. }) if *kind == NodeKind::TypeParam || machine && self.names_type(symbol) => match self.parameters.get(span) {
+                            Some(ValueType::Parameter { owner: o, index }) if o.as_ref() == owner => Some(*index),
+                            _ => None,
+                        },
                         _ => None,
-                    },
-                    _ => None,
-                };
-                if let Some((i, pattern)) = binding(l)
-                    .map(|i| (i, r))
-                    .or_else(|| binding(r).map(|i| (i, l)))
-                {
-                    let pattern = self.annotation(pattern, types)?;
-                    types
-                        .generics
-                        .get_mut(owner)
-                        .expect("indexed data")
-                        .equations
-                        .push((i, pattern));
+                    };
+                    if let Some((i, pattern)) = binding(l)
+                        .map(|i| (i, r))
+                        .or_else(|| binding(r).map(|i| (i, l)))
+                    {
+                        let pattern = self.annotation(pattern, types)?;
+                        types
+                            .generics
+                            .get_mut(owner)
+                            .expect("indexed generic declaration")
+                            .equations
+                            .push((i, pattern));
+                    }
                 }
             }
         }

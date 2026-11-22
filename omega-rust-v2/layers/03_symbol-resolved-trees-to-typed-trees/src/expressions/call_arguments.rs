@@ -291,6 +291,21 @@ impl BodyTyper<'_, '_> {
         Ok(result)
     }
 
+    pub(super) fn check_selected_machine_equations(
+        &self,
+        site: usize,
+        machine: &DeclarationId,
+        enclosing: &[(DeclarationId, Vec<ValueType>)],
+        slots: &mut [Option<ValueType>],
+    ) -> Result<(), TypeError> {
+        let types = &self.catalog.types;
+        let file = self.unit.file;
+        if types.check_machine_equations(machine, enclosing, slots).map_err(|reason| TypeError::at(file, site, reason))? {
+            return Err(types.indices.wait(file, site));
+        }
+        Ok(())
+    }
+
     pub(super) fn validate_call_bindings(
         &mut self,
         node_index: usize,
@@ -301,6 +316,13 @@ impl BodyTyper<'_, '_> {
         enclosing: &[(DeclarationId, Vec<ValueType>)],
     ) -> Result<(), TypeError> {
         let source_file = self.unit.file;
+        // Calls, callback selections and declaration queries can all consume
+        // a specialized signature. A cached static value in that signature
+        // does not establish the type equations for this application.
+        if !self.catalog.types.generics[id].equations.is_empty() {
+            let mut slots: Vec<_> = bindings.iter().cloned().map(Some).collect();
+            self.check_selected_machine_equations(callee, id, enclosing, &mut slots)?;
+        }
         let instantiate = |ty: &ValueType| ty.at_machine_application(id, bindings, enclosing, &[]);
         self.catalog
             .types
