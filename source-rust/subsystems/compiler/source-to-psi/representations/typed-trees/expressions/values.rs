@@ -6627,6 +6627,10 @@ mod storage_ownership_tests {
         selected.set_constructed_value_type_reference(second, other_type);
         assert!(!selected.retains_input_storage(&source));
         let mut selected = source.clone();
+        *selected.expression_mut(first) = ExpressionNode::Boolean(true);
+        assert!(!selected.retains_input_storage(&source));
+
+        let mut selected = source.clone();
         selected.set_source_span(first, SourceSpan::new(SourceId(2), Span::new(3, 4)));
         assert!(!selected.retains_input_storage(&source));
     }

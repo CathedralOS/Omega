@@ -49,10 +49,8 @@ fn insert_expression(family: &mut Vec<ExpressionHandle>, expression: ExpressionH
     }
 }
 
-/// Join the emitted value to its actual accepted invocation before another
-/// source owner is frozen. Merely retaining an initializer machine cannot
-/// justify a substituted literal: the requester, source, call and outcome
-/// must still be the ones the interpreter used.
+/// Check each computed constant against the invocation that evaluated it.
+/// The requester, source program and returned value must agree.
 pub fn validate_constant_evaluations(
     program: &TypedTrees,
     accounting: &SourceCompletionAccounting,

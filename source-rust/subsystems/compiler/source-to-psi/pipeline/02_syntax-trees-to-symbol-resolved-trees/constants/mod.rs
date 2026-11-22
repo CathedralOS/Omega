@@ -41,8 +41,7 @@
     This module decides which initializers need evaluation and finalizes
     constants. `initializer_leaves` collects pending initializer leaves
     and their selected destinations, `declaration_values` validates and
-    retains declaration values, `uses` substitutes resolved
-    constants, `selections` finalizes const selections and arguments,
+    retains declaration values, `uses` binds authored names to their declarations, `selections` finalizes const selections and arguments,
     `normalized_expressions` validates normalized expressions,
     `scalar_carriers` classifies selected builtin scalar atoms and
     `carrier`, `initializer_dependencies` and
