@@ -4,7 +4,7 @@
 //!
 //! `domain Ticket::Stamped access StampAccess;` leaves who may write
 //! `ticket as +Stamped` to `StampAccess::plan`. Psi 05 cannot answer that
-//! from the declaration, so before it runs, this pass calls the selected
+//! from the declaration, so before it runs, this owner calls the selected
 //! `plan` once per demanded domain through the checked selected-call entry
 //! (`PreparedBuildMachineProgram::entry_selected`), with the domain
 //! subject's semantic schema as its argument. Only a result it can state in
@@ -33,7 +33,6 @@
 
 #[path = "domain_access_plans/reflection.rs"]
 mod reflection;
-use checked_program_to_psi::production;
 use reflection::{
     Description, authenticated_route, callable_descriptions, core_reflection_data, subject_schema,
 };
@@ -44,83 +43,143 @@ mod returned_plan;
 #[path = "domain_access_plans/tests.rs"]
 mod tests;
 
-use std::sync::Arc;
-
 use crate::source_state::TypedTrees;
 use crate::source_state::domain::{
     AccessPlanJudgment, CheckedDomainAccessPlan, CheckedIssuance, DomainIssuance,
 };
+use crate::source_state::references::DeclarationSelection;
 use diagnostics::Diagnostic;
 use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
 use symbols::SymbolHandle;
 
+use super::demanded_values::{DemandedValues, RoundProgram};
 use crate::compile_time_invocations::PreparedBuildMachineProgram;
 use crate::compile_time_invocations::{InvocationTarget, SourceCompletionAccounting};
 
-/// Evaluates the access plan of every policy-governed domain `request`
-/// demands and records each checked result on that domain.
-pub(crate) fn evaluate(
-    program: &mut TypedTrees,
-    request: production::TerminalSourceCompilation<'_>,
-    authority: Option<Arc<declaration_scope::PackageDeclarationScope>>,
-    source_consent: Option<Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
-    accounting: &mut SourceCompletionAccounting,
-) -> Result<(), Vec<Diagnostic>> {
-    let mut pending = program
-        .domain_definitions
-        .iter()
-        .filter(|(_, domain)| {
-            domain
-                .access_policy
-                .as_ref()
-                .is_some_and(|policy| policy.plan == AccessPlanJudgment::Unevaluated)
-                && !program.symbols.is_build_prelude_symbol(domain.symbol)
-                && program.deferred_refusal(domain.symbol).is_none()
-        })
-        .map(|(handle, domain)| (handle, domain.symbol))
-        .collect::<Vec<_>>();
-    if pending.is_empty() {
-        return Ok(());
+/// One policy-governed domain whose plan has not been evaluated.
+struct Demand {
+    handle: arena::Handle<crate::source_state::domain::DomainDefinition>,
+    /// The domain. Whoever may issue it, and how a governed value is read or
+    /// written, waits on the plan.
+    domain: [SymbolHandle; 1],
+    /// The policy implementation whose `plan` runs.
+    policy: [SymbolHandle; 1],
+}
+
+/// The access plans of the policy-governed domains a request demands.
+pub(super) struct AccessPlans {
+    demands: Vec<Demand>,
+    /// The callable descriptions of one round's program, and that round.
+    /// Every plan of the round authenticates its routes against them.
+    descriptions: Vec<Description>,
+    described: Option<usize>,
+}
+
+impl AccessPlans {
+    pub(super) fn demanded(program: &TypedTrees, demanded: &DeclarationSelection) -> Self {
+        let demands = program
+            .domain_definitions
+            .iter()
+            .filter(|(_, domain)| {
+                domain
+                    .access_policy
+                    .as_ref()
+                    .is_some_and(|policy| policy.plan == AccessPlanJudgment::Unevaluated)
+                    && !program.symbols.is_build_prelude_symbol(domain.symbol)
+                    && program.deferred_refusal(domain.symbol).is_none()
+                    && demanded.contains(domain.symbol)
+            })
+            .map(|(handle, domain)| Demand {
+                handle,
+                domain: [domain.symbol],
+                policy: [domain
+                    .access_policy
+                    .as_ref()
+                    .map_or(SymbolHandle::invalid(), |policy| policy.implementation())],
+            })
+            .collect();
+        Self {
+            demands,
+            descriptions: Vec::new(),
+            described: None,
+        }
     }
-    let demanded = crate::compile_time_invocations::demanded_declarations(program, request)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    pending.retain(|(_, domain)| demanded.contains(*domain));
-    if pending.is_empty() {
-        return Ok(());
+}
+
+impl DemandedValues for AccessPlans {
+    fn len(&self) -> usize {
+        self.demands.len()
     }
-    // One immutable source owner serves every plan; recording one result
-    // cannot change the program a later policy is judged in.
-    let prepared = PreparedBuildMachineProgram::prepare_for(
-        program,
-        authority,
-        request.purpose,
-        source_consent,
-    )?;
-    let descriptions =
-        callable_descriptions(program).map_err(|reason| vec![Diagnostic::error(reason)])?;
-    // A plan this pass cannot judge stays refused at each use that needs
-    // it (an `as +D`, a read or write inside a governed value), as an
-    // unevaluated plan is; the reason is kept on the policy. The domain's
-    // values still pass whole, and the rest of the program goes on.
-    let mut judged = Vec::with_capacity(pending.len());
-    for (handle, domain) in pending {
-        let judgment = match evaluate_domain(program, &prepared, &descriptions, domain, accounting)
-        {
+
+    fn holders(&self, value: usize) -> &[SymbolHandle] {
+        &self.demands[value].domain
+    }
+
+    fn roots(&self, value: usize) -> &[SymbolHandle] {
+        &self.demands[value].policy
+    }
+
+    /// A policy names its own domain whenever it reflects an issuer, as
+    /// `reflect\callable(stamp)` does for a `stamp` that writes `as +D`.
+    /// Reflecting `stamp` does not run it. The plan runs while its domain's
+    /// plan is still unevaluated (`DomainDefinition::issuance` answers
+    /// `Planned`), so an `as +D` the plan itself executed would be refused
+    /// at that use, as it was when every plan ran before any other value.
+    fn waits_for_itself(&self) -> bool {
+        false
+    }
+
+    fn description(&self, program: &TypedTrees, value: usize) -> String {
+        format!(
+            "the access plan of domain `{}`",
+            program.symbols.name(self.demands[value].domain[0])
+        )
+    }
+
+    fn source_span(&self, program: &TypedTrees, value: usize) -> Option<source_text::SourceSpan> {
+        program
+            .symbols
+            .symbol_source_span(self.demands[value].domain[0])
+    }
+
+    /// Evaluates the plan in the round's program and records the checked
+    /// result on the domain. A plan this pass cannot judge stays refused at
+    /// each use that needs it (an `as +D`, a read or write inside a governed
+    /// value), as an unevaluated plan is; the reason is kept on the policy.
+    /// The domain's values still pass whole, and the rest of the program
+    /// goes on.
+    fn evaluate(
+        &mut self,
+        value: usize,
+        round: &RoundProgram,
+        program: &mut TypedTrees,
+        accounting: &mut SourceCompletionAccounting,
+    ) -> Result<(), Vec<Diagnostic>> {
+        if self.described != Some(round.number()) {
+            self.descriptions = callable_descriptions(round.source())
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            self.described = Some(round.number());
+        }
+        let demand = &self.demands[value];
+        let judgment = match evaluate_domain(
+            round.source(),
+            round.calls(),
+            &self.descriptions,
+            demand.domain[0],
+            accounting,
+        ) {
             Ok(plan) => AccessPlanJudgment::Checked(plan),
             Err(reason) => AccessPlanJudgment::Unjudged(reason),
         };
-        judged.push((handle, judgment));
-    }
-    for (handle, judgment) in judged {
         let policy = program
             .domain_definitions
-            .get_mut(handle)
+            .get_mut(demand.handle)
             .access_policy
             .as_mut()
             .ok_or_else(|| vec![Diagnostic::error("evaluated access plan lost its policy")])?;
         policy.plan = judgment;
+        Ok(())
     }
-    Ok(())
 }
 
 fn evaluate_domain(

@@ -10,35 +10,6 @@ use crate::source_state::opaque_representations::OpaqueRepresentationSelection;
 use diagnostics::Diagnostic;
 use std::sync::Arc;
 
-mod constant_entries {
-    pub(super) fn retain_evaluation_entries(
-        program: &mut crate::source_state::TypedTrees,
-    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
-        let mut entries = Vec::new();
-        for declaration in program.const_declarations() {
-            if declaration.evaluated_value.is_some() || !declaration.evaluation_entry.is_valid() {
-                continue;
-            }
-            if !program
-                .tables
-                .machines
-                .is_valid(declaration.evaluation_entry)
-            {
-                return Err(vec![diagnostics::Diagnostic::error(
-                    "retained constant lost its complete evaluation entry",
-                )]);
-            }
-            let entry = program.tables.machines.get(declaration.evaluation_entry);
-            if program.machine_by_symbol(entry.symbol).is_none() {
-                entries.push(entry.clone());
-            }
-        }
-        for entry in entries {
-            program.push_machine(entry);
-        }
-        Ok(())
-    }
-}
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
     pub invocation_sources:
@@ -118,41 +89,17 @@ impl<'request> SourcePreparationRequest<'request> {
             let mut program = self.program;
             program.opaque_representation_selections =
                 self.admission.representations.rederive(&program)?;
-            crate::compile_time_invocations::evaluate_fixed_layout_applications(
+            // Layouts, access plans, const arguments and constants can each
+            // need another, so they are evaluated in the order their reads
+            // require rather than kind by kind.
+            let values = crate::compile_time_invocations::evaluate_demanded_values(
                 &mut program,
-                self.admission.layout_scopes,
-                self.admission.layout_selection_authority.clone(),
-                self.admission.invocation_sources.clone(),
-                self.compilation.purpose,
-                &mut accounting,
-            )?;
-            // `domain D access Policy;` leaves who may issue `as +D` to the
-            // policy's plan. Each demanded domain's plan runs once here, so
-            // Psi 05 reads its issuers from the checked result.
-            crate::compile_time_invocations::evaluate_domain_access_plans(
-                &mut program,
-                self.compilation,
-                self.admission.layout_selection_authority.clone(),
-                self.admission.invocation_sources.clone(),
-                &mut accounting,
-            )?;
-            // `Buffer<capacity()>`: a const argument written as a call gets
-            // its value first, because a constant below may be computed
-            // through a type that is applied at one.
-            let mut values = crate::compile_time_invocations::evaluate_const_arguments(
-                &mut program,
-                self.compilation,
-                self.admission.layout_selection_authority.clone(),
-                self.admission.invocation_sources.clone(),
-                &mut accounting,
-            )?;
-            constant_entries::retain_evaluation_entries(&mut program)?;
-            let constants = crate::compile_time_invocations::evaluate_constant_initializers_with_source_consent(
-                &mut program,
-                self.compilation,
-                self.admission.layout_scopes,
-                self.admission.layout_selection_authority,
-                self.admission.invocation_sources,
+                &crate::compile_time_invocations::ValueDemand {
+                    compilation: self.compilation,
+                    layout_scopes: self.admission.layout_scopes,
+                    authority: self.admission.layout_selection_authority,
+                    source_consent: self.admission.invocation_sources,
+                },
                 &mut accounting,
             )?;
             crate::compile_time_invocations::validate_constant_evaluations(&program, &accounting)
@@ -161,7 +108,6 @@ impl<'request> SourcePreparationRequest<'request> {
                     "constant materialization receipt join: {reason}"
                 ))]
             })?;
-            values.extend(constants);
             Ok((program, values))
         })();
         accounting.release_constant_inputs();

@@ -128,16 +128,27 @@ impl PreparedBuildMachineProgram {
         purpose: source_provenance::DependencyScope,
         source_consent: Option<Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
     ) -> Result<Self, Vec<Diagnostic>> {
+        Self::over(Arc::new(typed.clone()), authority, purpose, source_consent)
+    }
+
+    /// Serve calls from a program the caller already holds whole. Every
+    /// value of one evaluation round is judged in the same one.
+    pub(crate) fn over(
+        source: Arc<TypedTrees>,
+        authority: Option<Arc<PackageDeclarationScope>>,
+        purpose: source_provenance::DependencyScope,
+        source_consent: Option<Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
+    ) -> Result<Self, Vec<Diagnostic>> {
         // Retaining source is preparation, not acceptance. Each actual job is
         // checked with its materialized arguments before any execution starts.
         let exact_toolchain_sources =
             source_admission::source_identity::toolchain_source_identities(
-                typed.symbols.source_files(),
+                source.symbols.source_files(),
             )
             .map_err(invocation_error)?
             .into_boxed_slice();
         Ok(Self {
-            source: Arc::new(typed.clone()),
+            source,
             publication: terminal_codec::TerminalPublication::Invocation,
             exact_toolchain_sources,
             authority,
@@ -145,15 +156,37 @@ impl PreparedBuildMachineProgram {
             source_consent,
         })
     }
-    pub(crate) fn prepare_for_layout(
-        typed: &TypedTrees,
-        authority: Option<Arc<PackageDeclarationScope>>,
-        purpose: source_provenance::DependencyScope,
-        source_consent: Option<Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        let mut program = Self::prepare_for(typed, authority, purpose, source_consent)?;
-        program.publication = terminal_codec::TerminalPublication::LayoutPolicyInvocation;
-        Ok(program)
+
+    /// The same program and custody, publishing each call as a layout
+    /// policy invocation.
+    pub(crate) fn for_layout_policies(&self) -> Self {
+        Self {
+            source: Arc::clone(&self.source),
+            publication: terminal_codec::TerminalPublication::LayoutPolicyInvocation,
+            exact_toolchain_sources: self.exact_toolchain_sources.clone(),
+            authority: self.authority.clone(),
+            purpose: self.purpose,
+            source_consent: self.source_consent.clone(),
+        }
+    }
+
+    /// The same custody over `source`: this owner's program with the
+    /// caller's generated declarations added. The source files, and so the
+    /// toolchain identities, are the ones already read.
+    pub(crate) fn extended_to(&self, source: Arc<TypedTrees>) -> Self {
+        Self {
+            source,
+            publication: self.publication,
+            exact_toolchain_sources: self.exact_toolchain_sources.clone(),
+            authority: self.authority.clone(),
+            purpose: self.purpose,
+            source_consent: self.source_consent.clone(),
+        }
+    }
+
+    /// The program this owner judges every call in.
+    pub(crate) fn source(&self) -> &Arc<TypedTrees> {
+        &self.source
     }
 
     pub(crate) fn exact_toolchain_sources(&self) -> &[(source_text::SourceId, [u8; 32])] {

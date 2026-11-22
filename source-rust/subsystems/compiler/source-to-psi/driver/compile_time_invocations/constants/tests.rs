@@ -1,8 +1,8 @@
-use super::{
-    evaluate_const_arguments, evaluate_constant_initializers_with_source_consent,
-    validate_constant_evaluations,
+use super::validate_constant_evaluations;
+use crate::compile_time_invocations::{
+    InvocationSourceConsent, PreCheckEvaluation, SourceCompletionAccounting, ValueDemand,
+    evaluate_demanded_values,
 };
-use crate::compile_time_invocations::{PreCheckEvaluation, SourceCompletionAccounting};
 use crate::source_state::TypedTrees;
 use crate::source_state::data::DataMember;
 use crate::source_state::types::{FixedArrayLength, TypeReferenceNode};
@@ -13,7 +13,9 @@ use source_provenance::DependencyScope;
 use std::sync::Arc;
 use symbol_resolved_trees_to_typed_trees::typing;
 use syntax_trees_to_symbol_resolved_trees::resolution;
-use typed_trees_to_prepared_typed_trees::{PreparedValue, TargetInputs, prepare_typed_trees};
+use typed_trees_to_prepared_typed_trees::{
+    PreparedValue, TargetInputs, ValueInputs, prepare_typed_trees,
+};
 
 fn typed_source(text: &str) -> TypedTrees {
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0x52; 32]).unwrap();
@@ -47,6 +49,26 @@ fn typed_source_in(
     typed
 }
 
+/// Evaluates everything `compilation` demands of `program`, the way source
+/// preparation does, with no deployment and no package authority.
+fn evaluate(
+    program: &mut TypedTrees,
+    compilation: production::TerminalSourceCompilation<'_>,
+    source_consent: Option<Arc<dyn InvocationSourceConsent>>,
+    accounting: &mut SourceCompletionAccounting,
+) -> Result<Vec<ValueInputs>, Vec<diagnostics::Diagnostic>> {
+    evaluate_demanded_values(
+        program,
+        &ValueDemand {
+            compilation,
+            layout_scopes: &[],
+            authority: None,
+            source_consent,
+        },
+        accounting,
+    )
+}
+
 fn request(entries: &[symbols::SymbolHandle]) -> production::TerminalSourceCompilation<'_> {
     production::TerminalSourceCompilation {
         entries,
@@ -70,15 +92,7 @@ fn a_computed_constant_uses_its_source_receipt_only_when_reached() {
     );
     let entry = typed.realized_machine_named("main").unwrap().symbol;
     let mut accounting = SourceCompletionAccounting::default();
-    let demanded = evaluate_constant_initializers_with_source_consent(
-        &mut typed,
-        request(&[entry]),
-        &[],
-        None,
-        None,
-        &mut accounting,
-    )
-    .unwrap();
+    let demanded = evaluate(&mut typed, request(&[entry]), None, &mut accounting).unwrap();
     let [input] = demanded.as_slice() else {
         panic!("one demanded constant")
     };
@@ -128,14 +142,7 @@ fn a_closed_arithmetic_extent_settles_at_its_original_array() {
     let mut program = source("3u64 + 1u64");
     let reader = program.realized_machine_named("read").unwrap().symbol;
     let mut accounting = SourceCompletionAccounting::default();
-    let values = evaluate_const_arguments(
-        &mut program,
-        request(&[reader]),
-        None,
-        None,
-        &mut accounting,
-    )
-    .unwrap();
+    let values = evaluate(&mut program, request(&[reader]), None, &mut accounting).unwrap();
     let [input] = values.as_slice() else {
         panic!("the written addition is one input")
     };
@@ -156,10 +163,9 @@ fn a_closed_arithmetic_extent_settles_at_its_original_array() {
     );
     let mut invalid = source("18446744073709551615u64 + 1u64");
     let reader = invalid.realized_machine_named("read").unwrap().symbol;
-    let failure = evaluate_const_arguments(
+    let failure = evaluate(
         &mut invalid,
         request(&[reader]),
-        None,
         None,
         &mut Default::default(),
     )
@@ -178,11 +184,25 @@ fn only_a_reader_of_an_array_requests_its_extent() {
         let mut typed = base.clone();
         let entry = typed.realized_machine_named(entry).unwrap().symbol;
         let mut accounting = SourceCompletionAccounting::default();
-        let values =
-            evaluate_const_arguments(&mut typed, request(&[entry]), None, None, &mut accounting)
-                .unwrap();
+        let values = evaluate(&mut typed, request(&[entry]), None, &mut accounting).unwrap();
         let prepared = prepare_typed_trees(typed.clone(), &values, &[]).unwrap();
-        assert_eq!(prepared.values().len(), usize::from(computes_extent));
+        // The reader demands the extent and the constant it reads. Nothing
+        // demands either for the unrelated machine.
+        assert_eq!(prepared.values().len(), values.len());
+        assert_eq!(
+            values
+                .iter()
+                .map(|input| match input.value {
+                    PreparedValue::StaticArgument { .. } => "extent",
+                    PreparedValue::Constant(_) => "constant",
+                })
+                .collect::<Vec<_>>(),
+            if computes_extent {
+                vec!["extent", "constant"]
+            } else {
+                Vec::new()
+            }
+        );
         assert_eq!(
             prepared
                 .constants()
@@ -231,7 +251,6 @@ fn only_a_reader_of_an_array_requests_its_extent() {
 
 #[test]
 fn anonymous_const_argument_requires_the_build_capture_that_owns_the_call() {
-    use crate::compile_time_invocations::InvocationSourceConsent;
     use crate::source_inputs::SourceMap;
 
     struct Capture(Arc<SourceMap>);
@@ -274,13 +293,12 @@ fn anonymous_const_argument_requires_the_build_capture_that_owns_the_call() {
     for (capture, allowed) in captures {
         let mut candidate = typed.clone();
         let mut accounting = SourceCompletionAccounting::default();
-        let result = evaluate_const_arguments(
+        let result = evaluate(
             &mut candidate,
             production::TerminalSourceCompilation {
                 purpose: DependencyScope::Build,
                 ..request(&[entry])
             },
-            None,
             capture.map(|sources| Arc::new(Capture(sources)) as Arc<_>),
             &mut accounting,
         );
@@ -345,15 +363,13 @@ fn a_supplied_requirement_only_evaluates_its_provider_member() {
         let supplies = [production::TerminalSourceSupply { slot, provider }];
         let mut typed = base.clone();
         let mut accounting = SourceCompletionAccounting::default();
-        let result = evaluate_constant_initializers_with_source_consent(
+        let result = evaluate(
             &mut typed,
             production::TerminalSourceCompilation {
                 subjects: &subjects,
                 supplies: &supplies,
                 ..request(entries)
             },
-            &[],
-            None,
             None,
             &mut accounting,
         );
@@ -384,9 +400,9 @@ fn a_supplied_requirement_only_evaluates_its_provider_member() {
         } else {
             let diagnostics = result.unwrap_err();
             assert!(
-                diagnostics
-                    .iter()
-                    .any(|error| error.message == "constant evaluation dependency cycle"),
+                diagnostics.iter().any(|error| error.message
+                    == "constant `CYCLIC` needs its own value, so its evaluation has no first \
+                        step"),
                 "{diagnostics:?}"
             );
         }
@@ -408,13 +424,12 @@ fn an_externally_declared_provider_member_requests_its_parameter_layout() {
     let slot = typed.trait_machine_signatures(&typed.traits()[0])[0].symbol;
     let supplies = [production::TerminalSourceSupply { slot, provider }];
     let mut accounting = SourceCompletionAccounting::default();
-    evaluate_const_arguments(
+    evaluate(
         &mut typed,
         production::TerminalSourceCompilation {
             supplies: &supplies,
             ..request(&[])
         },
-        None,
         None,
         &mut accounting,
     )
@@ -580,4 +595,141 @@ fn completed_invocations_release_the_generated_caller_and_program() {
         (0, 0),
         "objects retained after completing 16 calls"
     );
+}
+
+/// The requesting declaration and returned integer of every invocation, in
+/// the order the invocations ran.
+fn evaluations(typed: &TypedTrees, accounting: &SourceCompletionAccounting) -> Vec<(String, i128)> {
+    accounting
+        .receipts()
+        .iter()
+        .map(|record| {
+            let PureEvaluationRecord::Invocation(receipt) = record else {
+                panic!("a source invocation")
+            };
+            let PureTerminalEvaluationOutcome::Materialized {
+                value: build_time_values::BuildTimeValue::Int(value),
+                ..
+            } = receipt.outcome()
+            else {
+                panic!("an integer result")
+            };
+            (
+                typed.symbols.name(receipt.requester()).to_owned(),
+                i128::from(*value),
+            )
+        })
+        .collect()
+}
+
+/// Four values, each needing the next: the extent in `main` calls `outer`,
+/// which reads `HELD`; `HELD` is computed through `Buffer<inner()>`; `inner`
+/// reads `BASE`. A constant comes before an argument and an argument before
+/// a constant, so neither kind can run first as a whole.
+const CHAIN: &str = "data Buffer<const Capacity: u64> { slots: [u8; Capacity]; }
+    const BASE: u64 = base();
+    machine base() -> u64 crashes none { 2u64 }
+    machine inner() -> u64 crashes none { BASE }
+    const HELD: u64 = held();
+    machine held() -> u64 crashes none { let buffer: Buffer<inner()>; inner() }
+    machine outer() -> u64 crashes none { HELD }
+    machine main(values: @[u8; outer()]) -> u64 { 0u64 }";
+
+#[test]
+fn each_value_is_evaluated_once_after_the_values_it_reads() {
+    let mut typed = typed_source(CHAIN);
+    let entry = typed.realized_machine_named("main").unwrap().symbol;
+    let mut accounting = SourceCompletionAccounting::default();
+    let values = evaluate(&mut typed, request(&[entry]), None, &mut accounting).unwrap();
+    // One invocation per value, each named by the declaration that asked,
+    // and none before a value it reads.
+    assert_eq!(
+        evaluations(&typed, &accounting),
+        [("BASE", 2), ("held", 2), ("HELD", 2), ("main", 2)]
+            .map(|(name, value)| (name.to_owned(), value)),
+    );
+    accounting.validate_charges().unwrap();
+    validate_constant_evaluations(&typed, &accounting).unwrap();
+    // Stage 04 receives the two arguments, then the two constants.
+    assert_eq!(
+        values
+            .iter()
+            .map(|input| match input.value {
+                PreparedValue::StaticArgument { owner, .. } => typed.symbols.name(owner),
+                PreparedValue::Constant(constant) => typed.symbols.name(constant),
+            })
+            .collect::<Vec<_>>(),
+        ["held", "main", "BASE", "HELD"],
+    );
+    prepare_typed_trees(typed, &values, &[]).unwrap();
+}
+
+#[test]
+fn a_constant_waits_for_the_constant_that_sizes_a_type_it_reads() {
+    // `[u8; LEFT]` names `LEFT` in a type, not in an expression. `right`
+    // holds that array, so `RIGHT` has no value before `LEFT` has one.
+    let mut typed = typed_source(
+        "const RIGHT: u64 = right();
+        machine right() -> u64 crashes none { let held: [u8; LEFT]; held.length }
+        const LEFT: u64 = left();
+        machine left() -> u64 crashes none { 3u64 }
+        machine main() -> u64 crashes none { RIGHT }",
+    );
+    let entry = typed.realized_machine_named("main").unwrap().symbol;
+    let mut accounting = SourceCompletionAccounting::default();
+    evaluate(&mut typed, request(&[entry]), None, &mut accounting).unwrap();
+    assert_eq!(
+        evaluations(&typed, &accounting),
+        [("LEFT", 3), ("RIGHT", 3)].map(|(name, value)| (name.to_owned(), value)),
+    );
+}
+
+#[test]
+fn values_that_need_each_other_are_refused_by_name() {
+    // `TOTAL` is computed through `Buffer<capacity()>`, and `capacity` reads
+    // `TOTAL`. `FREE` needs neither, so it is evaluated before the refusal.
+    let source = "data Buffer<const Capacity: u64> { slots: [u8; Capacity]; }
+        const FREE: u64 = free();
+        machine free() -> u64 crashes none { 1u64 }
+        const TOTAL: u64 = total();
+        machine capacity() -> u64 crashes none { TOTAL }
+        machine total() -> u64 crashes none { let buffer: Buffer<capacity()>; 3u64 }
+        machine main() -> u64 crashes none { TOTAL + FREE }";
+    let mut typed = typed_source(source);
+    let entry = typed.realized_machine_named("main").unwrap().symbol;
+    let mut accounting = SourceCompletionAccounting::default();
+    let refusal = evaluate(&mut typed, request(&[entry]), None, &mut accounting).unwrap_err();
+    let [error, note] = refusal.as_slice() else {
+        panic!("one refusal and one note: {refusal:?}")
+    };
+    assert_eq!(
+        error.message,
+        "the const argument for `Capacity` of `Buffer` in `total` needs constant `TOTAL`, which \
+         needs the const argument for `Capacity` of `Buffer` in `total`: none of them can be \
+         evaluated first"
+    );
+    let written = |diagnostic: &diagnostics::Diagnostic| {
+        let span = diagnostic.source_span.unwrap().span;
+        &source[span.start..span.end]
+    };
+    assert_eq!(written(error), "capacity()");
+    assert_eq!(note.message, "constant `TOTAL` is part of that circle");
+    assert_eq!(written(note), "TOTAL");
+    assert_eq!(evaluations(&typed, &accounting), [("FREE".to_owned(), 1)]);
+
+    // The same refusal for one value: `SIDE` is computed by a machine that
+    // holds an array sized by `SIDE`.
+    let mut typed = typed_source(
+        "const SIDE: u64 = side();
+        machine side() -> u64 crashes none { let held: [u8; SIDE]; 2u64 }
+        machine main() -> u64 crashes none { SIDE }",
+    );
+    let entry = typed.realized_machine_named("main").unwrap().symbol;
+    let mut accounting = SourceCompletionAccounting::default();
+    let refusal = evaluate(&mut typed, request(&[entry]), None, &mut accounting).unwrap_err();
+    assert_eq!(
+        diagnostics::join_messages(&refusal),
+        "constant `SIDE` needs its own value, so its evaluation has no first step"
+    );
+    assert!(accounting.receipts().is_empty());
 }

@@ -13,6 +13,36 @@ fn with_reflection(source: &str) -> TypedTrees {
     .unwrap()
 }
 
+/// Evaluates the layouts `scopes` demand of `source`, the way source
+/// preparation does. The request has no entry, so nothing else is demanded.
+fn evaluate(
+    source: &mut TypedTrees,
+    scopes: &[FixedLayoutTargetScope],
+    accounting: &mut SourceCompletionAccounting,
+) -> Result<(), Vec<Diagnostic>> {
+    crate::compile_time_invocations::evaluate_demanded_values(
+        source,
+        &crate::compile_time_invocations::ValueDemand {
+            compilation: production::TerminalSourceCompilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[],
+                subjects: &[],
+                purpose: source_provenance::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            layout_scopes: scopes,
+            authority: None,
+            source_consent: None,
+        },
+        accounting,
+    )
+    .map(drop)
+}
+
 fn query_machine(source: &TypedTrees, name: &str) -> SymbolHandle {
     source
         .machines()
@@ -45,28 +75,14 @@ fn an_empty_layout_scope_preserves_the_unrequested_application() {
     let mut foreign = scope.clone();
     foreign.facts.as_mut().unwrap().profile = "windows_x86_64".into();
     let mut accounting = crate::compile_time_invocations::SourceCompletionAccounting::default();
-    let errors = evaluate_fixed_layout_applications(
-        &mut source,
-        &[foreign],
-        None,
-        None,
-        source_provenance::DependencyScope::Product,
-        &mut accounting,
-    )
+    let errors = evaluate(&mut source, &[foreign], &mut accounting)
     .expect_err("empty roots do not authenticate another target's facts");
     assert!(
         diagnostics::join_messages(&errors)
             .contains("layout scope and immutable target facts disagree")
     );
     assert!(accounting.receipts().is_empty());
-    evaluate_fixed_layout_applications(
-        &mut source,
-        &[scope],
-        None,
-        None,
-        source_provenance::DependencyScope::Product,
-        &mut accounting,
-    )
+    evaluate(&mut source, &[scope], &mut accounting)
     .expect("an unused layout application needs no policy invocation");
     assert!(source.plan_laid_layouts.is_empty());
     assert!(source.plan_laid_target_layouts.is_empty());
@@ -100,19 +116,12 @@ fn generic_layout_policy_retains_its_declared_machine_and_observed_geometry() {
             little_endian: true,
         };
         let mut accounting = crate::compile_time_invocations::SourceCompletionAccounting::default();
-        let result = evaluate_fixed_layout_applications(
-            &mut source,
-            &[FixedLayoutTargetScope {
+        let result = evaluate(&mut source, &[FixedLayoutTargetScope {
                 target: facts.profile.clone(),
                 facts: Some(facts),
                 entry_declarations: vec![root],
                 provider_declarations: Vec::new(),
-            }],
-            None,
-            None,
-            source_provenance::DependencyScope::Product,
-            &mut accounting,
-        );
+            }], &mut accounting);
         (source, root, accounting, result)
     };
 
@@ -190,14 +199,7 @@ machine packet_size(target: @LayoutTarget) -> u64 reaches none terminates {
         provider_declarations: Vec::new(),
     });
     let mut accounting = crate::compile_time_invocations::SourceCompletionAccounting::default();
-    evaluate_fixed_layout_applications(
-        &mut source,
-        &scopes,
-        None,
-        None,
-        source_provenance::DependencyScope::Product,
-        &mut accounting,
-    )
+    evaluate(&mut source, &scopes, &mut accounting)
     .unwrap_or_else(|errors| panic!("{}", diagnostics::join_messages(&errors)));
     let [plan] = source.plan_laid_layouts.as_slice() else {
         panic!("one authored policy");

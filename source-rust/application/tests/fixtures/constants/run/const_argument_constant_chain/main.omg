@@ -1,0 +1,30 @@
+// Four values, each needing the next: the extent in `main` calls `outer`,
+// which reads `HELD`; `HELD` is computed through `Buffer<inner()>`; and
+// `inner` reads `BASE`, which `base` computes. `second` requires two bytes,
+// so the program is valid only while `base` returns 2.
+data Buffer<const Capacity: u64> { slots: [u8; Capacity]; }
+
+const BASE: u64 = base();
+machine base() -> u64 crashes none { 2u64 }
+machine inner() -> u64 crashes none { BASE }
+
+const HELD: u64 = held();
+machine held() -> u64 crashes none {
+    let buffer: Buffer<inner()>;
+    buffer.slots.length
+}
+machine outer() -> u64 crashes none { HELD }
+
+machine second(values: @[u8; 2]) -> u8 { values[1u64] }
+
+machine main() crashes Trap {
+    let mutable values: [u8; outer()];
+    values[0u64] = 3u8;
+    values[1u64] = 4u8;
+    let end: u8 = second(@values);
+    transition end == 4u8 && values[0u64] == 3u8 && values.length == 2u64 {
+        true -> done(), false -> failed()
+    }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

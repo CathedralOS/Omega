@@ -1,0 +1,1 @@
+the const argument for `Capacity` of `Buffer` in `total` needs constant `TOTAL`, which needs the const argument for `Capacity` of `Buffer` in `total`: none of them can be evaluated first
