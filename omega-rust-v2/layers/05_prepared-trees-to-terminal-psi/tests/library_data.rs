@@ -226,3 +226,29 @@ fn a_template_demands_nothing_and_never_needs_no_exit_call() {
     assert_eq!(toolchain_paths(&never), ["Never"]);
     assert_same_schema(&never, &toolchain(), "Never");
 }
+
+#[test]
+fn imported_schema_fields_retain_each_applied_optional_type_and_its_case_identity() {
+    use omega_lowering::{DataArgument, ScalarType};
+    let package = lower(r"machine count(s:@core\layout\Schema)->u64 { s.field_count }
+                          machine some()->core\Optional<u16> {core\Optional::Some {value:7u16}}");
+    let field = schema(&package, TOOLCHAIN_PACKAGE, r"language\core\layout\SchemaField");
+    let identity = field.fields.iter().find(|f| f.declaration.path.ends_with("::identity")).unwrap();
+    let field_optional = data_at(&package, identity.carrier);
+    let some = package.machines.iter().find(|m| m.declaration.path == "some").unwrap();
+    let returned_optional = data_at(&package, some.result_type.unwrap());
+    assert_ne!(field_optional.id, returned_optional.id);
+    for (row, width) in [(field_optional, 64), (returned_optional, 16)] {
+        assert_eq!(row.declaration.path, r"language\core\Optional");
+        assert_eq!(row.declaration.package, TOOLCHAIN_PACKAGE);
+        let [DataArgument::Type(ty)] = row.type_arguments.as_slice() else { panic!("one type argument") };
+        assert_eq!(package.types.get(*ty), Some(&TypeShape::PrimitiveScalar(ScalarType::Integer {signed:false,width})));
+        let [none, some] = row.cases.as_slice() else { panic!("two cases in declared order") };
+        assert!(none.declaration.path.ends_with("::None") && none.fields.is_empty());
+        assert!(some.declaration.path.ends_with("::Some"));
+        let [value] = some.fields.as_slice() else { panic!("one active payload") };
+        assert_eq!(value.carrier, *ty);
+        assert_eq!(row.numbering.as_ref().unwrap().members.iter().map(|m| (m.number,m.declaration_index)).collect::<Vec<_>>(), [(0,0),(1,1)]);
+    }
+    assert!(toolchain_paths(&package).iter().all(|path| !path.ends_with("LayoutPlan")));
+}

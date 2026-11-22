@@ -46,7 +46,7 @@ A downstream pass can walk `TypedTrees::trees` in file order, visit a node's chi
 
 L3 records source-level obligations for call preconditions, exact conversions, width positivity, domain establishment, cleanup, reference lifetime, copy and move, crash coverage and contract refinement. The later verifier owns their proofs. Execution and publication depend on those later judgments. [Layer plan](../../PLAN.md#layers)
 
-An unused runtime formal can be the only demand for a closed data application. L3 publishes its declaration, exact arguments and substituted field types. A scalar formal in the same package does not demand that schema. [Applied data shapes](tests/calls/data_and_places.rs)
+An unused runtime formal can be the only demand for a closed data application. A stored field can also demand an application, including the element of a fixed array. The defining package publishes the substituted payload even when it never constructs a value of that type. L3 publishes its declaration, exact arguments and substituted field types. A scalar formal in the same package does not demand that schema. [Applied data shapes](tests/calls/data_and_places.rs)
 
 L3 publishes an ordinary trait’s direct parent as a checked application, with its arguments and original requirement identities. It records the base of a transparent restriction separately.
 

@@ -266,7 +266,7 @@ fn lower(
     let mut headers = Vec::with_capacity(instances.len());
     let mut carriers = Vec::new();
     data_schemas.sort_unstable_by(|a, b| a.declaration.cmp(b.declaration));
-    let applications = super::applied_data::collect(typed, &data_templates, &region_data);
+    let mut applications = super::applied_data::collect(typed, &typed.static_data_shapes, &data_templates, &region_data);
     for application in &applications {
         application.collect_carriers(&mut carriers);
     }
@@ -472,7 +472,14 @@ fn lower(
         .chain(body_types)
         .chain(local_fields);
     let library_data = demanded_library_data(prepared, &library_trees, &library_regions, stored)?;
-    data_schemas.extend(library_data);
+    data_schemas.extend(library_data.schemas);
+    let imported_applications = super::applied_data::collect(
+        typed.library.unwrap_or(typed), library_data.shapes, &library_data.templates, &library_regions,
+    );
+    for application in &imported_applications {
+        application.collect_carriers(&mut carriers);
+    }
+    applications.extend(imported_applications);
     data_schemas.sort_unstable_by(|a, b| a.declaration.cmp(b.declaration));
     let case_owners: std::collections::HashSet<_> = typed.case_owners.values().collect();
     let mut data_carriers = Vec::new();
@@ -802,6 +809,13 @@ fn lower(
     Ok(PendingPolicyPackage::new(package, pending.into_iter().map(|(_, domain)| domain).collect()))
 }
 
+#[derive(Default)]
+struct LibraryData<'a> {
+    schemas: Vec<data::DataSchema<'a>>,
+    templates: Vec<crate::DataTemplate>,
+    shapes: HashMap<&'a ValueType, &'a omega_typed::StaticDataShape>,
+}
+
 /// Read the library data that `stored` types hold, each from the file that
 /// declares it. `machine keep(e: Exposure) -> Exposure { e }` needs the
 /// toolchain's `Exposure`. `FieldAccess` also needs the `Exposure`,
@@ -818,16 +832,17 @@ fn demanded_library_data<'a: 'input, 'input>(
     library_trees: &'a [omega_typed::TypedTree<'a>],
     library_regions: &'a regions::RegionData<'a>,
     stored: impl Iterator<Item = &'input ValueType>,
-) -> Result<Vec<data::DataSchema<'a>>, LoweringError> {
+) -> Result<LibraryData<'a>, LoweringError> {
     let named = |carrier: &'input ValueType| {
         carrier
             .components()
-            .filter_map(|part| Some(part.nominal_parts()?.0))
+            .filter(|part| part.nominal_parts().is_some())
     };
     // Most bodies name the same few types many times, and most of those are local.
     let mut pending: Vec<_> = stored.flat_map(named).collect();
-    pending.sort_unstable();
+    pending.sort_by_key(|carrier| carrier.nominal_parts().map(|(id, _)| id));
     pending.dedup();
+
     let mut declared: Vec<_> = library_trees
         .iter()
         .flat_map(|tree| {
@@ -838,27 +853,41 @@ fn demanded_library_data<'a: 'input, 'input>(
         })
         .collect();
     declared.sort_unstable_by_key(|&(id, _, _)| id);
-    let mut schemas: Vec<data::DataSchema<'a>> = Vec::new();
-    while let Some(id) = pending.pop() {
-        // Local data and local templates are not declared by the library.
-        let Ok(row) = declared.binary_search_by_key(&id, |&(id, _, _)| id) else {
-            continue;
-        };
-        if schemas.iter().any(|schema| schema.declaration == id) {
-            continue;
-        }
+    let mut result = LibraryData::default();
+    let mut visited = std::collections::HashSet::new();
+    let mut templates = std::collections::HashSet::new();
+    let mut schema_ids = std::collections::HashSet::new();
+    while let Some(carrier) = pending.pop() {
+        if !visited.insert(carrier) { continue; }
+        let (id, _) = carrier.nominal_parts().expect("named carrier");
+        let Ok(row) = declared.binary_search_by_key(&id, |&(id, _, _)| id) else { continue };
         let (_, tree, node) = declared[row];
         let mut nested = Vec::new();
-        let data::DataDeclaration::Schema(schema) = data::read_data(prepared, tree, node, &mut nested, library_regions)? else {
-            return Err(LoweringError::new(&site_at(tree, node), "imported nominal type has no data declaration"));
-        };
-        if !nested.is_empty() {
-            return Err(LoweringError::new(&schema.site, "imported data requires its nested declarations"));
+        if !templates.contains(id) && !schema_ids.contains(id) {
+            if let Some(template) = crate::declarations::data_templates::read(prepared, tree, node, &mut nested, library_regions)? {
+                templates.insert(id);
+                result.templates.push(template);
+            } else {
+                let data::DataDeclaration::Schema(schema) = data::read_data(prepared, tree, node, &mut nested, library_regions)? else {
+                    return Err(LoweringError::new(&site_at(tree, node), "imported nominal type has no data declaration"));
+                };
+                for field in schema.fields() {
+                    pending.extend(named(schema.field_carrier(field)?.0));
+                }
+                result.schemas.push(schema);
+                schema_ids.insert(id);
+            }
+            if !nested.is_empty() {
+                return Err(LoweringError::new(&site_at(tree, node), "imported data requires its nested declarations"));
+            }
         }
-        for field in schema.fields() {
-            pending.extend(named(schema.field_carrier(field)?.0));
+        if templates.contains(id) {
+            let (key, shape) = prepared.typed().static_data_shapes.get_key_value(carrier)
+                .or_else(|| tree.forest().static_data_shapes.get_key_value(carrier))
+                .ok_or_else(|| LoweringError::new(&site_at(tree, node), format!("imported application `{carrier}` needs its checked data shape")))?;
+            pending.extend(shape.fields.iter().chain(shape.cases.iter().flat_map(|(_, fields)| fields)).flat_map(named));
+            result.shapes.insert(key, shape);
         }
-        schemas.push(schema);
     }
-    Ok(schemas)
+    Ok(result)
 }

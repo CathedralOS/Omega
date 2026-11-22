@@ -811,3 +811,20 @@ fn equal_named_cases_publish_their_exact_declaring_sum() {
     assert!(!stage.case_owners.contains_key(&alpha));
     assert!(!stage.case_owners.contains_key(&beta));
 }
+
+#[test]
+fn a_closed_array_field_and_an_owned_formal_publish_their_distinct_payloads() {
+    let stage = check(&[("field.omg", "data Item<T> { case Full(value:T); } data Owner { field:[Item<u64>;2]; } machine observe(v:Item<u16>) {}")]).unwrap();
+    let mut widths = Vec::new();
+    for (carrier,shape) in &stage.static_data_shapes {
+        let Some((owner, [arg])) = carrier.nominal_parts() else { continue };
+        if owner.path != "Item" { continue; }
+        let [(case, fields)] = shape.cases.as_slice() else { panic!("Full case") };
+        assert_eq!(case.path, "Item::Full");
+        assert_eq!(fields.as_slice(), std::slice::from_ref(arg));
+        let ValueType::Integer {signed:false, width:Some(width)} = arg else { panic!("unsigned field") };
+        widths.push(*width);
+    }
+    widths.sort();
+    assert_eq!(widths,[16,64]);
+}

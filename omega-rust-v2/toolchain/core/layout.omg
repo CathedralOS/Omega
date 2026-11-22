@@ -1,0 +1,91 @@
+use language\core\Optional;
+
+public data SchemaField
+    requires self.align >= 1
+    requires self.align <= 16
+{
+    key: u64;
+    size: u64;
+    align: u64;
+    identity: Optional<u64>;
+    number: i64;
+    kind: FieldKind;
+    layout_source: FieldLayoutSource;
+}
+
+public data FieldLayoutSource {
+    case Default;
+    case Scalar;
+    case Explicit;
+}
+
+public data FieldKind {
+    case Scalar;
+    case Text;
+    case Nested;
+    case Repeated;
+}
+
+public data SchemaCase
+    requires self.payload_field_count <= 32
+    requires self.retired_payload_identity_count <= 32
+{
+    key: u64;
+    identity: Optional<u64>;
+    payload_fields: [SchemaField; 32];
+    payload_field_count: u64;
+    retired_payload_identities: [u64; 32];
+    retired_payload_identity_count: u64;
+}
+
+public data Schema
+    requires self.field_count <= 32
+    requires self.retired_field_identity_count <= 32
+    requires self.case_count <= 32
+    requires self.retired_case_identity_count <= 32
+{
+    fields: [SchemaField; 32];
+    field_count: u64;
+    retired_field_identities: [u64; 32];
+    retired_field_identity_count: u64;
+    cases: [SchemaCase; 32];
+    case_count: u64;
+    retired_case_identities: [u64; 32];
+    retired_case_identity_count: u64;
+}
+
+public data IntegerInterpretation {
+    case Signed;
+    case Unsigned;
+}
+
+public data FieldPlan {
+    case At(offset: u64);
+    case IntegerAt(
+        offset: u64,
+        stored_width: u64,
+        interpretation: IntegerInterpretation
+    );
+    case Bits(
+        container: u64,
+        container_width: u64,
+        destination_lsb: u64,
+        source_lsb: u64,
+        width: u64
+    );
+    case Varint(tag: u64);
+    case LengthPrefixed(tag: u64);
+}
+
+public data FieldEntry {
+    key: u64;
+    representation: FieldPlan;
+}
+
+public data LayoutPlan {
+    entries: [FieldEntry; 64];
+    entry_count: u64;
+    size_fixed: u64;
+    size_is_dynamic: bool;
+    align: u64;
+}

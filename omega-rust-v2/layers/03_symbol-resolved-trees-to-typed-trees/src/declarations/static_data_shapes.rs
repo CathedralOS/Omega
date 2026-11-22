@@ -34,10 +34,11 @@ impl DeclarationCatalog<'_> {
         slots.next().is_none() && regions != 0 && closed != 0
     }
 
-    pub(crate) fn publish_static_data_shapes(
+    pub(crate) fn publish_static_data_shapes<'field>(
         &self,
         demands: &[StaticValueDemand],
         dependencies: &PreparationDependencies<'_>,
+        stored: impl Iterator<Item = &'field ValueType>,
         stage: &mut TypedStage,
     ) {
         enum Step {
@@ -86,6 +87,16 @@ impl DeclarationCatalog<'_> {
             .cloned()
             .map(Step::Visit)
             .collect();
+        // A library schema can store a closed application only in a field. Its
+        // consumer will need that substituted shape even with no constructor.
+        // An array stores its elements. A reference stores a loan and does
+        // not by itself demand a materialized schema for its referent.
+        steps.extend(stored.map(|mut ty| {
+            while let ValueType::Array(element, _) = ty { ty = element; }
+            ty
+        })
+            .filter(|ty| matches!(ty, ValueType::Applied(..)) && (!ty.contains_parameter() || self.closed_at_regions(ty)))
+            .cloned().map(Step::Visit));
         let mut active: Vec<ValueType> = Vec::new();
         while let Some(step) = steps.pop() {
             let Step::Visit(carrier) = step else {
