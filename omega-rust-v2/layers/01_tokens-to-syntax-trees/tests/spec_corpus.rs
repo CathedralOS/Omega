@@ -33,13 +33,9 @@ fn fragment_entry_points_consume_their_entire_input() {
     }
 }
 
-/// Every example in the spec must parse, and its tree must pass the grammar-independent checks.
-///
-/// A failure here means one of three things: the parser is wrong, GRAMMAR.md is missing a form the
-/// spec uses, or the example is not valid V2 source. Each needs a look; none should be silenced by
-/// skipping the example.
+/// Check the tree for each published fragment, or its precise first unsupported import in frozen V2.
 #[test]
-fn every_spec_example_parses() {
+fn every_spec_example_has_its_reviewed_parse_outcome() {
     let examples = spec_corpus::published_examples().expect("Expected wiki/spec to be readable.");
 
     assert!(examples.len() >= 100, "found only {} spec examples; is wiki/spec complete?", examples.len());
@@ -53,6 +49,10 @@ fn every_spec_example_parses() {
         );
     }
 
+    let mut import_refusals = std::collections::BTreeMap::from([
+        ("build/scoped_execution.md:133", ("|topology|::configure_products", "an expression")),
+        ("build/scoped_execution.md:286", (".omg as app;", "`;`")),
+    ]);
     let mut problems = Vec::new();
 
     for example in &examples {
@@ -69,7 +69,16 @@ fn every_spec_example_parses() {
             }
         };
 
-        match parse_fragment(source_bytes, &tokens, fragment_kind(&example_label)) {
+        let parsed = parse_fragment(source_bytes, &tokens, fragment_kind(&example_label));
+        if let Some((occurrence, expected)) = import_refusals.remove(example_label.as_str()) {
+            let start = source_text.find(occurrence).expect(occurrence);
+            let error = parsed.expect_err("review V2 import support if this fragment starts parsing");
+            assert_eq!(error.get_kind(), ParseErrorKind::UnexpectedToken, "{example_label}");
+            assert_eq!(error.get_expected(), expected, "{example_label}");
+            assert_eq!(error.get_span().get_start_offset()..error.get_span().get_end_offset(), start..start + 1, "{example_label}");
+            continue;
+        }
+        match parsed {
             Err(parse_error) => {
                 let error_line = get_line_text(&source_text, parse_error.get_span().get_start_offset());
 
@@ -83,6 +92,7 @@ fn every_spec_example_parses() {
         }
     }
 
+    assert!(import_refusals.is_empty(), "missing published imports: {import_refusals:?}");
     assert!(
         problems.is_empty(),
         "{} of {} spec examples have a problem:\n\n{}",
@@ -90,7 +100,7 @@ fn every_spec_example_parses() {
         examples.len(),
         problems.join("\n\n")
     );
-    println!("parsed {} spec examples", examples.len());
+    println!("checked {} spec examples", examples.len());
 }
 
 /// The line of `source_text` that holds `byte_offset`, for showing where an error is.

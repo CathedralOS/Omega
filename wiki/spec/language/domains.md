@@ -218,7 +218,10 @@ reveal private representation, or alter another domain's establishment routes.
 Select a foreign domain through its declaring file alias under
 [ordinary import rules](modules.md#foreign-attached-declaration-paths).
 A sibling file, the carrier's file and a transitive import supply no implicit
-domain candidates.
+domain candidates. For example, after `use {ui_policy}/screen/rules.omg as screen;`,
+write `|screen|::Point::OnScreen` to select the public attachment in that file.
+Another alias for the same file selects the same domain. Both the declaring
+package and the carrier package must be accessible to the caller.
 
 The exact domain owner and carrier owner remain independent in interfaces and
 reports, including [anonymous roots](../build/declarations.md#default-builds-and-anonymous-owner-identity).

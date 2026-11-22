@@ -92,9 +92,14 @@ imports and backslash-qualified source paths reject.
 
 ### Foreign attached declaration paths
 
-Select a foreign domain through the file declaring the attachment. Given
-`use {ui_policy}/screen/rules.omg as screen;`, `|screen|::Point::OnScreen`
-selects the domain on the exact carrier resolved in that declaration's context.
+Select a foreign domain through the file declaring the attachment.
+
+```omega
+use {ui_policy}/screen/rules.omg as screen;
+```
+
+Here `|screen|::Point::OnScreen` selects the domain on the exact carrier
+resolved in that declaration's context.
 Importing the carrier's file alone does not expose domains defined elsewhere.
 Public access and direct dependency requirements apply to both owners.
 Naming a domain supplies no membership, minting authority or representation
