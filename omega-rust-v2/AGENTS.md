@@ -1,5 +1,7 @@
 # Working on Omega V2
 
+**V2 takes no new work.** The owner decided on 2026-11-22 that compiler work continues in V1 (`source-rust/`). Finish or close a V2 pull request that is already open, and start no new layer, driver or back-end work here. The rest of this file applies to that remaining work and to reading V2 as a reference. [Decision](PLAN.md#decision-log)
+
 Use `C:\Development\Omega-V2` for V2 commands and file access. Use `mbx` for Rust builds, runs, tests and Clippy against the V2 Cargo workspace. If the junction is missing or broken, ask for its target.
 
 ## References and decisions
