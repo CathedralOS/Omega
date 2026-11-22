@@ -16,6 +16,7 @@ pub use lowering::error::LoweringError;
 use lowering::error::site_at;
 pub use lowering::package::lower_package;
 pub use declarations::domains::lower_selected_policy_definition;
+pub use declarations::policy_construction::lower_policy_construction_inputs;
 use lowering::types::LoweringTypes;
 pub use lowering::types::TypeError;
 pub use omega_psi::*;

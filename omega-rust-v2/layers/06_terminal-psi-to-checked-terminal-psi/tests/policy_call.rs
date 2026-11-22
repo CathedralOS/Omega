@@ -10,6 +10,25 @@ const EMPTY: &str = include_str!("../../05_prepared-trees-to-terminal-psi/tests/
 const ZEROED: &str = include_str!("../../05_prepared-trees-to-terminal-psi/tests/fixtures/policy_templates/dotdot.omg");
 
 fn selected(text: &str) -> SelectedPolicyDefinition {
+    selected_inputs(text).0
+}
+
+fn selected_inputs(text: &str) -> (SelectedPolicyDefinition, omega_psi::PolicyConstructionInputs) {
+    with_prepared(text, |prepared| {
+        let [policy] = prepared.typed().access_policies.as_slice() else {
+            panic!("one selected domain policy")
+        };
+        (
+            omega_lowering::lower_selected_policy_definition(prepared, policy).unwrap(),
+            omega_lowering::lower_policy_construction_inputs(prepared, policy).unwrap(),
+        )
+    })
+}
+
+fn with_prepared<T>(
+    text: &str,
+    check: impl FnOnce(&mut omega_preparation::PreparedTrees<'_>) -> T,
+) -> T {
     let tokens = omega_lexer::lex(text.as_bytes()).unwrap();
     let tree = omega_parser::parse_file(text.as_bytes(), &tokens).unwrap();
     let source = ParsedSource {
@@ -20,11 +39,7 @@ fn selected(text: &str) -> SelectedPolicyDefinition {
     };
     let mut package = omega_toolchain::resolve_source_package(&[StageSource { package: "app", source }]).unwrap();
     package.bind_package_key("app", [0x42; 32]).unwrap();
-    let prepared = omega_preparation::prepare_source_package(&package).unwrap();
-    let [policy] = prepared.typed().access_policies.as_slice() else {
-        panic!("one selected domain policy")
-    };
-    omega_lowering::lower_selected_policy_definition(&prepared, policy).unwrap()
+    check(&mut omega_preparation::prepare_source_package(&package).unwrap())
 }
 
 fn toolchain() -> (LoweredPackage, DeclarationId) {
@@ -243,4 +258,86 @@ fn caller_proof_rejects_foreign_owners_bad_loans_false_promises_and_wrong_transf
             .schema_loan(),
         0..=2
     );
+}
+
+#[test]
+fn frozen_construction_binds_the_selected_policy_and_its_actual_field_transfers() {
+    use omega_checker::check_policy_construction;
+    use omega_psi::{PolicyCasePayload, PolicyConstructionField};
+    let (unit, id) = toolchain();
+    let constructor = check_record_constructor(&unit, &id).unwrap();
+    for text in [OPEN, EMPTY, ZEROED] {
+        let (definition, inputs) = selected_inputs(text);
+        let call = check_selected_policy_call(&definition, &constructor).unwrap();
+        let checked = check_policy_construction(&call, &inputs).unwrap();
+        assert_eq!(checked.inputs(), &inputs);
+        assert_eq!(checked.inputs().package_key, [0x42; 32]);
+        assert!(!checked.inputs().schema.storage.is_empty());
+        let [
+            (schema_id, PolicyConstructionField::Schema(schema)),
+            (issuance_id, PolicyConstructionField::Issuance { case, payload, .. }),
+            rest @ ..,
+        ] = checked.inputs().fields.as_slice()
+        else {
+            panic!("expected the actual returned plan fields")
+        };
+        assert_eq!(schema_id.path, r"language\core\AccessPlan::schema");
+        assert_eq!(schema, &inputs.schema);
+        assert_eq!(issuance_id.path, r"language\core\AccessPlan::issuance");
+        assert_eq!(case, call.issuance_case());
+        assert_eq!(
+            *payload,
+            if text == OPEN {
+                PolicyCasePayload::NoFields
+            } else {
+                PolicyCasePayload::EmptySlice
+            }
+        );
+        assert_eq!(rest.len(), 7);
+        assert!(
+            rest.iter()
+                .all(|(_, v)| matches!(v, PolicyConstructionField::Zero(_)))
+        );
+    }
+
+    let (definition, original) = selected_inputs(EMPTY);
+    let call = check_selected_policy_call(&definition, &constructor).unwrap();
+    let (_, open_inputs) = selected_inputs(OPEN);
+    assert!(check_policy_construction(&call, &open_inputs).is_err());
+    let (_, sibling) = selected_inputs(&EMPTY.replace("::Locked", "::Sibling"));
+    assert!(check_policy_construction(&call, &sibling).is_err());
+    let mutants: &[fn(&mut omega_psi::PolicyConstructionInputs)] = &[
+        |p| p.fields.swap(0, 1),
+        |p| p.fields.truncate(2),
+        |p| p.schema.storage = [0x42].into(),
+        |p| {
+            let PolicyConstructionField::Schema(copied) = &mut p.fields[0].1 else {
+                unreachable!()
+            };
+            copied.storage = copied.storage.to_vec().into();
+            assert_eq!(copied.storage, p.schema.storage);
+            assert!(!std::sync::Arc::ptr_eq(&copied.storage, &p.schema.storage));
+        },
+        |p| std::sync::Arc::make_mut(&mut p.schema.record.name).path = "ForeignSchema".into(),
+        |p| {
+            let PolicyConstructionField::Issuance { payload, .. } = &mut p.fields[1].1 else {
+                unreachable!()
+            };
+            *payload = PolicyCasePayload::NoFields;
+        },
+        |p| {
+            let PolicyConstructionField::Zero(ty) = &mut p.fields[2].1 else {
+                unreachable!()
+            };
+            ty.0.clear();
+        },
+        |p| p.result.0.clear(),
+        |p| p.construction_site = p.selection_site.clone(),
+        |p| std::sync::Arc::make_mut(&mut p.constructor.name).package = "another".into(),
+    ];
+    for mutate in mutants {
+        let mut different = original.clone();
+        mutate(&mut different);
+        assert!(check_policy_construction(&call, &different).is_err());
+    }
 }

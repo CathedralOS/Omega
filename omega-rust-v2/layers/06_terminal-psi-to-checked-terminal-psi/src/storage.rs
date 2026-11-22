@@ -253,6 +253,40 @@ fn record<'a>(
     Ok(result)
 }
 
+/// The incoming schema record holds a shared immutable byte view backed for
+/// this invocation. Establish its record shape before copying that formal.
+pub(super) fn check_schema_storage(
+    unit: &LoweredPackage,
+    ty: &TypeExpression,
+    owner: &DeclarationId,
+) -> Check<()> {
+    let schema = record(unit, &ty.0, Selection::Record)?;
+    let [
+        region,
+        Step::Named {
+            declaration,
+            argument_count: 1,
+        },
+    ] = ty.0.as_slice()
+    else {
+        return Err("schema input needs its invocation lifetime");
+    };
+    let [(_, storage)] = schema.fields.as_slice() else {
+        return Err("schema input needs one immutable byte view");
+    };
+    if declaration != owner
+        || !schema.clauses.is_empty()
+        || schema.multiplicity != Multiplicity::Copy
+        || !matches!(storage.0.as_slice(), [
+            Step::Scalar(ScalarType::Integer { signed: false, width: 8 }), Step::Slice,
+            Step::Reference(TemplateAccess::Shared), lifetime, Step::AtLifetime
+        ] if lifetime == region)
+    {
+        return Err("supplied schema lacks its checked immutable byte storage");
+    }
+    Ok(())
+}
+
 /// A caller constructing one sum case must supply only that case's payload.
 /// Its fields use the lifetime arguments of the constructed type.
 pub(super) fn case_fields<'a>(

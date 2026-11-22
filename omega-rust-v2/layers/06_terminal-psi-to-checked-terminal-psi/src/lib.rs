@@ -5,6 +5,8 @@
 #![forbid(unsafe_code)]
 
 mod policy_call;
+mod policy_construction;
+pub use policy_construction::{CheckedPolicyConstruction, check_policy_construction};
 mod storage;
 
 pub use policy_call::{CheckedPolicyCall, check_selected_policy_call};

@@ -43,7 +43,10 @@ fn package_command_reference(files: &[(&str, &str)], original: &LoweringError, o
     if let Some(owner) = owner {
         package.bind_package_key("root", owner)?;
     }
-    let prepared = prepare_source_package(&package).map_err(|error| format!("preparation: {}", error.message))?;
+    let mut prepared = prepare_source_package(&package).map_err(|error| format!("preparation: {}", error.message))?;
+    if owner.is_some() {
+        omega::check_pending_policy_constructions(&mut prepared).map_err(|error| error.to_string())?;
+    }
     let error = lower_package(&prepared).err().ok_or("lowering produced Psi")?;
     let expected_owner = if original.site.package == "app" { "root" } else { original.site.package.as_str() };
     if error.site.package != expected_owner || error.site.file != original.site.file || error.site.span != original.site.span {
@@ -127,7 +130,8 @@ pub fn refuse_built_fixture(
     let mut resolved = resolve(&files);
     let owner = build.package_key();
     resolved.bind_package_key("app", owner).unwrap();
-    let prepared = prepare_source_package(&resolved).expect("the captured package reaches L5");
+    let mut prepared = prepare_source_package(&resolved).expect("the captured package reaches L5");
+    omega::check_pending_policy_constructions(&mut prepared).expect("check the selected policy construction for the captured package");
     let expected = ExpectedRefusal { file, span, message, cli_message: message, package_owner: Some(owner) };
     let error = lower_and_report(&prepared, &files, "package", Some(&expected)).expect_err("expected L5 to refuse");
     (prepared.typed().obligations.clone(), error)

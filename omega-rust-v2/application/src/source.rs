@@ -147,7 +147,7 @@ pub(crate) fn check_files(
         }
         Stage::Prepare | Stage::Lower => {
             use omega_preparation::PreparationFailure;
-            let prepared = omega_preparation::prepare_source_package_diagnosed(&resolved).map_err(|failure| {
+            let mut prepared = omega_preparation::prepare_source_package_diagnosed(&resolved).map_err(|failure| {
                 let (stage, e) = match failure {
                     PreparationFailure::Typing(e) => ("typer", e),
                     // L3 owns the refusal, but only after L4 evaluated a demanded identity.
@@ -158,6 +158,7 @@ pub(crate) fn check_files(
                 stage_error(stage, &e.package, &e.file, e.span, e.message)
             })?;
             if matches!(stage, Stage::Lower) {
+                omega::check_pending_policy_constructions(&mut prepared).map_err(|e| stage_error("policy preparation", &e.site.package, &e.site.file, e.site.span, e.message))?;
                 omega_lowering::lower_package(&prepared).map_err(|e| stage_error("lowering", &e.site.package, &e.site.file, e.site.span, e.message))?;
             }
         }

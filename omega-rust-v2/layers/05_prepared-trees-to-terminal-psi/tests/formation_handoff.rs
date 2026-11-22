@@ -440,7 +440,7 @@ fn an_access_plan_stops_at_its_own_policy_clause() {
     let file = "access_plan.omg";
     let source = ACCESS_PLAN;
     let (obligations, error) = sources::refuse_built_fixture("domain_access/unrestricted", file, source,
-        sources::unique_span(source, "access Rule"), r"domain access policy needs checked establishment of `language\core\AccessPlan` in `language\core\access\new_plan`");
+        sources::unique_span(source, "access Rule"), "domain access policy needs admitted execution of the selected plan for its semantic schema");
     let plans: Vec<_> = obligations
         .iter()
         .filter(|o| matches!(o.kind, ObligationKind::EvaluateAccessPlan { .. }))

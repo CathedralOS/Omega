@@ -20,6 +20,7 @@ omega-typed = { path = "../../representations/typed" }
 omega-prepared = { path = "../../representations/prepared" }
 
 [dev-dependencies]
+omega = { path = "../../application" }
 tree-handoff-consumer = { path = "tests/tree-consumer" }
 omega-parser = { path = "../01_tokens-to-syntax-trees" }
 omega-resolver = { path = "../02_syntax-trees-to-symbol-resolved-trees" }

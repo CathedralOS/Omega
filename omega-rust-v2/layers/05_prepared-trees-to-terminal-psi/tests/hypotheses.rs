@@ -461,21 +461,15 @@ fn a_hypothesis_without_a_matching_theorem_binder_stops_at_its_name() {
         "lowering has no matching `machine Step` binder for logical hypothesis `Step`",
     );
 
-    // L3 types a citation of this theorem with no evidence for Step. Lowering
-    // still stops at the hypothesis name and emits no erased application.
+    // A citation has no argument for Step's evidence. L3 refuses it at the
+    // callee, so only the declaration above reaches lowering.
     let cited = format!("{source} machine run(x:u8) requires x != 0 {{ theorem(x); }}");
-    let files = [("proof.omg", cited.as_str())];
-    let resolved = sources::resolve(&files);
-    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
-    assert!(prepared.typed().calls.iter().any(|c| c.machine.path == "theorem" && c.use_site == CallUse::Execution));
-    assert!(!prepared.typed().obligations.iter().any(|o| matches!(o.kind, ObligationKind::SupplyHypothesis { .. })));
-    sources::refuse_prepared(
-        &prepared,
-        &files,
-        "proof.omg",
-        sources::unique_span(&cited, "Step"),
-        "lowering has no matching `machine Step` binder for logical hypothesis `Step`",
-    );
+    let resolved = sources::resolve(&[("proof.omg", cited.as_str())]);
+    let error = omega_preparation::prepare_source_package(&resolved).expect_err("the typer refuses the citation without evidence");
+    assert_eq!(error.file, "proof.omg");
+    assert_eq!(error.span.get_start_offset(), cited.rfind("theorem(x)").unwrap());
+    assert_eq!(error.span.slice(cited.as_bytes()), Some(b"theorem".as_slice()));
+    assert_eq!(error.message, "theorem citation supplies no evidence for logical hypothesis `Step`");
 
     let twin = source.replace("theorem(", "theorem<machine Step>(");
     let package = sources::lower(&[("proof.omg", &twin)]).unwrap();

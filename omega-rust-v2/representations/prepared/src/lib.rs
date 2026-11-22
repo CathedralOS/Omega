@@ -10,7 +10,7 @@ mod values;
 
 pub use dependencies::{PreparationDependencies, PreparedValueOrigin, ValueInputs};
 pub use materialization::{ConstantMaterialization, ConstantMaterializationError};
-pub use prepared_trees::{PendingAccessPlan, PolicyConstruction, PolicyFieldInput, PolicyPreparation, PolicySchemaInput, PreparedComparisons, PreparedTrees};
+pub use prepared_trees::{PendingAccessPlan, PolicyConstruction, PolicyConstructionOccurrence, PolicyFieldInput, PolicyInvocation, PolicyPreparation, PolicySchemaInput, PreparedComparisons, PreparedTrees};
 pub use resources::{CertifiedResources, PreparationGrant, PreparationResourceReceipt};
 pub use target::{
     AddressSpaceIdentity, Endianness, EntryProfileIdentity, EntryStackGuarantee, LayoutExtent, LayoutGeometry, SelectedLayout, SelectedTargetProperty,

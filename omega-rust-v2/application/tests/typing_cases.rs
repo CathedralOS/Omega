@@ -719,8 +719,9 @@ fn a_nested_hypothesis_checks_its_result_at_the_outer_application() {
 
 #[test]
 fn a_hypothesis_without_a_machine_slot_checks_its_specialized_authority() {
-    let source = "machine theorem<T>() requires machine Step(x:T); {} machine use_it(){theorem::<@u8>()}";
-    check_hypothesis_change(source, "@u8", "@mutable u8", "theorem::<@mutable u8>",
+    // Inner has no machine slot: it arrives inside Step's evidence. A root hypothesis needs its binder at a citation.
+    let source = "machine theorem<T,machine Step>() requires machine Step() requires machine Inner(x:T); ; {} machine base(){} machine use_it(){theorem::<@u8,base>()}";
+    check_hypothesis_change(source, "@u8", "@mutable u8", "theorem::<@mutable u8,base>",
         "logical hypothesis cannot supply mutable authority", omega_typer::LogicalHypothesisError::MutableAuthority);
 }
 
