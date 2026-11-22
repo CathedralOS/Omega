@@ -1985,22 +1985,30 @@ fn validate_machine(
                     region: terminal_psi::ElementViewRegion::WholeCollection,
                     ..
                 }
-                | OperationKind::ElementViewSubslice { source, .. }
-                => {
+                | OperationKind::ElementViewSubslice { source, .. } => {
                     let mut expected = Memberships::default();
                     if let Some(StructuralTypeShape::ElementView { element, .. }) = result_type
                         .and_then(|id| module.structural_type(id))
                         .map(|row| &row.shape)
                         && let Some(root) = machine.structural_place_type(source.place)
                         && let Some(collection) = crate::runtime_structural_path_tip(
-                            module.types.structural_types.iter(), root, &source.path,
+                            module.types.structural_types.iter(),
+                            root,
+                            &source.path,
                         )
-                        && crate::collection_backing(module.types.structural_types.iter(), collection.id, *element).is_some()
+                        && crate::collection_backing(
+                            module.types.structural_types.iter(),
+                            collection.id,
+                            *element,
+                        )
+                        .is_some()
                     {
                         // A window keeps the domains of each element. The
                         // backing's own domains do not describe the descriptor.
                         expected.projected = places.argument(source).projected;
-                        expected.projected.retain(StructuralPathQualification::is_element_membership);
+                        expected
+                            .projected
+                            .retain(StructuralPathQualification::is_element_membership);
                     }
                     require_exact(
                         &places,

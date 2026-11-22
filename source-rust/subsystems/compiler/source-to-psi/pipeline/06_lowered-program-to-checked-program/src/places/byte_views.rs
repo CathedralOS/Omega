@@ -472,7 +472,9 @@ impl<'a> Storage<'a> {
                     })
             });
         if (!whole.is_empty() && !shared_predicate_backing)
-            || projected.iter().any(|row| !typed || !row.is_element_membership())
+            || projected
+                .iter()
+                .any(|row| !typed || !row.is_element_membership())
             || !actual.additional_input_qualifications.is_empty()
         {
             return Err(self.unsupported(

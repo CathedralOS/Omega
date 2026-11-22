@@ -186,6 +186,79 @@ machine entry() -> u32 {
 }
 
 #[test]
+fn collection_windows_keep_domains_only_on_their_declared_element_fields() {
+    use terminal_psi::{
+        OperationKind, OperationResult, StructuralPathSegment, StructuralTypeShape,
+    };
+
+    let source = r#"
+data Ticket [copy] { number: u32; }
+domain Ticket::Stamped;
+data Cell [copy] { stamped: Ticket in Stamped; plain: Ticket; }
+data Room [copy] { cells: [Cell; 2]; }
+machine inspect(room: Room) -> u64 {
+    let whole: @[Cell] = @room.cells[..];
+    let window: @[Cell] = @whole[1u64..2u64];
+    window.length
+}
+machine entry() -> u64 { let mutable room: Room; inspect(room) }
+"#;
+    assert_unsigned_invocation(source, 1);
+    let elaboration = invocation(source).unwrap();
+    let (stamped, plain) = elaboration
+        .module
+        .types
+        .structural_types
+        .iter()
+        .find_map(|row| {
+            let StructuralTypeShape::Record { fields, .. } = &row.shape else {
+                return None;
+            };
+            let [stamped, plain] = fields.as_slice() else {
+                return None;
+            };
+            Some((stamped.identity, plain.identity))
+        })
+        .expect("the cell has two fields of the same carrier");
+
+    for subslice in [false, true] {
+        let mut changed = elaboration.clone();
+        let operation = changed
+            .module
+            .machines
+            .iter_mut()
+            .flat_map(|machine| &mut machine.blocks)
+            .flat_map(|block| &mut block.operations)
+            .find(|op| {
+                if subslice {
+                    matches!(op.kind, OperationKind::ElementViewSubslice { .. })
+                } else {
+                    matches!(op.kind, OperationKind::EstablishElementView { .. })
+                }
+            })
+            .expect("the program forms both a whole view and a window");
+        let OperationResult::Structural(result) = &mut operation.result else {
+            unreachable!()
+        };
+        let [membership] = result.projected_qualifications.as_mut_slice() else {
+            panic!("each element has one declared domain")
+        };
+        assert_eq!(
+            membership.path,
+            [
+                StructuralPathSegment::AllElements,
+                StructuralPathSegment::Field(stamped)
+            ]
+        );
+        membership.path[1] = StructuralPathSegment::Field(plain);
+        refused(
+            changed,
+            "an element view does not keep its source elements' exact domains",
+        );
+    }
+}
+
+#[test]
 fn zeroed_arrays_keep_unrestricted_record_element_domains() {
     let source = r#"
 data Ticket { number: u32; }
