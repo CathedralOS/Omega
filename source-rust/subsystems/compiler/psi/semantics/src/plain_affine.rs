@@ -3334,7 +3334,51 @@ impl<'a> Analysis<'a> {
                         None
                     };
                 let (backing, projection) = if self.references.is_some() {
-                    self.backing(state, *destination, path, site)?
+                    match self.backings(state, *destination, path, site)? {
+                        WindowBacking::Exact(place, path) => (place, path),
+                        WindowBacking::Alternatives(targets) => {
+                            // A replacement leaves the availability frontier unchanged
+                            // when every possible field is already occupied. A vacancy
+                            // still needs a single destination to establish.
+                            for (place, projection) in targets {
+                                let Some(root) = self.root(place)? else {
+                                    continue;
+                                };
+                                let (mut region_path, exact) = self.observed(place, &projection)?;
+                                if exact && let Some(field) = field {
+                                    region_path.push(Segment::Field(*field));
+                                }
+                                if !exact
+                                    && !projection.contains(&StructuralPathSegment::Referent)
+                                    && !crate::projection_stays_in_inline_storage(
+                                        self.types.iter(), root.structural_type, &projection,
+                                    )
+                                {
+                                    return Err(Error::unsupported(
+                                        "indexed replacement crosses outside its intact array storage",
+                                    ));
+                                }
+                                if !state.regions[index(place.get())?].as_ref().is_some_and(
+                                    |region| region.available(&region_path)
+                                        && !region.contains_partition(&region_path),
+                                ) {
+                                    return Err(Error::unsupported(
+                                        "replacement through a choice requires every receiving field occupied",
+                                    ));
+                                }
+                            }
+                            if settled && let Some(disposition) = declared_disposition {
+                                let required = StructuralStoreDisposition::ReplaceDiscardable;
+                                if self.verify_stores && disposition != required {
+                                    return Err(Error::malformed(
+                                        "a vacant store targets established storage behind a reference",
+                                    ));
+                                }
+                                self.stores.push((operation.id, required));
+                            }
+                            return Ok(());
+                        }
+                    }
                 } else {
                     (*destination, path.clone())
                 };
