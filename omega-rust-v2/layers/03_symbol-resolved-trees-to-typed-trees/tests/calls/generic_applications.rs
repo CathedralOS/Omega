@@ -1263,3 +1263,37 @@ fn finite_alternatives_require_each_literal_to_fit_the_index_carrier() {
     assert_eq!(error.message, "expected u8, found 300");
     assert_eq!(error.span.slice(source.as_bytes()), Some(b"300".as_slice()));
 }
+
+#[test]
+fn a_record_literal_uses_the_exact_application_of_its_expected_destination() {
+    for (declarations, literal) in [
+        ("data Box<T>{value:T;} machine build()->Box<u8>", "Box{value:7}"),
+        ("data Index<N:u32> requires value<N {value:u32;} machine build<K:u32>(x:u32)->Index<K> requires x<K", "Index{value:x}"),
+    ] {
+        let code = format!("{declarations}{{{literal}}}");
+        let stage = check(&[("destination.omg", &code)]).unwrap();
+        let signature = stage.signatures.iter().find(|s| s.machine.path == "build").unwrap();
+        let expression = stage.expressions.iter().find(|e| e.site.span.slice(code.as_bytes()) == Some(literal.as_bytes())).unwrap();
+        assert!(matches!(&signature.result, ValueType::Applied(_, args) if args.len() == 1));
+        assert_eq!(expression.ty, signature.result);
+        if literal.starts_with("Index") {
+            assert!(stage.obligations.iter().any(|o| o.node == expression.node
+                && matches!(&o.kind, omega_typer::ObligationKind::EstablishData(owner) if owner.path == "Index")));
+        }
+    }
+}
+
+#[test]
+fn an_omitted_record_application_needs_agreeing_evidence() {
+    let declarations = "data Box<T>{value:T;} data Other<T>{value:T;} data Empty<T>{}";
+    for (machine, reason) in [
+        ("machine f()->Box<u8>{Box::<bool>{value:true}}", "expected game\\Box<u8>, found game\\Box<bool>"),
+        ("machine f()->Box<u8>{Box{value:true}}", "expected u8, found bool"),
+        ("machine f()->Other<u8>{Box{value:7}}", "Box expects 1 type arguments, found 0"),
+        ("machine f(){let b=Empty{};}", "Empty expects 1 type arguments, found 0"),
+    ] {
+        let code = format!("{declarations} {machine}");
+        let error = check(&[("destination.omg", &code)]).unwrap_err();
+        assert_eq!(error.message, reason);
+    }
+}
