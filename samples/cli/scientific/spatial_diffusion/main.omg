@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0 with input.txt (one byte 0). Empty stdin exits 64.
 // Expected output contains: CONVERGED
@@ -13,7 +15,7 @@ use domain\solver;
 use platform\decimal;
 use platform\decimal\number;
 
-machine field(value:f64) reaches ProcessExit + Console invokes Console {
+machine field(value:f64) reaches ProcessExit + StandardOutput invokes Console {
  let scaled:f64=value*1000000000000.0;
  transition scaled == scaled && scaled >= -900000000000000000.0 && scaled <= 900000000000000000.0 {
   true -> emit(scaled), false -> failure()
@@ -24,13 +26,13 @@ machine field(value:f64) reaches ProcessExit + Console invokes Console {
  }
  machine failure() { Console::write_line("REJECT numeric output"); ProcessExit::exit_process(70); }
 }
-machine count(value:u64 in Saturating) reaches ProcessExit + Console invokes Console {
+machine count(value:u64 in Saturating) reaches ProcessExit + StandardOutput invokes Console {
  transition value <= 1000 { true -> bounded(value), false -> failure() }
  machine bounded(value:u64 in Saturating) requires value <= 1000 { number(value as i64 +Wrapping); }
  machine failure() { Console::write_line("REJECT report count"); ProcessExit::exit_process(70); }
 }
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console invokes Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput invokes Console {
  let request:ByteRead=block Console::read_byte();
  transition request { ByteRead::Byte { value } -> block ending(value), _ -> input_error() }
  machine ending(value:i32) {
@@ -104,7 +106,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console invokes Console 
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console invokes Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput invokes Console {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

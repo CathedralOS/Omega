@@ -1,10 +1,11 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 use clearance\model;
 use clearance\model\Certificate;
 
 // Fixed-width decimal keeps every output field easy to compare as raw bytes.
-machine number(value: i32 in Saturating) reaches Console
+machine number(value: i32 in Saturating) reaches StandardOutput
 invokes Console
 {
     Console::write_byte(((value / 100) % 10 + 48) as i32);
@@ -13,7 +14,7 @@ invokes Console
     Console::write_byte(10);
 }
 
-machine number5(value: i32 in Saturating) reaches Console
+machine number5(value: i32 in Saturating) reaches StandardOutput
 invokes Console
 {
     Console::write_byte(((value / 10000) % 10 + 48) as i32);
@@ -24,7 +25,7 @@ invokes Console
     Console::write_byte(10);
 }
 
-public machine report(certificate: @Certificate) reaches ProcessExit + Console
+public machine report(certificate: @Certificate) reaches ProcessExit + StandardOutput
 invokes Console
 {
     Console::write_line("clearance_route_planner: synthetic span-height clearance model");

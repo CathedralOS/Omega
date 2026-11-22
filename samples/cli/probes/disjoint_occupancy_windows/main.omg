@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Two resource windows of one occupancy row, lent across a state edge.
 // The field pair leaves main; the later state builds its own row and lends
@@ -9,7 +10,7 @@ use omega_language_std\Console;
 data Occupancy { cells: [i32 in Wrapping; 4]; }
 data Main { }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     let mutable occupancy: Occupancy;
     occupancy.cells = [0, 0, 0, 0];
     let ready: bool = true;
@@ -50,7 +51,7 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

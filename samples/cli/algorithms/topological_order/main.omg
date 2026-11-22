@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Topological order via iterative source removal over a directed graph held
 // in CSR (offsets + targets) form. Each pass scans all nodes and emits every
@@ -270,7 +271,7 @@ data Main {
     positions: Positions;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     // 0->5, 0->6, 1->6, 2->4, 2->7, 3->7, 4->1, 5->2, 6->3 (9 edges).
     main.graph_dag = Graph {
         node_count: 8,
@@ -312,7 +313,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

@@ -1,7 +1,6 @@
 use omega\language\core\ProcessExit;
 // Complete negative control: a strictly ascending elevation interval is
 // required before computing a linear slope. A reversed literal violates it.
-use omega_language_std\Console;
 use omega\language\core\F64::from_i64;
 
 machine interval_height(lower: i64, upper: i64) -> f64
@@ -11,7 +10,7 @@ requires upper > lower
 }
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit {
     let height: f64 = interval_height(2000, 1000);
     transition height > 0.0 {
         true -> done(),
@@ -21,7 +20,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

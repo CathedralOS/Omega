@@ -1,10 +1,11 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use domain\model;
 use domain\model\Pedigree;
 use domain\solver;
 use domain\solver\Inference;
 
-public machine number(value: i32 in Wrapping) reaches Console
+public machine number(value: i32 in Wrapping) reaches StandardOutput
 invokes Console
 {
     transition { _ -> leading(value, 10000) }
@@ -30,7 +31,7 @@ invokes Console
     machine done() { }
 }
 
-public machine emit(pedigree: @Pedigree, result: @Inference) reaches Console
+public machine emit(pedigree: @Pedigree, result: @Inference) reaches StandardOutput
 invokes Console
 {
     Console::write("SOLUTIONS "); number(result.solutions); Console::write_line("");
@@ -87,7 +88,7 @@ invokes Console
     machine done() { }
 }
 
-machine label(genotype: i32 in Wrapping) reaches Console {
+machine label(genotype: i32 in Wrapping) reaches StandardOutput {
     transition genotype { 0 -> aa(), 1 -> ab(), _ -> bb() }
     machine aa() { Console::write("AA"); }
     machine ab() { Console::write("AB"); }

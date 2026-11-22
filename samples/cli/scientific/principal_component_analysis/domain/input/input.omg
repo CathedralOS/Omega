@@ -1,3 +1,4 @@
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 use omega\language\core\F64::from_i32;
@@ -7,11 +8,12 @@ public data Input {
  token: [i32 in Wrapping; 64]; valid: bool;
 }
 public machine read(input: @mutable Input)
-invokes Console reaches Console blocks crashes Trap {
+invokes Console reaches StandardInput blocks crashes Trap {
  input.count = 0; input.bytes = 0; input.length = 0; input.valid = true;
  transition { _ -> receive(input) }
  machine receive(input: @mutable Input) {
   transition block Console::read_byte() {
+   ByteRead::Error -> invalid(input),
    ByteRead::Eof -> finish(input),
    ByteRead::Byte { value } -> bound(input, value as i32 +Wrapping)
   }

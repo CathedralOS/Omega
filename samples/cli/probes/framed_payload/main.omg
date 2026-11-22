@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Extract and checksum the payload of a framed message. The frame is
 // [header, b0, b1, b2, trailer]; the payload is the middle three bytes, obtained
@@ -30,7 +32,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("framed_payload: subslicing the payload out of a framed message and summing it");
     main.frame.bytes[0] = 255;
     main.frame.bytes[1] = 10;
@@ -47,7 +49,7 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block Main::main(@mutable entry_storage);
 }

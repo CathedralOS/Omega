@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // account_ledger: event-sourced account simulation.
 //
@@ -280,7 +282,7 @@ machine total(main: @mutable Main) -> i32 in Wrapping {
 }
 
 // ── case dispatcher: apply a transaction to an account index ──────────────────
-machine apply(main: @mutable Main, idx: i32 in Wrapping, tx: Transaction) reaches ProcessExit + Console {
+machine apply(main: @mutable Main, idx: i32 in Wrapping, tx: Transaction) reaches ProcessExit + StandardInput + StandardOutput {
     transition tx {
         Transaction::Deposit { amount } -> check_frozen_dep(main, idx, amount),
         Transaction::Withdraw { amount } -> check_frozen_wd(main, idx, amount),
@@ -385,7 +387,7 @@ machine apply(main: @mutable Main, idx: i32 in Wrapping, tx: Transaction) reache
 }
 
 // ── main: scripted transaction sequence + multi-layer verification ─────────────
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("account_ledger: event-sourced account ledger -- case-payload dispatch, frozen gates, value-call checksums");
     // 10 apply calls. `apply` acknowledges `block` transitively (its failure
     // arms call `block console.read_line`), so each call site repeats it.
@@ -530,7 +532,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

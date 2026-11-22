@@ -15,7 +15,6 @@ use omega\language\core\ProcessExit;
 // exit = (C[0][0] + C[1][1] + C[2][2]) % 256 = (30 + 69 + 90) % 256 = 189
 //
 // Expected exit: 189
-use omega_language_std\Console;
 data Main {
 }
 data Matrices {
@@ -23,7 +22,7 @@ data Matrices {
     b: [[i32 in Wrapping; 3]; 3];
     c: [[i32 in Wrapping; 3]; 3];
 }
-machine main(context: @mutable Main) reaches ProcessExit + Console {
+machine main(context: @mutable Main) reaches ProcessExit {
     let mutable matrices: Matrices;
     matrices.a = [[1i32 as +Wrapping, 2i32 as +Wrapping, 3i32 as +Wrapping], [4i32 as +Wrapping, 5i32 as +Wrapping, 6i32 as +Wrapping], [7i32 as +Wrapping, 8i32 as +Wrapping, 9i32 as +Wrapping]];
     matrices.b = [[9i32 as +Wrapping, 8i32 as +Wrapping, 7i32 as +Wrapping], [6i32 as +Wrapping, 5i32 as +Wrapping, 4i32 as +Wrapping], [3i32 as +Wrapping, 2i32 as +Wrapping, 1i32 as +Wrapping]];
@@ -68,7 +67,7 @@ machine main(context: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

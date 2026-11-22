@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Statistics compute kernel. Exercises f64 arithmetic end-to-end: mean,
 // variance, and a weighted sum over a small fixed dataset.
@@ -70,7 +72,7 @@ machine add_weighted(main: @mutable Main, x: f64, w: f64) {
     main.s.weighted_sum = main.s.weighted_sum + x * w;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("stats_compute: f64 mean, variance, and weighted sum over 8 samples");
     // Phase 1: accumulate the 8 data values.
     add(main, 2.0);
@@ -204,7 +206,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

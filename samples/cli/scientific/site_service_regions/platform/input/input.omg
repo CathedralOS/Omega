@@ -1,10 +1,11 @@
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 use omega\language\core\F64::from_i32;
 public data Reader { valid: bool; value: f64; }
 // A whitespace-separated signed integer, bounded to [-100,100]. This parser
 // consumes one separator, accepts EOF after digits, and rejects partial tokens.
-public machine read_integer(reader: @mutable Reader) reaches Console
+public machine read_integer(reader: @mutable Reader) reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -14,6 +15,7 @@ crashes Trap
     machine skip(reader: @mutable Reader) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> bad(reader),
             ByteRead::Eof -> bad(reader),
             ByteRead::Byte { value } -> block start(reader, value)
         }
@@ -33,6 +35,7 @@ crashes Trap
     machine next(reader: @mutable Reader, sign: f64, seen: bool) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> bad(reader),
             ByteRead::Eof -> finish(reader, sign, seen),
             ByteRead::Byte { value } -> block digit(reader, value, sign, seen)
         }
@@ -63,7 +66,7 @@ crashes Trap
     machine bad(reader: @mutable Reader) { reader.valid = false; }
     machine done() { }
 }
-public machine end_input(reader: @mutable Reader) reaches Console
+public machine end_input(reader: @mutable Reader) reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -72,6 +75,7 @@ crashes Trap
     machine read(reader: @mutable Reader) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> bad(reader),
             ByteRead::Eof -> done(),
             ByteRead::Byte { value } -> block check(reader, value)
         }

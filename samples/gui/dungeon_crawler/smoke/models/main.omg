@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: PASS: bounded components and terminating controller fan-out
@@ -61,7 +62,7 @@ machine check_misses() -> bool {
     miss_matches(attacker, friendly) && miss_matches(attacker, behind) && miss_matches(attacker, distant) && miss_matches(attacker, other_room)
 }
 
-machine Smoke::main(smoke: @mutable Smoke) reaches ProcessExit + Console {
+machine Smoke::main(smoke: @mutable Smoke) reaches ProcessExit + StandardOutput {
     let knockback: bool = check_knockback();
     let misses: bool = check_misses();
     smoke.actors.items[0].vitality = Vitality { current: 12, maximum: 12 };
@@ -88,7 +89,7 @@ machine Smoke::main(smoke: @mutable Smoke) reaches ProcessExit + Console {
     machine failed() { ProcessExit::exit_process(1); }
 }
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Smoke;
     Smoke::main(@mutable entry_storage);
 }

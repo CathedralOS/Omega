@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 70.
 // Sieve of Eratosthenes over a bitset: bit k of a u32 means "k is composite". Starting empty (all
@@ -19,7 +21,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("bitset_sieve: Sieve of Eratosthenes over a u32 bitset -- counting primes in 2..30");
     main.bits = 0u32 as +Wrapping;
     main.i = 2u32 as +Wrapping;
@@ -91,7 +93,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

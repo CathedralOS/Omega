@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete valid-source control. A local fixed array is borrowed as a slice
 // on a state edge. The source checker admits this ordinary view presentation;
@@ -7,7 +8,7 @@ use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     let bytes: [u8; 4] = [51, 52, 53, 54];
     transition true {
         true -> emit(@bytes),
@@ -21,7 +22,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

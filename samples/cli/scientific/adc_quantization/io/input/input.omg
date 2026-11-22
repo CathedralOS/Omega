@@ -1,10 +1,11 @@
 // Tokens are bounded signed decimal integers. 2001 = malformed, 2002 = EOF.
 // Neither sentinel is an admitted physical setting or sample.
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 use omega\language\core\widen_i32_to_i64;
 
-public machine number() -> i64 in Wrapping reaches Console
+public machine number() -> i64 in Wrapping reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -13,6 +14,7 @@ crashes Trap
     machine scan(magnitude: i64 in Wrapping, negative: bool, started: bool, digits: bool) -> i64 in Wrapping {
         let byte: ByteRead = block Console::read_byte();
         transition byte {
+            ByteRead::Error -> (2001),
             ByteRead::Eof -> finish(magnitude, negative, digits),
             ByteRead::Byte { value } -> block classify(magnitude, negative, started, digits, value)
         }

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 64 (empty stdin is invalid).
 // Expected numerical outputs are frozen independently in expected.json.
@@ -50,7 +52,7 @@ requires count >= 1 requires count <= 16 requires window.length == count {
     }
     machine filled() { }
 }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     transition { _ -> block probability(main, 0) }
     machine probability(main: @mutable Main, field: u64) requires field < 10 {
         let read: LineReadResult = block Console::read_line(@mutable main.line[..]);
@@ -185,7 +187,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

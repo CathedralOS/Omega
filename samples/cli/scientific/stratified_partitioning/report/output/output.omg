@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use data\dataset;
 use data\dataset\Dataset;
@@ -7,7 +8,7 @@ use partition\allocation\absolute;
 use partition\audit;
 use partition\audit\Audit;
 public machine number(value: i32 in Saturating)
-reaches Console
+reaches StandardOutput
 invokes Console
 {
     Console::write_byte(((value / 100) % 10 + 48) as i32);
@@ -15,7 +16,7 @@ invokes Console
     Console::write_byte((value % 10 + 48) as i32);
 }
 public machine report(data: @Dataset, result: @Allocation, audit: @Audit)
-reaches Console
+reaches StandardOutput
 invokes Console
 {
     Console::write("mask "); number(result.mask); Console::write_line("");

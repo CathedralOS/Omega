@@ -12,7 +12,6 @@ use omega\language\core\ProcessExit;
 //
 // Expected exit: 58 = found positions (3 + 1 + 4 + 1) + grown counts
 // (5 + 6) + live cells sum (1 + 2 + 3 + 5 + 7 + 20).
-use omega_language_std\Console;
 
 machine sorted(values: @[i32; 16]) -> bool {
     check_sorted(values, 15)
@@ -192,7 +191,7 @@ ensures sorted(values) == true
     values[0] = 1;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console crashes Trap {
+machine main(main: @mutable Main) reaches ProcessExit crashes Trap {
     main.live = 4;
     seed(@mutable main.values);
     transition { _ -> probe(main) }
@@ -233,7 +232,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console crashes Trap {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console crashes Trap {
+machine entry_start() reaches ProcessExit crashes Trap {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

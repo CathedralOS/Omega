@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use domain\input;
 use domain\input\Image;
 use domain\regions;
@@ -7,7 +8,7 @@ use omega_language_std\Console;
 
 // All printed values are nonnegative and <= 448. Centroids are exact
 // unreduced fractions sum/area, avoiding rounding and floating tolerances.
-machine number(value: i32 in Wrapping) reaches Console {
+machine number(value: i32 in Wrapping) reaches StandardOutput {
     transition value >= 100 {
         true -> hundreds(value),
         false -> tens(value)
@@ -34,7 +35,7 @@ machine number(value: i32 in Wrapping) reaches Console {
 
 public machine render(image: @Image)
 invokes Console
-reaches Console {
+reaches StandardOutput {
     Console::write_line("P2");
     Console::write_line("# micrograph region labels; zero is background");
     number(image.width); Console::write(" "); number(image.height); Console::write_line("");

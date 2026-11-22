@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_compiler\Compilation;
 use omega_compiler\CompilationStatus;
@@ -38,7 +40,7 @@ machine malformed() reaches ProcessExit crashes none {
     ProcessExit::exit_process(253);
 }
 
-machine read_byte() -> u8 reaches ProcessExit + Console crashes Trap blocks {
+machine read_byte() -> u8 reaches ProcessExit + StandardInput crashes Trap blocks {
     let input: ByteRead = block Console::read_byte();
     transition input {
         ByteRead::Byte { value } -> byte(value),
@@ -52,7 +54,7 @@ machine read_byte() -> u8 reaches ProcessExit + Console crashes Trap blocks {
     }
 }
 
-machine read_word() -> u32 reaches ProcessExit + Console crashes Trap blocks {
+machine read_word() -> u32 reaches ProcessExit + StandardInput crashes Trap blocks {
     let b0: u8 = block read_byte();
     let b1: u8 = block read_byte();
     let b2: u8 = block read_byte();
@@ -61,7 +63,7 @@ machine read_word() -> u32 reaches ProcessExit + Console crashes Trap blocks {
 }
 
 machine read_input(input: @mutable ConstructionInput)
-reaches ProcessExit + Console crashes Trap blocks
+reaches ProcessExit + StandardInput crashes Trap blocks
 {
     input.has_build_sources = false;
     input.build_unit_count = 0;
@@ -189,7 +191,7 @@ reaches ProcessExit crashes Trap
 }
 
 machine copy_name(input: @ConstructionInput, name: @mutable ModulePath, start: u32, end: u32)
-reaches ProcessExit + Console crashes Trap
+reaches ProcessExit crashes Trap
 {
     module_path_clear(name);
     transition start <= end && end <= input.buffer_length && end - start <= 256 {
@@ -215,7 +217,7 @@ reaches ProcessExit + Console crashes Trap
 }
 
 machine add_packages(input: @ConstructionInput, compilation: @mutable Compilation)
-reaches ProcessExit + Console crashes Trap
+reaches ProcessExit crashes Trap
 {
     transition { _ -> next(input, compilation, 0) }
     machine next(input: @ConstructionInput, compilation: @mutable Compilation, index: u64) {
@@ -251,7 +253,7 @@ reaches ProcessExit + Console crashes Trap
 }
 
 machine add_edges(input: @ConstructionInput, compilation: @mutable Compilation)
-reaches ProcessExit + Console crashes Trap
+reaches ProcessExit crashes Trap
 {
     transition { _ -> next(input, compilation, 0) }
     machine next(input: @ConstructionInput, compilation: @mutable Compilation, index: u64) {
@@ -342,7 +344,7 @@ machine directory_name(name: @[u8]) -> bool crashes Trap {
 }
 
 machine package_namespace(path: @[u8], name: @mutable ModulePath)
-reaches ProcessExit + Console crashes Trap
+reaches ProcessExit crashes Trap
 {
     module_path_clear(name);
     transition { _ -> scan(path, name, 0, 0) }
@@ -420,7 +422,7 @@ reaches ProcessExit + Console crashes Trap
 
 machine unit_namespace(input: @ConstructionInput, row: u64, name: @mutable ModulePath)
 requires row <= 3771
-reaches ProcessExit + Console crashes Trap
+reaches ProcessExit crashes Trap
 {
     transition input.unit_row_words {
         5 -> path(input, row, name),
@@ -466,7 +468,7 @@ crashes Trap
 }
 
 machine add_units(input: @ConstructionInput, compilation: @mutable Compilation, lexer: @mutable Lexer)
-reaches ProcessExit + Console crashes Trap
+reaches ProcessExit crashes Trap
 {
     transition { _ -> next(input, compilation, lexer, 0) }
     machine next(input: @ConstructionInput, compilation: @mutable Compilation, lexer: @mutable Lexer, index: u64) {
@@ -529,7 +531,7 @@ machine exit_status(status: CompilationStatus) -> i32 {
     machine code(value: i32) -> i32 { value }
 }
 
-machine publish(compilation: @Compilation) reaches ProcessExit + Console crashes Trap {
+machine publish(compilation: @Compilation) reaches ProcessExit + StandardOutput crashes Trap {
     let status: i32 = exit_status(compilation.status);
     transition status == 0 {
         true -> bounded(compilation),
@@ -557,7 +559,7 @@ machine publish(compilation: @Compilation) reaches ProcessExit + Console crashes
     machine refused(status: i32) { ProcessExit::exit_process(status); }
 }
 
-machine entry_start() reaches ProcessExit + Console crashes Trap blocks {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap blocks {
     let mutable input: ConstructionInput;
     block read_input(@mutable input);
     check_build_input(@input);

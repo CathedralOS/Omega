@@ -40,8 +40,8 @@ pub enum CoreVocabulary {
     InterruptControlService,
     InterruptEntryService,
     RootMemoryAccessService,
-    ProcessInputService,
-    ProcessOutputService,
+    StandardInputService,
+    StandardOutputService,
     ProcessExitService,
     /// One of core `filesystem_authority.omg`'s capability-only services.
     FilesystemService(FilesystemService),
@@ -362,15 +362,15 @@ const ROWS: &[CoreVocabularyRow] = &[
     ),
     row(
         "process_authority.omg",
-        "ProcessInput",
+        "StandardInput",
         BundledFile::CoreProcessAuthority,
-        CoreVocabulary::ProcessInputService,
+        CoreVocabulary::StandardInputService,
     ),
     row(
         "process_authority.omg",
-        "ProcessOutput",
+        "StandardOutput",
         BundledFile::CoreProcessAuthority,
-        CoreVocabulary::ProcessOutputService,
+        CoreVocabulary::StandardOutputService,
     ),
     row(
         "process_exit.omg",

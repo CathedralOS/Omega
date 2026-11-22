@@ -3,7 +3,6 @@ use omega\language\core\ProcessExit;
 // The write opens an invariant window that the helper's normal return must
 // close when it hands the borrowed instrument back; exiting the process
 // inside the helper would abandon the window instead of consuming it.
-use omega_language_std\Console;
 data BoundedStimulus requires value >= 0 && value <= 100 { value: i32; }
 data InvalidInstrument { stimulus: BoundedStimulus; }
 machine run(instrument: @mutable InvalidInstrument) {
@@ -11,7 +10,7 @@ machine run(instrument: @mutable InvalidInstrument) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit {
     let mutable entry_storage: InvalidInstrument;
     run(@mutable entry_storage);
     ProcessExit::exit_process(0);

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Mandelbrot set, software-rendered to the console as ASCII. A real per-pixel
 // renderer: for each cell map (x,y) to a complex c, run the escape-time iteration
@@ -33,7 +35,7 @@ requires self.x >= 0 && self.x <= 64,
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("mandelbrot: escape-time fractal rendered as 64x28 ASCII");
     main.palette = " .:-=+*#";
     main.row = "................................................................";
@@ -121,7 +123,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

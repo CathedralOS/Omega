@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Evaluate a polynomial with Horner's method: p(x) = a_n x^n + ... + a_1 x + a_0, computed as
 // (((a_n) x + a_{n-1}) x + ... ) x + a_0 -- the standard, numerically-stable evaluation that
@@ -18,7 +20,7 @@ use omega_language_std\Console;
 data Main {
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + Console {
+machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("horner_eval: evaluating x^4+2x^3+3x^2+4x+5 at x=2 by Horner's method");
     let coefficients: [i32 in Wrapping; 5] = [1i32 as +Wrapping, 2i32 as +Wrapping, 3i32 as +Wrapping, 4i32 as +Wrapping, 5i32 as +Wrapping];
     let result: i32 in Wrapping = evaluate_polynomial(@coefficients, 2i32 as +Wrapping);
@@ -61,7 +63,7 @@ machine evaluate_polynomial(coefficients: @[i32 in Wrapping; 5], argument: i32 i
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

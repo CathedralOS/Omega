@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 64 (empty stdin); valid data fixtures exit 0.
 // Expected output contains: INVALID: expected scenario
@@ -19,10 +21,11 @@ data Main {
     initial_energy: f64;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("NEW021 constrained pendulum; signed micro-units; dt=0.01; gravity=9.81; mass=1");
     let input: ByteRead = block Console::read_byte();
     transition input {
+        ByteRead::Error -> invalid(main),
         ByteRead::Byte { value } -> block scenario(main, value),
         ByteRead::Eof -> invalid(main)
     }
@@ -36,6 +39,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
         main.scenario = scenario;
         let input: ByteRead = block Console::read_byte();
         transition input {
+            ByteRead::Error -> invalid(main),
             ByteRead::Byte { value } -> block length(main, value),
             ByteRead::Eof -> invalid(main)
         }
@@ -58,6 +62,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
     machine newline(main: @mutable Main) {
         let input: ByteRead = block Console::read_byte();
         transition input {
+            ByteRead::Error -> invalid(main),
             ByteRead::Byte { value } -> block check_newline(main, value),
             ByteRead::Eof -> invalid(main)
         }
@@ -71,6 +76,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
     machine end_input(main: @mutable Main) {
         let input: ByteRead = block Console::read_byte();
         transition input {
+            ByteRead::Error -> invalid(main),
             ByteRead::Eof -> initialize(main),
             ByteRead::Byte { value } -> invalid(main)
         }
@@ -159,7 +165,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

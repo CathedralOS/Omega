@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 70.
 // Recursive sum over a fixed-size integer array via a value-returning machine.
@@ -57,7 +59,7 @@ terminates by s -> Slice::Length
     }
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("recursive_sum: recursive slice sum + count via value-returning machines");
     // Initialize the array elements.
     main.arr[0] = 5 as +Wrapping;
@@ -110,7 +112,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

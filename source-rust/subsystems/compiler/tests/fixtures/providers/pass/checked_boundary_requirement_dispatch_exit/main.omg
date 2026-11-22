@@ -3,7 +3,6 @@ use omega\language\core\ProcessExit;
 // reach. Build selects the checked adapter. The direct call stays on that
 // trait through Terminal Psi, and both engines return the adapter's result.
 // Expected exit: 70.
-use omega_language_std\Console;
 
 public boundary trait CheckedMath {
     machine offset_zero(value: i32) -> i32
@@ -23,7 +22,7 @@ machine length() -> i32 { CheckedMath::offset_zero(9) }
 data Main { bytes: [u8; length()]; }
 
 machine run_checked_math(main: @mutable Main)
-reaches ProcessExit + Console
+reaches ProcessExit
 {
     // The same named requirement executes its checked provider during type
     // evaluation. Index 8 requires the computed length, not a placeholder.
@@ -37,7 +36,7 @@ reaches ProcessExit + Console
 
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start()
-reaches ProcessExit + Console
+reaches ProcessExit
 {
     let mutable entry_storage: Main;
     run_checked_math(@mutable entry_storage);

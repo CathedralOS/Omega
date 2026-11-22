@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: PASS
@@ -65,7 +66,7 @@ data Main {
     moment: Moment;
 }
 
-machine measure(main: @mutable Main) reaches ProcessExit + Console {
+machine measure(main: @mutable Main) reaches ProcessExit + StandardOutput {
     main.moment.differences[0] = 0.5;
     main.moment.differences[1] = 1.5;
     main.moment.differences[2] = 2.5;
@@ -110,7 +111,7 @@ machine measure(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     measure(@mutable entry_storage);
 }

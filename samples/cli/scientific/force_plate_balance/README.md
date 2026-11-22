@@ -27,7 +27,7 @@ The support rectangle is inclusive at x=±150 mm and y=±75 mm. Lines have a
 256-byte limit including LF (at most 255 content bytes, including at EOF). Oversized lines are drained before the next
 frame. EOF accepts a final unterminated frame. Invalid frames produce diagnostics
 and processing continues; process exit 0 means the stream was processed, not
-that all frames were valid. Host I/O failure follows Console's Trap contract.
+that all frames were valid. A host read error ends processing with exit 1, including when draining an oversized frame.
 
 `Qx=sum(load*x)` and `Qy=sum(load*y)` are **first moments**, not torque axis
 names: standard torque components are `Mx=Qy`, `My=-Qx`. Output positions are

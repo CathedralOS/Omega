@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // NEW034: runtime-configured discrete rail-limited feedback amplifier.
 // Only this project owns its model, bounded parser and report implementation.
@@ -33,7 +35,7 @@ data Main {
     overload_count: i32 in Wrapping;
     first_recovered: i32;
 }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let read: LineReadResult = block Console::read_line(@mutable main.bytes[..]);
     transition read {
         LineReadResult::LineComplete { count } -> received(main, count),
@@ -144,7 +146,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
         ProcessExit::exit_process(64);
     }
 }
-machine equilibrium_row(main: @mutable Main, phase: i32) reaches Console {
+machine equilibrium_row(main: @mutable Main, phase: i32) reaches StandardOutput {
     Console::write("E,");
     integer(phase);
     Console::write(",");
@@ -163,11 +165,11 @@ machine equilibrium_row(main: @mutable Main, phase: i32) reaches Console {
     integer(match main.equilibrium.stable { true -> (1), false -> (0) });
     Console::write_line("");
 }
-machine flag(main: @mutable Main, flag: bool) reaches Console {
+machine flag(main: @mutable Main, flag: bool) reaches StandardOutput {
     integer(match flag { true -> (1), false -> (0) });
     Console::write(",");
 }
-machine trace_row(main: @mutable Main) reaches Console {
+machine trace_row(main: @mutable Main) reaches StandardOutput {
     Console::write("T,");
     integer(main.step as i32);
     Console::write(",");
@@ -220,7 +222,7 @@ machine measure(main: @mutable Main) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

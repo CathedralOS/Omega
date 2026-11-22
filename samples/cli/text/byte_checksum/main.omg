@@ -1,3 +1,4 @@
+use omega\language\core\StandardInput;
 use omega\language\core\ProcessExit;
 // Read bytes to EOF and exit with the Wrapping sum of bytes plus byte count.
 // ByteRead::Eof is distinct from a zero-valued Byte payload.
@@ -14,14 +15,15 @@ use omega_language_std\ByteRead;
 use omega_language_std\Console;
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput {
     transition { _ -> block read_next_byte(0 as +Wrapping, 0 as +Wrapping) }
 
     machine read_next_byte(sum: i32 in Wrapping, count: i32 in Wrapping) {
         let read_result: ByteRead = block Console::read_byte();
         transition read_result {
+            ByteRead::Error -> ProcessExit::exit_process(74),
             ByteRead::Byte { value } -> block add_byte(sum, count, value),
-            _ -> exit_with_checksum(sum, count)
+            ByteRead::Eof -> exit_with_checksum(sum, count)
         }
     }
 
@@ -38,7 +40,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

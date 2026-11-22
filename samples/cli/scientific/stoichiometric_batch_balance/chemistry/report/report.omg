@@ -1,9 +1,10 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use omega\language\core\narrow_i64_to_i32_wrapping;
 
 // Prints nonnegative i64 values through existing Console byte providers.
 // Largest reachable element total is 64*INT32_MAX (<10^12).
-machine number(value: i64 in Wrapping) reaches Console
+machine number(value: i64 in Wrapping) reaches StandardOutput
 invokes Console
 {
     transition { _ -> place(value, 1000000000000, false) }
@@ -30,14 +31,14 @@ invokes Console
     machine done() { }
 }
 
-machine line_number(value: i64 in Wrapping) reaches Console
+machine line_number(value: i64 in Wrapping) reaches StandardOutput
 invokes Console
 {
     number(value);
     Console::write_line("");
 }
 
-machine line_four(values: @[i64 in Wrapping; 4]) reaches Console
+machine line_four(values: @[i64 in Wrapping; 4]) reaches StandardOutput
 invokes Console
 {
     number(values[0]);

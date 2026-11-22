@@ -225,6 +225,11 @@ the core-owned `FilesystemContentRead` identity; writes reach
 explicitly named, never merely because provider selection uses those traits.
 Ordinary portable helpers propagate the declared capability rows.
 
+For the standard library's [console](../build/platform_services.md#standard-streams),
+`Console::write_line` reaches `StandardOutput` and `Console::read_line`
+reaches `StandardInput`. A write-only caller can therefore declare a ceiling
+that excludes input while calling through the same provider interface.
+
 A package can define its own boundary-trait identity and explicitly name it
 in an operation's row, including the containing trait itself:
 
@@ -425,15 +430,15 @@ A generic body is checked against every permitted selection. An unresolved open
 projection cannot fit a finite authored ceiling in that body. A bounded
 projection fits when its bound fits. Omitting the enclosing clause publishes the
 derived union; an authored ceiling contributes no services to that union.
-Closed callers substitute first: a Console-only `for_each<u32, Log>` application fits
-a caller's `reaches Console`. A caller that declares `reaches none` rejects
+A closed `for_each<u32, Log>` application whose callback only writes to standard
+output fits a caller's `reaches StandardOutput` after substitution. A caller that declares `reaches none` rejects
 the same application. The open requirement does not itself grant any service authority.
 
 The compiler derives the dependency structure from the checked call graph. Each
 closed application substitutes the selected machines' published contracts into
 that structure. It does not inspect a selected opaque body to narrow its promise.
 For example, a body calling only `Step` has dependency `reach(Step)`; one also
-calling a Console-reaching helper has `reach(Step) + Console`. These expressions
+calling a helper that writes to standard output has `reach(Step) + StandardOutput`. These expressions
 describe retained semantic data, not new source syntax. Generic wrappers compose
 these dependencies through further ordinary calls and exact substitutions.
 Forwarding preserves the originating requirement's open or bounded reach policy.
@@ -459,7 +464,7 @@ it onward. Stale retained summaries cannot authorize the changed application.
 
 The application's specialized row is used by ordinary callers as well as
 evaluation admission. A no-reach callback can leave a traversal with empty reach;
-a Console-reaching callback contributes Console. Empty reach alone establishes
+a callback that writes to standard output contributes `StandardOutput`. Empty reach alone establishes
 none of the other evaluation obligations.
 
 ### Static binder contract dependencies

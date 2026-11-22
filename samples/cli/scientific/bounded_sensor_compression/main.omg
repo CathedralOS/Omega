@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 10.
 // Expected output contains: error: input bounds or syntax
@@ -16,7 +18,7 @@ use domain\report\report;
 data Main { }
 
 // The entry owns input, private codec storage, decoding and certification.
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let mutable input: InputBuffer;
     let success: bool = block read_input(@mutable input);
     transition success && input.length > 0 {
@@ -86,7 +88,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

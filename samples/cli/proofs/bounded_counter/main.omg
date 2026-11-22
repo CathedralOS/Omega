@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // A counter saturating at a bound. Showcases `[copy]` type
 // properties and saturating arithmetic over a dispatched self-write path
@@ -18,7 +20,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("bounded_counter: saturating counter -- three add(40)s against a bound of 100");
     main.counter.bound = 100 as +Saturating;
 
@@ -72,7 +74,7 @@ machine add(main: @mutable Main, amount: i32 in Saturating) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

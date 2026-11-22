@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Print the squares 1..9 as DECIMAL TEXT, one per line -- the first sample to output
 // computed NUMBERS (not just text or an exit code). Each square k*k is rendered to a
@@ -26,7 +28,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("print_squares: the squares 1..9 printed as 3-digit decimal text");
     main.out = "XXX";
     main.k = 1;
@@ -77,7 +79,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

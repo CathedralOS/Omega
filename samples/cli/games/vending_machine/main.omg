@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 70.
 // A vending machine driven by a stream of case-payload events.
@@ -32,7 +34,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("vending_machine: folds insert/insert/press events through a coin register");
     // Three events: insert 50c, insert 25c, press slot 1 (price 75c).
     apply(main, Event::Insert { cents: 50 as +Saturating });
@@ -126,7 +128,7 @@ machine price_of(slot: i32 in Saturating) -> i32 in Saturating {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

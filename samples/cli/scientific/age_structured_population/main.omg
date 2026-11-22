@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 use demography\model;
@@ -20,7 +22,7 @@ use demography\oracles\reference_checks;
 // Expected exit: 2.
 // Expected output contains: ERROR invalid input
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let verified: bool = reference_checks();
     transition verified { true -> read_input(), false -> oracle_error() }
     machine oracle_error() { Console::write_line("ERROR internal oracle"); ProcessExit::exit_process(4); }
@@ -73,7 +75,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

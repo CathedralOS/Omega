@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete supplied-calibration compensation application; see README for units.
 use domain\input;
@@ -20,7 +22,7 @@ use omega_language_std\Console;
 
 data Application { reader: Reader; }
 
-machine main(application: @mutable Application) reaches ProcessExit + Console {
+machine main(application: @mutable Application) reaches ProcessExit + StandardInput + StandardOutput {
     let value_0: Number = block number(@mutable application.reader);
     let value_1: Number = block number(@mutable application.reader);
     let value_2: Number = block number(@mutable application.reader);
@@ -89,7 +91,7 @@ machine main(application: @mutable Application) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Application;
     block main(@mutable entry_storage);
 }

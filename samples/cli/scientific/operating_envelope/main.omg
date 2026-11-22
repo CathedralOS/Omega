@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Runtime operating envelope: one stdin packet, one fully certified polygon.
 // The generic sample harness supplies EOF; it must reject a missing packet.
@@ -9,7 +11,7 @@ use geometry;
 use output;
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let mutable bytes: [u8; 256];
     _ = block Console::read_line(@mutable bytes[..]);
     let mutable packet: input\Packet;
@@ -42,7 +44,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Disjoint-set union over 64 elements in fixed arrays with union-by-rank and
 // iterative two-pass path compression.
@@ -282,7 +283,7 @@ machine verify_workload(sets: @mutable DisjointSet) -> bool {
     }
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     init(@mutable main.sets);
     run_waves(@mutable main.sets);
     let ok: bool = verify_workload(@mutable main.sets);
@@ -303,7 +304,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

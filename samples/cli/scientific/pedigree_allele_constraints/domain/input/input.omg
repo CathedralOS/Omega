@@ -1,3 +1,4 @@
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 use domain\model;
@@ -9,7 +10,7 @@ use domain\model\valid;
 data Tokens { values: [i32; 19]; count: i32 in Wrapping; separated: bool; }
 
 public machine read(pedigree: @mutable Pedigree) -> bool
-reaches Console
+reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -53,11 +54,12 @@ crashes Trap
     }
 }
 
-machine scan(tokens: @mutable Tokens) -> bool reaches Console {
+machine scan(tokens: @mutable Tokens) -> bool reaches StandardInput {
     transition { _ -> byte(tokens) }
     machine byte(tokens: @mutable Tokens) -> bool {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> false,
             ByteRead::Eof -> true,
             ByteRead::Byte { value } -> classify(tokens, value)
         }

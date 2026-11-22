@@ -1,10 +1,11 @@
+use omega\language\core\StandardInput;
 use omega\language\core\ProcessExit;
 // Complete positive control: a local fixed byte buffer crosses a case edge
 // after the standard input provider filled it. With input 0 LF, exit 70.
 use omega_language_std\Console;
 use omega_language_std\LineReadResult;
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput {
     let mutable input: [u8; 8];
     let observed: LineReadResult = block Console::read_line(@mutable input[..]);
     transition observed {
@@ -22,7 +23,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

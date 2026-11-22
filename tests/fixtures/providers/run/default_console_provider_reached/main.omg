@@ -1,4 +1,5 @@
 use omega\language\core\ProcessExit;
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 
 // Expected exit: 0. Expected stdout: "K\n".
@@ -6,14 +7,14 @@ use omega_language_std\Console;
 // supplies Console and its private byte provider for the selected target.
 // ProcessExit is separate and requires its own admitted authority.
 data Main { }
-machine main(root: @mutable Main) reaches ProcessExit + Console {
+machine main(root: @mutable Main) reaches ProcessExit + StandardOutput {
     Console::write_byte(75);
     Console::write_byte(10);
     ProcessExit::exit_process(0);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

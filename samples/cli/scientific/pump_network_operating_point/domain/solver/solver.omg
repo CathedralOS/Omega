@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use domain\network;
 use domain\network\Network;
 use domain\network\residual;
@@ -12,7 +13,7 @@ public data Solver {
     feasible: i64 in Wrapping;
 }
 
-machine report(solver: @mutable Solver, lower: i64 in Wrapping, upper: i64 in Wrapping) reaches Console {
+machine report(solver: @mutable Solver, lower: i64 in Wrapping, upper: i64 in Wrapping) reaches StandardOutput {
     solver.roots = solver.roots + 1;
     let branch_sum: i64 in Wrapping = solver.network.r1 + solver.network.r2;
     let accepted: bool = lower >= solver.network.demand * 1024;
@@ -42,7 +43,7 @@ machine report(solver: @mutable Solver, lower: i64 in Wrapping, upper: i64 in Wr
 // A quadratic's double root has no sign change: handle its exact integer
 // discriminant separately, including non-grid rational vertices.
 public machine solve(solver: @mutable Solver)
-reaches Console
+reaches StandardOutput
 invokes Console
 {
     let quadratic: i64 in Wrapping = -solver.network.c * (solver.network.r1 + solver.network.r2);

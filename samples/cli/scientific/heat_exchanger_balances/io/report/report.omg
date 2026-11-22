@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use omega\language\core\I32::from_f64;
 use omega\language\core\narrow_i32_to_u32_trapping;
@@ -6,7 +7,7 @@ use io\input;
 use model\stages;
 
 // Nonnegative values in millidegrees/milliwatts; maximum 2,000,000,000.
-machine number(value: f64) reaches Console {
+machine number(value: f64) reaches StandardOutput {
     // Within the declared 1e-7 physical-unit computation tolerance of a
     // half-milli threshold, treat the computed value as a tie. This avoids
     // rounding exact ties downward because affine propagation lost a few ulps.
@@ -34,7 +35,7 @@ machine number(value: f64) reaches Console {
     }
     machine done() { }
 }
-public machine emit(input: @io\input\Input, solution: @model\stages\Solution) reaches Console invokes Console crashes Trap {
+public machine emit(input: @io\input\Input, solution: @model\stages\Solution) reaches StandardOutput invokes Console crashes Trap {
     Console::write_line("heat_exchanger_balances midpoint counterflow; temperature=mdegC heat=mW");
     transition { _ -> node(input, solution, 0) }
     machine node(input: @io\input\Input, solution: @model\stages\Solution, position: u32) {

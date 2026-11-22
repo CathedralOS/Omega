@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
@@ -17,7 +19,7 @@ public data Protocol {
 }
 // Fixed decimal notation, bounded to 512 bytes, exactly seven tokens and EOF.
 // Accumulator envelope prevents nonfinite values before any model operation.
-public machine read(protocol: @mutable Protocol) -> bool reaches ProcessExit + Console blocks crashes Trap {
+public machine read(protocol: @mutable Protocol) -> bool reaches ProcessExit + StandardInput blocks crashes Trap {
     protocol.position = 0; protocol.length = 0;
     protocol.accumulator = 0.0; protocol.scale = 1.0;
     protocol.fraction = false; protocol.fractional_digits = 0; protocol.negative = false;
@@ -30,6 +32,7 @@ public machine read(protocol: @mutable Protocol) -> bool reaches ProcessExit + C
         let observed: ByteRead = block Console::read_byte();
         protocol.length = protocol.length + 1;
         transition observed {
+            ByteRead::Error -> rejected(),
             ByteRead::Eof -> commit(protocol, true),
             ByteRead::Byte { value } -> character(protocol, value)
         }
@@ -122,7 +125,7 @@ public machine read(protocol: @mutable Protocol) -> bool reaches ProcessExit + C
 }
 
 public machine integer(protocol: @mutable Protocol, value: i32 in Wrapping)
-reaches ProcessExit + Console {
+reaches ProcessExit + StandardOutput {
     transition value < 0 {
         true -> negative(protocol, value),
         false -> digits(protocol, value, 1000000000, false)
@@ -172,7 +175,7 @@ reaches ProcessExit + Console {
 }
 
 machine wide_integer(protocol: @mutable Protocol, value: i64 in Wrapping)
-reaches ProcessExit + Console {
+reaches ProcessExit + StandardOutput {
     transition value < 0 {
         true -> negative(protocol, value),
         false -> digits(protocol, value, 1000000000000000000, false)
@@ -235,7 +238,7 @@ reaches ProcessExit + Console {
 // Sixteen significant decimal digits as signed integer mantissa and power of ten.
 // All model outputs are finite, and normalization precedes the trapping cast.
 public machine number(protocol: @mutable Protocol, value: f64)
-reaches ProcessExit + Console {
+reaches ProcessExit + StandardOutput {
     transition value == 0.0 {
         true -> zero(protocol),
         false -> sign(protocol, value)

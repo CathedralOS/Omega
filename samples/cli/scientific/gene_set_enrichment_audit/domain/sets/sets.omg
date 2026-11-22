@@ -1,4 +1,5 @@
 // Ten synthetic IDs. Masks are private bounded set storage, not gene biology.
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 
@@ -46,7 +47,7 @@ public machine intersection(left: u64 in Wrapping, right: u64 in Wrapping) -> u6
 }
 
 // Newline terminates each row; at most 63 IDs precede it. EOF and any other byte reject.
-public machine read_set() -> Parsed reaches Console
+public machine read_set() -> Parsed reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -60,6 +61,7 @@ crashes Trap
     machine read(mask: u64 in Wrapping, duplicates: u64 in Wrapping, count: u64 in Wrapping) -> Parsed {
         let byte: ByteRead = block Console::read_byte();
         transition byte {
+            ByteRead::Error -> invalid(),
             ByteRead::Eof -> invalid(),
             ByteRead::Byte { value } -> decode(mask, duplicates, count, value)
         }
@@ -86,13 +88,13 @@ crashes Trap
     machine invalid() -> Parsed { Parsed { mask: 0, duplicates: 0, valid: false } }
 }
 
-public machine end_input() -> bool reaches Console
+public machine end_input() -> bool reaches StandardInput
 invokes Console
 blocks
 crashes Trap
 {
     let observed: ByteRead = block Console::read_byte();
-    transition observed { ByteRead::Eof -> true,
+    transition observed { ByteRead::Error -> false, ByteRead::Eof -> true,
  ByteRead::Byte { value } -> false
  }
 }

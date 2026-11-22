@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 use omega_language_std\LineReadResult;
@@ -15,7 +17,7 @@ use reporting\report\report;
 
 // One bounded record: level, policy, nine row-major elevations, optional LF.
 // Examples: 10000020000 is a closed hill; 10000000000 is flat.
-machine main(context: @mutable Main) reaches ProcessExit + Console {
+machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let observed: LineReadResult = block Console::read_line(@mutable context.input[..]);
     transition observed {
         LineReadResult::LineComplete { count } -> line(context, count),
@@ -74,7 +76,7 @@ machine main(context: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Compute a value and PRINT it as text -- the read/compute/print pipeline a real
 // CLI app needs. It sums an array with a runtime-indexed loop, then converts the
@@ -38,7 +40,7 @@ requires self.i >= 0 && self.i <= 5
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("print_number: summing [10..50] and printing the total as decimal text");
     main.nums[0] = 10i32 as +Wrapping;
     main.nums[1] = 20i32 as +Wrapping;
@@ -116,7 +118,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

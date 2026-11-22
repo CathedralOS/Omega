@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Multiple sequential value-returning calls: exercises slot isolation for
 // three sequential value-position calls with varying arities, then uses
@@ -50,7 +52,7 @@ machine clamp_low(n: i32 in Saturating, min_val: i32 in Saturating) -> i32 in Sa
     }
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("multi_value_calls: three value-returning calls combined into one total");
     // Set up a field to test that it doesn't interfere with call results.
     main.offset = 38;
@@ -126,7 +128,7 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block Main::main(@mutable entry_storage);
 }

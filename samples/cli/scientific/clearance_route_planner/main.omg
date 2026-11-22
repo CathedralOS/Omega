@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0 (input: 2 0\n).
 use omega_language_std\Console;
@@ -7,7 +9,7 @@ use geometry;
 use graph;
 use validation;
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let mutable input: [u8; 8];
     let result: LineReadResult = block Console::read_line(@mutable input[..]);
     transition result {
@@ -134,7 +136,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
         Console::write_line("FAIL: planner certificate"); ProcessExit::exit_process(1);
     }
 }
-machine number(main: @mutable Main, value: i64 in Wrapping) reaches ProcessExit + Console {
+machine number(main: @mutable Main, value: i64 in Wrapping) reaches ProcessExit + StandardOutput {
     transition value >= 0 && value < 1000000 {
         true -> divisor(main, value, 1),
         false -> bad(main)
@@ -173,7 +175,7 @@ machine number(main: @mutable Main, value: i64 in Wrapping) reaches ProcessExit 
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

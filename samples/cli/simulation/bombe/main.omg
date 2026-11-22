@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // bombe: a Turing/Welchman Bombe attack on an Enigma I crib, table-driven.
 // The program first encrypts the demo plaintext KEINEBESONDERENEREIGNISSE at
@@ -383,7 +384,7 @@ machine build_edges(main: @mutable Main) {
 
 // Demo phase: encrypt the plaintext at REL under AW ER MT CQ IK and check it
 // against the known ciphertext.
-machine demo_press(main: @mutable Main) reaches ProcessExit + Console {
+machine demo_press(main: @mutable Main) reaches ProcessExit + StandardOutput {
     main.plug[0] = 22;   // A <-> W
     main.plug[22] = 0;
     main.plug[4] = 17;   // E <-> R
@@ -476,7 +477,7 @@ machine demo_press(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // Compare the produced ciphertext against the expected vector.
-machine check_demo(main: @mutable Main) reaches ProcessExit + Console {
+machine check_demo(main: @mutable Main) reaches ProcessExit + StandardOutput {
     main.i = 0;
     transition { _ -> dp_cmp(main) }
 
@@ -851,7 +852,7 @@ machine clear_wires(main: @mutable Main) {
 // printed and the first 64 recorded. The odometer advances r, carrying into
 // m and l on wrap; when l would leave 25 the scan is done -- 25,25,25 is the
 // last position processed.
-machine scan(main: @mutable Main) reaches Console {
+machine scan(main: @mutable Main) reaches StandardOutput {
     main.l = 0;
     main.m = 0;
     main.r = 0;
@@ -1387,7 +1388,7 @@ machine verify_stop(main: @mutable Main) {
 // a non-flooded register deduce the board and decrypt the crib. The caller
 // records the seed-0 test row (main.srow) itself when k == 0.
 machine try_hypothesis(main: @mutable Main)
-    reaches Console
+    reaches StandardOutput
 {
     transition { _ -> th_prop(main) }
 
@@ -1479,7 +1480,7 @@ machine load_consts(main: @mutable Main) {
     main.cseg = [25, 14, 25, 25, 14, 6, 1, 12, 10, 5, 21, 22, 20, 21, 13, 18, 10];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     Console::write_line("bombe: Turing/Welchman attack on Enigma I, rotors I II III, reflector B");
     transition { _ -> m_load(main) }
 
@@ -1523,7 +1524,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

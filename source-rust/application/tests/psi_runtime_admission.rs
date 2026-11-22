@@ -1,4 +1,7 @@
-#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+#[cfg(any(
+    all(target_os = "macos", target_arch = "aarch64"),
+    all(target_os = "linux", target_arch = "x86_64"),
+))]
 mod support;
 
 use std::path::PathBuf;
@@ -51,9 +54,10 @@ fn both_engines_replay_eof_for_the_darwin_console_descriptor() {
         "darwin-descriptor-input",
         r#"
 use omega\language\core\ProcessExit;
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
-machine main() reaches ProcessExit + Console {
+machine main() reaches ProcessExit + StandardInput {
     let read: ByteRead = block Console::read_byte();
     transition read { ByteRead::Eof -> done(), _ -> unexpected() }
     machine done() { ProcessExit::exit_process(0); }
@@ -89,6 +93,75 @@ machine build(builder: @mutable Build) {{
     for receipt in ["native exit 0", "interp exit: 0"] {
         assert!(report.lines().any(|line| line == receipt), "{report}");
     }
+}
+
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[test]
+fn failed_standard_input_returns_the_written_prefix() {
+    use std::io::Write;
+    use std::os::fd::OwnedFd;
+    use std::os::unix::net::UnixStream;
+
+    let library = support::repository_root().join("source/library");
+    let project = stage_project(
+        "partial-read-error",
+        r#"
+use omega\language\core\ProcessExit;
+use omega\language\core\StandardInput;
+use omega_language_std\Console;
+use omega_language_std\LineReadResult;
+machine main() reaches StandardInput + ProcessExit crashes none {
+    let mutable bytes: [u8; 3];
+    bytes[2] = 99;
+    let result: LineReadResult = block Console::read_line(@mutable bytes[..]);
+    transition result {
+        LineReadResult::Error { count } -> inspect(count, bytes[0], bytes[1], bytes[2]),
+        _ -> wrong()
+    }
+    machine inspect(count: u64, first: u8, second: u8, last: u8) {
+        transition count == 2 && first == 65 && second == 66 && last == 99 {
+            true -> ok(), false -> wrong()
+        }
+    }
+    machine ok() { ProcessExit::exit_process(0); }
+    machine wrong() { ProcessExit::exit_process(1); }
+}
+"#,
+        &format!(
+            r#"machine build(builder: @mutable Build) {{
+    Build::application(builder, "partial_read_error");
+    let registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {{ location: "{}" }}));
+    Build::bind(builder, linux_x86_64\ProgramEntry, main);
+}}
+"#,
+            library.join("std").display()
+        ),
+    );
+    let output = project.join("native");
+    let build = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["--target", "linux_x86_64", "--build-dir"])
+        .arg(&output)
+        .arg("build.omg")
+        .current_dir(&project)
+        .env("OMEGA_LIBRARY_ROOT", library)
+        .output()
+        .unwrap();
+    assert!(
+        build.status.success(),
+        "{}",
+        String::from_utf8_lossy(&build.stderr)
+    );
+
+    // The third read observes EAGAIN while the writer stays open.
+    let (input, mut writer) = UnixStream::pair().unwrap();
+    input.set_nonblocking(true).unwrap();
+    writer.write_all(b"AB").unwrap();
+    let result = Command::new(output.join("omega-program"))
+        .stdin(Stdio::from(OwnedFd::from(input)))
+        .status()
+        .unwrap();
+    std::fs::remove_dir_all(project).unwrap();
+    assert_eq!(result.code(), Some(0));
 }
 
 #[test]

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: hypotheses
@@ -10,7 +12,7 @@ use domain\indexing\Problem;
 use domain\indexing\decode;
 use domain\indexing\enumerate;
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let mutable raw: Raw = Raw { values: [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0], count: 0, };
     transition block read(@mutable raw) { true -> validate(@raw), false -> invalid() }
     machine validate(raw: @Raw) {
@@ -24,7 +26,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

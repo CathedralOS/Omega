@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete reproduction: a scaled integer survives ordinary Console calls.
 use omega_language_std\ByteRead;
@@ -6,7 +8,7 @@ use omega\language\core\F64::from_i32;
 use formatting;
 use formatting\number;
 data Main {}
-machine main(main:@mutable Main) reaches ProcessExit + Console {
+machine main(main:@mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
  let byte:ByteRead=block Console::read_byte();
  transition byte {ByteRead::Byte{value} -> render(main,value), _ -> fail(main)}
  machine render(main:@mutable Main,value:i32) {
@@ -20,7 +22,7 @@ machine main(main:@mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Event log: case-payload events updating nested struct state across multiple
 // sub-machine calls.
@@ -79,7 +81,7 @@ machine apply(main: @mutable Main, event: Event) {
     machine done() {}
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("event_log: case-payload events folding deposits/withdrawals into nested stats");
     apply(main, Event::Deposit { amount: 100 as +Saturating });
     apply(main, Event::Deposit { amount: 50 as +Saturating });
@@ -151,7 +153,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

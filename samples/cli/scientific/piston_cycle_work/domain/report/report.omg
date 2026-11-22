@@ -1,10 +1,11 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use omega\language\core\I32::from_f64;
 
 // Fixed six-place decimal output is independently checked to 2e-6.
 // The declared fixture inventory keeps scaled magnitudes below i32::MAX.
 public machine number(value: f64)
-reaches Console
+reaches StandardOutput
 invokes Console
 crashes Trap
 {
@@ -19,7 +20,7 @@ crashes Trap
     }
 }
 
-machine digits(scaled: i32) reaches Console {
+machine digits(scaled: i32) reaches StandardOutput {
     let value: i32 in Wrapping = scaled as i32 +Wrapping;
     integer((value / 1000000) as i32);
     Console::write(".");
@@ -32,7 +33,7 @@ machine digits(scaled: i32) reaches Console {
 }
 
 public machine integer(value: i32)
-reaches Console
+reaches StandardOutput
 invokes Console
 {
     let wrapped: i32 in Wrapping = value as i32 +Wrapping;

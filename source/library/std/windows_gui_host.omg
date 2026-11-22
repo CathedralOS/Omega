@@ -13,8 +13,8 @@ use omega\language\core\FilesystemMetadataQuery;
 use omega\language\core\FilesystemMetadataMutation;
 use omega\language\core\DirectoryEnumeration;
 use omega\language\core\FilesystemNamespaceMutation;
-use omega\language\core\ProcessInput;
-use omega\language\core\ProcessOutput;
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // The Windows window and thread-message service. Handles and message storage
 // belong to the caller; the provider keeps no virtual desktop or hidden state.
@@ -45,8 +45,8 @@ public boundary trait WindowsGuiHost {
             WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
             ClockObservation + ExecutionDelay + FilesystemContentRead +
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-            ProcessOutput + ProcessExit
+            DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+            StandardOutput + ProcessExit
     invokes WindowsGuiIo
     crashes none;
     machine foreground_window() -> u64 reaches WindowManagement
@@ -60,8 +60,8 @@ public boundary trait WindowsGuiHost {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     invokes WindowsGuiIo
     crashes none;
     // Remove at most one message from this thread, translate and dispatch it.
@@ -71,8 +71,8 @@ public boundary trait WindowsGuiHost {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     invokes WindowsGuiIo
     crashes none;
     // Add native frame metrics to the requested client size. Windows may
@@ -83,8 +83,8 @@ public boundary trait WindowsGuiHost {
             WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
             ClockObservation + ExecutionDelay + FilesystemContentRead +
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-            ProcessOutput + ProcessExit
+            DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+            StandardOutput + ProcessExit
     invokes WindowsGuiIo
     crashes none;
     machine get_dc(window: u64) -> u64 reaches

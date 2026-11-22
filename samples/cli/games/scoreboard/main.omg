@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // A fixed-capacity table of records: `players: [Player; 3]`, each a struct with an
 // `id` and a `score`. Demonstrates array-of-structs storage -- the building block
@@ -23,7 +25,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("scoreboard: sums three player records stored in an array of structs");
     main.players[0].id = 1;
     main.players[0].score = 30;
@@ -45,7 +47,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

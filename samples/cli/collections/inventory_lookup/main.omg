@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Look up an item by name in a small table of records -- a core serious-app shape
 // (name tables, inventories, registries). Each `Item` is a struct with an `id` and
@@ -22,7 +24,7 @@ data Main<'view> {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("inventory_lookup: searching a struct table for the item named Shield");
     main.items[0].id = 10;
     main.items[0].name = "Sword";
@@ -70,7 +72,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

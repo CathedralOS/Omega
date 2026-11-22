@@ -1,3 +1,4 @@
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 use omega\language\core\widen_i32_to_i64;
@@ -12,7 +13,7 @@ data Token {
 
 // Nonnegative decimal tokens, ASCII whitespace, at most 19 digits and i64::MAX.
 // The guard precedes multiply/add, including at the signed overflow boundary.
-machine next_token() -> Token reaches Console
+machine next_token() -> Token reaches StandardInput
 blocks
 crashes Trap
 {
@@ -20,6 +21,7 @@ crashes Trap
     machine scan(value: i64 in Wrapping, digits: i64 in Wrapping) -> Token {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> (Token::Invalid),
             ByteRead::Eof -> end(value, digits),
             ByteRead::Byte { value as byte } -> classify(value, digits, byte)
         }
@@ -56,7 +58,7 @@ crashes Trap
     }
 }
 
-public machine read_acquisition(acquisition: @mutable Acquisition) reaches Console
+public machine read_acquisition(acquisition: @mutable Acquisition) reaches StandardInput
 blocks
 crashes Trap
 {

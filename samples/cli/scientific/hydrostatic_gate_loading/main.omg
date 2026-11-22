@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // ADD02: Complete offline hydrostatic loading of a vertical gate silhouette.
 // Expected exit: 0 for valid bounded stdin; 64 for invalid bounded stdin.
@@ -34,7 +36,7 @@ data Application {
 }
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let mutable application: Application;
     block next(@mutable application.reader);
     transition application.reader.status == 1 && application.reader.value >= 2 && application.reader.value <= 8 {
@@ -207,7 +209,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

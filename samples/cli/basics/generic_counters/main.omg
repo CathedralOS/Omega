@@ -9,7 +9,6 @@ use omega\language\core\ProcessExit;
 //   exit = 12 + 2 + (1 if flag) + times_flag(1) = 16
 //
 // Expected exit: 16
-use omega_language_std\Console;
 data Counter<T> {
     value: T;
     times: i32 in Wrapping;
@@ -24,7 +23,7 @@ machine current_counter<T [copy]>(counter: @Counter<T>) -> T {
 machine counter_count<T>(counter: @Counter<T>) -> i32 in Wrapping {
     transition { _ -> (counter.times) }
 }
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit {
     let mutable score: Counter<i32>;
     let mutable flag: Counter<bool>;
     record_counter(@mutable score, 30);
@@ -38,9 +37,9 @@ machine entry_start() reaches ProcessExit + Console {
         true -> tally(total, times_score, times_flag),
         false -> wrong()
     }
-    machine tally(total: i32, times_score: i32 in Wrapping, times_flag: i32 in Wrapping) reaches ProcessExit + Console {
+    machine tally(total: i32, times_score: i32 in Wrapping, times_flag: i32 in Wrapping) reaches ProcessExit {
         let code: i32 in Wrapping = (total as +Wrapping) + times_score + 1 + times_flag;
         ProcessExit::exit_process(code as i32);
     }
-    machine wrong() reaches ProcessExit + Console { ProcessExit::exit_process(3); }
+    machine wrong() reaches ProcessExit { ProcessExit::exit_process(3); }
 }

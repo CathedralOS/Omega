@@ -20,7 +20,7 @@ const KW = new Set([
 ]);
 const TY = new Set([
   "u8", "u16", "u32", "u64", "i32", "i64", "bool", "Wrapping", "Saturating",
-  "Trapping", "copy", "true", "false", "result", "Console", "ProcessExit",
+  "Trapping", "copy", "true", "false", "result", "Console", "StandardInput", "StandardOutput", "ProcessExit",
   "Build", "Source", "ProgramEntry",
 ]);
 
@@ -259,7 +259,7 @@ ${rail()}
         ["payload", "The fields carried by a `case` variant, optionally constrained by a case-local `where` clause (`case Hit(value: i32) where value in 0..=255;`)."],
         ["[copy]", "Marks a pure value type as unrestricted so passing or assigning it duplicates the bits instead of consuming the binding."],
         ["affine", "The default ownership multiplicity for `data`: an owned value may move at most once, after which the old binding holds no value."],
-        ["reaches", "A machine's conservative external-service ceiling, written `reaches Console + ProcessExit`. Calling a service outside that ceiling is rejected."],
+        ["reaches", "A machine's conservative external-service ceiling, written `reaches StandardOutput + ProcessExit`. Calling a service outside that ceiling is rejected."],
         ["boundary trait", "A portable external interface declared by machine signatures (`public boundary trait Clock`). Each member states its own `reaches` row and any `suspends`, `blocks`, or `crashes` envelope."],
         ["provider", "A stateless type whose `satisfies` machines implement a boundary trait for a target or test harness (`FakeClock::now satisfies Clock::now`)."],
         ["static boundary call", "Calling a boundary requirement directly by trait path (`Console::write_line(...)`); the build selects the concrete provider for each target."],
@@ -268,7 +268,7 @@ ${rail()}
         ["proof obligation", "A static requirement the compiler must discharge — array bounds, exact arithmetic range, exhaustive dispatch, or precondition entailment — before accepting the program."],
         ["requires / ensures", "Machine contract clauses: `requires` states preconditions the caller must establish; `ensures` states postconditions guaranteed about `result` on normal return."],
         ["build machine", "`machine build(builder: @mutable Build)` in `build.omg`: ordinary checked Omega code that declares the package kind, dependencies (`Build::dependency`), and per-target `ProgramEntry` bindings (`Build::bind`)."],
-        ["ProcessExit", "The core boundary service (`ProcessExit::exit_process(code: i32)`) that ends the process domain with an explicit status code, separate from `Console`."],
+        ["ProcessExit", "The core boundary service (`ProcessExit::exit_process(code: i32)`) that ends the process domain with an explicit status code. Standard input and standard output have their own reach identities."],
       ]
         .map(([t, d]) => `<div class="gterm"><dt>${esc(t)}</dt><dd>${pro(d)}</dd></div>`)
         .join("\n      ")}

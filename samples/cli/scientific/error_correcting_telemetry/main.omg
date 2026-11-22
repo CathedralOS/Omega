@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0
 // Empty input exits normally; frozen nonempty streams and status-3 limits are in data/.
@@ -18,7 +20,7 @@ data Main { input: [u8; 8]; }
 // Protocol: Eab LF or Dabcd LF. Digits 0..4 are F5 symbols; '_' is an erasure.
 // One bounded line is consumed per record, at most 2000 records. Oversized
 // lines stop with status 3 rather than interpreting their tail as a new frame.
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     transition { _ -> next(main, 0) }
     machine next(main: @mutable Main, records: i32) {
         transition records < 2000 {
@@ -103,16 +105,16 @@ machine symbol(byte: u8) -> i32 in Wrapping {
     transition { byte >= 48 && byte <= 52 -> ((widen_u8_to_i32(byte) as i32 +Wrapping) - 48),
         byte == 95 -> 5, _ -> 6 }
 }
-machine digit(main: @mutable Main, value: i32 in Wrapping) reaches Console {
+machine digit(main: @mutable Main, value: i32 in Wrapping) reaches StandardOutput {
     Console::write_byte((value + 48) as i32);
 }
-machine syndromes(main: @mutable Main, frame: @Frame) reaches Console {
+machine syndromes(main: @mutable Main, frame: @Frame) reaches StandardOutput {
     Console::write(" S "); digit(main, syndrome_first(frame)); digit(main, syndrome_second(frame));
     Console::write_line("");
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

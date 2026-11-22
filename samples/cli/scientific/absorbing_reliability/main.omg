@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 use omega_language_std\LineReadResult;
@@ -15,7 +17,7 @@ data Main {
 // First line: two ASCII digits followed by LF, variant 0..5 and horizon 0..8.
 // Processing ends after this line; trailing input is ignored.
 // The bounded line API distinguishes EOF, full buffers and complete lines.
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let result: LineReadResult = block Console::read_line(@mutable main.input[..]);
     transition result {
         LineReadResult::LineComplete { count } -> length(main, count),
@@ -91,7 +93,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
     }
 }
 // Private decimal formatting over the established byte console provider.
-machine decimal(main: @mutable Main, number: u64 in Wrapping) reaches Console {
+machine decimal(main: @mutable Main, number: u64 in Wrapping) reaches StandardOutput {
     main.number = number;
     main.divisor = 1;
     transition { _ -> scale(main) }
@@ -118,7 +120,7 @@ machine decimal(main: @mutable Main, number: u64 in Wrapping) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

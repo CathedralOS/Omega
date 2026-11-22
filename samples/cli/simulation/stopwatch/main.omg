@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Stopwatch with split/lap commands as case payloads.
 //
@@ -43,7 +45,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("stopwatch: replays tick/lap/split commands against a stopwatch machine");
     send(main, Command::Tick { n: 10 as +Saturating });
     send(main, Command::Split);
@@ -139,7 +141,7 @@ machine send(main: @mutable Main, cmd: Command) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

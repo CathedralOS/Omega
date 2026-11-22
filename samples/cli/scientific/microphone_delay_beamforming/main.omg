@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
@@ -10,11 +12,12 @@ data Main { records: Beamforming; }
 
 // Runtime input is a bounded 36-digit stream with optional ASCII whitespace.
 // Reject truncation and trailing digits rather than silently selecting fixtures.
-machine main(context: @mutable Main) reaches ProcessExit + Console {
+machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     transition { _ -> read(context, 0) }
     machine read(context: @mutable Main, position: u64) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> invalid(context),
             ByteRead::Eof -> finish_input(context, position),
             ByteRead::Byte { value } -> classify(context, position, value)
         }
@@ -123,7 +126,7 @@ machine main(context: @mutable Main) reaches ProcessExit + Console {
     }
 }
 
-machine print_integer(context: @mutable Main, value: i64 in Wrapping) reaches ProcessExit + Console {
+machine print_integer(context: @mutable Main, value: i64 in Wrapping) reaches ProcessExit + StandardOutput {
     transition value >= 0 - 576 && value <= 576 {
         true -> sign(context, value),
         false -> invalid(context)
@@ -149,7 +152,7 @@ machine print_integer(context: @mutable Main, value: i64 in Wrapping) reaches Pr
 // All report magnitudes are <=576, so three decimal places suffice.
 machine print_digits(context: @mutable Main, value: i64 in Wrapping)
 requires value >= 0 requires value <= 576
-reaches ProcessExit + Console {
+reaches ProcessExit + StandardOutput {
     transition value >= 100 {
         true -> hundreds(context, value),
         false -> short(context, value)
@@ -179,7 +182,7 @@ reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

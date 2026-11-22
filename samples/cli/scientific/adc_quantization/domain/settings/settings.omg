@@ -1,3 +1,4 @@
+use omega\language\core\StandardInput;
 use omega_language_std\Console;
 use io\input;
 use io\input\number;
@@ -13,7 +14,7 @@ public data Settings {
     rounding: i64 in Wrapping;
     count: i64 in Wrapping;
 }
-public machine settings(configuration: @mutable Settings) -> bool reaches Console
+public machine settings(configuration: @mutable Settings) -> bool reaches StandardInput
 invokes Console
 blocks
 crashes Trap

@@ -650,7 +650,11 @@ machine configure_console(builder: @mutable Build) {
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_read"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsConsoleIo::set_mode>(builder, windows_x86_64,
+    Build::bind::<targets\windows_x86_64\WindowsConsoleIo::set_input_mode>(builder, windows_x86_64,
+        ForeignBinding::DllImport { import: DllImport::PeByName {
+            library: "msvcrt.dll", export: "_setmode"
+        } });
+    Build::bind::<targets\windows_x86_64\WindowsConsoleIo::set_output_mode>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "msvcrt.dll", export: "_setmode"
         } });

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Clamp a series of raw sensor readings into a valid band and sum the results.
 // Each reading is clamped to [0, 60] via the standard idiom `max(lo, min(v, hi))`,
@@ -24,7 +26,7 @@ machine clamp_sum(s: @[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrappin
 data Main {
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + Console {
+machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("clamp_sum: clamp readings [80, -5, 50, 200, 30] to [0, 60] and sum them");
     let values: [i32 in Wrapping; 5] = [80i32 as +Wrapping, (-5i32) as +Wrapping, 50i32 as +Wrapping, 200i32 as +Wrapping, 30i32 as +Wrapping];
 
@@ -38,7 +40,7 @@ machine main(context: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

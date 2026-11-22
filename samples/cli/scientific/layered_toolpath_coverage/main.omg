@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // EOF oracle for the generic sample harness. Supplied valid fixtures exit 0.
 // Expected exit: 64.
@@ -12,7 +14,7 @@ use domain\report;
 use domain\report\audit;
 use omega_language_std\Console;
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let mutable job: Job;
     let valid: bool = block load(@mutable job);
     transition valid {
@@ -41,7 +43,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

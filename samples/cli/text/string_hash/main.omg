@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // FNV-1a string hash -- a real byte-string algorithm over a `[u8;N] in Utf8`
 // carrier. It walks the string's bytes by runtime index, bounded by the carrier's
@@ -63,7 +65,7 @@ machine hash_text(text: @[u8; 5] in Utf8) -> u32 in Wrapping {
     }
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + Console {
+machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("string_hash: FNV-1a hashes the bytes of the string omega");
     let text: [u8; 5] in Utf8 = "omega";
     let hash: u32 in Wrapping = hash_text(@text);
@@ -77,7 +79,7 @@ machine main(context: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

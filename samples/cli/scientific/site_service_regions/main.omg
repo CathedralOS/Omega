@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete bounded planar partition application. No external numeric package.
 use omega_language_std\Console;
@@ -18,7 +20,7 @@ use platform\input\end_input;
 use platform\output;
 use platform\output\emit;
 data Main { reader: Reader; partition: Partition; }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     main.reader.valid = true;
     main.partition.valid = true;
     block read_integer(@mutable main.reader);
@@ -90,7 +92,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use omega\language\core\F64::from_i32;
 use omega\language\core\I64::from_f64;
@@ -11,7 +12,7 @@ use domain\mathematics\exponential;
 
 // Fixed six-decimal reporting; bounded input makes all scaled values fit i64.
 // Round magnitude half upward and retain the sign separately.
-machine number(value: f64) reaches Console {
+machine number(value: f64) reaches StandardOutput {
     let mutable bytes: [u8; 21] = "+0000000000000.000000";
     transition value < 0.0 {
         true -> negative(@mutable bytes, value),
@@ -48,7 +49,7 @@ machine number(value: f64) reaches Console {
     }
     machine emit(bytes: @[u8; 21]) { Console::write_line(bytes); }
 }
-public machine report(observations: @Observations, fit: @Fit) reaches Console
+public machine report(observations: @Observations, fit: @Fit) reaches StandardOutput
 invokes Console
 crashes Trap
 {

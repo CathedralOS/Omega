@@ -121,7 +121,7 @@ The standard critical set contains fourteen exact `omega\core` service identitie
 | File contents | `FilesystemContentRead`, `FilesystemContentWrite` |
 | File metadata | `FilesystemMetadataQuery`, `FilesystemMetadataMutation` |
 | Filesystem names | `DirectoryEnumeration`, `FilesystemNamespaceMutation` |
-| Processes | `ProcessInput`, `ProcessOutput`, `ProcessExit` |
+| Processes | `StandardInput`, `StandardOutput`, `ProcessExit` |
 | [Hardware](../build/permissions.md#privileged-services) | `InterruptControl`, `InterruptEntry`, `PortIo`, `RootMemoryAccess`, `MachineControl` |
 
 Capability-only declarations may be empty boundary traits;
@@ -129,7 +129,9 @@ they need no provider simply to be named in `reaches`. Match canonical declarati
 identities, including ownership, never their spelling. A same-named package
 declaration cannot acquire core classification. The corresponding physical
 authority classes remain independently reported even when no abstract core
-service was declared; `ProcessExit` corresponds to process termination.
+service was declared. `StandardInput` and `StandardOutput` name the designated
+streams in the source contract. `ProcessInput` and `ProcessOutput` classify
+physical mechanisms in the target. `ProcessExit` corresponds to process termination.
 
 The consuming root can add an exact custom boundary-trait identity:
 

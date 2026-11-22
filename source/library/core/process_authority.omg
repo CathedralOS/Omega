@@ -1,2 +1,5 @@
-public boundary trait ProcessInput {}
-public boundary trait ProcessOutput {}
+// Read from the designated standard input stream.
+public boundary trait StandardInput {}
+
+// Write to the designated standard output stream.
+public boundary trait StandardOutput {}

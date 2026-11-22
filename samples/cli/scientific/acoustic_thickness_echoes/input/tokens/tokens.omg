@@ -1,11 +1,12 @@
 // Read unsigned decimal tokens with at most nine digits. Each token owns
 // one finite record; EOF, a malformed byte, and excess digits reject explicitly.
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 use model\records;
 use model\records\Token;
 public machine read_token() -> Token
-reaches Console
+reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -14,6 +15,7 @@ crashes Trap
     machine scan(value: i64 in Saturating, digits: u64 in Saturating) -> Token {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> (Token { value: 0, valid: false }),
             ByteRead::Eof -> finish(value, digits),
             ByteRead::Byte { value as byte } -> block classify(value, digits, byte)
         }
@@ -42,7 +44,7 @@ crashes Trap
 // The complete stream ends after the declared records; surplus numeric data
 // and malformed trailing characters are both rejected.
 public machine at_end() -> bool
-reaches Console
+reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -51,6 +53,7 @@ crashes Trap
     machine scan() -> bool {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> false,
             ByteRead::Eof -> (true),
             ByteRead::Byte { value } -> block whitespace(value)
         }

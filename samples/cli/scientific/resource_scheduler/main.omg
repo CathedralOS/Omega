@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete IND02 entrypoint: finite stdin -> validated model -> exact schedule
 // -> independent invariant walk -> machine-readable output. No closing pause.
@@ -22,7 +24,7 @@ use domain\verify\verify;
 
 data Main { }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let mutable input: Input;
     let received: LineReadResult = block Console::read_line(@mutable input.bytes[..]);
     transition received {
@@ -106,13 +108,13 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 // The public caller prints only IDs and verified times (0..20). Two digits
 // make output comparisons unambiguous without a shared formatting dependency.
-machine print_number(main: @mutable Main, value: i32 in Wrapping) reaches Console {
+machine print_number(main: @mutable Main, value: i32 in Wrapping) reaches StandardOutput {
     Console::write_byte((48 + value / 10) as i32);
     Console::write_byte((48 + value % 10) as i32);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -1,10 +1,11 @@
 // Whitespace-separated unsigned decimal tokens, at most three digits.
 // Admission checks happen on actual bytes; no wrapping or truncation is accepted.
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 public data Parsed [copy] { value: u64; valid: bool; }
 public machine read_number() -> Parsed
-reaches Console
+reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -13,6 +14,7 @@ crashes Trap
     machine skip() -> Parsed {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> invalid(),
             ByteRead::Eof -> invalid(),
             ByteRead::Byte { value } -> block start(value)
         }
@@ -38,6 +40,7 @@ crashes Trap
     requires digits >= 1 && digits <= 3 {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> invalid(),
             ByteRead::Eof -> complete(value),
             ByteRead::Byte { value as byte } -> block classify(value, digits, byte)
         }
@@ -67,7 +70,7 @@ crashes Trap
 }
 
 public machine only_whitespace() -> bool
-reaches Console
+reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -76,6 +79,7 @@ crashes Trap
     machine scan() -> bool {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> false,
             ByteRead::Eof -> true,
             ByteRead::Byte { value } -> block check(value)
         }

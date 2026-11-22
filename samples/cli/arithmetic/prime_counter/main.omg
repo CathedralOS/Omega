@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Count the primes up to 20 by trial division -- a real nested-loop computation:
 // the OUTER loop walks n = 2..20; for each n the INNER loop tries divisors
@@ -26,7 +28,7 @@ requires
     is_prime: bool;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("prime_counter: counting primes up to 20 by trial division");
     main.n = 2;
     main.count = 0;
@@ -132,7 +134,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

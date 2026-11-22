@@ -1,3 +1,4 @@
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 
@@ -8,10 +9,10 @@ public data Request [copy] {
 }
 
 // Grammar: one case digit, one space, one or two horizon digits, LF.
-// Bytes are read through the documented Console provider; EOF and host traps
+// Bytes are read through the documented Console provider; premature EOF and host read errors
 // are explicit rejection routes. No input can grow the simulation storage.
 public machine read_request() -> Request
-reaches Console
+reaches StandardInput
 invokes Console
 blocks
 crashes Trap

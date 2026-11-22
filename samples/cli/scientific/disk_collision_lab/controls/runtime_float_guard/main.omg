@@ -1,3 +1,4 @@
+use omega\language\core\StandardInput;
 use omega\language\core\ProcessExit;
 use omega\language\core\abs_f64;
 
@@ -6,7 +7,7 @@ use omega_language_std\Console;
 use omega\language\core\F64::from_i32;
 data Values {x:f64;}
 data Main {values:Values;}
-machine main(main:@mutable Main) reaches ProcessExit + Console {
+machine main(main:@mutable Main) reaches ProcessExit + StandardInput {
  let byte:ByteRead=block Console::read_byte();
  transition byte {ByteRead::Byte{value} -> guard(main,value), _ -> fail(main)}
  machine guard(main:@mutable Main,value:i32) {
@@ -18,7 +19,7 @@ machine main(main:@mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Inventory system: fixed array of structs with runtime-indexed dispatch,
 // plus a value-returning search machine that finds items by id.
@@ -163,7 +165,7 @@ machine compute_total(inventory: @Inventory) -> i32 in Saturating {
     value0 + value1 + value2 + value3 + value4
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + Console {
+machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("inventory_system: populating a 5-item table, then searching and totaling it");
     let mutable inventory: Inventory;
     set_item(@mutable inventory, 0i32 as +Saturating, 1i32 as +Saturating, 3i32 as +Saturating, 10i32 as +Saturating);
@@ -214,7 +216,7 @@ machine main(context: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

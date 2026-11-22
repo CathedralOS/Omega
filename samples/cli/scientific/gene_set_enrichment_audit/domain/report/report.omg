@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use domain\exact;
 use domain\exact\Fraction;
@@ -5,7 +6,7 @@ use domain\sets;
 use domain\sets\member;
 use domain\sets\size;
 
-public machine number(value: u64 in Wrapping) reaches Console
+public machine number(value: u64 in Wrapping) reaches StandardOutput
 invokes Console
 {
     // The declared model displays values at most 756. Subtraction extracts
@@ -48,13 +49,13 @@ invokes Console
     }
 }
 
-public machine fraction(value: Fraction) reaches Console
+public machine fraction(value: Fraction) reaches StandardOutput
 invokes Console
 {
     number(value.numerator); Console::write("/"); number(value.denominator);
 }
 
-public machine membership(mask: u64 in Wrapping) reaches Console
+public machine membership(mask: u64 in Wrapping) reaches StandardOutput
 invokes Console
 {
     transition { _ -> step(mask, 0) }
@@ -75,7 +76,7 @@ invokes Console
     machine done() { }
 }
 
-public machine result(identifier: u64 in Wrapping, annotated: u64 in Wrapping, hits: u64 in Wrapping, probability: Fraction, adjusted: Fraction, rank: u64 in Wrapping) reaches Console
+public machine result(identifier: u64 in Wrapping, annotated: u64 in Wrapping, hits: u64 in Wrapping, probability: Fraction, adjusted: Fraction, rank: u64 in Wrapping) reaches StandardOutput
 invokes Console
 {
     Console::write("set="); number(identifier);

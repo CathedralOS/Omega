@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Task runner: nested case-payload dispatch through a sub-machine
 // that mutates its subject across multiple calls.
@@ -80,7 +82,7 @@ machine run_task(main: @mutable Main, task: Task) {
     machine done() {}
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("task_runner: nested case-payload dispatch runs a compute/double/clamp script");
     run_task(main, Task::Compute { value: 10 as +Saturating });
     run_task(main, Task::Compute { value: 15 as +Saturating });
@@ -110,7 +112,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

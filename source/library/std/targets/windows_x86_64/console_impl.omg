@@ -1,6 +1,7 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use ByteRead;
 use Calling;
-use Console;
 use ConsoleByteOperations;
 // Windows byte I/O uses MSVCRT descriptor calls. Binary mode preserves every
 // authored byte, including CR/LF and Ctrl+Z. Build supplies each DLL locator.
@@ -14,13 +15,13 @@ use omega\language\core\widen_u8_to_i32;
 boundary trait WindowsConsoleIo: Calling<WindowsX64ScalarCalling> {
     machine write(descriptor: i32, buffer: @mutable i32, count: u32) -> i32
     requires descriptor == 1 && count <= 4
-    reaches Console
+    reaches StandardOutput
     crashes none;
 
     // A console read waits for host input, so the import publishes `blocks`.
     machine read(descriptor: i32, buffer: @mutable i32, count: u32) -> i32
     requires descriptor == 0 && count <= 4
-    reaches Console
+    reaches StandardInput
     blocks
     crashes none;
 
@@ -31,26 +32,38 @@ boundary trait WindowsConsoleIo: Calling<WindowsX64ScalarCalling> {
     // moving data. `_setmode` is idempotent; calling it per operation keeps the
     // guarantee local to this provider with no separate descriptor-init hook.
     //   `int _setmode(int fd, int mode)`
-    machine set_mode(descriptor: i32, mode: i32) -> i32
-    reaches Console
+    machine set_input_mode(descriptor: i32, mode: i32) -> i32
+    requires descriptor == 0 && mode == 32768
+    reaches StandardInput
+    crashes none;
+
+    machine set_output_mode(descriptor: i32, mode: i32) -> i32
+    requires descriptor == 1 && mode == 32768
+    reaches StandardOutput
     crashes none;
 }
 
-// Descriptor 0 is stdin. One byte is a Byte, zero bytes is end of input, and
-// -1 is a failed host read. Every other count traps under the published
-// `crashes Trap` contract.
+// A one-byte transfer yields Byte, zero bytes yields Eof. A failed binary-mode
+// change, failed read, or invalid transfer count yields Error.
 machine windows_console_read_byte() -> ByteRead
-reaches Console
+reaches StandardInput
 blocks
-crashes Trap
+crashes none
 {
-    let mutable cell: i32 = 0;
-    let mode: i32 = WindowsConsoleIo::set_mode(0, 32768);
-    let count: i32 = block WindowsConsoleIo::read(0, @mutable cell, 1);
-    transition count {
-        1 -> byte(cell),
-        0 -> end(),
-        _ -> failed()
+    let mode: i32 = WindowsConsoleIo::set_input_mode(0, 32768);
+    transition mode == -1 {
+        true -> failed(),
+        false -> block read()
+    }
+
+    machine read() -> ByteRead {
+        let mutable cell: i32 = 0;
+        let count: i32 = block WindowsConsoleIo::read(0, @mutable cell, 1);
+        transition count {
+            1 -> byte(cell),
+            0 -> end(),
+            _ -> failed()
+        }
     }
 
     machine byte(cell: i32) -> ByteRead {
@@ -60,24 +73,24 @@ crashes Trap
 
     machine end() -> ByteRead { ByteRead::Eof }
 
-    machine failed() -> ByteRead { crash Trap; }
+    machine failed() -> ByteRead { ByteRead::Error }
 }
 
 // Descriptor 1 is stdout.
 machine windows_console_write_byte(byte: i32)
-reaches Console
+reaches StandardOutput
 {
     let mutable cell: i32 = byte;
-    let mode: i32 = WindowsConsoleIo::set_mode(1, 32768);
+    let mode: i32 = WindowsConsoleIo::set_output_mode(1, 32768);
     let written: i32 = WindowsConsoleIo::write(1, @mutable cell, 1);
 }
 
 WindowsConsoleBytes satisfies ConsoleByteOperations {
     machine read_byte() -> ByteRead
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block windows_console_read_byte()
     }
-    machine write_byte(byte: i32) reaches Console {
+    machine write_byte(byte: i32) reaches StandardOutput {
         windows_console_write_byte(byte);
     }
 }

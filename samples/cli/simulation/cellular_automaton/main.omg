@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // An elementary cellular automaton (Wolfram Rule 90) rendered as a scrolling space-time
 // diagram -- each generation is one printed row, so the history builds downward. From a
@@ -79,7 +81,7 @@ requires self.cv >= 0 && self.cv <= 1
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Clock + Console {
+machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + StandardOutput {
     Console::write_line("cellular_automaton: Rule 90 from a single centre cell -- 32 generations draw the Sierpinski triangle");
     main.line = "                                                                ";
     main.chars = " #";
@@ -226,7 +228,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + Console {
+machine entry_start() reaches ProcessExit + Clock + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

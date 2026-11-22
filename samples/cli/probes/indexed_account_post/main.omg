@@ -22,7 +22,6 @@ use omega\language\core\ProcessExit;
 //   75 withdraw result
 //   76 final balances
 
-use omega_language_std\Console;
 
 data Account [copy] {
     balance: i32 in Wrapping;
@@ -87,7 +86,7 @@ machine Main::apply(main: @mutable Main, post: Post) -> i32 in Wrapping {
     }
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit {
     let first: i32 in Wrapping = Main::apply(main, Post::Deposit { index: 0, amount: 100 });
     transition first == 100 && main.hits == 1 && main.accounts[0].balance == 100 {
         true -> second(main),
@@ -133,7 +132,7 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

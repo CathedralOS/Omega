@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Euclidean magnitude with ordinary standard-library math: for a classic
 // 3-4-5 right triangle, |(3, 4)| = sqrt(3*3 + 4*4) = sqrt(25) = 5. The legs
@@ -25,7 +27,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("vector_distance: |(-3, 4)| = sqrt(dx*dx + dy*dy) = 5");
 
     // Direction-agnostic legs: |dx|, |dy| (a negative delta has the same length).
@@ -51,7 +53,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

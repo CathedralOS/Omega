@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Token interpreter: a small state machine that mixes equality guards,
 // range guards (> N), and case-payload guards in the same transitions.
@@ -100,7 +102,7 @@ machine exec(main: @mutable Main, tok: Token) {
     machine done() {}
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("token_interpreter: mixed guard shapes run a literal/add/clamp token script");
     // Scripted token sequence:
     // Literal(10) -> acc=10; Add -> acc=20; Literal(5) -> acc=25;
@@ -133,7 +135,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

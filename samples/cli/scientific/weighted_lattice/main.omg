@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Exact weighted finite binary lattice partition and occupancy moments.
 // Expected exit: 0.
@@ -11,9 +13,10 @@ use io\numbers\decimal;
 use io\numbers\number_line;
 use omega\language\core\narrow_i32_to_u64_trapping;
 
-machine input_byte() -> i32 reaches Console {
+machine input_byte() -> i32 reaches StandardInput {
     let observed: ByteRead = block Console::read_byte();
     transition observed {
+        ByteRead::Error -> -2,
         ByteRead::Byte { value } -> present(value),
         ByteRead::Eof -> absent()
     }
@@ -21,7 +24,7 @@ machine input_byte() -> i32 reaches Console {
     machine absent() -> i32 { -1 }
 }
 
-machine main() reaches ProcessExit + Console {
+machine main() reaches ProcessExit + StandardInput + StandardOutput {
     let sites: i32 = block input_byte();
     let activity: i32 = block input_byte();
     let bond: i32 = block input_byte();

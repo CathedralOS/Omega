@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Runtime input: g003g005g0011 LF (three 3-digit readings, units, model).
 // Empty stdin is a malformed record; nominal.txt has authored exit 0.
@@ -22,7 +24,7 @@ machine reading(hundreds: u8, tens: u8, ones: u8) -> f64 {
 // Saturating conversion is intentional display quantization. The oracle checks
 // the emitted numbers separately, within one displayed unit; no expected values
 // are embedded in the application. Ten digits cover all nonnegative i32 values.
-machine emit_positive(main: @mutable Main, value: f64) reaches Console {
+machine emit_positive(main: @mutable Main, value: f64) reaches StandardOutput {
     let rounded: i32 in Saturating = I32::from_f64(value + 0.5);
     let integer: i32 = rounded as i32;
     Console::write_byte(integer / 1000000000 % 10 + 48);
@@ -38,7 +40,7 @@ machine emit_positive(main: @mutable Main, value: f64) reaches Console {
     Console::write_byte(10);
 }
 
-machine emit(main: @mutable Main, value: f64) reaches ProcessExit + Console {
+machine emit(main: @mutable Main, value: f64) reaches ProcessExit + StandardOutput {
     transition value < 0.0 {
         true -> negative(main, value),
         false -> positive(main, value)
@@ -50,7 +52,7 @@ machine emit(main: @mutable Main, value: f64) reaches ProcessExit + Console {
     machine positive(main: @mutable Main, value: f64) { emit_positive(main, value); }
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let observed: LineReadResult = block Console::read_line(@mutable main.input[..]);
     transition observed {
         LineReadResult::LineComplete { count } -> length(main, count),
@@ -145,7 +147,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

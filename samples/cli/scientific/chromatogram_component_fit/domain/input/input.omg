@@ -1,3 +1,4 @@
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 use omega\language\core\F64::from_i32;
@@ -15,13 +16,14 @@ data Token {
 }
 // A 512-byte budget includes trailing whitespace. Budget exhaustion is an
 // input error, distinct from the real EOF required after exactly 15 tokens.
-machine next_byte(reader: @mutable InputReader) -> ByteRead reaches Console
+machine next_byte(reader: @mutable InputReader) -> ByteRead reaches StandardInput
 invokes Console
 blocks
 crashes Trap
 {
     let byte: ByteRead = block Console::read_byte();
     transition byte {
+        ByteRead::Error -> ByteRead::Error,
         ByteRead::Eof -> ByteRead::Eof,
         ByteRead::Byte { value } -> capacity(reader, value)
     }
@@ -44,7 +46,7 @@ crashes Trap
         ByteRead::Eof
     }
 }
-machine token(reader: @mutable InputReader) -> Token reaches Console
+machine token(reader: @mutable InputReader) -> Token reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -53,6 +55,7 @@ crashes Trap
     machine skip(reader: @mutable InputReader) -> Token {
         let byte: ByteRead = block next_byte(reader);
         transition byte {
+            ByteRead::Error -> Token::Invalid,
             ByteRead::Eof -> Token::End,
             ByteRead::Byte { value } -> block first(reader, value)
         }
@@ -88,6 +91,7 @@ crashes Trap
                digits: i32 in Wrapping, negative: bool) -> Token {
         let byte: ByteRead = block next_byte(reader);
         transition byte {
+            ByteRead::Error -> Token::Invalid,
             ByteRead::Eof -> finish(magnitude, digits, negative),
             ByteRead::Byte { value } -> block delimiter(reader, value, magnitude, digits, negative)
         }
@@ -112,7 +116,7 @@ crashes Trap
         }
     }
 }
-public machine read_input(reader: @mutable InputReader, chromatogram: @mutable Chromatogram) -> bool reaches Console
+public machine read_input(reader: @mutable InputReader, chromatogram: @mutable Chromatogram) -> bool reaches StandardInput
 invokes Console
 blocks
 crashes Trap

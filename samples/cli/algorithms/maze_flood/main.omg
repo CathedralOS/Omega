@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // BFS distances through a 5x5 maze, rendered as five fixed-width rows.
 // Entry data holds only authority. Search storage, each rendered line and
@@ -24,7 +26,7 @@ data MazeSearch {
     count: i32 in Wrapping;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("maze_flood: BFS shortest distances flooding a 5x5 maze (## = wall)");
     let mutable search: MazeSearch;
     let distance: i32 = distance(@mutable search);
@@ -243,7 +245,7 @@ machine render_row(search: @MazeSearch, line: @mutable [u8; 16] in Ascii,
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

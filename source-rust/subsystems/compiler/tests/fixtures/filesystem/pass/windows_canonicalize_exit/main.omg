@@ -21,7 +21,6 @@ use omega\language\core\ProcessExit;
 use omega_language_std\ErrorKind;
 use omega_language_std\UnitResult;
 
-use omega_language_std\Console;
 use omega_language_std\FilesystemService;
 
 // Separate entry for the host-call-count regression: failed acquisition must
@@ -49,7 +48,7 @@ data Main {
     canon: [u8; 1024];
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
+machine Main::main(main: @mutable Main) reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.unit_result = block FilesystemService::write_all("omega_wcanon_probe.txt", "canon");
     transition main.unit_result { UnitResult::Ok -> block resolve(main), _ -> bad(main, 71) }
     machine resolve(main: @mutable Main) {
@@ -101,7 +100,7 @@ macos_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 47 }
 windows_x86_64 machine canonical_prefix_is_valid(byte: u8) -> bool { byte == 92 || byte == 111 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
+machine entry_start() reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mutable entry_storage: Main;
     block Main::main(@mutable entry_storage);
 }

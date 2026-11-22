@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: molecular_pair_distribution
@@ -13,7 +15,7 @@ use domain\distribution;
 use domain\distribution\histogram;
 use domain\distribution\report;
 
-machine main() reaches ProcessExit + Console invokes Console blocks crashes Trap {
+machine main() reaches ProcessExit + StandardInput + StandardOutput invokes Console blocks crashes Trap {
     let mutable reader: InputReader;
     reader.remaining = 32768; reader.exhausted = false;
     let mutable distribution: Distribution;

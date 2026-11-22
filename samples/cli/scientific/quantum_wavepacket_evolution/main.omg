@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 2. Empty stdin is invalid; valid problems return 0.
 // Expected output contains: INVALID quantum input
@@ -24,7 +26,7 @@ use domain\report;
 use domain\report\scaled;
 use domain\report\integer;
 data Main { reader: Reader; problem: Problem; }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let count: Number = block number(@mutable main.reader);
     let spacing: Number = block number(@mutable main.reader);
     let timestep: Number = block number(@mutable main.reader);
@@ -132,7 +134,7 @@ machine energy(problem: @Problem) -> f64 {
 machine absolute(value: f64) -> f64 { transition value < 0.0 { true -> (0.0 - value), false -> (value) } }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

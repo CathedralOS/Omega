@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Offline controller: input selection, validation, exhaustive search, reporting.
 // No source outside this application supplies any controller algorithm.
@@ -15,7 +17,7 @@ use io\render;
 use io\render\report;
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("IND07 finite horizon controller: select 0..7");
     let mutable input: [u8; 8];
     let observed: LineReadResult = block Console::read_line(@mutable input[..]);
@@ -54,7 +56,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

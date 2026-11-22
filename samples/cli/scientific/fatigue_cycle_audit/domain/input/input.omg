@@ -1,3 +1,4 @@
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 
@@ -12,7 +13,7 @@ public data Input {
     index: u64;
 }
 
-public machine read(input: @mutable Input) reaches Console {
+public machine read(input: @mutable Input) reaches StandardInput {
     input.count = 0;
     input.bytes = 0;
     input.number = 0;
@@ -27,6 +28,7 @@ public machine read(input: @mutable Input) reaches Console {
     }
     machine receive(input: @mutable Input) {
         transition block Console::read_byte() {
+            ByteRead::Error -> invalid(input),
             ByteRead::Eof -> finish(input),
             ByteRead::Byte { value } -> classify(input, value)
         }

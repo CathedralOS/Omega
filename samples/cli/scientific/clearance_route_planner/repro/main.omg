@@ -1,9 +1,8 @@
 use omega\language\core\ProcessExit;
 // Complete current-main witness: static bounded-byte loans on conditional edges.
 // Expected exit: 70.
-use omega_language_std\Console;
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit {
     let bytes: [u8; 2] = [65,66];
     transition bytes[0] == 65 {
         true -> read(main, @bytes),
@@ -20,7 +19,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

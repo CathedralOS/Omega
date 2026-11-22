@@ -1,6 +1,7 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 // Signed fixed-width decimal in hundredths of an energy unit.
-public machine number(value: i32 in Saturating) reaches Console
+public machine number(value: i32 in Saturating) reaches StandardOutput
 invokes Console
 {
     transition value < 0 { true -> negative(value), false -> positive(value) }

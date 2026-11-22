@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use domain\input;
 use domain\input\Reader;
 use domain\model;
@@ -18,7 +19,7 @@ machine row_value(values: @[f64], index: u32) -> f64 {
 
 // Decimal byte output avoids imposing a text-domain proof on dynamic numbers.
 public machine integer(reader: @mutable Reader, value: i64)
-reaches Console
+reaches StandardOutput
 invokes Console
 {
     let widened: i64 = value;
@@ -57,7 +58,7 @@ invokes Console
         }
     }
 }
-machine real(reader: @mutable Reader, value: f64) reaches Console {
+machine real(reader: @mutable Reader, value: f64) reaches StandardOutput {
     let scaled: i64 in Saturating = I64::from_f64(value * 1000000000000.0 + 0.5);
     let amount: i64 in Wrapping = scaled as -Saturating +Wrapping;
     integer(reader, (amount / 1000000000000) as i64);
@@ -73,7 +74,7 @@ machine real(reader: @mutable Reader, value: f64) reaches Console {
         transition { _ -> fraction(reader, amount, divisor / 10) }
     }
 }
-public machine report(reader: @mutable Reader, group: i32 in Wrapping, table: @Table) reaches Console
+public machine report(reader: @mutable Reader, group: i32 in Wrapping, table: @Table) reaches StandardOutput
 invokes Console
 {
     Console::write("TABLE "); integer(reader, group as i64); Console::write_line("");
@@ -101,7 +102,7 @@ invokes Console
         Console::write("MEDIAN "); integer(reader, table.median_status as i64); Console::write(" "); real(reader, table.median); Console::write(" "); integer(reader, table.count as i64); Console::write_line("");
     }
 }
-public machine logrank_report(reader: @mutable Reader, result: @Logrank) reaches Console
+public machine logrank_report(reader: @mutable Reader, result: @Logrank) reaches StandardOutput
 invokes Console
 {
     Console::write("LOGRANK "); real(reader, result.observed); Console::write(" "); real(reader, result.expected); Console::write(" "); real(reader, result.variance); Console::write(" "); real(reader, result.statistic); Console::write(" "); integer(reader, result.status as i64); Console::write_line("");

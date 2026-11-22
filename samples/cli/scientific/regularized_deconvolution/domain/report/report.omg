@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use domain\input;
 use domain\input\Reader;
 use omega\language\core\narrow_i64_to_i32_wrapping;
@@ -6,7 +7,7 @@ use omega\language\core\I64::from_f64;
 
 // Decimal byte output avoids imposing a text-domain proof on dynamic numbers.
 public machine integer(reader: @mutable Reader, value: i64)
-reaches Console
+reaches StandardOutput
 invokes Console
 {
     let widened: i64 = value;
@@ -46,7 +47,7 @@ invokes Console
     }
 }
 // Emit 13 significant digits in scientific notation without clipping signs.
-public machine field(reader: @mutable Reader, name: @[u8], value: f64) reaches Console invokes Console {
+public machine field(reader: @mutable Reader, name: @[u8], value: f64) reaches StandardOutput invokes Console {
     Console::write(name);
     transition value < 0.0 { true -> negative(reader, value), _ -> normalize(reader, value, 0) }
     machine negative(reader: @mutable Reader, value: f64) { Console::write_byte(45); transition { _ -> normalize(reader, 0.0 - value, 0) } }

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 70.
 // Roman numeral -> integer. Scan left to right, adding each symbol's value.
@@ -90,7 +92,7 @@ machine parse_roman(text: @[u8; 7] in Utf8) -> RomanParse {
 }
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("roman_numeral: parses MCMXCIV with the subtractive-pair look-back rule");
     let text: [u8; 7] in Utf8 = "MCMXCIV";
     transition parse_roman(@text) {
@@ -122,7 +124,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

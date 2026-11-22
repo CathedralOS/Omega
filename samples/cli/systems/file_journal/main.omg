@@ -10,7 +10,6 @@ use omega_language_std\Metadata;
 use omega_language_std\MetadataResult;
 use omega_language_std\OpenResult;
 use omega_language_std\UnitResult;
-use omega_language_std\Console;
 use omega_language_std\FilesystemService;
 
 data Main {
@@ -22,7 +21,7 @@ data Main {
     buffer: [u8; 64];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
+machine main(main: @mutable Main) reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     // The sample owns these paths. Remove its prior interrupted run first.
     main.result = block FilesystemService::remove("/tmp/omega_journal_dir/note.txt");
     main.result = block FilesystemService::remove("/tmp/omega_journal_dir/renamed.txt");
@@ -104,7 +103,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console + FilesystemCont
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
+machine entry_start() reaches ProcessExit + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

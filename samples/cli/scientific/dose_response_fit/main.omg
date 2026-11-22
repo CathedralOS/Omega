@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Read supplied dose/replicate/control observations, fit and profile a 4PL.
 // Expected exit: 2.
@@ -17,7 +19,7 @@ use domain\report;
 use domain\report\report;
 
 data Main { reader: InputReader; }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     main.reader.remaining = 4096; main.reader.exhausted = false;
     let mutable observations: Observations;
     let valid: bool = block read_input(@mutable main.reader, @mutable observations);
@@ -67,7 +69,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

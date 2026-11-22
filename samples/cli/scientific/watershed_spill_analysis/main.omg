@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete offline watershed workflow. Stdin: exactly 25 digits, whitespace
 // optional. EOF completes the raster; errors exit 2 without partial results.
@@ -14,12 +16,13 @@ use output\render\grid;
 
 data Main { }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let mutable raster: Raster;
     transition { _ -> block read(main, @mutable raster, 0) }
     machine read(main: @mutable Main, raster: @mutable Raster, count: i32 in Wrapping) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> invalid(main),
             ByteRead::Eof -> finish_input(main, raster, count),
             ByteRead::Byte { value } -> block classify(main, raster, count, value)
         }
@@ -79,7 +82,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

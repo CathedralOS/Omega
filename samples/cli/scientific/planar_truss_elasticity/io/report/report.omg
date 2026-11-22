@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Decimal output separates the integer part from twelve fractional digits.
 // This retains picounit resolution for small displacements without overflowing
@@ -8,7 +9,7 @@ use domain\model;
 use domain\model\Truss;
 use domain\model\Solution;
 public data Output { }
-public machine write_scaled(output: @mutable Output, value: f64) reaches ProcessExit + Console invokes Console {
+public machine write_scaled(output: @mutable Output, value: f64) reaches ProcessExit + StandardOutput invokes Console {
     transition value > -1000000000000.0 && value < 1000000000000.0 { true -> sign(output, value), false -> overflow(output) }
     machine overflow(output: @mutable Output) { Console::write_line("ERROR numerical output range"); ProcessExit::exit_process(66); }
     machine sign(output: @mutable Output, value: f64) {
@@ -54,7 +55,7 @@ public machine write_scaled(output: @mutable Output, value: f64) reaches Process
     }
     machine done() {}
 }
-public machine report(output: @mutable Output, truss: @Truss, result: @Solution) reaches ProcessExit + Console invokes Console {
+public machine report(output: @mutable Output, truss: @Truss, result: @Solution) reaches ProcessExit + StandardOutput invokes Console {
     Console::write_line("planar_truss_elasticity; numeric values in consistent input units");
     transition { _ -> node(output, truss, result, 0) }
     machine node(output: @mutable Output, truss: @Truss, result: @Solution, index: u64) {

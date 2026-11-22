@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega\language\core\abs_f64;
 
@@ -23,7 +25,7 @@ use data\expectations;
 use data\expectations\expected_result;
 use data\expectations\expected_contact;
 data Main {lab:Lab; choice:i32;}
-machine main(main:@mutable Main) reaches ProcessExit + Console {
+machine main(main:@mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
  let input:ByteRead=block Console::read_byte();
  transition input {ByteRead::Byte{value} -> choice(main,value), _ -> invalid(main)}
  machine choice(main:@mutable Main,value:i32) {
@@ -86,7 +88,7 @@ machine main(main:@mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

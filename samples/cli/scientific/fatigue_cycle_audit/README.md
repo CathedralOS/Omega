@@ -19,7 +19,7 @@ rejects magnitudes above 1000 before another digit is read. Leading zeroes are
 accepted. Negative, missing, extra or malformed tokens are rejected with exit
 64 and one error line. EOF with an unfinished valid decimal token completes it.
 Hosted console input can wait for the caller; bounded storage does not bound
-waiting. Console Trap remains the documented host failure path.
+waiting. A host read error rejects the input with exit 64, including after a partial token.
 
 The declared curve is N(R)=C/R^p. Full cycles have two half units; residual
 adjacent pairs have one. CSV columns contain the range, half units, individual

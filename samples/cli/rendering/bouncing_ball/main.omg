@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Bouncing ball simulation: 1D integer physics, integer velocity, fixed box [0,9].
 //
@@ -70,7 +72,7 @@ machine step(main: @mutable Main) {
     }
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("bouncing_ball: 1D integer physics -- 8 steps in a [0,9] box with wall reflection");
     // Initialize: pos=0, vel=3.
     main.s.pos = 0 as +Wrapping;
@@ -111,7 +113,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

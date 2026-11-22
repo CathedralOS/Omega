@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use domain\sequence;
 use domain\sequence\Sequence;
 use domain\sequence\sequence_base;
@@ -6,7 +7,7 @@ use domain\normalization\Variant;
 use omega_language_std\Console;
 use omega\language\core\narrow_u64_to_i32_exact;
 
-public machine number(value: u64 in Wrapping) reaches Console
+public machine number(value: u64 in Wrapping) reaches StandardOutput
 invokes Console
 {
     transition { _ -> digit(value, 10000000000000000000, false) }
@@ -42,13 +43,13 @@ invokes Console
     }
     machine stop() { }
 }
-public machine separator() reaches Console
+public machine separator() reaches StandardOutput
 invokes Console
 { Console::write_byte(124); }
-public machine newline() reaches Console
+public machine newline() reaches StandardOutput
 invokes Console
 { Console::write_byte(10); }
-public machine bases(sequence: @Sequence) reaches Console
+public machine bases(sequence: @Sequence) reaches StandardOutput
 invokes Console
 {
     transition sequence.length == 0 {
@@ -78,7 +79,7 @@ invokes Console
     }
     machine stop() { }
 }
-public machine variant_row(variant: @Variant) reaches Console
+public machine variant_row(variant: @Variant) reaches StandardOutput
 invokes Console
 {
     number(variant.contig); separator(); number(variant.position); separator();

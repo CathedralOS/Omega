@@ -25,8 +25,8 @@ boundary trait WindowsGuiIo {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     crashes none;
     machine foreground_window() -> u64
     reaches WindowManagement
@@ -40,8 +40,8 @@ boundary trait WindowsGuiIo {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     crashes none;
     machine peek_message(message: @mutable WindowsMessage, window: u64, minimum: u32, maximum: u32, remove: u32) -> i32
     reaches
@@ -49,8 +49,8 @@ boundary trait WindowsGuiIo {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     crashes none;
     machine translate_message(message: @WindowsMessage) -> i32
     reaches WindowEventDispatch
@@ -61,8 +61,8 @@ boundary trait WindowsGuiIo {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     crashes none;
     machine key_state(virtual_key: u32) -> i32
     reaches GlobalInputObservation
@@ -107,8 +107,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit
 invokes WindowsGuiIo {
     transition class_name.length > 0 && title.length > 0 {
         true -> terminated(class_name, title, style, x, y, width, height),
@@ -147,8 +147,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit
 invokes WindowsGuiIo {
     let answer: i32 = WindowsGuiIo::destroy_window(window);
     answer != 0
@@ -159,8 +159,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit
 invokes WindowsGuiIo {
     let answer: i32 = WindowsGuiIo::peek_message(message, 0, 0, 0, 1);
     transition answer != 0 { true -> dispatch(message), _ -> (false) }
@@ -212,8 +212,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit
 invokes WindowsGuiIo {
     let mutable rectangle: WindowsRectangle = WindowsRectangle { left: 0, top: 0, right: width, bottom: height };
     let adjusted: i32 = WindowsGuiIo::adjust_rectangle(@mutable rectangle, style, 0, 0);
@@ -239,8 +239,8 @@ NativeWindowsGui satisfies WindowsGuiHost {
             WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
             ClockObservation + ExecutionDelay + FilesystemContentRead +
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-            ProcessOutput + ProcessExit {
+            DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+            StandardOutput + ProcessExit {
         windows_gui_native_window_create(class_name, title, style, x, y, width, height)
     }
     machine foreground_window() -> u64 reaches WindowManagement {
@@ -254,8 +254,8 @@ NativeWindowsGui satisfies WindowsGuiHost {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit {
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit {
         windows_gui_native_window_destroy(window)
     }
     machine pump_message(message: @mutable WindowsMessage) -> bool reaches
@@ -263,8 +263,8 @@ NativeWindowsGui satisfies WindowsGuiHost {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit {
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit {
         windows_gui_native_pump_message(message)
     }
     machine get_dc(window: u64) -> u64 reaches
@@ -297,8 +297,8 @@ NativeWindowsGui satisfies WindowsGuiHost {
             WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
             ClockObservation + ExecutionDelay + FilesystemContentRead +
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-            DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-            ProcessOutput + ProcessExit {
+            DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+            StandardOutput + ProcessExit {
         windows_gui_native_window_create_client(class_name, title, style, x, y, width, height)
     }
     machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation {

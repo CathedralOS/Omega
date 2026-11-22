@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: placement mask=0005 cost=0004 score=0012
@@ -8,9 +10,10 @@ use domain\search\solve;
 use data\fixtures;
 use data\fixtures\load;
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let input: ByteRead = block Console::read_byte();
     transition input {
+        ByteRead::Error -> invalid(main),
         ByteRead::Eof -> execute(main, 0),
         ByteRead::Byte { value } -> command(main, value)
     }
@@ -36,13 +39,13 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
     }
 }
 // Four decimal digits keep the certificate format bounded and inspectable.
-machine number(main: @mutable Main, value: u64 in Wrapping) reaches Console {
+machine number(main: @mutable Main, value: u64 in Wrapping) reaches StandardOutput {
     Console::write_byte((((value / 1000) % 10) as i32) + 48);
     Console::write_byte((((value / 100) % 10) as i32) + 48);
     Console::write_byte((((value / 10) % 10) as i32) + 48);
     Console::write_byte(((value % 10) as i32) + 48);
 }
-machine report(main: @mutable Main, search: @Search, problem: @Problem) reaches Console {
+machine report(main: @mutable Main, search: @Search, problem: @Problem) reaches StandardOutput {
     transition { _ -> row(main, search, problem, 0) }
     machine row(main: @mutable Main, search: @Search, problem: @Problem, mask: u64 in Wrapping) {
         transition mask < 8 {
@@ -90,7 +93,7 @@ machine report(main: @mutable Main, search: @Search, problem: @Problem) reaches 
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

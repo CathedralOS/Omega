@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use domain\solver;
 use domain\solver\Solver;
@@ -25,7 +27,7 @@ data Main {
     failed: i32 in Wrapping;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let valid: bool = block read(@mutable main.protocol);
     transition valid { true -> validate(main), false -> bad_syntax(main) }
     machine bad_syntax(main: @mutable Main) {
@@ -145,7 +147,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

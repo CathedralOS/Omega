@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // A multi-particle bouncing simulation: four particles, each an entry in an ARRAY OF
 // STRUCTS (position + velocity), bounce around a 20x10 box, animated in place. Distinct
@@ -43,7 +45,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Clock + Console {
+machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + StandardOutput {
     Console::write_line("bouncing_particles: 4 particles (array-of-structs) bouncing in a 20x10 box for 60 frames");
     main.ps[0].x = 2 as +Wrapping;  main.ps[0].y = 2 as +Wrapping;  main.ps[0].vx = 1 as +Wrapping;  main.ps[0].vy = 1 as +Wrapping;
     main.ps[1].x = 17 as +Wrapping; main.ps[1].y = 3 as +Wrapping;  main.ps[1].vx = (0i32 - 1) as +Wrapping; main.ps[1].vy = 1 as +Wrapping;
@@ -217,7 +219,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + Console {
+machine entry_start() reaches ProcessExit + Clock + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

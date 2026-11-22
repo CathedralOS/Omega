@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Supplemental runtime numeric checks from frozen data/expected.json.
 // The application is main.omg; this entry verifies the same private domain
@@ -11,7 +12,7 @@ use domain\mixture\correct;
 
 data Main { result: Mixture; }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     transition { _ -> case_0(main) }
     machine case_0(main: @mutable Main) {
         Console::write_line("domain case: nominal");
@@ -1812,7 +1813,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

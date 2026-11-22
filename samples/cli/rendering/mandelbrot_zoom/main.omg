@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Animated Mandelbrot zoom -- a real-time software-rendered fractal that zooms into
 // a seahorse-valley boundary point, redrawn in place via an ANSI cursor-home escape
@@ -36,7 +38,7 @@ requires self.frame >= 0 && self.frame <= 12,
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Clock + Console {
+machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + StandardOutput {
     Console::write_line("mandelbrot_zoom: 12 animated frames zooming into seahorse valley");
     main.palette = " .:-=+*#";
     main.row = "................................................";
@@ -144,7 +146,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + Console {
+machine entry_start() reaches ProcessExit + Clock + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

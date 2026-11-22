@@ -1,10 +1,11 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 use routing\model;
 use routing\model\Certificate;
 
 // Fixed-width decimal keeps every output field easy to compare as raw bytes.
-machine number(value: i32 in Saturating) reaches Console
+machine number(value: i32 in Saturating) reaches StandardOutput
 invokes Console
 {
     Console::write_byte(((value / 100) % 10 + 48) as i32);
@@ -15,7 +16,7 @@ invokes Console
 
 // A route event must be 0..3; guard before the Exact narrowing to i32.
 // Domain qualification alone does not authorize a narrowing conversion.
-machine route_event(event: u64) reaches ProcessExit + Console
+machine route_event(event: u64) reaches ProcessExit + StandardOutput
 invokes Console
 {
     transition event < 4 {
@@ -53,7 +54,7 @@ requires span.events.length >= 1
     span.events[0] == expected
 }
 
-public machine report(certificate: @Certificate) reaches ProcessExit + Console
+public machine report(certificate: @Certificate) reaches ProcessExit + StandardOutput
 invokes Console
 {
     Console::write_line("sample_collection_routing: synthetic integer-minute model");

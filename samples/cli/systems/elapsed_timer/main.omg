@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // elapsed_timer: times a real workload with std\time -- the first full
 // consumer of the Instant and clock-read surface (TASKS_TIME.md rung 8).
@@ -29,7 +30,7 @@ use omega_language_std\sleep_for;
 data Main {
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + Console + TimeHost {
+machine main(context: @mutable Main) reaches ProcessExit + StandardOutput + TimeHost {
     Console::write_line("elapsed_timer: times a 50ms workload with std::time");
     let start: Instant = instant_now();
     let pause: Duration = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
@@ -72,7 +73,7 @@ machine main(context: @mutable Main) reaches ProcessExit + Console + TimeHost {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console + TimeHost {
+machine entry_start() reaches ProcessExit + StandardOutput + TimeHost {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

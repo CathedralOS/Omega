@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0 for input.txt; numerical oracle: fixtures.json.
 use domain\input;
@@ -18,7 +20,7 @@ data Application {
     width: i32 in Wrapping; index: i32 in Wrapping; cutoff: i32 in Wrapping;
     threshold: f64; input_energy: f64; coefficient_energy: f64; retained_energy: f64;
 }
-machine main(application: @mutable Application) reaches ProcessExit + Console crashes Trap {
+machine main(application: @mutable Application) reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
     let length: Number = block number(@mutable application.reader);
     let threshold: Number = block number(@mutable application.reader);
     let levels: Number = block number(@mutable application.reader);
@@ -225,7 +227,7 @@ requires index < 32
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console crashes Trap {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
     let mutable entry_storage: Application;
     block main(@mutable entry_storage);
 }

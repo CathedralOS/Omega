@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // With EOF, bounded input rejects explicitly.
 // Expected exit: 64.
@@ -23,7 +25,7 @@ data Main {
     assembly: Assembly;
     audit: Audit;
 }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("dimensional_stack_audit: profile 1..6, temperature low, temperature high (one integer per line)");
     block read_integer(@mutable main.input);
     transition main.input.valid && main.input.value >= 1 && main.input.value <= 6 {
@@ -116,7 +118,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

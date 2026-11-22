@@ -1,7 +1,6 @@
 use omega\language\core\ProcessExit;
 // Expected exit: 0
 // Closed nested Inert carrier transport preserves libc host numbers 66051 and 513 and replacement 1027 while retaining the disjoint sibling.
-use omega_language_std\Console;
 
 use omega\language\core\OpaqueRepresentation;
 public boundary data InternetAddress;
@@ -48,7 +47,7 @@ machine observe_replacement() -> bool reaches AddressParts {
     old_host == 66051 && sibling_host == 513 && replacement_host == 1027
 }
 
-machine run_main(main: @mutable Main) reaches ProcessExit + AddressParts + Console {
+machine run_main(main: @mutable Main) reaches ProcessExit + AddressParts {
     transition observe() && observe_replacement() {
         true -> passed(main),
         _ -> failed(main)
@@ -58,7 +57,7 @@ machine run_main(main: @mutable Main) reaches ProcessExit + AddressParts + Conso
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + AddressParts + Console {
+machine entry_start() reaches ProcessExit + AddressParts {
     let mutable entry_storage: Main;
     run_main(@mutable entry_storage);
 }

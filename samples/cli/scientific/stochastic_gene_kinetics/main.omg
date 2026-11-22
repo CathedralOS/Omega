@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 2 (EOF).
 // Expected output contains: invalid input: one digit 0..9 and LF required
@@ -16,7 +18,7 @@ data Main {
     replicate: u64; sum_x: u64; sum_x2: u64; sum_y: u64; sum_y2: u64;
     zero: u64; one: u64; two: u64; three_plus: u64;
 }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let first: ByteRead = block Console::read_byte();
     transition first { ByteRead::Byte { value } -> digit(main, value), _ -> invalid(main) }
     machine digit(main: @mutable Main, value: i32) {
@@ -173,7 +175,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

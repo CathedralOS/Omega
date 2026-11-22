@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 use omega_language_std\LineReadResult;
@@ -14,7 +16,7 @@ use controls\runtime_oracle\frozen_numerical_control;
 
 data Main { input: [u8; 19]; digits: [u64 in Wrapping; 17]; }
 // One bounded record: 17 ASCII digits followed by LF, or exact-length EOF.
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let read: LineReadResult = block Console::read_line(@mutable main.input[..]);
     transition read {
         LineReadResult::LineComplete { count } -> command(main, count),
@@ -84,7 +86,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

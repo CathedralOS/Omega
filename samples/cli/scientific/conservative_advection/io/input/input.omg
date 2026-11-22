@@ -1,6 +1,7 @@
 // Retain exact bounded decimal coefficients. Floating conversion happens once,
 // after the coefficient and decimal exponent are complete; boundary decisions
 // never depend on repeated floating-point digit addition or exponent scaling.
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 use omega\language\core\F64::from_u64;
@@ -19,7 +20,7 @@ machine reset(input:@mutable Input) {
  input.active=false; input.decimal=false; input.exponent_mode=false;
  input.negative_token=false; input.exponent_negative=false; input.exponent_sign=false;
 }
-public machine parse(input:@mutable Input) -> bool reaches Console invokes Console blocks crashes Trap {
+public machine parse(input:@mutable Input) -> bool reaches StandardInput invokes Console blocks crashes Trap {
  input.count=0; reset(input);
  transition { _ -> read(input,0) }
  machine read(input:@mutable Input,bytes:u32 in Saturating) -> bool {
@@ -27,7 +28,7 @@ public machine parse(input:@mutable Input) -> bool reaches Console invokes Conso
  }
  machine receive(input:@mutable Input,bytes:u32 in Saturating) -> bool {
   let observed:ByteRead=block Console::read_byte();
-  transition observed { ByteRead::Byte { value } -> classify(input,bytes,value), ByteRead::Eof -> finish(input) }
+  transition observed { ByteRead::Error -> bad(), ByteRead::Byte { value } -> classify(input,bytes,value), ByteRead::Eof -> finish(input) }
  }
  machine classify(input:@mutable Input,bytes:u32 in Saturating,character:i32) -> bool {
   transition bytes < 4096 { true -> byte(input,bytes,character), false -> bad() }

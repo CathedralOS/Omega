@@ -942,9 +942,10 @@ fn fresh_review_records_the_build_that_declared_the_package() {
 #[test]
 fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant() {
     let target = TargetProfile::LinuxX64;
-    for (service, critical) in [
-        (r"use omega\language\core\ProcessOutput;", true),
-        ("public boundary trait ProcessOutput {}", false),
+    for (name, service, critical) in [
+        ("StandardInput", r"use omega\language\core\StandardInput;", true),
+        ("StandardOutput", r"use omega\language\core\StandardOutput;", true),
+        ("StandardOutput", "public boundary trait StandardOutput {}", false),
     ] {
         let project = platform_custody::temporary_directory::TemporaryDirectory::create(
             "review-callable-service-ceiling",
@@ -957,7 +958,7 @@ fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant()
             r#"machine build(builder: @mutable Build) { Build::package(builder, "review_ceiling"); }"#,
         )
         .unwrap();
-        std::fs::write(root.join("main.omg"), format!("{service}\npublic machine inspect_value(value: u32) -> u32 reaches ProcessOutput crashes none {{ value }}\n")).unwrap();
+        std::fs::write(root.join("main.omg"), format!("{service}\npublic machine inspect_value(value: u32) -> u32 reaches {name} crashes none {{ value }}\n")).unwrap();
         let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
         let settled = returned.settle_dependency(inputs.clone()).unwrap();
         let product = settled.open_product(inputs).unwrap();
@@ -975,7 +976,7 @@ fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant()
             .unwrap();
         let reach = callable.declared_service_reach.as_deref().unwrap();
         assert_eq!(reach.len(), 1);
-        assert_eq!(reach[0].path(), "ProcessOutput");
+        assert_eq!(reach[0].path(), name);
         assert_eq!(
             checked.policy.dangerous_capabilities.len(),
             usize::from(critical)

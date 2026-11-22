@@ -1,15 +1,14 @@
 use omega\language\core\ProcessExit;
 // Complete intended-invalid control: index 2 is outside a two-element array.
-use omega_language_std\Console;
 data InvalidControl { }
-machine main(control: @mutable InvalidControl) reaches ProcessExit + Console {
+machine main(control: @mutable InvalidControl) reaches ProcessExit {
     let temperatures: [i32; 2] = [25, 100];
     let invalid: i32 = temperatures[2];
     ProcessExit::exit_process(invalid);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit {
     let mutable entry_storage: InvalidControl;
     main(@mutable entry_storage);
 }

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
@@ -25,7 +27,7 @@ data Application {
 }
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput
 crashes Trap
 {
     let mutable application: Application;
@@ -155,7 +157,7 @@ crashes Trap
     machine bad_balance() { Console::write_line("invalid_cycle_balance"); ProcessExit::exit_process(67); }
 }
 
-machine row(stage: i32, point: i32, volume: f64, pressure: f64) reaches Console
+machine row(stage: i32, point: i32, volume: f64, pressure: f64) reaches StandardOutput
 crashes Trap
 {
     integer(stage); Console::write(","); integer(point); Console::write(",");
@@ -163,7 +165,7 @@ crashes Trap
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput
 crashes Trap
 {
     let mutable entry_storage: Main;
