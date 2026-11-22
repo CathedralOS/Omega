@@ -79,7 +79,7 @@ impl Constructor {
             }
             slots[position] = Some(FieldInitializer {
                 field,
-                operand: expressions.value_argument(value, body, site)?,
+                operand: expressions.transfer_argument(value, carrier, body, site)?,
             });
         }
         // All authored computations have completed. Supply a dominating value for
@@ -391,20 +391,10 @@ fn plan_fields<'a, 'z, T>(
             Some(TypeShape::PrimitiveScalar(_) | TypeShape::QualifiedScalar { .. } | TypeShape::Nominal(_) | TypeShape::FixedArray { .. }) => {}
             // A by-value sequence is complete and immutable; the field copies it whole.
             Some(TypeShape::ElementSequence { .. }) => {}
-            // The operand copies the initialized descriptor. Its defining operation
-            // still identifies any borrow and the place where that borrow began.
-            // A field declared `r: @'r u8` stores the same descriptor at a
-            // lifetime binder of its record, as a view does below.
-            Some(
-                TypeShape::ScalarReference {
-                    access: crate::ReferenceAccess::Shared,
-                    ..
-                }
-                | TypeShape::NominalReference {
-                    access: crate::ReferenceAccess::Shared,
-                    ..
-                },
-            ) if field.lifetime.is_none() || applied.is_some() => {}
+            // The field receives the descriptor at its declared lifetime. An
+            // exclusive descriptor transfers its loan and a shared one can copy.
+            Some(TypeShape::ScalarReference { .. } | TypeShape::NominalReference { .. })
+                if field.lifetime.is_none() || applied.is_some() => {}
             // A view stored at a lifetime binder of its record. The operand
             // copies the descriptor, as above, and this establishment is what
             // puts it at that binder: the checker reads the operand's defining

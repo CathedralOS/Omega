@@ -35,7 +35,7 @@ fn parked_local_keeps_the_descriptor_used_to_initialize_its_field() {
         let mut package = omega_lowering::lower_package(&prepared).unwrap();
         drop(prepared);
         drop(resolved);
-        assert_eq!(check_constructed_field(&package, slot), Ok(()));
+        assert_eq!(check_constructed_field(&package, slot, omega_lowering::ReferenceAccess::Shared), Ok(()));
         let body = &mut package
             .machines
             .iter_mut()
@@ -51,7 +51,7 @@ fn parked_local_keeps_the_descriptor_used_to_initialize_its_field() {
             reborrows: Vec::new(),
             source: EmbeddedLoanSource::Formal { formal: other, path: vec![] },
         }];
-        assert_eq!(check_constructed_field(&package, slot), Err("wrong initializer origin"));
+        assert_eq!(check_constructed_field(&package, slot, omega_lowering::ReferenceAccess::Shared), Err("wrong initializer origin"));
     }
 }
 
@@ -109,4 +109,57 @@ fn parking_a_reborrow_preserves_its_formation_and_its_incoming_parent() {
     };
     assert_eq!((source.root, *access), (cell, ReferenceAccess::Shared));
     assert!(matches!(&source.path[..], [PlaceProjection::Referent, PlaceProjection::Field(field)] if field.path=="Cell::mark"));
+}
+
+#[test]
+fn an_exclusive_field_takes_the_incoming_descriptor_only_once() {
+    use omega_lowering::{OperationKind, ValueOperand};
+    for access in ["mutable", "write"] {
+        for (shape, constructor) in [("{r:@'r ACCESS Cell;}", "Holder"), ("{case Some(r:@'r ACCESS Cell); case None;}", "Holder::Some")] {
+            let text = format!("data Cell{{v:u8;}} data Holder<'r>{} machine build(x:@{access} Cell){{let h={constructor}{{r:x}};}}", shape.replace("ACCESS", access));
+            let package = source::lower(&[("transfer.omg", &text)]).unwrap();
+            let body = &package.machines[0].body;
+            let [Parameter::Structural(input)] = body.parameters[..] else { panic!("one incoming descriptor") };
+            let [op] = body.operations.as_slice() else { panic!("construction takes the input directly") };
+            let fields = match &op.kind {
+                OperationKind::EstablishRecord { fields } if constructor == "Holder" => fields,
+                OperationKind::EstablishCase { case, fields } if case.path == constructor => fields,
+                _ => panic!("expected the selected constructor"),
+            };
+            let [field] = fields.as_slice() else { panic!("one stored descriptor") };
+            assert_eq!(field.field.path, format!("{constructor}::r"));
+            assert_eq!(field.operand, ValueOperand::MoveWhole(input));
+        }
+    }
+}
+
+#[test]
+fn constructed_exclusive_loan_names_the_field_it_borrowed() {
+    use omega_lowering::{OperationKind, OperationResult, PlaceProjection, ReferenceAccess, ValueOperand};
+    for (spelling, expected) in [("mutable", ReferenceAccess::Mutable), ("write", ReferenceAccess::WriteOnly)] {
+        let text = format!("data Cell{{v:u8;}} data Holder<'r>{{r:@'r {spelling} u8;}} machine build(cell:@mutable Cell){{let h=Holder{{r:@{spelling} cell.v}};}}");
+        let package = source::lower(&[("new_loan.omg", &text)]).unwrap();
+        let body = &package.machines[0].body;
+        let [Parameter::Structural(parent)] = body.parameters[..] else { panic!("one parent loan") };
+        let [borrow, establish] = body.operations.as_slice() else { panic!("one loan and its destination") };
+        let OperationKind::BorrowPlace { source, access } = &borrow.kind else { panic!("explicit borrow") };
+        assert_eq!((source.root, *access), (parent, expected));
+        assert!(matches!(&source.path[..], [PlaceProjection::Referent, PlaceProjection::Field(field)] if field.path == "Cell::v"));
+        let OperationResult::Structural(descriptor) = borrow.result else { panic!("descriptor") };
+        let OperationKind::EstablishRecord { fields } = &establish.kind else { panic!("record construction") };
+        assert!(matches!(&fields[..], [field] if field.field.path == "Holder::r" && field.operand == ValueOperand::MoveWhole(descriptor)));
+    }
+}
+
+#[test]
+fn parked_owner_retains_the_exclusive_loan_that_moved_into_its_field() {
+    use omega_lowering::ReferenceAccess;
+    for (spelling, access) in [("mutable", ReferenceAccess::Mutable), ("write", ReferenceAccess::WriteOnly)] {
+        let text = format!(
+            "data Holder<'r>{{r:@'r {spelling} u8;}} machine wait() suspends{{}}
+             machine forward(x:@{spelling} u8) suspends{{let h=Holder{{r:x}}; suspend wait()}}"
+        );
+        let package = source::lower(&[("parked.omg", &text)]).unwrap();
+        assert_eq!(check_constructed_field(&package, 0, access), Ok(()));
+    }
 }

@@ -412,7 +412,9 @@ pub(in crate::machines) fn schedule(
                 OperationKind::MoveStructural { source } if owned(body.places[source.root.index()].ty, types, data) => state.transfer(source, site)?,
                 OperationKind::EstablishRecord { fields } | OperationKind::EstablishCase { fields, .. } => {
                     for field in fields {
-                        if let crate::ValueOperand::MoveWhole(value) = field.operand {
+                        if let crate::ValueOperand::MoveWhole(value) = field.operand
+                            && owned(body.places[value.index()].ty, types, data)
+                        {
                             state.take(&ProjectedPlace { root: value, path: vec![] }, site)?;
                         }
                     }
