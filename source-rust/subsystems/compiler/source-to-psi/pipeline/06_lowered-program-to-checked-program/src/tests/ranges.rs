@@ -154,6 +154,27 @@ fn an_unsigned_remainder_is_below_a_positive_divisor() {
     }
 }
 
+#[test]
+fn policy_remainder_is_below_its_own_positive_unsigned_divisor() {
+    for policy in ["Wrapping", "Saturating"] {
+        let source = format!(
+            "machine sample(a: u32 in {policy}, divisor: u32 in {policy}, other: u32) -> u32
+             requires divisor > 0 ensures result < divisor {{ (a % divisor) as u32 }}"
+        );
+        let accepted = super::entryless::judged(&source, false);
+        assert!(
+            matches!(accepted, RouteVerdict::Accepted(_)),
+            "{accepted:?}"
+        );
+
+        let foreign = source.replace("ensures result < divisor", "ensures result < other");
+        assert!(matches!(
+            super::entryless::judged(&foreign, false),
+            RouteVerdict::Rejected { .. }
+        ));
+    }
+}
+
 /// `local = a % b; return local <second> literal` over two i32 formals with
 /// `-7 <= a <= 7` and `divisor`, a clause about `b`.
 fn signed_remainder(divisor: Proposition, second: Strict, operand: i128) -> Machine {

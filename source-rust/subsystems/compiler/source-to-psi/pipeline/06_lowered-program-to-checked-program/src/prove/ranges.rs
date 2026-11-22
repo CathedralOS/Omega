@@ -245,13 +245,7 @@ impl Prover<'_> {
         output: &ScalarTerm,
         expression: &ScalarTerm,
     ) -> Option<(ScalarTerm, ProofNode)> {
-        let ScalarTerm::ExactIntegerRemainder {
-            scalar_type, right, ..
-        } = expression
-        else {
-            return None;
-        };
-        let divisor = right.as_ref();
+        let (integer, _, divisor) = expression.integer_remainder_operands()?;
         if !matches!(divisor, ScalarTerm::Value { .. }) || divisor == output {
             return None;
         }
@@ -262,7 +256,7 @@ impl Prover<'_> {
             literal_axioms: vec![None],
         };
         let form = check_integer_affine_witness(self.context, self.axioms, &witness).ok()?;
-        let positive = self.positive(*scalar_type, divisor)?;
+        let positive = self.positive(integer, divisor)?;
         let image = map_integer_affine_bound(&form, &positive.conclusion).ok()?;
         matches!(&image, Proposition::LessThan(left, right) if left == output && right == divisor)
             .then(|| {

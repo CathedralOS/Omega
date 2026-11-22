@@ -1660,6 +1660,27 @@ impl ScalarTerm {
 
     integer_binary_term!(exact_integer_remainder => ExactIntegerRemainder);
 
+    pub fn integer_remainder_operands(&self) -> Option<(IntegerType, &Self, &Self)> {
+        match self {
+            ScalarTerm::ExactIntegerRemainder {
+                scalar_type,
+                left,
+                right,
+            }
+            | ScalarTerm::WrappingIntegerRemainder {
+                scalar_type,
+                left,
+                right,
+            }
+            | ScalarTerm::SaturatingIntegerRemainder {
+                scalar_type,
+                left,
+                right,
+            } => Some((*scalar_type, left, right)),
+            _ => None,
+        }
+    }
+
     integer_binary_term!(wrapping_integer_divide => WrappingIntegerDivide);
 
     integer_binary_term!(wrapping_integer_remainder => WrappingIntegerRemainder);

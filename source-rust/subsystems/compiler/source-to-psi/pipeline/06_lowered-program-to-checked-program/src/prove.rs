@@ -2974,10 +2974,9 @@ impl<'a> Prover<'a> {
                     }
                 }
                 // `a % d < d` for an unsigned remainder when `0 < d`.
-                Proposition::Equal(
-                    output,
-                    expression @ ScalarTerm::ExactIntegerRemainder { .. },
-                ) if output == at => {
+                Proposition::Equal(output, expression)
+                    if output == at && expression.integer_remainder_operands().is_some() =>
+                {
                     if let Some(axiom) = axiom
                         && let Some((divisor, below)) =
                             self.remainder_below_divisor(axiom, output, expression)
