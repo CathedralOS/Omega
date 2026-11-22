@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use domain\input;
 use domain\input\Reader;
 use omega\language\core\narrow_i64_to_i32_wrapping;
@@ -7,7 +8,7 @@ use omega\language\core\I64::from_f64;
 
 // Decimal byte output avoids imposing a text-domain proof on dynamic numbers.
 public machine integer(reader: @mutable Reader, value: i64)
-reaches Console
+reaches StandardOutput
 invokes Console
 {
     let widened: i64 = value;
@@ -47,7 +48,7 @@ invokes Console
     }
 }
 public machine field(reader: @mutable Reader, name: @[u8], value: f64)
-reaches Console
+reaches StandardOutput
 invokes Console
 {
     Console::write(name);
@@ -56,7 +57,7 @@ invokes Console
     Console::write_byte(10);
 }
 public machine rational(reader: @mutable Reader, name: @[u8], numerator: i64 in Wrapping, denominator: i64 in Wrapping)
-reaches Console invokes Console crashes Trap {
+reaches StandardOutput invokes Console crashes Trap {
     transition denominator > 0 { true -> emit(reader, name, numerator, denominator), _ -> invalid() }
     machine emit(reader: @mutable Reader, name: @[u8], numerator: i64 in Wrapping, denominator: i64 in Wrapping) requires denominator > 0 {
         let value: f64 = F64::from_i64(numerator as i64) / F64::from_i64(denominator as i64);

@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use domain\cycles;
 use domain\cycles\Audit;
@@ -6,14 +7,14 @@ public data Report {}
 
 // Fixed-width decimal columns avoid floating projection and preserve exact
 // rational numerators. Every reachable number is below 10000.
-machine number(number: u64 in Wrapping) reaches Console {
+machine number(number: u64 in Wrapping) reaches StandardOutput {
     Console::write_byte(((number / 1000) % 10 + 48) as i32);
     Console::write_byte(((number / 100) % 10 + 48) as i32);
     Console::write_byte(((number / 10) % 10 + 48) as i32);
     Console::write_byte((number % 10 + 48) as i32);
 }
 
-public machine write(audit: @mutable Audit) reaches Console {
+public machine write(audit: @mutable Audit) reaches StandardOutput {
     Console::write_line("range,half_units,damage_numerator,damage_denominator,cumulative_numerator");
     audit.index = 0;
     audit.current = 0;

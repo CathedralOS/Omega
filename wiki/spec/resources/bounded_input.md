@@ -41,12 +41,13 @@ data LineReadResult {
     case LineComplete(count: u64);
     case EndOfInput(count: u64);
     case Full(count: u64);
+    case Error(count: u64);
 }
 ```
 
 `Invalid` is the first, ZII-valid case. It means no completed read result is
 established, not EOF, a successful empty line, or a recoverable OS error. Every
-normal return from `read_line` establishes one of the other three cases. Their
+normal return from `read_line` establishes one of the four counted cases. Their
 counts satisfy `count <= destination.length` and bind the written prefix to that
 invocation. Constructing a same-shaped result independently establishes no I/O
 observation. Non-Unit results retain ordinary strict-use and case checking.
@@ -62,6 +63,7 @@ nonblocking query for currently available bytes.
 | Destination length is zero | `Full(0)`, without reading. |
 | LF is read while room remains | Store LF and return `LineComplete(count)`, including LF in the positive count. |
 | EOF is observed while room remains | `EndOfInput(count)`, retaining any partial final line; zero means observed EOF without bytes. |
+| The next byte read fails | `Error(count)`, including every byte already stored. Failure before the first byte returns `Error(0)`. |
 | Destination fills without LF | `Full(count)`, where count equals destination length; do not read another byte to discover what follows. |
 
 LF in the last available position produces `LineComplete`, not `Full`.
@@ -76,12 +78,14 @@ and LF. There is no terminator byte added beyond the input, no CRLF normalizatio
 silent truncation, or lossy character conversion. A full prefix may end inside a
 multibyte encoding. A text wrapper may strip delimiters or normalize explicitly.
 
-The result does not add an I/O-error case. The adapter preserves the selected
-byte-input operation's declared failure contract; the existing hosted byte leaf
-traps on failed reads. Such failures must be represented honestly through
-admission and caller crash coverage, not hidden by `Invalid`. A recoverable
-I/O-result boundary is a separate contract. Failure after input consumption
-does not imply rollback of the stream or destination.
+`Console::read_byte` returns `ByteRead::Byte`, `ByteRead::Eof`, or
+`ByteRead::Error`. An observed input failure, including a failure to prepare the
+input stream for byte reads, returns `Error`. The portable result carries no
+platform error number. `Console::read_line` propagates the failure with the
+count of bytes already written. The suffix stays untouched and previously
+consumed bytes stay consumed. The caller chooses how to handle the prefix and
+whether to retry. Both operations declare `reaches StandardInput`, `blocks`,
+and `crashes none`. Neither promises termination.
 
 ## Library composition and target realization
 
@@ -90,6 +94,13 @@ Use shared checked library code over bounded byte input, initially the existing
 contract directly if they preserve its byte sequence, stopping reason, logical
 input consumption, bounds, and operational envelope under ordinary provider
 verification and admission. A richer target does not redefine portable meaning.
+
+A provider over a previously captured finite byte sequence observes bytes and
+EOF. The [Alpha tape reader](../../../bootstrap/alpha/SEMANTICS.md) has that
+interface. Its seed executable can report a host read failure using the same
+word as EOF. Its byte/EOF interface therefore implements this contract for
+successfully captured finite input. Adapting a live fallible stream requires
+preserving the host error before that distinction is lost.
 
 POSIX `read(fd, buffer, count)` on Linux/macOS and Windows
 `ReadFile(handle, buffer, count, ...)` accept a maximum byte count. They need

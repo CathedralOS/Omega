@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\Window;
 use omega_language_std\macos_key_state;
@@ -37,8 +39,8 @@ machine Main::main(main: @mutable Main) reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit + Console {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit {
     let verified: bool = Game::verify(@mutable main.game);
     transition verified { true -> start(main), _ -> failed() }
 
@@ -162,8 +164,8 @@ machine entry_start() reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit + Console {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

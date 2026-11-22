@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Score tracker. Combines case-payload events, fixed arrays, scalar
 // accumulation, [copy] property, and multi-arm case dispatch.
@@ -36,7 +38,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("score_tracker: replays score/bonus/reset events for two players");
     apply(main, Event::Score { player: 0 as +Saturating, points: 30 as +Saturating });
     apply(main, Event::Score { player: 1 as +Saturating, points: 20 as +Saturating });
@@ -127,7 +129,7 @@ machine apply(main: @mutable Main, event: Event) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

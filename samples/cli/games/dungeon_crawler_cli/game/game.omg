@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use text;
 use commands\CommandParser;
 use dungeon\Dungeon;
@@ -45,7 +47,7 @@ machine game_initialize(
     text_buffer_set(@mutable game.output, "" as +Ascii);
 }
 
-machine run_game_loop(game: @mutable Game) reaches ProcessExit + Console {
+machine run_game_loop(game: @mutable Game) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("dungeon_crawler_cli: an interactive dungeon crawl -- type commands to explore");
     render_title();
 
@@ -83,6 +85,7 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + Console {
     machine read_command(game: @mutable Game) {
         render_prompt();
         transition block Console::read_line(@mutable game.input[..]) {
+            LineReadResult::Error { count } -> ProcessExit::exit_process(74),
             LineReadResult::LineComplete { count } -> block received_command(game, count),
             LineReadResult::EndOfInput { count } -> block received_command(game, count),
             // Full and Invalid do not establish a completed command.

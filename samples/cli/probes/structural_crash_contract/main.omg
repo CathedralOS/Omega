@@ -2,7 +2,6 @@ use omega\language\core\ProcessExit;
 // Expected exit: 70
 // A borrowed invocation keeps a record-equality crash ceiling, including
 // all eight elements of each domain-qualified fixed array.
-use omega_language_std\Console;
 
 domain [u8; 8]::Utf8
 requires valid_utf8(self);
@@ -15,7 +14,7 @@ crashes Abort
     main.left == main.right
 {}
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + Console
+machine Main::main(main: @mutable Main) reaches ProcessExit
 crashes Abort
 {
     Main::inspect(main);
@@ -23,7 +22,7 @@ crashes Abort
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console
+machine entry_start() reaches ProcessExit
 crashes Abort
 {
     let mutable entry_storage: Main;

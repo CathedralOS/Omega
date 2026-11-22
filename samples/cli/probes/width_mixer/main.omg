@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Width mixer: mixed integer widths (i16, u8, i32) in arithmetic chains.
 //
@@ -40,7 +42,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("width_mixer: u8, i16, and i32 fields combined through named widening");
     // Set up the sub-width fields.
     main.data.flags = 5;
@@ -107,7 +109,7 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block Main::main(@mutable entry_storage);
 }

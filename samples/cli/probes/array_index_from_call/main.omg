@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Array lookup driven by a value-returning call result.
 //
@@ -78,7 +80,7 @@ machine Main::read_at(main: @mutable Main, idx: i32) -> i32 {
     }
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("array_index_from_call: value-call results drive array-index dispatch (pick -> read_at chains)");
     // Initialize the lookup table.
     main.table[0] = 3;
@@ -167,7 +169,7 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block Main::main(@mutable entry_storage);
 }

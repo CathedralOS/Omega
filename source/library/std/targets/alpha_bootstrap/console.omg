@@ -1,27 +1,29 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use ByteRead;
-use Console;
 use ConsoleByteOperations;
 use omega\language\core\narrow_i32_to_u8_wrapping;
 
 // The Alpha target environment supplies these two scalar stream operations.
-// A read delivers one unsigned byte or -1 at EOF. A write consumes one byte.
+// The tape reader supplies 0..255 or -1 at EOF. Any other word is an input
+// error. A write consumes one byte.
 boundary trait AlphaConsoleIo {
-    machine read() -> i32 reaches Console blocks crashes none;
-    machine write(byte: u8) reaches Console crashes none;
+    machine read() -> i32 reaches StandardInput blocks crashes none;
+    machine write(byte: u8) reaches StandardOutput crashes none;
 }
 
 AlphaConsoleBytes satisfies ConsoleByteOperations {
-    machine read_byte() -> ByteRead reaches Console blocks crashes Trap {
+    machine read_byte() -> ByteRead reaches StandardInput blocks crashes none {
         let word: i32 = block AlphaConsoleIo::read();
         alpha_console_read_result(word)
     }
 
-    machine write_byte(byte: i32) reaches Console crashes none {
+    machine write_byte(byte: i32) reaches StandardOutput crashes none {
         AlphaConsoleIo::write(narrow_i32_to_u8_wrapping(byte));
     }
 }
 
-machine alpha_console_read_result(word: i32) -> ByteRead crashes Trap {
+machine alpha_console_read_result(word: i32) -> ByteRead crashes none {
     transition word == -1 {
         true -> eof(),
         _ -> decode(word)
@@ -36,5 +38,5 @@ machine alpha_console_read_result(word: i32) -> ByteRead crashes Trap {
     machine byte(word: i32) -> ByteRead
     requires word >= 0 && word <= 255
     { ByteRead::Byte { value: word } }
-    machine invalid() -> ByteRead { crash Trap; }
+    machine invalid() -> ByteRead { ByteRead::Error }
 }

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 70.
 // Alarm scheduler: 5-arm case dispatch stress test.
@@ -87,7 +89,7 @@ machine dispatch(alarm: @mutable Alarm, event: AlarmEvent) {
     machine done() {}
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("alarm_scheduler: 5-arm case dispatch over a scripted alarm sequence (set/snooze/trigger/dismiss/cancel)");
     let mutable alarm: Alarm;
     dispatch(@mutable alarm, AlarmEvent::Set { hour: 6 as +Saturating, minute: 30 as +Saturating });
@@ -171,7 +173,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

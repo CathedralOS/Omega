@@ -145,6 +145,8 @@ pub(super) fn nominations(
     Ok(nominations)
 }
 
+/// Console names the receiver of the per-method physical permissions. Its
+/// requirements can reach different core services.
 /// The plan and its provider must have the same supplier. The consumer whose Product
 /// selected this plan is recorded independently by the package review occurrence.
 fn hosted_supplier(plan: &ProviderPlan) -> Option<(PackageKeyIdentity, Role, &str)> {
@@ -193,6 +195,12 @@ mod tests {
 
         let schema = std::sync::Arc::make_mut(&mut plan.schema.declaration);
         schema.trait_package_identity = None;
+        for service in ["StandardInput", "StandardOutput"] {
+            let schema = std::sync::Arc::make_mut(&mut plan.schema.declaration);
+            schema.trait_name = schema.identities.intern(service);
+            assert!(hosted_supplier(&plan).is_none());
+        }
+        let schema = std::sync::Arc::make_mut(&mut plan.schema.declaration);
         schema.trait_name = schema.identities.intern("ProcessExit");
         assert_eq!(
             hosted_supplier(&plan),

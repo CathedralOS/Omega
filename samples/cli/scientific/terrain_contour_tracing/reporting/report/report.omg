@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use terrain\model;
 use terrain\model\Terrain;
 use terrain\model\Contours;
@@ -12,13 +13,13 @@ public data Main {
     paths: Paths;
 }
 // Four decimal digits are sufficient for coordinates <= 5040 and counts <=16.
-machine number(value: i32 in Wrapping, context: @mutable Main) reaches Console {
+machine number(value: i32 in Wrapping, context: @mutable Main) reaches StandardOutput {
     Console::write_byte((value / 1000 % 10 + 48) as i32);
     Console::write_byte((value / 100 % 10 + 48) as i32);
     Console::write_byte((value / 10 % 10 + 48) as i32);
     Console::write_byte((value % 10 + 48) as i32);
 }
-public machine report(context: @mutable Main) reaches Console {
+public machine report(context: @mutable Main) reaches StandardOutput {
     Console::write("TOPO segments=");
     number(narrow_u64_to_i32_wrapping(context.graph.count) as i32 +Wrapping, context);
     Console::write(" paths=");

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Digital root: repeatedly sum a number's decimal digits until a single digit
 // remains. For 12345 -> 1+2+3+4+5 = 15 -> 1+5 = 6. (It equals 1 + (n-1) mod 9, the
@@ -10,7 +12,7 @@ use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("digital_root: collapse 12345 by repeated digit sums (15, then 6)");
 
     transition {
@@ -51,7 +53,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

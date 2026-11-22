@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Ideal diprotic acid titration; supplied finite bounded stdin.
 // Expected exit: 0.
@@ -13,7 +15,7 @@ use domain\equilibrium\solve;
 use domain\report;
 use domain\report\report;
 data Main { reader: Reader; }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     main.reader.consumed = 0;
     let mutable input: Input;
     let valid: bool = block read_input(@mutable main.reader, @mutable input);
@@ -35,7 +37,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -15,9 +15,10 @@ the next file exactly as the kernel would. Matching-host filesystem delegation u
 descriptor namespace and preserves kernel errors and partial transfers, with
 Linux VFS transfers capped at 0x7fff0000 bytes. Versioned Linux libc uses the
 same finite input, private output and captured backing with its size_t/ssize_t
-ABI. Unsupported descriptors refuse before I/O. Input errors refuse without a
-fabricated libc result or TLS errno update; successful and EOF reads leave that
-state alone. The host explicitly assumes these implementations are equivalent;
+ABI. Unsupported descriptors refuse before I/O. Raw Linux reads preserve a
+host Linux error's negative kernel status. Errors without that status refuse;
+Linux libc errors also refuse without an admitted TLS errno update. Successful
+and EOF reads leave that state alone. The host explicitly assumes these implementations are equivalent;
 checked library wrappers remain guest code.
 */
 
@@ -41,6 +42,32 @@ use terminal_psi::{
 use super::TerminalRuntimeError;
 use super::borrowed_storage::{self, CapturedStorage, StorageTransfer};
 use super::buffered_output::BufferedStreams;
+
+fn input_error_status(
+    abi: DescriptorAbi,
+    error: &std::io::Error,
+) -> Result<i128, TerminalEffectRejection> {
+    match abi {
+        DescriptorAbi::WindowsCrt | DescriptorAbi::DarwinLibSystem => Ok(-1),
+        DescriptorAbi::LinuxKernel => {
+            // Only a host Linux errno supplies the selected Linux syscall's
+            // status. An opaque stream failure or another host's error number
+            // does not authorize inventing an errno or treating failure as EOF.
+            if cfg!(target_os = "linux")
+                && let Some(errno) = error.raw_os_error()
+                && (1..=4095).contains(&errno)
+            {
+                return Ok(-i128::from(errno));
+            }
+            Err(TerminalEffectRejection::new(
+                "finite input failed without an admitted raw kernel error status",
+            ))
+        }
+        DescriptorAbi::LinuxLibc => Err(TerminalEffectRejection::new(
+            "finite input failed without an admitted libc errno result",
+        )),
+    }
+}
 
 enum DescriptorBuffer {
     Scalar(ScalarType),
@@ -558,22 +585,8 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                             "input reader exceeded the requested byte extent",
                         ));
                     }
-                    Err(_)
-                        if matches!(
-                            self.contract.abi,
-                            DescriptorAbi::WindowsCrt | DescriptorAbi::DarwinLibSystem
-                        ) =>
-                    {
-                        return self.result(-1);
-                    }
-                    Err(_) => {
-                        return Err(TerminalEffectRejection::new(
-                            if matches!(self.contract.abi, DescriptorAbi::LinuxLibc) {
-                                "finite input failed without an admitted libc errno result"
-                            } else {
-                                "finite input failed without an admitted raw kernel error status"
-                            },
-                        ));
+                    Err(error) => {
+                        return self.result(input_error_status(self.contract.abi, &error)?);
                     }
                 };
                 drop(input);
@@ -586,5 +599,51 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                 Ok(result)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DescriptorAbi, input_error_status};
+
+    #[test]
+    fn raw_linux_reads_preserve_real_errno_without_guessing_other_statuses() {
+        for errno in [4, 5, 9, 11, 21, 4095] {
+            let error = std::io::Error::from_raw_os_error(errno);
+            let status = input_error_status(DescriptorAbi::LinuxKernel, &error);
+            if cfg!(target_os = "linux") {
+                assert_eq!(status.unwrap(), -i128::from(errno));
+            } else {
+                assert!(
+                    status.is_err(),
+                    "another host's errno is not a Linux status"
+                );
+            }
+        }
+        for errno in [0, -1, 4096] {
+            assert!(
+                input_error_status(
+                    DescriptorAbi::LinuxKernel,
+                    &std::io::Error::from_raw_os_error(errno),
+                )
+                .is_err()
+            );
+        }
+        assert!(
+            input_error_status(
+                DescriptorAbi::LinuxKernel,
+                &std::io::Error::other("opaque input failure"),
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn read_failure_status_keeps_each_imports_errno_contract() {
+        let error = std::io::Error::other("input failure");
+        for abi in [DescriptorAbi::WindowsCrt, DescriptorAbi::DarwinLibSystem] {
+            assert_eq!(input_error_status(abi, &error).unwrap(), -1);
+        }
+        assert!(input_error_status(DescriptorAbi::LinuxLibc, &error).is_err());
     }
 }

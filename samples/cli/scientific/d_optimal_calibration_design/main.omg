@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: status identifiable
@@ -11,7 +13,7 @@ data Main {
     used: i64 in Wrapping;
     bytes: i64 in Wrapping;
 }
-machine number(main: @mutable Main, value: i64 in Wrapping) reaches ProcessExit + Console {
+machine number(main: @mutable Main, value: i64 in Wrapping) reaches ProcessExit + StandardOutput {
     transition value < 0 { true -> negative(main, value), _ -> digits(main, value, 100000000000000000) }
     machine negative(main: @mutable Main, value: i64 in Wrapping) {
         Console::write("-");
@@ -26,10 +28,10 @@ machine number(main: @mutable Main, value: i64 in Wrapping) reaches ProcessExit 
     }
     machine done() { }
 }
-machine rational(main: @mutable Main, numerator: i64 in Wrapping, denominator: i64 in Wrapping) reaches ProcessExit + Console {
+machine rational(main: @mutable Main, numerator: i64 in Wrapping, denominator: i64 in Wrapping) reaches ProcessExit + StandardOutput {
     number(main, numerator); Console::write("/"); number(main, denominator);
 }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     main.bytes = 0; main.used = 0;
     transition { _ -> block mode(main) }
     machine mode(main: @mutable Main) {
@@ -73,8 +75,9 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
         let byte: ByteRead = block Console::read_byte();
         main.bytes = main.bytes+1;
         transition byte {
+            ByteRead::Error -> invalid(main),
             ByteRead::Byte { value } -> block bounded(main, accumulator, sign, active, digits, value),
-            _ -> eof(main, accumulator, sign, active, digits)
+            ByteRead::Eof -> eof(main, accumulator, sign, active, digits)
         }
     }
     machine bounded(main: @mutable Main, value: i64 in Wrapping, sign: i64 in Wrapping, active: i64 in Wrapping,
@@ -260,7 +263,7 @@ machine mode_character(degree: i64 in Wrapping, position: i64 in Wrapping) -> i3
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

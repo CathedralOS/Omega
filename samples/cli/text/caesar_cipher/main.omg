@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Caesar cipher: shift each byte of a string by a fixed key and print the result.
 // A real string TRANSFORMATION -- read a carrier, compute a new byte per position,
@@ -24,7 +26,7 @@ domain [u8; 5]::Utf8
 requires
     valid_utf8(self);
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("caesar_cipher: shift each byte of HELLO by 3 -- expecting KHOOR");
     let text: [u8; 5] in Utf8 = "HELLO";
     let mutable output: [u8; 5] = ".....";
@@ -89,7 +91,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

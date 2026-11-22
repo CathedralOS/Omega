@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Closed stdin is invalid runtime input for the ordinary sample harness.
 // Expected exit: 2.
@@ -15,7 +17,7 @@ use planner\output\emit_integer;
 // One complete line is the transaction. Full input is rejected rather than
 // solving a silently truncated prefix. No external solver or runtime fixture.
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let mutable bytes: [u8; 256];
     let result: LineReadResult = block Console::read_line(@mutable bytes[..]);
     transition result {
@@ -85,7 +87,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

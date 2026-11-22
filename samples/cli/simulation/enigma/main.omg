@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // enigma: a table-driven Enigma I. The published wirings sit in `[i32; 26]`
 // fields as decoded letter values (A = 0 .. Z = 25), an inversion loop
@@ -231,7 +232,7 @@ machine enc_char(main: @mutable Main, key: i32, l: i32, m: i32, r: i32)
 // Identity plugboard plus the derived inverse wirings, in its own machine so
 // the entry's proof rosters stay short. All indexing is on plain i32 arrays;
 // the guard facts ride on params with `requires`, not on field paths.
-machine derive_tables(main: @mutable Main) reaches ProcessExit + Console {
+machine derive_tables(main: @mutable Main) reaches ProcessExit + StandardOutput {
     transition { _ -> dt_init(main) }
 
     machine dt_init(main: @mutable Main) {
@@ -275,7 +276,7 @@ machine derive_tables(main: @mutable Main) reaches ProcessExit + Console {
 
 // Press every letter of main.plain through the stepping scrambler: step the
 // rotors, run enc_char, record the cipher letter, echo it as a byte.
-machine press_all(main: @mutable Main) reaches ProcessExit + Console {
+machine press_all(main: @mutable Main) reaches ProcessExit + StandardOutput {
     transition { _ -> pa_loop(main) }
 
     machine pa_loop(main: @mutable Main) {
@@ -348,7 +349,7 @@ machine press_all(main: @mutable Main) reaches ProcessExit + Console {
 
 // Compare the produced letters against the expected vector; exits 1 on any
 // mismatch, otherwise returns so the caller can print its own PASS line.
-machine compare_all(main: @mutable Main) reaches ProcessExit + Console {
+machine compare_all(main: @mutable Main) reaches ProcessExit + StandardOutput {
     transition { _ -> ca_init(main) }
 
     machine ca_init(main: @mutable Main) {
@@ -386,7 +387,7 @@ machine compare_all(main: @mutable Main) reaches ProcessExit + Console {
     machine ca_done(main: @mutable Main) {}
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     Console::write_line("enigma: Enigma I, rotors I II III, reflector B, rings AAA");
     main.fwd_left = [4, 10, 12, 5, 11, 6, 3, 16, 21, 25, 13, 19, 14, 22, 24, 7, 23, 20, 18, 15, 0, 8, 1, 17, 2, 9];
     main.fwd_mid = [0, 9, 3, 10, 18, 8, 17, 20, 23, 1, 11, 7, 22, 19, 12, 2, 16, 6, 25, 13, 15, 24, 5, 21, 14, 4];
@@ -450,7 +451,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

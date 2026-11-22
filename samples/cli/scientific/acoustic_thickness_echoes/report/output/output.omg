@@ -1,10 +1,11 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use omega\language\core\narrow_i64_to_i32_saturating;
 use omega\language\core\narrow_u64_to_i64_saturating;
 use model\records;
 use model\records\EchoResult;
 // Decimal output is authored here rather than relying on a numeric library.
-public machine write_number(value: i64 in Saturating) reaches Console
+public machine write_number(value: i64 in Saturating) reaches StandardOutput
 invokes Console
 {
     transition value < 0 {
@@ -37,7 +38,7 @@ invokes Console
     }
     machine done() {}
 }
-public machine write_echo(index: u64 in Saturating, result: EchoResult) reaches Console
+public machine write_echo(index: u64 in Saturating, result: EchoResult) reaches StandardOutput
 invokes Console
 {
     Console::write("echo ");

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // A 2D ball bouncing in a box under GRAVITY, animated in place -- the first physics
 // SIMULATION (a continuous state integrated over time), as opposed to the
@@ -35,7 +37,7 @@ requires
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Clock + Console {
+machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + StandardOutput {
     Console::write_line("bouncing_ball_2d: a ball under gravity animated in a 24x12 box for 70 frames");
     main.line = "                        ";
     main.home = "XXX";
@@ -167,7 +169,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + Console {
+machine entry_start() reaches ProcessExit + Clock + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

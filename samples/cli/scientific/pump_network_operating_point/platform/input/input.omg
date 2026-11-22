@@ -1,3 +1,4 @@
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 
@@ -16,7 +17,7 @@ public data Input {
 // One record, at most 96 consumed bytes and at most nine signed decimal
 // tokens of at most four digits. Spaces and LF/EOF delimit; other bytes reject.
 public machine read(input: @mutable Input)
-reaches Console
+reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -32,6 +33,7 @@ crashes Trap
         input.count = input.count + 1;
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> reject(input),
             ByteRead::Eof -> finish(input),
             ByteRead::Byte { value } -> classify(input, value)
         }

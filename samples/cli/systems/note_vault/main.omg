@@ -31,7 +31,6 @@ use omega_language_std\SystemTime;
 use omega_language_std\SystemTimeDifference;
 use omega_language_std\TimeHost;
 
-use omega_language_std\Console;
 use omega_language_std\FilesystemService;
 use omega_language_std\system_time_duration_since;
 use omega_language_std\system_time_from_unix_seconds;
@@ -40,7 +39,7 @@ use omega_language_std\system_time_now;
 data Main {
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation + TimeHost {
+machine main(context: @mutable Main) reaches ProcessExit + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation + TimeHost {
     let passed: i32 in Wrapping = 0 as +Wrapping;
     // 1. The vault lives in a DEEP directory (create_dir_all's dispatched
     // mkall walkers).
@@ -200,7 +199,7 @@ machine main(context: @mutable Main) reaches ProcessExit + Console + DirectoryEn
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation + TimeHost {
+machine entry_start() reaches ProcessExit + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation + TimeHost {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

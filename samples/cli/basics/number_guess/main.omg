@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Binary-search guessing game (scripted, no stdin).
 //
@@ -65,7 +67,7 @@ machine step(main: @mutable Main, target: i32 in Saturating) {
     }
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("number_guess: binary-searching [1,100] for the secret number 42");
     // Initialize search range [1, 100].
     main.search.lo = 1 as +Saturating;
@@ -120,7 +122,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

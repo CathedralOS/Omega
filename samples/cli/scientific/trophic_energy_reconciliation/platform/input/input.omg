@@ -1,9 +1,10 @@
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 // Finite decimal tokens, 0..1000. -1 means malformed, missing, or oversized.
 // Separators are ASCII space and LF. EOF terminates a token, never invents one.
 public machine read_number() -> i32 in Saturating
-reaches Console
+reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -48,7 +49,7 @@ crashes Trap
     }
 }
 
-public machine require_end() -> bool reaches Console
+public machine require_end() -> bool reaches StandardInput
 invokes Console
 blocks
 crashes Trap

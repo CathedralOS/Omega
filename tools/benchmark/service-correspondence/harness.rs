@@ -118,10 +118,12 @@ fn workloads() -> Vec<(String, String, &'static str)> {
     let console = include_str!("../../../source/library/std/console.omg");
     let console = &console
         [console.find("public data ByteRead").unwrap()..console.find("// Text adapters").unwrap()];
+    let stream_authorities = include_str!("../../../source/library/core/process_authority.omg");
+    let console = format!("{stream_authorities}\n{console}");
     let mut rows = vec![
         ("one".into(), family(1, false), "Service"),
         ("target_selected".into(), include_str!("../../../tests/fixtures/providers/run/target_selected_implementation/main.omg").into(), "TargetConstants"),
-        ("console_declarations".into(), console.into(), "Console"),
+        ("console_declarations".into(), console, "Console"),
     ];
     for methods in [16, 64] {
         rows.push((

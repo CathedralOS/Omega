@@ -18,8 +18,8 @@ def cases():
     encode = runpy.run_path(str(ROOT / 'source/application/construction/construct.py'))['encode']
     core = ROOT / 'source/library/core'
     app_import = b'use dep\\read_value;\n'
-    core_import = b'use omega\\language\\core\\ProcessOutput;\n'
-    helper = core_import + b'public machine read_value()->u8 reaches ProcessOutput {42}'
+    core_import = b'use omega\\language\\core\\StandardOutput;\n'
+    helper = core_import + b'public machine read_value()->u8 reaches StandardOutput {42}'
     packages = [('app', 0), ('provider_free_library', 0), ('omega_language_core', 1)]
     sites = [(0, 1, 'dep')]
 
@@ -34,31 +34,31 @@ def cases():
         return name, packet, b'\0' + struct.pack('<II', 1, coordinate)
 
     relay = b'machine relay()->u8 {read_value()}\n'
-    main = b'machine main()->u8 reaches ProcessOutput + ProcessOutput {relay()}'
+    main = b'machine main()->u8 reaches StandardOutput + StandardOutput {relay()}'
     app = app_import + core_import + relay + main
     yield trial('same-service', app)
-    yield trial('inferred', app.replace(b' reaches ProcessOutput + ProcessOutput', b''))
-    yield trial('separate-ceilings', app.replace(b'ProcessOutput + ProcessOutput',
-                b'ProcessInput reaches ProcessOutput').replace(relay,
-                b'use omega\\language\\core\\ProcessInput;\n' + relay))
-    yield trial('pure', app.replace(b'ProcessOutput + ProcessOutput', b'none'),
-                helper_source=helper.replace(b'reaches ProcessOutput', b'reaches none'))
-    yield trial('empty', app.replace(b'ProcessOutput + ProcessOutput', b'none'), (0, b'relay()'))
-    yield trial('wrong-service', app.replace(b'machine main', b'use omega\\language\\core\\ProcessInput;\nmachine main')
-                .replace(b'ProcessOutput + ProcessOutput', b'ProcessInput'), (0, b'relay()'))
-    yield trial('same-spelling-other-owner', app.replace(core_import, b'boundary trait ProcessOutput {}\n'),
+    yield trial('inferred', app.replace(b' reaches StandardOutput + StandardOutput', b''))
+    yield trial('separate-ceilings', app.replace(b'StandardOutput + StandardOutput',
+                b'StandardInput reaches StandardOutput').replace(relay,
+                b'use omega\\language\\core\\StandardInput;\n' + relay))
+    yield trial('pure', app.replace(b'StandardOutput + StandardOutput', b'none'),
+                helper_source=helper.replace(b'reaches StandardOutput', b'reaches none'))
+    yield trial('empty', app.replace(b'StandardOutput + StandardOutput', b'none'), (0, b'relay()'))
+    yield trial('wrong-service', app.replace(b'machine main', b'use omega\\language\\core\\StandardInput;\nmachine main')
+                .replace(b'StandardOutput + StandardOutput', b'StandardInput'), (0, b'relay()'))
+    yield trial('same-spelling-other-owner', app.replace(core_import, b'boundary trait StandardOutput {}\n'),
                 (0, b'relay()'))
     yield trial('absent-edge', app, (0, b'use dep'), edges=[])
     yield trial('untrusted-core', app, (0, b'use omega'), roles=[*packages[:2], ('omega_language_core', 0)])
-    yield trial('ordinary-name', app.replace(b'ProcessOutput + ProcessOutput', b'read_value'),
+    yield trial('ordinary-name', app.replace(b'StandardOutput + StandardOutput', b'read_value'),
                 (0, b'read_value'))
-    yield trial('mixed-empty', app.replace(b'ProcessOutput + ProcessOutput', b'none + ProcessOutput'),
+    yield trial('mixed-empty', app.replace(b'StandardOutput + StandardOutput', b'none + StandardOutput'),
                 (0, b'none'))
     yield trial('duplicate-declaration', app.replace(relay, b'boundary trait A {} boundary trait A {} ' + relay),
                 (0, b'A {}'))
     yield trial('reserved-type', app.replace(relay, b'boundary trait u97 {} ' + relay), (0, b'u97'))
     yield trial('retired-marker', app.replace(relay, b'boundary trait Block {} ' + relay)
-                .replace(b'ProcessOutput + ProcessOutput', b'Block'), (0, b'Block'))
+                .replace(b'StandardOutput + StandardOutput', b'Block'), (0, b'Block'))
     yield trial('private-import', app, (0, b'use dep'), helper_source=helper.replace(b'public machine', b'machine'))
 
     # A compiler role and an explicit reach ceiling cannot install ProcessExit.

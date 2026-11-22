@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use omega\language\core\I64::from_f64;
 use domain\filter;
@@ -6,7 +7,7 @@ use domain\filter\Filter;
 // external oracle allows 2e-6 output quantization, independently of f64 checks.
 // Scan at most nineteen decimal places with state transfers. Only the final
 // remainder is negated, so even the minimum i64 value needs no magnitude cast.
-machine print_integer(value: i64) reaches Console {
+machine print_integer(value: i64) reaches StandardOutput {
     transition value < 0 {
         true -> negative(value),
         false -> scan(value, 1000000000000000000, false)
@@ -52,12 +53,12 @@ machine print_integer(value: i64) reaches Console {
     }
     machine finished() { }
 }
-machine print_number(value: f64) reaches Console {
+machine print_number(value: f64) reaches StandardOutput {
     let integer: i64 in Saturating = I64::from_f64(value * 1000000.0);
     Console::write(" ");
     print_integer(integer as i64);
 }
-public machine emit(filter: @Filter, step: u64) reaches Console requires step <= 8 {
+public machine emit(filter: @Filter, step: u64) reaches StandardOutput requires step <= 8 {
     Console::write("TRACE ");
     print_integer(step as i64);
     print_number(filter.estimate.position);

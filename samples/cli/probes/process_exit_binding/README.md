@@ -1,5 +1,5 @@
 # process_exit_binding
 
-`Binding<Console>` + `Binding<ProcessExit>` separate provider-backed carriers on one root; `reaches Console + ProcessExit` + `context.exit.exit_process(pick(35))` terminal outcome through the canonical requirement.
+The entry writes through `Console::write_line`, then calls `ProcessExit::exit_process(pick(35))`. Its `reaches StandardOutput + ProcessExit` ceiling covers both operations.
 
 Compile-checked only: run a check target, not native.

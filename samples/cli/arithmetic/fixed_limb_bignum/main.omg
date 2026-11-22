@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Fixed-limb unsigned bignum arithmetic (8 x u32 little-endian limbs in a record).
 //
@@ -349,7 +350,7 @@ data Main {
     digits: [u8; 40];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     // A = 2^65 - 1 = [0xFFFFFFFF, 0xFFFFFFFF, 1, 0, 0, 0, 0, 0]
     main.a = Bignum {
         limbs: [
@@ -470,7 +471,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

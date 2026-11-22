@@ -1,9 +1,10 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use protocol\model;
 
 public data Report { }
 
-public machine row(laboratory: @protocol\model\Laboratory, decision: i32) reaches Console
+public machine row(laboratory: @protocol\model\Laboratory, decision: i32) reaches StandardOutput
 invokes Console
 {
     decision(decision);
@@ -22,7 +23,7 @@ invokes Console
     Console::write_line("");
 }
 
-machine number(value: i32 in Saturating) reaches Console {
+machine number(value: i32 in Saturating) reaches StandardOutput {
     transition value >= 0 && value <= 99 {
         true -> digits(value),
         false -> invalid()
@@ -38,7 +39,7 @@ machine number(value: i32 in Saturating) reaches Console {
     }
 }
 
-machine report_lid(closed: bool) reaches Console {
+machine report_lid(closed: bool) reaches StandardOutput {
     transition closed {
         true -> shut(),
         false -> open()
@@ -47,7 +48,7 @@ machine report_lid(closed: bool) reaches Console {
     machine open() { Console::write("open"); }
 }
 
-machine decision(decision: i32) reaches Console {
+machine decision(decision: i32) reaches StandardOutput {
     transition decision {
         0 -> acquired(),
         1 -> loaded(),

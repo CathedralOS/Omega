@@ -1,9 +1,10 @@
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 public data Parsed [copy] { value: i64 in Wrapping; valid: bool; }
 // One signed decimal per LF-delimited field. Ten digits bound accumulation;
 // malformed, empty, missing and overlong fields are rejected before forecasting.
-public machine read_number() -> Parsed reaches Console
+public machine read_number() -> Parsed reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -46,7 +47,7 @@ crashes Trap
         }
     }
 }
-public machine input_complete() -> bool reaches Console
+public machine input_complete() -> bool reaches StandardInput
 invokes Console
 blocks
 crashes Trap

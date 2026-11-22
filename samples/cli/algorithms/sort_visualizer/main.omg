@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // A bubble-sort VISUALIZER: eight values drawn as horizontal bars (a row of '#' whose
 // length is the value), re-rendered in place after every pass so you watch the array
@@ -50,7 +52,7 @@ requires
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Clock + Console {
+machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + StandardOutput {
     Console::write_line("sort_visualizer: bubble sort animated as bars settling into a staircase");
     main.arr = [5, 2, 8, 1, 7, 3, 6, 4];
     main.home = "XXX";
@@ -171,7 +173,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + Console {
+machine entry_start() reaches ProcessExit + Clock + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

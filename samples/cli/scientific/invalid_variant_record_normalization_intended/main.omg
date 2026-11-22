@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
@@ -6,10 +8,11 @@ data Invalid { }
 machine unchecked_base(reference: @[u8; 8], position: u64) -> u8 {
     reference[position]
 }
-machine main(entry: @mutable Invalid) reaches ProcessExit + Console {
+machine main(entry: @mutable Invalid) reaches ProcessExit + StandardInput + StandardOutput {
     let mutable input: [u8; 8];
     let observed: ByteRead = block Console::read_byte();
     transition observed {
+        ByteRead::Error -> ProcessExit::exit_process(74),
         ByteRead::Byte { value } -> index(entry, @input, value as u64),
         ByteRead::Eof -> done(entry)
     }
@@ -22,7 +25,7 @@ machine main(entry: @mutable Invalid) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Invalid;
     block main(@mutable entry_storage);
 }

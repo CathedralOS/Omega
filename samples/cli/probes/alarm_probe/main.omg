@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 70.
 // Minimal miscompile probe: 5-arm case dispatch with payload variants first,
@@ -40,7 +42,7 @@ machine Main::dispatch(main: @mutable Main, event: AlarmEvent) {
     machine done() {}
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("alarm_probe: no-payload case arm after payload arms -- Trigger must fire twice");
     Main::dispatch(main, AlarmEvent::Trigger);
     Main::dispatch(main, AlarmEvent::Trigger);
@@ -64,7 +66,7 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block Main::main(@mutable entry_storage);
 }

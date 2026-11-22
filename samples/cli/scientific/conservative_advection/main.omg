@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0 with input.txt. Empty stdin exits 64.
 // Expected output contains: ADVECTED
@@ -11,7 +13,7 @@ use model\transport;
 data Main {}
 
 // The explicit entry context is ordinary ZII-valid data; checked Console calls demand its static provider slot.
-machine main(context:@mutable Main) reaches ProcessExit + Console {
+machine main(context:@mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
  let mutable input:input\Input;
  let mutable field:transport\Field;
  let parsed:bool=block io\input\parse(@mutable input);
@@ -42,7 +44,7 @@ machine main(context:@mutable Main) reaches ProcessExit + Console {
  machine bad_data() { Console::write_line("REJECT dimensions, finite data, positive spacing/timestep, nonnegative field or stable CFL"); ProcessExit::exit_process(65); }
 }
 
-machine value(field:@model\transport\Field,index:u32 in Saturating) reaches Console {
+machine value(field:@model\transport\Field,index:u32 in Saturating) reaches StandardOutput {
  transition field.exact { true -> exact(field,index), false -> computed(field,index) }
  machine exact(field:@model\transport\Field,index:u32 in Saturating) {
   io\decimal\number(narrow_u64_to_i64_saturating(field.coefficients[index%64] as u64) as i64 +Wrapping);
@@ -54,7 +56,7 @@ machine value(field:@model\transport\Field,index:u32 in Saturating) reaches Cons
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

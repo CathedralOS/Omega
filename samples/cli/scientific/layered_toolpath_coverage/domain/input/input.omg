@@ -1,13 +1,15 @@
+use omega\language\core\StandardInput;
 use domain\model;
 use domain\model\Job;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 // A digit is one token. Whitespace is optional; EOF and other bytes are errors.
-machine digit() -> i32 in Wrapping reaches Console {
+machine digit() -> i32 in Wrapping reaches StandardInput {
     transition { _ -> read() }
     machine read() -> i32 in Wrapping {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> (0 - 1),
             ByteRead::Eof -> (0 - 1),
             ByteRead::Byte { value } -> classify(value)
         }
@@ -26,11 +28,12 @@ machine digit() -> i32 in Wrapping reaches Console {
         }
     }
 }
-machine input_end() -> bool reaches Console {
+machine input_end() -> bool reaches StandardInput {
     transition { _ -> read() }
     machine read() -> bool {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> false,
             ByteRead::Eof -> true,
             ByteRead::Byte { value } -> classify(value)
         }
@@ -43,7 +46,7 @@ machine input_end() -> bool reaches Console {
     }
     machine again() -> bool { transition { _ -> read() } }
 }
-public machine load(job: @mutable Job) -> bool reaches Console {
+public machine load(job: @mutable Job) -> bool reaches StandardInput {
     job.width = block digit();
     job.height = block digit();
     job.layers = block digit();

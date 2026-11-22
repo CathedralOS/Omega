@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // LED channel mixer -- brightness math that cannot overflow. Decision-17
 // SATURATING domains do the clamping in the TYPE, not in hand-written guards:
@@ -14,7 +15,7 @@ use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     // Two bright sources: 180 + 140 = 320 -> clamps at full brightness.
     let source_a: u8 in Saturating = 180 as +Saturating;
     let source_b: u8 in Saturating = 140 as +Saturating;
@@ -63,7 +64,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

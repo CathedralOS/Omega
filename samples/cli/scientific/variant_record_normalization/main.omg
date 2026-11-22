@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete streamed synthetic variant-normalization application.
 use omega_language_std\Console;
@@ -33,7 +35,7 @@ data Application {
     rejected: u64 in Wrapping;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let mutable application: Application;
     Console::write_line("VARIANT_NORMALIZATION|1");
     transition { _ -> read(@mutable application) }
@@ -41,6 +43,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
         let mutable line: [u8; 64];
         let result: LineReadResult = block Console::read_line(@mutable line[..]);
         transition result {
+            LineReadResult::Error { count } -> exit(74),
             LineReadResult::LineComplete { count } -> process(application, @line, count, false),
             LineReadResult::EndOfInput { count } -> eof(application, @line, count),
             LineReadResult::Full { count } -> overflow(application),
@@ -103,7 +106,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
     machine exit(code: i32) { ProcessExit::exit_process(code); }
 }
 
-machine consume(application: @mutable Application, input: @Input) -> u64 in Wrapping reaches ProcessExit + Console {
+machine consume(application: @mutable Application, input: @Input) -> u64 in Wrapping reaches ProcessExit + StandardOutput {
     transition input.valid {
         true -> select(application, input),
         _ -> 1
@@ -200,7 +203,7 @@ machine consume(application: @mutable Application, input: @Input) -> u64 in Wrap
     }
 }
 
-machine render_ledger(ledger: @Ledger) reaches ProcessExit + Console {
+machine render_ledger(ledger: @Ledger) reaches ProcessExit + StandardOutput {
     transition { _ -> row(ledger, 0) }
     machine row(ledger: @Ledger, index: u64 in Wrapping) {
         transition index < ledger.count && index < 32 {
@@ -235,7 +238,7 @@ machine render_ledger(ledger: @Ledger) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

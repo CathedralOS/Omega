@@ -1,8 +1,9 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 
 // Decimal output keeps its own bounded divisor loop; no formatter package.
 public machine number(value: i64 in Wrapping)
-reaches Console
+reaches StandardOutput
 invokes Console
 {
     transition value < 0 {
@@ -36,7 +37,7 @@ invokes Console
     }
     machine done() { Console::write(" "); }
 }
-machine decimal_digit(digit: i64 in Wrapping) reaches Console {
+machine decimal_digit(digit: i64 in Wrapping) reaches StandardOutput {
     transition digit {
         0 -> zero(),
         1 -> one(),

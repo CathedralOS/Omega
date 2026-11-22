@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Hex dump -- renders a fixed 16-byte record as one canonical dump line:
 // offset, sixteen lowercase hex pairs, then an ASCII gutter that maps every
@@ -32,7 +34,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("hex_dump: 16 bytes as one canonical dump line (offset, hex pairs, gutter)");
     Console::write("0000: ");
     main.data = "Omega Psi tape!!";
@@ -167,7 +169,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

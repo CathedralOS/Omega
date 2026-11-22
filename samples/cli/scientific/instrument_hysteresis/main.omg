@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega\language\core\max_i32;
 
@@ -27,7 +29,7 @@ data Instrument {
 }
 // One finite record per iteration. Invalid records never mutate history.
 // The 256-row bound keeps counts and residual sums within signed i32.
-machine run(instrument: @mutable Instrument) reaches ProcessExit + Console {
+machine run(instrument: @mutable Instrument) reaches ProcessExit + StandardInput + StandardOutput {
     initialize(@mutable instrument.calibration);
     Console::write_line("row stimulus branch prediction observed residual width (response milliunits)");
     transition { _ -> block read(instrument) }
@@ -129,7 +131,7 @@ machine run(instrument: @mutable Instrument) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Instrument;
     block run(@mutable entry_storage);
 }

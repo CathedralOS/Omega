@@ -1,3 +1,4 @@
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 
@@ -20,13 +21,14 @@ data Token { value: i32 in Wrapping; valid: bool; }
 // number is accepted; EOF before a required number is invalid. Only ASCII
 // whitespace separates tokens. An offending character never becomes zero.
 machine token(token: @mutable Token)
-reaches Console {
+reaches StandardInput {
     token.valid = false;
     token.value = 0;
     transition { _ -> leading(token) }
     machine leading(token: @mutable Token) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> stopped(),
             ByteRead::Eof -> stopped(),
             ByteRead::Byte { value } -> first(token, value)
         }
@@ -50,6 +52,7 @@ reaches Console {
     machine next(token: @mutable Token, count: i32 in Wrapping) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> stopped(),
             ByteRead::Eof -> complete(token),
             ByteRead::Byte { value } -> separator(token, value, count)
         }
@@ -66,7 +69,7 @@ reaches Console {
 
 public machine read_image(image: @mutable Image) -> bool
 invokes Console
-reaches Console
+reaches StandardInput
 blocks
 crashes Trap
 {
@@ -127,6 +130,7 @@ crashes Trap
     machine trailing() -> bool {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> false,
             ByteRead::Eof -> true,
             ByteRead::Byte { value } -> whitespace(value)
         }

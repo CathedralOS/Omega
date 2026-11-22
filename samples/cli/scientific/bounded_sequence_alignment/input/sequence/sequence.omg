@@ -1,3 +1,4 @@
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 
@@ -11,7 +12,7 @@ public data Sequence {
 // FASTA headers, punctuation or alphabet beyond A/C/G/T/N is silently accepted.
 // Status: 0 valid, 1 empty, 2 alphabet, 3 capacity, 4 unavailable line.
 public machine read_sequence(sequence: @mutable Sequence) -> i32
-reaches Console
+reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -21,6 +22,7 @@ crashes Trap
     machine next(sequence: @mutable Sequence) -> i32 {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> (2),
             ByteRead::Eof -> end(sequence),
             ByteRead::Byte { value } -> block byte(sequence, value)
         }

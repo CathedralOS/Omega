@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // A tick-PACED marquee -- the first render loop verified against REAL elapsed time. A '#'
 // sweeps across a carrier line for 24 frames at ~15ms each (write_line + Clock.sleep), and
@@ -22,7 +24,7 @@ data Main {
     t_start: Instant;
     pause: [u8; 256];
 }
-machine main(main: @mutable Main) reaches ProcessExit + Clock + Console + TimeHost {
+machine main(main: @mutable Main) reaches ProcessExit + Clock + StandardInput + StandardOutput + TimeHost {
     Console::write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
     main.t_start = instant_now();
     main.frame = 0u32 as +Wrapping;
@@ -69,7 +71,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Clock + Console + TimeHo
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Clock + Console + TimeHost {
+machine entry_start() reaches ProcessExit + Clock + StandardInput + StandardOutput + TimeHost {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

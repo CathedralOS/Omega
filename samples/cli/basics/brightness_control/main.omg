@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // A brightness controller whose command cases publish ordinary predicates.
 // Matching SetLevel supplies its level bounds; matching Dim supplies the
@@ -23,7 +24,7 @@ data Main requires brightness >= 0 && brightness <= 100 {
     command: Command;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     Console::write_line("brightness_control: applying a bounded SetLevel command");
     main.brightness = 80;
     main.command = Command::SetLevel { level: 65 };
@@ -48,7 +49,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

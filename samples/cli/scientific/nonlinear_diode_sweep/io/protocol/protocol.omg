@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
@@ -17,7 +19,7 @@ public data Protocol {
 // LF or EOF completes the record. The parser stores no more than nine values,
 // reads at most 160 bytes, and rejects rather than wrapping decimal overflow.
 public machine read(protocol: @mutable Protocol) -> bool
-reaches ProcessExit + Console
+reaches ProcessExit + StandardInput
 blocks
 crashes Trap
 {
@@ -38,6 +40,7 @@ crashes Trap
         let observed: ByteRead = block Console::read_byte();
         protocol.length = protocol.length + 1;
         transition observed {
+            ByteRead::Error -> rejected(),
             ByteRead::Eof -> finish(protocol),
             ByteRead::Byte { value } -> character(protocol, value)
         }
@@ -144,7 +147,7 @@ crashes Trap
 }
 
 public machine integer(protocol: @mutable Protocol, value: i32 in Wrapping)
-reaches ProcessExit + Console {
+reaches ProcessExit + StandardOutput {
     transition value < 0 {
         true -> negative(protocol, value),
         false -> digits(protocol, value, 1000000000, false)
@@ -196,7 +199,7 @@ reaches ProcessExit + Console {
 // Nine significant decimal digits as signed integer mantissa and power of ten.
 // All model outputs are finite, and normalization precedes the trapping cast.
 public machine number(protocol: @mutable Protocol, value: f64)
-reaches ProcessExit + Console {
+reaches ProcessExit + StandardOutput {
     transition value == 0.0 {
         true -> zero(protocol),
         false -> sign(protocol, value)

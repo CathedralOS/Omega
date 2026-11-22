@@ -2,7 +2,6 @@ use omega\language\core\ProcessExit;
 // Intended-invalid control: calling find on an out-of-range
 // element (64, violating element < 64) must be rejected at compile time.
 
-use omega_language_std\Console;
 
 data DisjointSet {
     parent: [u64; 64];
@@ -19,13 +18,13 @@ ensures result < 64
     sets.parent[element]
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit {
     let invalid_rep: u64 = find(@mutable main.sets, 64);
     ProcessExit::exit_process(invalid_rep as i32);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

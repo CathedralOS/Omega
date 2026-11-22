@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
@@ -9,7 +11,7 @@ public data Protocol {
 }
 // EOF is the record boundary; every byte, token and digit has a hard bound.
 public machine read(protocol: @mutable Protocol) -> bool
-reaches Console blocks crashes Trap {
+reaches StandardInput blocks crashes Trap {
  protocol.position = 0; protocol.length = 0; protocol.accumulator = 0.0;
  protocol.scale = 1.0; protocol.decimal = false; protocol.digits = 0; protocol.started = false;
  transition { _ -> scan(protocol) }
@@ -19,7 +21,7 @@ reaches Console blocks crashes Trap {
  machine observe(protocol: @mutable Protocol) -> bool {
   let observed: ByteRead = block Console::read_byte();
   protocol.length = protocol.length + 1;
-  transition observed { ByteRead::Eof -> commit(protocol, true), ByteRead::Byte { value } -> character(protocol, value) }
+  transition observed { ByteRead::Error -> rejected(), ByteRead::Eof -> commit(protocol, true), ByteRead::Byte { value } -> character(protocol, value) }
  }
  machine character(protocol: @mutable Protocol, value: i32) -> bool {
   transition value >= 48 && value <= 57 { true -> digit(protocol, value), false -> punctuation(protocol, value) }
@@ -73,7 +75,7 @@ reaches Console blocks crashes Trap {
 }
 
 public machine integer(protocol: @mutable Protocol, value: i32 in Wrapping)
-reaches ProcessExit + Console {
+reaches ProcessExit + StandardOutput {
     transition value < 0 {
         true -> negative(protocol, value),
         false -> digits(protocol, value, 1000000000, false)
@@ -125,7 +127,7 @@ reaches ProcessExit + Console {
 // Nine significant decimal digits as signed integer mantissa and power of ten.
 // All model outputs are finite, and normalization precedes the trapping cast.
 public machine number(protocol: @mutable Protocol, value: f64)
-reaches ProcessExit + Console {
+reaches ProcessExit + StandardOutput {
     transition value == 0.0 {
         true -> zero(protocol),
         false -> sign(protocol, value)

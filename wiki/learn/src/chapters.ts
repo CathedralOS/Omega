@@ -37,20 +37,20 @@ export const chapters: Chapter[] = [
         title: "The smallest whole program",
         figure: {
           kind: "code",
-          code: `use omega::language::core::process_exit;
-use omega_language_std::process_exit;
-use omega_language_std::console;
+          code: `use omega\\language\\core\\ProcessExit;
+use omega\\language\\core\\StandardOutput;
+use omega_language_std\\Console;
 
-machine start() reaches Console + ProcessExit {
+machine start() reaches StandardOutput + ProcessExit {
     Console::write_line("Hello, Omega.");
     ProcessExit::exit_process(0);
 }`,
           highlight: [5],
         },
         notes: [
-          { for: 1, text: "Process exit is its own boundary service, `ProcessExit`, separate from printing. The first two `use` lines bring in the contract and its standard-library binding." },
+          { for: 1, text: "The first two imports name the core services this entry can reach: `ProcessExit` ends the process, and `StandardOutput` covers writing to its designated output stream." },
           { for: 3, text: "Brings in the `Console` boundary trait. The standard library supplies the provider for each hosted target, and `build.omg` can select another one." },
-          { for: 5, text: "`machine` declares a state machine with no implicit state or `self`. `reaches Console + ProcessExit` is its service ceiling: without that clause, it cannot touch the outside world." },
+          { for: 5, text: "`machine` declares a state machine with no implicit state or `self`. `reaches StandardOutput + ProcessExit` allows writing to the process’s designated standard output and exiting the process." },
           { for: 6, text: "`Console::write_line` calls the boundary contract statically. The source never names a platform handle or syscall." },
           { for: 7, text: "`ProcessExit::exit_process(0)` terminates the process domain with status 0. Printing never implies permission to exit, so the signature names both services." },
         ],
@@ -374,21 +374,21 @@ ensures
         title: "Reach is declared, then checked",
         figure: {
           kind: "code",
-          code: `use omega::language::core::process_exit;
-use omega_language_std::process_exit;
-use omega_language_std::console;
+          code: `use omega\\language\\core\\ProcessExit;
+use omega\\language\\core\\StandardOutput;
+use omega_language_std\\Console;
 
-machine start() reaches Console + ProcessExit {
+machine start() reaches StandardOutput + ProcessExit {
     Console::write_line("through one wall");
     ProcessExit::exit_process(0);
 }`,
           highlight: [5],
         },
         notes: [
-          { for: 5, text: "`reaches Console + ProcessExit` is a conservative upper bound on the external services this machine (and anything it calls) may touch." },
-          { for: 6, text: "`Console::write_line` targets the portable `Console` contract. A desktop build, a serial UART, and an in-memory test harness all satisfy the same call." },
+          { for: 5, text: "`reaches StandardOutput + ProcessExit` is a conservative upper bound on the external services this machine (and anything it calls) may touch." },
+          { for: 6, text: "`Console::write_line` writes to the process’s designated standard output. The build selects the provider that implements the call." },
           { for: 7, text: "This entry machine returns no value; it ends the process explicitly through `ProcessExit::exit_process`. The compiler rejects an entry machine that returns a value." },
-          { text: "Audit `reaches` first during code review. A sorting helper or parser that asks to reach `Console` or `ProcessExit` is a design bug." },
+          { text: "Audit `reaches` first during code review. A sorting helper or parser that asks to reach `StandardOutput` or `ProcessExit` is a design bug." },
         ],
       },
       {
@@ -419,7 +419,7 @@ machine uptime() -> u64 reaches Clock {
           { for: 7, text: "`FakeClock satisfies Clock` declares a named implementation. It is not a data type with machines attached to it, and it holds no state: anything that must outlive a call is a value the service returns and the caller passes back." },
           { for: 8, text: "The implementation's machine inherits `Clock::now`'s contract, and the checker verifies the body refines it." },
           { for: 13, text: "`uptime` calls `Clock::now()` against the trait and declares `reaches Clock`, staying decoupled from `FakeClock`. The build selects which implementation answers `Clock`." },
-          { text: "In `source/library/std/console.omg`, `Console::read_byte` declares `blocks` and `crashes Trap`, which is why callers write `block Console::read_byte()`." },
+          { text: "`block Console::read_byte()` may wait for the process’s designated standard input. With `reaches StandardInput`, a caller can read a byte, see `ByteRead::Eof`, or handle a host read failure as `ByteRead::Error`." },
         ],
       },
     ],
@@ -461,11 +461,11 @@ machine uptime() -> u64 reaches Clock {
     );
 }`,
           filename: "build.omg",
-          companion: `use omega::language::core::process_exit;
-use omega_language_std::process_exit;
-use omega_language_std::console;
+          companion: `use omega\\language\\core\\ProcessExit;
+use omega\\language\\core\\StandardOutput;
+use omega_language_std\\Console;
 
-machine start() reaches Console + ProcessExit {
+machine start() reaches StandardOutput + ProcessExit {
     Console::write_line("wired by the build machine");
     ProcessExit::exit_process(0);
 }`,
@@ -474,7 +474,7 @@ machine start() reaches Console + ProcessExit {
         notes: [
           { for: 1, text: "`build.omg` defines `machine build(builder: @mutable Build)`. It is parsed, type-checked, and evaluated under the same rules as application code." },
           { for: 2, text: "`Build::application` declares an executable root (libraries use `Build::package`; workspaces use `Build::member`). Mixing or repeating kinds is rejected." },
-          { for: 3, text: "`Build::dependency` registers the standard library from a source so `main.omg` can `use omega_language_std::console`. Dependencies come only from this registration; imports never add one." },
+          { for: 3, text: "`Build::dependency` registers the standard library from a source so `main.omg` can import the `Console` trait. Dependencies come only from this registration; imports never add one." },
           { for: 6, text: "`Build::bind` connects a target's `ProgramEntry` slot to the free entry machine `start`. Naming `start` selects the entry without allocating hidden state." },
           { for: 8, text: "A project with dependencies records its accepted resolution in `omega.lock`; `omega packages update` acquires and reviews it (spec: package acceptance)." },
           { for: 11, text: "Each hosted target (`windows_x86_64`, `linux_x86_64`, `linux_arm64`, `macos_arm64`) binds its own `ProgramEntry` to the same portable `start` machine. A required slot with no binding for the selected target is an error." },
@@ -493,9 +493,9 @@ machine start() reaches Console + ProcessExit {
         title: "Pad it yourself",
         figure: {
           kind: "code",
-          code: `use omega::language::core::process_exit;
-use omega_language_std::process_exit;
-use omega_language_std::console;
+          code: `use omega\\language\\core\\ProcessExit;
+use omega\\language\\core\\StandardOutput;
+use omega_language_std\\Console;
 
 machine clear(line: @mutable [u8; 28]) {
     transition { _ -> scan(line, 0u64) }
@@ -515,7 +515,7 @@ machine clear(line: @mutable [u8; 28]) {
     machine done() { }
 }
 
-machine main() reaches Console + ProcessExit {
+machine main() reaches StandardOutput + ProcessExit {
     let mutable line: [u8; 28] =
         "this text is about to vanish";
     clear(@mutable line);
@@ -564,12 +564,12 @@ machine main() reaches Console + ProcessExit {
         title: "The exit code is an answer",
         figure: {
           kind: "code",
-          code: `use omega::language::core::process_exit;
-use omega_language_std::process_exit;
-use omega_language_std::console;
+          code: `use omega\\language\\core\\ProcessExit;
+use omega\\language\\core\\StandardOutput;
+use omega_language_std\\Console;
 
 // Expected exit: 70.
-machine start() reaches Console + ProcessExit {
+machine start() reaches StandardOutput + ProcessExit {
     let sorted: u64 in Wrapping = (64u64 + 6u64) as +Wrapping;
     Console::write_line("ten shelves, sorted");
     ProcessExit::exit_process(sorted as -Wrapping as i32);
@@ -633,12 +633,12 @@ machine start() reaches Console + ProcessExit {
         title: "The program, whole",
         figure: {
           kind: "code",
-          code: `use omega::language::core::process_exit;
-use omega_language_std::process_exit;
-use omega_language_std::console;
+          code: `use omega\\language\\core\\ProcessExit;
+use omega\\language\\core\\StandardOutput;
+use omega_language_std\\Console;
 
 // Expected exit: 4.
-machine start() reaches Console + ProcessExit {
+machine start() reaches StandardOutput + ProcessExit {
     transition { _ -> count(2026u64, 0u8 as +Wrapping) }
 
     machine count(n: u64, digits: u8 in Wrapping) {
@@ -656,7 +656,7 @@ machine start() reaches Console + ProcessExit {
           highlight: [9, 11],
         },
         notes: [
-          { for: 6, text: "Read the capability ceiling first: `start` may write to `Console` and terminate via `ProcessExit`, and nothing else." },
+          { for: 6, text: "Read the capability ceiling first: `start` may write to the designated standard output and terminate via `ProcessExit`, and nothing else." },
           { for: 7, text: "Setup finishes with an unconditional `transition` into `count(2026u64, 0u8)`, seeding the loop's initial arguments. The literal `0u8` gains the `Wrapping` domain only through the cast `as +Wrapping`; passing it to a `Wrapping` parameter does not add it." },
           { for: 9, text: "`digits: u8 in Wrapping` qualifies the accumulator with wrapping arithmetic, and `digits as -Wrapping as i32` (line 17) first drops the domain, then converts explicitly: Omega has no implicit widening, and every `u8` value fits an `i32`." },
           { for: 10, text: "`n >= 10u64` partitions the loop: values with at least two digits left continue; single-digit remainders finish in `report`." },
@@ -669,7 +669,7 @@ machine start() reaches Console + ProcessExit {
         title: "What the check did not tell you",
         figure: {
           kind: "prose",
-          text: "`omega --check` proved that `10u64` is a nonzero divisor, `digits + 1u8` has a defined overflow policy, `digits as -Wrapping as i32` is in range, every transition arm lands in a valid state, and only `Console` and `ProcessExit` are reached. It did not prove that `2026` has 4 digits rather than 5 — running the binary and checking exit code `4` against the oracle closes that loop.",
+          text: "`omega --check` proved that `10u64` is a nonzero divisor, `digits + 1u8` has a defined overflow policy, `digits as -Wrapping as i32` is in range, every transition arm lands in a valid state, and only `StandardOutput` and `ProcessExit` are reached. It did not prove that `2026` has 4 digits rather than 5 — running the binary and checking exit code `4` against the oracle closes that loop.",
         },
         notes: [
           { text: "Static proof guarantees the machine's invariants and safety boundaries; execution against an oracle verifies its domain answer." },

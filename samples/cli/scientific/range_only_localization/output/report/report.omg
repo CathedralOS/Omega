@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use omega\language\core\narrow_i32_to_u8_wrapping;
 
@@ -11,7 +12,7 @@ data Decimal {
 // Prepare signed decimal bytes before invoking Console. A nonpositive
 // working value represents i32::MIN exactly; eleven bytes include its sign.
 public machine number(value: i32 in Wrapping)
-reaches Console
+reaches StandardOutput
 invokes Console
 {
     let mutable decimal: Decimal;

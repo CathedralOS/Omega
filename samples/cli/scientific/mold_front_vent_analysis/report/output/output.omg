@@ -1,10 +1,11 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use model\fill;
 use model\fill\Cavity;
 use model\fill\air_closure;
 use model\fill\cell_count;
 
-machine decimal(value: i32 in Wrapping, divisor: i32 in Wrapping) reaches Console {
+machine decimal(value: i32 in Wrapping, divisor: i32 in Wrapping) reaches StandardOutput {
     transition divisor > 0 {
         true -> digit(value, divisor, 0),
         _ -> done()
@@ -28,7 +29,7 @@ machine decimal(value: i32 in Wrapping, divisor: i32 in Wrapping) reaches Consol
     machine done() { }
 }
 
-machine map(cavity: @Cavity, phase: bool) reaches Console {
+machine map(cavity: @Cavity, phase: bool) reaches StandardOutput {
     transition { _ -> cell(cavity, phase, 0, 1) }
     machine cell(cavity: @Cavity, phase: bool, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition index >= 0 && index < 16 {
@@ -82,7 +83,7 @@ machine map(cavity: @Cavity, phase: bool) reaches Console {
     machine done() { }
 }
 
-machine regions(trapped: i32 in Wrapping) reaches Console {
+machine regions(trapped: i32 in Wrapping) reaches StandardOutput {
     transition { _ -> scan(trapped, 0, 1) }
     machine scan(rest: i32 in Wrapping, index: i32 in Wrapping, bit: i32 in Wrapping) {
         transition index < 16 && rest != 0 {
@@ -107,7 +108,7 @@ machine regions(trapped: i32 in Wrapping) reaches Console {
     machine done() { }
 }
 
-public machine report(cavity: @Cavity) reaches Console
+public machine report(cavity: @Cavity) reaches StandardOutput
 invokes Console
 {
     Console::write_line("MOLD_FRONT_VENT_V1");

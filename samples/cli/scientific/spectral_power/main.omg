@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0 (valid input).
 use domain\input;
@@ -21,7 +23,7 @@ data Application {
     index: i32 in Wrapping; start: i32 in Wrapping; segments: i32 in Wrapping;
     energy: f64; width: i32 in Wrapping; group: i32 in Wrapping; butterfly: i32 in Wrapping;
 }
-machine main(application: @mutable Application) reaches ProcessExit + Console crashes Trap {
+machine main(application: @mutable Application) reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
     let sampling: Number = block number(@mutable application.reader);
     let gain: Number = block number(@mutable application.reader);
     let offset: Number = block number(@mutable application.reader);
@@ -202,7 +204,7 @@ machine reverse_bits(value: i32 in Wrapping, size: i32 in Wrapping) -> i32 in Wr
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console crashes Trap {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
     let mutable entry_storage: Application;
     block main(@mutable entry_storage);
 }

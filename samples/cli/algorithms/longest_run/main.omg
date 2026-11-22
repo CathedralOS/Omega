@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Longest run of equal bytes, the measure behind run-length encoding.
 // The input belongs to the invocation. States carry the cursor, previous byte,
@@ -16,7 +18,7 @@ use omega_language_std\Console;
 data Main {
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + Console {
+machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("longest_run: finding the longest run of equal bytes in aaabbbbccdaa");
     let text: [u8; 12] in Utf8 = "aaabbbbccdaa";
     let maximum: i32 in Wrapping = longest_run(@text);
@@ -77,7 +79,7 @@ machine longest_run(text: @[u8; 12] in Utf8) -> i32 in Wrapping {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

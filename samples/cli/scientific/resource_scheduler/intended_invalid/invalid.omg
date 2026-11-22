@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete negative source control: this literal start exceeds its required
 // finite mathematical contract. The checker must reject before any native run.
@@ -10,14 +11,14 @@ machine validate_start(start: i32)
 
 const INVALID_START: i32 = 21;
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     validate_start(INVALID_START);
     Console::write_line("INVALID SOURCE WAS ACCEPTED");
     ProcessExit::exit_process(INVALID_START);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

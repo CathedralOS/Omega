@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: float equality: equal and unequal
@@ -11,7 +13,7 @@ public data Main { }
 // sharing the carrier of a resultless law must not grant proposition equality.
 machine same(left: f64, right: f64) -> bool { left == right }
 
-public machine main(application: @mutable Main) reaches ProcessExit + Console
+public machine main(application: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput
 invokes Console
 blocks
 crashes Trap

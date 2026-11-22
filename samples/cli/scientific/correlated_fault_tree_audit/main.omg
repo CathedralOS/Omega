@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Declared synthetic instrument model: A sensor fault, B power fault,
 // C shared environmental cause. Input contains complete joint weights.
@@ -26,7 +28,7 @@ data Main {
     event: i32;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     transition { _ -> block read(main) }
     machine read(main: @mutable Main) {
         transition main.bytes >= 0 && main.bytes < 256 {
@@ -39,6 +41,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
         main.bytes = main.bytes + 1;
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> invalid(main),
             ByteRead::Eof -> end(main),
             ByteRead::Byte { value } -> block classify(main, value)
         }
@@ -298,7 +301,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

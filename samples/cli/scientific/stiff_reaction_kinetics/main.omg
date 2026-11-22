@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 2. Empty stdin is invalid; valid input returns 0.
 // Expected output contains: INVALID reaction input
@@ -19,7 +21,7 @@ use domain\report;
 use domain\report\scaled;
 use domain\report\integer64;
 data Main { input: Input; problem: Problem; solution: Solution; }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     block read(@mutable main.input);
     transition valid(@main.input) { true -> prepare(main), false -> invalid(main) }
     machine prepare(main: @mutable Main) {
@@ -47,7 +49,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

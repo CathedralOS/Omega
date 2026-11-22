@@ -7,7 +7,6 @@ use omega\language\core\transpose;
 use omega\language\core\try_read;
 use omega\language\core\valid_mutable;
 use omega\language\core\valid_readonly;
-use omega_language_std\Console;
 data Main { }
 machine equals(backing: @[i32], layout: @Layout2, row: u64, column: u64, expected: i32) -> bool {
     let result: ReadResult = try_read(backing, layout, row, column);
@@ -26,7 +25,7 @@ requires layout.origin == 0 && layout.row_stride == 1 && layout.column_stride ==
     read_checked(backing, offset)
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + Console {
+machine main(context: @mutable Main) reaches ProcessExit {
     let backing: [i32; 6] = [1, 4, 2, 5, 3, 6];
     let layout: Layout2 = Layout2 { rows: 2, columns: 3, origin: 0, row_stride: 1, column_stride: 2 };
     let empty: Layout2 = Layout2 { rows: 0, columns: 3, origin: 0, row_stride: 1, column_stride: 0 };
@@ -66,7 +65,7 @@ machine main(context: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Dijkstra's Dutch national flag -- the classic three-pointer in-place
 // partition, over a real enum array: everything below `w` is Red, everything
@@ -50,12 +52,12 @@ requires
 }
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let mutable context: Partition;
     block sort(@mutable context);
 }
 
-machine sort(context: @mutable Partition) reaches ProcessExit + Console {
+machine sort(context: @mutable Partition) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("dutch_flag: partitioning [White, Blue, Red] into [Red, White, Blue]");
     context.items[0] = Color::White;
     context.items[1] = Color::Blue;
@@ -210,7 +212,7 @@ machine sort(context: @mutable Partition) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

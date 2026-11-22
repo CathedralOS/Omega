@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use targets\alpha_bootstrap\AlphaConsoleBytes;
 use targets\windows_x86_64\WindowsConsoleBytes;
 use omega\language\core\narrow_i32_to_u8_wrapping;
@@ -7,12 +9,13 @@ use omega\language\core\widen_u8_to_i32;
 // shared checked adapters perform text I/O through its explicit byte operations.
 // Physical target directories share this package's logical namespace.
 
-// A zero-initialized ByteRead is end of input. Every Byte carries 0 through 255.
-public data ByteRead 
-    requires (self in ByteRead::Eof) || ((self in ByteRead::Byte) && (self.value >= 0 && self.value <= 255))
+// Eof is the zero-initialized value. Error reports a failed read; Byte carries 0 through 255.
+public data ByteRead
+    requires (self in ByteRead::Eof) || (self in ByteRead::Error) || ((self in ByteRead::Byte) && (self.value >= 0 && self.value <= 255))
 {
     case Eof;
     case Byte(value: i32);
+    case Error;
 }
 
 // Counts describe only the prefix written during this invocation. Invalid is
@@ -22,221 +25,218 @@ public data LineReadResult {
     case LineComplete(count: u64);
     case EndOfInput(count: u64);
     case Full(count: u64);
+    case Error(count: u64);
 }
 
 public boundary trait Console {
     machine write_line(text: @[u8])
     reaches
-        Console
+        StandardOutput
     crashes none;
     machine write(text: @[u8])
     reaches
-        Console
+        StandardOutput
     crashes none;
     // Fill the existing writable extent without resizing it. Preserve every
     // byte, including CR and the terminating LF; callers interpret the prefix.
-    // Hosted input may occupy the worker while waiting and traps on a failed
-    // host read, so callers acknowledge `block` and cover the `Trap` route.
+    // A failed read returns Error with the length of the prefix already stored.
+    // Callers acknowledge the wait for hosted input with `block`.
     machine read_line(out_line: @mutable [u8]) -> LineReadResult
     reaches
-        Console
+        StandardInput
     blocks
-    crashes Trap;
-    // Byte-level stdin/stdout (the settled universal console surface):
-    // `read_byte` yields the next stdin byte as `ByteRead::Byte`, or
-    // `ByteRead::Eof` at end-of-input; `write_byte` appends one byte to
-    // stdout. Both interpreter and native providers implement these leaves;
-    // the friendly text adapters below are shared checked Omega code.
-    // `read_byte` honestly publishes the hosted wait/failure envelope.
+    crashes none;
+    // read_byte yields a byte, Eof at end of input, or Error on a failed read.
+    // write_byte appends one byte to standard output.
     machine read_byte() -> ByteRead
     reaches
-        Console
+        StandardInput
     blocks
-    crashes Trap;
+    crashes none;
     machine write_byte(byte: i32)
     reaches
-        Console
+        StandardOutput
     crashes none;
 }
 
 // Text adapters take an exact ordinary implementation of these byte operations.
 trait ConsoleByteOperations {
     machine read_byte() -> ByteRead
-    reaches Console blocks crashes Trap;
+    reaches StandardInput blocks crashes none;
     machine write_byte(byte: i32)
-    reaches Console crashes none;
+    reaches StandardOutput crashes none;
 }
 
 // Shared checked POSIX adaptation depends on an explicit ordinary raw map.
 trait PosixConsoleRawOperations {
     machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
-    reaches Console blocks crashes none;
+    reaches StandardInput blocks crashes none;
     machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
-    reaches Console crashes none;
+    reaches StandardOutput crashes none;
 }
 
 // Raw count/status ABI for linux_x86_64; read/write move one byte through a cell.
 boundary trait LinuxX86ConsoleIo: Calling<LinuxX86ByteViewCalling> {
     machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
-    reaches Console blocks crashes none;
+    reaches StandardInput blocks crashes none;
     machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
-    reaches Console crashes none;
+    reaches StandardOutput crashes none;
 }
 
 // Raw count/status ABI for linux_arm64; read/write move one byte through a cell.
 boundary trait LinuxArm64ConsoleIo: Calling<LinuxArm64ByteViewCalling> {
     machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
-    reaches Console blocks crashes none;
+    reaches StandardInput blocks crashes none;
     machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
-    reaches Console crashes none;
+    reaches StandardOutput crashes none;
 }
 
 // Raw count/status ABI for macos_arm64; read/write move one byte through a cell.
 boundary trait DarwinArm64ConsoleIo: Calling<DarwinArm64ByteViewCalling> {
     machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
-    reaches Console blocks crashes none;
+    reaches StandardInput blocks crashes none;
     machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
-    reaches Console crashes none;
+    reaches StandardOutput crashes none;
 }
 
 // Raw count/status ABI for macos_x86_64; read/write move one byte through a cell.
 boundary trait DarwinX86ConsoleIo: Calling<SystemVByteViewCalling> {
     machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
-    reaches Console blocks crashes none;
+    reaches StandardInput blocks crashes none;
     machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
-    reaches Console crashes none;
+    reaches StandardOutput crashes none;
 }
 
 public WindowsConsole satisfies Console {
-    machine write_line(text: @[u8]) reaches Console {
+    machine write_line(text: @[u8]) reaches StandardOutput {
         console_write_bytes::<WindowsConsoleBytes>(text, true);
     }
-    machine write(text: @[u8]) reaches Console {
+    machine write(text: @[u8]) reaches StandardOutput {
         console_write_bytes::<WindowsConsoleBytes>(text, false);
     }
     machine read_line(out_line: @mutable [u8]) -> LineReadResult
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block console_read_line::<WindowsConsoleBytes>(out_line)
     }
     machine read_byte() -> ByteRead
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block WindowsConsoleBytes::read_byte()
     }
-    machine write_byte(byte: i32) reaches Console {
+    machine write_byte(byte: i32) reaches StandardOutput {
         WindowsConsoleBytes::write_byte(byte);
     }
 
 }
 
 public AlphaConsole satisfies Console {
-    machine write_line(text: @[u8]) reaches Console {
+    machine write_line(text: @[u8]) reaches StandardOutput {
         console_write_bytes::<AlphaConsoleBytes>(text, true);
     }
-    machine write(text: @[u8]) reaches Console {
+    machine write(text: @[u8]) reaches StandardOutput {
         console_write_bytes::<AlphaConsoleBytes>(text, false);
     }
     machine read_line(out_line: @mutable [u8]) -> LineReadResult
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block console_read_line::<AlphaConsoleBytes>(out_line)
     }
     machine read_byte() -> ByteRead
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block AlphaConsoleBytes::read_byte()
     }
-    machine write_byte(byte: i32) reaches Console {
+    machine write_byte(byte: i32) reaches StandardOutput {
         AlphaConsoleBytes::write_byte(byte);
     }
 }
 
 public LinuxX86Console satisfies Console {
-    machine write_line(text: @[u8]) reaches Console {
+    machine write_line(text: @[u8]) reaches StandardOutput {
         console_write_bytes::<LinuxX86ConsoleBytes>(text, true);
     }
-    machine write(text: @[u8]) reaches Console {
+    machine write(text: @[u8]) reaches StandardOutput {
         console_write_bytes::<LinuxX86ConsoleBytes>(text, false);
     }
     machine read_line(out_line: @mutable [u8]) -> LineReadResult
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block console_read_line::<LinuxX86ConsoleBytes>(out_line)
     }
     machine read_byte() -> ByteRead
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block LinuxX86ConsoleBytes::read_byte()
     }
-    machine write_byte(byte: i32) reaches Console {
+    machine write_byte(byte: i32) reaches StandardOutput {
         LinuxX86ConsoleBytes::write_byte(byte);
     }
 
 }
 
 public LinuxArm64Console satisfies Console {
-    machine write_line(text: @[u8]) reaches Console {
+    machine write_line(text: @[u8]) reaches StandardOutput {
         console_write_bytes::<LinuxArm64ConsoleBytes>(text, true);
     }
-    machine write(text: @[u8]) reaches Console {
+    machine write(text: @[u8]) reaches StandardOutput {
         console_write_bytes::<LinuxArm64ConsoleBytes>(text, false);
     }
     machine read_line(out_line: @mutable [u8]) -> LineReadResult
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block console_read_line::<LinuxArm64ConsoleBytes>(out_line)
     }
     machine read_byte() -> ByteRead
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block LinuxArm64ConsoleBytes::read_byte()
     }
-    machine write_byte(byte: i32) reaches Console {
+    machine write_byte(byte: i32) reaches StandardOutput {
         LinuxArm64ConsoleBytes::write_byte(byte);
     }
 
 }
 
 public DarwinArm64Console satisfies Console {
-    machine write_line(text: @[u8]) reaches Console {
+    machine write_line(text: @[u8]) reaches StandardOutput {
         console_write_bytes::<DarwinArm64ConsoleBytes>(text, true);
     }
-    machine write(text: @[u8]) reaches Console {
+    machine write(text: @[u8]) reaches StandardOutput {
         console_write_bytes::<DarwinArm64ConsoleBytes>(text, false);
     }
     machine read_line(out_line: @mutable [u8]) -> LineReadResult
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block console_read_line::<DarwinArm64ConsoleBytes>(out_line)
     }
     machine read_byte() -> ByteRead
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block DarwinArm64ConsoleBytes::read_byte()
     }
-    machine write_byte(byte: i32) reaches Console {
+    machine write_byte(byte: i32) reaches StandardOutput {
         DarwinArm64ConsoleBytes::write_byte(byte);
     }
 
 }
 
 public DarwinX86Console satisfies Console {
-    machine write_line(text: @[u8]) reaches Console {
+    machine write_line(text: @[u8]) reaches StandardOutput {
         console_write_bytes::<DarwinX86ConsoleBytes>(text, true);
     }
-    machine write(text: @[u8]) reaches Console {
+    machine write(text: @[u8]) reaches StandardOutput {
         console_write_bytes::<DarwinX86ConsoleBytes>(text, false);
     }
     machine read_line(out_line: @mutable [u8]) -> LineReadResult
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block console_read_line::<DarwinX86ConsoleBytes>(out_line)
     }
     machine read_byte() -> ByteRead
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block DarwinX86ConsoleBytes::read_byte()
     }
-    machine write_byte(byte: i32) reaches Console {
+    machine write_byte(byte: i32) reaches StandardOutput {
         DarwinX86ConsoleBytes::write_byte(byte);
     }
 
@@ -245,22 +245,22 @@ public DarwinX86Console satisfies Console {
 LinuxX86ConsoleRaw satisfies PosixConsoleRawOperations {
     machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
-    reaches Console blocks crashes none {
+    reaches StandardInput blocks crashes none {
         block LinuxX86ConsoleIo::read(descriptor, buffer, count)
     }
     machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
-    reaches Console crashes none {
+    reaches StandardOutput crashes none {
         LinuxX86ConsoleIo::write(descriptor, buffer, count)
     }
 }
 
 LinuxX86ConsoleBytes satisfies ConsoleByteOperations {
     machine read_byte() -> ByteRead
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block posix_console_read_byte::<LinuxX86ConsoleRaw>()
     }
-    machine write_byte(byte: i32) reaches Console {
+    machine write_byte(byte: i32) reaches StandardOutput {
         posix_console_write_byte::<LinuxX86ConsoleRaw>(byte);
     }
 
@@ -269,22 +269,22 @@ LinuxX86ConsoleBytes satisfies ConsoleByteOperations {
 LinuxArm64ConsoleRaw satisfies PosixConsoleRawOperations {
     machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
-    reaches Console blocks crashes none {
+    reaches StandardInput blocks crashes none {
         block LinuxArm64ConsoleIo::read(descriptor, buffer, count)
     }
     machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
-    reaches Console crashes none {
+    reaches StandardOutput crashes none {
         LinuxArm64ConsoleIo::write(descriptor, buffer, count)
     }
 }
 
 LinuxArm64ConsoleBytes satisfies ConsoleByteOperations {
     machine read_byte() -> ByteRead
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block posix_console_read_byte::<LinuxArm64ConsoleRaw>()
     }
-    machine write_byte(byte: i32) reaches Console {
+    machine write_byte(byte: i32) reaches StandardOutput {
         posix_console_write_byte::<LinuxArm64ConsoleRaw>(byte);
     }
 
@@ -293,22 +293,22 @@ LinuxArm64ConsoleBytes satisfies ConsoleByteOperations {
 DarwinArm64ConsoleRaw satisfies PosixConsoleRawOperations {
     machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
-    reaches Console blocks crashes none {
+    reaches StandardInput blocks crashes none {
         block DarwinArm64ConsoleIo::read(descriptor, buffer, count)
     }
     machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
-    reaches Console crashes none {
+    reaches StandardOutput crashes none {
         DarwinArm64ConsoleIo::write(descriptor, buffer, count)
     }
 }
 
 DarwinArm64ConsoleBytes satisfies ConsoleByteOperations {
     machine read_byte() -> ByteRead
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block posix_console_read_byte::<DarwinArm64ConsoleRaw>()
     }
-    machine write_byte(byte: i32) reaches Console {
+    machine write_byte(byte: i32) reaches StandardOutput {
         posix_console_write_byte::<DarwinArm64ConsoleRaw>(byte);
     }
 
@@ -317,32 +317,32 @@ DarwinArm64ConsoleBytes satisfies ConsoleByteOperations {
 DarwinX86ConsoleRaw satisfies PosixConsoleRawOperations {
     machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
-    reaches Console blocks crashes none {
+    reaches StandardInput blocks crashes none {
         block DarwinX86ConsoleIo::read(descriptor, buffer, count)
     }
     machine write(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 1 && count <= 4
-    reaches Console crashes none {
+    reaches StandardOutput crashes none {
         DarwinX86ConsoleIo::write(descriptor, buffer, count)
     }
 }
 
 DarwinX86ConsoleBytes satisfies ConsoleByteOperations {
     machine read_byte() -> ByteRead
-    reaches Console blocks crashes Trap {
+    reaches StandardInput blocks crashes none {
         block posix_console_read_byte::<DarwinX86ConsoleRaw>()
     }
-    machine write_byte(byte: i32) reaches Console {
+    machine write_byte(byte: i32) reaches StandardOutput {
         posix_console_write_byte::<DarwinX86ConsoleRaw>(byte);
     }
 
 }
 
 // Interpret the actual signed read result once for all POSIX byte providers.
-// Only a single transferred byte or EOF completes normally; every other count
-// traps, even when an invalid foreign provider returns a positive count.
+// A one-byte read can yield one byte, EOF, or an error. An invalid transfer
+// count also leaves this operation without a valid byte.
 machine posix_console_read_byte<const Raw: PosixConsoleRawOperations>() -> ByteRead
-reaches Console blocks crashes Trap {
+reaches StandardInput blocks crashes none {
     let mutable cell: i32 = 0;
     let count: i64 = block Raw::read(0, @mutable cell, 1);
     transition count {
@@ -355,11 +355,11 @@ reaches Console blocks crashes Trap {
         ByteRead::Byte { value: widen_u8_to_i32(value) }
     }
     machine end() -> ByteRead { ByteRead::Eof }
-    machine failed() -> ByteRead { crash Trap; }
+    machine failed() -> ByteRead { ByteRead::Error }
 }
 
 machine posix_console_write_byte<const Raw: PosixConsoleRawOperations>(byte: i32)
-reaches Console {
+reaches StandardOutput {
     let mutable cell: i32 = byte;
     let written: i64 = Raw::write(1, @mutable cell, 1);
 }
@@ -369,7 +369,7 @@ reaches Console {
 // and an empty destination returns Full(0). LF in the last slot still completes
 // the line. Finite storage does not promise a bound on waiting for host input.
 machine console_read_line<const Bytes: ConsoleByteOperations>(out_line: @mutable [u8]) -> LineReadResult
-reaches Console {
+reaches StandardInput blocks crashes none {
     transition { _ -> block scan(out_line, 0) }
     machine scan(out_line: @mutable [u8], position: u64) -> LineReadResult {
         transition position < out_line.length {
@@ -382,7 +382,8 @@ reaches Console {
         let observed: ByteRead = block Bytes::read_byte();
         transition observed {
             ByteRead::Byte { value } -> block store(out_line, position, next, value),
-            ByteRead::Eof -> end(position)
+            ByteRead::Eof -> end(position),
+            ByteRead::Error -> failed(position)
         }
     }
     machine store(out_line: @mutable [u8], position: u64, next: u64, value: i32) -> LineReadResult
@@ -394,6 +395,7 @@ reaches Console {
             false -> block scan(out_line, next)
         }
     }
+    machine failed(count: u64) -> LineReadResult { LineReadResult::Error { count: count } }
     machine full(count: u64) -> LineReadResult { LineReadResult::Full { count: count } }
     machine end(count: u64) -> LineReadResult { LineReadResult::EndOfInput { count: count } }
     machine complete(count: u64) -> LineReadResult { LineReadResult::LineComplete { count: count } }
@@ -408,7 +410,7 @@ reaches Console {
 machine console_write_bytes<const Bytes: ConsoleByteOperations>(bytes: @[u8], newline: bool)
 terminates by bytes -> Slice::Length
 reaches
-    Console
+    StandardOutput
 {
     transition bytes.length > 0 {
         true -> emit(bytes[0], bytes[1..], newline),

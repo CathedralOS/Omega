@@ -214,7 +214,12 @@ fn sealed_native_execution(
             }
             match operation {
                 HostedOperation::ProcessExit => Execution::HostedExitProcessI32,
-                HostedOperation::ConsoleReadByte => Execution::HostedReadByte,
+                HostedOperation::ConsoleReadByte => {
+                    return Err(
+                        "sealed byte-read intrinsic is retired; use a checked byte-input provider"
+                            .into(),
+                    );
+                }
                 HostedOperation::ConsoleWriteByte => Execution::HostedWriteByteI32,
             }
         }
@@ -296,6 +301,19 @@ mod sealed_execution_tests {
     use language_core::sealed_intrinsics::{FixedImageOperation, HostedOperation};
     use native_intrinsics::CompilerIntrinsicExecutionIdentity as Execution;
     use terminal_psi::TerminalSealedNativeIntrinsic as Meaning;
+
+    #[test]
+    fn obsolete_two_case_read_intrinsic_has_no_hosted_execution() {
+        for target in ["linux_x86_64", "linux_arm64", "macos_x86_64", "macos_arm64"] {
+            let error =
+                sealed_native_execution(Meaning::Hosted(HostedOperation::ConsoleReadByte), target)
+                    .unwrap_err();
+            assert!(
+                error.contains("sealed byte-read intrinsic is retired"),
+                "{target}: {error}"
+            );
+        }
+    }
 
     #[test]
     fn selected_sealed_execution_preserves_exact_meaning_and_target() {

@@ -15,7 +15,6 @@ use omega\language\core\ProcessExit;
 //   35 + 50 - 65 + 1*40 + 10 - 20 + sales_count(3) + 17 = 70
 // Expected exit: 70.
 
-use omega_language_std\Console;
 
 data Change {
     quarters: i32 in Wrapping;
@@ -64,7 +63,7 @@ machine make_change(paid: i32 in Wrapping, price: i32 in Wrapping) -> Change {
     }
 }
 
-machine main(context: @mutable Main) reaches ProcessExit + Console {
+machine main(context: @mutable Main) reaches ProcessExit {
     // Same callee, two sites in one state: each site keeps ITS call's result.
     context.a = price_of(context, 0 as +Wrapping);
     context.b = price_of(context, 1 as +Wrapping);
@@ -103,7 +102,7 @@ machine main(context: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Text catalog: explicit fixed-capacity text owners in a data type with field copies,
 // concatenation, equality guards, and a numeric score derived from matches.
@@ -112,7 +114,7 @@ machine compute_total(main: @mutable Main) {
     main.catalog.total = main.catalog.entry1.score + main.catalog.entry2.score;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("string_catalog: bounded UTF-8 fields, concatenation, and equality guards");
     set_entry1(main);
     set_entry2(main);
@@ -183,7 +185,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

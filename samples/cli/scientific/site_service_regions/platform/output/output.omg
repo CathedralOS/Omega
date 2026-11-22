@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 use omega\language\core\I64::from_f64;
@@ -6,7 +7,7 @@ use domain\model\Partition;
 // Runtime recursion is tail-only. Keep pending decimal digits in private
 // fixed storage: every i64 needs at most 19 digits, including i64::MIN.
 data Digits { bytes: [i32; 20]; count: u64; }
-public machine integer(value: i64 in Saturating) reaches ProcessExit + Console
+public machine integer(value: i64 in Saturating) reaches ProcessExit + StandardOutput
 invokes Console
 {
     let mutable output: Digits;
@@ -63,7 +64,7 @@ invokes Console
 }
 // Emit nearest integer micro-units, with ties away from zero. All geometry
 // remains f64; quantization happens only at this presentation boundary.
-public machine micro(value: f64) reaches ProcessExit + Console
+public machine micro(value: f64) reaches ProcessExit + StandardOutput
 invokes Console
 {
     transition value < 0.0 { true -> negative(value), false -> positive(value) }
@@ -77,7 +78,7 @@ invokes Console
         integer(rounded);
     }
 }
-public machine emit(partition: @Partition) reaches ProcessExit + Console
+public machine emit(partition: @Partition) reaches ProcessExit + StandardOutput
 invokes Console
 {
     Console::write_line("SERVICE_REGIONS micro_units=1000000");

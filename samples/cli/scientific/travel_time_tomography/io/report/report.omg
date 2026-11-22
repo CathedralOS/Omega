@@ -1,5 +1,6 @@
 // Signed micro-units avoid dependence on a floating-point text library.
 // Values truncate toward zero; validation allows one micro-unit quantization.
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use omega\language\core\I64::from_f64;
 use domain\model;
@@ -7,7 +8,7 @@ use domain\model\Problem;
 use domain\model\Fit;
 use domain\model\residual;
 public data Output { }
-public machine write_scaled(output: @mutable Output, value: f64) reaches Console
+public machine write_scaled(output: @mutable Output, value: f64) reaches StandardOutput
 invokes Console
 {
     let converted: i64 in Saturating = I64::from_f64(value * 1000000.0);
@@ -39,7 +40,7 @@ invokes Console
     }
     machine done(output: @mutable Output) { Console::write_line(""); }
 }
-public machine report(output: @mutable Output, problem: @Problem, fit: @Fit) reaches Console
+public machine report(output: @mutable Output, problem: @Problem, fit: @Fit) reaches StandardOutput
 invokes Console
 {
     Console::write_line("travel_time_tomography synthetic two-cell model; numeric fields in micro-units");

@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use demography\model;
 use demography\model\Census;
@@ -5,7 +6,7 @@ use demography\model\Balance;
 use demography\model\total;
 use omega\language\core\narrow_i64_to_i32_wrapping;
 // Decimal output uses no allocation and includes a sign for net emigration.
-public machine number(value: i64 in Wrapping) reaches Console
+public machine number(value: i64 in Wrapping) reaches StandardOutput
 invokes Console
 {
     transition value < 0 { true -> negative(value), false -> begin(value) }
@@ -31,7 +32,7 @@ invokes Console
     }
     machine done() {}
 }
-public machine row(year: i64 in Wrapping, census: @Census, balance: @Balance) reaches Console
+public machine row(year: i64 in Wrapping, census: @Census, balance: @Balance) reaches StandardOutput
 invokes Console
 {
     number(year); Console::write(","); number(census.newborn); Console::write(",");

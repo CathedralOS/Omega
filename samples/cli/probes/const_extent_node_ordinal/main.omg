@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0
 // Expected output contains: 17
@@ -32,7 +33,7 @@ requires index < 4
 
 data Main { }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     let roadmap: Nodes<6> = Nodes { x: [0, 10, 3, 7, 3, 7] };
     let quad: Nodes<4> = Nodes { x: [1, 2, 3, 4] };
     let paired: i64 in Wrapping = coordinate(@roadmap, 1) + coordinate(@roadmap, 3);
@@ -50,7 +51,7 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
     }
 }
 
-machine number(main: @mutable Main, value: i64 in Wrapping) reaches ProcessExit + Console {
+machine number(main: @mutable Main, value: i64 in Wrapping) reaches ProcessExit + StandardOutput {
     transition value >= 0 && value < 100 {
         true -> tens(main, value, value / 10),
         false -> ProcessExit::exit_process(1)
@@ -82,7 +83,7 @@ machine number(main: @mutable Main, value: i64 in Wrapping) reaches ProcessExit 
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

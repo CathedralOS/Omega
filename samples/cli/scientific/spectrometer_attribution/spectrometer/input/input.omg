@@ -1,3 +1,4 @@
+use omega\language\core\StandardInput;
 use spectrometer\model\Spectrometer;
 use spectrometer\model\IntegerRead;
 use omega_language_std\ByteRead;
@@ -8,7 +9,7 @@ use omega\language\core\F64::from_i32;
 // is one million, so Wrapping never wraps on accepted input. Delimiters are
 // consumed; a minus sign must be followed by a digit, including at EOF.
 public machine read_integer(application: @mutable Spectrometer) -> IntegerRead
-reaches Console
+reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -16,6 +17,7 @@ crashes Trap
     transition { _ -> block begin(application) }
     machine begin(application: @mutable Spectrometer) -> IntegerRead {
         transition block Console::read_byte() {
+            ByteRead::Error -> (IntegerRead::Invalid),
             ByteRead::Eof -> (IntegerRead::End),
             ByteRead::Byte { value } -> block first(application, value)
         }
@@ -58,6 +60,7 @@ crashes Trap
     machine following(application: @mutable Spectrometer, magnitude: i32 in Wrapping,
                     sign: i32 in Wrapping, seen: bool) -> IntegerRead {
         transition block Console::read_byte() {
+            ByteRead::Error -> (IntegerRead::Invalid),
             ByteRead::Eof -> finish(magnitude, sign, seen),
             ByteRead::Byte { value } -> block digit(application, value, magnitude, sign, seen)
         }

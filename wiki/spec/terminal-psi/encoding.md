@@ -42,7 +42,11 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Current marker 289 distinguishes callable parameter positions from named services
+Current marker 290 retires external hosted byte-read tag `3`. A reader supplied
+through the current standard library returns a recoverable error. A saved
+program from marker 289 or earlier must be rebuilt.
+
+Marker 289 distinguishes callable parameter positions from named services
 in provider invocation contracts. Earlier markers cannot represent that distinction.
 The archived compiler-private `OMGNTI41` format recorded the same distinction in
 native derivation inputs. The public saved-program path decodes the canonical Psi
@@ -1350,9 +1354,11 @@ permission remain separate admission inputs.
 
 External provider rows now retain an optional sealed native meaning immediately
 after their optional numeric intrinsic. Its `u8` outer tag is `1` for hosted
-operations and `2` for fixed-image operations. Hosted `u8` tags are `2` console
-byte write, `3` console byte read, and `4` core process exit. Tag `1`, formerly
-console process exit, is retired and rejects. Fixed-image tags are `1`
+operations and `2` for fixed-image operations. Hosted `u8` tags are `2` for console byte write and `4` for core process exit.
+Tag `3` designated a byte reader that trapped on input failure and must be
+rejected. Standard input now uses the [checked reader](../resources/bounded_input.md)
+with a recoverable error result. Tag `1`, formerly console process exit, also
+rejects. Fixed-image tags are `1`
 program-storage entry and `2` retained-suffix start.
 These meanings require an intrinsic binding and cannot coexist with a numeric
 meaning. The source classifier establishes them; native realization consumes

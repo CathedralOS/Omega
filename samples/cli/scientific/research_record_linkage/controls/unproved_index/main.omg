@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete intended-invalid application: the unguarded dynamic index has
 // no bound. `requires true` makes the helper's input contract complete, so
@@ -8,7 +9,7 @@ data Main { }
 machine select(records: @[u64; 3], position: u64) -> u64 requires true {
     records[position]
 }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     let records: [u64; 3] = [1, 2, 3];
     let selected: u64 = select(@records, 0);
     Console::write_byte((selected % 10 + 48) as i32);
@@ -16,7 +17,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

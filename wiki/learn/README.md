@@ -14,7 +14,8 @@ bun build.ts && bun serve.ts
 ## Structure
 
 - `src/chapters.ts` — all content. Every code block is real `.omg`; the
-  console and exit boundaries come from `source/library/std` in this repository.
+  standard library supplies `Console`. Core declares `StandardInput`,
+  `StandardOutput`, and the `ProcessExit` boundary.
   All examples are receiver-free — Omega has no `self`; receivers are
   explicit parameters.
 - `tools/verify.ts` (`bun run verify`) — compile-checks every code figure

@@ -32,7 +32,7 @@ The build says what implements each boundary trait:
 
 ```omega
 machine build(builder: @mutable Build) {
-    Build::select_provider::<selected_target\Console, TestConsole>(builder);
+    Build::select_provider::<Console, TestConsole>(builder, linux_x86_64);
 }
 ```
 
@@ -53,19 +53,25 @@ machine greet() {
 }
 
 machine start() {
-    greet();                 // reaches Console, through greet
+    greet();                 // reaches StandardOutput, through greet
 }
 ```
 
 Write the clause to set a limit that later edits are checked against:
 
 ```omega
-machine greet() reaches Console {
+machine greet() reaches StandardOutput {
     Console::write_line("Hello");
 }
 
 machine pure_math(x: u32) -> u32 reaches none { ... }
 ```
+
+The standard library’s `Console` trait serves two distinct capabilities.
+Reading a byte or line reaches core’s `StandardInput`. Writing a byte, text,
+or a line reaches `StandardOutput`. Each refers to the process’s designated
+stream, including a redirected file or pipe. A filter that reads and writes
+declares `reaches StandardInput + StandardOutput`.
 
 `reaches A + B` allows either. `reaches none` allows no service at all.
 
@@ -258,9 +264,12 @@ rare programs that need one.
 
 ## Small things worth knowing
 
-- **Reading input.** `Console::read_line` fills a byte slice you supply and
-  reports `LineComplete(count)`, `EndOfInput(count)` or `Full(count)`. `Full`
-  means your buffer filled, not that the line ended. See
+- **Reading input.** `block Console::read_byte()` returns `ByteRead::Byte`,
+  `ByteRead::Eof`, or `ByteRead::Error` on a host read failure.
+  `block Console::read_line(buffer)` fills the supplied slice and reports
+  `LineComplete(count)`, `EndOfInput(count)`, `Full(count)`, or `Error(count)`.
+  `Full` means the buffer filled. On a read error, `count` is the number of
+  bytes already written by this call. That prefix remains available. See
   [bounded input](../spec/resources/bounded_input.md).
 - **Exiting.** `ProcessExit::exit_process(code)` ends the process without
   cleanup and needs `reaches ProcessExit`. Returning from the entry machine is

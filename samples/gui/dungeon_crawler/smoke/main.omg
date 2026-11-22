@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: PASS: dungeon campaign, collision, combat, pixels
@@ -10,7 +11,7 @@ data Smoke {
     game: Game;
 }
 
-machine Smoke::number(value: i32) reaches Console {
+machine Smoke::number(value: i32) reaches StandardOutput {
     Console::write_byte(((value / 100) % 10 + 48) as i32);
     Console::write_byte(((value / 10) % 10 + 48) as i32);
     Console::write_byte((value % 10 + 48) as i32);
@@ -39,7 +40,7 @@ terminates by count -> Nat::Descending
     machine done() {}
 }
 
-machine Smoke::main(smoke: @mutable Smoke) reaches ProcessExit + Console {
+machine Smoke::main(smoke: @mutable Smoke) reaches ProcessExit + StandardOutput {
     transition { _ -> rules(smoke) }
     machine rules(smoke: @mutable Smoke) {
     Console::write_line("check: rules");
@@ -119,7 +120,7 @@ machine Smoke::main(smoke: @mutable Smoke) reaches ProcessExit + Console {
     }
 }
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Smoke;
     Smoke::main(@mutable entry_storage);
 }

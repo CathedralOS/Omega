@@ -8,7 +8,6 @@ use omega\language\core\ProcessExit;
 //   fact(5, 1) = 120
 //
 // Expected exit: 120
-use omega_language_std\Console;
 use omega\language\core\narrow_u64_to_i32_trapping;
 machine fact(n: u64, acc: u64 in Wrapping) -> u64
 terminates by n
@@ -19,14 +18,14 @@ terminates by n
     }
 }
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit {
     let result: u64 = fact(5, 1 as +Wrapping);
     let code: i32 = narrow_u64_to_i32_trapping(result);
     ProcessExit::exit_process(code);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

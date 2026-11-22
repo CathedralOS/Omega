@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0.
 use omega_language_std\ByteRead;
@@ -14,7 +16,7 @@ use output\report;
 use output\report\report;
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("force_plate_balance positions_mm=(-200,-100),(200,-100),(200,100),(-200,100) support_mm=150,75");
     transition { _ -> block next() }
     machine next() {
@@ -64,8 +66,9 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
     machine drain() {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> failed(),
             ByteRead::Byte { value } -> block drain_byte(value),
-            _ -> done()
+            ByteRead::Eof -> done()
         }
     }
     machine drain_byte(value: i32) {
@@ -89,7 +92,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

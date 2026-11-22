@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use omega\language\core\narrow_i64_to_i32_trapping;
 use clock\model;
@@ -7,7 +8,7 @@ use clock\model\Acquisition;
 // work therefore lives in explicit bounded scratch, not recursive activations.
 // At most 19 digits cover every accepted nonnegative i64 magnitude. Byte output
 // avoids inventing a Utf8 proof for a mutable text carrier.
-public machine number(value: i64 in Wrapping) reaches Console
+public machine number(value: i64 in Wrapping) reaches StandardOutput
 crashes Trap
 {
     let mutable digits: [i32 in Wrapping; 19];
@@ -51,7 +52,7 @@ crashes Trap
     machine invalid() { crash Trap; }
 }
 
-public machine report(acquisition: @Acquisition) reaches Console
+public machine report(acquisition: @Acquisition) reaches StandardOutput
 crashes Trap
 {
     transition { _ -> row(acquisition, 0) }

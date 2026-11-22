@@ -1,9 +1,10 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use planner\solver\TransportPlan;
 
 // Fixed signed four-digit objective keeps the table machine-readable. All
 // digit output is through the ordinary selected Console provider.
-public machine emit_integer(value: i32 in Wrapping) reaches Console
+public machine emit_integer(value: i32 in Wrapping) reaches StandardOutput
 invokes Console
 {
     transition value < 0 {
@@ -30,7 +31,7 @@ invokes Console
     }
     machine finish() { Console::write_byte(10); }
 }
-public machine emit_plan(plan: @TransportPlan) reaches Console
+public machine emit_plan(plan: @TransportPlan) reaches StandardOutput
 invokes Console
 {
     Console::write_line("OPTIMAL: shipments");

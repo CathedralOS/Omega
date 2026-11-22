@@ -26,8 +26,8 @@ use omega\language\core\FilesystemMetadataQuery;
 use omega\language\core\FilesystemMetadataMutation;
 use omega\language\core\DirectoryEnumeration;
 use omega\language\core\FilesystemNamespaceMutation;
-use omega\language\core\ProcessInput;
-use omega\language\core\ProcessOutput;
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 
 public domain [u8]::CString
@@ -43,8 +43,8 @@ public boundary trait AppKit {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     crashes none;
 }
 
@@ -58,8 +58,8 @@ public boundary trait ObjectiveC {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     crashes none;
     machine register_selector(name: @[u8; 256]) -> u64
     requires name[255] == 0
@@ -71,8 +71,8 @@ public boundary trait ObjectiveC {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     crashes none;
     machine send_scalar(recv: u64, sel: u64, arg: u64) -> u64
     reaches
@@ -80,8 +80,8 @@ public boundary trait ObjectiveC {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     crashes none;
     machine send_delayed(recv: u64, sel: u64, action: u64, object: u64, delay: f64)
     reaches
@@ -89,8 +89,8 @@ public boundary trait ObjectiveC {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     crashes none;
     machine send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64
     reaches
@@ -98,8 +98,8 @@ public boundary trait ObjectiveC {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     crashes none;
     machine send_image_size(recv: u64, sel: u64, image: u64, w: f64, h: f64) -> u64
     reaches
@@ -107,8 +107,8 @@ public boundary trait ObjectiveC {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     crashes none;
     machine send_string<const Count: u64>(recv: u64, sel: u64, text: @[u8; Count]) -> u64
     requires Count > 0
@@ -118,8 +118,8 @@ public boundary trait ObjectiveC {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     crashes none;
     // RUNTIME byte-buffer string arg (`initWithUTF8String:` over the samples'
     // title bytes). The complete borrowed extent includes its terminating NUL. Earlier NULs
@@ -132,8 +132,8 @@ public boundary trait ObjectiveC {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     crashes none;
     machine send_scalar4(recv: u64, sel: u64, a: u64, b: u64, c: u64, d: u64) -> u64
     reaches
@@ -141,8 +141,8 @@ public boundary trait ObjectiveC {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     crashes none;
     // Autorelease-pool scope (objc_autoreleasePoolPush/Pop). The event pump runs
     // outside any Cocoa-managed pool, so dequeued autoreleased NSEvents would
@@ -155,8 +155,8 @@ public boundary trait ObjectiveC {
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-        DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit
+        DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+        StandardOutput + ProcessExit
     crashes none;
 }
 
@@ -181,8 +181,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit
 invokes ObjectiveC
 {
     let mutable terminated: [u8; 256];
@@ -229,8 +229,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit
 invokes ObjectiveC
 invokes AppKit
 invokes CoreGraphics
@@ -361,8 +361,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit
 invokes ObjectiveC
 invokes CoreGraphics
 {
@@ -386,8 +386,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit
 invokes ObjectiveC
 {
     // Cycle the rolling autorelease pool opened at window_create: the pop
@@ -414,8 +414,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit
 invokes ObjectiveC
 {
     let rc: u64 = ObjectiveC::send_scalar(window_state.app, window_state.dsel, window_state.evt);
@@ -427,8 +427,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit
 invokes ObjectiveC
 {
     let rc: u64 = ObjectiveC::send(window, window_state.vsel);
@@ -441,8 +441,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit
 invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
 {
     macos_window_present(window_state, source_width, source_height, @pixels[0..4096])
@@ -454,8 +454,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit
 invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
 {
     let count: u64 = (source_width as u64) * (source_height as u64);
@@ -527,8 +527,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit
 invokes ObjectiveC
 {
     let current: u64 = ObjectiveC::send(window_state.app, window_state.ksel);

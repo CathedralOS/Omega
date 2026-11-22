@@ -1,15 +1,14 @@
 use omega\language\core\ProcessExit;
 // Complete reproduction: conversions are owned by an ordinary domain module.
-use omega_language_std\Console;
 use calculation;
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit {
     let converted: i32 = calculation\sample();
     ProcessExit::exit_process(converted);
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

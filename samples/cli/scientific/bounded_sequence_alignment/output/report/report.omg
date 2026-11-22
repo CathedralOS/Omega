@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 use alignment\local;
@@ -12,7 +13,7 @@ ensures result.length == count as u64
     @bytes[0..count]
 }
 
-public machine number(value: i32 in Wrapping) reaches ProcessExit + Console
+public machine number(value: i32 in Wrapping) reaches ProcessExit + StandardOutput
 invokes Console
 {
     transition value >= 0 && value <= 48 { true -> digits(value), false -> bad() }
@@ -27,7 +28,7 @@ invokes Console
     machine bad() { Console::write_line("ERROR internal-number"); ProcessExit::exit_process(70); }
 }
 
-public machine report(result: @alignment\local\Alignment) reaches ProcessExit + Console
+public machine report(result: @alignment\local\Alignment) reaches ProcessExit + StandardOutput
 invokes Console
 {
     transition result.columns >= 0 && result.columns <= 32 {

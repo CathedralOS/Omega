@@ -1,10 +1,11 @@
 // EOF-terminated signed integers, |token| <= 1000000; at most 4095 bytes.
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 
 
 public data Input { tokens: [i32; 98]; count: u64; valid: bool; negative: bool; }
-public machine read_input(input: @mutable Input) reaches Console
+public machine read_input(input: @mutable Input) reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -19,6 +20,7 @@ crashes Trap
     requires count <= 98 requires value >= 0 requires value <= 1000000 requires digits <= 7 requires bytes < 4096 {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> bad(),
             ByteRead::Eof -> eof(input, count, value, pending),
             ByteRead::Byte { value as byte } -> classify(input, count, value, digits, pending, bytes + 1, byte)
         }

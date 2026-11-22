@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega\language\core\abs_f64;
 use omega\language\core\max_f64;
@@ -45,7 +46,7 @@ machine contact(a: Disk, b: Disk) -> Contact {
 
 data Main { hit: Contact; }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     let left: Disk = Disk { x: 0.0, vx: 1.0, radius: 1.0, mass: 1.0 };
     let right: Disk = Disk { x: 4.0, vx: 0.0, radius: 1.0, mass: 3.0 };
     main.hit = contact(left, right);
@@ -65,7 +66,7 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

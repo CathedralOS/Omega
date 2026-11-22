@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Complete stdin application. Input: replication header, eight digit/m slots, EOF.
 // Expected output contains: crossed_gauge_study: exact crossed random-effects sample; all numbers /32
@@ -7,7 +9,7 @@ use study\model;
 
 data Main { study: study\model\Study; }
 
-machine number(main: @mutable Main, value: i32 in Wrapping) reaches Console {
+machine number(main: @mutable Main, value: i32 in Wrapping) reaches StandardOutput {
     transition value < 0 { true -> negative(main, value), _ -> leading(main, value) }
     machine negative(main: @mutable Main, value: i32 in Wrapping) {
         Console::write("-");
@@ -47,7 +49,7 @@ machine number(main: @mutable Main, value: i32 in Wrapping) reaches Console {
     }
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("crossed_gauge_study: exact crossed random-effects sample; all numbers /32");
     transition { _ -> block header(main) }
     machine header(main: @mutable Main) {
@@ -70,6 +72,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
     machine read(main: @mutable Main, index: i32 in Wrapping) {
         let byte: ByteRead = block Console::read_byte();
         transition byte {
+            ByteRead::Error -> invalid(main),
             ByteRead::Byte { value } -> block token(main, index, value),
             ByteRead::Eof -> finish(main, index)
         }
@@ -181,7 +184,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Classify a UTF-8 byte by its high bits -- the natural home for shifts and casts
 // used DIRECTLY in transition guards (both recently supported). A UTF-8 byte's
@@ -22,7 +24,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("utf8_byte_class: classify a byte by its leading bits using shift/cast guards");
     main.byte = 226 as +Wrapping; // 0xE2 = 11100010, a 3-byte-sequence lead
 
@@ -85,7 +87,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

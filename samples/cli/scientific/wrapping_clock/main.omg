@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // IND17: independent acquisition counter reconstruction and clock fitting.
 use omega_language_std\Console;
@@ -13,7 +15,7 @@ use report\output;
 use report\output\number;
 use report\output\report;
 
-machine main() reaches ProcessExit + Console {
+machine main() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable acquisition: Acquisition;
     block read_acquisition(@mutable acquisition);
     transition acquisition.error == 0 { true -> decode(@mutable acquisition), false -> reject(@acquisition) }

@@ -1,5 +1,6 @@
 // Private decimal token reader. Reject overflow before multiplying; at most
 // 256 input bytes and 51 tokens, so malformed input cannot grow storage.
+use omega\language\core\StandardInput;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
 public data Tokens {
@@ -11,7 +12,7 @@ public data Tokens {
     valid: bool;
 }
 public machine tokens_read(tokens: @mutable Tokens)
-reaches Console
+reaches StandardInput
 invokes Console
 blocks
 crashes Trap
@@ -28,6 +29,7 @@ crashes Trap
         let observed: ByteRead = block Console::read_byte();
         tokens.bytes = tokens.bytes + 1;
         transition observed {
+            ByteRead::Error -> reject(tokens),
             ByteRead::Eof -> finish(tokens),
             ByteRead::Byte { value } -> classify(tokens, value)
         }

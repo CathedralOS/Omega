@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Dual-accumulator recursion: exercises TWO independent tail-recursive
 // value-returning machines with different accumulator arithmetic,
@@ -64,7 +66,7 @@ terminates by s -> Slice::Length
     }
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("dual_accumulator_recursion: two recursive reductions over [1..5] -- sum 15 + sum of squares 55");
     // Populate the array: [1, 2, 3, 4, 5]
     main.data[0] = 1;
@@ -166,7 +168,7 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block Main::main(@mutable entry_storage);
 }

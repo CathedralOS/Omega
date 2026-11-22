@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Offline stdin interpreter. At most 64 commands; each line is exactly an
 // uppercase opcode and one digit. Overlong lines are drained and rejected
@@ -16,12 +18,13 @@ data Main {
     decision: i32;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("IND22 offline laboratory protocol; deadline=5; capacity=64");
     transition { _ -> block read(main) }
     machine read(main: @mutable Main) {
         let observed: ByteRead = block Console::read_byte();
         transition observed {
+            ByteRead::Error -> ProcessExit::exit_process(74),
             ByteRead::Byte { value } -> block character(main, value),
             ByteRead::Eof -> block end(main)
         }
@@ -97,7 +100,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

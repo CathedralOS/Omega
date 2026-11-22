@@ -11,8 +11,8 @@ use review_evidence::record::{
 fn critical_class(vocabulary: CoreVocabulary) -> Option<Class> {
     match vocabulary {
         CoreVocabulary::FilesystemService(_) => Some(Class::Filesystem),
-        CoreVocabulary::ProcessInputService
-        | CoreVocabulary::ProcessOutputService
+        CoreVocabulary::StandardInputService
+        | CoreVocabulary::StandardOutputService
         | CoreVocabulary::ProcessExitService => Some(Class::Process),
         CoreVocabulary::MachineControlService => Some(Class::MachineControl),
         CoreVocabulary::PortIoService => Some(Class::PortIo),
@@ -49,9 +49,11 @@ pub(super) fn critical_services(
             classes.push((service.clone(), class));
         }
     }
+    // Console binds a physical provider. Its requirements declare the core
+    // standard-stream services classified above.
     for binding in input.sources().accepted_semantic_bindings() {
         let class = match binding.role() {
-            Role::ConsoleIo | Role::ProcessExitExitProcessI32 => Class::Process,
+            Role::ProcessExitExitProcessI32 => Class::Process,
             Role::FilesystemHostService => Class::Filesystem,
             _ => continue,
         };

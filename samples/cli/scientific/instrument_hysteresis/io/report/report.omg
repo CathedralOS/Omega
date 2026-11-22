@@ -1,6 +1,7 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 // All authored output integers have magnitude <= 51200000 (256 rows).
-public machine number(value: i32 in Wrapping) reaches Console {
+public machine number(value: i32 in Wrapping) reaches StandardOutput {
     transition value < 0 {
         true -> negative(value),
         false -> digits(value, 100000000, false)
@@ -28,7 +29,7 @@ public machine number(value: i32 in Wrapping) reaches Console {
     }
     machine done() { }
 }
-public machine field(value: i32 in Wrapping) reaches Console {
+public machine field(value: i32 in Wrapping) reaches StandardOutput {
     Console::write_byte(32);
     number(value);
 }

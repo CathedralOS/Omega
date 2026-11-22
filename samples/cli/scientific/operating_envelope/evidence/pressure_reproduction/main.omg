@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Keep independently produced trapping additions live until their sum.
 // The callee parameter makes the operands runtime values rather than constants.
@@ -73,7 +74,7 @@ machine doubled_sum(x: u64 in Trapping) -> u64 in Trapping {
 }
 
 // A later state loop retains fixed division sites after earlier real pressure.
-public machine integer(value: i32) reaches Console
+public machine integer(value: i32) reaches StandardOutput
 invokes Console
 {
     transition value < 0 {
@@ -106,7 +107,7 @@ invokes Console
     }
     machine done() { }
 }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     let total: u64 in Trapping = doubled_sum(1);
     transition total == 1120 {
         true -> good(main),
@@ -120,7 +121,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

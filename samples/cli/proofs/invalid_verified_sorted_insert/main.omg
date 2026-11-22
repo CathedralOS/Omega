@@ -3,7 +3,6 @@ use omega\language\core\ProcessExit;
 // `requires sorted(values) == true` contract must reject a caller that never
 // established sortedness.
 
-use omega_language_std\Console;
 
 machine sorted(values: @[i32; 16]) -> bool {
     check_sorted(values, 15)
@@ -47,7 +46,7 @@ terminates by width -> Nat::Descending in 0..=16
 
 data Main { values: [i32; 16]; }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit {
     main.values[0] = 3;
     let p: u64 = search(@main.values, 0, 1, 1, 2);
     transition p == 0 {
@@ -58,7 +57,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit {
     let mutable entry_storage: Main;
     main(@mutable entry_storage);
 }

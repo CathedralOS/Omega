@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Tic-tac-toe with a scripted move sequence and win detection.
 //
@@ -39,7 +41,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("tic_tac_toe: replays a scripted game where X wins the top row");
     // Scripted moves.
     play(main, 0, 1);  // X plays cell 0
@@ -168,7 +170,7 @@ machine play(main: @mutable Main, cell: i32, player: i32) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

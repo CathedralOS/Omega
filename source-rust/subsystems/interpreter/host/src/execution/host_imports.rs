@@ -53,7 +53,6 @@ mod native_word;
 mod network_address;
 mod scalar_codec;
 mod scalar_record;
-mod standard_input;
 
 use published_runtime_input::RuntimeHostProvisions as TerminalRuntimeHostProvisions;
 use semantic_vocabulary::{BoundaryMachineId, IntegerSign, ScalarType};
@@ -447,25 +446,9 @@ pub(super) fn bind<'host>(
             })?;
         let kind = match provision.realization {
             BoundarySettlementRealization::Builtin(BoundaryRealization::HostedReadByte(_)) => {
-                let declaration =
-                    instance
-                        .import(*slot)
-                        .ok_or(TerminalRuntimeError::InvalidProvision(
-                            "stdin host provision names no demanded import",
-                        ))?;
-                let reader = input.as_ref().ok_or_else(|| {
-                    TerminalRuntimeError::missing(
-                        "runtime-standard-input",
-                        "no finite replay stream was supplied",
-                    )
-                })?;
-                let adapter = standard_input::ReadByteImport::for_import(
-                    program,
-                    declaration,
-                    std::sync::Arc::clone(reader),
-                )?;
-                instance.bind_import(*slot, adapter)?;
-                continue;
+                return Err(TerminalRuntimeError::InvalidProvision(
+                    "sealed byte-read intrinsic is retired; use a checked byte-input provider",
+                ));
             }
             BoundarySettlementRealization::Builtin(BoundaryRealization::LinuxWriteLine(_)) => {
                 OutputKind::Line

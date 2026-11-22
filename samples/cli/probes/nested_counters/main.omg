@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Nested data: a struct field that is itself a struct, with field updates
 // through an explicit `@mutable` subject across multiple sub-machine calls.
@@ -72,7 +74,7 @@ requires
     main.state.multiplier = m;
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("nested_counters: mutating struct-in-struct fields across sub-machine calls");
     Main::set_value(main, 10);
     Main::set_bonus(main, 20);
@@ -163,7 +165,7 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block Main::main(@mutable entry_storage);
 }

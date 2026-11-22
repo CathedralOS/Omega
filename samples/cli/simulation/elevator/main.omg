@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Elevator controller. Combines case-payload commands, scalar self-writes,
 // and multi-state FSM transitions.
@@ -50,7 +52,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("elevator: case-payload commands drive a door/floor FSM through 6 scripted steps");
     send(main, Command::GoTo { floor: 2 });
     send(main, Command::OpenDoor);
@@ -143,7 +145,7 @@ machine send(main: @mutable Main, cmd: Command) {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

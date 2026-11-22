@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 2. (closed stdin; valid mode oracles are in data/.)
 // Expected output contains: REJECT input: expected one byte 0,1,2,d
@@ -29,13 +31,13 @@ data Main {
     expected_trace: u64;
 }
 
-machine number(main: @mutable Main, value: u64) reaches Console {
+machine number(main: @mutable Main, value: u64) reaches StandardOutput {
     // All reports are below 100; two ASCII decimal digits are emitted directly.
     Console::write_byte((((value % 100) / 10) as i32) + 48);
     Console::write_byte(((value % 10) as i32) + 48);
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("logic_hazard_timing: mode 0=transport1 1=transport4 2=inertial4");
     let input: ByteRead = block Console::read_byte();
     transition input {
@@ -257,7 +259,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

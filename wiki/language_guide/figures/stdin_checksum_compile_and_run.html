@@ -155,7 +155,7 @@
       <svg viewBox="0 0 600 270" role="img" aria-label="State graph of the machine: start, read, add, halt, exit" id="graph"></svg>
     </div>
     <div class="card src">
-      <h2>Source <span class="badge real">real · samples/stdin_checksum/main.omg</span></h2>
+      <h2>Source <span class="badge real">checksum example</span></h2>
       <pre id="src"></pre>
     </div>
   </section>
@@ -193,34 +193,38 @@
     </div>
     <div class="card legend">
       <h2>What is real</h2>
-      <p><b>Real:</b> the source, its tokens, the states and edges, and the run's values. Sum 131 and count 2 give the result 133, matching the sample's recorded input grid.</p>
+      <p><b>Real:</b> the source, its tokens, the states and edges, and the run's values. Sum 131 and count 2 give the result 133, for the two input bytes A and B.</p>
       <p><b>Illustration:</b> every compiler stage after the tokens, and the check sequence. They show the kind of work each stage does, not the compiler's output. The order follows source checking and lowering, Psi publication, then native realization. Nothing here says the program terminates; it is not a native run.</p>
     </div>
   </aside>
 </div>
 
 <script>
-const SOURCE = `use omega_language_std\\console;
+const SOURCE = `use omega\\language\\core\\ProcessExit;
+use omega\\language\\core\\StandardInput;
+use omega_language_std\\ByteRead;
+use omega_language_std\\Console;
 
-machine main() reaches Console {
-    transition { _ -> rd(0, 0) }
+machine main() reaches StandardInput + ProcessExit {
+    transition { _ -> block rd(0i32 as +Wrapping, 0i32 as +Wrapping) }
 
-    state rd(sum: i32 in Wrapping, n: i32 in Wrapping) {
+    machine rd(sum: i32 in Wrapping, n: i32 in Wrapping) {
         let r: ByteRead = block Console::read_byte();
         transition r {
-            ByteRead::Byte { value } -> acc(sum, n, value),
-            _ -> fin(sum, n)
+            ByteRead::Byte { value } -> block acc(sum, n, value),
+            ByteRead::Eof -> fin(sum, n),
+            ByteRead::Error -> ProcessExit::exit_process(1)
         }
     }
 
-    state acc(sum: i32 in Wrapping, n: i32 in Wrapping, value: i32) {
-        let b: i32 in Wrapping = value as i32 in Wrapping;
-        transition { _ -> rd(sum + b, n + 1) }
+    machine acc(sum: i32 in Wrapping, n: i32 in Wrapping, value: i32) {
+        let b: i32 in Wrapping = value as +Wrapping;
+        transition { _ -> block rd(sum + b, n + 1) }
     }
 
-    state fin(sum: i32 in Wrapping, n: i32 in Wrapping) {
+    machine fin(sum: i32 in Wrapping, n: i32 in Wrapping) {
         let digest: i32 in Wrapping = sum + n;
-        Console::exit_process(digest as i32);
+        ProcessExit::exit_process(digest as -Wrapping);
     }
 }`;
 const INPUT = [{ ch: "A", byte: 65 }, { ch: "B", byte: 66 }];
@@ -235,17 +239,18 @@ const RUN = [
   { state: "fin", edge: "rd-fin",   sum: 131, n: 2, said: "halt: the result is sum + n", read: 2, digest: 133 },
   { state: "exit", edge: "fin-exit", sum: 131, n: 2, said: "the program exits with 133", read: 2, digest: 133 },
 ];
-const EDGES = ["entry-rd", "rd-acc", "acc-rd", "rd-fin", "fin-exit"];
+const EDGES = ["entry-rd", "rd-acc", "acc-rd", "rd-fin", "rd-exit", "fin-exit"];
 const CHECK = {
   "entry-rd": "start arrives with sum and n",
   "rd-acc": "add arrives with sum, n, the byte",
   "acc-rd": "read arrives with new sum and n",
   "rd-fin": "halt arrives with sum and n",
-  "fin-exit": "exit returns a number",
+  "rd-exit": "read failure exits with status 1",
+  "fin-exit": "EOF exits with the checksum",
 };
 // Source lines (1-based) that each edge and state corresponds to.
-const EDGE_LINE = { "entry-rd": [4], "rd-acc": [9], "acc-rd": [16], "rd-fin": [10], "fin-exit": [21] };
-const STATE_LINES = { rd: [6, 12], acc: [14, 17], fin: [19, 22] };
+const EDGE_LINE = { "entry-rd": [7], "rd-acc": [12], "acc-rd": [20], "rd-fin": [13], "rd-exit": [14], "fin-exit": [25] };
+const STATE_LINES = { rd: [9, 16], acc: [18, 21], fin: [23, 26] };
 
 const NODES = {
   entry: { x: 56, y: 135, w: 62, h: 32, label: "start", sig: "" },
@@ -259,21 +264,22 @@ const EDGE_PATH = {
   "rd-acc": "M244 111 C 296 76, 318 60, 322 58",
   "acc-rd": "M322 74 C 294 98, 276 114, 258 124",
   "rd-fin": "M244 160 C 296 198, 318 212, 330 214",
+  "rd-exit": "M258 135 Q445 135 530 199",
   "fin-exit": "M446 214 L516 214",
 };
-const EDGE_LABEL = { "rd-acc": [270, 66, "byte"], "rd-fin": [270, 206, "end of input"], "acc-rd": [310, 108, "loop"] };
+const EDGE_LABEL = { "rd-exit": [415, 136, "read error"], "rd-acc": [270, 66, "byte"], "rd-fin": [270, 206, "end of input"], "acc-rd": [310, 108, "loop"] };
 
 const STEPS = [
   { lane: "psi", key: "source", name: "Source", truth: "real", note: "The program as written: one machine with three states." },
   { lane: "psi", key: "tokens", name: "Tokens", truth: "real", note: "The first stage splits the text into tokens: keywords, names, numbers, symbols." },
   { lane: "psi", key: "syntax", name: "Syntax tree", truth: "illus", note: "Tokens become a tree: a machine that holds states, each with a body and arms." },
-  { lane: "psi", key: "names", name: "Names resolved", truth: "illus", note: "Every name is tied to what it refers to: states, parameters, and the console service." },
+  { lane: "psi", key: "names", name: "Names resolved", truth: "illus", note: "Every name is tied to what it refers to: states, parameters, the standard input reader, and process exit." },
   { lane: "psi", key: "types", name: "Types attached", truth: "illus", note: "Every value gets a type. Sums and counts are wrapping 32-bit integers." },
   ...EDGES.map((edge, i) => ({ lane: "psi", key: "check", name: "Check " + edge.replace("-", " → "), truth: "illus", edgeIndex: i, note: "Checking one transition: it must arrive with everything its target state needs." })),
-  { lane: "psi", key: "coverage", name: "Branch coverage", truth: "illus", note: "The branch on a byte read must cover every case: a byte, and the end of input. No silent fall-through." },
+  { lane: "psi", key: "coverage", name: "Branch coverage", truth: "illus", note: "The branch on a byte read must cover every case: a byte, end of input, or a read error." },
   { lane: "psi", key: "lowered", name: "Lowered", truth: "illus", note: "Lowering: each state becomes a simple block with explicit edges. Target-neutral optimization happens here and may not change what was checked." },
   { lane: "psi", key: "published", name: "Psi artifact", boundary: true, truth: "illus", note: "The checked, lowered program is published as one immutable artifact. Everything above this line is target-neutral: the portable boundary." },
-  { lane: "omega", key: "provider", name: "Provider", truth: "illus", note: "Omega starts from the published artifact. The Build picks a target and the provider for each service, such as the console." },
+  { lane: "omega", key: "provider", name: "Provider", truth: "illus", note: "Omega starts from the published artifact. The Build picks a target and the provider for each service, such as Console for input and ProcessExit for exit status." },
   { lane: "omega", key: "abstract", name: "Abstract ops", truth: "illus", note: "The program becomes abstract operations: read a byte, test it, add with wrapping, jump." },
   { lane: "omega", key: "target", name: "Target ops", truth: "illus", note: "Abstract operations become operations the chosen target actually has." },
   { lane: "omega", key: "select", name: "Instructions", truth: "illus", note: "Instruction selection picks concrete instructions for each target operation." },
@@ -315,26 +321,27 @@ function tokens() {
   return out.join("");
 }
 
-const TREE = `<span class="kw">machine</span> main()  <span class="dim">reaches Console</span>
+const TREE = `<span class="kw">machine</span> main()  <span class="dim">reaches StandardInput + ProcessExit</span>
 ├─ <span class="kw">transition</span>  _ → rd(0, 0)
-├─ <span class="kw">state</span> rd(sum, n)
+├─ <span class="kw">machine</span> rd(sum, n)
 │  ├─ <span class="kw">let</span> r = block Console::read_byte()
 │  └─ <span class="kw">transition</span> r
 │     ├─ ByteRead::Byte { value } → acc(sum, n, value)
-│     └─ _ → fin(sum, n)
-├─ <span class="kw">state</span> acc(sum, n, value)
+│     ├─ ByteRead::Eof → fin(sum, n)
+│     └─ ByteRead::Error → ProcessExit::exit_process(1)
+├─ <span class="kw">machine</span> acc(sum, n, value)
 │  ├─ <span class="kw">let</span> b = value as i32
 │  └─ <span class="kw">transition</span>  _ → rd(sum + b, n + 1)
-└─ <span class="kw">state</span> fin(sum, n)
+└─ <span class="kw">machine</span> fin(sum, n)
    ├─ <span class="kw">let</span> digest = sum + n
-   └─ Console::exit_process(digest)`;
+   └─ ProcessExit::exit_process(digest)`;
 const TREE_NAMES = TREE
   .replace("→ rd(0, 0)", "→ <span class=res>state rd</span>(0, 0)")
   .replace("→ acc(sum, n, value)", "→ <span class=res>state acc</span>(sum, n, value)")
   .replace("→ fin(sum, n)", "→ <span class=res>state fin</span>(sum, n)")
   .replace("→ rd(sum + b, n + 1)", "→ <span class=res>state rd</span>(sum + b, n + 1)")
   .replace("Console::read_byte()", "<span class=res>Console::read_byte</span>()")
-  .replace("Console::exit_process", "<span class=res>Console::exit_process</span>");
+  .replace("ProcessExit::exit_process", "<span class=res>ProcessExit::exit_process</span>");
 const TREE_TYPES = TREE_NAMES
   .replace("rd(sum, n)", "rd(sum<span class=ty>: i32 wrapping</span>, n<span class=ty>: i32 wrapping</span>)")
   .replace("acc(sum, n, value)\n", "acc(sum<span class=ty>: i32 w</span>, n<span class=ty>: i32 w</span>, value<span class=ty>: i32</span>)\n")
@@ -343,7 +350,7 @@ const TREE_TYPES = TREE_NAMES
   .replace("let digest =", "let digest<span class=ty>: i32 w</span> =");
 const LOWERED = `<span class="kw">lowered program</span>  <span class="dim">blocks, explicit edges</span>
 block rd:   b ← read_byte()
-            if byte(b) → acc  else → fin
+            byte → acc  eof → fin  error → exit(1)
 block acc:  sum ← sum + value
             n   ← n + 1         → rd
 block fin:  d ← sum + n
@@ -353,6 +360,7 @@ const PUBLISHED = `<span class="kw">published program</span>  <span class="dim">
   rd(sum, n):
      read byte?  yes → acc(sum, n, byte)
                  end → fin(sum, n)
+               error → exit(1)
   acc(sum, n, v):  → rd(sum + v, n + 1)
   fin(sum, n):     exit(sum + n)`;
 
@@ -361,18 +369,18 @@ const TITLES = { source: "Source", tokens: "Tokens", syntax: "Syntax tree", name
 
 function inspector(step) {
   switch (step.key) {
-    case "source": return `<pre class="tree">${esc(SOURCE.split("\n").slice(0, 8).join("\n"))}\n<span class="dim">… 23 lines, see the source panel</span></pre>`;
+    case "source": return `<pre class="tree">${esc(SOURCE.split("\n").slice(0, 8).join("\n"))}\n<span class="dim">… ${SOURCE.split("\n").length} lines, see the source panel</span></pre>`;
     case "tokens": return `<div>${tokens()}</div>`;
     case "syntax": return `<pre class="tree">${TREE}</pre>`;
     case "names": return `<pre class="tree">${TREE_NAMES}</pre>`;
     case "types": return `<pre class="tree">${TREE_TYPES}</pre>`;
     case "check": return `<pre class="tree"><span class="kw">${step.name}</span>\n${CHECK[EDGES[step.edgeIndex]]}</pre>`;
-    case "coverage": return `<pre class="tree"><span class="kw">branch on read</span>\n  byte          covered\n  end of input  covered</pre>`;
+    case "coverage": return `<pre class="tree"><span class="kw">branch on read</span>\n  byte          covered\n  end of input  covered\n  read error    covered</pre>`;
     case "lowered": return `<pre class="tree">${LOWERED}</pre>`;
     case "published": return `<pre class="tree">${PUBLISHED}</pre><p class="boundary-note">The portable boundary: everything so far is target-neutral.</p>`;
-    case "provider": return kv([["console", "read a byte, exit: provider chosen for the target"], ["target", "one at a time, chosen by the Build"], ["input", "the published artifact, unchanged"]]);
+    case "provider": return kv([["Console", "read the designated standard input"], ["ProcessExit", "terminate with a status"], ["target", "one at a time, chosen by the Build"], ["input", "the published artifact, unchanged"]]);
     case "abstract": return `<pre class="tree"><span class="kw">abstract operations</span>\n  read_byte → test_byte → branch\n  add_wrapping(sum, value)\n  add_wrapping(n, 1)\n  add_wrapping(sum, n) → exit</pre>`;
-    case "target": return kv([["wrapping add", "the target's add form"], ["read byte", "call into the console provider"], ["branch", "a conditional jump"], ["exit", "call into the console provider"]]);
+    case "target": return kv([["wrapping add", "the target's add form"], ["read byte", "call into the Console provider"], ["branch", "a conditional jump"], ["exit", "call into the ProcessExit provider"]]);
     case "select": return `<pre class="tree"><span class="kw">selected instructions</span>  <span class="dim">schematic</span>\n  rd:   call read_byte · compare · jump\n  acc:  add · add · jump\n  fin:  add · call exit</pre>`;
     case "registers": return kv([["sum", "home 1"], ["n", "home 2"], ["value", "home 3"], ["digest", "home 1 (sum is dead)"]]);
     case "layout": return `<div class="bars"><div style="flex:3">rd</div><div style="flex:2">acc</div><div style="flex:2">fin</div></div><p class="note">Blocks placed in order; jumps resolved.</p>`;
@@ -466,12 +474,12 @@ function paintSide(step) {
   // source highlight
   const lines = new Set(), soft = new Set();
   const range = ([a, b]) => { for (let l = a; l <= b; l++) soft.add(l); };
-  if (step.key === "source" || step.key === "syntax") for (let l = 1; l <= 23; l++) soft.add(l);
-  if (step.key === "names") [4, 9, 10, 16].forEach((l) => lines.add(l));
-  if (step.key === "types") [6, 14, 19].forEach((l) => lines.add(l));
+  if (step.key === "source" || step.key === "syntax") for (let l = 1; l <= SOURCE.split("\n").length; l++) soft.add(l);
+  if (step.key === "names") [7, 12, 13, 14, 20].forEach((l) => lines.add(l));
+  if (step.key === "types") [9, 18, 23].forEach((l) => lines.add(l));
   if (step.key === "check") EDGE_LINE[EDGES[step.edgeIndex]].forEach((l) => lines.add(l));
-  if (step.key === "coverage") [8, 9, 10, 11].forEach((l) => lines.add(l));
-  if (step.lane === "run") { const r = RUN[step.runIndex]; range(STATE_LINES[r.state] || [21, 21]); EDGE_LINE[r.edge].forEach((l) => lines.add(l)); }
+  if (step.key === "coverage") [11, 12, 13, 14, 15].forEach((l) => lines.add(l));
+  if (step.lane === "run") { const r = RUN[step.runIndex]; range(STATE_LINES[r.state] || [25, 25]); EDGE_LINE[r.edge].forEach((l) => lines.add(l)); }
   document.querySelectorAll("#src .ln").forEach((el) => {
     const l = Number(el.dataset.l);
     el.classList.toggle("hl", lines.has(l));

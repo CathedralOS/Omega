@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // With closed stdin the application rejects the missing record.
 // Expected exit: 64.
@@ -20,7 +22,7 @@ data Clearance {
     certificate: Certificate;
 }
 
-machine main(clearance: @mutable Clearance) reaches ProcessExit + Console {
+machine main(clearance: @mutable Clearance) reaches ProcessExit + StandardInput + StandardOutput {
     let read: LineReadResult = block Console::read_line(@mutable clearance.input[..]);
     transition read {
         LineReadResult::LineComplete { count } -> newline(clearance, count),
@@ -57,7 +59,7 @@ machine main(clearance: @mutable Clearance) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Clearance;
     block main(@mutable entry_storage);
 }

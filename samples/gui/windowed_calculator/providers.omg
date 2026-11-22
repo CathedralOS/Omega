@@ -3,6 +3,8 @@
 // member declared for the build target, exactly like window_demo's providers.
 // Windows bodies use the shared WindowsGuiHost seam; macOS bodies keep the
 // existing Cocoa facades. Window is the shared application-owned state.
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega_language_std\AppKit;
 use omega_language_std\CoreGraphics;
 use omega_language_std\DarwinClock;
@@ -34,8 +36,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes WindowsGuiHost {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes WindowsGuiHost {
     let handle: u64 = WindowsGuiHost::window_create_client(@class_name, @title, style, x, y, width, height);
     Window { window: handle, view: 0, app: 0, space: 0, date: 0, mode: 0,
         psel: 0, mask: 0, evt: 0, relsel: 0, dsel: 0, vsel: 0, ksel: 0, pool: 0 }
@@ -47,8 +49,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics invokes AppKit {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics invokes AppKit {
     macos_window_create::<11>(class_name, @title, style, x, y, width, height)
 }
 
@@ -57,8 +59,8 @@ public windows_x86_64 machine calc_window_destroy(window: Window) reaches
     SurfacePresentation + WindowEventObservation + WindowEventDispatch +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes WindowsGuiHost {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes WindowsGuiHost {
     _ = WindowsGuiHost::window_destroy(window.window);
 }
 public macos_arm64 machine calc_window_destroy(window: Window) reaches
@@ -66,8 +68,8 @@ public macos_arm64 machine calc_window_destroy(window: Window) reaches
     SurfacePresentation + WindowEventObservation + WindowEventDispatch +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics {
     macos_window_destroy(window);
 }
 
@@ -92,8 +94,8 @@ reaches
     SurfacePresentation + WindowEventObservation + WindowEventDispatch +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes WindowsGuiHost {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes WindowsGuiHost {
     transition dest_width <= 2147483647 && dest_height <= 2147483647
         && source_width <= 2147483647 && source_height <= 2147483647 {
         true -> copy(device, dest_width, dest_height, source_width, source_height, pixels, info),
@@ -116,8 +118,8 @@ reaches
     SurfacePresentation + WindowEventObservation + WindowEventDispatch +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics invokes MacosImageData invokes MacosImageObjects {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes ObjectiveC invokes CoreGraphics invokes MacosImageData invokes MacosImageObjects {
     macos_window_blit(window_state, device, dest_width, dest_height, source_width, source_height, pixels, info)
 }
 
@@ -130,8 +132,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes WindowsGuiHost {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes WindowsGuiHost {
     let mutable native: WindowsMessage;
     let pumped: bool = WindowsGuiHost::pump_message(@mutable native);
     // The row contract's caller buffer keeps the window/kind/wParam layout the
@@ -150,8 +152,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes ObjectiveC {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes ObjectiveC {
     macos_window_msg_peek(window_state, message)
 }
 
@@ -170,8 +172,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit {
     0
 }
 public macos_arm64 machine calc_msg_dispatch(window_state: @Window, message: [u64; 6]) -> u64
@@ -180,8 +182,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes ObjectiveC {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes ObjectiveC {
     macos_window_msg_dispatch(window_state, message)
 }
 
@@ -191,8 +193,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes WindowsGuiHost {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes WindowsGuiHost {
     let answer: bool = WindowsGuiHost::is_window(window);
     transition answer { true -> (1), _ -> (0) }
 }
@@ -202,8 +204,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes ObjectiveC {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes ObjectiveC {
     macos_window_is_window(window_state, window)
 }
 
@@ -213,8 +215,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes WindowsGuiHost {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes WindowsGuiHost {
     WindowsGuiHost::foreground_window()
 }
 public macos_arm64 machine calc_foreground_window(window_state: @Window) -> u64
@@ -223,8 +225,8 @@ reaches
     WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
     ClockObservation + ExecutionDelay + FilesystemContentRead +
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
-    DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-    ProcessOutput + ProcessExit invokes ObjectiveC {
+    DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
+    StandardOutput + ProcessExit invokes ObjectiveC {
     macos_window_foreground_window(window_state)
 }
 

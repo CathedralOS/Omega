@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Runtime data is supplied through five bounded newline-terminated rows.
 use omega_language_std\Console;
@@ -19,7 +21,7 @@ use domain\report\result;
 
 data Main { }
 
-machine main(context: @mutable Main) reaches ProcessExit + Console {
+machine main(context: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let universe: Parsed = block read_set();
     let query: Parsed = block read_set();
     let first: Parsed = block read_set();
@@ -89,7 +91,7 @@ machine correction(value: Fraction, rank: u64 in Wrapping, other: Fraction, othe
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

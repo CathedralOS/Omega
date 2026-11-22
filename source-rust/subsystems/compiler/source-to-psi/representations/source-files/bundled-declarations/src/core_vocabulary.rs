@@ -32,8 +32,8 @@ mod tests {
             .into_iter()
             .map(Core::FilesystemService)
             .chain([
-                Core::ProcessInputService,
-                Core::ProcessOutputService,
+                Core::StandardInputService,
+                Core::StandardOutputService,
                 Core::ProcessExitService,
                 Core::MachineControlService,
                 Core::PortIoService,
@@ -62,6 +62,18 @@ mod tests {
             ] {
                 assert_eq!(CoreVocabularyCatalog::classify(changed), None);
             }
+        }
+    }
+
+    #[test]
+    fn physical_stream_class_names_do_not_designate_core_services() {
+        let file = "process_authority.omg";
+        let source = crate::bytes(BundledFile::CoreProcessAuthority);
+        for name in ["ProcessInput", "ProcessOutput"] {
+            assert_eq!(
+                CoreVocabularyCatalog::classify(site(file, name, source)),
+                None
+            );
         }
     }
 

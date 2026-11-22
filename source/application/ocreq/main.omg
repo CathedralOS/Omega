@@ -1,4 +1,6 @@
 // Read one sealed OCREQ V1 request and publish its OCOUT frame and exit tag.
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\ByteRead;
 use omega_language_std\Console;
@@ -11,7 +13,7 @@ use compiler_request\frame_length;
 use compiler_request\outcome_tag_value;
 use compiler_request\request_stage;
 
-machine entry_start() reaches ProcessExit + Console crashes Trap blocks {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap blocks {
     let mutable request: Request;
     clear(@mutable request);
     transition { _ -> block read(@mutable request) }
@@ -19,8 +21,9 @@ machine entry_start() reaches ProcessExit + Console crashes Trap blocks {
     machine read(request: @mutable Request) {
         let input: ByteRead = block Console::read_byte();
         transition input {
+            ByteRead::Error -> ProcessExit::exit_process(74),
             ByteRead::Byte { value } -> block stage(request, value),
-            _ -> publish(request)
+            ByteRead::Eof -> publish(request)
         }
     }
 
@@ -39,7 +42,7 @@ machine entry_start() reaches ProcessExit + Console crashes Trap blocks {
     }
 }
 
-machine write_frame(outcome: Outcome) reaches Console crashes Trap {
+machine write_frame(outcome: Outcome) reaches StandardOutput crashes Trap {
     transition { _ -> next(outcome, 0 as +Trapping) }
 
     machine next(outcome: Outcome, index: u64 in Trapping) {

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 64 (empty stdin is a missing configuration).
 // A complete stream application.
@@ -20,7 +22,7 @@ use io\input\measured_value;
 use io\trace;
 use io\trace\emit;
 data Main { filter: Filter; line: [u8; 16]; }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let result: LineReadResult = block Console::read_line(@mutable main.line[..]);
     transition result {
         LineReadResult::LineComplete { count } -> block header(main, count),
@@ -113,7 +115,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

@@ -23,7 +23,7 @@ STAGE_TESTS = {
     ),
     "language/effects.md:51": (("L3", "published_inherited_call_contributes_its_declared_reach"),),
     "language/effects.md:203": (("L3", "published_counter_fields_retain_their_callable_contracts"),),
-    "language/effects.md:878": (("L3", "published_pause_markers_cover_each_required_effect"),),
+    "language/effects.md:883": (("L3", "published_pause_markers_cover_each_required_effect"),),
     "language/generics.md:61": (("L3", "published_sort_requirement_binds_each_calls_element_and_ordering"),),
     "language/generics.md:310": (
         ("L2", "published_equality_binds_a_shadowing_parameter"),

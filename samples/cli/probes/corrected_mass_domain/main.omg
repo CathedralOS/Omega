@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // A corrected gravimetric mass is an f64 predicate, not only a runtime status.
 // gross - tare is NonnegativeMass when both readings are finite and gross is
@@ -34,7 +35,7 @@ data Reading {
 
 data Main { }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit + StandardOutput {
     let literal_total: f64 in AdmissibleTotal = 6.0;
     let mass: f64 in NonnegativeMass = corrected(3.0, 1.0);
     let stored: Reading = Reading { mass: mass };
@@ -54,7 +55,7 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardOutput {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage);
 }

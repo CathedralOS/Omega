@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0.
 // Expected output contains: status unique
@@ -19,7 +21,7 @@ use output\report\number;
 // These are squared-distance units, not radial error. Search is deterministic,
 // ordered by y then x, and retains no candidate storage or hidden truncation.
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let mutable bytes: [u8; 128];
     let mutable problem: Problem;
     let observed: LineReadResult = block Console::read_line(@mutable bytes[..]);
@@ -105,7 +107,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 machine residuals(problem: @Problem, x: i32 in Wrapping, y: i32 in Wrapping, index: u64)
-reaches Console {
+reaches StandardOutput {
     transition index < 3 {
         true -> emit(problem, x, y, index),
         false -> done()
@@ -123,7 +125,7 @@ reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

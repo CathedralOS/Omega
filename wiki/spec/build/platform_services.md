@@ -6,6 +6,21 @@ same shape. The library has no compiler privilege: this is ordinary package
 structure under [provider selection](provider_selection.md), where a selected
 provider covers its complete schema.
 
+## Standard streams
+
+The standard library's `Console` trait offers portable byte input and output.
+Its read operations explicitly reach the core service `StandardInput`. Its
+write operations explicitly reach `StandardOutput`. These identify the byte
+streams designated as standard input and standard output for this invocation.
+A host can connect them to a terminal, pipe, file, or supplied endpoint.
+Redirection preserves the declared service. The host supplies the endpoints
+separately from the caller's reach ceiling.
+
+Standard error, diagnostic logging, graphical presentation, and routed device
+events are outside these two contracts. A host can provide the standard library
+interface wherever it can preserve its byte-stream semantics. The
+[bounded input contract](../resources/bounded_input.md) defines read outcomes.
+
 ## Three layers
 
 Named decision: `portable-service-per-family-binding-carrier`, settled

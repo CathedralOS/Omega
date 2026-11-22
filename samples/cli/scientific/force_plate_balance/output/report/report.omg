@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 use domain\balance;
@@ -6,7 +7,7 @@ use domain\balance\Balance;
 // Collect decimal digits privately, then emit them in reverse order. Ten
 // digits cover every bounded application result; division precedes all I/O.
 data Decimal { digits: [i32; 10]; }
-public machine number(value: i64 in Wrapping) reaches ProcessExit + Console
+public machine number(value: i64 in Wrapping) reaches ProcessExit + StandardOutput
 invokes Console
 {
     transition value < 0 {
@@ -47,7 +48,7 @@ invokes Console
     machine done() { }
     machine failed() { ProcessExit::exit_process(1); }
 }
-public machine report(frame: @Frame, result: @Balance) reaches ProcessExit + Console
+public machine report(frame: @Frame, result: @Balance) reaches ProcessExit + StandardOutput
 invokes Console
 {
     Console::write("loads=");

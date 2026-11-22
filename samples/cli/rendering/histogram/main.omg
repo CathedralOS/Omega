@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 4.
 // Histogram: tally how many samples fall in each of four categories, then report
@@ -29,7 +31,7 @@ data Main {
     result: i32 in Wrapping;
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("histogram: counting value frequencies into a fixed-bucket array");
     main.histogram[0] = 0 as +Wrapping;
     main.histogram[1] = 0 as +Wrapping;
@@ -98,7 +100,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

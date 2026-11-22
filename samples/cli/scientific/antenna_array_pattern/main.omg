@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 use omega\language\core\abs_f64;
 use omega\language\core\max_f64;
@@ -32,7 +34,7 @@ data Main {
     normalized: f64;
     symmetry: f64;
 }
-machine number(main: @mutable Main, value: f64) reaches Console {
+machine number(main: @mutable Main, value: f64) reaches StandardOutput {
     let converted: i32 in Saturating = I32::from_f64(value);
     let integer: i32 = converted as i32;
     transition { _ -> digits(main, integer, 1000000000) }
@@ -42,10 +44,11 @@ machine number(main: @mutable Main, value: f64) reaches Console {
     }
     machine done() { }
 }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("antenna_array_pattern scalar far-field u=-1:0.25:1; powers in millionths");
     let first: ByteRead = block Console::read_byte();
     transition first {
+        ByteRead::Error -> invalid_input(main),
         ByteRead::Eof -> suite(main),
         ByteRead::Byte { value } -> select(main, value)
     }
@@ -71,6 +74,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
     machine tail(main: @mutable Main) {
         let tail: ByteRead = block Console::read_byte();
         transition tail {
+            ByteRead::Error -> invalid_input(main),
             ByteRead::Eof -> load(main),
             ByteRead::Byte { value } -> tail_check(main, value)
         }
@@ -85,6 +89,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
     machine after_line(main: @mutable Main) {
         let remaining: ByteRead = block Console::read_byte();
         transition remaining {
+            ByteRead::Error -> invalid_input(main),
             ByteRead::Eof -> load(main),
             ByteRead::Byte { value } -> invalid_input(main)
         }
@@ -186,7 +191,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

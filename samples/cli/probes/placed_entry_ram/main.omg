@@ -6,6 +6,7 @@
 // normal return the runtime owner observes original bytes2900000009000000.
 // Default entry supply is absent. No host address, MMIO, external lifetime,
 // qualifications, compound storage, or unproved callback is admitted here.
+use omega\language\core\StandardOutput;
 use omega\language\core\Access;
 use omega\language\core\AccessPlan;
 use omega\language\core\AccessPlan::inaccessible;
@@ -101,7 +102,7 @@ machine RegPlacement::plan(schema: Schema) -> AccessPlan {
 
 use omega_language_std\Console;
 data Main { }
-machine Main::main(main: @mutable Main, view: @mutable Access<RegPlacement, Registers>) reaches Console {
+machine Main::main(main: @mutable Main, view: @mutable Access<RegPlacement, Registers>) reaches StandardOutput {
     let observed: u32 = view.status.read(@view.status);
     Console::write_byte((((observed / 10) % 10) as i32) + 48);
     Console::write_byte(((observed % 10) as i32) + 48);
@@ -110,7 +111,7 @@ machine Main::main(main: @mutable Main, view: @mutable Access<RegPlacement, Regi
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start(view: @mutable Access<RegPlacement, Registers>) reaches Console {
+machine entry_start(view: @mutable Access<RegPlacement, Registers>) reaches StandardOutput {
     let mutable entry_storage: Main;
     Main::main(@mutable entry_storage, view);
 }

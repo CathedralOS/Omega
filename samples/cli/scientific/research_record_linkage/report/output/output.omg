@@ -1,8 +1,9 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use linkage\model;
 use linkage\model\Linkage;
 
-public machine number(value: u64) reaches Console
+public machine number(value: u64) reaches StandardOutput
 invokes Console
 {
     // Runtime recursion is tail-only. Find the highest decimal place, then
@@ -34,7 +35,7 @@ invokes Console
     machine done() { }
 }
 
-public machine report(linkage: @Linkage) reaches Console
+public machine report(linkage: @Linkage) reaches StandardOutput
 invokes Console
 {
     Console::write("best=");

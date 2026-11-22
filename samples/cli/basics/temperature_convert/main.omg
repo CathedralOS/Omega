@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Convert a Celsius temperature to Fahrenheit with f64 floating-point arithmetic --
 // the first sample to exercise floats, the backbone of measurement/scientific code.
@@ -16,7 +18,7 @@ data Main {
     pause: [u8; 256];
 }
 
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("temperature_convert: 20 C to Fahrenheit with f64 arithmetic");
     main.celsius = 20.0;
     main.fahrenheit = main.celsius * 1.8 + 32.0;
@@ -35,7 +37,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

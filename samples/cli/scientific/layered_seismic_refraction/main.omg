@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0 with bounded input.txt; complete numerical oracle in validation/.
 use omega_language_std\Console;
@@ -14,7 +16,7 @@ use omega\language\core\I32::from_f64;
 data Main {
  protocol: Protocol; model: Model; best_time: f64; best_branch: i32 in Wrapping;
 }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
  let valid: bool = block read(@mutable main.protocol);
  transition valid && main.protocol.position >= 2 { true -> header(main), false -> syntax(main) }
  machine header(main: @mutable Main) {
@@ -142,7 +144,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
  machine syntax(main: @mutable Main) { Console::write_line("ERROR syntax"); ProcessExit::exit_process(64); }
  machine range(main: @mutable Main) { Console::write_line("ERROR range"); ProcessExit::exit_process(65); }
 }
-machine emit(main: @mutable Main, prefix: @[u8], index: i32 in Wrapping, identifier: i32 in Wrapping, distance: f64, time: f64) reaches Console {
+machine emit(main: @mutable Main, prefix: @[u8], index: i32 in Wrapping, identifier: i32 in Wrapping, distance: f64, time: f64) reaches StandardOutput {
  Console::write(prefix); integer(@mutable main.protocol, index);
  Console::write(" "); integer(@mutable main.protocol, identifier);
  Console::write(" "); number(@mutable main.protocol, distance);
@@ -151,7 +153,7 @@ machine emit(main: @mutable Main, prefix: @[u8], index: i32 in Wrapping, identif
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

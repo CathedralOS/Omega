@@ -1,3 +1,4 @@
+use omega\language\core\StandardOutput;
 use omega_language_std\Console;
 use omega\language\core\I64::from_f64;
 use omega\language\core\narrow_i64_to_u64_wrapping;
@@ -8,7 +9,7 @@ use omega\language\core\widen_i32_to_i64;
 // without saturating large energy or small amplitudes into the integer range.
 public machine scaled(value: f64)
 invokes Console
-reaches Console {
+reaches StandardOutput {
     transition value < 0.0 { true -> negative(value), false -> normalize(value, 0) }
     machine negative(value: f64) {
         Console::write("-");
@@ -35,12 +36,12 @@ reaches Console {
 }
 public machine integer(value: i32)
 invokes Console
-reaches Console {
+reaches StandardOutput {
     integer64(widen_i32_to_i64(value));
 }
 public machine integer64(value: i64)
 invokes Console
-reaches Console {
+reaches StandardOutput {
     transition value < 0 {
         true -> negative(value),
         false -> positive(value)
@@ -58,7 +59,7 @@ reaches Console {
 }
 machine unsigned(value: u64)
 invokes Console
-reaches Console {
+reaches StandardOutput {
     transition { _ -> digits(value, 10000000000000000000, false) }
     machine digits(value: u64, divisor: u64, started: bool)
     requires divisor > 0

@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Fixed-capacity ring buffer over invocation-local storage.
 // Runtime indices are checked from Ring's head/tail invariant. Push and pop
@@ -30,7 +32,7 @@ machine pop(ring: @mutable Ring) -> i32 in Saturating {
 }
 
 data Main { }
-machine main(main: @mutable Main) reaches ProcessExit + Console {
+machine main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     let mutable ring: Ring;
     Console::write_line("generic_ring_buffer: pushes and pops through a fixed 8-slot ring");
     push(@mutable ring, 20i32 as +Saturating);
@@ -85,7 +87,7 @@ machine main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block main(@mutable entry_storage);
 }

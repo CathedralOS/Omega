@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Expected exit: 0 for input.txt; numerical oracle: validation/oracles.json.
 use domain\input;
@@ -23,7 +25,7 @@ data Application {
     mean_x: f64; mean_y: f64; variance_x: f64; variance_y: f64; covariance: f64;
     slope: f64; intercept: f64; residual_square: f64; minimum_x: f64; maximum_x: f64; minimum_y: f64; maximum_y: f64;
 }
-machine main(application: @mutable Application) reaches ProcessExit + Console crashes Trap {
+machine main(application: @mutable Application) reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
     let standards: Number = block number(@mutable application.reader);
     let unknowns: Number = block number(@mutable application.reader);
     transition standards.valid && unknowns.valid && standards.value >= 3.0 && standards.value <= 8.0 && unknowns.value >= 0.0 && unknowns.value <= 8.0 {
@@ -166,7 +168,7 @@ machine main(application: @mutable Application) reaches ProcessExit + Console cr
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console crashes Trap {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap {
     let mutable entry_storage: Application;
     block main(@mutable entry_storage);
 }

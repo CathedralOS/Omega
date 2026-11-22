@@ -1,3 +1,5 @@
+use omega\language\core\StandardInput;
+use omega\language\core\StandardOutput;
 use omega\language\core\ProcessExit;
 // Self-field mutation interleaved with value-returning calls that read
 // from main.
@@ -76,7 +78,7 @@ machine Main::offset_add(main: @mutable Main, n: i32 in Wrapping) -> i32 {
     }
 }
 
-machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
+machine Main::main(main: @mutable Main) reaches ProcessExit + StandardInput + StandardOutput {
     Console::write_line("self_mutation_between_calls: value calls must see freshly mutated main fields");
     // Interleave main mutations with value-call reads.
     main.st.multiplier = 3;
@@ -171,7 +173,7 @@ machine Main::main(main: @mutable Main) reaches ProcessExit + Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches ProcessExit + Console {
+machine entry_start() reaches ProcessExit + StandardInput + StandardOutput {
     let mutable entry_storage: Main;
     block Main::main(@mutable entry_storage);
 }
