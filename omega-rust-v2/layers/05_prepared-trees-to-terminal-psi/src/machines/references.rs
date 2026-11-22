@@ -789,12 +789,9 @@ pub(super) fn store_place(
             }
             (PlaceProjection::Field(field), Some(crate::TypeShape::Nominal(id))) => {
                 let owner = &data[id.get() - 1];
-                if !owner.requires.is_empty() {
-                    return Err(LoweringError::new(
-                        &site,
-                        "field replacement requires evidence for the enclosing invariant",
-                    ));
-                }
+                // The complete path identifies each enclosing schema and its
+                // default domain. The checker decides which clauses the write
+                // invalidates and where the affected storage must be valid again.
                 owner
                     .fields
                     .iter()

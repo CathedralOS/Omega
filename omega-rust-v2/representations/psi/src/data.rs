@@ -46,7 +46,10 @@ pub struct LoweredData {
     pub lifetime_count: usize,
     /// Carriers of runtime-capable value indices referenced by the default-domain contract.
     pub value_indices: Vec<TypeId>,
-    /// Predicates that every established value of this carrier must satisfy.
+    /// The default domain. Construction must establish it. A write through a
+    /// projected place can invalidate it at any enclosing instance; the checker
+    /// uses that place, the stored value and subsequent consumption sites to
+    /// determine preservation or restoration (dependent_values.md#invariant-windows).
     pub requires: Vec<ContractClause>,
     pub fields: Vec<LoweredField>,
     pub cases: Vec<LoweredCase>,
