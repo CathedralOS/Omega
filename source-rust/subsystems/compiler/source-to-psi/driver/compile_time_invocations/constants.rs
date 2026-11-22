@@ -131,9 +131,8 @@ pub fn validate_constant_evaluations(
     {
         return Ok(());
     }
-    // The first actual constant invocation still owns every original named
-    // use, before this batch substitutes its first value. Prepare that use
-    // family once and authenticate each emitted copy against its own receipt.
+    // A constant invocation may add expressions to materialize its result.
+    // The original use must still name the declaration selected in its source.
     let mut original_source = None;
     for record in accounting.receipts() {
         if let PureEvaluationRecord::Invocation(receipt) = record
@@ -256,17 +255,20 @@ pub fn validate_constant_evaluations(
                 .as_ref()
                 .map(|rows| rows[index].as_slice())
                 .unwrap_or_default();
-            for expression in
-                std::iter::once(constant.materialized_initializer).chain(uses.iter().copied())
-            {
-                if !program.canonical_const_materialization_matches(
-                    constant.declared_type,
-                    expression,
-                    &value,
-                ) {
-                    return Err(
-                        "constant materialization differs from its invocation outcome".into(),
-                    );
+            if !program.canonical_const_materialization_matches(
+                constant.declared_type,
+                constant.materialized_initializer,
+                &value,
+            ) {
+                return Err("constant materialization differs from its invocation outcome".into());
+            }
+            for &expression in uses {
+                if !program.expression_table.expression_is_valid(expression)
+                    || !program.expression_table.name_path_node(expression).is_some_and(|path|
+                        program.named_const_declaration(path).is_some_and(|selected|
+                            selected.symbol == constant.symbol))
+                {
+                    return Err("constant use differs from its selected declaration".into());
                 }
             }
         }

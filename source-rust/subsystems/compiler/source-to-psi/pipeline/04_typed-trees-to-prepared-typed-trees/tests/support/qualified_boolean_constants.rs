@@ -17,7 +17,7 @@ use source_compiler::representations::source_inputs::SourceMap;
 use source_compiler::representations::source_state::TypedTrees;
 use source_compiler::representations::source_state::constant::ConstDeclaration;
 use source_compiler::representations::source_state::expression::{
-    ExpressionHandle, ExpressionNode,
+    ExpressionNode,
 };
 use source_compiler::test_support::preparation::PreparedTypedTrees;
 use source_compiler::test_support::{
@@ -152,13 +152,11 @@ pub fn prepare(east: bool, initializer: Initializer) -> Prepared {
 
 /// One place in `main.omg` where a pattern names a constant, as the typed
 /// trees hold it: the expression, the path the author wrote there, the
-/// declaration selected for it and the value written at the use.
+/// declaration selected for it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ConstantUse {
-    pub expression: ExpressionHandle,
     pub written: &'static str,
     pub selected: SymbolHandle,
-    pub value: bool,
 }
 
 /// Every expression that carries a constant selection, in source order.
@@ -172,14 +170,13 @@ pub fn constant_uses(trees: &TypedTrees) -> Vec<ConstantUse> {
                 .unwrap()?
                 .symbol;
             let span = trees.expression_table.source_span(expression).span;
-            let ExpressionNode::Boolean(value) = node else {
-                panic!("a Boolean constant use must arrive as its value, found {node:?}")
+            let ExpressionNode::Name(path) = node else {
+                panic!("a constant use must retain its selected name, found {node:?}")
             };
+            assert_eq!(path.symbol, selected);
             Some(ConstantUse {
-                expression,
                 written: &MAIN[span.start..span.end],
                 selected,
-                value: *value,
             })
         })
         .collect();

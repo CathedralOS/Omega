@@ -8,11 +8,8 @@
 //! values, so each assertion below fails if a use is paired with the other
 //! module's constant.
 //!
-//! In this compiler the fact has two parts on the prepared trees. The pattern
-//! `east\ON` arrives as the Boolean value written at that use, and the use
-//! carries a selection that names the declaration `east\ON`. The declaration
-//! keeps the same value in `evaluated_value`. Stage 05's side of this handoff
-//! is tested in `05_prepared-typed-trees-to-lowered-program/tests/prepared_boolean_patterns.rs`.
+//! A pattern keeps its selected declaration. Each declaration supplies its
+//! evaluated value to lowering.
 
 #[path = "support/qualified_boolean_constants.rs"]
 mod program;
@@ -54,8 +51,7 @@ fn each_qualified_pattern_arrives_with_its_own_declaration_and_value() {
             demanded.sort();
             assert_eq!(demanded, ["east\\ON", "west\\ON"], "{initializer:?}");
 
-            // Each use names the declaration of the path written there and
-            // holds that declaration's value. The literal `true` in `plain`
+            // Each use names the declaration of the path written there . The literal `true` in `plain`
             // is not among them: it selects no constant.
             let uses = constant_uses(trees);
             let [eastern, western] = uses.as_slice() else {
@@ -63,11 +59,6 @@ fn each_qualified_pattern_arrives_with_its_own_declaration_and_value() {
             };
             for (constant, value) in [(eastern, east), (western, !east)] {
                 assert_eq!(path(constant.selected), constant.written, "{initializer:?}");
-                assert_eq!(
-                    constant.value, value,
-                    "{initializer:?} {}",
-                    constant.written
-                );
                 let declaration = trees
                     .const_declaration_by_symbol(constant.selected)
                     .unwrap();

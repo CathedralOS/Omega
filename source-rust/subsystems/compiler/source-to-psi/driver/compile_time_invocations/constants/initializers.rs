@@ -9,7 +9,6 @@ use std::collections::VecDeque;
 use typed_trees_to_prepared_typed_trees::{PreparedValue, TargetInputs, ValueInputs};
 
 use crate::source_state::TypedTrees;
-use crate::source_state::expression::ExpressionHandle;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
@@ -18,31 +17,7 @@ use crate::compile_time_invocations::{
     demanded_declarations, invocation_error,
 };
 
-use super::{References, decoded, family_position, key, named_uses};
-
-fn materialize_uses(
-    program: &mut TypedTrees,
-    symbol: SymbolHandle,
-    expressions: &[ExpressionHandle],
-) -> Result<(), String> {
-    let declaration = program
-        .const_declaration_by_symbol(symbol)
-        .ok_or("constant use lost its exact declaration")?;
-    let carrier = declaration.declared_type;
-    let value = declaration
-        .evaluated_value
-        .as_ref()
-        .and_then(numeric_literals::EvaluatedConstant::encoding)
-        .and_then(application_identity::const_value::decode_declaration_value)
-        .ok_or("constant use has no evaluated canonical value")?;
-    for expression in expressions {
-        let node = program
-            .materialize_canonical_const_value(carrier, &value)
-            .ok_or("constant value does not materialize in its declared carrier")?;
-        *program.expression_table.expression_mut(*expression) = node;
-    }
-    Ok(())
-}
+use super::{References, decoded, family_position, key};
 
 /// Nominate computation from the same request the lowered-form checker will
 /// judge. This discovers identities only; neither membership nor an empty
@@ -185,16 +160,6 @@ pub fn evaluate_with_source_consent(
         .map(|constant| constant.symbol)
         .collect::<Vec<_>>();
     constants.sort_unstable_by_key(|symbol| key(*symbol));
-    let uses = named_uses(program, &constants);
-    for (symbol, expressions) in constants.iter().zip(&uses) {
-        if program
-            .const_declaration_by_symbol(*symbol)
-            .is_some_and(|constant| constant.evaluated_value.is_some())
-        {
-            materialize_uses(program, *symbol, expressions)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        }
-    }
     let mut positions = jobs
         .iter()
         .enumerate()
@@ -326,9 +291,6 @@ pub fn evaluate_with_source_consent(
             let declaration = program.tables.const_declarations.get_mut(handle);
             declaration.materialized_initializer = expression;
             declaration.evaluated_value = Some(encoding.into());
-            if let Some(index) = family_position(&constants, symbol) {
-                materialize_uses(program, symbol, &uses[index]).map_err(invocation_error)?;
-            }
             Ok(())
         })();
         if let Err(mut diagnostics) = result {
