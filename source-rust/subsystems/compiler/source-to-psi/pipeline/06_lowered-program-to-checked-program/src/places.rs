@@ -7115,9 +7115,7 @@ impl<'a> CallObservations<'_, 'a> {
                     ) else {
                         continue;
                     };
-                    let Some(ScalarTerm::Value { id, .. }) =
-                        self.contents(leaf, scalar_type)
-                    else {
+                    let Some(ScalarTerm::Value { id, .. }) = self.contents(leaf, scalar_type) else {
                         continue;
                     };
                     let version = semantic_vocabulary::ContentPlaceVersion::Entry;
