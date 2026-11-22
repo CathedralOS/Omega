@@ -437,3 +437,20 @@ fn entry_arguments_keep_their_values_without_service_parent_closure() {
     assert!(requirement.invokes.iter().all(|row| caller.invokes.contains(&row.entry)));
     assert!(caller.realized_reach.is_empty());
 }
+
+#[test]
+fn multiple_missing_template_callees_report_the_same_owner_in_either_source_order() {
+    let first = "machine a<T>(y:T){Sink::<T>::send(y);}";
+    let last = "machine z<T>(x:T){Sink::<T>::send(x);}";
+    for declarations in [[first, last], [last, first]] {
+        let source = format!("boundary trait Sink<T>{{machine send(value:T) reaches none;}} {}", declarations.join(" "));
+        let package = sources::resolve(&[("sink.omg", &source)]);
+        let prepared = omega_preparation::prepare_source_package(&package).unwrap();
+        for _ in 0..8 {
+            let error = omega_lowering::lower_package(&prepared).unwrap_err();
+            assert_eq!(error.message, "template call needs its packaged declaration");
+            assert_eq!(error.site.file, "sink.omg");
+            assert_eq!(error.site.span.slice(source.as_bytes()), Some(b"Sink::<T>::send(y)".as_slice()));
+        }
+    }
+}

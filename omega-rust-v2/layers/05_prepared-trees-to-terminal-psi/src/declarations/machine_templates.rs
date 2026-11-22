@@ -307,15 +307,17 @@ pub(crate) fn plan(
         .filter(|s| !instantiated.contains(&s.machine) || trees[s.node.file].resolved().is_exported(s.node.node) && exported_template_owners.contains(&s.machine))
         .map(|s| &s.machine)
         .collect();
-    let mut work: Vec<_> = open.iter().copied().collect();
-    while let Some(owner) = work.pop() {
+    // Visit the declaring identities in a stable order. Several roots can lack
+    // a packaged callee, and their first refusal is a source diagnostic.
+    let mut work: std::collections::BTreeSet<_> = open.iter().copied().collect();
+    while let Some(owner) = work.pop_first() {
         // A captured binder needs its declaring header, even if another caller
         // already selected a concrete application of that declaration.
         for enclosing in std::iter::successors(owner.enclosing_machine.as_ref(), |d| d.enclosing_machine.as_ref()) {
             if prepared.typed().generic_parameters.get(enclosing).is_some_and(|p| !p.parameters.is_empty())
                 && open.insert(enclosing)
             {
-                work.push(enclosing);
+                work.insert(enclosing);
             }
         }
         for call in calls.get(owner).into_iter().flatten() {
@@ -327,7 +329,7 @@ pub(crate) fn plan(
             // declaration; this package neither copies nor opens a template for it.
             if let Some(target) = by_id.get(&call.machine) {
                 if (!call.type_arguments.is_empty() || !call.enclosing_arguments.is_empty()) && open.insert(&target.machine) {
-                    work.push(&target.machine);
+                    work.insert(&target.machine);
                 }
             } else if call.evidence.is_some() || prepared.typed().imported_machine_definition(&call.machine).is_none() {
                 return Err(LoweringError::new(&call.site, "template call needs its packaged declaration"));
@@ -336,7 +338,7 @@ pub(crate) fn plan(
                 if let ValueType::MachineSelection(app) = arg {
                     let selected = by_id.get(app.machine.as_ref()).ok_or_else(|| LoweringError::new(&call.site, "template selection needs its packaged declaration"))?;
                     if (!app.arguments.is_empty() || !app.enclosing_arguments.is_empty()) && open.insert(&selected.machine) {
-                        work.push(&selected.machine);
+                        work.insert(&selected.machine);
                     }
                 }
             }
