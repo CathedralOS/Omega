@@ -290,12 +290,8 @@ pub(crate) fn lower_predicate(
                 if operands.len() != operation.operands.len() {
                     return Err(unsupported("contract predicate operator has the wrong operand count"));
                 }
-                let term = match semantic.float_arithmetic {
-                    Some((operation, format)) => PredicateStep::IeeeArithmetic {
-                        operation,
-                        semantics: crate::FloatSemantics::Ieee754NearestEvenV1,
-                        format,
-                    },
+                let term = match semantic.arithmetic {
+                    Some(term) => term,
                     None => PredicateStep::Apply(predicate_operator(&operation.token, &operation.operands)
                         .ok_or_else(|| unsupported("unsupported contract predicate operator"))?),
                 };
@@ -824,7 +820,7 @@ struct Records<'a> {
     field: Option<&'a DeclarationId>,
     copy_read: bool,
     operation: Option<&'a omega_typed::TypedOperation>,
-    float_arithmetic: Option<(crate::FloatOperation, crate::IeeeFloatFormat)>,
+    arithmetic: Option<PredicateStep>,
     constant: Option<&'a DeclarationId>,
     landing: Option<&'a BigInt>,
 }
@@ -843,7 +839,7 @@ fn records<'a>(
     let mut typed = false;
     let mut obligation = false;
     let mut total_guard = false;
-    let mut float_contract = None;
+    let mut formation = None;
     let mut unsupported = false;
     for record in tree.semantics_at(node) {
         match record {
@@ -898,9 +894,8 @@ fn records<'a>(
                 obligation = true;
             }
             NodeSemantics::Obligation(row)
-                if matches!(carrier, ValueType::Float32 | ValueType::Float64)
-                    && kind == NodeKind::Binary && float_contract.is_none()
-                    && matches!(row.kind, ObligationKind::OperationContract { .. }) => float_contract = Some(row),
+                if matches!(kind, NodeKind::Binary | NodeKind::Unary) && formation.is_none()
+                    && matches!(row.kind, ObligationKind::OperationContract { .. }) => formation = Some(row),
             NodeSemantics::Obligation(row) if crash_guard && !total_guard && matches!(row.kind, ObligationKind::TotalCrashGuard) && row.site == site => {
                 total_guard = true;
             }
@@ -928,12 +923,27 @@ fn records<'a>(
     }
     if let Some(operation) = result.operation
         && matches!(kind, NodeKind::Binary | NodeKind::Unary)
-        && let Ok(crate::ScalarType::IeeeFloat(format)) = crate::lowering::types::stored_scalar(carrier)
     {
-        let primitive = crate::machines::arithmetic::lower_float(operation, float_contract.as_slice())?;
-        result.float_arithmetic = Some((primitive, format));
-    } else if float_contract.is_some() {
-        return Err(LoweringError::new(&site, "float predicate formation lacks its selected operation"));
+        use crate::machines::arithmetic::{LoweredInteger, lower_float, lower_integer};
+        result.arithmetic = match crate::lowering::types::stored_scalar(carrier) {
+            Ok(crate::ScalarType::IeeeFloat(format)) => Some(PredicateStep::IeeeArithmetic {
+                operation: lower_float(operation, formation.as_slice())?,
+                semantics: crate::FloatSemantics::Ieee754NearestEvenV1,
+                format,
+            }),
+            Ok(crate::ScalarType::Integer { .. }) => {
+                let LoweredInteger::Ordinary(primitive) = lower_integer(operation, formation.as_slice(), None)? else {
+                    return Err(LoweringError::new(&site, "a contract cannot execute a trapping integer operation"));
+                };
+                let operands = operation.operands.iter().map(crate::lowering::types::scalar_carrier)
+                    .collect::<Result<_, _>>().map_err(|_| LoweringError::new(&site, "integer predicate operand requires a concrete width"))?;
+                Some(PredicateStep::IntegerArithmetic { operation: primitive, operands, site })
+            }
+            _ if formation.is_none() => None,
+            _ => return Err(LoweringError::new(&site, "predicate formation requires a numeric result")),
+        };
+    } else if formation.is_some() {
+        return Err(LoweringError::new(&site, "predicate formation lacks its selected operation"));
     }
     Ok(result)
 }

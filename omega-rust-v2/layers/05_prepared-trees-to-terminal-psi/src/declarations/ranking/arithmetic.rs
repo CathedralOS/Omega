@@ -74,7 +74,7 @@ pub(super) fn subject(
         let (true, Some(operation)) = (typed, selected) else {
             return Err(refuse("arithmetic rank has no selected operation of its carrier"));
         };
-        let LoweredInteger::Ordinary(lowered) = lower_integer(operation, &obligations, &signature.machine)? else {
+        let LoweredInteger::Ordinary(lowered) = lower_integer(operation, &obligations, Some(&signature.machine))? else {
             return Err(refuse("a trapping operation cannot form a ranking witness"));
         };
         let children = &file.nodes[node].children;

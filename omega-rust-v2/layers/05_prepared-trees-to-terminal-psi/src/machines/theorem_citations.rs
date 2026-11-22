@@ -144,7 +144,7 @@ pub(crate) fn erased_subject<I>(
         let op = checked.ok_or_else(refuse)?;
         let operands = &file.nodes[node].children;
         if !typed || operands.len() != op.operands.len() || !matches!(ty, ValueType::Integer { width: Some(1..), .. }) { return Err(refuse()); }
-        let super::arithmetic::LoweredInteger::Ordinary(operation) = super::arithmetic::lower_integer(op, &obligations, owner)? else { return Err(refuse()); };
+        let super::arithmetic::LoweredInteger::Ordinary(operation) = super::arithmetic::lower_integer(op, &obligations, Some(owner))? else { return Err(refuse()); };
         // Portable scalar term forms for checked / wrapping / saturating
         // same-carrier binary arithmetic (encoding.md#scalar-terms).
         if !matches!(operation.primitive, crate::IntegerPrimitive::Add | crate::IntegerPrimitive::Subtract | crate::IntegerPrimitive::Multiply |

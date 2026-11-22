@@ -85,7 +85,7 @@ pub(crate) fn index_operation(
     obligation: &TypingObligation,
     owner: &omega_resolved::DeclarationId,
 ) -> Result<IntegerOperation, LoweringError> {
-    match lower_integer(operation, &[obligation], owner)? {
+    match lower_integer(operation, &[obligation], Some(owner))? {
         LoweredInteger::Ordinary(op) => Ok(op),
         LoweredInteger::Trapping(_) => Err(LoweringError::new(&operation.site, "index operation needs a static formation contract")),
     }
@@ -94,7 +94,7 @@ pub(crate) fn index_operation(
 pub(crate) fn lower_integer(
     operation: &TypedOperation,
     obligations: &[&TypingObligation],
-    machine: &omega_resolved::DeclarationId,
+    trap_owner: Option<&omega_resolved::DeclarationId>,
 ) -> Result<LoweredInteger, LoweringError> {
     let error = |message| LoweringError::new(&operation.site, message);
     let token = operation.token.as_str();
@@ -164,7 +164,7 @@ pub(crate) fn lower_integer(
             ObligationKind::CrashCoverage {
                 machine: owner,
                 cause: omega_typed::CrashCause::Trap,
-            } if !covers_trap && policy.is_none() && owner == machine => {
+            } if !covers_trap && policy.is_none() && Some(owner) == trap_owner => {
                 covers_trap = true;
             }
             _ => return Err(LoweringError::new(&obligation.site, "unexpected integer operation obligation")),

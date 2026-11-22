@@ -1297,7 +1297,7 @@ impl Expressions<'_> {
                 {
                     PendingOperation::Float(crate::machines::arithmetic::lower_float(op, &obligations)?)
                 } else {
-                    PendingOperation::Integer(crate::machines::arithmetic::lower_integer(op, &obligations, &self.signature.machine)?)
+                    PendingOperation::Integer(crate::machines::arithmetic::lower_integer(op, &obligations, Some(&self.signature.machine))?)
                 };
                 work.push(ExpressionStep::Emit {
                     node: expression,

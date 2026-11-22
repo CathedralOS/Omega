@@ -920,7 +920,7 @@ impl<'a> Steps<'_, '_, 'a, '_> {
         {
             return Err(self.refuse());
         }
-        let operation = crate::machines::arithmetic::lower_integer(op, &obligations, &sig.machine)?;
+        let operation = crate::machines::arithmetic::lower_integer(op, &obligations, Some(&sig.machine))?;
         let mut operands = Vec::with_capacity(op.operands.len());
         for (&child, carrier) in file.nodes[node].children.iter().zip(&op.operands) {
             let (operand, ty) = self.expression(child, false)?;

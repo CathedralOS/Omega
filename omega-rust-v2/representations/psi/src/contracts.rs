@@ -202,6 +202,15 @@ pub enum PredicateStep {
     ElementViewLength,
     Boolean(bool),
     Integer(BigInt),
+    /// Consume the preceding integer terms in source order. The first carrier is
+    /// also the result carrier. A shift retains the original count carrier.
+    /// The checker establishes the operation's formation obligations at this site
+    /// before using its value, including when the enclosing clause is a premise.
+    IntegerArithmetic {
+        operation: crate::IntegerOperation,
+        operands: Vec<crate::ScalarType>,
+        site: Site,
+    },
     /// The exact bits of a float literal or anonymous number, landed once in
     /// its format by preparation. It is never rounded again.
     IeeeFloat(crate::IeeeFloatBits),
