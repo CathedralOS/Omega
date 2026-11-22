@@ -2314,8 +2314,7 @@ pub mod operator {
                     // Builtins require unqualified operands. Reuse the same
                     // complete identity as declaration matching, including a
                     // reference's referent and a layout's semantic carrier.
-                    qualification_identity(program, *reference, &[])
-                        .is_some_and(|qualification| qualification.is_empty())
+                    operator_operand_is_qualified(program, *reference) == Some(false)
                 })
                 && crate::source_state::closed_numeric::has_builtin_anonymous_operands(
                     program, expression, spelling,
@@ -2492,6 +2491,15 @@ pub mod operator {
             (u32, u32),
             crate::source_state::type_identity::constraint_identity::NormalizedConstraint,
         )>;
+
+        /// Exact qualification of an operator operand; an unresolved identity
+        /// cannot establish either a qualified or an unqualified signature.
+        pub fn operator_operand_is_qualified(
+            program: &TypedTrees,
+            reference: TypeReferenceHandle,
+        ) -> Option<bool> {
+            qualification_identity(program, reference, &[]).map(|identity| !identity.is_empty())
+        }
 
         fn qualification_identity(
             program: &TypedTrees,
@@ -4457,8 +4465,8 @@ pub mod operator {
         OperandType, OperatorOperandBindings, arithmetic_operator_spelling,
         binary_operator_spelling, comparison_operator_spelling, core_integer_operand,
         declared_domain_constraints, has_builtin_spelled_expression_meaning,
-        has_scoped_operator_meaning, operator_operand_bindings, resolve_spelling,
-        resolve_spelling_for_operand_types, resolve_spelling_for_operands,
+        has_scoped_operator_meaning, operator_operand_bindings, operator_operand_is_qualified,
+        resolve_spelling, resolve_spelling_for_operand_types, resolve_spelling_for_operands,
         scalar_operand_read_type,
     };
     pub use trait_operators::{

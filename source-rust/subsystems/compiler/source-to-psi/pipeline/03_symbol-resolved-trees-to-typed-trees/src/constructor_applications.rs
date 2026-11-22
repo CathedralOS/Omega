@@ -285,6 +285,10 @@ pub(crate) fn retain_indexed_operand_type(
         // Domain removal has settled since the first formation pass. Select
         // the range from this exact result before a consuming cast reads it.
         retain_builtin_range_type(program, owner, expression, reference)?;
+    } else if let Some(selector) = declared.get(program, owner, index) {
+        program
+            .expression_table
+            .set_constructed_value_type_reference(index, selector);
     }
     Ok(())
 }

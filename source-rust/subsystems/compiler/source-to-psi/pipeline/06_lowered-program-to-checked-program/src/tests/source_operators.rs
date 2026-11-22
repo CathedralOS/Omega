@@ -309,6 +309,43 @@ machine entry() -> bool {
 }
 
 #[test]
+fn qualified_index_requires_a_matching_declaration() {
+    let read = |declaration: &str| {
+        let source = format!(
+            r#"
+data Cell [copy] {{ value: u32; }}
+{declaration}
+machine entry() -> bool {{
+    let cells: [Cell; 1];
+    let index: u64 in Wrapping = 0u64 as +Wrapping;
+    cells[index].value == 7u32
+}}
+"#
+        );
+        let typed = super::boundary_calls::typed(&source);
+        let prepared = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+        operator_program(prepared.trees())
+    };
+    let missing = read("").expect_err("a qualified index needs a declaration");
+    assert!(
+        missing.contains("no `[]` declaration accepts collection"),
+        "{missing}"
+    );
+    assert!(missing.contains("Wrapping"), "{missing}");
+
+    let supplied = read(
+        "machine [] at(cells: @[Cell; 1], index: u64 in Wrapping) -> Cell { Cell { value: 7u32 } }",
+    );
+    match supplied {
+        Ok(verdict) => assert_operator_value(Ok(verdict), true),
+        Err(refusal) => assert!(
+            refusal.contains("remains unresolved as CheckedOperator"),
+            "{refusal}"
+        ),
+    }
+}
+
+#[test]
 fn an_unselected_declared_value_index_is_explicitly_refused_for_reads_and_writes() {
     let declarations = "data Cell [copy] { value: u32; }\n\
         machine [] at(buffer: @[Cell; 4], index: u64) -> Cell { Cell { value: 99u32 } }";
