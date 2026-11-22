@@ -110,14 +110,6 @@ framework or a list of unimplemented features.
 - Cost: The program is still refused, so nothing unsound is accepted. A person debugging a lowering fault is sent to the write-frame code and to the wrong machine, and this applies to any body the storage-flow reader cannot read. Return the machine and the reader's reason from `validate_write_frames`, and use them for the refusal's site and text. Then change `a_write_frame_refusal_is_reported_at_the_first_machine` to expect `other`.
 - Reported: 2026-11-22, Claude Code, while testing what lowering hands the checker about a case's sum
 
-### Boolean patterns keep a copy of the constant they match
-
-- Category: One idea, several implementations
-- Where: [the pattern test that pins it](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/tests/prepared_boolean_patterns.rs#L257).
-- Saw: A pattern such as `east\ON` reaches lowering as a Boolean literal copied into the use, plus a selection naming the declaration. The declaration carries the same value again as `evaluated_value` and its materialized initializer. Name resolution writes the copy for a literal initializer and the source driver's evaluation writes it for a computed one. Lowering reads only the copy at the use. `a_use_takes_no_value_from_its_declaration` changes the declaration consistently, leaves the use alone, and lowering accepts the product and compares with the old value.
-- Cost: The two copies agree only because two separate writers make them agree. A change to either writer can make a use disagree with the constant it names, and no stage from lowering on would refuse it. No program is known to separate them today. Keep one value, on the declaration, and have lowering read it through the use's selection; then delete the copy and update that test.
-- Reported: 2026-11-22, Claude Code, while porting V2's prepared-constant handoff test to V1 lowering
-
 ### Lowering and publication still link earlier source stages instead of reading their products
 
 - Category: Knowledge crossing a boundary
