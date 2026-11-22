@@ -18,6 +18,8 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
   - Cover full-package checking of generic declarations with lifetimes, bounds, cleanup, carry and computed extents. Preserve the admitted entry's logical contracts and the declaration that owns an unsupported obligation in diagnostics.
 
+  - Evaluate an array extent or const argument written as a call that reads a computed constant: `[u8; width()]` where `width` returns `WIDTH` and `const WIDTH: u64 = measure();`. [Source preparation](source-rust/subsystems/compiler/source-to-psi/driver/prepare_typed_source.rs) evaluates const arguments before constant initializers, so `width` is refused as unsupported. An extent that names the constant directly, `[u8; WIDTH]`, works.
+
   - Carry the checked bounds of `size_of` and `align_of` through arithmetic on them and validate them at installation. Exercise [record geometry](samples/cli/probes/record_geometry), scalar and generic carriers, and the value form `align_of(view)`.
 
 - **NESTED-MACHINE-UNIFICATION.** Finish checking calls and returns in nested machines ([machines.md](wiki/spec/language/machines.md#nested-machines-and-identity), [state_contracts.md](wiki/spec/language/state_contracts.md)).

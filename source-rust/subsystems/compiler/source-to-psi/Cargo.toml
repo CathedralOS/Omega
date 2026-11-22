@@ -110,8 +110,18 @@ path = "pipeline/04_typed-trees-to-prepared-typed-trees/tests/qualified_constant
 required-features = ["test-support"]
 
 [[test]]
+name = "preparation_computed_array_extents"
+path = "pipeline/04_typed-trees-to-prepared-typed-trees/tests/computed_array_extents.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "lowering_prepared_boolean_patterns"
 path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/prepared_boolean_patterns.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_prepared_array_extents"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/prepared_array_extents.rs"
 required-features = ["test-support"]
 
 [[test]]
