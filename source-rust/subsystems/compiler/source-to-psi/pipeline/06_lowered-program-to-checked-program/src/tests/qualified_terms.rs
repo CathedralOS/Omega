@@ -997,6 +997,39 @@ machine entry() -> u16 {{
 }
 
 #[test]
+fn a_write_through_a_borrowed_array_element_restores_its_record_invariant() {
+    let source = r#"
+data Room [copy] requires used <= 16 { used: u64; }
+data Level { rooms: [Room; 16]; }
+machine entry(level: @mutable Level, index: u64)
+requires index < 16
+{
+    let room: @mutable Room = @mutable level.rooms[index];
+    room.used = 5;
+}
+"#;
+    let verdict = judge(invocation(source)).unwrap();
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    let violates = source.replace("room.used = 5", "room.used = 17");
+    let verdict = judge(invocation(&violates)).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::DataDomain { .. }))),
+        "writing through the element reference must preserve its record invariant: {verdict:?}"
+    );
+    let other_cell = source.replace(
+        "requires index < 16",
+        "requires index < 16\nensures level.rooms[0].used == 5",
+    );
+    let verdict = judge(invocation(&other_cell)).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+        "writing a selected cell must not supply a different cell's contents: {verdict:?}"
+    );
+}
+
+#[test]
 fn a_variable_byte_index_keeps_its_type_and_restoration_obligation() {
     let source = r#"
 domain [u8; 8]::Terminated requires self[7] == 0;

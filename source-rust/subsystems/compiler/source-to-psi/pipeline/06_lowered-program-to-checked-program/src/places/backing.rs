@@ -595,6 +595,18 @@ impl<'a> Storage<'a> {
             ) if a == b
                 && !parent.index_can_change_on_reentry
                 && left.captured_address_is_prefix_of(right) => {}
+            (Some(DescriptorCallOrigin::Argument { source, projection }), None)
+            | (None, Some(DescriptorCallOrigin::Argument { source, projection }))
+                if *source == parent.place.root
+                    && !projection.indirect
+                    && projection.window.is_none()
+                    && child.place.segments.iter().all(|step| {
+                        matches!(
+                            step,
+                            Segment::Field(_) | Segment::Case(_)
+                                | Segment::FixedIndex(_) | Segment::RuntimeIndex { .. }
+                        )
+                    }) => {}
             _ => return Ok(None),
         }
         // Initialization and unscoped queries do not identify a current
@@ -662,11 +674,16 @@ impl<'a> Storage<'a> {
         }
         entries.sort_unstable();
         entries.dedup();
-        if entries
-            .iter()
-            .any(|owner| trace.crossed_entries.get(index(owner.get())) != Some(&false))
-        {
-            return Ok(None);
+        // A capture may predate the store or read at the ends of this
+        // walk. Comparing it to a fresh selection is sound when the root
+        // and selectors each have one evaluation per invocation.
+        let compares_capture_to_direct = parent.origin.is_some() != child.origin.is_some();
+        for owner in &entries {
+            if trace.crossed_entries.get(index(owner.get())) != Some(&false)
+                || (compares_capture_to_direct && self.graph.in_cycle(*owner)?)
+            {
+                return Ok(None);
+            }
         }
         trace.selector_entries.extend(entries);
         trace.selector_entries.sort_unstable();
