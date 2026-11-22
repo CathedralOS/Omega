@@ -5256,7 +5256,9 @@ pub(crate) mod structural_case {
         pointer_slots: &[target_operations::TargetCasePointerSlot],
     ) -> Result<(u32, u32, Vec<RuntimeElement>), LegalizationError> {
         let identity = source_identity(function_inputs, source, result)?;
-        let geometry = reference_source_geometry(identity, path, plan.geometry())
+        let geometry = crate::preparation::structural_inputs::structural_reference_input::descriptor_source_geometry_at(
+            identity, function_inputs.arrival_parameter(source), path, plan.geometry(),
+        )
             .ok_or(LegalizationError::custody())?;
         if !geometry.readable
             || geometry

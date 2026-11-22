@@ -1,11 +1,12 @@
-data Room [copy] { value: u32; }
+data RoomId [copy] { case Empty; case Target; }
+data Room [copy] { value: u32; cell: RoomId; }
 data Level { rooms: [Room; 2]; }
-machine select(level: @mutable Level, needle: u32) -> @mutable Room {
+machine select(level: @mutable Level, needle: RoomId) -> @mutable Room {
     let rooms: @mutable [Room] = @mutable level.rooms[..];
     transition { _ -> seek(rooms, needle, 0u64) }
-    machine seek(rooms: @mutable [Room], needle: u32, index: u64) -> @mutable Room
+    machine seek(rooms: @mutable [Room], needle: RoomId, index: u64) -> @mutable Room
     requires rooms.length == 2u64, index < 2u64 {
-        let found: bool = rooms[index].value == needle;
+        let found: bool = rooms[index].cell == needle;
         let next: u64 = index + 1u64;
         transition {
             found -> @mutable rooms[index],
@@ -16,8 +17,8 @@ machine select(level: @mutable Level, needle: u32) -> @mutable Room {
 }
 machine main() crashes Trap {
     let mutable level: Level;
-    level.rooms[1u64].value = 7u32;
-    let selected: @mutable Room = select(@mutable level, 7u32);
+    level.rooms[1u64].cell = RoomId::Target;
+    let selected: @mutable Room = select(@mutable level, RoomId::Target);
     selected.value = 42u32;
     transition level.rooms[0u64].value == 0u32 && level.rooms[1u64].value == 42u32 {
         true -> end(), false -> trapped()

@@ -45,13 +45,7 @@ use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTy
 
 /// Keep the bound and its proof key when resolving a selector's byte geometry.
 /// Later stages must not recover either from an earlier executable body.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RuntimeIndex {
-    pub(crate) index: semantic_vocabulary::ValueId,
-    pub(crate) stride: u32,
-    pub(crate) extent: Option<u64>,
-    pub(crate) obligation: semantic_vocabulary::ObligationId,
-}
+pub(crate) use legalized_operations::structural_inputs::structural_reference_input::RuntimeElement as RuntimeIndex;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct StorageProjection {
