@@ -100,9 +100,15 @@ pub(crate) fn check_files(
     stage: Stage,
     root: Option<&Path>,
 ) -> Result<(), String> {
-    let build = root
-        .map(|root| omega_toolchain::DefaultBuild::capture(root).map_err(|error| format!("{}: Build: {error}", root.display())))
-        .transpose()?;
+    let build = root.map(|root| -> Result<_, String> {
+        let capture_error = |error| format!("{}: Build: {error}", root.display());
+        let sources = omega_toolchain::PackageSources::capture(root).map_err(capture_error)?;
+        if let Some(entry) = sources.authored_entry().map_err(capture_error)? {
+            parse_bytes(&root.join("build.omg"), entry)?;
+            return Err(format!("{}: Build: authored build.omg requires package Build execution", root.display()));
+        }
+        omega_toolchain::DefaultBuild::from_sources(sources).map_err(capture_error)
+    }).transpose()?;
     let mut inputs = Vec::new();
     let mut file_errors = Vec::new();
     for path in paths.iter().map(Path::new) {

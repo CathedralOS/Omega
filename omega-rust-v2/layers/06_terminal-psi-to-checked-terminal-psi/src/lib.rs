@@ -17,6 +17,10 @@ pub use policy_construction::{CheckedPolicyConstruction, check_policy_constructi
 mod storage;
 mod scalar_replacements;
 pub use scalar_replacements::{ScalarReplacementError, check_scalar_replacements};
+mod scalar_return;
+pub use scalar_return::{CheckedScalarReturn, check_scalar_return};
+mod suspension_control;
+pub use suspension_control::{CheckedSuspensionControl, check_local_suspension_control};
 
 pub use policy_call::{CheckedPolicyCall, check_selected_policy_call};
 

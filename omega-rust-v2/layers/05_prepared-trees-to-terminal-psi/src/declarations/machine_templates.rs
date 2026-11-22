@@ -1134,7 +1134,7 @@ impl<'a> Steps<'_, '_, 'a, '_> {
         let file = tree.resolved().file;
         let site = site_at(tree, node);
         let ty = &self.typed_value(node, returned)?.ty;
-        let (subject, arms) = crate::machines::branches::boolean_dispatch(&LoweringTree::plain(tree), node)?;
+        let (subject, arms) = crate::machines::branches::boolean_dispatch(&LoweringTree::plain(tree), self.inputs.prepared, node)?;
         let (subject, subject_ty) = self.expression(subject, false)?;
         if subject_ty != &ValueType::Bool {
             return Err(self.refuse());

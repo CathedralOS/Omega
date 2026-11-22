@@ -390,6 +390,13 @@ fn default_build_captures_only_the_explicit_root_and_keeps_focused_argv_bounded(
     let captured = invoke(&cwd, &args);
     assert!(captured.status.success(), "{}", String::from_utf8_lossy(&captured.stderr));
 
+    fs::write(root.join("build.omg"), "machine build(").unwrap();
+    let malformed = invoke(&cwd, &args);
+    assert_eq!(malformed.status.code(), Some(1));
+    let error = String::from_utf8_lossy(&malformed.stderr);
+    assert!(error.contains("build.omg:1:") && error.contains("parser:"), "{error}");
+    fs::remove_file(root.join("build.omg")).unwrap();
+
     // Moving those bytes inside the explicit package makes capture fail.
     // The positional compatibility entrance still reads just its named file.
     fs::rename(&large, root.join("large.bin")).unwrap();

@@ -96,6 +96,10 @@ it instantiates. A reviewer verifies those citations before the framing.
   outcome instead; escalate only genuine language or high-level architecture
   decisions, not routine refactors.
 
+## Agent sessions
+
+Use persistent sessions for external CLI agents, including Claude Code and Pi. For Claude Code, leave session persistence enabled in print mode. Record the session ID, working directory, model and resume command with the local task records. Resume the same session for follow-ups, reviews and role reversals. If a session is unrecoverable, tell the user and identify any replacement as a new session.
+
 ## Skills
 
 Invoke a skill only when the user explicitly requests it in chat.

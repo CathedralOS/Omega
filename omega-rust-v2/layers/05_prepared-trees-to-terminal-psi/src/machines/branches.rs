@@ -1,6 +1,7 @@
 use crate::lowering::applied_tree::LoweringTree;
 use std::collections::VecDeque;
 
+use omega_prepared::PreparedTrees;
 use omega_resolved::{IndexedSource, Symbol};
 use omega_syntax::NodeKind;
 use omega_typed::{NodeSemantics, Site, ValueType};
@@ -398,7 +399,7 @@ fn enqueue_dispatch(
     } else if let Some(targets) = super::references::dispatch_cases(expressions, dispatch, body, flow)? {
         targets
     } else {
-        let (subject, arms) = boolean_dispatch(tree, dispatch)?;
+        let (subject, arms) = boolean_dispatch(tree, expressions.prepared, dispatch)?;
         let condition = lower_condition(expressions, subject, body, flow)?;
         split_boolean(body, flow, file, condition, &arms)
             .into_iter()
@@ -638,6 +639,7 @@ fn match_result(
 
 pub(crate) fn boolean_dispatch(
     tree: &LoweringTree<'_>,
+    prepared: &PreparedTrees<'_>,
     node: usize,
 ) -> Result<(usize, Vec<BooleanArm>), LoweringError> {
     let file = tree.resolved().file;
@@ -654,7 +656,7 @@ pub(crate) fn boolean_dispatch(
             return Err(unsupported_node(file, arm, "dispatch arm requires one pattern and one result"));
         };
         check_container(tree, arm)?;
-        let sense = boolean_pattern(tree, pattern)?;
+        let sense = boolean_pattern(tree, prepared, pattern)?;
         selected.push(BooleanArm { pattern, expression, sense });
     }
     match selected.as_slice() {
@@ -666,6 +668,7 @@ pub(crate) fn boolean_dispatch(
 
 fn boolean_pattern(
     tree: &LoweringTree<'_>,
+    prepared: &PreparedTrees<'_>,
     pattern: usize,
 ) -> Result<Option<bool>, LoweringError> {
     let resolved = tree.resolved();
@@ -680,6 +683,9 @@ fn boolean_pattern(
                 && matches!(name.as_str(), "true" | "false") =>
         {
             Ok(Some(name == "true"))
+        }
+        (NodeKind::ValuePattern, &[operand]) if file.nodes[operand].kind == NodeKind::PathExpression => {
+            super::expressions::frozen_boolean_constant(tree, prepared, operand).map(Some)
         }
         _ => Err(unsupported_node(file, pattern, "expected an exact Boolean pattern")),
     }

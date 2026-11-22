@@ -17,37 +17,63 @@ pub const DEFAULT_ROOT_PACKAGE: &str = "root";
 const DEFAULT_ENTRY: (&str, &str) = ("defaults/build.omg", include_str!("../core/default_build.omg"));
 const DEFAULT_SEMANTICS: &[u8] = b"OMEGA-LANGUAGE-DEFAULT-BUILD-SEMANTICS-V1\0";
 
-pub struct DefaultBuild {
+/// Files retained before Build execution starts. Reading a later stage from
+/// this capture preserves the original input even if the filesystem changes.
+pub struct PackageSources {
     snapshot: Snapshot,
+}
+
+impl PackageSources {
+    pub fn capture(root: &Path) -> io::Result<Self> {
+        Ok(Self { snapshot: capture::local_package(root)? })
+    }
+
+    /// Some packages supply their own entry. Only an absent path selects
+    /// the default. A directory or an unreadable link at build.omg is an error.
+    pub fn authored_entry(&self) -> io::Result<Option<Arc<[u8]>>> {
+        let entry = Path::new("build.omg");
+        if self.snapshot.contains_key(entry) {
+            self.source_bytes(entry).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn source_bytes(&self, logical_path: &Path) -> io::Result<Arc<[u8]>> {
+        let resolved = capture::resolve(&self.snapshot, logical_path)?;
+        match self.snapshot.get(&resolved) {
+            Some(Node::File { bytes, .. }) => Ok(Arc::clone(bytes)),
+            _ => Err(io::Error::other("expected a captured package file")),
+        }
+    }
+}
+
+pub struct DefaultBuild {
+    sources: PackageSources,
     owner: [u8; 32],
 }
 
 impl DefaultBuild {
-    /// Capture every package input once. Product parsing subsequently reads
-    /// the same snapshot used for owner derivation, including contained links.
     pub fn capture(root: &Path) -> io::Result<Self> {
-        let snapshot = capture::local_package(root)?;
-        if snapshot.contains_key(Path::new("build.omg")) {
+        Self::from_sources(PackageSources::capture(root)?)
+    }
+
+    /// Derive the default owner only after selecting the bundled empty entry.
+    /// An authored entry can inspect its sources before any product owner exists.
+    pub fn from_sources(sources: PackageSources) -> io::Result<Self> {
+        if sources.authored_entry()?.is_some() {
             return Err(io::Error::other("authored build.omg requires package Build execution"));
         }
-        let core = default_core()?;
-        let owner = anonymous_owner(&snapshot, DEFAULT_SEMANTICS, &[core])?;
-        Ok(Self { snapshot, owner })
+        let owner = anonymous_owner(&sources.snapshot, DEFAULT_SEMANTICS, &[default_core()?])?;
+        Ok(Self { sources, owner })
     }
 
     pub fn package_key(&self) -> [u8; 32] {
         self.owner
     }
 
-    pub fn source_bytes(
-        &self,
-        logical_path: &Path,
-    ) -> io::Result<Arc<[u8]>> {
-        let resolved = capture::resolve(&self.snapshot, logical_path)?;
-        match self.snapshot.get(&resolved) {
-            Some(Node::File { bytes, .. }) => Ok(Arc::clone(bytes)),
-            _ => Err(io::Error::other("expected a captured package file")),
-        }
+    pub fn source_bytes(&self, logical_path: &Path) -> io::Result<Arc<[u8]>> {
+        self.sources.source_bytes(logical_path)
     }
 }
 

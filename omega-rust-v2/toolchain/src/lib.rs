@@ -3,7 +3,7 @@
 pub use omega_program_contracts::CollectionPrimitive;
 mod core_interface;
 mod default_build;
-pub use default_build::{DefaultBuild, DEFAULT_ROOT_PACKAGE};
+pub use default_build::{DefaultBuild, PackageSources, DEFAULT_ROOT_PACKAGE};
 pub use core_interface::{CoreInterface, DeclarationQuery, LayoutQuery, core_interface};
 use omega_lexer::SourceSpan;
 use omega_resolver::{Dependency, NameError, NameErrorKind, StageSource, SymbolResolvedTrees};

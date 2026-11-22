@@ -20,6 +20,25 @@ pub enum IntegerPrimitive {
     GreaterOrEqual,
 }
 
+impl IntegerPrimitive {
+    /// The truth value when this primitive compares two integers with the given order.
+    pub fn compare(
+        self,
+        order: std::cmp::Ordering,
+    ) -> Option<bool> {
+        use std::cmp::Ordering::*;
+        Some(match self {
+            Self::Equal => order == Equal,
+            Self::NotEqual => order != Equal,
+            Self::LessThan => order == Less,
+            Self::LessOrEqual => order != Greater,
+            Self::GreaterThan => order == Greater,
+            Self::GreaterOrEqual => order != Less,
+            _ => return None,
+        })
+    }
+}
+
 /// The result and operand types on the operation supply each width and signedness.
 /// Arithmetic traps when its result is outside the carrier. Division and remainder
 /// also trap on zero and signed MIN by -1. Shifts check the original count
@@ -82,5 +101,19 @@ impl IntegerOperation {
             | (Exact, BitwiseAnd | BitwiseOr | BitwiseXor | BitwiseNot | Equal | NotEqual | LessThan | LessOrEqual | GreaterThan | GreaterOrEqual) => &[],
             _ => return None,
         })
+    }
+
+    /// Comparisons are total on two operands of the same integer carrier.
+    pub fn is_total_comparison(&self) -> bool {
+        matches!(
+            self.primitive,
+            IntegerPrimitive::Equal
+                | IntegerPrimitive::NotEqual
+                | IntegerPrimitive::LessThan
+                | IntegerPrimitive::LessOrEqual
+                | IntegerPrimitive::GreaterThan
+                | IntegerPrimitive::GreaterOrEqual
+        ) && self.policy == ArithmeticPolicy::Exact
+            && self.obligations.is_empty()
     }
 }

@@ -5,7 +5,7 @@ use crate::{
     ArithmeticPolicy, BlockId, BlockTerminator, IntegerPrimitive, MachineBody, OperationKind, RankComparison, RankExpression, RankOperand, ScalarLiteral, ValueId,
     ValueOrigin,
 };
-use std::cmp::Ordering::{self, Equal, Greater, Less};
+use std::cmp::Ordering::{Equal, Greater, Less};
 
 #[derive(Clone, Copy)]
 enum Arrival {
@@ -166,7 +166,7 @@ impl<'a> Comparisons<'a> {
             };
             for (allow, order) in possible.iter_mut().zip([Less, Equal, Greater]) {
                 let order = if reversed { order.reverse() } else { order };
-                if let Some(test) = compare(operation.primitive, order) {
+                if let Some(test) = operation.primitive.compare(order) {
                     *allow &= test == taken;
                 }
             }
@@ -177,19 +177,4 @@ impl<'a> Comparisons<'a> {
             _ => None,
         }
     }
-}
-
-fn compare(
-    op: IntegerPrimitive,
-    order: Ordering,
-) -> Option<bool> {
-    Some(match op {
-        IntegerPrimitive::Equal => order == Equal,
-        IntegerPrimitive::NotEqual => order != Equal,
-        IntegerPrimitive::LessThan => order == Less,
-        IntegerPrimitive::LessOrEqual => order != Greater,
-        IntegerPrimitive::GreaterThan => order == Greater,
-        IntegerPrimitive::GreaterOrEqual => order != Less,
-        _ => return None,
-    })
 }
