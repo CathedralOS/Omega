@@ -1975,6 +1975,49 @@ fn validate_machine(
                         )?;
                     }
                 }
+                OperationKind::EstablishElementView {
+                    source,
+                    region: terminal_psi::ElementViewRegion::WholeCollection,
+                    ..
+                }
+                | OperationKind::EstablishMutableElementView {
+                    source,
+                    region: terminal_psi::ElementViewRegion::WholeCollection,
+                    ..
+                }
+                | OperationKind::ElementViewSubslice { source, .. } => {
+                    let mut expected = Memberships::default();
+                    if let Some((_, root, memberships)) = places.row(source.place)
+                        && !memberships.projected.is_empty()
+                        && let Some(StructuralTypeShape::ElementView { element, .. }) = result_type
+                            .and_then(|id| module.structural_type(id))
+                            .map(|row| &row.shape)
+                        && let Some(collection) = crate::runtime_structural_path_tip(
+                            module.types.structural_types.iter(),
+                            *root,
+                            &source.path,
+                        )
+                        && crate::collection_backing(
+                            module.types.structural_types.iter(),
+                            collection.id,
+                            *element,
+                        )
+                        .is_some()
+                    {
+                        // A window keeps the domains of each element. The
+                        // backing's own domains do not describe the descriptor.
+                        expected.projected = memberships.beneath(&source.path).projected;
+                        expected
+                            .projected
+                            .retain(StructuralPathQualification::is_element_membership);
+                    }
+                    require_exact(
+                        &places,
+                        &expected,
+                        &produced,
+                        "an element view does not keep its source elements' exact domains",
+                    )?;
+                }
                 // A reference carries the source's exact memberships at
                 // the referent, including the source's whole-value domains.
                 OperationKind::EstablishReference { source, .. } => {
