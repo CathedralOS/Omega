@@ -11,14 +11,15 @@ const NUMBERS: &str = "language/numeric_values.md";
 
 fn block(
     chapter: &str,
-    line: usize,
+    anchor: &str,
 ) -> String {
     let examples = spec_corpus::published_chapter(chapter).unwrap();
-    examples
-        .into_iter()
-        .find(|e| e.fence_line_number == line)
-        .unwrap_or_else(|| panic!("missing Omega block at line {line}"))
-        .source_text
+    let mut matching = examples.into_iter().filter(|example| {
+        example.source_text.lines().any(|line| line.trim_start().starts_with(anchor))
+    });
+    let example = matching.next().unwrap_or_else(|| panic!("missing example in {chapter} containing {anchor:?}"));
+    assert!(matching.next().is_none(), "ambiguous example in {chapter} containing {anchor:?}");
+    example.source_text
 }
 
 /// The refusal must point inside `region`, the first occurrence of that text in `source`.
@@ -41,16 +42,16 @@ fn assert_span_within(
 #[test]
 fn published_cleanup_clauses_select_owned_hooks() {
     spec_corpus::observe_handoff!("product/l3", {
-        for (line, declarations, owner, clause) in [
+        for (anchor, declarations, owner, clause) in [
             (
-                435,
+                "domain Guard::Held dropped by release_guard;",
                 "data Guard {} machine release_guard(g:Guard) {}",
                 "Guard::Held",
                 "dropped by release_guard",
             ),
-            (443, "machine release_guard<T>(g:Guard<T>) {}", "Guard", "dropped by release_guard<T>"),
+            ("data Guard<T> dropped by release_guard<T> {", "machine release_guard<T>(g:Guard<T>) {}", "Guard", "dropped by release_guard<T>"),
         ] {
-            let example = block(DOMAINS, line);
+            let example = block(DOMAINS, anchor);
             let files = [("declarations.omg", declarations), ("published.omg", &example)];
             let stage = check(&files).unwrap();
             let [selection] = stage.cleanups.as_slice() else {
@@ -113,23 +114,23 @@ fn published_domain_casts_require_complete_accounting() {
     // The child predicate receives an i32 in Positive, so its comparison uses
     // the operator declared for that parent domain.
     let comparison = "machine < Positive::less(left:i32 in Positive,right:i32)->bool {(left as -Positive)<right}";
-    for (line, expected) in [
+    for (anchor, has_child_domain, expected) in [
         (
-            623,
+            "let both: i32 in Km & Positive = 5 as +Km +Positive;", false,
             [
                 ("both as =Km", "cast omits domain i32::Positive"),
                 ("+Km", "invalid + entry for domain i32::Km"),
             ],
         ),
         (
-            666,
+            "domain i32::Positive::Small", true,
             [
                 ("small as -Positive =Positive::Small", r"cast removes domain game\i32::Positive required by game\i32::Positive::Small"),
                 ("positive as -Positive +Positive::Small", r"cast removes domain game\i32::Positive required by game\i32::Positive::Small"),
             ],
         ),
     ] {
-        let example = block(DOMAINS, line);
+        let example = block(DOMAINS, anchor);
         let (before_let, statements) = example.split_at(example.find("let ").unwrap());
         let (good, bad) = statements.split_once("// Rejected:").unwrap();
         let wrap = |extra: &str| format!("{declarations}\n{comparison}\n{before_let}machine example() {{\n{good}\n{extra}\n}}");
@@ -142,7 +143,7 @@ fn published_domain_casts_require_complete_accounting() {
                 _ => None,
             }
         }).collect::<Vec<_>>();
-        if line == 623 {
+        if !has_child_domain {
             assert_eq!(new_memberships("5 as +Km +Positive"), ["i32::Km", "i32::Positive"]);
         } else {
             let both = ["i32::Positive", "i32::Positive::Small"];
@@ -151,7 +152,7 @@ fn published_domain_casts_require_complete_accounting() {
             assert_eq!(new_memberships("positive as +Positive::Small"), ["i32::Positive::Small"]);
             assert!(new_memberships("small as =Positive -Positive::Small").is_empty());
         }
-        if line == 666 {
+        if has_child_domain {
             let call = stage
                 .calls
                 .iter()
@@ -176,10 +177,10 @@ fn published_domain_casts_require_complete_accounting() {
 #[test]
 fn published_unit_operands_and_operator_homes_survive_typing() {
     let declarations = "domain i32::Km; domain i32::Wrapping; domain u16::Small;";
-    let literal = block(DOMAINS, 736);
-    let comparison = block(DOMAINS, 759);
-    let addition = block(DOMAINS, 897);
-    let greater = block(DOMAINS, 910);
+    let literal = block(DOMAINS, "let distance: i32 in Km = 5 as +Km;");
+    let comparison = block(DOMAINS, "machine farther(left: i32 in Km, right: i32 in Km) -> bool {");
+    let addition = block(DOMAINS, "machine + Km::add_wrapping(");
+    let greater = block(DOMAINS, "machine > Small::greater(left: u16 in Small, right: u16) -> bool");
     let caller = format!(
         "machine establish() {{ {literal} }} machine sum(left:i32 in Km & Wrapping,right:i32 in Km & Wrapping)->i32 in Km & Wrapping {{left+right}} machine test(x:u16 in Small,y:u16)->bool {{x>y}}"
     );
@@ -213,7 +214,7 @@ fn published_unit_operands_and_operator_homes_survive_typing() {
 
 #[test]
 fn published_range_views_preserve_bounds_and_authority() {
-    let example = block(EXPRESSIONS, 505);
+    let example = block(EXPRESSIONS, "let shared: @[u8] = view[2..4];");
     let lines: Vec<_> = example.lines().collect();
     let [shared, exclusive, commented] = lines.as_slice() else {
         panic!("expected the three published alternatives")
@@ -266,7 +267,7 @@ fn published_range_views_preserve_bounds_and_authority() {
 
 #[test]
 fn published_policy_arithmetic_keeps_each_operator_and_carrier() {
-    let example = block(NUMBERS, 643);
+    let example = block(NUMBERS, "let next: u64 = cursor +! width;");
     let source = format!("machine compute(cursor:u64,width:u64,hash:u32,level:u8,step:u8) crashes Trap {{\n{example}\n}}");
     let stage = check(&[("published.omg", &source)]).unwrap();
     let contracts: Vec<_> = stage
@@ -295,7 +296,7 @@ fn published_policy_arithmetic_keeps_each_operator_and_carrier() {
 
 #[test]
 fn published_scoped_constants_keep_qualified_identity_and_carrier() {
-    let example = block("language/constants.md", 6);
+    let example = block("language/constants.md", "public const PAGE_SIZE: u64 = 4096;");
     let stage = check(&[
         ("status.omg", "data EfiStatus {code:u32;}"),
         ("constants.omg", &example),
@@ -318,7 +319,7 @@ fn published_scoped_constants_keep_qualified_identity_and_carrier() {
 
 #[test]
 fn published_qualified_carrier_changes_check_every_rejected_form() {
-    let example = block(DOMAINS, 701);
+    let example = block(DOMAINS, "domain<T> T::Metres;");
     let (decl, rest) = example.split_once("\n\n").unwrap();
     let (valid, invalid) = rest.split_once("// Rejected:").unwrap();
     let source = format!("{decl}\nmachine example() {{\n{valid}\n}}");
@@ -344,7 +345,7 @@ fn published_qualified_carrier_changes_check_every_rejected_form() {
 
 #[test]
 fn published_numeric_landings_do_not_mask_each_others_verdicts() {
-    let example = block(NUMBERS, 498);
+    let example = block(NUMBERS, "let implicit: u32 = (5 / 2) * 2;");
     let lines: Vec<_> = example.lines().collect();
     let [implicit, exact, truncated, fractional, overflow] = lines.as_slice() else {
         panic!("expected five published landing cases")
@@ -384,7 +385,7 @@ fn published_numeric_landings_do_not_mask_each_others_verdicts() {
 
 #[test]
 fn published_operator_in_its_own_module_keeps_the_domain_home() {
-    let example = block(EXPRESSIONS, 343);
+    let example = block(EXPRESSIONS, "public domain u64::Distance;");
     let (module, root) = example.split_once("// The same package's root file:").unwrap();
     let (_, root) = root.split_once('\n').unwrap();
     let caller = "use units; machine sum(x:u64 in Distance,y:u64 in Distance)->u64 in Distance {x+y}";
@@ -405,8 +406,8 @@ fn published_operator_in_its_own_module_keeps_the_domain_home() {
 #[test]
 fn published_static_bound_is_inferred_from_the_operand_domain() {
     let generics = "language/generics.md";
-    let definitions = block(generics, 367);
-    let bound = block(generics, 410);
+    let definitions = block(generics, "domain<const Capacity: u64> u64::AtMost<Capacity>");
+    let bound = block(generics, "machine upper_bound<const N: u64>(value: u64::AtMost<N>) -> u64 {");
     for capacity in [4, 8] {
         let caller = format!("machine bound(value:u64::AtMost<{capacity}>)->u64 {{upper_bound(value)}}");
         let stage = check(&[
@@ -426,7 +427,7 @@ fn published_static_bound_is_inferred_from_the_operand_domain() {
 
 #[test]
 fn published_domain_predicate_reads_the_carriers_field() {
-    let domain = block(DOMAINS, 35);
+    let domain = block(DOMAINS, "domain Player::Alive");
     let stage = check(&[
         ("carrier.omg", "data Player {health:i32;}"),
         ("predicate.omg", &domain),
@@ -453,7 +454,7 @@ fn published_domain_predicate_reads_the_carriers_field() {
 
 #[test]
 fn published_domain_alias_normalizes_to_the_two_socket_domains() {
-    let example = block(DOMAINS, 995);
+    let example = block(DOMAINS, "public domain Socket::Usable =");
     let atoms = "public data Socket {} public domain Socket::Connected; public domain Socket::Authenticated;";
     let caller = "machine use_socket(s:Socket in Usable) {} machine forward(s:Socket in Connected & Authenticated) {use_socket(s)}";
     let files = [
@@ -486,7 +487,7 @@ fn published_domain_alias_normalizes_to_the_two_socket_domains() {
 
 #[test]
 fn published_record_pattern_binds_the_version_only_in_its_arm() {
-    let pattern = block("language/patterns.md", 26);
+    let pattern = block("language/patterns.md", "transition header {");
     let definitions = "data Header {ok:u8;version:u16;} machine accept(version:u16)->bool {true} machine reject()->bool {false}";
     let body = format!("machine inspect(header:Header)->bool {{\n{pattern}\n}}");
     let stage = check(&[("definitions.omg", definitions), ("pattern.omg", &body)]).unwrap();
@@ -512,7 +513,7 @@ fn published_record_pattern_binds_the_version_only_in_its_arm() {
 
 #[test]
 fn published_quantity_keeps_its_carrier_and_unit_index() {
-    let declaration = block(DOMAINS, 1020);
+    let declaration = block(DOMAINS, "domain<T, const U: Unit> T::Quantity<U>;");
     for (carrier, spelling) in [
         ("u16", "u16 in Quantity<1>"),
         ("u32", "u32::Quantity<1>"),
@@ -552,7 +553,7 @@ const GENERICS: &str = "language/generics.md";
 
 #[test]
 fn published_inherited_call_contributes_its_declared_reach() {
-    let text = block(EFFECTS, 51);
+    let text = block(EFFECTS, "boundary trait WallClock: ClockOps<NoState> {}");
     let defs = "data NoState {} data Entry {at:u64;} boundary trait TimeObservation {} boundary trait ClockOps<S>{machine now(s:@mutable S)->u64 reaches TimeObservation;}";
     let rejected = text.replace("    entry.at =", "    let mutable none:NoState;\n    entry.at =");
     let error = check(&[("defs.omg", defs), ("clock.omg", &rejected)]).unwrap_err();
@@ -572,7 +573,7 @@ fn published_inherited_call_contributes_its_declared_reach() {
 
 #[test]
 fn published_counter_fields_retain_their_callable_contracts() {
-    let fields = block(EFFECTS, 203);
+    let fields = block(EFFECTS, "data ClearCounter = machine(counter: @mutable Counter) reaches none crashes none terminates;");
     let caller = "machine invoke(o:CounterOps,a:@mutable Counter,b:@Counter)->u64 {(o.clear)(a);(o.value)(b)}";
     let defs = "data Counter {}";
     let stage = check(&[
@@ -604,7 +605,7 @@ fn published_counter_fields_retain_their_callable_contracts() {
 #[test]
 fn published_pause_markers_cover_each_required_effect() {
     let defs = "machine ordinary_call() {} machine may_park() suspends {} machine may_wait() blocks {} machine may_do_either() suspends blocks {}";
-    let body = format!("machine caller() {{ {} }}", block(EFFECTS, 883));
+    let body = format!("machine caller() {{ {} }}", block(EFFECTS, "ordinary_call();"));
     let stage = check(&[("defs.omg", defs), ("calls.omg", &body)]).unwrap();
     assert_eq!(
         stage
@@ -639,7 +640,7 @@ fn published_pause_markers_cover_each_required_effect() {
 
 #[test]
 fn published_sort_requirement_binds_each_calls_element_and_ordering() {
-    let sorting = block(GENERICS, 61);
+    let sorting = block(GENERICS, "boundary trait Sorting {");
     let ordering = "trait Ordering<T>{machine precedes(a:T,b:T)->bool;} ByteOrder satisfies Ordering<u8>{machine precedes(a:u8,b:u8)->bool{a<b}} WideOrder satisfies Ordering<u16>{machine precedes(a:u16,b:u16)->bool{a<b}}";
     let calls = "machine byte(xs:@mutable [u8]) {Sorting::sort::<u8,ByteOrder>(xs)} machine wide(xs:@mutable [u16]) {Sorting::sort::<u16,WideOrder>(xs)}";
     let stage = check(&[
@@ -670,7 +671,7 @@ fn published_sort_requirement_binds_each_calls_element_and_ordering() {
 
 #[test]
 fn published_static_parameters_require_the_declared_argument_role() {
-    let binders = block(GENERICS, 640).replace("{ ... }", "{     }");
+    let binders = block(GENERICS, "data Transform = machine(value: u32) -> u32;").replace("{ ... }", "{     }");
     let defs = "trait Ranked<T>{machine before(a:T,b:T)->bool;} trait HookProcedure {machine call(x:u32);} data HookSlot{} machine identity(v:u32)->u32{v} ByteRank satisfies Ranked<u8>{machine before(a:u8,b:u8)->bool{a<b}} machine handle(x:u32) satisfies HookProcedure::call {}";
     let caller = "machine examples(xs:@mutable [u8],slot:@mutable HookSlot)->u32{sort::<u8,ByteRank>(xs);install::<handle>(slot);apply::<identity>(1)}";
     let stage = check(&[
@@ -723,7 +724,7 @@ fn published_static_parameters_require_the_declared_argument_role() {
 
 #[test]
 fn published_record_call_selects_the_shared_counter_field() {
-    let text = block("language/machine_values.md", 22);
+    let text = block("language/machine_values.md", "data Counter { value: u64; }");
     let (decls, operations) = text.split_once("let operations").unwrap();
     let caller = format!("machine observe(counter:Counter) {{ let operations{operations} }}");
     let stage = check(&[("defs.omg", decls), ("observe.omg", &caller)]).unwrap();
@@ -741,7 +742,7 @@ fn published_record_call_selects_the_shared_counter_field() {
 
 #[test]
 fn published_static_type_disjunction_reaches_typing() {
-    let clause = block(GENERICS, 310);
+    let clause = block(GENERICS, "T == u16 || T == u32 || T == u64");
     let source = format!("machine restrict<T>() {clause} {{}}");
     let stage = check(&[("clause.omg", &source)]).unwrap();
     let comparisons = stage
@@ -758,7 +759,7 @@ fn published_static_type_disjunction_reaches_typing() {
 
 #[test]
 fn explicit_quantity_carrier_matches_the_subject_in_every_domain_position() {
-    let declaration = block(DOMAINS, 1020);
+    let declaration = block(DOMAINS, "domain<T, const U: Unit> T::Quantity<U>;");
     let defs = "data Unit=u8;";
     for (body, region) in [
         ("machine f(x:u16 in u16::Quantity<1>) {}", "u16::Quantity<1>"),

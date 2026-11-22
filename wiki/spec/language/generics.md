@@ -157,7 +157,9 @@ Expansion substitutes exact declaration identities, validates every underlying
 argument and obligation, and precedes canonical type identity and ordinary
 matching. An alias and its complete expansion are the same type, with the same
 representation, ABI, multiplicity, cleanup, qualifications, access and lifetime
-obligations. There is no wrapper field, constructor, conversion, additional
+obligations. An alias may assert its target’s multiplicity under the ordinary
+property rules. A carry list is invalid on both the alias and its target.
+There is no wrapper field, constructor, conversion, additional
 nominal case owner or new ownership identity. Existing data construction,
 case qualification and matching name the normalized underlying carrier.
 The alias cannot weaken requirements, hide an incompatible representation or
@@ -819,14 +821,6 @@ empty. The termination promise and the suspension/blocking restrictions are
 unchanged. No inference of callback implementations, trait maps, boundary
 authority or arbitrary runtime entry predicates is introduced, and a
 `CallableInfo` parameter stays noncallable.
-
-A wrapper's machine contract also retains the callee's
-[conditional suspension-carry obligations](effects.md#conditional-suspension-carry).
-Re-express conditions over the wrapper's exact callable parameters and substitute
-the corresponding resource subjects and provenance. These rows constrain the
-enclosing application; they do not strengthen the parameter's originating type.
-Preserve scoped local acquisitions as such rather than exposing a caller-supplied
-permission for them. Ordinary inference cannot discard an unresolved condition.
 
 ## Invocation-lifetime families
 

@@ -1,5 +1,5 @@
 use omega_psi::{
-    BlockTerminator, CallArgument, CallSite, CallTarget, Carry, LoweredPackage, OperationKind, OperationResult, OwnedCustody, Parameter, PlaceOrigin,
+    BlockTerminator, CallArgument, CallSite, CallTarget, LoweredPackage, OperationKind, OperationResult, OwnedCustody, Parameter, PlaceOrigin,
     PlaceProjection, ReferenceAccess, TypeShape,
 };
 
@@ -106,115 +106,6 @@ pub fn check_parked_owner_borrow(
         return Err("activation does not preserve the typed tag for the incomplete call");
     }
     Ok(())
-}
-
-/// Recover the field loan parked by `forward`'s call to `inspect`, either
-/// written inline or through a named reborrow of an incoming record loan, and
-/// list each published schema from the incoming referent to the borrowed
-/// field's type with its declared carry restriction. The checker judges the
-/// crossing against these restrictions; this reader only shows that Psi keeps
-/// them reachable from the exact loan.
-pub fn parked_field_loan_carry(package: &LoweredPackage) -> Result<Vec<(&str, Option<&Carry>)>, &'static str> {
-    let caller = machine(package, "forward").ok_or("missing caller")?;
-    let callee = machine(package, "inspect").ok_or("missing callee")?;
-    let body = &caller.body;
-    let [Parameter::Structural(incoming)] = body.parameters.as_slice() else {
-        return Err("expected one incoming record loan");
-    };
-    let [site] = body.suspension_sites.as_slice() else {
-        return Err("expected one suspended invocation");
-    };
-    let CallSite::Operation(call) = site.call else {
-        return Err("expected an ordinary call");
-    };
-    let Some(OperationKind::Call { callee: target, arguments, .. }) = body.operations.get(call.index()).map(|op| &op.kind) else {
-        return Err("missing ordinary call");
-    };
-    if *target != CallTarget::Machine(callee.id) || site.callee != *target || !callee.contract.realized_pause.suspend {
-        return Err("wrong suspending callee");
-    }
-    let [
-        CallArgument::Borrow {
-            place,
-            access: ReferenceAccess::Shared,
-        },
-    ] = arguments.as_slice()
-    else {
-        return Err("expected one shared loan actual");
-    };
-    let [loan] = site.retained_loans.as_slice() else {
-        return Err("expected one retained loan");
-    };
-    if place.root != loan.descriptor || !loan.needed_by_callee || loan.needed_after_completion || !site.retained_owners.is_empty() {
-        return Err("the call actual must be the loan held only by the incomplete callee");
-    }
-    // Inline, the actual projects the incoming loan itself. Named, it
-    // dereferences the local descriptor, whose defining borrow names the field.
-    let backing = if loan.descriptor == *incoming {
-        place
-    } else {
-        let Some(PlaceOrigin::Operation(def)) = body.places.get(place.root.index()).map(|p| p.origin) else {
-            return Err("named loan has no defining operation");
-        };
-        let Some(OperationKind::BorrowPlace {
-            source,
-            access: ReferenceAccess::Shared,
-        }) = body.operations.get(def.index()).map(|op| &op.kind)
-        else {
-            return Err("named loan is not a shared borrow");
-        };
-        if place.path != [PlaceProjection::Referent] {
-            return Err("named actual must dereference its descriptor");
-        }
-        source
-    };
-    let root = body
-        .places
-        .get(incoming.index())
-        .ok_or("missing incoming place")?;
-    if backing.root != *incoming || root.origin != PlaceOrigin::Parameter {
-        return Err("the loan must reborrow the incoming record loan");
-    }
-    let Some(TypeShape::NominalReference { referent, .. }) = package.types.get(root.ty) else {
-        return Err("expected an incoming nominal reference");
-    };
-    let [PlaceProjection::Referent, fields @ ..] = backing.path.as_slice() else {
-        return Err("expected a projection of the incoming referent");
-    };
-    if fields.is_empty() {
-        return Err("expected a field of the incoming referent");
-    }
-    let mut schema = package
-        .data
-        .get(referent.get() - 1)
-        .ok_or("missing referent schema")?;
-    let mut chain = Vec::with_capacity(fields.len() + 1);
-    for step in fields {
-        let PlaceProjection::Field(field) = step else {
-            return Err("expected only record field projections");
-        };
-        chain.push((schema.declaration.path.as_str(), schema.carry.as_ref()));
-        let selected = schema
-            .fields
-            .iter()
-            .find(|item| item.declaration == *field)
-            .ok_or("field does not belong to its record")?;
-        let Some(TypeShape::Nominal(next)) = package.types.get(selected.carrier) else {
-            return Err("expected a nominal field type");
-        };
-        schema = package.data.get(next.get() - 1).ok_or("missing field schema")?;
-    }
-    chain.push((schema.declaration.path.as_str(), schema.carry.as_ref()));
-    let [formal] = callee.parameter_types.as_slice() else {
-        return Err("expected one loan formal");
-    };
-    match package.types.get(*formal) {
-        Some(TypeShape::NominalReference {
-            referent,
-            access: ReferenceAccess::Shared,
-        }) if package.data.get(referent.get() - 1).map(|d| d.id) == Some(schema.id) => Ok(chain),
-        _ => Err("formal does not borrow the exact type of the selected field"),
-    }
 }
 
 /// How the owner row at a crossing covers the storage that one parked field

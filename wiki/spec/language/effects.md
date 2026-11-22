@@ -488,7 +488,6 @@ target and the current consumer set contribute nothing.
 | `suspends`, `blocks` | OR of the fixed contribution and binder flags | private infers; public means never | never | fixed contribution OR the selected published flags |
 | `crashes` | per cause, union of fixed and binder routes, then path-fact disproof | private infers; public means none | defer to the selection | fixed routes plus the selected published routes, disproved routes removed |
 | `terminates` | own progress AND binder promises | no guarantee | no promise | the guarantee once every binder premise is discharged by a selected published promise |
-| suspension carry | conditions over the suspension term | derived | derived | discharged where substitution removes the suspension |
 | result relations | proof-only relation per binder, composed along value flow | authored claim or none | the requirement's guarantee bounds it | the selected published relation under the authored claim |
 | write frame | union of fixed paths and binder frames applied to their argument places | infer | defer to the selection | fixed paths plus the selected published frame |
 
@@ -512,8 +511,7 @@ write `reaches` and `crashes` and take the published-surface defaults for the
 other axes; their write frame is the signature's ceiling.
 
 The axes exchange facts without sharing an algebra. A disproved crash route may
-use the facts a preceding callback's requirement establishes; a false suspension
-condition discharges its guarded carry obligation; a binder termination premise
+use the facts a preceding callback's requirement establishes; a binder termination premise
 is discharged only by a published promise. Each connection is owned by the axis
 section it belongs to.
 
@@ -525,7 +523,7 @@ generic recipe and its published identity may change. Requires retain their
 own authored checks. A callback's result guarantee reaches its wrapper only
 through an authored claim; see [callback result relations](#callback-result-relations).
 
-The reach, operational and carry sections are rows of this table and retain
+The reach and operational sections are rows of this table and retain
 their decision names. Crash routes compose in [guarded crashes](#guarded-crashes);
 termination premises in
 [published guarantees](termination.md#published-guarantees-and-private-witnesses).
@@ -637,8 +635,7 @@ acknowledgements remain permitted.
 The template acknowledgement and the instantiated operational envelope are
 retained separately through checking and lowering.
 
-The body retains the [conditional suspension carry](#conditional-suspension-carry)
-obligations derived below. Ordinary ownership, access, invariant-window and
+Ordinary ownership, access, invariant-window and
 outcome checks still apply at the call, including when a selected callback cannot
 suspend. A narrower originating callback contract can state that guarantee
 directly.
@@ -667,7 +664,7 @@ wrapper requirements do not create one.
 
 The body of `apply` acknowledges possible suspension. Its summary is
 `suspend(F)`; `example` substitutes the published non-suspending `local` and
-needs no marker or suspension permission. A selected callback whose published
+needs no suspension marker. A selected callback whose published
 contract permits suspension requires `suspend apply::<Callback>(42)` and a
 caller context admitting suspension, even if a particular execution never parks.
 
@@ -695,53 +692,6 @@ opaque trust expenditure but cannot erase the abstract service from callers.
 Ordinary traits and wrappers cannot hide reach, blocking, or suspension.
 Possessing authority cannot bypass a published ceiling, and listing a service
 cannot create its required capability.
-
-#### Conditional suspension carry
-
-Named decision: `conditional-callback-carry`, ratified 2026-11-07. This is the
-suspension-carry row of
-[static binder contract dependencies](#static-binder-contract-dependencies).
-A generic may retain a value across a static callback under the condition
-that, if the call can suspend, the value permits that crossing. Derive this condition during the
-single parametric body check; no new source clause or runtime test is introduced.
-This supersedes the unconditional suspension-permission check for such sites.
-
-Use the call site's normalized suspension dependency: the existing finite OR of
-fixed contributions and exact callback projections. A forwarded call can depend
-on several binders. For each live value or resource claim whose suspension
-permission is not already established, retain the suspension-axis carry
-obligation guarded by that expression. Constant false requires no suspension
-permission. Constant true, including a fixed independent suspension contribution,
-requires it unconditionally. A non-constant condition can remain in the generic
-contract until selection; no observed consumer set or private-body inspection
-discharges it.
-
-Each conditional row belongs to the enclosing generic machine's contract, not
-to the callback requirement. Retain the exact call site, symbolic live subject
-or claim identity, provenance, required suspension permission and condition.
-Local acquisition subjects retain their declaration and invocation scope;
-forwarding substitutes both callback binders and resource subjects/provenance.
-Caller-visible subjects are checked with their corresponding arguments. A
-helper-local claim uses its own acquisition contract and retained evidence;
-the caller cannot manufacture a permission for that private claim.
-
-Applications substitute selected published callback contracts and applicable
-type/resource evidence. A false condition discharges only its guarded carry
-obligation. Otherwise establish the required permission under the ordinary carry
-rules, including `Carry::AcrossSuspend` where the claim requires it, or reject.
-An unresolved condition may propagate through another checked generic contract;
-it cannot be silently erased or deferred to runtime at a closed application.
-Permission evidence must retain its valid provenance and cannot override an
-explicit suspension-forbidden type policy. Diagnose the exact resource, crossing
-and selected callback contributions that prevent admission.
-
-Only suspension permission is conditional here. Ownership, loan access and
-lifetimes, invariant-window fences, outcome/cancellation paths, CPU/thread/address
-preservation and obligations caused by the ordinary call keep their existing
-rules. A synchronous callback does not excuse an unfinished invariant exposed
-by that call. Blocking does not acquire this conditional rule. The
-`suspends false` refinement remains available for an explicitly synchronous
-callback requirement.
 
 ## Direct synchronous invocation
 
@@ -899,7 +849,7 @@ conversely. Combined order is `suspend block`; duplicate or reversed markers rej
 
 Named decision: `conservative-call-acknowledgements`, ratified 2026-11-06.
 Authored markers and the checked envelope remain separate through checking and
-lowering. Effects, carry, loans, invariant-window crossings, context admission
+lowering. Effects, loans, invariant-window crossings, context admission
 and continuation creation follow that envelope, not the presence of extra
 markers. Generic bodies still satisfy their callback upper bounds; a synchronous
 application cannot excuse an invalid template. Ordinary call-boundary and
@@ -909,8 +859,7 @@ Markers acknowledge held borrows, claims, guards, and authority across possible
 pauses. They do not force execution to pause, create a task/future, change ABI or
 result, change inferred effects, or enter normalized machine identity. Suspension
 parks an activation and requires a continuation; blocking retains its stack and
-worker. Carry policy may reject a crossing with particular live values but
-cannot rewrite the callee's envelope.
+worker. Every possible crossing must preserve its live loans and backing.
 
 Calls and forwarding wrappers also retain their
 [synchronization contracts](concurrency.md#retained-protocol-contracts).
@@ -936,7 +885,7 @@ unnecessary markers from the checked source context. Formatting or ordinary
 compilation does not remove them.
 
 Borrowed arguments and other live loans may cross suspension under ordinary
-[loan and carry preservation](../resources/carry.md#borrows-across-suspension).
+[loan preservation](../resources/suspension.md#borrows-across-suspension).
 Neither a `suspends` ceiling nor an acknowledgement supplies that evidence.
 Borrowed/service-related types are not categorically forbidden, and boundary
 identity does not exempt them from preservation checks.
@@ -1032,8 +981,7 @@ an authored export, rewrite its guards, or change interface identity.
 Specializing a published reach or operational dependency is contract
 substitution, not proof-based shrinking of an authored opaque ceiling.
 Every [static binder dependency term](#static-binder-contract-dependencies),
-including crash routes, termination premises and conditional suspension-carry
-rows, is part of the enclosing machine's published contract and interface
+including crash routes and termination premises, is part of the enclosing machine's published contract and interface
 identity, including normalized subjects, provenance and conditions. A body edit
 that changes such a term changes the public contract even when the authored
 header is unchanged. Forwarding and specialization preserve or discharge them
@@ -1061,7 +1009,6 @@ manifest and lineage requirements; equal rows never establish protocol identity.
 
 Automatic dependency propagation is limited to the axes of the
 [per-axis table](#static-binder-contract-dependencies): reach unions,
-suspension/blocking OR summaries, crash route unions, termination premises and
-conditional suspension-carry obligations. It introduces neither arbitrary
+suspension/blocking OR summaries, crash route unions and termination premises. It introduces neither arbitrary
 callback-contract projections nor new source acknowledgement syntax.
 No anonymous-machine or lambda surface is accepted.

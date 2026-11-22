@@ -369,7 +369,7 @@ cannot establish agreement between region-bearing applications.
 
 Service schemas retain linear routed-parameter claims structurally: exact
 parameter/result subject, carrier-aware semantic domain, authority-flow verb
-such as `accepts`, carry policy, predicate discharge, and grant provenance.
+such as `accepts`, predicate discharge, and grant provenance.
 Those rows participate in plan identity and reports, and travel to root selection.
 Only the matching concrete entry receipt establishes a claim for an invocation;
 type displays and schema promises are not that receipt.

@@ -46,9 +46,7 @@ and its obligations; it never issues replacement authority from type and count.
 Different cells may hold different resources despite having the same type.
 Hiding identity from callers is not permission to discard it from custody.
 
-The run retains the restrictive combination of its cells' carry permissions and
-one compatible carry anchor; insertion of a conflicting anchor rejects. Contained
-loans retain their lenders and lifetimes conservatively. Forgetting permission
+The cells’ contained loans retain their lenders and lifetimes conservatively. Forgetting permission
 never forgets the associated obligation. Calls and control-flow joins preserve
 this custody summary without enumerating the runtime count.
 
@@ -100,7 +98,7 @@ routes.
 | Primitive | Caller obligations | Custody result |
 | --- | --- | --- |
 | `Run::split::<P, T>(run, cut)` | Own a live run and prove `cut <= run.count`, with the backing partition and outstanding loans valid. | Consume `run`; return `RunParts<P, T>` with live `left` and `right` fields owning exactly its prefix and suffix. Their counts are `cut` and the input count minus `cut`. |
-| `Run::merge::<P, T>(left, right)` | Own both live runs; prove compatible placement, backing and carry obligations, valid backing adjacency, and that the combined count fits `u64`. | Consume both inputs; return one live run containing the actual left cells followed by the actual right cells, with their combined count and backing. |
+| `Run::merge::<P, T>(left, right)` | Own both live runs; prove compatible placement and backing, valid backing adjacency, and that the combined count fits `u64`. | Consume both inputs; return one live run containing the actual left cells followed by the actual right cells, with their combined count and backing. |
 
 Both operations are total when their preconditions hold. Bounds, adjacency and
 compatibility are `requires` obligations; a caller with runtime inputs can branch
@@ -148,8 +146,7 @@ element type is [left open](../../drafts/designs/named_domain_casts.md#left-open
 A mutable view may omit only element domains the lender could add again under
 [mutable views](../language/domains.md#mutable-views), and must preserve
 or restore the original domain predicates before its loan ends. Nominal units with no value
-predicate need no extra value test; arbitrary predicate domains do. Access,
-carry and authority restrictions cannot be cast away, even inside a window.
+predicate need no extra value test; arbitrary predicate domains do. Access and authority restrictions cannot be cast away, even inside a window.
 
 Release consumes or legitimately disposes every live value before returning
 vacant backing under the allocation contract. A length assignment is not a

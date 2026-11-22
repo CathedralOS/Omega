@@ -178,7 +178,7 @@ numeric provider may still carry a trust finding.
   or unqualified names. Authored toolchain declarations bind their canonical
   toolchain-relative path and source-byte commitment.
 - Generic binders normalize by their declared semantic positions. Compiler
-  builtins, carry permissions, value domains, and layout forms use closed typed
+  builtins, value domains, and layout forms use closed typed
   atoms, not nominal owners invented from their diagnostic labels.
 - Public types, applications, and contracts retain complete structural meaning.
   Unresolved nominals, malformed canonical values, missing selections, and

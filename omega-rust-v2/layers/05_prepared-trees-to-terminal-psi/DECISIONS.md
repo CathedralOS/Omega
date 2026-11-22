@@ -4,11 +4,10 @@ This is the starting map for the repair pass at `f572107080eda`. The readiness c
 
 ## Cases awaiting a language-owner ruling
 
-Two measured cases await two open decisions. A test that reproduces the current refusal keeps its case open. Follow the named entries in the repository owner queue for the ruling and then test its effect on the indicated input.
+One case still awaits a ruling. The alias case is settled by the [resource rules](../../../wiki/spec/resources/suspension.md).
 
 | Case | Decision that would change its expected output |
 | --- | --- |
-| Carry policy on a transparent data alias | [Transparent alias carry assertions](../../../OWNER_QUESTIONS.md#transparent-alias-carry-assertions) determines whether an alias can declare a floor that leaves its effective policy unchanged. |
 | Hypothesis outside a theorem binder | [Machine hypotheses without a binder](../../../OWNER_QUESTIONS.md#machine-hypothesis-without-a-binder) determines whether the declaration is invalid or the citation owes an implicit evidence argument. |
 
 ## Storage, views and suspension

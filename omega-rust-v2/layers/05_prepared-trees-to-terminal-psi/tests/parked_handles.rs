@@ -109,55 +109,32 @@ fn fully_transferred_storage_has_no_claim_at_a_later_suspension() {
 }
 
 #[test]
-fn a_parked_aggregate_preserves_its_live_fields_declared_carry_policy() {
+fn a_parked_linear_aggregate_preserves_caller_custody_of_its_field() {
     use omega_lowering::{OwnedCustody, Parameter, TypeShape};
-    for (permission, allowed) in [("allowed", true), ("forbidden", false)] {
-        let text = format!(
-            "data Lease [linear,carry(suspension:{permission},cpu:same,thread:any,address:stable,)]{{key:u64;}} data Held [linear]{{lease:Lease;}} machine wait() suspends{{}} machine forward(held:Held)->Held suspends{{suspend wait();held}}"
-        );
-        let resolved = source::resolve(&[("carry.omg", &text)]);
-        let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
-        let (_, properties) = prepared
-            .typed()
-            .data_properties
-            .iter()
-            .find(|(decl, _)| decl.path == "Lease")
-            .unwrap();
-        let input = properties.carry.as_ref().unwrap();
-        assert_eq!(
-            (
-                input.allows_suspension,
-                input.requires_same_cpu,
-                input.requires_same_thread,
-                input.requires_stable_address
-            ),
-            (allowed, true, false, true)
-        );
-        let pkg = omega_lowering::lower_package(&prepared).unwrap();
-        let body = &pkg
-            .machines
-            .iter()
-            .find(|m| m.declaration.path == "forward")
-            .unwrap()
-            .body;
-        let [site] = body.suspension_sites.as_slice() else { panic!("one crossing") };
-        let [owner] = site.retained_owners.as_slice() else {
-            panic!("one aggregate held for completion")
-        };
-        assert_eq!(body.parameters[0], Parameter::Structural(owner.place));
-        assert!(owner.moved.is_empty() && owner.custody == OwnedCustody::Caller);
-        let Some(TypeShape::Nominal(outer)) = pkg.types.get(owner.ty) else {
-            panic!("nominal root")
-        };
-        let outer = &pkg.data[outer.get() - 1];
-        assert!(outer.carry.is_none());
-        let [field] = outer.fields.as_slice() else { panic!("one live field") };
-        let Some(TypeShape::Nominal(lease)) = pkg.types.get(field.carrier) else {
-            panic!("expected lease")
-        };
-        let output = pkg.data[lease.get() - 1].carry.as_ref().unwrap();
-        assert_eq!(output, input);
-    }
+    let text = "data Lease [linear] {key:u64;} data Held [linear] {lease:Lease;}
+                machine wait() suspends {} machine forward(held:Held)->Held suspends {suspend wait();held}";
+    let pkg = source::lower(&[("owner.omg", text)]).unwrap();
+    let body = &pkg
+        .machines
+        .iter()
+        .find(|m| m.declaration.path == "forward")
+        .unwrap()
+        .body;
+    let [site] = body.suspension_sites.as_slice() else { panic!("one crossing") };
+    let [owner] = site.retained_owners.as_slice() else {
+        panic!("one aggregate held for completion")
+    };
+    assert_eq!(body.parameters[0], Parameter::Structural(owner.place));
+    assert!(owner.moved.is_empty() && owner.custody == OwnedCustody::Caller);
+    let Some(TypeShape::Nominal(outer)) = pkg.types.get(owner.ty) else {
+        panic!("nominal root")
+    };
+    let outer = &pkg.data[outer.get() - 1];
+    let [field] = outer.fields.as_slice() else { panic!("one live field") };
+    let Some(TypeShape::Nominal(lease)) = pkg.types.get(field.carrier) else {
+        panic!("expected lease")
+    };
+    assert_eq!(pkg.data[lease.get() - 1].declaration.path, "Lease");
 }
 
 #[test]

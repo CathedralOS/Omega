@@ -301,12 +301,12 @@ class L5RecordTests(unittest.TestCase):
 
     def test_obligation_counts_need_a_spec_case_that_reached_lowering(self):
         self.collect(spec(SPEC_LINES[:2] + [
-            "OMEGA_OBLIGATION\tresources/carry.md:6\tVerifyLibraryImplementation\t1",
+            "OMEGA_OBLIGATION\tresources/access.md:54\tVerifyLibraryImplementation\t1",
             "OMEGA_OBLIGATION\tresources/access.md:20\tBorrow\t1",
             "OMEGA_CASE\tspec\tresources/access.md:20\tL2\trecorded refusal\texample.omg:1:8: unresolved name Controller (bytes 7..29)",
         ]))
         incomplete = list(incomplete_cohorts(self.report))
-        self.assertIn("spec/resources/carry.md:6: obligation counts without a case result", incomplete)
+        self.assertIn("spec/resources/access.md:54: obligation counts without a case result", incomplete)
         self.assertIn("spec/resources/access.md:20: obligation counts printed after preparation, but the case stopped at L2", incomplete)
         self.assertIn("spec: observed 1 results, expected 3", incomplete)
 

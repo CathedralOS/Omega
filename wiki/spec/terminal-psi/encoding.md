@@ -42,7 +42,11 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Current marker 290 retires external hosted byte-read tag `3`. A reader supplied
+Current marker 291 removes the four policy bytes from suspension plans and live values,
+and removes conditional carry rows (including their count) from generic
+operational contracts. Readers reject earlier markers before reading the payload.
+
+Marker 290 retires external hosted byte-read tag `3`. A reader supplied
 through the current standard library returns a recoverable error. A saved
 program from marker 289 or earlier must be rebuilt.
 
@@ -1121,7 +1125,7 @@ requirements at the cleanup edge and action ordinal.
 
 ## Machine rows
 
-Current marker 287 combines these public-call and observation records with
+Marker 287 combines these public-call and observation records with
 explicit structural qualification changes, normalized service schemas, provider
 selections, entry commitments, complete callable catalogs and installation-bound
 service rows. Marker 266's float-conversion integer carriers remain intact.
@@ -1157,7 +1161,7 @@ no source markers. Duplicate sites or a site naming no call reject.
 Acknowledgements do not encode a suspension crossing, alter the published
 envelope, or enter normalized callable identity. The module retains them for
 checking and audit; its semantic bytes therefore change when they change.
-Actual suspension still owes its independent continuation and carry evidence.
+Actual suspension still owes its independent continuation, loan and storage evidence.
 
 A boundary declaration stores its counted runtime parameter-order tags after
 the optional attachment and before scalar parameter types: `u8` 0 selects the
@@ -1342,7 +1346,7 @@ ordered methods. Its counted identity texts preserve their interned order and
 cannot repeat. Each receiver retains its application, declaring trait/package,
 type and lifetime arguments, and exact requirement list. A method retains its
 completion, name and declaring owner/package, requirement and parameter/result
-types, all entry/result domain and carry claims, authority flows, service reach,
+types, all entry/result domain claims, authority flows, service reach,
 synchronous invocations, suspension/blocking and termination guarantees, and
 termination premises with their subjects, projections and establishment routes.
 A method's ordered parameter type identities are followed by the 32-byte
@@ -1516,7 +1520,7 @@ layout identity and slot-owning plan identity remain distinct.
 
 Marker 199 task demands carry canonical callable/entry identity indices, exact
 requirement package ownership, specialization commitment, signature storage
-types, the root frame identity, the reachable frame graph and checked carry
+types, the root frame identity, the reachable frame graph and checked suspension
 crossings. Each frame stores a counted list of alternative states; each state
 stores its resident values and a counted list of alternative staged-call
 argument lists. Native storage is the maximum over those alternatives, not
@@ -1673,7 +1677,7 @@ The float-conversion predecessor with semantic format marker 278 and vocabulary
 and width must match the exact `FloatSemantics::from_integer` catalog signature.
 Calls substitute this input with their other scalar actuals; it is not an IEEE
 projection or a new float source class. Receiving validates the full equation,
-including the integer carrier. Current marker 287 and vocabulary 142 combine
+including the integer carrier. Marker 287 and vocabulary 142 combine
 these operands with complete callable and installation contracts. Native input
 record `OMGNTI39` retains the semantic module's strict current header. Earlier
 semantic schemas reject before payload decoding. This adds no arithmetic proof
@@ -2035,64 +2039,21 @@ must update the reach schema, wire-field tables, commitments and codecs together
 with exact round-trip and refusal coverage. Source omission alone cannot recover
 an absent dependency from a previously published interface.
 
-### Conditional suspension-carry summaries
+### Generic operational contracts
 
-An exported generic operational contract retains its
-[conditional carry rows](../language/effects.md#conditional-suspension-carry).
-Each row identifies the enclosing application and exact crossing, the symbolic
-live subject or claim, its scoped provenance, the required suspension permission,
-and the normalized suspension-dependency expression. Expressions use the existing
-fixed Boolean contributions and exact callback projections; they may name several
-binders. Forwarding retains substitutions for subjects as well as conditions.
+Invocation and capture receipts encode a 32-byte base template commitment,
+then a suspension dependency and a blocking dependency. Each dependency
+encodes its fixed Boolean and a counted list of strictly increasing `u32`
+machine-binder positions. A true fixed contribution requires an empty list.
+The `omega.machine-template.v5` commitment binds the base template identity,
+complete telescope size and both dependencies.
 
-Marker 254 adds this payload to both invocation and capture receipts. A checked
-machine declaration also retains its published suspension and blocking Booleans
-immediately after its 32-byte contract, before the specialization-presence flag.
-These describe the selected public contract, independently of private-body
-inference. A closed machine binding retains both its requirement upper bounds
-and the selected public Booleans. Admission compares selected callees with these
-retained public contracts and evaluates callback projections in the complete
-capture-then-invocation telescope. Marker 253 and older modules reject.
-
-| Operational contract payload | Fields |
-| --- | --- |
-| contract | 32-byte base template commitment + suspension dependency + blocking dependency + counted conditional carry rows |
-| dependency | `bool` fixed contribution + counted strictly increasing `u32` machine-binder positions; a true fixed contribution has no positions |
-| conditional carry | `u32` declaration-state position + `u64` statement position + `u64` call ordinal + subject + canonical value-type string + counted claim arrivals + dependency |
-| parameter subject | `u8` 0 + scoped declaration identity string + `u64` parameter position |
-| local subject | `u8` 1 + scoped declaration identity string + `u64` declaration statement position + `u64` environment position |
-| call argument subject | `u8` 2 + `u64` argument position |
-| claim arrival | receiving claim + acquisition provenance |
-| receiving claim | scoped machine identity string + scoped state identity string + acquisition event + `u32` claim ordinal |
-| established provenance | `u8` 1 + scoped machine identity string + scoped state identity string + acquisition event |
-| joined provenance | `u8` 2 + scoped machine identity string + scoped state identity string + acquisition event + `u32` claim ordinal |
-| entry acquisition | `u8` 0 |
-| statement acquisition | `u8` 1 + `u64` statement position |
-| call acquisition | `u8` 2 + `u64` statement position + `u64` call ordinal + scoped target identity string |
-| instruction acquisition | `u8` 3 + `u64` statement position |
-| instruction-exit acquisition | `u8` 4 + `u64` statement position |
-| exit acquisition | `u8` 5 |
-
-The receiving claim and its acquisition provenance are distinct: a local call
-result receives a statement claim whose joined provenance identifies the exact
-acquisition call and target. Both survive publication. Unknown subject, acquisition
-or provenance tags reject. Claims cannot encode unknown identity or provenance. Carry rows and each row's claims are strictly ordered and unique;
-a carry guard has at least one exact projection and no true fixed contribution.
-The `omega.machine-template.v4` commitment binds the base template identity,
-complete telescope size, both dependencies, and every scoped subject, acquisition
-and guard. Dropping or altering a row without changing its checked commitment
-rejects. The payload retains requirements; it grants no carry permission or
-runtime authority. False guards discharge only suspension permission. Closed
-true guards still require the ordinary suspension call plan and its complete
-live frontier.
-
-These rows participate in canonical interface identity and dependency checking.
-A decoder cannot interpret a missing row as permission. Closed applications
-discharge or satisfy their obligations before lowering, while ordinary call and
-outcome obligations remain enforced. Runtime callable types and installation-bound
-service rows gain no new form. Closed suspension call plans preserve the
-specialized live frontier and policies under the governing
-[carry requirements](../language/effects.md#conditional-suspension-carry).
+A checked machine declaration retains its published suspension and blocking
+Booleans after its 32-byte contract and before its specialization-presence flag.
+Closed machine bindings retain both requirement upper bounds and selected
+public ceilings. Admission checks the selected contracts and evaluates callback
+projections in capture-then-invocation order. Each call that can suspend
+requires its complete live frontier and loan graph.
 
 ## Module declaration tables
 
@@ -2876,9 +2837,8 @@ sites, then counted call plans.
 | Row | Fields |
 | --- | --- |
 | suspension call site | operation id + crossing id + suspension call target + 32-byte frontier commitment |
-| suspension call plan | operation id + crossing id + suspension call target + carry policy + `u32` live value count + counted live values + loan graph |
-| suspension live value | suspension place + suspension value type + suspension storage + `u32` claim count + counted claim ids + carry policy + value-loan tag and optional link span |
-| carry policy | carry suspension + carry cpu + carry host thread + carry address (one tag byte each) |
+| suspension call plan | operation id + crossing id + suspension call target + `u32` live value count + counted live values + loan graph |
+| suspension live value | suspension place + suspension value type + suspension storage + `u32` claim count + counted claim ids + value-loan tag and optional link span |
 
 <!-- suspension-target-tags -->
 
@@ -2887,34 +2847,6 @@ sites, then counted call plans.
 | 1 | Machine | machine id |
 | 2 | Boundary | boundary machine id |
 | 5 | Dynamic | `u32` interface + `u32` slot |
-
-<!-- carry-suspension-tags -->
-
-| tag | Carry suspension |
-| --- | --- |
-| 1 | Forbidden |
-| 2 | Allowed |
-
-<!-- carry-cpu-tags -->
-
-| tag | Carry cpu |
-| --- | --- |
-| 1 | Origin |
-| 2 | Any |
-
-<!-- carry-host-thread-tags -->
-
-| tag | Carry host thread |
-| --- | --- |
-| 1 | Origin |
-| 2 | Any |
-
-<!-- carry-address-tags -->
-
-| tag | Carry address |
-| --- | --- |
-| 1 | Stable |
-| 2 | Movable |
 
 <!-- suspension-place-tags -->
 
@@ -2939,13 +2871,13 @@ sites, then counted call plans.
 | 4 | CallArgument |
 
 Suspension call sites and plans are strictly ordered by operation id and
-crossing id; each plan's live values are nondecreasing by place, storage,
-value type, and carry policy. These are demand occurrences, not unique storage
+crossing id; each plan's live values are nondecreasing by place, storage and
+value type. These are demand occurrences, not unique storage
 identities: two actual positions may name the same storage and still contribute
-separate rows, claims and policies. Preserve every occurrence and the complete
+separate rows and claims. Preserve every occurrence and the complete
 count; do not deduplicate equal coordinates. Each live value's claims are
 strictly ordered by claim id. The frontier commitment uses the
-`terminal-suspension-frontier-v8` domain and includes the ordered roster and
+`terminal-suspension-frontier-v9` domain and includes the ordered roster and
 its cardinality, each value's loan links and the complete loan graph. Marker
 137 adds evaluated-actual captures; earlier markers are not reinterpreted.
 

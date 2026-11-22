@@ -6,7 +6,7 @@ A domain attaches a static theory to a carrier without adding a runtime tag,
 wrapper, hidden storage, or second object model. Predicate requirements,
 semantic contributions, authorized establishment and access routes, cleanup
 selection, and transparent aliases are independently normalized aspects of that theory.
-Multiplicity, content, carry, and provider evidence keep their own judgments.
+Multiplicity, content and provider evidence keep their own judgments.
 
 Qualification never selects or changes storage representation, capacity, live
 length, layout, or collection kind. In particular, `[u8; N] in D` is the same
@@ -649,8 +649,7 @@ it may not write `x as =Positive`.
 to exceed zero. Removal also never increases authority. Owned claims must be
 consumed or transferred, not cast away. A cleanup selection survives. Access
 policies survive whenever they are needed to prevent authority amplification,
-and a view that cannot retain them rejects. Carry demands survive until the
-underlying claim is discharged. [Content custody](../resources/content_custody.md)
+and a view that cannot retain them rejects. [Content custody](../resources/content_custody.md)
 governs resource decomposition; multiplicity alone does not imply divisibility
 or create a content projection.
 
@@ -1001,7 +1000,7 @@ A transparent alias is a nonempty conjunction over compatible subjects.
 Expansion precedes sorting, deduplication, and identity formation. The alias
 and expanded atoms have one normalized identity; edits affect every published
 contract using that expansion. Diagnostics name missing atoms. Compiler-owned
-atoms, including the positive carry permissions, may participate in aliases.
+atoms may participate in aliases.
 Alias expansion is acyclic. Every constituent of a public alias must be legal
 to publish for its subject. Adding or removing conjuncts changes the normalized
 requirements and guarantees; compatibility checks attribute the consequences to

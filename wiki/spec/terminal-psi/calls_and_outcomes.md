@@ -346,26 +346,23 @@ Tail-call realization cannot erase live loan backing or cleanup duties.
 Retained loans include caller-originating and aggregate-carried loans needed by
 the incomplete callee, even when there is no later source use in the caller.
 Preserve exact parent lineage, access restrictions and backing through the
-crossing under [borrow carry](../resources/carry.md#borrows-across-suspension).
+crossing under [loan preservation](../resources/suspension.md#borrows-across-suspension).
 Verifier reconstruction must reject missing loan/claim preservation, not rely
 on terminal source position or a producer's generic safe-to-suspend flag.
 
 A suspension site binds the exact call, checked crossing, callee, and commitment
 to the complete ordered live frontier. Its plan retains each value/place,
-type, storage role, structural access, exact live claims, and carry requirements
-for suspension, CPU, host thread, and address stability. Validation checks
+type, storage role, structural access, exact live claims and loan relationships. Validation checks
 site/plan bijection, target, frontier commitment, membership, visibility/provenance, order, counts,
-types, and policies. Missing, duplicate, redirected, or understated rows reject.
+and types. Missing, duplicate, redirected, or understated rows reject.
 
 Completeness requires an independently established possibly-suspending crossing
 roster. Matching a producer's site and plan is not enough: deleting both must not
 erase a required crossing. A scalar/block shape alone cannot establish checked
 liveness or claim custody.
 
-Terminal retains provider-independent carry demand. The runtime activation
-companion joins it to CPU/thread preservation, exact stack demand and lease,
-runtime provider, and preservation evidence. Those selections do not enter
-target-neutral Terminal semantics or weaken its frontier.
+The runtime activation plan binds the live frontier to the selected storage,
+stack lease and runtime provider. Target selection preserves that frontier.
 
 `Task::request_cancel(@task)` introduces no parked-state exit and retains the external
 `Task<T>` claim. It changes the eventual ordinary outcome at a checked safe

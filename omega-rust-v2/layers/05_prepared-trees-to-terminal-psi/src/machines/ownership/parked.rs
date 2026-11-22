@@ -4,7 +4,7 @@ use crate::{
     PlaceOrigin, PsiOperation, ReferenceAccess, SuccessorEdge, ValueOperand, WritableLoanSite,
 };
 
-const UNTRACED_DESCRIPTOR: &str = "parking this owner requires the backing or carry evidence of its embedded descriptors";
+const UNTRACED_DESCRIPTOR: &str = "parking this owner requires the backing of its embedded descriptors";
 
 /// Ownership reaches a call in forward execution order; liveness visits it
 /// backward. Keep only nonempty snapshots, keyed by the published call.

@@ -164,7 +164,7 @@ suspension does not attach to another because they share a record. Consumption
 is any stored operation taking the owner by value. There is no terminal-consumer
 spelling, and a package may offer several, such as `run` and `cancel`. Owning
 packages are `[linear]`. Packing preserves the hidden state's resident custody,
-contained loans, zero-sized obligations, storage claims, carry demands and code
+contained loans, zero-sized obligations, storage claims and code
 dependencies, and storing a consuming operation admits no automatic cleanup by
 itself. The package's owner may select an ordinary cleanup machine with
 `dropped by` that takes the package apart with a consuming pattern, opens its

@@ -18,7 +18,6 @@ pub enum CompletionContinuation {
 pub struct ActivationValue {
     pub value: ValueId,
     pub ty: TypeId,
-    pub carry: crate::Carry,
     pub needed_by_callee: bool,
     pub needed_after_completion: bool,
 }
@@ -133,12 +132,11 @@ pub struct EmbeddedLoan {
     /// Origins with the same `arrival` keep the order the walk meets them:
     /// each writable loan, newest first, then the formal origin, if one has
     /// that arrival. The checker judges each origin's lifetime,
-    /// aliasing and carry, and which loans' holders can write.
+    /// aliasing, and which loans' holders can write.
     pub origins: Vec<EmbeddedLoanOrigin>,
 }
 
-/// The owned root with exactly these subtrees removed. The checker composes
-/// the carry demands of the live contents and the root's own provenance.
+/// The owned root with exactly these subtrees removed.
 /// `embedded_loans` lists every descriptor in the live contents, in
 /// declaration pre-order, and none below a moved subtree.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -155,15 +153,13 @@ pub struct RetainedOwner {
 /// directly, as a borrowed call operand, or as the backing of a retained loan
 /// whose defining `BorrowPlace` starts at this home. It is either a primitive
 /// local's `EstablishPrimitiveLocal` home or copyable structural storage (a
-/// `[copy]` record or a fixed array whose leaves are all primitive scalars),
-/// which a loan may select below its root. Neither has an owner row. `carry`
-/// composes the authored restrictions of the stored schemas. A mutable local's
+/// `[copy]` record or a fixed array whose leaves are all scalars),
+/// which a loan may select below its root. Neither has an owner row. A mutable local's
 /// primitive home is also in `MachineBody::mutable_homes`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RetainedHome {
     pub place: crate::PlaceId,
     pub ty: TypeId,
-    pub carry: crate::Carry,
     pub needed_by_callee: bool,
     pub needed_after_completion: bool,
 }

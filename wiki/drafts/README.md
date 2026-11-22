@@ -124,8 +124,6 @@ superseded run is not a current correctness or performance claim.
   checker task, not a superseded experiment pause.
 - [Stage trust](designs/stage_trust.md): current distinctions between accepted
   judgments, seals, independent validation and receiving-host admission.
-- [Conditional callback carry](designs/conditional_callback_carry.md): execution
-  witnesses for synchronous and suspending selections; delete when they pass.
 - [Deferred callback reach](designs/deferred_callback_reach.md): migrate inferred
   rows and explicit `reaches none` requirements, then delete the plan.
 - [Operational markers and CLI](designs/operational_markers_and_cli.md): call-site

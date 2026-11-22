@@ -70,10 +70,12 @@ let count: u64 = suspend Storage::read(@mutable storage, @mutable buffer);
 consume(buffer, count);
 ```
 
-`buffer` stays borrowed while the read is parked. Some values cannot be held
-across a wait at all, such as a lock guard that must be released on the thread
-that took it. A type states that with `carry(...)`, and the compiler rejects a
-`suspend` while such a value is live. See [carry](../spec/resources/carry.md).
+`buffer` stays borrowed while the read is parked. For a critical section that
+must finish before parking, the library acquires the resource, calls a callback
+with a `suspends false` requirement, then releases the resource. A callback
+that may park, even through a helper, cannot satisfy that requirement. When
+an operation uses CPU-local state, the provider must also guarantee execution
+on the required CPU. [Resources across suspension](../spec/resources/suspension.md)
 
 ## Cancel a task
 

@@ -187,8 +187,7 @@ cannot decide which obligations the owner owes.
 For example, a library-defined `Ascii` domain over a byte array with a predicate
 excluding 255 must be restored when a declared `in Ascii` local is lent and
 returned. No encoding name is compiler-known. A predicate-free domain has no
-predicate debt, but its establishment provenance, access policy, custody and
-carry restrictions still apply. An unrestricted empty tag promises no hidden
+predicate debt, but its establishment provenance, access policy and custody still apply. An unrestricted empty tag promises no hidden
 invariant; protocols relying on restricted witnesses or mutations must declare
 the corresponding routes and access policy. A cast cannot bypass them.
 

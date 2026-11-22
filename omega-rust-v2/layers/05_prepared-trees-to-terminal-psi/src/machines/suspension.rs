@@ -312,19 +312,17 @@ impl<'a> Liveness<'a> {
             if matches!(self.body.operations[id.index()].kind, OperationKind::EstablishPrimitiveLocal { .. }))
     }
     /// Copyable structural storage the activation holds directly: a record
-    /// or fixed array with no ownership claim, no cleanup and only primitive
+    /// or fixed array with no ownership claim, no cleanup and only
     /// scalar leaves. Like a primitive home, it stays in the parked activation
-    /// when a loan or operand needs it. Returns the carry its contents compose.
+    /// when a loan or operand needs it.
     fn copyable_home(
         &self,
         place: PlaceId,
         types: &LoweringTypes,
-    ) -> Option<crate::Carry> {
+    ) -> bool {
         let ty = self.body.places[place.index()].ty;
-        if self.is_home(place) || !matches!(types.get(ty), Some(TypeShape::Nominal(_) | TypeShape::FixedArray { .. })) {
-            return None;
-        }
-        plain_carry(ty, types, self.data)
+        matches!(types.get(ty), Some(TypeShape::Nominal(_) | TypeShape::FixedArray { .. }))
+            && has_copyable_scalar_storage(ty, types, self.data)
     }
     /// The home a borrowed place selects, directly or through named reborrows.
     /// A copyable home may be selected below its root, but never through a
@@ -339,7 +337,7 @@ impl<'a> Liveness<'a> {
             .path
             .iter()
             .all(|step| !matches!(step, crate::PlaceProjection::Referent | crate::PlaceProjection::ViewElement { .. }));
-        ((captured.path.is_empty() && self.is_home(captured.root)) || (inside && self.copyable_home(captured.root, types).is_some())).then_some(captured.root)
+        ((captured.path.is_empty() && self.is_home(captured.root)) || (inside && self.copyable_home(captured.root, types))).then_some(captured.root)
     }
     /// A direct operand names its storage. A named reborrow reaches that same
     /// storage through its defining BorrowPlace. Loan permissions remain on
@@ -397,7 +395,7 @@ impl<'a> Liveness<'a> {
         // no row; its move operation names the destination. A loan that
         // overlaps a hole or a transfer is a conflict the checker judges, as
         // it does for the same call without a suspension. Copyable storage with
-        // primitive leaves is a home above; a copyable record that holds
+        // scalar leaves is a home above; a copyable record that holds
         // references stays unbacked.
         if owners
             .binary_search_by_key(&place.root.index(), |owner| owner.place.index())
@@ -438,7 +436,7 @@ impl<'a> Liveness<'a> {
                 continue;
             }
             let id = PlaceId(super::body::next_id(index));
-            if self.is_home(id) || self.copyable_home(id, types).is_some() {
+            if self.is_home(id) || self.copyable_home(id, types) {
                 let need = &mut home_needs[index];
                 *need = (need.0 | held[key], need.1 | after[key]);
                 continue;
@@ -457,7 +455,7 @@ impl<'a> Liveness<'a> {
             }
             // At a join, retain the selected descriptor. The arriving edge
             // supplies its backing. Other arms need not remain live after it.
-            // Traceability is not a carry verdict. A boundary result remains
+            // A boundary result remains
             // anchored at its producing call, with an input lifetime dependency
             // or, for a caller-chosen lifetime, with only the provider's backing.
             let traceable = match place.origin {
@@ -477,7 +475,7 @@ impl<'a> Liveness<'a> {
                 _ => {
                     return Err(LoweringError::new(
                         site,
-                        "suspension needs the exact backing and carry evidence of the live structural place",
+                        "suspension needs the exact backing of the live structural place",
                     ));
                 }
             };
@@ -509,10 +507,10 @@ impl<'a> Liveness<'a> {
                     needed_by_callee: callee, needed_after_completion: continuation });
                 continue;
             }
-            if !matches!(types.get(ty), Some(TypeShape::PrimitiveScalar(_))) {
+            if !matches!(types.get(ty), Some(TypeShape::PrimitiveScalar(_) | TypeShape::QualifiedScalar { .. })) {
                 return Err(LoweringError::new(
                     site,
-                    "suspension needs the precise carry policy of the live qualified value or descriptor",
+                    "live scalar operand has a non-scalar type",
                 ));
             }
             activation.push(ActivationValue {
@@ -520,7 +518,6 @@ impl<'a> Liveness<'a> {
                 ty,
                 needed_by_callee: callee,
                 needed_after_completion: continuation,
-                carry: PRIMITIVE_CARRY,
             });
         }
         let retained_homes = home_needs
@@ -532,7 +529,6 @@ impl<'a> Liveness<'a> {
                 crate::RetainedHome {
                     place,
                     ty: self.body.places[index].ty,
-                    carry: self.copyable_home(place, types).unwrap_or(PRIMITIVE_CARRY),
                     needed_by_callee,
                     needed_after_completion,
                 }
@@ -542,42 +538,22 @@ impl<'a> Liveness<'a> {
     }
 }
 
-/// A plain primitive scalar, as a value or in its home, places no carry restriction.
-const PRIMITIVE_CARRY: crate::Carry = crate::Carry {
-    allows_suspension: true,
-    requires_same_cpu: false,
-    requires_same_thread: false,
-    requires_stable_address: false,
-};
-
-/// The carry of copyable plain data: each record's authored restriction
-/// combined with its fields', down to primitive scalars. `None` for anything
-/// else, such as a sum, a reference, a view or an owned value, whose carry
-/// depends on more than its declaration.
-fn plain_carry(
+/// These homes have scalar leaves and contain no loan descriptors or owned subtrees.
+fn has_copyable_scalar_storage(
     ty: crate::TypeId,
     types: &LoweringTypes,
     data: &[crate::LoweredData],
-) -> Option<crate::Carry> {
-    match types.get(ty)? {
-        TypeShape::PrimitiveScalar(_) => Some(PRIMITIVE_CARRY),
-        TypeShape::FixedArray { element, .. } => plain_carry(*element, types, data),
-        TypeShape::Nominal(id) => {
+) -> bool {
+    match types.get(ty) {
+        Some(TypeShape::PrimitiveScalar(_) | TypeShape::QualifiedScalar { .. }) => true,
+        Some(TypeShape::FixedArray { element, .. }) => has_copyable_scalar_storage(*element, types, data),
+        Some(TypeShape::Nominal(id)) => {
             let schema = &data[id.get() - 1];
-            if schema.multiplicity != crate::Multiplicity::Copy || !schema.cases.is_empty() {
-                return None;
-            }
-            schema.fields.iter().try_fold(schema.carry.clone().unwrap_or(PRIMITIVE_CARRY), |carry, field| {
-                let inner = plain_carry(field.carrier, types, data)?;
-                Some(crate::Carry {
-                    allows_suspension: carry.allows_suspension && inner.allows_suspension,
-                    requires_same_cpu: carry.requires_same_cpu || inner.requires_same_cpu,
-                    requires_same_thread: carry.requires_same_thread || inner.requires_same_thread,
-                    requires_stable_address: carry.requires_stable_address || inner.requires_stable_address,
-                })
-            })
+            schema.multiplicity == crate::Multiplicity::Copy
+                && schema.cases.is_empty()
+                && schema.fields.iter().all(|field| has_copyable_scalar_storage(field.carrier, types, data))
         }
-        _ => None,
+        _ => false,
     }
 }
 

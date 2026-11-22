@@ -143,7 +143,7 @@ untyped `const clear_a = (clear satisfies A::clear);`
     case_field  = stable_number? word ':' type_in
     stable_number = '#' integer
     attributes  = '[' ( attribute % ',' ) ']'
-    attribute   = word ( '(' ( word ':' word ) % ',' ')' )?
+    attribute   = word
     dropped_by  = 'dropped' 'by' path type_args?
 
 - Records and sums, nested declarations (language/data_and_literals.md:20).
@@ -151,8 +151,7 @@ untyped `const clear_a = (clear satisfies A::clear);`
 - Stable numbers `#1` on fields, cases and case fields (:137).
 - `requires` before the body (:272, :317).
 - Alias form `data SmallBytes = ByteBuffer<64>;` (language/generics.md:138).
-- Attributes `[linear]` (language/ownership.md:309) and
-  `[linear, carry(suspension: allowed, ...)]` (resources/carry.md:6); a field
+- Data properties `[copy]` and `[linear]` (language/ownership.md); a field
   attribute `proof [erased]: Valid<T>;` (proofs/contracts.md:406).
 - `dropped by release_guard<T>` (language/domains.md:443).
 

@@ -173,7 +173,7 @@ the magnitude sum, with Exact fixed-width arithmetic read as its mathematical
 value. A body whose pieces do not sum to the consumed input rejects; an
 interval-set theorem has no body judgment yet. Every
 established claim has its own identity, distinct from its current path, root
-lineage, content, permissions, and carry. Moving a place moves its claim subtree;
+lineage, content and permissions. Moving a place moves its claim subtree;
 aggregate construction nests claims and destructuring reverses that operation.
 Ambiguous origin/outcome mapping rejects rather than guessing.
 

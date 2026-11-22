@@ -67,7 +67,7 @@ join with different moved fields	checker-input	psi-output/join-arrival-transfers
 decomposition of a value with selected cleanup	checker-input	psi-output/hooked-field-move
 nominal reference match result before a parked field reborrow	checker-input	psi-output/joined-field-reborrow
 parked field reborrow through a reference stored in a borrowed record	checker-input	psi-output/stored-field-reborrow
-carry check for a parked loan of a suspension-forbidden field	checker-input	psi-output/parked-field-carry
+selected backing of a parked reborrow into qualified storage	checker-input	psi-output/parked-qualified-field
 backing owner and field loan in one suspending call	checker-input	psi-output/parked-loan-callee-custody
 overlap of moved and borrowed subtrees at suspension	checker-input	psi-output/parked-loan-moved-overlap
 moving a field while its loan is parked	checker-input	psi-output/parked-named-loan-moved-source

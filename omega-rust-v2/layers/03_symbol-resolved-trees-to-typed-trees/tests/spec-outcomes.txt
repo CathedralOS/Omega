@@ -11,17 +11,17 @@ language/data_and_literals.md:435  accepted
 language/domains.md:116  accepted
 language/domains.md:495  accepted
 language/domains.md:572  accepted
-language/domains.md:701  L3 carrier cast requires an unqualified operand | near
+language/domains.md:700  L3 carrier cast requires an unqualified operand | near
 language/effects.md:101  L3 call exceeds service reach for Sensor | Sensor::<29u64>::read()
 language/effects.md:236  accepted
-language/effects.md:581  accepted
-language/effects.md:646  accepted
+language/effects.md:579  accepted
+language/effects.md:643  accepted
 language/expressions.md:411  L3 bodyless machine has no authorized supply | machine [] read<Element [copy]>(items: @[Element], index: u64) -> Element
 language/expressions.md:532  L3 no matching overload for set_first(@mutable [u8; 38], 7) | set_first
-language/generics.md:246  accepted
-language/generics.md:367  accepted
-language/generics.md:510  accepted
-language/generics.md:767  accepted
+language/generics.md:248  accepted
+language/generics.md:369  accepted
+language/generics.md:512  accepted
+language/generics.md:769  accepted
 language/lifetimes.md:20  accepted
 language/machine_values.md:44  accepted
 language/machines.md:33  accepted
@@ -37,4 +37,3 @@ proofs/mathematical_bindings.md:63  accepted
 proofs/mathematical_bindings.md:199  accepted
 proofs/mathematical_bindings.md:263  accepted
 resources/bounded_input.md:38  accepted
-resources/carry.md:6  accepted

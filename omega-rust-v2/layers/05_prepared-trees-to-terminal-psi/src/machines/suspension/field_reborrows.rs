@@ -1,11 +1,8 @@
 //! A reborrow can inherit backing from a known incoming loan. The path from its
 //! referent to the selected subject may cross plain record fields and explicit
 //! `Referent` steps. Crossing a descriptor stored in a reached record makes
-//! that stored loan the parent of the rest of the path, so its own referent's
-//! floors apply from there on. Lowering does not judge carry here: the
-//! published schemas keep the subject's restrictions and the type-wide floors
-//! on its path, and the checker rejects a crossing that a suspension-forbidden
-//! live value cannot make.
+//! that stored loan the parent of the rest of the path. The checker follows
+//! the path to verify the backing and access of the selected subject.
 use crate::{DataId, LoweredData, LoweringError, LoweringTypes, PlaceProjection, Site, TypeShape};
 
 pub(super) fn check_backing(
@@ -15,7 +12,7 @@ pub(super) fn check_backing(
     data: &[LoweredData],
     site: &Site,
 ) -> Result<(), LoweringError> {
-    let unknown = || LoweringError::new(site, "suspension needs the exact backing and carry evidence of the live structural place");
+    let unknown = || LoweringError::new(site, "suspension needs the exact backing of the live structural place");
     let record = |id: DataId| &data[id.get() - 1];
     let mut subject = data[referent.get() - 1].carrier;
     for step in path {
@@ -43,7 +40,7 @@ pub(super) fn check_backing(
             continue;
         }
         match types.get(ty) {
-            Some(TypeShape::PrimitiveScalar(_)) => {}
+            Some(TypeShape::PrimitiveScalar(_) | TypeShape::QualifiedScalar { .. }) => {}
             Some(TypeShape::FixedArray { element, .. }) => pending.push(*element),
             Some(TypeShape::Nominal(id)) => {
                 let schema = record(*id);

@@ -279,7 +279,7 @@ mod embedded_fields;
 pub use embedded_fields::{check_constructed_field, check_incoming_fields, discarded_loan_fields, parked_replacement_origin};
 
 mod parked_owner_borrows;
-pub use parked_owner_borrows::{ParkedFieldLoan, ParkedLoanBacking, check_parked_owner_borrow, parked_field_loan_carry, parked_field_loans};
+pub use parked_owner_borrows::{ParkedFieldLoan, ParkedLoanBacking, check_parked_owner_borrow, parked_field_loans};
 
 mod parked_field_reborrows;
 pub use parked_field_reborrows::{ParkedFieldReborrow, parked_field_reborrow};
@@ -308,7 +308,7 @@ pub use ranking::{claimed_cleanup, entry_rank, successor_from_call};
 mod primitive_homes;
 pub use primitive_homes::borrowed_scalar_formal;
 mod copyable_homes;
-pub use copyable_homes::{CopyableHome, parked_copyable_homes, plain_carry};
+pub use copyable_homes::{CopyableHome, parked_copyable_homes};
 pub use primitive_homes::{HomeEvent, ParkedHome, PrimitiveHome, parked_homes, primitive_homes};
 
 mod scalar_terms;
