@@ -99,17 +99,6 @@ framework or a list of unimplemented features.
 - Cost: Every test under `source-rust/application/tests/` builds those crates, so the required lint cannot pass for any of them whatever the test contains; the check is skipped or run without `-D warnings` and a new warning in the application or its tests goes unseen. Remove the three unused imports and the two unneeded `&`, and delete or wire up the unused package-manager code.
 - Reported: 2026-11-22, Claude Code, while adding an application test for an array sized by a computed constant
 
-### A wrong case in a dispatch is reported as a write-frame mismatch in the first machine
-
-- Category: A verdict with nothing behind it
-- Where: [write-frame check](source-rust/subsystems/compiler/psi/semantics/src/storage/borrowed_storage.rs#L36), [its message](source-rust/subsystems/compiler/psi/semantics/src/storage/borrowed_storage.rs#L126), [the checker's use of it](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/lib.rs#L503), [the checker's rule for a roster](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/places.rs#L4989), [the test that pins it](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/tests/variant_parent_identity.rs).
-- Saw: The lowered-form checker has refusals that name a dispatch edge selecting a case of the wrong sum: "a dispatch lists a case of another sum" and "a case is not of the sum it is applied to". A machine that publishes a write frame never reaches them, and all three matching machines in the test program publish one.
-
-  - `validate_write_frames` runs first. The storage-flow reader cannot read the malformed body and says why ("descriptor arrival case payload fields have no exact scalar types"). The write-frame check drops that reason, has no frame to compare, and reports "published write frame for MachineId(2) differs from its body".
-  - The checker places every write-frame refusal at the module's first machine. A wrong edge in `other` is reported "in machine `choose`".
-- Cost: The program is still refused, so nothing unsound is accepted. A person debugging a lowering fault is sent to the write-frame code and to the wrong machine, and this applies to any body the storage-flow reader cannot read. Return the machine and the reader's reason from `validate_write_frames`, and use them for the refusal's site and text. Then change `a_write_frame_refusal_is_reported_at_the_first_machine` to expect `other`.
-- Reported: 2026-11-22, Claude Code, while testing what lowering hands the checker about a case's sum
-
 ### Boolean patterns keep a copy of the constant they match
 
 - Category: One idea, several implementations

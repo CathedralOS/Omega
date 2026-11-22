@@ -501,19 +501,11 @@ fn discharge_inner(
     // use it. Low-level proof reconstruction still states a conditional
     // judgment; this whole-module route owns admission of those premises.
     terminal_semantics::borrowed_storage::validate_write_frames(&elaboration.module).map_err(
-        |detail| {
-            refusal(
-                RefusalReason::ForeignIdentity,
-                elaboration
-                    .module
-                    .machines
-                    .first()
-                    .map(|machine| machine.id)
-                    .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
-                Construct::Machine,
-                &detail,
-            )
-        },
+        |error| Refusal::at(
+            RefusalReason::ForeignIdentity,
+            error.machine.map_or(terminal_check_tables::RefusalSite::Program, Into::into),
+            error.detail,
+        ),
     )?;
     // Results before inputs: what a helper returns is a fact its caller
     // may pass on to the next private helper, whose inferred input

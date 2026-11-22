@@ -12288,7 +12288,7 @@ fn validate_portable_entry(module: &TerminalModule) -> Result<(), CodecError> {
         _ => return malformed("portable entry has no retained executable machine"),
     }
     terminal_semantics::borrowed_storage::validate_write_frames(module)
-        .map_err(CodecError::MalformedWriteFrame)?;
+        .map_err(|error| CodecError::MalformedWriteFrame(error.to_string()))?;
     Ok(())
 }
 

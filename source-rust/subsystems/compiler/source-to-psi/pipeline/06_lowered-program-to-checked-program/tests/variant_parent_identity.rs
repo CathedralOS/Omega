@@ -23,8 +23,8 @@
 //!
 //! - A machine that publishes a write frame (each machine that matches on a
 //!   sum here does) is refused before its dispatch is looked at. The
-//!   write-frame check finds no storage flow for a body whose dispatch is
-//!   malformed, and reports that as a frame that "differs from its body".
+//!   storage reader reports which machine selects a case outside the sum it
+//!   dispatches on.
 //! - Leaving the write frame out is allowed, and then the checker's own
 //!   rules about cases answer: a dispatch "lists a case of another sum", or
 //!   a case "is not of the sum it is applied to".
@@ -203,12 +203,7 @@ fn an_edge_that_selects_the_other_sums_case_is_refused() {
                     reselect(&mut lowered.module.machines[position], ours.id, theirs.id)
                 })
                 .refused();
-            assert!(
-                refusal.detail.starts_with(&format!(
-                    "published write frame for {machine:?} differs from its body"
-                )),
-                "{name}: {refusal:?}"
-            );
+            assert_unreadable_dispatch(&refusal, machine, name);
         }
     }
 }
@@ -275,12 +270,7 @@ fn a_subject_declared_as_the_other_sum_is_refused() {
         let refusal = fixture
             .judged(|lowered| redeclare(&mut lowered.module.machines[position]))
             .refused();
-        assert!(
-            refusal.detail.starts_with(&format!(
-                "published write frame for {machine:?} differs from its body"
-            )),
-            "{name}: {refusal:?}"
-        );
+        assert_unreadable_dispatch(&refusal, machine, name);
 
         let refusal = fixture
             .judged(|lowered| {
@@ -338,24 +328,10 @@ fn a_payload_lent_through_the_other_sums_case_is_refused() {
     }
 }
 
-/// Recorded in `OWNER_CODE_CONCERNS.md` ("A wrong case in a dispatch is
-/// reported as a write-frame mismatch in the first machine"). The wrong edge
-/// is in `other`, and the refusal's site and the name at the end of its text
-/// are `choose`, the first machine of the module. Whoever repairs that
-/// changes this test to expect `other`.
-#[test]
-fn a_write_frame_refusal_is_reported_at_the_first_machine() {
-    let fixture = Fixture::new();
-    let (choose, other) = (fixture.machine("choose").id, fixture.machine("other").id);
-    assert_ne!(choose, other);
-    let position = fixture.position("other");
-    let (ours, theirs) = (fixture.right.cases[0].id, fixture.left.cases[0].id);
-    let refusal = fixture
-        .judged(|lowered| reselect(&mut lowered.module.machines[position], ours, theirs))
-        .refused();
-    assert_eq!(in_machine(&refusal), (choose, Construct::Machine));
+fn assert_unreadable_dispatch(refusal: &Refusal, machine: MachineId, name: &str) {
+    assert_eq!(in_machine(refusal), (machine, Construct::Machine));
     assert_eq!(
         refusal.detail,
-        format!("published write frame for {other:?} differs from its body in machine `choose`")
+        format!("the selected case does not belong to the dispatch subject's sum in machine `{name}`")
     );
 }
