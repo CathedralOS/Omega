@@ -2190,16 +2190,19 @@ impl<'a> Replay<'a> {
         let canonical = |location: &DescriptorLocation| {
             if position.is_some() {
                 if location.path.last() == Some(&DescriptorPathSegment::UnknownContents) {
-                    return self.canonical_contents_packet(machine, before, location).map(TransferDestination::Slot);
+                    return self
+                        .canonical_contents_packet(machine, before, location)
+                        .map(TransferDestination::Slot);
                 }
                 let resolution = self.resolve_storage(machine, before, location, None)?;
                 if let Some(slot) = resolution.slot_coordinate(location) {
                     return Some(TransferDestination::Slot(slot));
                 }
-                self.checked_storage_family(machine, before, resolution).ok()?;
+                self.checked_storage_family(machine, before, resolution)
+                    .ok()?;
                 let (_, endpoint) = self.resolved_location(machine, before, location, reads)?;
-                let inventory = self.slot_kind.owned_slots(self.types, location.root, endpoint?)?;
-                inventory.is_empty().then_some(TransferDestination::UntrackedFamily)
+                let slots = self.slot_kind.owned_slots(self.types, location.root, endpoint?)?;
+                slots.is_empty().then_some(TransferDestination::UntrackedFamily)
             } else {
                 Some(TransferDestination::Slot(location.clone()))
             }
