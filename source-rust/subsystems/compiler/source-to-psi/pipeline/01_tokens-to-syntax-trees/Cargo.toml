@@ -23,12 +23,17 @@ syntax-trees = { path = "../../representations/syntax-trees" }
 tokens = { path = "../../representations/tokens" }
 
 [dev-dependencies]
+serde_json = "1"
 source-files = { path = "../../representations/source-files" }
 source-lexer = { path = "../00_source-files-to-tokens" }
 
 [[test]]
 name = "parsing_diagnostics"
 path = "tests/diagnostics.rs"
+
+[[test]]
+name = "parsing_lexical_handoff"
+path = "tests/lexical_handoff.rs"
 
 [[test]]
 name = "parsing_sample_files"

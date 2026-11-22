@@ -131,6 +131,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **PUBLISHED-WRITE-FRAMES.** Publish inferred [write frames](wiki/drafts/designs/published_write_frames.md) in interface identity.
 
 - **RECORD-OR-SUM-DATA.** Complete [record or sum data](wiki/drafts/designs/record_or_sum_data.md), including record decomposition and `let Pattern = expr`. Migrate the sample and test customers.
+  - The parser refuses every positional pattern and the headed binding from [patterns.md](wiki/spec/language/patterns.md#data-and-case-decomposition): `let (first, ..) = pair;` and `let (_, second) = pair;` at `(`, the arm `(first, ..) -> first` at its `,`, and `let Pair { first as _, second } = pair;` at `{`. Only the headless `let { first as _, second } = pair;` parses. When positional patterns parse, record the final `..` as a pattern component spanning those two bytes and test it as V2's `positional_rest_is_a_final_tuple_pattern_child_with_its_own_span` does.
 
 - **REQUIRED-ISSUANCE-CHOICE.** Implement [required issuance](wiki/drafts/designs/required_issuance_choice.md) and its review rows.
 

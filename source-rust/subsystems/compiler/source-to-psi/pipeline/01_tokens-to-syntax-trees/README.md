@@ -58,6 +58,8 @@ loop that applies them.
 helper tests remain registered with their owner, but their bodies live there too.
 [tests/diagnostics.rs](tests/diagnostics.rs) checks public errors;
 [tests/sample_files.rs](tests/sample_files.rs) checks sample source parsing.
+[tests/lexical_handoff.rs](tests/lexical_handoff.rs) checks that comments and
+whitespace between tokens move spans and change nothing else in the tree.
 Small fixtures use [tests/support/frontend_operations.rs](../../../../../tests/support/frontend_operations.rs)
 to construct complete stage inputs. Private grammar tests can still inspect
 partial construction directly.
