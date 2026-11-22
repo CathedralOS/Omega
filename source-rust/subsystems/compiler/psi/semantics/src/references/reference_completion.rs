@@ -12,6 +12,59 @@ pub struct ReferenceCompletionOccurrence<'a, Identity> {
     pub disposed: bool,
 }
 
+/// Determine whether every path from this loan's formation to this return
+/// explicitly closes all its remaining carrier names. An edge captures its
+/// arguments before cleanup, so a forwarded name keeps the path open.
+pub fn disposed_reference_on_return(
+    machine: &terminal_psi::TerminalMachine,
+    types: &[StructuralTypeDeclaration],
+    lifetime: &crate::descriptor_lifetimes::DescriptorLifetime,
+    formed_in: semantic_vocabulary::BlockId,
+    at: crate::descriptor_lifetimes::DescriptorPosition,
+    cleanup: &[TerminalAffineCleanupAction],
+    flow: Option<&std::collections::BTreeMap<
+        crate::descriptor_lifetimes::DescriptorPosition,
+        crate::descriptor_lifetimes::DescriptorFlowStep,
+    >>,
+) -> bool {
+    use crate::descriptor_lifetimes::{DescriptorLocation, descriptor_path};
+    use std::collections::BTreeSet;
+
+    let disposed = |names: &BTreeSet<DescriptorLocation>, actions: &[TerminalAffineCleanupAction]| {
+        !names.is_empty() && names.iter().all(|name| {
+            machine.structural_place_type(name.root)
+                .and_then(|root| descriptor_path(types, root, &name.path))
+                .is_some_and(|path| cleanup_disposes_reference(actions, name.root, &path))
+        })
+    };
+    if let Some(names) = lifetime.surviving.get(&at)
+        && !names.is_empty()
+    {
+        return disposed(names, cleanup);
+    }
+    let Some(flow) = flow else { return false };
+    let mut pending = vec![formed_in];
+    let mut visited = BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        if !visited.insert(id) { continue; }
+        if id == at.0 { return false; }
+        let Some(block) = machine.block(&id) else { return false };
+        let Ok(end) = u32::try_from(block.operations.len()) else { return false };
+        let before = (id, end);
+        let Some(step) = flow.get(&before) else { return false };
+        for edge in &step.successors {
+            let Some(identity) = edge.edge else { return false };
+            let closed = lifetime.surviving.get(&before).is_some_and(|names| {
+                block.terminator.cleanup_rosters().any(|(id, actions)| {
+                    id == identity && disposed(names, actions)
+                }) && edge.transport_locations(names, false, true).is_empty()
+            });
+            if !closed { pending.push(edge.target.0); }
+        }
+    }
+    true
+}
+
 pub fn borrowed_entry_reference_referent<'a>(
     declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
     parameter: &StructuralParameterDeclaration,
