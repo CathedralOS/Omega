@@ -760,16 +760,27 @@ pub(super) fn store_place(
     expressions: &Expressions<'_>,
     node: usize,
     rhs: usize,
-    data: &[crate::LoweredData],
     body: &mut MachineBody,
     flow: &mut super::branches::BlockFlow,
 ) -> Result<(), LoweringError> {
+    let (place, carrier) = original_place(expressions, node, body, flow)?;
+    store_captured(expressions, place, node, rhs, carrier, body, flow)
+}
+
+pub(super) fn store_captured(
+    expressions: &Expressions<'_>,
+    mut place: ProjectedPlace,
+    node: usize,
+    rhs: usize,
+    carrier: &ValueType,
+    body: &mut MachineBody,
+    flow: &mut BlockFlow,
+) -> Result<(), LoweringError> {
     use super::expressions::{EmitOperation, OperationOutput};
     let site = site_at(expressions.tree, node);
-    // L3 already refused a store the source may not make. Which operation
-    // represents an admitted store depends on the access of the deepest loan
-    // it goes through, not on the permissions of the loans above it.
-    let (mut place, carrier) = original_place(expressions, node, body, flow)?;
+    let data = expressions.data;
+    // Which operation represents an admitted store depends on the access
+    // of the deepest loan it crosses.
     let mut projected = body.places[place.root.index()].ty;
     let mut deepest_loan = None;
     let mut selected_case = None;
@@ -788,6 +799,8 @@ pub(super) fn store_place(
                 deepest_loan = Some(*access);
                 data[referent.get() - 1].carrier
             }
+            (PlaceProjection::FixedIndex(index), Some(crate::TypeShape::FixedArray { element, length })) if index < length => *element,
+            (PlaceProjection::RuntimeIndex(_), Some(crate::TypeShape::FixedArray { element, .. })) => *element,
             (PlaceProjection::Case(case), Some(crate::TypeShape::Nominal(id))) => {
                 selected_case = Some(data[id.get() - 1].cases.iter().find(|row| row.declaration == *case)
                     .ok_or_else(|| LoweringError::new(&site, "store case does not belong to its sum"))?);
@@ -809,12 +822,23 @@ pub(super) fn store_place(
     if expressions.types.id_for(carrier).ok() != Some(projected) {
         return Err(LoweringError::new(&site, "field replacement disagrees with its selected carrier"));
     }
-    if carrier.nominal_parts().is_some() {
+    let indexed_array = matches!(carrier.carrier(), ValueType::Array(..))
+        && place.path.iter().any(|part| matches!(part, PlaceProjection::FixedIndex(_) | PlaceProjection::RuntimeIndex(_)));
+    if carrier.nominal_parts().is_some() || indexed_array {
         return match deepest_loan {
             None => store_intact(expressions, place, rhs, carrier, body, flow, site, None),
             // Any loan crossing makes this a store into borrowed storage, even when the
             // path starts at an owned field that holds the `@mutable`: the replaced place
             // may be a vacancy, and the displaced value is the lender's, not the owner's.
+            Some(crate::ReferenceAccess::Mutable) if indexed_array => {
+                if super::ownership::owned(projected, expressions.types, data) {
+                    super::loans::store_borrowed(expressions, place, rhs, carrier, body, flow, site, false)
+                } else if scalar_array_with_no_cleanup(expressions, projected) {
+                    store_intact(expressions, place, rhs, carrier, body, flow, site, Some(crate::StructuralStoreDisposition::ReplaceUnrestricted))
+                } else {
+                    Err(LoweringError::new(&site, "borrowed array replacement needs exact element disposal evidence"))
+                }
+            }
             Some(crate::ReferenceAccess::Mutable) => super::loans::store_borrowed(expressions, place, rhs, carrier, body, flow, site, false),
             Some(crate::ReferenceAccess::WriteOnly) => {
                 use crate::{Multiplicity, StructuralStoreDisposition, TypeShape, WriteOnlyCleanup};
@@ -889,16 +913,26 @@ pub(super) fn store_place(
     if body.values[value.index()].ty != projected {
         return Err(LoweringError::new(&site, "stored scalar disagrees with its destination"));
     }
-    let operation = if place.path.last() == Some(&PlaceProjection::Referent) {
-        crate::OperationKind::ProjectedScalarStore { destination: place, value }
-    } else {
-        let Some(PlaceProjection::Field(field)) = place.path.pop() else {
-            return Err(LoweringError::new(&site, "scalar store destination has no selected place"));
-        };
-        crate::OperationKind::StructuralScalarFieldStore { destination: place, field, value }
+    let operation = match place.path.last() {
+        Some(PlaceProjection::Referent | PlaceProjection::FixedIndex(_) | PlaceProjection::RuntimeIndex(_)) => {
+            crate::OperationKind::ProjectedScalarStore { destination: place, value }
+        }
+        Some(PlaceProjection::Field(_)) => {
+            let Some(PlaceProjection::Field(field)) = place.path.pop() else { unreachable!() };
+            crate::OperationKind::StructuralScalarFieldStore { destination: place, field, value }
+        }
+        _ => return Err(LoweringError::new(&site, "scalar store destination has no selected place")),
     };
     body.push_operation(OperationOutput::Unit, operation, site);
     Ok(())
+}
+
+fn scalar_array_with_no_cleanup(expressions: &Expressions<'_>, mut ty: crate::TypeId) -> bool {
+    while let Some(crate::TypeShape::FixedArray { element, .. }) = expressions.types.get(ty) {
+        ty = *element;
+    }
+    matches!(expressions.types.get(ty), Some(crate::TypeShape::PrimitiveScalar(_) | crate::TypeShape::QualifiedScalar { .. }))
+        && expressions.types.cleanup_target(ty, expressions.data).is_none()
 }
 
 pub(super) fn store_intact(

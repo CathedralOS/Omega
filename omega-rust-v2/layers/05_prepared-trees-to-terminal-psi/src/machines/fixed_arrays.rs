@@ -89,7 +89,7 @@ pub(super) fn owned_elements(
 
 /// A literal or frozen constant selector. Every value record must agree; a
 /// computed, runtime or parameter selector supplies no static ordinal.
-fn frozen_selector<'a>(
+pub(super) fn frozen_selector<'a>(
     prepared: &'a PreparedTrees<'_>,
     tree: &'a LoweringTree<'_>,
     selector: usize,

@@ -27,9 +27,13 @@ impl Keys {
     ) {
         read(self.place(place.root));
         for step in &place.path {
-            if let crate::PlaceProjection::ViewElement { index, length } = step {
-                read(index.selector.index());
-                read(length.index());
+            match step {
+                crate::PlaceProjection::RuntimeIndex(index) => read(index.selector.index()),
+                crate::PlaceProjection::ViewElement { index, length } => {
+                    read(index.selector.index());
+                    read(length.index());
+                }
+                _ => {}
             }
         }
     }

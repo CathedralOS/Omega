@@ -221,7 +221,7 @@ fn emit_body(
                 let homed = home_borrowed_scalar(file, types, &borrowed, *binder, value, &mut block);
                 // A record home, or a primitive home established just now for a borrow.
                 if let OperationResult::Structural(home) = homed
-                    && (crate::lowering::types::contains_nominal_value(carrier) || homed != value)
+                    && (crate::lowering::types::contains_nominal_value(carrier) || matches!(carrier, ValueType::Array(..)) || homed != value)
                     && tree
                         .forest()
                         .mutable_bindings
@@ -238,16 +238,20 @@ fn emit_body(
             (NodeKind::Assign, [place, initializer]) => {
                 check_container(tree, statement)?;
                 let place = file.ungroup(*place);
-                if matches!(file.nodes[place].kind, NodeKind::FieldAccess | NodeKind::Dereference) {
-                    super::references::store_place(&expressions, place, *initializer, data, &mut block, &mut flow)?;
-                    continue;
-                }
                 if super::view_loans::selects_view_element(&expressions, place) {
                     let before_return = index + 1 == statements.len() && result_type.is_none();
                     let next = statements_iter.peek().map(|(position, statement)| (*statement, position + 1 == statements.len() && result_type.is_none()));
                     if super::view_loans::store_element(&expressions, place, *initializer, &mut block, &mut flow, before_return, next)? {
                         statements_iter.next();
                     }
+                    continue;
+                }
+                if super::indexed_stores::has_index(file, place) {
+                    super::indexed_stores::store(&expressions, place, *initializer, &mut block, &mut flow)?;
+                    continue;
+                }
+                if matches!(file.nodes[place].kind, NodeKind::FieldAccess | NodeKind::Dereference) {
+                    super::references::store_place(&expressions, place, *initializer, &mut block, &mut flow)?;
                     continue;
                 }
                 let Some(Symbol::Binding {
