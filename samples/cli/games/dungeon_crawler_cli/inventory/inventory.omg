@@ -1,3 +1,4 @@
+use omega\language\core\min_u64;
 use rewards\Reward;
 use rewards\RewardKind;
 
@@ -122,12 +123,9 @@ machine find_item(
     inventory: @Inventory,
     kind: ItemKind
     ) -> u64 {
-    let items: @[InventoryItem] = @inventory.items[..];
-
-    match inventory.item_count > 0 {
-        true -> find_item_at(items, kind, 0u64 as +Wrapping),
-        false -> (32)
-    }
+    let count: u64 = min_u64(inventory.item_count as -Wrapping, inventory.items.length);
+    let items: @[InventoryItem] = @inventory.items[..count];
+    find_item_at(items, kind, 0u64 as +Wrapping)
 }
 
 machine find_item_at(items: @[InventoryItem],
