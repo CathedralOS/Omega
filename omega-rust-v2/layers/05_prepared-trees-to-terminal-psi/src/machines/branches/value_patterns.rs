@@ -32,7 +32,8 @@ pub(super) fn has_literal_test(
 
 pub(in crate::machines) enum PayloadBinding {
     Borrowed(PayloadPlace),
-    Captured(ValueId),
+    Scalar(ValueId),
+    Structural(crate::PlaceId),
 }
 
 impl PayloadBinding {
@@ -46,7 +47,7 @@ impl PayloadBinding {
     ) -> Result<ValueId, LoweringError> {
         match self {
             Self::Borrowed(place) => place.read_binding(expressions, binder, node, carrier, body),
-            Self::Captured(value) => {
+            Self::Scalar(value) => {
                 let mut rows = expressions.tree.semantics_at(node);
                 if matches!(rows.next(), Some(NodeSemantics::Expression(e)) if e.static_argument_slot.is_none() && &e.ty == carrier)
                     && rows.next().is_none() && expressions.types.id_for(carrier).ok() == Some(body.values[value.index()].ty)
@@ -56,6 +57,7 @@ impl PayloadBinding {
                     Err(unsupported_node(expressions.tree.resolved().file, node, "owned payload use disagrees with its captured scalar"))
                 }
             }
+            Self::Structural(_) => unreachable!("a structural binder is not a scalar read"),
         }
     }
 }
@@ -63,7 +65,7 @@ impl PayloadBinding {
 /// Keep the borrowed backing, not a speculatively copied scalar. For a named
 /// binding L4 attaches CopyRead to the use, not to the field declaration.
 pub(in crate::machines) struct PayloadPlace {
-    source: ProjectedPlace,
+    pub(in crate::machines) source: ProjectedPlace,
     pub(in crate::machines) ty: TypeId,
 }
 impl PayloadPlace {
@@ -73,6 +75,21 @@ impl PayloadPlace {
         site: Site,
     ) -> ValueId {
         emit_scalar(body, self.ty, OperationKind::ProjectedScalarRead { source: self.source.clone() }, site)
+    }
+
+    pub(in crate::machines) fn is_scalar(&self, types: &crate::LoweringTypes) -> bool {
+        matches!(types.get(self.ty), Some(TypeShape::PrimitiveScalar(_) | TypeShape::QualifiedScalar { .. }))
+    }
+
+    pub(in crate::machines) fn capture(
+        &self, body: &mut MachineBody, site: Site, transfer: bool,
+    ) -> PayloadBinding {
+        let source = self.source.clone();
+        let kind = if transfer { OperationKind::MoveStructural { source } } else { OperationKind::CopyStructural { source } };
+        let OperationResult::Structural(place) = body.push_operation(OperationOutput::Structural(self.ty), kind, site) else {
+            unreachable!("structural payload capture produces a place");
+        };
+        PayloadBinding::Structural(place)
     }
 
     fn read_binding(
@@ -124,6 +141,7 @@ pub(in crate::machines) fn plan<'a>(
     expressions: &'a Expressions<'_>,
     subject: usize,
     body: &MachineBody,
+    flow: &BlockFlow,
 ) -> Result<SubjectPlan<'a>, LoweringError> {
     let tree = expressions.tree;
     let file = tree.resolved().file;
@@ -143,7 +161,7 @@ pub(in crate::machines) fn plan<'a>(
             .ok()
             .and_then(|id| expressions.types.get(id))
     {
-        let (mut source, _) = crate::machines::references::original_place(expressions, subject, body)?;
+        let (mut source, _) = crate::machines::references::original_place(expressions, subject, body, flow)?;
         source.path.push(PlaceProjection::Referent);
         return Ok(SubjectPlan::Captured(Subject::Borrowed { source, owner: *owner, access }));
     }
@@ -235,11 +253,7 @@ fn payload_test<'a>(
         let (id, payload) = payload_place(expressions, subject, source, schema, Some(access), field)?;
         let literal = match file.nodes[field].children[..] {
             [literal] if test.is_none() => literal,
-            [] if resolved.pattern_binding(field).is_some()
-                && matches!(
-                    expressions.types.get(payload.ty),
-                    Some(TypeShape::PrimitiveScalar(crate::ScalarType::Integer { .. }))
-                ) =>
+            [] if resolved.pattern_binding(field).is_some() && !matches!(expressions.types.get(payload.ty), Some(TypeShape::Callable(_))) =>
             {
                 if tree
                     .semantics_at(field)

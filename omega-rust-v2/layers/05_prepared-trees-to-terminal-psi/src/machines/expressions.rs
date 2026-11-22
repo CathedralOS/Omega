@@ -129,6 +129,7 @@ enum ExpressionStep<'a> {
         ty: Option<TypeId>,
     },
     JoinMatch {
+        arm: crate::BlockId,
         expression: usize,
         remaining: std::vec::IntoIter<(BlockId, usize)>,
         carrier: &'a ValueType,
@@ -383,7 +384,7 @@ impl Expressions<'_> {
         let call = super::calls::select_call(self, call_node, carrier, body)?;
         let mut arguments = Vec::with_capacity(call.operands.len());
         for (operand, carrier) in call.operands {
-            let plan = super::references::call_argument(self, operand, carrier, body)?;
+            let plan = super::references::call_argument(self, operand, carrier, body, flow)?;
             let value = plan
                 .visit
                 .map(|(node, ty)| self.lower(node, ty, body, flow))
@@ -468,6 +469,11 @@ impl Expressions<'_> {
                     if file.nodes[node].kind == NodeKind::PathExpression
                         && let Some(Symbol::Binding { binder_node, .. }) = resolved.symbol(node)
                         && let Some(binding) = flow.payload_bindings.get(binder_node)
+                        && match binding {
+                            value_patterns::PayloadBinding::Scalar(_) => true,
+                            value_patterns::PayloadBinding::Borrowed(place) => place.is_scalar(self.types),
+                            value_patterns::PayloadBinding::Structural(_) => false,
+                        }
                     {
                         values.push(OperationResult::Scalar(binding.read(self, *binder_node, node, carrier, block)?));
                         continue;
@@ -505,6 +511,7 @@ impl Expressions<'_> {
                     let (target, first) = remaining.next().expect("the planned dispatch has an arm");
                     flow.open(block, target, None);
                     work.push(ExpressionStep::JoinMatch {
+                        arm: target,
                         expression: first,
                         remaining,
                         carrier,
@@ -519,6 +526,7 @@ impl Expressions<'_> {
                     continue;
                 }
                 ExpressionStep::JoinMatch {
+                    arm,
                     expression,
                     mut remaining,
                     carrier,
@@ -532,10 +540,11 @@ impl Expressions<'_> {
                         (Some(_), _) => Some(self.join_argument(value, carrier, block, &site)?),
                         _ => return Err(LoweringError::new(&site, "unit match arm produced a value")),
                     };
-                    flow.jump_with_result(block, join, argument, site);
+                    flow.finish_match_arm(block, arm, join, argument, site);
                     if let Some((target, arm)) = remaining.next() {
                         flow.open(block, target, None);
                         work.push(ExpressionStep::JoinMatch {
+                            arm: target,
                             expression: arm,
                             remaining,
                             carrier,
@@ -853,7 +862,7 @@ impl Expressions<'_> {
                 values.push(super::runtime_calls::descriptor_value(self, expression, carrier, block)?);
                 continue;
             }
-            if let Some(view) = super::loans::view_at_region(self, expression, carrier, block)? {
+            if let Some(view) = super::loans::view_at_region(self, expression, carrier, block, flow)? {
                 values.push(view);
                 continue;
             }
@@ -870,7 +879,7 @@ impl Expressions<'_> {
                     });
                     continue;
                 }
-                if let Some(loan) = super::loans::descriptor(self, expression, carrier, block)? {
+                if let Some(loan) = super::loans::descriptor(self, expression, carrier, block, flow)? {
                     values.push(loan);
                     continue;
                 }
@@ -905,7 +914,7 @@ impl Expressions<'_> {
                 && matches!(node.kind, NodeKind::Move | NodeKind::Dereference | NodeKind::FieldAccess | NodeKind::PathExpression)
                 && (node.kind != NodeKind::PathExpression || matches!(resolved.symbol(expression), Some(Symbol::Binding { .. })))
             {
-                values.push(super::ownership::move_value(self, expression, carrier, None, block)?);
+                values.push(super::ownership::move_value(self, expression, carrier, None, block, flow)?);
                 continue;
             }
             // `reflect\callable(pick)` is spelled as a call and selects a
@@ -948,7 +957,7 @@ impl Expressions<'_> {
                 let mut passing = Vec::with_capacity(call.operands.len());
                 let mut visits = Vec::new();
                 for &(operand, formal) in &call.operands {
-                    let plan = super::references::call_argument(self, operand, formal, block)?;
+                    let plan = super::references::call_argument(self, operand, formal, block, flow)?;
                     if let Some((node, carrier)) = plan.visit {
                         visits.push(ExpressionStep::Visit { node, carrier, landing: None });
                     }
@@ -983,7 +992,7 @@ impl Expressions<'_> {
                             .semantics_at(expression)
                             .any(|record| matches!(record, NodeSemantics::Field(_))))
             {
-                let (root, path) = super::references::scalar_read(self, expression, carrier, block)?;
+                let (root, path) = super::references::scalar_read(self, expression, carrier, block, flow)?;
                 let output = OperationOutput::Scalar(lookup_type()?);
                 match root {
                     super::references::PlaceRoot::Bound(root) => values.push(block.push_operation(
@@ -1129,7 +1138,7 @@ impl Expressions<'_> {
                 crate::machines::branches::check_match_result(tree, expression, carrier, &self.signature.machine)?;
                 let tested = tested_dispatch(file, expression);
                 if let Some(TestedDispatch::Literal { subject }) = tested {
-                    match value_patterns::plan(self, subject, block)? {
+                    match value_patterns::plan(self, subject, block, flow)? {
                         value_patterns::SubjectPlan::EvaluateInteger(subject_carrier) => {
                             work.push(ExpressionStep::SplitIntegerMatch { dispatch: expression, subject_carrier, carrier, ty });
                             work.push(ExpressionStep::Visit { node: subject, carrier: subject_carrier, landing: None });

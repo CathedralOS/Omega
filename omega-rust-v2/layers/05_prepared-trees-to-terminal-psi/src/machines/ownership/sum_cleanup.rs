@@ -17,6 +17,10 @@ enum Phase {
 }
 
 impl Plan {
+    pub(super) fn from_actions(actions: Vec<CleanupAction>) -> Self {
+        Self(vec![Phase::Actions(actions)])
+    }
+
     fn actions(&mut self) -> &mut Vec<CleanupAction> {
         if !matches!(self.0.last(), Some(Phase::Actions(_))) {
             self.0.push(Phase::Actions(Vec::new()));

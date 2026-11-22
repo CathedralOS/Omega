@@ -77,6 +77,7 @@ pub(super) fn descriptor(
     node: usize,
     carrier: &ValueType,
     body: &mut MachineBody,
+    flow: &BlockFlow,
 ) -> Result<Option<OperationResult>, LoweringError> {
     let tree = expressions.tree;
     let resolved = tree.resolved();
@@ -92,26 +93,31 @@ pub(super) fn descriptor(
         .map_err(|e| LoweringError::new(&site, e.to_string()))?;
     let value = match file.nodes[node].kind {
         NodeKind::PathExpression => {
-            check_descriptor(tree, node, own, machine, landing)?;
+            use super::branches::value_patterns::PayloadBinding;
             let Some(Symbol::Binding { binder_node, .. }) = resolved.symbol(node) else {
                 return Err(LoweringError::new(&site, "reference value has no bound source"));
             };
-            let value = expressions
-                .bindings
-                .iter()
-                .rev()
-                .find(|(n, _)| n == binder_node)
-                .map(|(_, v)| *v);
-            let Some(OperationResult::Structural(source)) = value else {
-                return Err(LoweringError::new(&site, "reference binding has no lowered descriptor"));
-            };
-            if body.places[source.index()].ty != id {
-                return Err(LoweringError::new(&site, "bound reference differs from its declared type"));
+            match flow.payload_bindings.get(binder_node) {
+                Some(PayloadBinding::Borrowed(_)) => super::ownership::move_value(expressions, node, own, landing, body, flow)?,
+                captured => {
+                    check_descriptor(tree, node, own, machine, landing)?;
+                    let source = match captured {
+                        Some(PayloadBinding::Structural(source)) => Some(*source),
+                        _ => expressions.bindings.iter().rev().find_map(|(binder, value)| match value {
+                            OperationResult::Structural(source) if binder == binder_node => Some(*source),
+                            _ => None,
+                        }),
+                    };
+                    let source = source.ok_or_else(|| LoweringError::new(&site, "reference binding has no lowered descriptor"))?;
+                    if body.places[source.index()].ty != id {
+                        return Err(LoweringError::new(&site, "bound reference differs from its declared type"));
+                    }
+                    OperationResult::Structural(source)
+                }
             }
-            OperationResult::Structural(source)
         }
         NodeKind::Borrow => {
-            let Some(crate::CallArgument::Borrow { place: source, access }) = references::reference_operand(expressions, node, carrier, body)? else {
+            let Some(crate::CallArgument::Borrow { place: source, access }) = references::reference_operand(expressions, node, carrier, body, flow)? else {
                 return Err(LoweringError::new(&site, "borrow has no original place"));
             };
             body.push_operation(OperationOutput::Structural(id), OperationKind::BorrowPlace { source, access }, site)
@@ -125,7 +131,7 @@ pub(super) fn descriptor(
         // it left, and that field's row says which lifetime binder of its
         // record it is stored at.
         NodeKind::FieldAccess | NodeKind::Move if crate::lowering::types::is_exclusive_reference(own) => {
-            super::ownership::move_value(expressions, node, own, landing, body)?
+            super::ownership::move_value(expressions, node, own, landing, body, flow)?
         }
         // Reading a stored shared reference copies no record storage. The value
         // reborrows the referent through the stored descriptor, so that stored
@@ -136,7 +142,7 @@ pub(super) fn descriptor(
                 return Err(LoweringError::new(&site, "a stored reference read needs its shared field place"));
             }
             let Some(crate::CallArgument::Borrow { place: source, access: crate::ReferenceAccess::Shared }) =
-                references::reference_operand(expressions, node, carrier, body)?
+                references::reference_operand(expressions, node, carrier, body, flow)?
             else {
                 return Err(LoweringError::new(&site, "a stored reference read needs its shared field place"));
             };
@@ -175,6 +181,7 @@ pub(super) fn view_at_region(
     node: usize,
     carrier: &ValueType,
     body: &mut MachineBody,
+    flow: &BlockFlow,
 ) -> Result<Option<OperationResult>, LoweringError> {
     let ValueType::AtLifetime(view, region) = carrier else { return Ok(None) };
     if !(crate::lowering::types::is_shared_byte_view(view) || crate::lowering::types::is_shared_element_view(view)) {
@@ -197,7 +204,7 @@ pub(super) fn view_at_region(
                     .semantics_at(node)
                     .any(|row| matches!(row, NodeSemantics::Field(_))) =>
         {
-            let (source, selected) = references::move_place(expressions, node, body, None)?;
+            let (source, selected) = references::move_place(expressions, node, body, flow, None)?;
             if selected != carrier {
                 return Err(LoweringError::new(&site, "stored view read disagrees with its checked type"));
             }
@@ -244,19 +251,19 @@ pub(super) fn view_at_region(
             let Some(Symbol::Binding { binder_node, .. }) = resolved.symbol(node) else {
                 return Ok(None);
             };
-            let value = expressions
-                .bindings
-                .iter()
-                .rev()
-                .find(|(n, _)| n == binder_node)
-                .map(|(_, v)| *v);
-            let Some(OperationResult::Structural(source)) = value else {
-                return Err(LoweringError::new(&site, "reference binding has no lowered descriptor"));
+            use super::branches::value_patterns::PayloadBinding;
+            let source = match flow.payload_bindings.get(binder_node) {
+                Some(PayloadBinding::Structural(source)) => Some(*source),
+                _ => expressions.bindings.iter().rev().find_map(|(binder, value)| match value {
+                    OperationResult::Structural(source) if binder == binder_node => Some(*source),
+                    _ => None,
+                }),
             };
+            let source = source.ok_or_else(|| LoweringError::new(&site, "reference binding has no lowered descriptor"))?;
             if body.places[source.index()].ty != ty(&site)? {
                 return Err(LoweringError::new(&site, "bound reference differs from its declared type"));
             }
-            Ok(value)
+            Ok(Some(OperationResult::Structural(source)))
         }
         _ => Ok(None),
     }

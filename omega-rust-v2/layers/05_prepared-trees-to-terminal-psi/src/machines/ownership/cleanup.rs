@@ -371,6 +371,13 @@ pub(in crate::machines) fn schedule(
             _ => {}
         }
     }
+    let scoped_sum_homes: std::collections::HashSet<_> = body.blocks.iter().filter_map(|block| match &block.terminator {
+        BlockTerminator::Jump(edge) => edge.cleanup.iter().find_map(|action| match action {
+            CleanupAction::RetireHome(place) => Some(place.index()),
+            _ => None,
+        }),
+        _ => None,
+    }).collect();
     let mut arrivals = vec![None; body.blocks.len()];
     arrivals[0] = Some(initial);
     let mut pending = VecDeque::from([0]);
@@ -473,9 +480,32 @@ pub(in crate::machines) fn schedule(
                 site,
             };
             incoming.consume_arguments(&edge.structural_arguments, &context)?;
-            if let [CleanupAction::DiscardRoot(place)] = edge.cleanup.as_slice() {
-                let root = &incoming.0[incoming.live(&ProjectedPlace { root: *place, path: vec![] }, site)?];
-                match context.root(root)?.into_flat_or_dispatch() {
+            let owned_case_subject = edge.cleanup.iter().find_map(|action| match action {
+                CleanupAction::RetireHome(place) => Some(*place),
+                _ => None,
+            });
+            if !edge.cleanup.is_empty() {
+                // Before scheduling, edge cleanup marks local scope exits.
+                // Arguments transfer first. A captured root that is still live
+                // then disposes, and an exhausted sum home may retire.
+                let mut plan = sum_cleanup::Plan::default();
+                edge.cleanup.retain(|action| match action {
+                    CleanupAction::DiscardRoot(place) => incoming.0.iter().any(|root| root.place == *place),
+                    CleanupAction::RetireHome(place) => !body.mutable_homes.contains(place)
+                        && incoming.0.iter().any(|root| root.place == *place && root.exhausted(&context)),
+                    _ => unreachable!("only unscheduled root markers precede ownership scheduling"),
+                });
+                for action in &edge.cleanup {
+                    match action {
+                        CleanupAction::DiscardRoot(place) => {
+                            let root = &incoming.0[incoming.live(&ProjectedPlace { root: *place, path: vec![] }, site)?];
+                            plan.extend(context.scoped_root(root)?);
+                        }
+                        CleanupAction::RetireHome(place) => plan.push(CleanupAction::RetireHome(*place)),
+                        _ => unreachable!("only unscheduled root markers precede ownership scheduling"),
+                    }
+                }
+                match plan.into_flat_or_dispatch() {
                     Ok(actions) => edge.cleanup = actions,
                     Err(plan) => temporary_plans.push((index, plan)),
                 }
@@ -486,7 +516,9 @@ pub(in crate::machines) fn schedule(
                 // Writable homes keep exact vacant paths for field-by-field restoration.
                 incoming
                     .0
-                    .retain(|root| body.mutable_homes.contains(&root.place) || !root.exhausted(&context));
+                    .retain(|root| body.mutable_homes.contains(&root.place)
+                        || scoped_sum_homes.contains(&root.place.index())
+                        || !root.exhausted(&context));
             }
             // Disagreeing arrivals are the lowered-form checker's refusal
             // (terminal-psi/control_flow.md#graph-and-frontier). Each arriving
@@ -496,6 +528,12 @@ pub(in crate::machines) fn schedule(
             // (breadth-first from entry, a true edge before its false edge);
             // the checker judges that cleanup only when every arrival agrees.
             let slot = &mut arrivals[target.get() - 1];
+            if let Some(subject) = owned_case_subject
+                && let Some(first) = slot.as_ref()
+                && first.0.iter().find(|root| root.place == subject) != incoming.0.iter().find(|root| root.place == subject)
+            {
+                return Err(LoweringError::new(site, "case payload join has different live owned subject regions on its arrivals"));
+            }
             if slot.is_none() {
                 *slot = Some(incoming);
                 pending.push_back(target.get() - 1);
@@ -589,6 +627,24 @@ impl CleanupContext<'_> {
             plan.retire(root.place);
         }
         Ok(plan)
+    }
+
+    fn scoped_root(&self, root: &LiveRoot) -> Result<sum_cleanup::Plan, LoweringError> {
+        let plan = self.root(root)?;
+        match plan.into_flat_or_dispatch() {
+            Ok(mut actions) => {
+                let consumes_home = actions.iter().any(|action| match action {
+                    CleanupAction::DiscardRoot(place) => *place == root.place,
+                    CleanupAction::Invoke { place, .. } => place.root == root.place && place.path.is_empty(),
+                    _ => false,
+                });
+                if !consumes_home {
+                    actions.push(CleanupAction::RetireHome(root.place));
+                }
+                Ok(sum_cleanup::Plan::from_actions(actions))
+            }
+            Err(plan) => Ok(plan),
+        }
     }
 
     fn at(
