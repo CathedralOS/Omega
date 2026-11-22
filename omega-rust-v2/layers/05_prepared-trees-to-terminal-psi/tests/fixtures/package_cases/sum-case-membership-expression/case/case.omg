@@ -1,0 +1,2 @@
+data Choice { case Empty; case Full(v:u32); }
+machine full(x:Choice)->bool { x in Choice::Full }

@@ -1,0 +1,3 @@
+data Cell<T> { v:T; }
+data Holder { value:Cell<i32>; }
+machine take(x:Cell<i32>) {}

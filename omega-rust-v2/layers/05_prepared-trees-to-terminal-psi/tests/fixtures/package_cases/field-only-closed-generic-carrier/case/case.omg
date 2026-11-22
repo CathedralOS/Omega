@@ -1,0 +1,2 @@
+data Cell<T> { v:T; }
+data Holder { value:Cell<i32>; }
