@@ -1,0 +1,15 @@
+// Core explicit early-disposal surface.
+//
+// `drop<T>` consumes a whole value to end its lifetime early. Its return edge
+// uses the same checked plan as scope exit: it transfers the value to the
+// machine selected by `dropped by`, or disposes ordinary structural components.
+// A selected machine is an ordinary by-value call target. Its complete
+// consuming pattern ends the wrapper, leaving its components and their
+// obligations with the consumer. Erased fields remain semantically present
+// but carry no runtime representation or runtime cleanup actions.
+//
+// The body is empty because `value` reaches its checked cleanup edge here.
+// The edge performs disposal; no authored statement calls the selected machine.
+
+public machine drop<T>(value: T) {
+}

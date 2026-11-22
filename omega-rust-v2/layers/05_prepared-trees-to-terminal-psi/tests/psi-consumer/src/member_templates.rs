@@ -201,6 +201,7 @@ impl<'a> Reader<'_, 'a> {
                 establishes: construct.establishes,
             },
             TemplateStep::MoveFormal { formal, .. } => self.arguments.get(*formal).cloned().ok_or_else(|| format!("{path}: no moved formal {formal}"))?,
+            TemplateStep::DisposeFormal { .. } => return Err(format!("{path}: normal-return disposal produces no value")),
             TemplateStep::CopyReferent { formal, .. } => {
                 let Some(TemplateValue::Borrowed(value)) = self.arguments.get(*formal) else {
                     return Err(format!("{path}: copy at step {index} needs a reference at formal {formal}"));

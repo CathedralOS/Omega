@@ -85,12 +85,16 @@ pub struct TemplateRequirement {
     pub declared_pause: DeclaredPauseBounds,
 }
 
-/// One step of an open body. Only a call may pause or reach services. An
+/// One step of an open body. A call may pause or reach services. A
+/// return-edge disposition may call the selected cleanup after specialization. An
 /// integer step owes the same proof questions as a closed body's
 /// `OperationKind::Integer`; the other steps form values without effects.
 #[derive(Debug, Eq, PartialEq)]
 pub enum TemplateStep {
     Call(TemplateCall),
+    /// End this source formal on normal return using the instantiated type's ordinary
+    /// scope-exit rules. An unresolved linear disposition remains a checker obligation.
+    DisposeFormal { formal: usize, ty: TypeExpression, site: Site },
     /// Read the current value through this shared reference formal. The
     /// checker must establish the copy and read at this occurrence.
     CopyReferent { formal: usize, ty: TypeExpression, site: Site },
