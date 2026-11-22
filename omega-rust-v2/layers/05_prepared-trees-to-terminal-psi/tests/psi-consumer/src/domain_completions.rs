@@ -53,16 +53,22 @@ pub fn cast_completions<'a>(
         .iter()
         .filter(|row| row.argument_index == argument)
         .collect();
-    if edge
-        .scalar_qualification_changes
-        .iter()
-        .any(|change| change.argument_index == argument)
-    {
-        return Err("an argument with completions also carries a qualification change");
-    }
+    let mut changes = edge.scalar_qualification_changes.iter().filter(|change| change.argument_index == argument);
     let added: Vec<_> = gained.iter().filter(|atom| !held.contains(atom)).collect();
-    if held.iter().any(|atom| !gained.contains(atom)) {
-        return Err("a completion cannot remove a domain");
+    let removes = held.iter().any(|atom| !gained.contains(atom));
+    match (changes.next().map(|change| change.direction), changes.next()) {
+        (None, None) if removes => return Err("a completion cannot remove a domain without a replacement marker"),
+        (None, None) => {}
+        (Some(omega_psi::QualificationDirection::Replace), None) if removes && !added.is_empty() => {
+            for (declaration, _) in held.iter().filter(|atom| !gained.contains(atom)) {
+                let domain = package.domains.iter().find(|row| row.declaration == **declaration)
+                    .ok_or("a removed domain is absent from the catalog")?;
+                if domain.cleanup_target.is_some() {
+                    return Err("replacement needs the removed domain's cleanup obligation");
+                }
+            }
+        }
+        _ => return Err("qualification marker disagrees with the completion on this argument"),
     }
     if rows.len() != added.len()
         || rows
@@ -101,7 +107,7 @@ pub fn cast_completions<'a>(
     // Seed with this argument's existing qualifications. A new row contributes its
     // exact atom only after all of its own prerequisites have been accounted for.
     // The rows' canonical order need not be an order of parenthood.
-    let mut grounded = held;
+    let mut grounded: Vec<_> = held.into_iter().filter(|atom| gained.contains(atom)).collect();
     while !pending_parents.is_empty() {
         let count = pending_parents.len();
         pending_parents.retain(|(atom, parents)| {

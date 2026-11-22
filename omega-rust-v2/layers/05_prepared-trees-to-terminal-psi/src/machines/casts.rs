@@ -74,13 +74,13 @@ pub(super) struct ScalarCast<'a> {
 pub(super) enum ScalarChange {
     Ordinary(QualificationDirection),
     /// Every added domain atom once, in destination order, with its own origin.
-    Completion(Vec<(omega_psi::DomainAtom, omega_psi::CompletionOrigin)>),
+    Completion { replaces: bool, domains: Vec<(omega_psi::DomainAtom, omega_psi::CompletionOrigin)> },
 }
 
 /// L3 has resolved each named domain and accounted for the written entries.
-/// Psi can encode a strict addition or erasure on one same-carrier edge.
+/// Psi keeps every written change on one same-carrier edge.
 /// An ordinary addition introduces only predicate-free tags, so an addition
-/// that includes a predicate names every added domain with its origin instead.
+/// that includes a predicate, and every replacement, names each added domain and its origin.
 /// Each row keeps the application's closed arguments, so `Above<5>` owes `self > 5`.
 ///
 /// `machine` owns the cast, so it is the issuer of every domain the cast adds.
@@ -131,9 +131,9 @@ pub(super) fn scalar_cast<'a>(
         }
     }
     let change = match (added.is_empty(), removes) {
-        (false, false) => {
+        (false, _) => {
             let establishment = |atom: &omega_typed::DomainApplication| types.domain_establishment(&atom.declaration);
-            if !added
+            if !removes && !added
                 .iter()
                 .any(|atom| establishment(atom).is_some_and(|d| d.predicate))
             {
@@ -151,12 +151,11 @@ pub(super) fn scalar_cast<'a>(
                     };
                     completions.push((LoweringTypes::domain_atom(atom, &operation.site)?, origin));
                 }
-                Some(ScalarChange::Completion(completions))
+                Some(ScalarChange::Completion { replaces: removes, domains: completions })
             }
         }
         (true, true) => Some(ScalarChange::Ordinary(QualificationDirection::Erase)),
         (true, false) => None,
-        (false, true) => return Err(error("Psi has no specified edge for simultaneous domain removal and addition")),
     };
     // domains.md#carrier-casts: `value as T` keeps the denoted value, so a
     // change between fixed-width integer and IEEE carriers is one exact

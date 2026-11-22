@@ -152,3 +152,4 @@ reconstruct a record from its stored view	checker-input	psi-output/rebuilt-store
 call with an inferred body-local region	checker-input	psi-output/operand-carried-call-region
 add an inherited child with its own predicate	checker-input	psi-output/inherited-predicate-completion
 add a tag child and a predicate domain in one cast	checker-input	psi-output/inherited-tag-completion
+simultaneous domain removal and addition	checker-input	psi-output/replacement-cast

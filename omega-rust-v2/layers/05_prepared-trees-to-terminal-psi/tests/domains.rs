@@ -528,7 +528,7 @@ fn carrier_conversion_and_literal_landing_precede_domain_addition() {
 }
 
 #[test]
-fn retaining_membership_forwards_the_value_and_replacing_membership_refuses_at_the_cast() {
+fn retaining_membership_forwards_the_value() {
     use omega_lowering::{BlockTerminator, Parameter, ReturnEdge};
     let declarations = "domain u8::A; domain u8::B;";
     let program = format!("{declarations} machine keep(a:u8 in A)->u8 in A {{a as =A}}");
@@ -540,11 +540,96 @@ fn retaining_membership_forwards_the_value_and_replacing_membership_refuses_at_t
     assert_eq!(body.blocks.len(), 1);
     assert!(body.operations.is_empty());
     assert!(matches!(body.blocks[0].terminator, BlockTerminator::Return {result: ReturnEdge::Scalar(v), ..} if v == a));
-    let program = format!("{declarations} machine replace(a:u8 in A)->u8 in B {{a as -A +B}}");
-    let message = "Psi has no specified edge for simultaneous domain removal and addition";
-    let error = sources::refuse(&[("cast.omg", &program)], "cast.omg", sources::unique_span(&program, "a as -A +B"), message);
-    assert_eq!(error.site.span.slice(program.as_bytes()), Some(b"a as -A +B".as_slice()));
-    assert_eq!(error.message, message);
+}
+
+#[test]
+fn replacing_membership_uses_one_edge_and_accounts_for_each_added_domain() {
+    use omega_psi::{BlockTerminator, CompletionOrigin::Vacuous, Parameter, QualificationDirection::Replace, ReturnEdge, ScalarQualificationChange, TypeShape};
+
+    for cast in ["a as -A +B", "a as +B -A"] {
+        let source = format!("domain u8::A; domain u8::B; machine replace(a:u8 in A)->u8 in B {{{cast}}}");
+        let pkg = sources::lower(&[("cast.omg", &source)]).unwrap();
+        let body = &pkg.machines[0].body;
+        let [Parameter::Scalar(input)] = body.parameters[..] else { panic!("expected a scalar parameter") };
+        let [entry, arrival] = body.blocks.as_slice() else { panic!("expected one cast jump") };
+        let BlockTerminator::Jump(edge) = &entry.terminator else { panic!("expected the cast edge") };
+        let [result] = arrival.scalar_parameters[..] else { panic!("expected a scalar arrival") };
+        let domains = |value: omega_psi::ValueId| {
+            let Some(TypeShape::QualifiedScalar { domains, .. }) = pkg.types.get(body.values[value.index()].ty) else { panic!("expected qualified scalar") };
+            pkg.types.domain_atoms(*domains).unwrap().map(|(declaration, _)| declaration.path.as_str()).collect::<Vec<_>>()
+        };
+        assert!(body.operations.is_empty());
+        assert_eq!(edge.target, arrival.id);
+        assert_ne!(input, result);
+        assert!(matches!(arrival.terminator, BlockTerminator::Return { result: ReturnEdge::Scalar(v), .. } if v == result));
+        assert_eq!(body.diagnostics.edges[edge.id.get()-1].span.slice(source.as_bytes()), Some(cast.as_bytes()));
+        spec_corpus::observe_handoff!(psi "psi-output/replacement-cast", assert_eq!(
+            (edge.arguments.as_slice(), domains(input), domains(result), edge.scalar_qualification_changes.as_slice(), first_cast_origins(&pkg)),
+            (&[input][..], vec!["u8::A"], vec!["u8::B"], &[ScalarQualificationChange { argument_index: 0, direction: Replace }][..], Ok(vec![("u8::B", Vacuous)]))
+        ));
+    }
+}
+
+#[test]
+fn replacement_evaluates_a_call_once_and_preserves_each_new_obligation() {
+    use omega_psi::{BlockTerminator, CompletionOrigin::{Proved, Vacuous}, DeclarationTerm, OperationKind, OperationResult, ScalarDomainInvariant, TypeShape};
+
+    let source = "domain u8::Old; domain u8::Held; domain u8::Other; domain u8::Tag;
+        domain<const N:u8> u8::Above<N> requires self > N;
+        domain u8::Five = u8::Above<5>;
+        machine get(x:u8)->u8 in Old & Held & Other {x as +Old +Held +Other}
+        machine swap(x:u8)->u8 in Held & Other & Tag & Five {
+            let input:u8 in Old & Held & Other = get(x);
+            input as -Old =Held =Other +Five +Tag
+        }";
+    let pkg = sources::lower(&[("cast.omg", source)]).unwrap();
+    let machine = pkg.machines.iter().find(|m| m.declaration.path == "swap").unwrap();
+    let body = &machine.body;
+    let [call] = body.operations.as_slice() else { panic!("the cast must evaluate get(x) once") };
+    assert!(matches!(call.kind, OperationKind::Call { .. }));
+    let OperationResult::Scalar(input) = call.result else { panic!("expected a scalar call result") };
+    let [entry, arrival] = body.blocks.as_slice() else { panic!("expected one cast jump") };
+    let BlockTerminator::Jump(edge) = &entry.terminator else { panic!("expected the replacement") };
+    assert_eq!(edge.arguments, [input]);
+    let [output] = arrival.scalar_parameters[..] else { panic!("expected the cast result") };
+    let Some(TypeShape::QualifiedScalar { domains, .. }) = pkg.types.get(body.values[output.index()].ty) else { panic!("missing qualifications") };
+    assert_eq!(pkg.types.domain_atoms(*domains).unwrap().map(|(d, _)| d.path.as_str()).collect::<Vec<_>>(),
+               ["u8::Above", "u8::Held", "u8::Other", "u8::Tag"]);
+    let rows = psi_handoff_consumer::cast_completions(&pkg, body, edge, 0).unwrap();
+    let [(above, Proved), (tag, Vacuous)] = rows.as_slice() else { panic!("expected a predicate and a vacuous completion") };
+    assert_eq!(above.declaration.path, "u8::Above");
+    assert_eq!(above.arguments, [DeclarationTerm::StaticInteger { carrier: ScalarType::Integer { signed: false, width: 8 }, value: 5u8.into() }]);
+    assert_eq!(tag.declaration.path, "u8::Tag");
+    assert!(tag.arguments.is_empty());
+    assert_eq!(arrival.scalar_domain_invariants, [ScalarDomainInvariant { subject: output, domain: (*above).clone() }]);
+}
+
+#[test]
+fn replacement_cannot_hide_a_missing_proof_or_authorize_restricted_issuance() {
+    use omega_psi::{BlockTerminator, CompletionOrigin::Proved, DomainIssuers};
+
+    let source = "domain u8::Old; domain u8::New requires false;
+                  machine swap(x:u8 in Old)->u8 in New { x as -Old +New }";
+    let mut pkg = sources::lower(&[("cast.omg", source)]).unwrap();
+    assert_eq!(first_cast_origins(&pkg), Ok(vec![("u8::New", Proved)]));
+    let old = pkg.domains.iter().position(|d| d.declaration.path == "u8::Old").unwrap();
+    let new = pkg.domains.iter().position(|d| d.declaration.path == "u8::New").unwrap();
+    assert_eq!(pkg.domains[new].requires[0].predicate, [PredicateStep::Boolean(false)]);
+    pkg.domains[old].issuers = DomainIssuers::Nobody;
+    assert_eq!(first_cast_origins(&pkg), Ok(vec![("u8::New", Proved)]));
+    pkg.domains[new].issuers = DomainIssuers::Nobody;
+    assert_eq!(first_cast_origins(&pkg), Err("a vacuous or proved origin cannot authorize restricted issuance"));
+    pkg.domains[new].issuers = DomainIssuers::Unrestricted;
+    pkg.domains[old].cleanup_target = Some(pkg.machines[0].id);
+    assert_eq!(first_cast_origins(&pkg), Err("replacement needs the removed domain's cleanup obligation"));
+    pkg.domains[old].cleanup_target = None;
+    let BlockTerminator::Jump(edge) = &mut pkg.machines[0].body.blocks[0].terminator else { panic!("missing cast") };
+    let marker = edge.scalar_qualification_changes.pop().unwrap();
+    assert_eq!(first_cast_origins(&pkg), Err("a completion cannot remove a domain without a replacement marker"));
+    let BlockTerminator::Jump(edge) = &mut pkg.machines[0].body.blocks[0].terminator else { unreachable!() };
+    edge.scalar_qualification_changes.push(marker);
+    pkg.machines[0].body.blocks[1].scalar_domain_invariants.clear();
+    assert_eq!(first_cast_origins(&pkg), Err("the arrival invariants differ from the proved completions"));
 }
 
 #[test]
@@ -847,7 +932,7 @@ fn a_cast_adding_a_tag_and_a_predicate_names_each_origin_on_one_completion() {
         (|e, _| e.domain_completions[0].origin = CompletionOrigin::Vacuous, "a vacuous origin names a domain with predicates"),
         (|e, _| e.domain_completions[1].origin = CompletionOrigin::Proved, "a proved origin names a predicate-free domain"),
         (|e, _| e.scalar_qualification_changes.push(ScalarQualificationChange { argument_index: 0, direction: QualificationDirection::Add }),
-         "an argument with completions also carries a qualification change"),
+         "qualification marker disagrees with the completion on this argument"),
         (|_, i| i.clear(), "the arrival invariants differ from the proved completions"),
     ];
     for (mutate, expected) in mutations {
@@ -876,7 +961,7 @@ fn a_cast_adding_a_tag_and_a_predicate_names_each_origin_on_one_completion() {
             None => {
                 assert_eq!(edge.scalar_qualification_changes, [ScalarQualificationChange { argument_index: 0, direction: QualificationDirection::Add }]);
                 assert!(edge.domain_completions.is_empty());
-                assert_eq!(read, Err("an argument with completions also carries a qualification change"));
+                assert_eq!(read, Err("qualification marker disagrees with the completion on this argument"));
             }
         }
     }

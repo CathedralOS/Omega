@@ -57,6 +57,17 @@ fn executing_the_selected_policy_distinguishes_issuance_from_forwarding() {
     );
     assert_eq!(diagnostic(&root, "lower", &empty, issue, true), (false, denied));
 
+    let replacement = "domain i32::Old; machine retag(x:i32 in Old)->i32 in Locked {x as -Old +Locked}";
+    assert_eq!(diagnostic(&root, "lower", POLICY, replacement, true), (true, String::new()));
+    let cast = "x as -Old +Locked";
+    let at = replacement.find(cast).unwrap();
+    let denied = format!(
+        "consumer.omg:1:{}: lowering: machine `retag` cannot introduce domain `i32::Locked`: its access plan admits no issuer (bytes {at}..{})",
+        at + 1,
+        at + cast.len()
+    );
+    assert_eq!(diagnostic(&root, "lower", &empty, replacement, true), (false, denied));
+
     // The written child implicitly accounts for Locked. A fresh parent goes
     // through its own executed plan; a parent already on x can be retained.
     let child_policy = format!("{POLICY}\ndomain i32::Locked::Child requires true;");

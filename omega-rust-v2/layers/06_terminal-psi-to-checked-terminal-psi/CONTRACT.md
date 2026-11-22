@@ -1,4 +1,6 @@
-# L6 access-policy evidence
+# L6 checker contracts
+
+## Access-policy evidence
 
 The access-policy evaluator needs to know whether a selected constructor establishes its result. `check_record_constructor` takes the immutable Psi unit containing the executable body and its exact declaration identity. The L5 producer test prepares and lowers the shipped toolchain as a verification unit. It checks that the constructor has a body and that the nine catalog-supplied declarations have their separate identities. [Producer test](../05_prepared-trees-to-terminal-psi/tests/obligation_library.rs)
 
@@ -13,3 +15,9 @@ The caller-side judgment first checks the selected declaration, its conformance 
 At the actual constructor occurrence, `check_policy_construction` compares the frozen field inputs with the checked caller and constructor. The schema field receives the original immutable byte storage from the selected invocation. The issuance field receives its checked case and payload. Every remaining field must agree with its proven typed zero. The result retains the original package key, subject revision, selection site and construction site for the requesting preparation. A foreign occurrence, different copied value or field reordering refuses. [Concrete construction checks](tests/policy_call.rs)
 
 The interpreter owns execution under the root's resource ceilings. Preparation validates the returned data against the requested schema and region. Lowering consumes the bound answer when publishing domain issuers. Additional callable routes, restrictions and recursive execution require their own evidence. [Invocation admission](../../../wiki/spec/language/evaluation.md#invocation-admission) · [Access-plan validation](../../../wiki/spec/resources/access.md#plans-and-admitted-supply)
+
+## Mixed scalar qualification casts
+
+`check_scalar_replacements` checks closed machine bodies containing a mixed scalar transfer. The caller supplies one immutable lowered package. The checker compares the argument and block parameter types independently of the jump marker, keeps the same payload carrier, checks the exact added atoms and their issuers, and refuses removal with an outstanding cleanup obligation. Parent memberships must survive the cast or be independently established on that argument. Each added predicate must hold before the destination invariant becomes available. A successful judgment covers these transfers under the machine's entry contract.
+
+For `distance as -Km +Positive`, a signed payload of 7 establishes `self > 0`. A payload of −7 fails that predicate and can gain a predicate-free `Degrees`. The checker can also use a matching scalar requirement on the actual formal, including a requirement inherited from its incoming domain. It tracks exact literals, checked negation, and facts preserved across qualification jumps. A branch that compares that payload with an integer constant supplies its comparison or its negation on the corresponding edge. At a control-flow join it keeps facts established on every incoming path. The current proof fragment evaluates integer and Boolean predicate operations and substitutes closed integer or Boolean domain indices. A proof requiring another operation, a relation between different values, or induction around a loop remains open. [Checker and mutation tests](tests/scalar_replacements.rs)

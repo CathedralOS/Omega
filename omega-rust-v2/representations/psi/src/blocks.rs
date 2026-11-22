@@ -66,7 +66,8 @@ pub struct SuccessorEdge {
     /// The edge supplies the argument value and its target supplies the fresh parameter at this position.
     pub scalar_qualification_changes: Vec<ScalarQualificationChange>,
     /// One row per domain this jump establishes at an argument, each with its own origin.
-    /// An argument with completions has no qualification change; neither is a proof verdict.
+    /// A replacement also names its qualification change at this argument. The rows
+    /// cover just the added domains; removed domains are read from the two value types.
     pub domain_completions: Vec<DomainCompletion>,
     /// Each structural input transfers or copies into its corresponding target parameter.
     pub structural_arguments: Vec<crate::ValueOperand>,
@@ -120,4 +121,7 @@ pub struct ScalarQualificationChange {
 pub enum QualificationDirection {
     Add,
     Erase,
+    /// One authored cast both removes and adds memberships on this argument.
+    /// Every added domain has a completion row on the same edge and ordinal.
+    Replace,
 }

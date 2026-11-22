@@ -267,12 +267,20 @@ by `(machine, edge, domain)`. Qualification-change rows are
 ordered strictly by `(machine, edge, argument ordinal)`; float entry ranges by
 `(machine, parameter)`, with both bounds carrying the same IEEE format. All
 these bytes participate in semantic identity. Canonical encoding does not
-itself authorize membership: verification checks the exact arrival and strict
-same-carrier addition or subset erasure under the
+itself authorize membership. Verification compares the exact same-carrier sets
+at the named source and destination under the
 [scalar qualification rules](calls_and_outcomes.md#scalar-qualifications).
-An ordinary qualification-change edge introduces only predicate-free, route-free
-atoms; introducing predicate or routed membership requires its checked return
-completion instead. Erasure retains the existing strict subset rule.
+An ordinary strict addition introduces only predicate-free, route-free atoms.
+Predicate or routed membership still requires a checked completion. A pure
+erasure goes to a strict subset, including the bare set. For a replacement,
+both set differences are nonempty. The qualification-change row identifies the
+transition, and the completion rows at that same edge and argument identify each
+added domain exactly once under its own origin rule. A predicate-free,
+route-free addition in a replacement uses the vacuous origin. The complete
+source and result sets determine which domains were removed and retained.
+Rows for another argument or arrival cannot establish an added domain here.
+Erasing authority or cleanup obligations requires the same evidence as pure
+erasure. Missing or surplus rows reject.
 
 ### Retained scalar conditions and application scope
 

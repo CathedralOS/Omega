@@ -266,6 +266,52 @@ fn assert_packages_prepare_and_lower(
 }
 
 #[test]
+fn checking_a_replacement_uses_the_input_value_before_the_cast() {
+    let directory = application_directory()
+        .join("../target")
+        .join(format!("checked-replacement-{}", std::process::id()));
+    fs::create_dir_all(&directory).unwrap();
+    let declarations = "domain i32::Km; domain i32::Degrees; domain i32::Positive requires self > 0;";
+    for (value, added, accepts) in [
+        ("-7", "Degrees", true),
+        ("7", "Positive", true),
+        ("-7", "Positive", false),
+    ] {
+        let cast = format!("x as -Km +{added}");
+        let source = format!("{declarations}\nmachine relabel()->i32 in {added} {{ let x = ({value}i32) as +Km; {cast} }}");
+        fs::write(directory.join("cast.omg"), &source).unwrap();
+        let lowered = invoke(&directory, &["source", "lower", "cast.omg"]);
+        assert!(lowered.status.success(), "{}", String::from_utf8_lossy(&lowered.stderr));
+        let checked = invoke(
+            &directory,
+            &[
+                "source",
+                "check",
+                "--only",
+                "scalar-replacements",
+                "--package-root",
+                ".",
+                "cast.omg",
+            ],
+        );
+        let diagnostic = String::from_utf8(checked.stderr).unwrap();
+        assert_eq!(checked.status.code(), Some(if accepts { 0 } else { 1 }), "{source}: {diagnostic}");
+        if accepts {
+            assert!(diagnostic.is_empty());
+        } else {
+            let at = source.find(&cast).unwrap();
+            assert!(
+                diagnostic.contains("checker:") && diagnostic.contains("Positive") && diagnostic.contains(&format!("(bytes {at}..{})", at + cast.len())),
+                "{diagnostic}"
+            );
+        }
+    }
+    let incomplete = invoke(&directory, &["source", "check", "cast.omg"]);
+    assert_eq!(incomplete.status.code(), Some(2));
+    fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
 fn lowers_omitted_and_written_zero_initializers() {
     let omitted = "data Options {count:u8; retries:u16;} machine build(){let options=Options{count:1,..};}";
     let written = omitted.replace("count:1,..", "count:1,retries:0");

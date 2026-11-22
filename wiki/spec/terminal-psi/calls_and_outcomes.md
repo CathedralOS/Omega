@@ -64,17 +64,22 @@ Predicate-free, route-free scalar domain declarations can be carried in the
 closed scalar qualification catalog. Canonical declarations, normalized sets,
 and exact qualification-change edges participate in semantic identity. A change
 names the machine, edge, argument position, source value and fresh destination
-parameter. It either strictly adds same-carrier membership or strictly erases
-membership to a subset, including the bare set. Equal sets and simultaneous
-removal/replacement with unrelated atoms reject. Source-derived addition and
-erasure must each retain the explicit `as` occurrence under
-[domain casts](../language/domains.md#domain-casts);
-an ordinary transfer cannot imply either. A source cast that both removes and
-adds domains is not one such edge; its Terminal form is open under
-`NAMED-DOMAIN-CASTS`. Neither direction alters payload bits or
-changes the original source retroactively. Every
-incoming edge is checked independently. A result annotation, ordinary constant,
-load or arithmetic operation cannot establish membership by itself.
+parameter. Compare the exact domain applications on that input and result.
+A strict addition gains memberships, an erasure drops memberships, and a
+replacement both drops and gains memberships. All three preserve the scalar
+payload and identify the authored [cast](../language/domains.md#domain-casts).
+Identical sets forward the value without a qualification change. An ordinary
+transfer, constant, load or arithmetic operation cannot establish membership by
+itself. The input retains its original qualification.
+
+A replacement is one qualification-change edge with one completion for each
+added domain at that argument. For `distance as -Km +Degrees`, the same
+value loses `Km` and must qualify for `Degrees`. Every removal must preserve
+the authority, ownership and cleanup constraints that survive erasure. Every
+addition owes its own predicate and issuer evidence on that incoming value.
+An erased membership supplies no issuance right. Retained memberships need
+no new origin. Neither written entry order nor the destination's annotation
+can establish a required predicate. Check each arrival independently.
 
 Core arithmetic-policy operator implementations use the same qualification-change
 edges to establish their declared results. Their integer primitives produce
