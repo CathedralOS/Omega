@@ -1626,12 +1626,61 @@ impl<'a> Replay<'a> {
         state: &State,
         location: &DescriptorLocation,
     ) -> Option<Vec<DescriptorLocation>> {
-        self.storage_origins_with_depth(
-            machine,
-            state,
-            location,
-            &DescriptorReadDepth::at(machine, state, None),
-        )
+        let depth = DescriptorReadDepth::at(machine, state, None);
+        self.storage_origins_with_depth(machine, state, location, &depth)
+            .or_else(|| self.captured_element_origins(machine, state, location, &depth))
+    }
+
+    /// `slice[index] = value` stores through a borrowed header whose
+    /// backing is a captured address rather than a descriptor slot. With a
+    /// complete address into a fixed collection, the store can reach any
+    /// member of that collection and nothing else, so every member is a
+    /// destination. A window, a reference crossing, an unsized collection
+    /// or a forgotten address names no such finite set and stays unresolved.
+    fn captured_element_origins(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        location: &DescriptorLocation,
+        depth: &DescriptorReadDepth<'_>,
+    ) -> Option<Vec<DescriptorLocation>> {
+        let resolution = self.resolve_storage_with_depth(machine, state, location, depth)?;
+        if !matches!(
+            resolution,
+            StorageResolution::Projected(_) | StorageResolution::Alternatives(_)
+        ) {
+            return None;
+        }
+        let mut locations = Vec::new();
+        for origin in self
+            .checked_storage_family(machine, state, resolution)
+            .ok()?
+        {
+            let DescriptorCallOrigin::Argument { source, projection } = origin else {
+                return None;
+            };
+            let root_type = *machine.place_types.get(&source)?;
+            let path = projection.captured_storage_path()?;
+            let members = if path.iter().any(|segment| segment.runtime_index().is_some()) {
+                descriptor_lifetimes::fixed_runtime_index_alternatives(
+                    self.types, source, root_type, &path,
+                )?
+            } else {
+                vec![descriptor_lifetimes::descriptor_location(
+                    self.types, source, root_type, &path, None,
+                )?]
+            };
+            for member in members {
+                // The captured source can itself be a borrowed header. Name
+                // the storage that header reaches, never the header.
+                for backing in self.storage_origins_with_depth(machine, state, &member, depth)? {
+                    if !locations.contains(&backing) {
+                        locations.push(backing);
+                    }
+                }
+            }
+        }
+        (!locations.is_empty()).then_some(locations)
     }
 
     fn storage_origins_with_depth(
