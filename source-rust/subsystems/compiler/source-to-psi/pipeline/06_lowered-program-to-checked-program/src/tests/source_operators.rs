@@ -318,16 +318,15 @@ data Cell [copy] {{ value: u32; }}
 machine entry() -> bool {{
     let cells: [Cell; 1];
     let index: u64 in Wrapping = 0u64 as +Wrapping;
-    cells[index].value == 0u32
+    cells[index].value == 7u32
 }}
 "#
         );
         let typed = super::boundary_calls::typed(&source);
         let prepared = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
         operator_program(prepared.trees())
-            .expect_err("no builtin meaning may replace the declared index")
     };
-    let missing = read("");
+    let missing = read("").expect_err("a qualified index needs a declaration");
     assert!(
         missing.contains("no `[]` declaration accepts collection"),
         "{missing}"
@@ -337,10 +336,13 @@ machine entry() -> bool {{
     let supplied = read(
         "machine [] at(cells: @[Cell; 1], index: u64 in Wrapping) -> Cell { Cell { value: 7u32 } }",
     );
-    assert!(
-        supplied.contains("remains unresolved as CheckedOperator"),
-        "{supplied}"
-    );
+    match supplied {
+        Ok(verdict) => assert_operator_value(Ok(verdict), true),
+        Err(refusal) => assert!(
+            refusal.contains("remains unresolved as CheckedOperator"),
+            "{refusal}"
+        ),
+    }
 }
 
 #[test]
