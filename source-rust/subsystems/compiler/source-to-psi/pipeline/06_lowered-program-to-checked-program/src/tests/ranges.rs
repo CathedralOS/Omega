@@ -168,10 +168,16 @@ fn policy_remainder_is_below_its_own_positive_unsigned_divisor() {
         );
 
         let foreign = source.replace("ensures result < divisor", "ensures result < other");
-        assert!(matches!(
-            super::entryless::judged(&foreign, false),
-            RouteVerdict::Rejected { .. }
-        ));
+        let unproved = match super::entryless::judged(&foreign, false) {
+            RouteVerdict::Rejected { unproved, .. } | RouteVerdict::Incomplete(unproved) => {
+                unproved
+            }
+            verdict => panic!("a different divisor cannot justify the postcondition: {verdict:?}"),
+        };
+        assert!(unproved.iter().any(|row| {
+            row.statement
+                .contains("ensures contract for exit from sample")
+        }));
     }
 }
 
