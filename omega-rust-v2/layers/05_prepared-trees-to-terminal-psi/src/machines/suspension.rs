@@ -685,9 +685,6 @@ fn plan<'members>(
                 && callees.may_park(*callee)
             {
                 let site = &body.diagnostics.operations[pos];
-                if matches!(op.result, OperationResult::Structural(_)) {
-                    return Err(LoweringError::new(site, "suspending structural results need their completion claim binding"));
-                }
                 let continuation = if pos + 1 < block.operations.end {
                     CompletionContinuation::Operation(OperationId(super::body::next_id(pos + 1)))
                 } else {
