@@ -730,6 +730,9 @@ pub(crate) fn land_owned_fixed_byte_literal(
         .collect::<Vec<_>>();
     let elements = program.expression_table.insert_expression_handles(elements);
     *program.expression_table.expression_mut(value) = ExpressionNode::ArrayLiteral(elements);
+    program
+        .expression_table
+        .set_constructed_value_type_reference(value, carrier);
     Ok(())
 }
 

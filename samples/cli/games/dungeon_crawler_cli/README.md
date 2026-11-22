@@ -7,7 +7,7 @@ empty. The separate `help_exit.stdin` route has its complete output in
 `expected_help_exit_stdout.txt`. From this folder, run both through one compilation:
 
 ```sh
-omega run --both --input input.txt --input help_exit.stdin --outputs build/acceptance main.omg
+omega run --both --input input.txt --input help_exit.stdin --outputs build/acceptance build.omg
 ```
 
 Both cases must exit zero in both engines. Compare `input.stdout` and
@@ -37,12 +37,10 @@ What it is trying to prove:
 
 ## Runtime acceptance
 
-The closed-stdin and help/exit routes have verified native execution on macOS
-ARM64 and Windows x86_64. [build.omg](build.omg) declares four hosted entry
-bindings; the other hosts still need their own execution evidence. Checking and
-a zero exit status alone do not establish correct native output; see
-[native realization](../../../../omega-rust/omega/compilation/compiler/README.md#native-realization)
-and the [compiler completion plan](../../../../wiki/drafts/reference/rust_compiler_completion.md).
+The October runs below exercised closed stdin and help/exit on macOS ARM64 and
+Windows x86_64. The authored Build binds `entry_start` on four hosted targets.
+Check each output against its transcript as well as its exit status.
+[Build](build.omg) · [Native compiler](../../../../source-rust/subsystems/compiler/psi-to-native/README.md) · [Release criteria](../../../../wiki/drafts/reference/rust_compiler_completion.md)
 
 The intended interactive path accepts commands at a live terminal. The closed-
 stdin acceptance case instead reaches EOF at the first prompt and should exit
@@ -51,8 +49,8 @@ with status 0. Never run a stale image after a failed build.
 Run the actual product command from the repository root (POSIX shell):
 
 ```sh
-omega run samples/cli/games/dungeon_crawler_cli/main.omg </dev/null
-printf 'help\nexit\n\n' | omega run samples/cli/games/dungeon_crawler_cli/main.omg
+omega run samples/cli/games/dungeon_crawler_cli/build.omg </dev/null
+printf 'help\nexit\n\n' | omega run samples/cli/games/dungeon_crawler_cli/build.omg
 ```
 
 Both cases should exit 0 after the initial room and goodbye output; the second
@@ -81,9 +79,8 @@ The existing sample gate reads the standalone `Expected exit` and
 oracle requires the generated room description, not just exit 0: native lookup
 previously lost the description while the process still exited successfully.
 
-The timeout is a runner budget, not a language limit; the current qualified
-commands complete in under thirty seconds after package preparation. This gate does not replace the separate
-`help`/`exit` input acceptance above.
+The historical timings above include compilation on their stated revisions.
+Run the separate help/exit input to exercise command dispatch.
 
 Current state cycle:
 

@@ -1,3 +1,5 @@
+use inventory\Inventory;
+
 data CellId [copy] {
     case Empty;
     case R00;

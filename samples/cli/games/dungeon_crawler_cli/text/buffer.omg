@@ -1,8 +1,12 @@
+use omega\language\core\byte_observation;
 // Explicit text storage; domains never supply a length word.
-domain [u8; 128]::Ascii requires ascii_only(self);
-domain [u8]::Ascii requires ascii_only(self);
+public domain [u8; 128]::Ascii requires byte_observation\ascii_only(@self[..]);
+public domain [u8]::Ascii requires byte_observation\ascii_only(@self[..]);
 data TextBuffer [copy] requires used <= 128 { storage: [u8; 128] in Ascii; used: u64; }
-machine text_buffer_live(buffer: @TextBuffer) -> @[u8] in Ascii { @buffer.storage[..buffer.used] }
+machine text_buffer_live(buffer: @TextBuffer) -> @[u8] in Ascii {
+    let prefix: @[u8] = @(@buffer.storage as -Ascii)[..buffer.used];
+    prefix as +Ascii
+}
 machine text_buffer_copy(buffer: @mutable [u8; 128] in Ascii, bytes: @[u8] in Ascii, start: u64)
 requires start <= 128, bytes.length <= 128 - start
 ensures buffer in Ascii
@@ -21,7 +25,7 @@ ensures buffer in Ascii
     requires start <= 128, index < 128, index < bytes.length, start + index < 128
     ensures buffer in Ascii
     {
-        buffer[start + index] = bytes[index];
+        (@mutable buffer as -Ascii)[start + index] = (bytes as -Ascii)[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
     machine done() {}
@@ -42,11 +46,14 @@ requires left.length <= 24, right.length <= 100
 }
 
 // Explicit owner retains its original 8-byte capacity.
-domain [u8; 8]::Ascii requires ascii_only(self);
+public domain [u8; 8]::Ascii requires byte_observation\ascii_only(@self[..]);
 data ExitCommand [copy] requires used <= 8 { storage: [u8; 8] in Ascii; used: u64; }
 machine exit_command_live(buffer: @ExitCommand) -> @[u8] in Ascii
 ensures result.length == buffer.used && result.length <= 8
-{ @buffer.storage[..buffer.used] }
+{
+    let prefix: @[u8] = @(@buffer.storage as -Ascii)[..buffer.used];
+    prefix as +Ascii
+}
 machine exit_command_copy(buffer: @mutable [u8; 8] in Ascii, bytes: @[u8] in Ascii, start: u64)
 requires start <= 8, bytes.length <= 8 - start
 ensures buffer in Ascii
@@ -65,7 +72,7 @@ ensures buffer in Ascii
     requires start <= 8, index < 8, index < bytes.length, start + index < 8
     ensures buffer in Ascii
     {
-        buffer[start + index] = bytes[index];
+        (@mutable buffer as -Ascii)[start + index] = (bytes as -Ascii)[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
     machine done() {}
@@ -79,12 +86,15 @@ requires bytes.length <= 8
 }
 
 // Explicit owner retains its original 16-byte capacity.
-domain [u8; 16]::Ascii requires ascii_only(self);
-domain [u8; 16]::Utf8 requires valid_utf8(self);
+public domain [u8; 16]::Ascii requires byte_observation\ascii_only(@self[..]);
+public domain [u8; 16]::Utf8 requires byte_observation\valid_utf8(@self[..]);
 data RoomLabel [copy] requires used <= 16 { storage: [u8; 16] in Ascii; used: u64; }
 machine room_label_live(buffer: @RoomLabel) -> @[u8] in Ascii
 ensures result.length == buffer.used && result.length <= 16
-{ @buffer.storage[..buffer.used] }
+{
+    let prefix: @[u8] = @(@buffer.storage as -Ascii)[..buffer.used];
+    prefix as +Ascii
+}
 machine room_label_copy(buffer: @mutable [u8; 16] in Ascii, bytes: @[u8] in Ascii, start: u64)
 requires start <= 16, bytes.length <= 16 - start
 ensures buffer in Ascii
@@ -103,7 +113,7 @@ ensures buffer in Ascii
     requires start <= 16, index < 16, index < bytes.length, start + index < 16
     ensures buffer in Ascii
     {
-        buffer[start + index] = bytes[index];
+        (@mutable buffer as -Ascii)[start + index] = (bytes as -Ascii)[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
     machine done() {}
@@ -117,12 +127,15 @@ requires bytes.length <= 16
 }
 
 // Explicit owner retains its original 24-byte capacity.
-domain [u8; 24]::Ascii requires ascii_only(self);
-domain [u8; 24]::Utf8 requires valid_utf8(self);
+public domain [u8; 24]::Ascii requires byte_observation\ascii_only(@self[..]);
+public domain [u8; 24]::Utf8 requires byte_observation\valid_utf8(@self[..]);
 data EnemyName [copy] requires used <= 24 { storage: [u8; 24] in Ascii; used: u64; }
 machine enemy_name_live(buffer: @EnemyName) -> @[u8] in Ascii
 ensures result.length == buffer.used && result.length <= 24
-{ @buffer.storage[..buffer.used] }
+{
+    let prefix: @[u8] = @(@buffer.storage as -Ascii)[..buffer.used];
+    prefix as +Ascii
+}
 machine enemy_name_copy(buffer: @mutable [u8; 24] in Ascii, bytes: @[u8] in Ascii, start: u64)
 requires start <= 24, bytes.length <= 24 - start
 ensures buffer in Ascii
@@ -141,7 +154,7 @@ ensures buffer in Ascii
     requires start <= 24, index < 24, index < bytes.length, start + index < 24
     ensures buffer in Ascii
     {
-        buffer[start + index] = bytes[index];
+        (@mutable buffer as -Ascii)[start + index] = (bytes as -Ascii)[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
     machine done() {}
@@ -155,11 +168,14 @@ requires bytes.length <= 24
 }
 
 // Explicit owner retains its original 64-byte capacity.
-domain [u8; 64]::Ascii requires ascii_only(self);
+public domain [u8; 64]::Ascii requires byte_observation\ascii_only(@self[..]);
 data RoomDescription [copy] requires used <= 64 { storage: [u8; 64] in Ascii; used: u64; }
 machine room_description_live(buffer: @RoomDescription) -> @[u8] in Ascii
 ensures result.length == buffer.used && result.length <= 64
-{ @buffer.storage[..buffer.used] }
+{
+    let prefix: @[u8] = @(@buffer.storage as -Ascii)[..buffer.used];
+    prefix as +Ascii
+}
 machine room_description_copy(buffer: @mutable [u8; 64] in Ascii, bytes: @[u8] in Ascii, start: u64)
 requires start <= 64, bytes.length <= 64 - start
 ensures buffer in Ascii
@@ -178,7 +194,7 @@ ensures buffer in Ascii
     requires start <= 64, index < 64, index < bytes.length, start + index < 64
     ensures buffer in Ascii
     {
-        buffer[start + index] = bytes[index];
+        (@mutable buffer as -Ascii)[start + index] = (bytes as -Ascii)[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
     machine done() {}

@@ -1927,9 +1927,29 @@ pub(crate) mod expression {
                                 ),
                             ))
                         }
-                        resolved::expression::ExpressionNode::String(value) => Ok(self
-                            .target()
-                            .insert(typed::expression::ExpressionNode::String(value.clone()))),
+                        resolved::expression::ExpressionNode::String(value) => {
+                            let literal = self
+                                .target()
+                                .insert(typed::expression::ExpressionNode::String(value.clone()));
+                            let element =
+                                self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::U8)?;
+                            if element.is_valid() {
+                                let types = &mut self.target_trees.type_reference_table;
+                                let referee =
+                                    types.insert(typed::types::TypeReferenceNode::Slice {
+                                        element_type: element,
+                                    });
+                                let view =
+                                    types.insert(typed::types::TypeReferenceNode::Reference {
+                                        referee,
+                                        access: language_core::ReferenceAccess::Shared,
+                                        lifetime: None,
+                                    });
+                                self.target()
+                                    .set_constructed_value_type_reference(literal, view);
+                            }
+                            Ok(literal)
+                        }
                         resolved::expression::ExpressionNode::Unary(unary) => {
                             let operand = if unary.operator
                                 == resolved::expression::UnaryOperator::LogicalNot

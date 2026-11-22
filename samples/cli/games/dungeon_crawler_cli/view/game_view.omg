@@ -1,3 +1,15 @@
+use text;
+use player\Player;
+use rooms\CellId;
+use rooms\Level;
+use rooms\RoomFormatter;
+use rooms\write_character;
+use rooms\write_current_cell;
+use rooms\write_inventory;
+use rooms\write_room_info;
+use text\TextBuffer;
+use text\text_buffer_live;
+use text\text_buffer_set;
 use omega_language_std\Console;
 
 data GameView {
@@ -31,13 +43,13 @@ machine render_room(
 reaches Console
 {
     write_current_cell(level, cell, line);
-    Console::write_line(text_buffer_live(line));
+    render_line(line);
     write_room_info(@mutable game_view.formatter, level, cell, line);
-    Console::write_line(text_buffer_live(line));
+    render_line(line);
     write_cell_event(cell, treasure_taken, gold_taken, fountain_used, enemy_defeated, line);
-    Console::write_line(text_buffer_live(line));
+    render_line(line);
     write_cell_paths(cell, line);
-    Console::write_line(text_buffer_live(line));
+    render_line(line);
 }
 
 machine render_look(
@@ -53,9 +65,9 @@ machine render_look(
 reaches Console
 {
     write_room_info(@mutable game_view.formatter, level, cell, line);
-    Console::write_line(text_buffer_live(line));
+    render_line(line);
     write_cell_event(cell, treasure_taken, gold_taken, fountain_used, enemy_defeated, line);
-    Console::write_line(text_buffer_live(line));
+    render_line(line);
 }
 
 machine render_exits(
@@ -67,7 +79,7 @@ machine render_exits(
 reaches Console
 {
     write_cell_paths(cell, line);
-    Console::write_line(text_buffer_live(line));
+    render_line(line);
 }
 
 // Output writers retain the caller's Utf8 invariant while replacing the
@@ -120,23 +132,23 @@ machine write_cell_event(cell: CellId,
     }
 
     machine treasure_event(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "A treasure cache rests against the wall. Type use to claim it.");
+        text_buffer_set(out_line, "A treasure cache rests against the wall. Type use to claim it." as +Ascii);
     }
 
     machine enemy_event(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "A dungeon bat blocks the way. Type fight.");
+        text_buffer_set(out_line, "A dungeon bat blocks the way. Type fight." as +Ascii);
     }
 
     machine fountain_event(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "A fountain of life glows here. Type use to drink.");
+        text_buffer_set(out_line, "A fountain of life glows here. Type use to drink." as +Ascii);
     }
 
     machine gold_event(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Loose gold glitters in the dust. Type use to collect it.");
+        text_buffer_set(out_line, "Loose gold glitters in the dust. Type use to collect it." as +Ascii);
     }
 
     machine quiet_event(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "The room is quiet.");
+        text_buffer_set(out_line, "The room is quiet." as +Ascii);
     }
 }
 
@@ -156,35 +168,35 @@ machine write_cell_paths(cell: CellId,
     }
 
     machine gate_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] north");
+        text_buffer_set(out_line, "[Paths] north" as +Ascii);
     }
 
     machine room_one_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] south | north | east");
+        text_buffer_set(out_line, "[Paths] south | north | east" as +Ascii);
     }
 
     machine room_two_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] south | north | west");
+        text_buffer_set(out_line, "[Paths] south | north | west" as +Ascii);
     }
 
     machine room_three_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] south | north | east");
+        text_buffer_set(out_line, "[Paths] south | north | east" as +Ascii);
     }
 
     machine room_four_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] south");
+        text_buffer_set(out_line, "[Paths] south" as +Ascii);
     }
 
     machine side_west_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] west");
+        text_buffer_set(out_line, "[Paths] west" as +Ascii);
     }
 
     machine side_east_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] east");
+        text_buffer_set(out_line, "[Paths] east" as +Ascii);
     }
 
     machine no_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] none");
+        text_buffer_set(out_line, "[Paths] none" as +Ascii);
     }
 }
 
@@ -196,7 +208,7 @@ machine render_inventory(
 reaches Console
 {
     write_inventory(player, line);
-    Console::write_line(text_buffer_live(line));
+    render_line(line);
 }
 
 machine render_character(
@@ -207,7 +219,7 @@ machine render_character(
 reaches Console
 {
     write_character(player, line);
-    Console::write_line(text_buffer_live(line));
+    render_line(line);
 }
 
 machine render_prompt() reaches Console {
@@ -215,7 +227,8 @@ machine render_prompt() reaches Console {
 }
 
 machine render_line(line: @TextBuffer) reaches Console {
-    Console::write_line(text_buffer_live(line));
+    let bytes: @[u8] in Ascii = text_buffer_live(line);
+    Console::write_line(bytes as -Ascii);
 }
 
 machine render_invalid_command() reaches Console {

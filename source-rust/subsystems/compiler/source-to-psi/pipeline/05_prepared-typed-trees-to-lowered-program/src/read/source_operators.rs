@@ -257,6 +257,27 @@ impl Program<'_> {
         self.complete_builtin_operator(machine, owner, expression, &[collection, count, count])
     }
 
+    /// Select the source range on its collection before a fixed array is lent
+    /// as a whole view and that view is sliced to its requested endpoints.
+    pub(super) fn complete_executable_range(
+        &mut self,
+        machine: MachineId,
+        expression: ExpressionHandle,
+        collection: ExpressionHandle,
+        base: &Expression,
+    ) -> Checked<()> {
+        let owner = self.symbols.get(machine).copied().unwrap_or_default();
+        let Some(operand @ ValueType::Record(..)) = base.result else {
+            return Ok(());
+        };
+        if let Some(reference) =
+            self.structural_operator_operand_reference(machine, collection, operand)?
+        {
+            self.complete_collection_range_operator(machine, owner, expression, Some(reference))?;
+        }
+        Ok(())
+    }
+
     /// Publish the operation this reader actually formed. Reads, writable
     /// places and explicit view adapters share the same source association.
     pub(super) fn complete_formed_operator(
@@ -283,26 +304,12 @@ impl Program<'_> {
             &value.kind,
             self.typed.expression_table.expression(expression),
         ) {
-            (
-                ExpressionKind::CollectionSubslice { base, .. }
-                | ExpressionKind::CollectionView { base, .. },
-                ExpressionNode::Indexed(indexed),
-            ) => {
-                let Some(operand @ ValueType::Record(..)) = base.result else {
-                    return Ok(());
-                };
-                let source = indexed.collection;
-                let Some(collection) =
-                    self.structural_operator_operand_reference(machine, source, operand)?
-                else {
-                    return Ok(());
-                };
-                self.complete_collection_range_operator(
-                    machine,
-                    owner,
-                    expression,
-                    Some(collection),
-                )
+            // Range formation already selected on the original collection.
+            // Its result can now be a window, a borrow, or a qualified view.
+            (_, ExpressionNode::Indexed(indexed))
+                if self.typed.expression_table.range_node(indexed.index).is_some() =>
+            {
+                Ok(())
             }
             (
                 ExpressionKind::Index { base, index }
@@ -316,9 +323,12 @@ impl Program<'_> {
                     }
                     None => None,
                 };
-                let index = index
-                    .result
-                    .and_then(|operand| self.operator_operand_reference(operand));
+                let index = match index.result {
+                    Some(operand) => {
+                        self.structural_operator_operand_reference(machine, indexed.index, operand)?
+                    }
+                    None => None,
+                };
                 self.complete_builtin_operator(machine, owner, expression, &[collection, index])
             }
             (
@@ -492,6 +502,26 @@ impl Program<'_> {
                 .is_empty()
             {
                 return Ok(());
+            }
+            if spelling == OperatorSpelling::Index
+                && let [Some(collection), Some(index)] = operands
+                && crate::source_state::operator::operator_operand_is_qualified(typed, *index)
+                    == Some(true)
+                && !crate::source_state::operator::has_scoped_operator_meaning(
+                    typed, owner, spelling, operands,
+                )
+            {
+                return Err(crate::lowering::reject(
+                    machine,
+                    crate::lowering::SourceOrigin::of(
+                        typed.expression_table.source_span(expression),
+                    ),
+                    format!(
+                        "no `[]` declaration accepts collection `{}` and index `{}`; a qualified index requires an exactly matching parameter or an explicit domain cast",
+                        typed.display_type_reference_with_constraints(*collection),
+                        typed.display_type_reference_with_constraints(*index),
+                    ),
+                ));
             }
         }
         // The static evaluator supplies exact type-equality receipts; typed

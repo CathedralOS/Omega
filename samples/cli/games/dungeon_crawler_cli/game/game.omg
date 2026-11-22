@@ -1,3 +1,28 @@
+use text;
+use commands\CommandParser;
+use dungeon\Dungeon;
+use dungeon\can_travel_to;
+use dungeon\dungeon_enter_room;
+use dungeon\dungeon_fight;
+use dungeon\dungeon_game_over;
+use dungeon\dungeon_initialize;
+use dungeon\dungeon_use_event;
+use dungeon\move_to;
+use rooms\CellId;
+use text\TextBuffer;
+use text\text_buffer_set;
+use view\GameView;
+use view\render_character;
+use view\render_commands;
+use view\render_exits;
+use view\render_game_over;
+use view\render_invalid_command;
+use view\render_inventory;
+use view\render_line;
+use view\render_look;
+use view\render_prompt;
+use view\render_room;
+use view\render_title;
 use omega\language\core\ProcessExit;
 use omega_language_std\Console;
 use omega_language_std\LineReadResult;
@@ -17,7 +42,7 @@ machine game_initialize(
 )
 {
     dungeon_initialize(@mutable game.dungeon, seed);
-    text_buffer_set(@mutable game.output, "");
+    text_buffer_set(@mutable game.output, "" as +Ascii);
 }
 
 machine run_game_loop(game: @mutable Game) reaches ProcessExit + Console {
@@ -32,7 +57,7 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + Console {
     machine enter_room(game: @mutable Game) {
         let cell: CellId = game.dungeon.current_cell;
         dungeon_enter_room(cell);
-        text_buffer_set(@mutable game.output, "");
+        text_buffer_set(@mutable game.output, "" as +Ascii);
         render_room(@mutable game.view, game.dungeon.level,
             game.dungeon.current_cell,
             game.dungeon.treasure_taken,
@@ -300,7 +325,7 @@ machine run_game_loop(game: @mutable Game) reaches ProcessExit + Console {
     }
 
     machine blocked_by_enemy(game: @mutable Game) {
-        text_buffer_set(@mutable game.output, "[Blocked] A hostile presence bars the deeper path. Fight or fall back.");
+        text_buffer_set(@mutable game.output, "[Blocked] A hostile presence bars the deeper path. Fight or fall back." as +Ascii);
         render_line(@game.output);
 
         transition {

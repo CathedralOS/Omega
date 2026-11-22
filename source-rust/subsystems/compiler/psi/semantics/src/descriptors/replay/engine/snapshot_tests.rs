@@ -2902,8 +2902,20 @@ fn complete_storage_family_refuses_missing_capture_unknown_and_stale_inputs() {
 
 #[test]
 fn branch_selected_storage_keeps_every_backing_origin() {
-    let scalar = StructuralTypeId::new(1).unwrap();
-    let types = vec![scalar_type(1)];
+    let tag = StructuralTypeId::new(1).unwrap();
+    let empty = semantic_vocabulary::StructuralCaseId::new(1).unwrap();
+    let present = semantic_vocabulary::StructuralCaseId::new(2).unwrap();
+    let types = [StructuralTypeDeclaration {
+        shape: StructuralTypeShape::Sum {
+            cases: [empty, present].map(|id| terminal_psi::StructuralCaseDeclaration {
+                declaration_identity: Default::default(),
+                id,
+                identity: terminal_psi::TerminalIdentityIndex(id.get() as u32),
+                fields: Vec::new(),
+            }).to_vec(),
+        },
+        ..scalar_type(1)
+    }];
     let left = location(1);
     let right = location(2);
     let selected = location(3);
@@ -2918,7 +2930,7 @@ fn branch_selected_storage_keeps_every_backing_origin() {
                 definition: DescriptorDefinition::Parameter {
                     position: 0,
                     access: StructuralAccess::MutableBorrow,
-                    structural_type: scalar,
+                    structural_type: tag,
                 },
             },
             DescriptorPlace {
@@ -2927,7 +2939,7 @@ fn branch_selected_storage_keeps_every_backing_origin() {
                 definition: DescriptorDefinition::Parameter {
                     position: 1,
                     access: StructuralAccess::MutableBorrow,
-                    structural_type: scalar,
+                    structural_type: tag,
                 },
             },
             DescriptorPlace {
@@ -2944,10 +2956,10 @@ fn branch_selected_storage_keeps_every_backing_origin() {
             },
         ],
         BTreeMap::from([
-            (left.root, scalar),
-            (right.root, scalar),
-            (selected.root, scalar),
-            (captured.root, scalar),
+            (left.root, tag),
+            (right.root, tag),
+            (selected.root, tag),
+            (captured.root, tag),
         ]),
         BTreeSet::from([(position, selected.clone(), captured.clone())]),
     );
@@ -2963,6 +2975,13 @@ fn branch_selected_storage_keeps_every_backing_origin() {
     let mut before = State::default();
     Arc::make_mut(&mut before.arrival_backing).insert(selected.clone(), Some(origins));
     let case_storage = super::case_flow::Storage::new(&replay, &machine);
+    let facts = [&left, &right].map(|place| DescriptorCasePredicate {
+        subject: DescriptorFlowSource::Location(place.clone()),
+        case: empty,
+    });
+    for fact in &facts {
+        super::case_flow::establish(&replay, &machine, &mut before, fact).unwrap();
+    }
     let after = replay
         .transfer(
             &machine,
@@ -2995,4 +3014,25 @@ fn branch_selected_storage_keeps_every_backing_origin() {
     ]);
     assert_eq!(after.slots.get(&captured), Some(&Some(held.clone())));
     assert_eq!(replay.read(&machine, &after, &captured), Some(held));
+
+    // A store through the choice can change either candidate's tag.
+    // Neither earlier membership can justify a later dispatch.
+    for fact in &facts {
+        assert!(super::case_flow::established(&replay, &machine, &before, fact));
+    }
+    let written = replay.transfer(
+        &machine,
+        &before,
+        std::slice::from_ref(&selected),
+        &[],
+        std::iter::empty(),
+        super::case_flow::Transfer::Operation {
+            position,
+            reads: &DescriptorReadDepth::at(&machine, &before, None),
+        },
+        &case_storage,
+    ).unwrap();
+    for fact in &facts {
+        assert!(!super::case_flow::established(&replay, &machine, &written, fact));
+    }
 }

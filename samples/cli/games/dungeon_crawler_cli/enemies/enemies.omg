@@ -1,3 +1,5 @@
+use text\EnemyName;
+
 data EnemyKind [copy] {
     case Bat;
     case Spider;

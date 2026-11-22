@@ -56,6 +56,24 @@ fn assert_operator_value(verdict: Result<RouteVerdict, String>, expected: bool) 
 }
 
 #[test]
+fn a_partial_range_selects_the_projected_array_as_its_operand() {
+    let source = r#"
+data Packet { bytes: [u8; 4]; }
+machine first(packet: @mutable Packet, count: u64) -> u8
+requires count > 0u64, count <= 4u64
+{
+    let prefix: @[u8] = packet.bytes[0u64..count];
+    prefix[0u64]
+}
+machine entry() -> bool {
+    let mutable packet: Packet = Packet { bytes: [11u8, 22u8, 33u8, 44u8] };
+    first(@mutable packet, 2u64) == 11u8
+}
+"#;
+    assert_operator_value(operator_program(&super::boundary_calls::typed(source)), true);
+}
+
+#[test]
 fn mutable_byte_formals_keep_their_source_operator_access() {
     let source = r#"
 machine store(bytes: @mutable [u8], peer: @[u8]) requires bytes.length > 0u64 {
@@ -306,6 +324,43 @@ machine entry() -> bool {
     let typed = crate::preparation::prepare_typed_trees(typed, &[], &[])
         .expect("the nested writer retains its actual enclosing application");
     assert_operator_value(operator_program(typed.trees()), true);
+}
+
+#[test]
+fn qualified_index_requires_a_matching_declaration() {
+    let read = |declaration: &str| {
+        let source = format!(
+            r#"
+data Cell [copy] {{ value: u32; }}
+{declaration}
+machine entry() -> bool {{
+    let cells: [Cell; 1];
+    let index: u64 in Wrapping = 0u64 as +Wrapping;
+    cells[index].value == 7u32
+}}
+"#
+        );
+        let typed = super::boundary_calls::typed(&source);
+        let prepared = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
+        operator_program(prepared.trees())
+    };
+    let missing = read("").expect_err("a qualified index needs a declaration");
+    assert!(
+        missing.contains("no `[]` declaration accepts collection"),
+        "{missing}"
+    );
+    assert!(missing.contains("Wrapping"), "{missing}");
+
+    let supplied = read(
+        "machine [] at(cells: @[Cell; 1], index: u64 in Wrapping) -> Cell { Cell { value: 7u32 } }",
+    );
+    match supplied {
+        Ok(verdict) => assert_operator_value(Ok(verdict), true),
+        Err(refusal) => assert!(
+            refusal.contains("remains unresolved as CheckedOperator"),
+            "{refusal}"
+        ),
+    }
 }
 
 #[test]

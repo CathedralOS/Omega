@@ -1,3 +1,4 @@
+use text;
 
 data RoomLookup {
 }
@@ -12,7 +13,7 @@ ensures
     let rooms: @[Room] = @level.rooms[..];
 
     transition level.room_count > 0 {
-        true -> find_room_at(rooms, level.room_count, cell, out_room, 0),
+        true -> find_room_at(rooms, level.room_count, cell, out_room, 0u64 as +Wrapping),
         false -> {}
     }
 
@@ -24,14 +25,14 @@ ensures
         index: u64 in Wrapping)
     requires room_count <= 16, index < 16, rooms.length == 16
     {
-        let found: bool = rooms[index].cell == cell;
+        let found: bool = rooms[index as -Wrapping].cell == cell;
         let next_index: u64 in Wrapping = index + 1;
         let has_next: bool = next_index < room_count;
 
         // A level holds at most 16 rooms, so `next_index < 16` whenever
         // has_next holds; the conjunct admits it into the index contract.
         transition {
-            found -> apply_room(rooms[index], out_room),
+            found -> apply_room(rooms[index as -Wrapping], out_room),
             has_next && next_index < 16 -> find_room_at(rooms, room_count, cell, out_room, next_index),
             _ -> {}
         }
@@ -66,7 +67,7 @@ machine find_room_mut(level: @mutable Level,
     let rooms: @mutable [Room] = @mutable level.rooms[..];
 
     transition level.room_count > 0 {
-        true -> find_room_mut_at(rooms, level.room_count, cell, 0),
+        true -> find_room_mut_at(rooms, level.room_count, cell, 0u64 as +Wrapping),
         false -> @mutable rooms[0]
     }
 
@@ -77,12 +78,12 @@ machine find_room_mut(level: @mutable Level,
         index: u64 in Wrapping) -> @mutable Room
     requires room_count <= 16, index < 16, rooms.length == 16
     {
-        let found: bool = rooms[index].cell == cell;
+        let found: bool = rooms[index as -Wrapping].cell == cell;
         let next_index: u64 in Wrapping = index + 1;
         let has_next: bool = next_index < room_count;
 
         transition {
-            found -> @mutable rooms[index],
+            found -> @mutable rooms[index as -Wrapping],
             has_next && next_index < 16 -> find_room_mut_at(rooms, room_count, cell, next_index),
             _ -> @mutable rooms[0]
         }

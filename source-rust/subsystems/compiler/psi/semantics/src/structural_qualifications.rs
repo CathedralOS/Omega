@@ -811,7 +811,7 @@ impl<'a> DefaultRequirements<'a> {
                 })?;
         let captured = references
             .captured_storage_family(self.machine.id, before, &location)
-            .map_err(|_| self.error(crate::descriptor_results::INEXACT_REFERENCE_BACKING))?;
+            .map_err(|detail| self.error(detail))?;
         captured
             .into_iter()
             .map(|origin| {
