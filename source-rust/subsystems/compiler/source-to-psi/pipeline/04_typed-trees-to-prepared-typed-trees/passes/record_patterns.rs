@@ -10,9 +10,10 @@
 
 use crate::source_state::TypedTrees;
 use crate::source_state::data::{DataDefinition, DataMember};
-use crate::source_state::expression::TableMatchField;
+use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableMatchField};
 use crate::source_state::state::State;
 use crate::source_state::statement::{StatementNode, TableLocalData};
+use crate::source_state::types::TypeReferenceHandle;
 use symbols::SymbolHandle;
 
 pub(crate) fn prepare(program: &mut TypedTrees) {
@@ -75,9 +76,10 @@ fn named_field(program: &TypedTrees, record: &DataDefinition, name: &str) -> Sym
 /// fields only, reached through references and domain constraints.
 ///
 /// The subject's type is read from the declaration of the binding it names,
-/// a parameter or an earlier typed local of the same state, and otherwise
-/// from the marker's own type. Applied records use their exact closed field
-/// roster. A field path, a call result, an open application, a quotient and a
+/// a parameter or an earlier typed local of the same state, or from the
+/// declaration of the field a path such as `outer.inner` ends at, and
+/// otherwise from the marker's own type. Applied records use their exact
+/// closed field roster. A call result, an open application, a quotient and a
 /// sum stay unresolved. The checker still judges the actual value and loans.
 fn subject_record<'program>(
     program: &'program TypedTrees,
@@ -86,6 +88,7 @@ fn subject_record<'program>(
 ) -> Option<&'program DataDefinition> {
     let declared = program
         .declared_binding_type(state, local.initial_value)
+        .or_else(|| field_path_type(program, local.initial_value))
         .or_else(|| {
             local
                 .type_reference
@@ -103,13 +106,37 @@ fn subject_record<'program>(
     plain.then_some(record)
 }
 
+/// The declared type of the field that `subject` reads, for a subject such
+/// as `outer.inner`. Typing selected that field by symbol, so its declaration
+/// says what record the path holds, whatever the path's root is. A payload
+/// field of a case is left out: the lowered form reads it through its case.
+fn field_path_type(program: &TypedTrees, subject: ExpressionHandle) -> Option<TypeReferenceHandle> {
+    if !program.expression_table.expression_is_valid(subject) {
+        return None;
+    }
+    let ExpressionNode::Member(member) = program.expression_table.expression(subject) else {
+        return None;
+    };
+    if member.case_variant.is_some() {
+        return None;
+    }
+    let declared = program
+        .unique_declared_field_by_symbol(member.selection.field_symbol())?
+        .type_reference;
+    program
+        .type_reference_table
+        .contains_type_reference(declared)
+        .then_some(declared)
+}
+
 #[cfg(test)]
 mod tests {
     use super::prepare;
     use crate::source_state::TypedTrees;
     use crate::source_state::data::{DataDefinition, DataField, DataMember, DataVariant};
     use crate::source_state::expression::{
-        ExpressionHandle, ExpressionNode, MatchFieldAction, TableMatchField, TableNamePath,
+        ExpressionHandle, ExpressionNode, MatchFieldAction, MemberSelection, TableMatchField,
+        TableMemberExpression, TableNamePath,
     };
     use crate::source_state::machine::Machine;
     use crate::source_state::name::Identifier;
@@ -127,9 +154,11 @@ mod tests {
         markers: Vec<StatementHandle>,
     }
 
-    /// `machine read(pair: Pair, shape: Shape)` whose body holds one marker
-    /// per subject: `pair`, `shape`, and a call-like subject that names no
-    /// binding. `Pair { a, b }` is a plain record; `Shape` has a case.
+    /// `machine read(pair: Pair, shape: Shape, holder: Holder)` whose body
+    /// holds one marker per subject: `pair`, `shape`, a call-like subject
+    /// that names no binding, and the field path `holder.held`.
+    /// `Pair { a, b }` is a plain record, `Shape` has a case, and
+    /// `Holder { held: Pair }` holds a `Pair` in its one field.
     fn source(lifetime: bool, applied: bool) -> Source {
         let mut builder = SymbolTableBuilder::new();
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
@@ -139,9 +168,14 @@ mod tests {
                 (SymbolKind::Data, SymbolNameRef::Static("Pair")),
                 (SymbolKind::Data, SymbolNameRef::Static("Shape")),
                 (SymbolKind::Machine, SymbolNameRef::Static("read")),
+                (SymbolKind::Data, SymbolNameRef::Static("Holder")),
             ],
         );
         let (pair, shape, machine) = (top.handle_at(0), top.handle_at(1), top.handle_at(2));
+        let holder = top.handle_at(3);
+        let held = builder
+            .insert_children(holder, [(SymbolKind::Field, SymbolNameRef::Static("held"))])
+            .handle_at(0);
         let pair_fields = builder.insert_children(
             pair,
             [
@@ -161,6 +195,7 @@ mod tests {
             [
                 (SymbolKind::Parameter, SymbolNameRef::Static("pair")),
                 (SymbolKind::Parameter, SymbolNameRef::Static("shape")),
+                (SymbolKind::Parameter, SymbolNameRef::Static("holder")),
             ],
         );
         let mut program = TypedTrees {
@@ -188,6 +223,7 @@ mod tests {
             named(&mut program, pair, "Pair")
         };
         let shape_type = named(&mut program, shape, "Shape");
+        let holder_type = named(&mut program, holder, "Holder");
         let members =
             program
                 .tables
@@ -223,6 +259,21 @@ mod tests {
             members: cases,
             ..Default::default()
         });
+        let holds = program
+            .tables
+            .data_members
+            .insert_many([DataMember::Field(DataField {
+                symbol: held,
+                name: Identifier::generated("held"),
+                type_reference: pair_type,
+                ..Default::default()
+            })]);
+        program.push_data_definition(DataDefinition {
+            symbol: holder,
+            name: Identifier::generated("Holder"),
+            members: holds,
+            ..Default::default()
+        });
         let subject = |program: &mut TypedTrees, symbol, name: &'static str| {
             let mut members = arena::HandleSpan::empty();
             program
@@ -236,12 +287,21 @@ mod tests {
                     ..TableNamePath::default()
                 }))
         };
+        let receiver = subject(&mut program, parameters.handle_at(2), "holder");
         let subjects = [
             subject(&mut program, parameters.handle_at(0), "pair"),
             subject(&mut program, parameters.handle_at(1), "shape"),
             program
                 .expression_table
                 .insert(ExpressionNode::Boolean(true)),
+            program
+                .expression_table
+                .insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver,
+                    selection: MemberSelection::Field(held),
+                    member: Identifier::generated("held"),
+                    case_variant: None,
+                })),
         ];
         let marker = |program: &mut TypedTrees, initial_value: ExpressionHandle| {
             let row = |member: &'static str| TableMatchField {
@@ -265,13 +325,16 @@ mod tests {
         let statements = subjects.map(|subject| marker(&mut program, subject));
         let statement_nodes = program.statement_table.insert_statements(statements);
         let parameters = program.state_parameters.insert_many(
-            [(0, pair_type, "pair"), (1, shape_type, "shape")].map(|(position, declared, name)| {
-                StateParameter {
-                    symbol: parameters.handle_at(position),
-                    name: Identifier::generated(name),
-                    type_reference: declared,
-                    ..Default::default()
-                }
+            [
+                (0, pair_type, "pair"),
+                (1, shape_type, "shape"),
+                (2, holder_type, "holder"),
+            ]
+            .map(|(position, declared, name)| StateParameter {
+                symbol: parameters.handle_at(position),
+                name: Identifier::generated(name),
+                type_reference: declared,
+                ..Default::default()
             }),
         );
         let states = program.machine_states.insert_many([State {
@@ -324,6 +387,30 @@ mod tests {
             .collect::<Vec<_>>();
         // Authored order is kept; a spelling that names no field has no symbol.
         assert_eq!(symbols, [b, a, SymbolHandle::invalid()]);
+    }
+
+    /// `let { b, a, missing } = holder.held;`: the subject names no binding,
+    /// and the field it reads declares the record it holds.
+    #[test]
+    fn a_marker_over_a_field_path_names_the_record_that_field_declares() {
+        let Source {
+            mut program,
+            pair,
+            fields: [a, b],
+            markers,
+        } = source(false, false);
+        prepare(&mut program);
+        let resolved = marker(&program, markers[3]);
+        assert_eq!(resolved.pattern_subject, pair);
+        assert_eq!(
+            program
+                .expression_table
+                .match_fields(resolved.pattern_fields)
+                .iter()
+                .map(|row| row.field_symbol)
+                .collect::<Vec<_>>(),
+            [b, a, SymbolHandle::invalid()]
+        );
     }
 
     #[test]

@@ -19,7 +19,7 @@ mod support;
 
 use std::process::{Command, Stdio};
 
-/// The four forms, each a directory under `run` and under `fail`.
+/// The forms, each a directory under `run` and under `fail`.
 ///
 /// - `positional_binding`: `let (_, operation) = command;`, the spec's own
 ///   example, binding a sum the record holds and then matching its case.
@@ -31,11 +31,15 @@ use std::process::{Command, Stdio};
 ///   writes a positional arm over a sum, which has no fields to place.
 /// - `headed_binding`: `let Pair { first as _, second } = pair;`. The twin
 ///   names another record with the same fields.
-const FORMS: [&str; 4] = [
+/// - `field_subject`: `let (_, high) = outer.inner;` and
+///   `let { low, high as _ } = outer.inner;`, whose subject is a field that
+///   holds a record. The twin decomposes the scalar field `outer.tag`.
+const FORMS: [&str; 5] = [
     "positional_binding",
     "positional_rest",
     "positional_arm",
     "headed_binding",
+    "field_subject",
 ];
 
 fn run_both(tier: &str, form: &str) -> (bool, String) {
