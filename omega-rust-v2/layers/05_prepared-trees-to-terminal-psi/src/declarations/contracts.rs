@@ -92,12 +92,13 @@ pub(crate) fn lower_predicate(
         inherited: None,
     }];
     while let Some(step) = work.pop() {
-        let (node, ty, inherited) = match step {
+        let (node, ty, inherited, place_base) = match step {
             Step::Emit(term) => {
                 predicate.push(term);
                 continue;
             }
-            Step::Visit { node, ty, inherited } => (node, ty, inherited),
+            Step::Visit { node, ty, inherited } => (node, ty, inherited, false),
+            Step::PlaceBase { node, ty } => (node, ty, None, true),
         };
         let current = &file.nodes[node];
         let site = site_at(tree, node);
@@ -199,6 +200,15 @@ pub(crate) fn lower_predicate(
             static_slot,
             role == PredicateRole::CrashGuard && node == root,
         )?;
+        if matches!(current.kind, NodeKind::FieldAccess | NodeKind::Dereference) && semantic.operation.is_none() {
+            let (_, path) = tree.forest().place_path(file.node_id(node));
+            let borrowed = path.iter().any(|step| step.through.is_some());
+            if semantic.copy_read != (borrowed && !place_base) {
+                return Err(unsupported("contract place read disagrees with its typed copy obligation"));
+            }
+        } else if semantic.copy_read {
+            return Err(unsupported("contract copy obligation requires a storage projection"));
+        }
         if inherited
             .zip(semantic.landing)
             .is_some_and(|(outer, inner)| outer != inner)
@@ -320,29 +330,36 @@ pub(crate) fn lower_predicate(
                     })
                     .ok_or_else(|| unsupported("unsupported contract predicate expression"))?;
                 work.push(Step::Emit(length));
-                work.push(Step::Visit {
-                    node: *base,
-                    ty: receiver,
-                    inherited: None,
-                });
+                work.push(Step::PlaceBase { node: *base, ty: receiver });
             }
             (NodeKind::FieldAccess, [base]) if semantic.operation.is_none() && semantic.constant.is_none() && landing.is_none() => {
                 let field = semantic
                     .field
                     .ok_or_else(|| unsupported("contract field has no selected declaration"))?;
-                let receiver = tree
-                    .semantics_at(*base)
-                    .find_map(|record| match record {
-                        NodeSemantics::Expression(expression) if expression.ty.nominal_parts().is_some() => Some(&expression.ty),
-                        _ => None,
-                    })
-                    .ok_or_else(|| unsupported("contract field requires a nominal value receiver"))?;
-                work.push(Step::Emit(field_segment(prepared, tree, node, *base, receiver, field, ty)?));
-                work.push(Step::Visit {
-                    node: *base,
-                    ty: receiver,
-                    inherited: None,
-                });
+                let receiver = place_receiver(tree, *base).ok_or_else(|| unsupported("contract field lacks its receiver type"))?;
+                let (crosses_loan, field) = field_segment(prepared, tree, node, *base, receiver, field, ty)?;
+                work.push(Step::Emit(field));
+                if crosses_loan {
+                    work.push(Step::Emit(PredicateStep::Referent));
+                }
+                work.push(Step::PlaceBase { node: *base, ty: receiver });
+            }
+            (NodeKind::Dereference, [base]) if semantic.operation.is_none() && semantic.constant.is_none() && landing.is_none() => {
+                let receiver = place_receiver(tree, *base).ok_or_else(|| unsupported("contract dereference lacks its receiver type"))?;
+                let (access, referent) = receiver
+                    .reference_parts()
+                    .ok_or_else(|| unsupported("contract dereference requires a reference"))?;
+                let (_, path) = tree.forest().place_path(file.node_id(node));
+                if access == &Access::Write
+                    || referent != ty
+                    || path
+                        .last()
+                        .is_none_or(|step| !selects_from(tree, step, *base, Some(access), None))
+                {
+                    return Err(unsupported("contract dereference disagrees with its readable typed place"));
+                }
+                work.push(Step::Emit(PredicateStep::Referent));
+                work.push(Step::PlaceBase { node: *base, ty: receiver });
             }
             (NodeKind::Cast, [operand, ..])
                 if semantic.constant.is_none()
@@ -375,10 +392,14 @@ pub(crate) fn lower_predicate(
                 });
             }
             (NodeKind::Paren, [inner]) if semantic.operation.is_none() && semantic.constant.is_none() => {
-                work.push(Step::Visit {
-                    node: *inner,
-                    ty,
-                    inherited: landing,
+                work.push(if place_base {
+                    Step::PlaceBase { node: *inner, ty }
+                } else {
+                    Step::Visit {
+                        node: *inner,
+                        ty,
+                        inherited: landing,
+                    }
                 });
             }
             (NodeKind::Literal, []) if semantic.operation.is_none() && semantic.constant.is_none() => {
@@ -529,14 +550,27 @@ pub(crate) fn lower_predicate(
 
 /// The typed place step of a contract selection must name this exact receiver
 /// node, without a reference crossing, and the expected projection.
+fn place_receiver<'a>(
+    tree: &'a LoweringTree<'_>,
+    node: usize,
+) -> Option<&'a ValueType> {
+    tree.semantics_at(node).find_map(|row| match row {
+        NodeSemantics::Expression(e) if e.static_argument_slot.is_none() => Some(&e.ty),
+        _ => None,
+    })
+}
+
 fn selects_from(
     tree: &LoweringTree<'_>,
     step: &omega_typed::PlaceStep,
     base: usize,
-    projection: &Projection,
+    access: Option<&Access>,
+    projection: Option<&Projection>,
 ) -> bool {
     let file = tree.resolved().file;
-    (step.base == file.node_id(base) || step.base == file.node_id(file.ungroup(base))) && step.through.is_none() && step.projection.as_ref() == Some(projection)
+    (step.base == file.node_id(base) || step.base == file.node_id(file.ungroup(base)))
+        && step.through.as_ref() == access
+        && step.projection.as_ref() == projection
 }
 
 /// Classify one selected field by the typed roster that owns it. Record fields
@@ -550,7 +584,7 @@ pub(super) fn field_segment(
     receiver: &ValueType,
     field: &DeclarationId,
     leaf: &ValueType,
-) -> Result<PredicateStep, LoweringError> {
+) -> Result<(bool, PredicateStep), LoweringError> {
     let file = tree.resolved().file;
     let site = site_at(tree, node);
     let refuse = |message: &str| LoweringError::new(&site, message);
@@ -559,13 +593,17 @@ pub(super) fn field_segment(
     // `BoundaryReach`. Its place steps are that forest's, keyed by its nodes.
     let (_, path) = tree.forest().place_path(file.node_id(node));
     let projection = Projection::Field(Box::new(field.clone()));
-    if path
-        .last()
-        .is_none_or(|step| !selects_from(tree, step, base, &projection))
+    let (access, receiver) = receiver
+        .reference_parts()
+        .map_or((None, receiver), |(access, ty)| (Some(access), ty));
+    if access == Some(&Access::Write)
+        || path
+            .last()
+            .is_none_or(|step| !selects_from(tree, step, base, access, Some(&projection)))
     {
         return Err(refuse("contract field disagrees with its typed place projection"));
     }
-    let Some((owner, _)) = receiver.nominal_parts() else {
+    let Some((owner, arguments)) = receiver.nominal_parts() else {
         return Err(refuse("contract field requires a nominal value receiver"));
     };
     let (declarations, roster) = std::iter::once(typed).chain(typed.library)
@@ -573,18 +611,21 @@ pub(super) fn field_segment(
         .ok_or_else(|| refuse("contract field receiver has no typed field roster"))?;
     // The declaration identifies each slot. A concrete application can give
     // that slot a different carrier from the template, e.g. Pair<u8>::left.
-    let shape = typed.static_data_shapes.get(receiver).or_else(|| declarations.static_data_shapes.get(receiver));
-    let matches_leaf = |fields: &[omega_typed::TypedField], index: usize, case| {
-        match shape {
-            Some(shape) => shape.active_fields(case).and_then(|fields| fields.get(index)) == Some(leaf),
-            None => fields.get(index).is_some_and(|field| &field.ty == leaf),
-        }
+    let shape = typed
+        .static_data_shapes
+        .get(receiver)
+        .or_else(|| declarations.static_data_shapes.get(receiver));
+    let matches_leaf = |fields: &[omega_typed::TypedField], index: usize, case| match shape {
+        Some(shape) => shape.active_fields(case).and_then(|fields| fields.get(index)) == Some(leaf),
+        None => fields
+            .get(index)
+            .is_some_and(|field| field.ty.substitute(owner, arguments) == *leaf),
     };
     if let Some(index) = roster.iter().position(|row| &row.declaration == field) {
         if !matches_leaf(roster, index, None) {
             return Err(refuse("contract field disagrees with its declared carrier"));
         }
-        return Ok(PredicateStep::Field(crate::identity::declaration(field, &site)?));
+        return Ok((access.is_some(), PredicateStep::Field(crate::identity::declaration(field, &site)?)));
     }
     if !roster.is_empty() {
         return Err(refuse("contract field does not belong to its receiver"));
@@ -610,10 +651,13 @@ pub(super) fn field_segment(
     {
         return Err(refuse("contract payload field disagrees with its declared carrier"));
     }
-    Ok(PredicateStep::CasePayload {
-        case: crate::identity::declaration(case, &site)?,
-        field: crate::identity::declaration(field, &site)?,
-    })
+    Ok((
+        access.is_some(),
+        PredicateStep::CasePayload {
+            case: crate::identity::declaration(case, &site)?,
+            field: crate::identity::declaration(field, &site)?,
+        },
+    ))
 }
 
 /// An element of an owned fixed array. Both forms require the typed core
@@ -691,7 +735,7 @@ fn index_terms<'a>(
     let projection = Projection::Index(file.node_id(selector));
     if path
         .last()
-        .is_none_or(|step| !selects_from(tree, step, base, &projection))
+        .is_none_or(|step| !selects_from(tree, step, base, None, Some(&projection)))
     {
         return Err(refuse("contract index disagrees with its typed place projection"));
     }
@@ -706,7 +750,7 @@ fn index_terms<'a>(
         }));
         work.push(Step::Visit { node: selector, ty: &selected.selector_carriers[0], inherited: None });
     }
-    work.push(Step::Visit { node: base, ty: receiver, inherited: None });
+    work.push(Step::PlaceBase { node: base, ty: receiver });
     Ok(())
 }
 
@@ -760,6 +804,11 @@ fn fixed_selector<'a>(
 }
 
 enum Step<'a> {
+    /// Select further storage from this subject without copying the intermediate aggregate.
+    PlaceBase {
+        node: usize,
+        ty: &'a ValueType,
+    },
     Visit {
         node: usize,
         ty: &'a ValueType,
@@ -773,6 +822,7 @@ struct Records<'a> {
     /// A case test or a domain test such as `track in Audio::Audible`.
     membership: Option<&'a omega_typed::TypedMembership>,
     field: Option<&'a DeclarationId>,
+    copy_read: bool,
     operation: Option<&'a omega_typed::TypedOperation>,
     float_arithmetic: Option<(crate::FloatOperation, crate::IeeeFloatFormat)>,
     constant: Option<&'a DeclarationId>,
@@ -816,6 +866,14 @@ fn records<'a>(
                     && result.membership.is_none() =>
             {
                 result.membership = Some(test)
+            }
+            NodeSemantics::Obligation(row)
+                if !result.copy_read
+                    && matches!(kind, NodeKind::FieldAccess | NodeKind::Dereference)
+                    && matches!(&row.kind, ObligationKind::CopyRead(leaf) if leaf == carrier)
+                    && row.site == site =>
+            {
+                result.copy_read = true
             }
             NodeSemantics::Field(field) if kind == NodeKind::FieldAccess && result.field.is_none() => result.field = Some(field),
             NodeSemantics::Operation(op) if result.operation.is_none() => result.operation = Some(op),

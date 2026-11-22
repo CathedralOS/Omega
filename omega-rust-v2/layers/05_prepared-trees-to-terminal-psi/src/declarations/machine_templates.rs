@@ -1622,7 +1622,7 @@ fn projected_operand(prepared: &PreparedTrees<'_>, tree: &TypedTree<'_>, sig: &T
         let leaf = leaf?;
         // `field_segment` checks the typed place step and the field's declared
         // carrier; a case payload field is not a record step.
-        let PredicateStep::Field(id) = contracts::field_segment(prepared, &LoweringTree::plain(tree), step, base, receiver, field?, leaf).ok()? else {
+        let (false, PredicateStep::Field(id)) = contracts::field_segment(prepared, &LoweringTree::plain(tree), step, base, receiver, field?, leaf).ok()? else {
             return None;
         };
         path.push(id);

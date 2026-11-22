@@ -611,3 +611,71 @@ fn sum_invariants_retain_the_case_guard_and_both_payload_fields() {
         ]
     );
 }
+
+#[test]
+fn contracts_distinguish_an_inline_subject_from_its_referent() {
+    let text = "data Reading { value:i32; }
+        machine owned(r:Reading) requires r.value == 1i32 {}
+        machine shared(r:@Reading) requires r.value == 1i32 {}
+        machine explicit(r:@Reading) requires ($r).value == 1i32 {}
+        machine changed(x:@mutable i32) ensures $x == 1i32 {}";
+    let package = lower(&[("read.omg", text)]).unwrap();
+    let contract = |name: &str| {
+        &package
+            .machines
+            .iter()
+            .find(|m| m.declaration.path == name)
+            .unwrap()
+            .contract
+    };
+    let field = package.data[0].fields[0].declaration.clone();
+    use PredicateStep::{Apply, Field, Formal, Integer, Referent};
+    assert_eq!(
+        contract("owned").requires[0].predicate,
+        [
+            Formal(0),
+            Field(field.clone()),
+            Integer(1.into()),
+            Apply(PredicateOperator::Equal)
+        ]
+    );
+    let shared = &contract("shared").requires[0].predicate;
+    assert_eq!(
+        shared,
+        &[
+            Formal(0),
+            Referent,
+            Field(field),
+            Integer(1.into()),
+            Apply(PredicateOperator::Equal)
+        ]
+    );
+    assert_eq!(&contract("explicit").requires[0].predicate, shared);
+    assert_eq!(
+        contract("changed").ensures[0].predicate,
+        [
+            Formal(0),
+            Referent,
+            Integer(1.into()),
+            Apply(PredicateOperator::Equal)
+        ]
+    );
+}
+
+#[test]
+fn a_borrowed_array_field_is_projected_before_selecting_its_element() {
+    let text = "data Values { slots:[i32;4]; } machine check(v:@Values) requires v.slots[2] == 1i32 {}";
+    let package = lower(&[("array.omg", text)]).unwrap();
+    use PredicateStep::{Apply, Field, FixedIndex, Formal, Integer, Referent};
+    assert_eq!(
+        package.machines[0].contract.requires[0].predicate,
+        [
+            Formal(0),
+            Referent,
+            Field(package.data[0].fields[0].declaration.clone()),
+            FixedIndex(2),
+            Integer(1.into()),
+            Apply(PredicateOperator::Equal)
+        ]
+    );
+}

@@ -55,7 +55,7 @@ families! {
     CallTarget => [Machine, Member, Runtime],
     MemberRealization => [Boundary, Conformance],
     PredicateStep => [
-        Formal, MachineApplication, CallbackApplication, CallbackGuarantee, TypesEqual, ValueIndex, Result, SelfValue, Field, CasePayload, FixedIndex, FixedArrayRead,
+        Formal, MachineApplication, CallbackApplication, CallbackGuarantee, TypesEqual, ValueIndex, Result, SelfValue, Referent, Field, CasePayload, FixedIndex, FixedArrayRead,
         IsCase, InDomain,
         FixedArrayLength, ByteSequenceLength, ElementViewLength, Boolean, Integer, IeeeFloat, IeeeArithmetic, IeeeComparison, MathematicalTerm,
         HypothesisParameter, HypothesisGuarantee, Apply,
