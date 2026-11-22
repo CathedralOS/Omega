@@ -193,7 +193,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
 
         if input.at_contextual("crashes") {
             let keyword_source_span = Some(input.current_source_span());
-            let ((cause, header_token_count), after_header) = parse_crash_header(input)?;
+            let (cause, after_header) = parse_crash_header(input)?;
             let Some(cause) = cause else {
                 let other_route = contracts.iter().any(|contract: &CapabilityContract| {
                     matches!(contract.kind, CapabilityContractKind::Crashes { .. })
@@ -211,7 +211,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                     input.error_here("a `crashes Cause` route cannot follow `crashes none`")
                 );
             }
-            let ((facts, fact_token_count), rest) =
+            let (facts, rest) =
                 crate::contracts::facts::parse_proof_facts_until_with_machine_semicolon(
                     syntax_trees,
                     after_header,
@@ -227,9 +227,6 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 keyword_source_span,
                 binding: None,
                 facts,
-                token_count: fact_token_count
-                    .checked_add(header_token_count)
-                    .expect("crash contract token count overflow"),
             });
             input = rest;
             continue;
@@ -286,7 +283,7 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 reject_ambiguous_outcome_specific_ensures(input)?;
             }
             let (binding, fact_input) = input.take_optional_label()?;
-            let ((facts, token_count), rest) =
+            let (facts, rest) =
                 crate::contracts::facts::parse_required_proof_facts_until(
                     syntax_trees,
                     fact_input,
@@ -320,7 +317,6 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
                 keyword_source_span,
                 binding,
                 facts,
-                token_count,
             });
             input = rest;
             continue;
@@ -483,7 +479,7 @@ fn parse_outcome_specific_ensures_group<'tokens, 'source>(
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let row_input = input;
         let (binding, fact_input) = input.take_optional_label()?;
-        let ((facts, token_count), rest) =
+        let (facts, rest) =
             crate::contracts::facts::parse_proof_facts_until(syntax_trees, fact_input, |input| {
                 input.at_punctuation(PunctuationKind::Semicolon)
                     || input.at_punctuation(PunctuationKind::RightBrace)
@@ -499,7 +495,6 @@ fn parse_outcome_specific_ensures_group<'tokens, 'source>(
             keyword_source_span,
             binding,
             facts,
-            token_count,
         });
         input = rest;
         if input.at_punctuation(PunctuationKind::Semicolon) {
@@ -528,15 +523,15 @@ fn machine_reaches_clause_boundary(input: Input<'_, '_>) -> bool {
 
 fn parse_crash_header<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, (Option<CrashCause>, usize)> {
+) -> ParseResult<'tokens, 'source, Option<CrashCause>> {
     let input = input.take_contextual("crashes")?;
     // `crashes none` carries no cause; the caller finishes the clause.
     if input.at_contextual("none") {
-        return Ok(((None, 2), input.take_contextual("none")?));
+        return Ok((None, input.take_contextual("none")?));
     }
     let (cause, after_cause) = input.take_identifier()?;
     let cause = crate::contracts::effects::parse_crash_cause(&cause, after_cause)?;
-    Ok(((Some(cause), 2), after_cause))
+    Ok((Some(cause), after_cause))
 }
 
 fn parse_ranked_subjects<'tokens, 'source>(

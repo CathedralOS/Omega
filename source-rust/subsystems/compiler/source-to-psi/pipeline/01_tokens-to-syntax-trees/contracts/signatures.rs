@@ -151,17 +151,13 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
             let (cause, after_cause) = after_keyword.take_identifier()?;
             let cause = crate::contracts::effects::parse_crash_cause(&cause, after_cause)?;
             let after_header = after_cause;
-            let header_token_count = 2usize;
-            let ((facts, fact_token_count), rest) =
+            let (facts, rest) =
                 parse_proof_facts_until(syntax_trees, after_header, signature_clause_boundary)?;
             contracts.push(CapabilityContract {
                 kind: CapabilityContractKind::Crashes { cause },
                 keyword_source_span,
                 binding: None,
                 facts,
-                token_count: fact_token_count
-                    .checked_add(header_token_count)
-                    .expect("crash contract token count overflow"),
             });
             input = rest;
             continue;
@@ -177,7 +173,7 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                 CapabilityContractKind::Ensures
             };
             let (binding, fact_input) = input.take_optional_label()?;
-            let ((facts, token_count), rest) =
+            let (facts, rest) =
                 crate::contracts::facts::parse_required_proof_facts_until(
                     syntax_trees,
                     fact_input,
@@ -194,7 +190,6 @@ pub(crate) fn parse_signature_clauses<'tokens, 'source>(
                 keyword_source_span,
                 binding,
                 facts,
-                token_count,
             });
             input = rest;
             continue;

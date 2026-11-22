@@ -293,7 +293,7 @@ fn parse_refinement_clause<'tokens, 'source>(
             let keyword_source_span = Some(input.current_source_span());
             input = input.take_contextual("ensures")?;
             let (binding, fact_input) = input.take_optional_label()?;
-            let ((facts, token_count), rest) =
+            let (facts, rest) =
                 crate::contracts::facts::parse_required_proof_facts_until(
                     syntax_trees,
                     fact_input,
@@ -305,7 +305,6 @@ fn parse_refinement_clause<'tokens, 'source>(
                 keyword_source_span,
                 binding,
                 facts,
-                token_count,
             });
             input = rest;
             continue;

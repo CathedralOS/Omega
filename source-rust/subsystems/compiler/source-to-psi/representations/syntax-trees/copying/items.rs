@@ -495,7 +495,6 @@ impl SyntaxCopy<'_> {
                 predicate_presence: domain.predicate_presence,
                 facts: self.copy_domain_fact_span(other, domain.facts),
                 operators: self.copy_operator_definition_span(other, domain.operators),
-                semantic_clause_token_count: domain.semantic_clause_token_count,
             }),
             Item::Measure(measure) => Item::Measure(self.copy_measure_definition(other, measure)),
             Item::Operator(operator) => {
@@ -872,7 +871,6 @@ impl SyntaxCopy<'_> {
                 keyword_source_span: contract.keyword_source_span,
                 binding: contract.binding.clone(),
                 facts: self.copy_domain_fact_span(other, contract.facts),
-                token_count: contract.token_count,
             })
             .collect::<Vec<_>>();
         self.copy_span(contracts, |this, contract| {

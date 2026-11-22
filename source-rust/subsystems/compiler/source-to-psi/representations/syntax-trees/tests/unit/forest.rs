@@ -141,7 +141,6 @@ fn item_copy_preserves_shared_body_subject_and_isolates_instances() {
             keyword_source_span: None,
             binding: None,
             facts: HandleSpan::from_parts(fact, 1),
-            token_count: 0,
         });
     let mut machine = single_state_machine(state);
     machine.contracts = HandleSpan::from_parts(contract, 1);

@@ -190,7 +190,6 @@ pub mod calls {
             pub keyword_source_span: Option<source_text::SourceSpan>,
             pub binding: Option<Identifier>,
             pub facts: arena::HandleSpan<crate::source_state::domain::ProofFact>,
-            pub token_count: usize,
         }
 
         impl SignatureContract {
@@ -1006,7 +1005,6 @@ pub mod control_flow {
                     keyword_source_span: None,
                     binding: None,
                     facts,
-                    token_count: 0,
                 }
             }
         }

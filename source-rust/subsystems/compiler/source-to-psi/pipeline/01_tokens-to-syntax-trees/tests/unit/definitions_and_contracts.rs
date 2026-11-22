@@ -57,7 +57,6 @@ fn parses_domain_definition_surface() {
         DomainPredicatePresence::Present
     );
     assert_eq!(parsed.items.proof_facts(domains[0].facts).len(), 2);
-    assert!(domains[0].semantic_clause_token_count > 3);
 
     let facts = parsed.items.proof_facts(domains[0].facts);
     assert!(matches!(facts[0], ProofFact::Membership(_)));
@@ -197,7 +196,6 @@ fn parses_explicit_progress_profile_classification() {
         Some(language_core::DomainClassification::ProgressProfile)
     );
     assert_eq!(domain.authored_routes.len(), 1);
-    assert!(domain.semantic_clause_token_count > 0);
 }
 
 #[test]
@@ -394,14 +392,12 @@ fn parses_domain_predicate_absence_distinct_from_true_predicate() {
     for domain in &domains[..2] {
         assert_eq!(domain.predicate_presence, DomainPredicatePresence::Absent);
         assert!(domain.facts.is_empty());
-        assert_eq!(domain.semantic_clause_token_count, 0);
     }
     assert_eq!(
         domains[2].predicate_presence,
         DomainPredicatePresence::Present
     );
     assert_eq!(parsed.items.proof_facts(domains[2].facts).len(), 1);
-    assert!(domains[2].semantic_clause_token_count > 0);
 }
 
 #[test]

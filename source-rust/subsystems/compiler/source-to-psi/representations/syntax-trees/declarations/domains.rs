@@ -23,7 +23,6 @@ pub struct DomainDefinition {
     pub predicate_presence: language_core::DomainPredicatePresence,
     pub facts: HandleSpan<ProofFact>,
     pub operators: HandleSpan<OperatorDefinition>,
-    pub semantic_clause_token_count: usize,
 }
 
 #[derive(
@@ -56,7 +55,6 @@ impl Default for DomainDefinition {
             predicate_presence: language_core::DomainPredicatePresence::Absent,
             facts: HandleSpan::empty(),
             operators: HandleSpan::empty(),
-            semantic_clause_token_count: 0,
         }
     }
 }

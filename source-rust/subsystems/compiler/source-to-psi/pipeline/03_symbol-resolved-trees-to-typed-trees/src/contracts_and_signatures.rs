@@ -1110,7 +1110,6 @@ pub(crate) mod contracts {
                     .as_ref()
                     .map(crate::typing::lowerer::name::lower_name),
                 facts,
-                token_count: contract.token_count,
             })
         }
 

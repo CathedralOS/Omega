@@ -182,7 +182,7 @@ fn selected_continuation_shares_callable_children_and_isolates_writes() {
     );
     fork.signature_contracts
         .get_mut(contracts.start())
-        .token_count = 7;
+        .binding = Some(Identifier::generated("changed"));
     fork.machine_states.get_mut(states.start()).name = Identifier::generated("changed");
     fork.trait_machine_signatures
         .get_mut(signatures.start())
@@ -210,8 +210,8 @@ fn selected_continuation_shares_callable_children_and_isolates_writes() {
         predecessor
             .signature_contracts
             .get(contracts.start())
-            .token_count,
-        0
+            .binding,
+        None
     );
     assert_eq!(
         predecessor.machine_states.get(states.start()).name,

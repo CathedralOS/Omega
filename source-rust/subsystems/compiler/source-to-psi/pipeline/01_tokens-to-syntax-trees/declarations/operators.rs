@@ -140,19 +140,13 @@ fn parse_operator_contract<'tokens, 'source>(
         let (cause, after_cause) = input.take_identifier()?;
         let cause = crate::contracts::effects::parse_crash_cause(&cause, after_cause)?;
         let after_header = after_cause;
-        let header_token_count = 2usize;
         *input = after_header;
-        let mut contract = parse_operator_fact_contract(
+        return parse_operator_fact_contract(
             syntax_trees,
             input,
             CapabilityContractKind::Crashes { cause },
             keyword_source_span,
-        )?;
-        contract.token_count = contract
-            .token_count
-            .checked_add(header_token_count)
-            .expect("operator crash contract token count overflow");
-        return Ok(contract);
+        );
     }
 
     Err(input.expected_one_of_here(&["`requires`", "`ensures`", "`crashes`"]))
@@ -164,7 +158,7 @@ fn parse_operator_fact_contract<'tokens, 'source>(
     kind: CapabilityContractKind,
     keyword_source_span: Option<source_text::SourceSpan>,
 ) -> Result<CapabilityContract, crate::errors::parse_error::ParseError> {
-    let ((facts, token_count), rest) =
+    let (facts, rest) =
         parse_proof_facts_until(syntax_trees, *input, operator_contract_terminator)?;
     *input = rest;
 
@@ -173,7 +167,6 @@ fn parse_operator_fact_contract<'tokens, 'source>(
         keyword_source_span,
         binding: None,
         facts,
-        token_count,
     })
 }
 

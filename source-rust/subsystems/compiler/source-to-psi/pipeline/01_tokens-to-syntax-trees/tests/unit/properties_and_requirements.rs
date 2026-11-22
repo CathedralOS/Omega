@@ -1016,8 +1016,8 @@ fn parses_machine_contract_clauses() {
         CapabilityContractKind::Requires
     ));
     assert!(matches!(contracts[1].kind, CapabilityContractKind::Ensures));
-    assert!(contracts[0].token_count > 0);
-    assert!(contracts[1].token_count > 0);
+    assert!(!contracts[0].facts.is_empty());
+    assert!(!contracts[1].facts.is_empty());
     for (contract, keyword) in contracts.iter().zip(["requires", "ensures"]) {
         let span = contract
             .keyword_source_span

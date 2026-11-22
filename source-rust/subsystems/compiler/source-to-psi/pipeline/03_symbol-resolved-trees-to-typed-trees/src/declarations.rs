@@ -452,7 +452,6 @@ pub(crate) mod domain {
             predicate_presence: domain.predicate_presence,
             facts,
             operators: Default::default(),
-            semantic_clause_token_count: domain.semantic_clause_token_count,
             semantic_id: domain.semantic_id,
             semantic_roles: domain.semantic_roles,
             establishment_routes: domain.establishment_routes.clone(),

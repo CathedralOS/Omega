@@ -89,7 +89,6 @@ pub struct CapabilityContract {
     pub keyword_source_span: Option<source_text::SourceSpan>,
     pub binding: Option<Identifier>,
     pub facts: HandleSpan<ProofFact>,
-    pub token_count: usize,
 }
 
 #[derive(

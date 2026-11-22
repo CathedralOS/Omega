@@ -273,7 +273,6 @@ pub mod declarations {
             pub predicate_presence: language_core::DomainPredicatePresence,
             pub facts: HandleSpan<ProofFact>,
             pub operators: HandleSpan<crate::source_resolved::operator::OperatorDefinition>,
-            pub semantic_clause_token_count: usize,
             pub semantic_id: semantic_vocabulary::SemanticDomainId,
             pub semantic_roles: source_declarations::DomainSemanticRoles,
             pub establishment_routes: Vec<source_declarations::DomainEstablishmentRoute>,

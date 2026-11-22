@@ -10,18 +10,13 @@ use serde_json::Value;
 /// Declarations, a constant expression with a group, a record binding, a call
 /// with static arguments, an index, and dispatches with a destructuring arm, a
 /// guard and tuple patterns.
-///
-/// It has no machine header clause. `requires a > 0` followed by `b > 0` on
-/// the next line parses as two facts and on the same line is refused, and a
-/// clause records a token count that includes its comments, so a clause's
-/// tree does change with the bytes between its tokens. The code repair queue
-/// has the entry.
 const PROGRAM: &str = r#"data Pair { first: u8; second: u8; }
+domain u8::Nonzero requires self > 0;
 data Command { case Stop; case Say(text: u8); }
 const LIMIT: u32 = (1 + 2) * 3 - 0x10;
 const NAME: Label = "caf\xc3\xa9 é";
 machine second_of(pair: Pair) -> u8 { let { first as _, second } = pair; second }
-machine pick(command: Command, values: [u8; 2]) -> u8 {
+machine pick(command: Command, values: [u8; 2]) -> u8 requires values[0] > 0 {
     let chosen: u8 = values[0] + scale::<u8>(1, LIMIT);
     match command {
         Command::Say { text } if text < chosen -> text,
@@ -178,8 +173,7 @@ fn comments_and_whitespace_between_tokens_move_spans_and_change_nothing_else() {
         &mut moved,
         "tree",
     );
-    // The snapshot holds 77 names read from the source. Each has a start and an end, and both moved.
-    assert_eq!(moved.names, 77);
+    assert_eq!(moved.names, 81);
     assert!(moved.offsets >= 2 * moved.names, "{}", moved.offsets);
 }
 

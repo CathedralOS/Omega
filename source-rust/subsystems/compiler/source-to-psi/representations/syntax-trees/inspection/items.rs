@@ -89,7 +89,6 @@ pub enum ItemSnapshot {    Capability {
         predicate_presence: &'static str,
         facts: Vec<ProofFactSnapshot>,
         operators: Vec<OperatorSnapshot>,
-        semantic_clause_token_count: usize,
     },
     Measure {
         name: Vec<IdentifierSnapshot>,
@@ -356,7 +355,6 @@ pub struct CapabilityContractSnapshot {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub binding: Option<IdentifierSnapshot>,
     pub facts: Vec<ProofFactSnapshot>,
-    pub token_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -569,7 +567,6 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 .iter()
                 .map(|operator| snapshot_operator(syntax_trees, operator))
                 .collect(),
-            semantic_clause_token_count: value.semantic_clause_token_count,
         },
         Item::Measure(value) => ItemSnapshot::Measure {
             name: snapshot_identifier_slice(
@@ -926,7 +923,6 @@ pub(crate) fn snapshot_capability_contract(
             .as_ref()
             .map(|value| snapshot_identifier(syntax_trees, value)),
         facts: snapshot_proof_facts(syntax_trees, contract.facts),
-        token_count: contract.token_count,
     }
 }
 
