@@ -307,6 +307,7 @@ impl Program<'_> {
         let Some(backing_type @ ValueType::Record(backing, _, _)) = base.result else {
             return Err(unavailable("array view without a plain closed u8 array"));
         };
+        self.complete_executable_range(machine, target, indexed.collection, &base)?;
         let byte_view = typed_element.is_none() && self.is_readable_byte_view(machine, backing)?;
         let partial = range.start.is_valid() || range.end.is_valid() || range.end_inclusive;
         // A plain destination cannot erase a governed or non-byte source's
@@ -382,7 +383,6 @@ impl Program<'_> {
         {
             self.authorized(machine, backing_type, Access::Read)?;
             let value = self.byte_subslice(machine, slots, base, range, target, source)?;
-            self.complete_formed_operator(machine, target, &value)?;
             return present(self, value).map(Some);
         }
         // A partial range of fixed storage is the window of the whole-array
@@ -456,8 +456,6 @@ impl Program<'_> {
             result: Some(ValueType::Record(view, Qualification::NONE, regions)),
             source,
         };
-        // The original range operator belongs to its actual backing.
-        self.complete_formed_operator(machine, target, &whole)?;
         let formed = if partial {
             self.collection_window(machine, slots, whole, range, source)?
         } else {
@@ -632,12 +630,8 @@ impl Program<'_> {
         // never selects an operator or grants mutable access.
         let hint = expected.filter(|value| matches!(value, ValueType::Record(row, _, _)
             if matches!(self.records.get(*row).map(|row| &row.shape), Some(StorageShape::ByteSequence(carrier)) if carrier.is_shared_readable_view())));
-        let hint = matches!(
-            self.node(machine, indexed.index)?,
-            crate::source_state::expression::ExpressionNode::Range(_)
-        )
-        .then_some(hint)
-        .flatten();
+        let range = self.typed.expression_table.range_node(indexed.index);
+        let hint = range.and(hint);
         let base = self.place(machine, slots, indexed.collection, hint, access)?;
         let Some(array) = self.opened_place(machine, &base, access)? else {
             return Err(refuse(
@@ -646,22 +640,14 @@ impl Program<'_> {
                 Unserved::Typing("index into non-array storage"),
             ));
         };
-        if self.is_readable_byte_view(machine, array.record())? {
-            if let crate::source_state::expression::ExpressionNode::Range(range) =
-                self.node(machine, indexed.index)?
-            {
+        let byte_view = self.is_readable_byte_view(machine, array.record())?;
+        if let Some(range) = range {
+            self.complete_executable_range(machine, handle, indexed.collection, &base)?;
+            if byte_view {
                 return self.byte_subslice(machine, slots, base, range, handle, source);
             }
-            return self.byte_element(machine, slots, base, indexed.index, source);
-        }
-        // A range of a shared typed view (`@[T]`) is the same window as a
-        // byte range: it keeps the view's backing region, and lowering checks
-        // `start <= end <= len` against the view's own length. A mutable view
-        // would need its exclusive loan kept live through the window, which
-        // this read path does not establish, so it stays refused.
-        if let crate::source_state::expression::ExpressionNode::Range(range) =
-            self.node(machine, indexed.index)?
-        {
+            // A shared typed view keeps its backing region. An exclusive
+            // descriptor requires a live reborrow through the whole window.
             if matches!(
                 self.data_type(machine, array.record())?.shape,
                 StorageShape::ElementView {
@@ -677,6 +663,9 @@ impl Program<'_> {
                 Construct::Machine,
                 Unserved::Expression("range of a collection that is not a shared view"),
             ));
+        }
+        if byte_view {
+            return self.byte_element(machine, slots, base, indexed.index, source);
         }
         let (element, qualification, extent) = self.array_element(machine, array)?;
         let stored_length = matches!(extent, CollectionExtent::StoredLength);

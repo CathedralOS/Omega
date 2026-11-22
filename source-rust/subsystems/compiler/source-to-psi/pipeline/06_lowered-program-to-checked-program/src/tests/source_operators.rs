@@ -56,6 +56,24 @@ fn assert_operator_value(verdict: Result<RouteVerdict, String>, expected: bool) 
 }
 
 #[test]
+fn a_partial_range_selects_the_projected_array_as_its_operand() {
+    let source = r#"
+data Packet { bytes: [u8; 4]; }
+machine first(packet: @mutable Packet, count: u64) -> u8
+requires count > 0u64, count <= 4u64
+{
+    let prefix: @[u8] = packet.bytes[0u64..count];
+    prefix[0u64]
+}
+machine entry() -> bool {
+    let mutable packet: Packet = Packet { bytes: [11u8, 22u8, 33u8, 44u8] };
+    first(@mutable packet, 2u64) == 11u8
+}
+"#;
+    assert_operator_value(operator_program(&super::boundary_calls::typed(source)), true);
+}
+
+#[test]
 fn mutable_byte_formals_keep_their_source_operator_access() {
     let source = r#"
 machine store(bytes: @mutable [u8], peer: @[u8]) requires bytes.length > 0u64 {
