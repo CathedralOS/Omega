@@ -1,5 +1,6 @@
 use super::body::{MachineBodyValues, check_container, next_id, site_at, unsupported_node};
 use super::branches::{BlockFlow, BooleanArm, TestedDispatch, tested_dispatch, value_patterns};
+use super::references::ArgumentPassing;
 use crate::lowering::applied_tree::LoweringTree;
 use crate::{
     BlockId, BooleanPrimitive, CallArgument, CallTarget, LoweringError, LoweringTypes, MachineBody, OperationId, OperationKind, OperationResult, Place,
@@ -80,7 +81,7 @@ enum PendingOperation {
         callee: CallTarget,
         owed: super::calls::OwedClauses,
         regions: Vec<crate::CallRegion>,
-        borrowed: Vec<Option<CallArgument>>,
+        passing: Vec<ArgumentPassing>,
         pause: crate::PauseEffects,
     },
     FixedArrayRead(Vec<usize>),
@@ -246,6 +247,24 @@ impl Expressions<'_> {
         self.value_argument(value, body, site)
     }
 
+    fn pass_argument(
+        &self,
+        passing: ArgumentPassing,
+        value: Option<OperationResult>,
+        body: &MachineBody,
+        site: &Site,
+    ) -> Result<(CallArgument, Option<PlaceId>), LoweringError> {
+        match (passing, value) {
+            (ArgumentPassing::Ready(argument), None) => Ok((argument, None)),
+            (ArgumentPassing::Value, Some(value)) => Ok((self.call_value_argument(value, body, site)?, None)),
+            (ArgumentPassing::LendTemporary { path, access }, Some(OperationResult::Structural(root))) => {
+                let place = crate::ProjectedPlace { root, path };
+                Ok((CallArgument::Borrow { place, access }, Some(root)))
+            }
+            _ => Err(LoweringError::new(site, "call argument lacks the planned producer result")),
+        }
+    }
+
     pub(super) fn value_argument(
         &self,
         value: OperationResult,
@@ -364,12 +383,15 @@ impl Expressions<'_> {
         let call = super::calls::select_call(self, call_node, carrier, body)?;
         let mut arguments = Vec::with_capacity(call.operands.len());
         for (operand, carrier) in call.operands {
-            if let Some(argument) = super::references::call_argument(self, operand, carrier, body)? {
-                arguments.push(argument);
-            } else {
-                let result = self.lower(operand, carrier, body, flow)?;
-                arguments.push(self.call_value_argument(result, body, &site_at(file, operand))?);
-            }
+            let plan = super::references::call_argument(self, operand, carrier, body)?;
+            let value = plan
+                .visit
+                .map(|(node, ty)| self.lower(node, ty, body, flow))
+                .transpose()?;
+            let (argument, _) = self.pass_argument(plan.passing, value, body, &site_at(file, operand))?;
+            // The terminal call's normal completion already disposes every surviving
+            // caller root, including the backing of a temporary loan, in reverse order.
+            arguments.push(argument);
         }
         Ok((call.callee, arguments, call.owed, call.acknowledgements, call.regions))
     }
@@ -674,26 +696,40 @@ impl Expressions<'_> {
                             callee,
                             owed,
                             regions,
-                            borrowed,
+                            passing,
                         } => {
                             let site = site_at(file, node);
-                            let arguments = borrowed
-                                .into_iter()
-                                .map(|argument| match argument {
-                                    Some(argument) => Ok(argument),
-                                    None => self.call_value_argument(operands.next().expect("each value argument was scheduled"), block, &site),
-                                })
-                                .collect::<Result<Vec<_>, _>>()?;
+                            let mut arguments = Vec::with_capacity(passing.len());
+                            let mut temporary_owners = Vec::new();
+                            for mode in passing {
+                                let value = if matches!(mode, ArgumentPassing::Ready(_)) { None } else { operands.next() };
+                                let (argument, owner) = self.pass_argument(mode, value, block, &site)?;
+                                arguments.push(argument);
+                                if let Some(root) = owner {
+                                    temporary_owners.push(root);
+                                }
+                            }
                             let operation = OperationId(next_id(block.operations.len()));
                             drop(operands);
                             super::calls::record_acknowledgement(block, crate::CallSite::Operation(operation), pause);
                             super::calls::apply_regions(block, crate::CallSite::Operation(operation), regions);
                             let requirements = super::calls::owe(block, crate::CallSite::Operation(operation), owed);
-                            OperationKind::Call {
-                                callee,
-                                arguments,
-                                requirements,
+                            let result = block.push_operation(
+                                output,
+                                OperationKind::Call {
+                                    callee,
+                                    arguments,
+                                    requirements,
+                                },
+                                site.clone(),
+                            );
+                            for root in temporary_owners.into_iter().rev() {
+                                if super::ownership::owned(block.places[root.index()].ty, self.types, self.data) {
+                                    super::ownership::dispose_temporary(block, flow, root, site.clone());
+                                }
                             }
+                            values.push(result);
+                            continue;
                         }
                         PendingOperation::CollectionLength(length) => {
                             let [OperationResult::Structural(source)] = *operands.as_slice() else {
@@ -902,24 +938,30 @@ impl Expressions<'_> {
                     ty if crate::lowering::types::uses_structural_place(ty) => OperationOutput::Structural(stored_type()?),
                     _ => OperationOutput::Scalar(stored_type()?),
                 };
-                let mut borrowed = Vec::with_capacity(call.operands.len());
+                let mut passing = Vec::with_capacity(call.operands.len());
                 let mut visits = Vec::new();
-                for (operand, formal) in call.operands {
-                    let argument = super::references::call_argument(self, operand, formal, block)?;
-                    if argument.is_none() {
-                        visits.push(ExpressionStep::Visit {
-                            node: operand,
-                            carrier: formal,
-                            landing: None,
-                        });
+                for &(operand, formal) in &call.operands {
+                    let plan = super::references::call_argument(self, operand, formal, block)?;
+                    if let Some((node, carrier)) = plan.visit {
+                        visits.push(ExpressionStep::Visit { node, carrier, landing: None });
                     }
-                    borrowed.push(argument);
+                    passing.push(plan.passing);
+                }
+                if passing
+                    .iter()
+                    .any(|p| matches!(p, ArgumentPassing::LendTemporary { .. }))
+                    && super::references::may_export_temporary_loan(self, output, &call.operands)
+                {
+                    return Err(LoweringError::new(
+                        &site_at(file, expression),
+                        "a loan carried beyond this call needs its temporary backing on the later continuation",
+                    ));
                 }
                 work.push(ExpressionStep::Emit {
                     node: expression,
                     output,
                     operation: PendingOperation::Call {
-                        borrowed,
+                        passing,
                         callee: call.callee,
                         owed: call.owed,
                         regions: call.regions,

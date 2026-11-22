@@ -279,3 +279,126 @@ fn a_parked_terminal_call_keeps_the_dying_sum_and_binds_its_result_only_on_compl
         observe(site).is_ok() && observe(&wrong).is_err()
     ));
 }
+
+#[test]
+fn temporary_loans_keep_their_producers_in_argument_order_and_cleanup_on_completion() {
+    use omega_psi::{CallArgument, CallTarget, ReferenceAccess};
+    let text = "data C dropped by release { v:u8; } machine release(x:C){let C{v as _}=move x;}
+                machine first()->C{C{v:5u8}} machine second()->C{C{v:9u8}}
+                machine compare(a:@C,b:@u8)->bool suspends {a.v == $b}
+                machine after(){} machine test()->bool suspends {
+                    let value = suspend compare(@first(),@second().v); after(); value
+                }";
+    let package = source::lower(&[("temp.omg", text)]).unwrap();
+    let machine = |name: &str| {
+        package
+            .machines
+            .iter()
+            .find(|m| m.declaration.path == name)
+            .unwrap()
+    };
+    let body = &machine("test").body;
+    let [first, second, compare, after] = body.operations.as_slice() else {
+        panic!("four calls in order")
+    };
+    for (op, name) in [
+        (first, "first"),
+        (second, "second"),
+        (compare, "compare"),
+        (after, "after"),
+    ] {
+        assert!(matches!(&op.kind, OperationKind::Call { callee: CallTarget::Machine(id), .. } if *id == machine(name).id));
+    }
+    let (OperationResult::Structural(left), OperationResult::Structural(right)) = (first.result, second.result) else {
+        panic!("two fresh owners")
+    };
+    let OperationKind::Call { arguments, .. } = &compare.kind else {
+        unreachable!()
+    };
+    let [
+        CallArgument::Borrow {
+            place: a,
+            access: ReferenceAccess::Shared,
+        },
+        CallArgument::Borrow {
+            place: b,
+            access: ReferenceAccess::Shared,
+        },
+    ] = &arguments[..]
+    else {
+        panic!("two loans")
+    };
+    assert!(a.root == left && a.path.is_empty());
+    assert!(b.root == right && matches!(&b.path[..], [PlaceProjection::Field(f)] if f.path == "C::v"));
+    let [park] = body.suspension_sites.as_slice() else {
+        panic!("one suspended consumer")
+    };
+    assert_eq!(park.call, CallSite::Operation(compare.id));
+    assert_eq!(
+        park.retained_owners
+            .iter()
+            .filter(|o| o.custody == OwnedCustody::Caller)
+            .map(|o| o.place)
+            .collect::<Vec<_>>(),
+        [left, right]
+    );
+    let [before, next, resumed] = body.blocks.as_slice() else {
+        panic!("two reverse-order dispositions")
+    };
+    assert!(before.operations.contains(&compare.id.index()) && resumed.operations.contains(&after.id.index()));
+    for (block, target, owner) in [(before, next, right), (next, resumed, left)] {
+        let BlockTerminator::Jump(edge) = &block.terminator else {
+            panic!("cleanup on continuation")
+        };
+        assert_eq!(edge.target, target.id);
+        assert!(matches!(&edge.cleanup[..], [CleanupAction::Invoke { place, target, .. }]
+            if place.root == owner && place.path.is_empty() && *target == machine("release").id));
+    }
+    assert!(matches!(&resumed.terminator, BlockTerminator::Return { cleanup, .. } if cleanup.is_empty()));
+}
+
+#[test]
+fn a_terminal_consumer_cleans_its_anonymous_owner_after_completion() {
+    use omega_psi::{CallArgument, ReferenceAccess};
+    let text = "data C dropped by release { v:u8; } machine release(x:C){let C{v as _}=move x;}
+                machine produce()->C{C{v:7u8}} machine read(x:@C)->u8{x.v}
+                machine go()->u8 { transition { _ -> read(@produce()) } }";
+    let package = source::lower(&[("temp.omg", text)]).unwrap();
+    let body = &package
+        .machines
+        .iter()
+        .find(|m| m.declaration.path == "go")
+        .unwrap()
+        .body;
+    let [producer] = body.operations.as_slice() else {
+        panic!("one completed producer")
+    };
+    let OperationResult::Structural(root) = producer.result else {
+        panic!("owned result")
+    };
+    let (arguments, cleanup) = body
+        .blocks
+        .iter()
+        .find_map(|b| match &b.terminator {
+            BlockTerminator::TerminalCall { arguments, cleanup, .. } => Some((arguments, cleanup)),
+            _ => None,
+        })
+        .unwrap();
+    assert!(matches!(&arguments[..], [CallArgument::Borrow { place, access: ReferenceAccess::Shared }] if place.root == root && place.path.is_empty()));
+    assert!(matches!(&cleanup[..], [CleanupAction::Invoke { place, target, .. }]
+        if place.root == root && place.path.is_empty() && package.machines.iter().any(|m| m.id == *target && m.declaration.path == "release")));
+}
+
+#[test]
+fn a_returned_child_cannot_trigger_cleanup_at_its_producing_call() {
+    let text = "data Item { v:u8; }
+                machine make()->Item {Item{v:7u8}}
+                machine retain(item:@Item)->@Item {item}
+                machine test()->u8 {let saved=retain(@make()); saved.v}";
+    source::refuse(
+        &[("child.omg", text)],
+        "child.omg",
+        source::unique_span(text, "retain(@make())"),
+        "a loan carried beyond this call needs its temporary backing on the later continuation",
+    );
+}
