@@ -382,12 +382,29 @@ impl BodyTyper<'_, '_> {
         &mut self,
         node_index: usize,
     ) -> Result<(ValueType, Option<Access>), TypeError> {
+        self.select_operand(node_index, None)
+    }
+
+    pub(super) fn projection_operand(
+        &mut self,
+        node_index: usize,
+        projection: super::indexing::ProjectionUse,
+    ) -> Result<(ValueType, Option<Access>), TypeError> {
+        self.select_operand(node_index, Some(projection))
+    }
+
+    fn select_operand(
+        &mut self,
+        node_index: usize,
+        projection: Option<super::indexing::ProjectionUse>,
+    ) -> Result<(ValueType, Option<Access>), TypeError> {
+        use super::indexing::{IndexUse, ProjectionUse};
         let source = self.unit.file;
         // A grouped receiver, as in `(view.inner).value`, is still a place.
         // Groups nest as deeply as L1 admits; see :ExpressionLayers.
         if source.nodes[node_index].kind == NodeKind::Paren {
             let (inner, groups) = self.unit.grouped_operand(node_index)?;
-            let (ty, borrowed) = self.place_operand(inner)?;
+            let (ty, borrowed) = self.select_operand(inner, projection)?;
             for group in groups.into_iter().rev() {
                 self.set_origin(group, self.origin(source.nodes[group].children[0]));
                 self.record_expression(group, ty.clone());
@@ -399,7 +416,13 @@ impl BodyTyper<'_, '_> {
             return Ok((ty, Some(access)));
         }
         if source.nodes[node_index].kind == NodeKind::FieldAccess {
-            return self.project_fields(node_index, &Access::Shared);
+            return self.project_fields(node_index, &Access::Shared, projection.unwrap_or(ProjectionUse::Shared));
+        }
+        if source.nodes[node_index].kind == NodeKind::Index
+            && let Some(projection) = projection
+        {
+            let (ty, borrowed) = self.index_operand(node_index, None, IndexUse::Projection(projection))?;
+            return Ok((self.finish_expression(node_index, ty, None)?, borrowed));
         }
         if source.nodes[node_index].kind == NodeKind::PathExpression
             && let Some(Symbol::Binding { span, .. }) = self.unit.symbol(node_index)

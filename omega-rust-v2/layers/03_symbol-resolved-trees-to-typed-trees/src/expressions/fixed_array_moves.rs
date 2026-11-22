@@ -45,7 +45,7 @@ impl BodyTyper<'_, '_> {
             }
             return Ok(value);
         }
-        let value = self.index_operand(node, None, use_site)?;
+        let (value, _) = self.index_operand(node, None, use_site)?;
         value
             .validate_closed_indices()
             .map_err(|reason| TypeError::at(source, node, reason))?;

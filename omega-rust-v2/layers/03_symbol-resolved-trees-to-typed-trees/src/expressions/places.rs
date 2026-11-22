@@ -1,3 +1,4 @@
+use super::indexing::ProjectionUse;
 use crate::expressions::body_typer::BodyTyper;
 use crate::expressions::storage_origin::Origin;
 use crate::type_error::SourceTypeError;
@@ -179,7 +180,10 @@ impl BodyTyper<'_, '_> {
         let source = self.unit.file;
         let place = source.ungroup(place);
         let ty = match source.nodes[place].kind {
-            NodeKind::FieldAccess => self.project_fields(place, access)?.0,
+            NodeKind::FieldAccess => {
+                let projection = if *access == Access::Shared { ProjectionUse::Shared } else { ProjectionUse::Exclusive };
+                self.project_fields(place, access, projection)?.0
+            }
             NodeKind::Index => {
                 let ty = match usage {
                     PlaceUse::Assignment => {
@@ -470,7 +474,7 @@ impl BodyTyper<'_, '_> {
         &mut self,
         node_index: usize,
     ) -> Result<ValueType, TypeError> {
-        let (ty, borrowed) = self.project_fields(node_index, &Access::Shared)?;
+        let (ty, borrowed) = self.project_fields(node_index, &Access::Shared, ProjectionUse::Read)?;
         if let Some(access) = borrowed {
             self.read_borrowed(node_index, &access, &ty)?;
         }
@@ -484,6 +488,7 @@ impl BodyTyper<'_, '_> {
         &mut self,
         node_index: usize,
         access: &Access,
+        projection: ProjectionUse,
     ) -> Result<(ValueType, Option<Access>), TypeError> {
         let source = self.unit.file;
         // Postfix selectors form arbitrarily long, left-nested trees in L1.
@@ -514,7 +519,7 @@ impl BodyTyper<'_, '_> {
             }
             node = self.unit.single_child(node)?;
         }
-        let (mut ty, mut borrowed) = self.place_operand(node)?;
+        let (mut ty, mut borrowed) = self.projection_operand(node, projection)?;
         let mut origin = self.origin(node);
         let mut place = self.storage_place(node);
         let mut base = node;
