@@ -138,5 +138,6 @@ plain!(
     language_core::DomainPredicatePresence,
     language_core::ReferenceAccess,
     language_core::DomainClassification,
+    language_core::Multiplicity,
     numerics::arithmetic::ArithmeticDomain
 );

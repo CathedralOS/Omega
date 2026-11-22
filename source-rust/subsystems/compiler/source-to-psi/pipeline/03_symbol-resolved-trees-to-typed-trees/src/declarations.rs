@@ -2413,6 +2413,7 @@ pub(crate) mod type_aliases {
             &alias.conformance_bounds,
         )?;
         let expansion = lower_type_reference_into_table(lowerer, &alias.expansion)?;
+        check_asserted_multiplicity(lowerer, alias, expansion)?;
         Ok(typed::type_aliases::TypeAliasDefinition {
             symbol: alias.symbol,
             name: lower_name(&alias.name),
@@ -2422,6 +2423,44 @@ pub(crate) mod type_aliases {
             conformance_bounds,
             expansion,
         })
+    }
+
+    /// `data Count [copy] = u64;` asserts that the expansion is `copy`.
+    ///
+    /// An alias is the same type as its expansion, with the same multiplicity,
+    /// and "may assert its target's multiplicity under the ordinary property
+    /// rules" (`wiki/spec/language/generics.md#transparent-type-aliases`). So
+    /// the assertion changes nothing about the type; it is refused when the
+    /// expansion's multiplicity is not the asserted one. Data declarations
+    /// are typed before aliases, so the expansion's own declaration is
+    /// already known here. A multiplicity typing cannot establish, such as an
+    /// unbounded type parameter's, reads as affine and refuses either
+    /// assertion.
+    fn check_asserted_multiplicity(
+        lowerer: &Lowerer,
+        alias: &resolved::type_aliases::TypeAliasDefinition,
+        expansion: typed::types::TypeReferenceHandle,
+    ) -> Result<(), Diagnostic> {
+        use language_core::Multiplicity;
+        let Some(asserted) = alias.asserted_multiplicity else {
+            return Ok(());
+        };
+        let actual = lowerer.typed_trees.type_multiplicity(expansion);
+        if actual == asserted {
+            return Ok(());
+        }
+        let spelling = |multiplicity| match multiplicity {
+            Multiplicity::Unrestricted => "`copy`",
+            Multiplicity::Affine => "affine",
+            Multiplicity::Linear => "`linear`",
+        };
+        Err(Diagnostic::error(format!(
+            "type alias `{}` asserts that its expansion is {}, but the expansion is {}",
+            alias.name.as_str(),
+            spelling(asserted),
+            spelling(actual),
+        ))
+        .with_source_span(alias.name.source_span()))
     }
 }
 pub(crate) mod wire {
