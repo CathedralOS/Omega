@@ -604,7 +604,7 @@ fn published_counter_fields_retain_their_callable_contracts() {
 #[test]
 fn published_pause_markers_cover_each_required_effect() {
     let defs = "machine ordinary_call() {} machine may_park() suspends {} machine may_wait() blocks {} machine may_do_either() suspends blocks {}";
-    let body = format!("machine caller() {{ {} }}", block(EFFECTS, 878));
+    let body = format!("machine caller() {{ {} }}", block(EFFECTS, 883));
     let stage = check(&[("defs.omg", defs), ("calls.omg", &body)]).unwrap();
     assert_eq!(
         stage
