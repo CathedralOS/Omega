@@ -255,22 +255,17 @@ pub(crate) fn lower_tail_dispatch(
             );
             continue;
         }
-        // Typing puts `ReturnBorrow` on the value a machine returns. For a tail
-        // `match` that value is the whole `match`, so the row covers every arm
-        // and no arm carries its own. An arm answers it the way a directly
-        // returned construction does: the borrow stays in the operands that
-        // supply the fields, and this arm's own return edge carries the place
-        // it constructed. Lowering has no such rule for another arm form (a
-        // call, a binding, a field read) without the row on that node, so it
-        // refuses rather than return the value with the row unanswered.
-        if arm.returns_borrow && tree.construction(ungrouped).is_none() {
-            return Err(unsupported_node(
-                file,
-                ungrouped,
-                "match arm returning a value that may hold a borrow must construct it",
-            ));
-        }
         let value = expressions.lower(arm.expression, &expressions.signature.result, body, flow)?;
+        // The ReturnBorrow row belongs to the enclosing match. Construction
+        // records its field operands. A forwarded formal keeps its original
+        // place as this arm's return source, including the loans it carries.
+        if arm.returns_borrow && tree.construction(ungrouped).is_none() {
+            let forwards_formal = file.nodes[ungrouped].kind == NodeKind::PathExpression
+                && matches!(value, OperationResult::Structural(place) if body.places[place.index()].origin == PlaceOrigin::Parameter);
+            if !forwards_formal {
+                return Err(unsupported_node(file, ungrouped, "returned match arm lacks a source for its carried borrow"));
+            }
+        }
         emit_return_block(body, flow, Some(value), result_type, site_at(file, arm.expression))?;
     }
     Ok(())

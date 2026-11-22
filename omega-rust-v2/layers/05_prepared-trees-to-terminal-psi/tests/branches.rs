@@ -667,21 +667,27 @@ fn each_arm_of_a_returned_match_keeps_its_own_borrow_and_return_edge() {
     assert_eq!(sources::control_flow::check_operation_ownership(body), Ok(()));
 }
 
-/// The row on a returned `match` covers every arm. An arm that forwards a
-/// formal carries no row of its own, so lowering refuses at that arm instead
-/// of returning the value with the borrow unanswered.
 #[test]
-fn a_returned_match_arm_that_forwards_a_borrowing_value_is_refused() {
+fn a_returned_match_arm_forwards_the_exact_borrow_carrying_formal() {
     let source = RETURNED_RECORD.replace(
         "keep<'t>(first: bool, left: Schema<'t>, right: Schema<'t>) -> Held<'t> {\n    match first { true -> Held::<'t>{ schema: left }, false -> Held::<'t>{ schema: right }, }",
         "keep<'t>(first: bool, left: Schema<'t>, held: Held<'t>) -> Held<'t> {\n    match first { true -> Held::<'t>{ schema: left }, false -> held, }",
     );
     assert_ne!(source, RETURNED_RECORD);
-    let files = [("branches.omg", source.as_str())];
-    sources::refuse(
-        &files,
-        "branches.omg",
-        sources::span_within(&source, "false -> held,", "held"),
-        "match arm returning a value that may hold a borrow must construct it: PathExpression",
-    );
+    let package = lower(&source).unwrap();
+    let body = &package.machines[0].body;
+    let [_, _, Parameter::Structural(held)] = *body.parameters.as_slice() else {
+        panic!("expected the held record formal");
+    };
+    let BlockTerminator::Conditional { when_false, .. } = &body.blocks[0].terminator else {
+        panic!("expected a conditional return");
+    };
+    let arm = &body.blocks[when_false.target.get() - 1];
+    let BlockTerminator::Return { result: ReturnEdge::Structural { source, result }, .. } = arm.terminator else {
+        panic!("expected a structural return");
+    };
+    assert_eq!(source, held);
+    assert_eq!(body.places[result.index()].origin, PlaceOrigin::Result);
+    assert!(arm.operations.is_empty());
+    assert_eq!(sources::control_flow::check_operation_ownership(body), Ok(()));
 }
