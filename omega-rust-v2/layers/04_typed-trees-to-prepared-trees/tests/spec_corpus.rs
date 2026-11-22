@@ -97,6 +97,7 @@ fn every_spec_fragment_has_a_preparation_outcome() {
                 .copied()
                 .unwrap_or("<missing typing expectation>")
                 .to_owned(),
+            Some(&reason) if reason.starts_with("L1 ") => reason.to_owned(),
             Some(reason) => format!("L2 {reason}"),
             None => "<missing resolution expectation>".into(),
         };

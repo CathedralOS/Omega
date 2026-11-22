@@ -1,77 +1,68 @@
 # Modules, imports, and visibility
 
-[Build declarations](../build/declarations.md) establish each package and its
-dependencies. Directories within that package name its modules. These names
-participate in declaration and artifact identity.
+A `use` declaration selects one logical source file and binds a file-local alias.
+The alias defaults to the filename stem. Write `|alias|::name` to select a
+declaration from that file.
 
 <a id="module-header-position"></a>
+<a id="directory-namespaces"></a>
 
-## Directory namespaces
+## File identity
 
-A source file's namespace is its parent directory relative to its owning
-package root. Read each directory component as one Omega identifier and join
-the components with `\`. A file directly under the root contributes to the
-package's root namespace. For example, a machine named `score` in
-`combat/ai/targeting.omg` has the package-local name `combat\ai\score`.
-If a directory component cannot name a namespace, diagnose the offending
-component when admitting the source. The filename contributes no component.
+A declaration is identified within its owning package by its full admitted
+logical file path and its declaration identity within that file. Two files in
+one directory may independently declare the same name. A file can be moved
+between checkouts without changing its identity. Moving a public declaration
+to another logical file changes its public address. Keep the public machine
+at its published address when delegating its implementation to a helper.
+No module header is needed.
 
-The directory is the sole source of the namespace. Omega has no `module`
-keyword or namespace declaration. A legacy `module combat::ai;` header is
-invalid in every position. Moving declarations between files in one directory
-preserves their qualified names. Moving a declaration to another directory
-changes its qualified name, including the name of a public type or trait.
-A public machine can keep its name and call an implementation in another
-directory under the ordinary visibility rules.
-
-Use the logical path recorded for the source in its owning package. The same
-package in a different checkout has the same names. For generated source,
-use the logical name admitted by [`Build::include_source`](../build/execution.md#generated-source-boundary).
-Package identity, dependency admission and visibility still govern which
-declarations a caller can select.
+Generated source uses the logical filename admitted through
+[`Build::include_source`](../build/execution.md#generated-source-boundary).
+Two different source units cannot occupy one logical filename in the same
+package and source context.
 
 ## Names and imports
 
 ```text
-module_prefix := (IDENT BACKSLASH)*
-name_path     := module_prefix IDENT ("::" IDENT)*
-import_decl   := "use" name_path ";"
+import_decl    := "use" ("{" ROOT "}" "/")? file_path ("as" IDENT)? ";"
+file_path      := (component "/")* stem ".omg"
+file_qualified := "|" IDENT "|" "::" declaration
 ```
 
-`BACKSLASH` is one `\` token in source. Each `\` selects a name from the
-package or module to its left, including the final step to a declaration.
-Each `::` selects a static member of the declaration or supplied operation
-record to its left. This applies to `use`, expressions, types and declaration
-selectors. Generic expression arguments keep their `::<...>` spelling.
-A dot selects a field through a value.
+Resolve a relative `file_path` from the current package root, including in
+a file in a subdirectory. In `use {geometry}/math/vector.omg as vec;`, the
+active dependency scope supplies the root `geometry`. Local `geometry/x.omg`
+and rooted `{geometry}/x.omg` address distinct sources. The toolchain supplies
+`{omega}/language/core/` in both checked build and product contexts.
 
-| Source path | Declaration selected |
-| --- | --- |
-| `net\wire\Packet::Header` | The nested `Header` of the data type `Packet` declared in `net/wire/`. |
-| `net\wire\Packet\Header` | The top-level `Header` declared in `net/wire/Packet/`. |
+Match the slash-separated logical filename exactly. Components may contain a
+hyphen. Empty components, `.`, `..`, absolute host paths, directories and
+missing files reject. The filename includes its final literal `.omg`; there
+is no basename search or implied index file. A stem that is not a legal
+namespace identifier requires an explicit legal alias, for example
+`use math/asdf-whatever.omg as whatever;`. Never normalize a hyphen to an
+underscore when binding an alias. Duplicate aliases in one file reject at
+the imports with both sites identified. Distinct aliases of one file select
+the same declarations.
 
-Both declarations can coexist. Module lookup requires `\` even when only
-one reading would succeed. The two paths retain distinct owners through
-imports and qualification.
+Outside `use`, the tokens `| IDENT | ::` start an imported declaration path.
+The prefix is valid in expressions, types, patterns, contracts and declaration
+selectors. Further static selections, such as `|wire|::Packet::Header`, follow
+the chosen declaration. `@|wire|::Packet` borrows that type. Generic machine
+calls keep their ordinary `::<...>` spelling. Fields use dot selection.
+Existing compound tokens retain their lexical meaning. Write
+`flags | |wire|::MASK` for bitwise OR with an imported constant. Lexing
+`flags||wire|::MASK` produces logical OR and the expression rejects.
+Similarly, `offset + |limits|::BASE` keeps plus separate from `+|`.
 
-Imports select logical names, never filesystem paths, and do not execute code.
-External selection requires a requester-local direct dependency and the target
-declaration's visibility. Fully qualified spelling and explicit arguments obey
-the same rule. Tooling may discover an enclosing package; source cannot walk
-parent directories to gain undeclared reach.
-
-Build source supports [checked staged imports](../build/scoped_execution.md#checked-build-stages).
-A logical `use dependency;` may remain deferred until explicit dependency
-registration and preparation make its exact declaration scope available to a
-subsequent checked continuation. Unused deferred imports normally warn without
-acquisition or execution; references in types and contracts still require
-resolution before their checked use. A later request cannot justify earlier
-code. Alias/source/purpose/context registration is atomic and immutable, with
-no post-registration retarget or implicit compiler-filesystem fallback.
-`use name from Source::Path { ... };` is not an acquisition/import surface.
-Ordinary product source retains complete name resolution before type/proof
-checking its consumers; this Build staging rule is not lazy unchecked product
-execution or declaration identity invented from matching signatures.
+Each import selects a file without executing code or acquiring dependencies.
+[Checked staged imports](../build/scoped_execution.md#checked-build-stages)
+may defer resolution of a rooted Build import until registration and preparation
+make it available. Check all uses, including types and contracts, before the
+dependent continuation executes. An unused deferred import normally warns
+without acquisition. Ordinary product imports resolve before checking their
+consumers.
 
 Dependency authority is context-specific. Build entry/local-helper imports use
 build dependencies; product and generated-product imports use ordinary product
@@ -90,64 +81,40 @@ API. Carrying does not add a direct dependency or grant selection authority.
 
 ### Import scope and exposure
 
-Files in the same package directory share their module's declarations. Each
-file sees its siblings' declarations without an import and keeps its own
-`use` imports. Importing a module does not import that module's imports.
-A file's own declarations and imports take precedence over a sibling's
-same-spelled declaration. Each subdirectory forms a distinct namespace.
-
-| Authored selection | Foreign domains exposed for carrier-qualified lookup |
-| --- | --- |
-| Import a declaring module | Its directly declared public domains. |
-| Import one domain declaration | That exact domain. |
-| Import one ordinary machine | No sibling domains. |
-| Import a carrier type | No foreign domains merely because they attach to it. |
-| Load a dependency or another source file | None merely because it was loaded. |
-
-A module import does not recursively expose domains from descendant modules or
-modules it imports. Repeated selection of one exact declaration adds no competing
-candidate. Dependencies resolve their bodies under their own source imports;
-consumer imports cannot reinterpret already selected declarations.
+Same-file declarations are directly nameable. Each other source file, including
+a sibling, requires its own import and qualifier. A file alias exposes the
+target file’s top-level declarations under ordinary visibility: package-private
+declarations are accessible within their package, and external callers require
+a direct dependency and a public declaration. Nested declarations retain their
+own scope. A file's imports never become its exports. Selecting an alias gives
+no bare names, including bare foreign domains. Bare-directory imports, item
+imports and backslash-qualified source paths reject.
 
 ### Foreign attached declaration paths
 
-An exact foreign-domain address begins with its declaring package/module, not
-the carrier owner's namespace:
+Select a foreign domain through the file declaring the attachment.
 
 ```omega
-use ui_policy\screen\Point::OnScreen;
+use {ui_policy}/screen/rules.omg as screen;
 ```
 
-Here `ui_policy\screen` declares `Point::OnScreen`. The attachment is resolved
-in that declaration's context to the exact carrier, for example geometry's
-`Point`; a caller's same-spelled type cannot redirect it. The domain and carrier
-retain independent owners. A module import such as `use ui_policy\screen;`
-exposes the module's directly declared public domains instead of just this one.
-Short carrier-qualified selection must match both the resolved carrier and an
-exposed domain. Direct qualified selection names only the exact declaration and
-does not expose siblings. All selections retain ordinary dependency and visibility
-requirements; a declaration path is not a grant to select a private carrier.
-
-Importing a domain permits name selection, not membership, minting authority,
-access to private representation, or an implicit change of operators. A value
-may carry an exact foreign qualification and its evidence through an API without
-importing that domain for authored lookup. Carrying neither erases that evidence
-nor exposes other declarations of the domain's package.
+Here `|screen|::Point::OnScreen` selects the domain on the exact carrier
+resolved in that declaration's context.
+Importing the carrier's file alone does not expose domains defined elsewhere.
+Public access and direct dependency requirements apply to both owners.
+Naming a domain supplies no membership, minting authority or representation
+access. Foreign qualifications can travel through an interface under ordinary
+[package boundary rules](../packages/boundaries.md).
 
 ## Resolution
 
-Name resolution considers the following in order.
-
-1. Local bindings visible at the use, including arm bindings under the [local name rule](state_contracts.md#bindings-and-arrivals).
-2. State parameters.
-3. Machine parameters, including visible generic value binders.
-4. Imported names.
-5. Fully qualified package/module paths within the occurrence's declared dependency scope.
-
-Ambiguous imported declarations reject. Compiler traversal order cannot select
-between them. A field is selected through an explicit value such as
-`context.field`; neither a machine's qualified name nor a parameter's type
-introduces bare aliases for its fields.
+Resolve an explicit file prefix only in the current file's import aliases.
+Resolve a bare name in its ordinary lexical role, including local and arm
+bindings, parameters, same-file declarations and language-supplied names.
+Bare lookup never searches imported files. An import alias may have the same
+spelling as a value, data type or operation record. `|math|::clamp`,
+`math.clamp` and `math::Member` select their respective owners before member
+lookup. Apply ordinary overload rules within the selected owner.
 
 Case members are not an additional bare-name resolution step. Value position
 requires the carrier-qualified `Type::Case` path even when an expected type or
@@ -155,12 +122,8 @@ visible carrier would make one case appear likely. Lexical bindings keep their
 ordinary meaning; the compiler does not reinterpret an unresolved single-segment
 name as a case.
 
-Distinct visible declarations competing for the same carrier-qualified domain
-or case, or for one module/trait/implementation machine path, reject. Neither
-carrier ownership nor import order selects a winner. Module growth can therefore
-introduce a collision in a broad import.
-Narrow imports avoid exposure to unrelated additions. Diagnostics retain both
-declaration owners, the exact carrier, and the imports exposing the conflict.
+Ambiguous eligible members reject. Diagnostics identify the selected owner and
+competing declarations.
 
 ### Builtin type names
 
@@ -177,9 +140,9 @@ builtin type spelling; a declaration introducing a value may:
 
 | Introduced name | May use a builtin type spelling |
 | --- | --- |
-| A value: local, machine or state parameter, field, pattern binding, value constant, generic value binder, machine, named implementation, value import alias | Yes. It does not affect type lookup. |
-| A type: data declaration, trait schema, type alias, generic type binder, type import alias | No. It would compete with the builtin type, and rejects where it is introduced. |
-| A namespace: directory component, namespace import alias | No, for the same reason. |
+| A value: local, machine or state parameter, field, pattern binding, value constant, generic value binder, machine, named implementation | Yes. It does not affect type lookup. |
+| A type: data declaration, trait schema, type alias, generic type binder | No. It would compete with the builtin type, and rejects where it is introduced. |
+| A namespace: file import alias | No, for the same reason. |
 
 Each use resolves by its role, determined before any operation is chosen:
 
@@ -214,9 +177,9 @@ machine i(value: u32) -> u32 { value } // Accepted: a callable value.
 
 ### Module and operation-record names
 
-A module and a supplied operation record may share the name `audio`.
-`audio\play()` calls the module machine and `audio::play()` calls the
-supplied operation. Writing `use audio;` preserves both selections.
+With `use audio/play.omg as audio;`, `|audio|::play()` calls the imported
+machine and `audio::play()` calls the operation of a supplied record named
+`audio`.
 
 For `::`, determine which visible meanings of the prefix can serve the
 syntactic role before looking up the member. In a named machine call,

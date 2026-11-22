@@ -76,7 +76,7 @@ or evidence systems:
 `Build::dependency` registers a product dependency; `Build::build_dependency`
 registers a dependency for interpreted Build code. Both consume a configured
 dependency description and return its exact registration. The description may
-be prepared by ordinary library helpers, including `dependency\with_alias`;
+be prepared by ordinary library helpers, including the dependency request’s alias setter;
 registration atomically fixes source selection, purpose, alias and delegated
 execution context before coordination may schedule work. There is no mutable
 half-registered edge, post-registration alias setter or spelling-based retarget.
@@ -100,7 +100,7 @@ winner. The same spelling may name different packages in Build and Product
 scopes without cross-context fallback. A conditional registration becomes
 available only along paths on which it executed and was prepared.
 
-`use topology;` selects a logical package/module name; it never acquires source,
+`use {topology}/api.omg as topology;` binds a logical dependency file; it never acquires source,
 executes a dependency, mounts a directory or grants visibility beyond the exact
 authorized dependency. Build imports may remain unresolved until the checked
 continuation that needs them. Unused imports normally produce a warning, with
@@ -126,26 +126,19 @@ does not itself request immediate preparation or execute a dependency. Both
 operations use this one registration mechanism; their distinct requirements
 remain under [validation subjects](validation_subjects.md#buildvalidate).
 
-The following illustrates the selected surface.
-`dependency\from_source` and configuration helpers are ordinary library code;
-source selection is resolved through the invocation's authorized acquisition
-route or supplied filesystem backing, never the compiler's ambient filesystem:
+The following helper receives a registration for the build dependency
+`topology`. The authorized acquisition route and filesystem backing supply
+its source. Preparation makes its file available to the continuation.
 
 ```omega
-use topology;
+use {topology}/api.omg as topology;
 
-machine build(builder: @mutable Build)
+// Called with the registration returned by Build::build_dependency.
+machine configure(builder: @mutable Build, registered: DependencyRegistration)
 suspends
 {
-  Build::application(builder, "payments");
-  let mutable request = dependency\from_source(Source::Path {
-    location: "../topology"
-  });
-  dependency\with_alias(@mutable request, "topology");
-  let registered = Build::build_dependency(builder, request);
-
   suspend Build::prepare_dependency(builder, registered);
-  topology\configure_products(builder);
+  |topology|::configure_products(builder);
 }
 ```
 
@@ -291,9 +284,13 @@ names when lookup fails.
 Toolchain operations have designated product operands:
 
 ```omega
-Build::bind(builder, windows_x86_64\ProgramEntry, Application::start);
+// Imports for the designated product operands in this example.
+use {platform}/entry.omg as abi;
+use main.omg as app;
+
+Build::bind(builder, |abi|::ProgramEntry, |app|::start);
 Build::bind::<WindowsAudioPlaybackIo::c_play_sound>(builder, windows_x86_64, native_locator);
-Build::select_provider::<windows_x86_64\Console, TestConsole>(builder);
+Build::select_provider::<|abi|::Console, TestConsole>(builder);
 Build::assume_binding_contract::<WritableMemory::claim, RangeSupplier::supply>(builder);
 _ = builder.tests.group::<Tests::memory>();
 ```
@@ -369,9 +366,9 @@ An owned description may be retained as descriptive data, but using it for a
 selection requires the matching live Build occurrence and target. The durable
 result stores exact selected identities, not an escaping build capability.
 
-Static product operands use explicit product-qualified paths or declarations
-in the root's product module; ordinary host `use` exposure is not reused to
-resolve them. A helper package can select only product owners within its own
+In a designated static product operand, resolve the written file import's
+root and logical filename in the product context. Selecting a host declaration
+through the same spelling elsewhere gives no access to its product counterpart. A helper package can select only product owners within its own
 authorized dependency scope and present in the supplied product frontier. It
 cannot use the consumer's aliases or private namespace merely by borrowing
 Build. Unbound helpers instead receive the owner's selected reference. This

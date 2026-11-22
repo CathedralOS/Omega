@@ -8,14 +8,18 @@ use omega_psi::{
 };
 use omega_typer::ValueType;
 
-#[test]
-fn published_audible_preserves_the_domain_and_supplied_member_call() {
+fn published_preview() -> String {
     let example = spec_corpus::published_chapter("language/modules.md")
         .unwrap()
         .into_iter()
-        .find(|e| e.fence_line_number == 227)
-        .expect("published Audio::Audible example at language/modules.md:227");
-    let original = spec_corpus::parser_examples::parser_source(&example.source_text);
+        .find(|e| e.source_text.contains("machine preview<const Audio: Player>"))
+        .expect("published Audio::Audible example");
+    spec_corpus::parser_examples::parser_source(&example.source_text)
+}
+
+#[test]
+fn published_audible_preserves_the_domain_and_supplied_member_call() {
+    let original = published_preview();
     // Same scalar field types and trait-member signatures. Only the selections differ.
     let twin = original.replace("volume: u8;", "volume: u8; level: u8;")
         .replace("(track: Audio)", "(shadow: Audio, track: Audio)")
@@ -103,12 +107,7 @@ fn a_scalar_audible_domain_lowers_with_its_carrier_and_predicate() {
 /// enclosing trait application as `Player`. L5 reads both to name the member.
 #[test]
 fn the_published_member_call_names_its_implementation_binder_as_evidence() {
-    let example = spec_corpus::published_chapter("language/modules.md")
-        .unwrap()
-        .into_iter()
-        .find(|e| e.fence_line_number == 227)
-        .expect("published Audio::Audible example at language/modules.md:227");
-    let text = spec_corpus::parser_examples::parser_source(&example.source_text);
+    let text = published_preview();
     let package = sources::resolve(&[("published.omg", text.as_str())]);
     let prepared = prepare_source_package(&package).expect("the published example type-checks and prepares");
     let typed = prepared.typed();

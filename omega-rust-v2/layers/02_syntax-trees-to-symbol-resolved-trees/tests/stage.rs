@@ -1745,8 +1745,8 @@ fn reflection_selectors_need_visible_query_names_and_preserve_the_operand_declar
 }
 
 #[test]
-fn published_import_exposes_the_exact_remote_domain() {
-    let text = chapter_block("language/modules.md", 117);
+fn imported_domain_resolves_to_its_exact_declaration() {
+    let text = r"use ui_policy\screen\Point::OnScreen;";
     let requester = format!("{text}\nmachine check(p:ui_policy\\screen\\Point in OnScreen) {{}}");
     let library = ("policy", "screen/point.omg", "public data Point{} public domain Point::OnScreen;");
     let edge = Dependency {

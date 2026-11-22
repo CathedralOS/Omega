@@ -27,6 +27,6 @@ proofs/mathematical_bindings.md:199  L5 data templates Witness
 proofs/mathematical_bindings.md:263  L5 mathematical declarations choose
 proofs/mathematical_bindings.md:63  L5 mathematical declarations compose, greater_than
 resources/bounded_input.md:38  L5 schema only LineReadResult
-language/modules.md:227  L5 machine templates preview
+language/modules.md:190  L5 machine templates preview
 language/machine_values.md:44  L5 lowered open_reader | aliases ByteReader
 layouts/recasts.md:18  L5 fragment only: unsupported Psi declaration: Let | let bits: u32 = 0x3F80_0000u32;
