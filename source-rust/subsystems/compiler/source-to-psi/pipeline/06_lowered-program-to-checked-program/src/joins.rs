@@ -442,9 +442,11 @@ pub(crate) fn infer<'a>(
         }
         let entry = ProgramPoint::BlockEntry(join.id);
         let declared = predicate_row(tables, join.id);
-        // A declared invariant keeps its own telescope even when one member
-        // of a ranked call cycle dominates another member's head.
-        let dominating_bindings = declared.is_none().then_some(graph);
+        // Acyclic arrivals can retain dominating values beside the checked
+        // declaration, including when a qualification edge declares Truth.
+        // At a declared cyclic head only the inductive telescope is available.
+        let dominating_bindings =
+            (declared.is_none() || !graph.in_cycle(join.id)?).then_some(graph);
         let mut disjuncts = Vec::new();
         // A block entered by a cycle, or by an edge that passes no arguments
         // (a dispatch arm, whose parameters the payload binds through

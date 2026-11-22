@@ -159,7 +159,10 @@ fn policy_remainder_is_below_its_own_positive_unsigned_divisor() {
     for policy in ["Wrapping", "Saturating"] {
         let source = format!(
             "machine sample(a: u32 in {policy}, divisor: u32 in {policy}, other: u32) -> u32
-             requires divisor > 0 ensures result < divisor {{ (a % divisor) as u32 }}"
+             requires divisor > 0 ensures result < divisor {{
+                 let dividend: u32 in {policy} = a + 3u32;
+                 transition {{ _ -> ((dividend % divisor) as u32) }}
+             }}"
         );
         for relation in ["<", "<="] {
             let expected =
