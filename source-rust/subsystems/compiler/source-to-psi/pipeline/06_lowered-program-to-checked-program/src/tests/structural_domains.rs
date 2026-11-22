@@ -197,8 +197,7 @@ domain Ticket::Stamped;
 data Cell [copy] { stamped: Ticket in Stamped; plain: Ticket; }
 data Room [copy] { cells: [Cell; 2]; }
 machine inspect(room: Room) -> u64 {
-    let whole: @[Cell] = @room.cells[..];
-    let window: @[Cell] = @whole[1u64..2u64];
+    let window: @[Cell] = @room.cells[1u64..2u64];
     window.length
 }
 machine entry() -> u64 { let mutable room: Room; inspect(room) }

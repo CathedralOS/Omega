@@ -1987,13 +1987,14 @@ fn validate_machine(
                 }
                 | OperationKind::ElementViewSubslice { source, .. } => {
                     let mut expected = Memberships::default();
-                    if let Some(StructuralTypeShape::ElementView { element, .. }) = result_type
-                        .and_then(|id| module.structural_type(id))
-                        .map(|row| &row.shape)
-                        && let Some(root) = machine.structural_place_type(source.place)
+                    if let Some((_, root, memberships)) = places.row(source.place)
+                        && !memberships.projected.is_empty()
+                        && let Some(StructuralTypeShape::ElementView { element, .. }) = result_type
+                            .and_then(|id| module.structural_type(id))
+                            .map(|row| &row.shape)
                         && let Some(collection) = crate::runtime_structural_path_tip(
                             module.types.structural_types.iter(),
-                            root,
+                            *root,
                             &source.path,
                         )
                         && crate::collection_backing(
@@ -2005,7 +2006,7 @@ fn validate_machine(
                     {
                         // A window keeps the domains of each element. The
                         // backing's own domains do not describe the descriptor.
-                        expected.projected = places.argument(source).projected;
+                        expected.projected = memberships.beneath(&source.path).projected;
                         expected
                             .projected
                             .retain(StructuralPathQualification::is_element_membership);
