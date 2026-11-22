@@ -291,7 +291,7 @@ fn value_patterns_read_a_copy_through_a_reference_subject() {
         ("machine f(v:@u8)->u8 {match $v {limits\\Z->1,_->0,}}", "$v", "u8"),
         ("machine f<'a>(v:@'a u8)->u8 {match $v {0->1,_->0,}}", "$v", "u8"),
         ("machine f(a:@bool,b:u8)->u8 {match ($a,b) {(true,_)->1,(false,_)->0,}}", "$a", "bool"),
-        ("data V {r:@u8;} machine f(h:V)->u8 {match $h.r {0->1,_->0,}}", "$h.r", "u8"),
+        ("data V<'a> {r:@'a u8;} machine f<'a>(h:V<'a>)->u8 {match $h.r {0->1,_->0,}}", "$h.r", "u8"),
     ] {
         let stage = support::check(&[("handoff.omg", source), ("limits/values.omg", "const Z:u8=0;")]).unwrap_or_else(|e| panic!("{source}: {e:?}"));
         spec_corpus::observe_handoff!(

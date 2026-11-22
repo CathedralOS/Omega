@@ -17,6 +17,7 @@ include!("calls/operator_signatures.rs");
 include!("calls/package_authority.rs");
 include!("calls/result_domain_selection.rs");
 include!("calls/returned_views.rs");
+include!("calls/stored_field_lifetimes.rs");
 include!("calls/width_domain_candidates.rs");
 
 #[test]

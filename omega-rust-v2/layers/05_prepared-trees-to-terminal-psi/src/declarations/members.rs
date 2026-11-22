@@ -137,10 +137,11 @@ pub(crate) struct Key {
     requirement: DeclarationId,
     receiver: Vec<ValueType>,
     arguments: Vec<ValueType>,
+    pub(crate) region_count: usize,
     conformance: Option<DeclarationId>,
 }
 impl Key {
-    pub(crate) fn from_call(call: &TypedCall) -> Option<Self> {
+    pub(crate) fn from_call(call: &TypedCall, typed: &TypedTrees<'_>) -> Option<Self> {
         let (restriction, (owner, receiver)) = match call.enclosing_arguments.as_slice() {
             [base] => (None, base),
             [(bound, args), base] if bound.kind == NodeKind::Trait && args.is_empty() && call.evidence.is_some() => (Some(bound.clone()), base),
@@ -154,12 +155,18 @@ impl Key {
             Some(ValueType::Implementation(e)) => Some(*e.clone()),
             _ => return None,
         };
+        // Like a region-only local machine, a region-only requirement has one
+        // interface. Each use supplies its regions beside the call in Psi.
+        let region_count = typed.generic_parameters.get(&call.machine)
+            .filter(|g| g.parameters.iter().all(|p| p.kind == NodeKind::LifetimeParam))
+            .map_or(0, |g| g.parameters.len());
         Some(Self {
             restriction,
             owner: owner.clone(),
             requirement: call.machine.clone(),
             receiver: receiver.clone(),
-            arguments: call.type_arguments.clone(),
+            arguments: if region_count == 0 { call.type_arguments.clone() } else { Vec::new() },
+            region_count,
             conformance,
         })
     }
@@ -199,6 +206,7 @@ impl Key {
         &self,
         typed: &TypedTrees<'_>,
         application: &omega_typed::MachineApplication,
+        call_arguments: &[ValueType],
         site: &Site,
     ) -> Result<Option<BoundaryDirection>, LoweringError> {
         let closed = |values: &[ValueType], expected: &[ValueType]| {
@@ -220,7 +228,7 @@ impl Key {
         let mut matching = at_site.filter(|slot| {
             slot.requirement.declaration == self.requirement
                 && closed(&slot.requirement.trait_arguments, &self.receiver)
-                && closed(&slot.arguments, &self.arguments)
+                && closed(&slot.arguments, call_arguments)
         });
         let (Some(slot), None) = (matching.next(), matching.next()) else {
             return Err(LoweringError::new(site, "boundary slot disagrees with the selected member application"));
@@ -274,9 +282,9 @@ pub(crate) fn plan(
             if typed.external_completions.iter().any(|c| c.node == call.node) {
                 continue;
             }
-            let key = Key::from_call(call).ok_or_else(|| LoweringError::new(&call.site, "member call needs a closed requirement and conformance"))?;
+            let key = Key::from_call(call, typed).ok_or_else(|| LoweringError::new(&call.site, "member call needs a closed requirement and conformance"))?;
             let direction = if key.conformance.is_none() {
-                key.boundary_direction(typed, &instance.application, &call.site)?
+                key.boundary_direction(typed, &instance.application, &call.type_arguments, &call.site)?
             } else {
                 None
             };
@@ -291,7 +299,7 @@ pub(crate) fn plan(
                 .ok_or_else(|| LoweringError::new(&call.site, "member call needs its packaged requirement"))?;
             let file = trees[sig.node.file].resolved().file;
             let binders = file.generic_parameters(sig.node.node).count();
-            if binders != key.arguments.len() {
+            if binders != call.type_arguments.len() {
                 return Err(LoweringError::new(&call.site, "member call needs one static argument per requirement binder"));
             }
             if key
@@ -404,7 +412,7 @@ impl MemberPlans {
             } else {
                 return Err(LoweringError::new(site, "call requires its exact packaged member"));
             };
-            if arity != key.arguments.len() {
+            if arity != key.arguments.len() + key.region_count {
                 return Err(LoweringError::new(
                     site,
                     "member call static arguments disagree with the packaged requirement binders",
@@ -430,6 +438,9 @@ impl MemberPlans {
                         .get(machine)
                         .and_then(|entries| entries.get(key.arguments.as_slice()))
                         .ok_or_else(|| LoweringError::new(site, "selected conformance implementation needs its exact lowered machine"))?;
+                    if implementation.regions != key.region_count {
+                        return Err(LoweringError::new(site, "selected implementation disagrees with the requirement's region arity"));
+                    }
                     if callees.realized_pause(implementation.machine) != Default::default() {
                         return Err(LoweringError::new(site, "suspending conformance calls need their exact crossing frontier"));
                     }

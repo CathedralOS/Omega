@@ -375,10 +375,18 @@ fn closes_over_regions<'a>(
             return false;
         }
         if call.type_arguments.iter().any(applies_region) {
-            if call.evidence.is_some() || !call.type_arguments.iter().all(is_region) {
+            if !call.type_arguments.iter().all(is_region) {
                 return false;
             }
-            region_callees.push(&call.machine);
+            if let Some(key) = crate::declarations::members::Key::from_call(call, tree.forest()) {
+                // A requirement has no local body. Its declaration owns the
+                // binders and member planning checks the realized interface.
+                if key.region_count != call.type_arguments.len() { return false; }
+            } else if call.evidence.is_none() {
+                region_callees.push(&call.machine);
+            } else {
+                return false;
+            }
         }
     }
     let file = tree.resolved().file;
@@ -451,9 +459,10 @@ fn selected_implementation(
         return Ok(None);
     }
     let closed = call.with_substitutions(|v| instantiate(application, v));
-    let Some(key) = crate::declarations::members::Key::from_call(&closed) else {
+    let Some(key) = crate::declarations::members::Key::from_call(&closed, typed) else {
         return Ok(None);
     };
+    if key.region_count != 0 { return Ok(None); }
     let Some(implementation) = key.implementation(typed, &call.site)? else {
         return Ok(None);
     };

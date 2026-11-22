@@ -13,8 +13,11 @@ pub(crate) fn nominal_operator_operand<'a>(
     position: usize,
     operand: &'a ValueType,
 ) -> Option<&'a DeclarationId> {
-    let carrier = match operand {
-        ValueType::Reference(_, carrier) if position == 0 && matches!(token, "[]" | "[..]") => carrier.as_ref(),
+    // A bracket receiver is its referent's operator whether or not the
+    // reference names a lifetime: `holder.items[0]` with `items: @'a mutable Bag`
+    // selects `Bag`'s `[]` as a plain `@mutable Bag` receiver does.
+    let carrier = match operand.reference_parts() {
+        Some((_, carrier)) if position == 0 && matches!(token, "[]" | "[..]") => carrier,
         _ => operand,
     };
     carrier.nominal_parts().map(|(declaration, _)| declaration)

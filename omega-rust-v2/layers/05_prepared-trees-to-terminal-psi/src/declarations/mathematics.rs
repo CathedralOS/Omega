@@ -24,7 +24,7 @@ pub(crate) fn lower(
     let &(signature, dependencies) = interfaces
         .get(owner)
         .ok_or_else(|| error("mathematical declaration has no checked interface"))?;
-    let generic_bounds = generic_bounds(trees.generic_parameters.get(owner), file.generic_parameters(node).count(), &site)?;
+    let (lifetime_count, generic_bounds) = generic_bounds(trees.generic_parameters.get(owner), file.generic_parameters(node).count(), &site)?;
     let formals = &file.nodes[binding.parameters].children;
     let body = match (binding.body, file.nodes[node].has_boundary_modifier()) {
         (Some(term), false) => MathematicalBody::Definition(lower_term(&LoweringTree::plain(tree), term, TermScope::Parameters(formals), None)?),
@@ -35,6 +35,7 @@ pub(crate) fn lower(
         declaration: crate::identity::declaration(owner, &site)?,
         public: resolved.is_exported(node),
         signature: type_expression(signature, &site)?,
+        lifetime_count,
         generic_bounds,
         parameter_count: formals.len(),
         body,
@@ -43,18 +44,33 @@ pub(crate) fn lower(
     })
 }
 
+/// The leading lifetime binders of a mathematical telescope, counted, and
+/// the checked bound of each binder after them.
+///
+/// A formal's type can apply a record at a lifetime, as
+/// `pick<'r>(x: Link<'r, u8, bool>)` does, and the application needs a binder
+/// of its own declaration to name. A lifetime has no bound and no erased
+/// value. It keeps its telescope position, so the signature's
+/// `GenericParameter` indices stay those the source wrote. Only a leading
+/// lifetime is counted: after any other binder it would shift the bounds
+/// that follow it, so it is refused like every other unsupported binder.
 pub(super) fn generic_bounds(
     binders: Option<&omega_typed::GenericParameters>,
     written_count: usize,
     site: &Site,
-) -> Result<Vec<TypeExpression>, LoweringError> {
+) -> Result<(usize, Vec<TypeExpression>), LoweringError> {
     let error = |reason| LoweringError::new(site, reason);
+    let mut lifetime_count = 0;
     let mut generic_bounds = Vec::new();
     if let Some(binders) = binders {
         if binders.witness_count != 0 || !binders.equations.is_empty() {
             return Err(error("mathematical telescope has unsupported witnesses or equations"));
         }
         for parameter in &binders.parameters {
+            if parameter.kind == NodeKind::LifetimeParam && parameter.carrier.is_none() && parameter.multiplicity.is_none() && generic_bounds.is_empty() {
+                lifetime_count += 1;
+                continue;
+            }
             let Some(bound) = &parameter.carrier else {
                 return Err(error("mathematical parameter needs its checked bound"));
             };
@@ -64,10 +80,10 @@ pub(super) fn generic_bounds(
             generic_bounds.push(type_expression(bound, site)?);
         }
     }
-    if generic_bounds.len() != written_count {
+    if lifetime_count + generic_bounds.len() != written_count {
         return Err(error("mathematical declaration has an incomplete checked telescope"));
     }
-    Ok(generic_bounds)
+    Ok((lifetime_count, generic_bounds))
 }
 
 fn portable_ids(

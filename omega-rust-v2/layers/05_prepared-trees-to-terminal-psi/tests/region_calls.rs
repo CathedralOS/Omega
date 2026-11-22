@@ -453,3 +453,36 @@ fn a_call_of_a_machine_without_regions_has_no_row() {
     let (selected, applied) = applied_regions(&lowered.package, relay, CallSite::Operation(call.id)).unwrap();
     assert_eq!((selected.id, applied.len()), (seven.id, 0));
 }
+
+#[test]
+fn boundary_member_calls_share_a_selection_and_keep_their_own_regions() {
+    let source = "data Holder<'r> { value: @'r u8; }
+        boundary trait Sink { machine poke<'r>(h: @mutable Holder<'r>) reaches Sink crashes none; }
+        machine forward<'a,'b>(x: @mutable Holder<'a>, y: @mutable Holder<'b>) reaches Sink {
+            Sink::poke(x); Sink::poke(y);
+        }
+        machine local(input: @u8) reaches Sink {
+            let mutable h = Holder { value: input };
+            Sink::poke(@mutable h);
+        }";
+    let lowered = pipeline::lower(source);
+    let [selection] = lowered.package.member_calls.as_slice() else { panic!("one boundary selection"); };
+    assert!(selection.static_arguments.is_empty());
+    let local = lowered.machine("local");
+    let [row] = local.body.call_regions.as_slice() else { panic!("one inferred region application"); };
+    let operations = calls(local);
+    let [op] = operations.as_slice() else { panic!("one local boundary call"); };
+    assert!(matches!(op.kind, OperationKind::Call { callee: CallTarget::Member(0), .. }));
+    assert_eq!(row.call, CallSite::Operation(op.id));
+    assert_eq!(row.arguments, [CallRegion::Operands]);
+    let machine = lowered.machine("forward");
+    let region_rows = &machine.body.call_regions;
+    assert_eq!(region_rows.len(), 2);
+    let operations = calls(machine);
+    assert_eq!(operations.len(), 2);
+    for (i, (op, row)) in operations.into_iter().zip(region_rows).enumerate() {
+        assert!(matches!(op.kind, OperationKind::Call { callee: CallTarget::Member(0), .. }));
+        assert_eq!(row.call, CallSite::Operation(op.id));
+        assert_eq!(row.arguments, [CallRegion::Binder(i)]);
+    }
+}

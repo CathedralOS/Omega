@@ -272,7 +272,7 @@ fn lower(
     let mut headers = Vec::with_capacity(instances.len());
     let mut carriers = Vec::new();
     data_schemas.sort_unstable_by(|a, b| a.declaration.cmp(b.declaration));
-    let applications = super::applied_data::collect(typed, &data_templates);
+    let applications = super::applied_data::collect(typed, &data_templates, &region_data);
     for application in &applications {
         application.collect_carriers(&mut carriers);
     }
@@ -445,7 +445,7 @@ fn lower(
             .map(|data| data.declaration.clone())
             .collect(),
         data_schemas.iter().map(|data| data.lifetime_count).collect(),
-        applications.iter().map(|a| a.carrier.clone()).collect(),
+        &applications,
         &domain_schemas,
     )
     .map_err(|(index, error)| LoweringError::new(&carriers[index].1, error.to_string()))?;

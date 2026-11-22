@@ -109,17 +109,20 @@ fn borrow_authority_and_lifetime() {
 
 #[test]
 fn existential_records_keep_witnesses_private_to_the_subject() {
-    let source = "data Pair<some S>{a:@S;b:@S;} machine make(x:@u8)->Pair{Pair{a:x,b:x}} machine compare<T>(a:T,b:T)->bool{true} machine ok(p:Pair)->bool{compare(p.a,p.b)}";
+    let source = "data Pair<'a,some S>{a:@'a S;b:@'a S;} machine make<'a>(x:@'a u8)->Pair<'a>{Pair{a:x,b:x}} machine compare<T>(a:T,b:T)->bool{true} machine ok<'a>(p:Pair<'a>)->bool{compare(p.a,p.b)}";
     let stage = check(&[("a.omg", source)]).unwrap();
     assert_eq!(stage.packages.len(), 1);
     for (tail, msg) in [
-        ("machine mismatch(x:@bool,y:@u8)->Pair{Pair{a:x,b:y}}", "inconsistent package witness"),
         (
-            "machine compare<T>(a:T,b:T){} machine mismatch(p:Pair,q:Pair){compare(p.a,q.a)}",
+            "machine mismatch<'a>(x:@'a bool,y:@'a u8)->Pair<'a>{Pair{a:x,b:y}}",
+            "inconsistent package witness",
+        ),
+        (
+            "machine compare<T>(a:T,b:T){} machine mismatch<'a>(p:Pair<'a>,q:Pair<'a>){compare(p.a,q.a)}",
             "no matching overload",
         ),
     ] {
-        let code = format!("data Pair<some S>{{a:@S;b:@S;}} {tail}");
+        let code = format!("data Pair<'a,some S>{{a:@'a S;b:@'a S;}} {tail}");
         let e = check(&[("a.omg", &code)]).unwrap_err();
         assert!(e.message.contains(msg), "{e:?}");
     }
@@ -127,7 +130,7 @@ fn existential_records_keep_witnesses_private_to_the_subject() {
 
 #[test]
 fn destructuring_and_projection_open_the_same_package_subject() {
-    let schema = "data Pair<some S>{a:@S;b:@S;} data Wrap{p:Pair;} machine compare<T>(a:@T,b:@T)->bool{true}";
+    let schema = "data Pair<'a,some S>{a:@'a S;b:@'a S;} data Wrap<'a>{p:Pair<'a>;} machine compare<T>(a:@T,b:@T)->bool{true}";
     for (body, accepted) in [
         ("let Pair{a,..} = p; compare(a,(p).b)", true),
         ("let Pair{a,..} = p; let Pair{b,..} = q; compare(a,b)", false),
@@ -136,7 +139,7 @@ fn destructuring_and_projection_open_the_same_package_subject() {
         ("let (Pair{a,..},Pair{b,..}) = (p,p); compare(a,b)", true),
         ("let (Pair{a,..},) = w; compare(a,w.p.b)", true),
     ] {
-        let code = format!("{schema} machine same(p:Pair,q:Pair,w:Wrap)->bool{{{body}}}");
+        let code = format!("{schema} machine same<'a>(p:Pair<'a>,q:Pair<'a>,w:Wrap<'a>)->bool{{{body}}}");
         match check(&[("open.omg", &code)]) {
             Ok(_) => assert!(accepted, "{body}"),
             Err(error) => assert!(!accepted && error.message.contains("no matching overload"), "{body}: {error:?}"),
@@ -146,10 +149,10 @@ fn destructuring_and_projection_open_the_same_package_subject() {
 
 #[test]
 fn packaged_fields_require_a_uniform_representation_at_the_declaration() {
-    let wrappers = "data Cell<T>{item:T;} data View<T>{ptr:@T;} data Phantom<T>{tag:u8;} data Choice<T>{case None;case Stored(item:T);} data Alias<T> = Cell<T>; data Link<T>{next:@Link<T>;item:@T;} data Unsized<T>{item:[T];} data Nested<T>{v:Cell<T>;}
+    let wrappers = "data Cell<T>{item:T;} data View<'a,T>{ptr:@'a T;} data Phantom<T>{tag:u8;} data Choice<T>{case None;case Stored(item:T);} data Alias<T> = Cell<T>; data Link<'a,T>{next:@'a Link<'a,T>;item:@'a T;} data Unsized<T>{item:[T];} data Nested<T>{v:Cell<T>;}
         data TakeValue<T> = machine(x:T)->u8 reaches none crashes none;
         data MakeCell<T> = machine()->Cell<T> reaches none crashes none;
-        data InspectView<T> = machine(x:View<T>)->Phantom<T> reaches none crashes none;
+        data InspectView<'a,T> = machine(x:View<'a,T>)->Phantom<T> reaches none crashes none;
         data InspectBuffer<T> = machine(x:@T,buffer:@[u8])->u8 reaches none crashes none;";
     for field in [
         "S",
@@ -157,13 +160,13 @@ fn packaged_fields_require_a_uniform_representation_at_the_declaration() {
         "Alias<S>",
         "Cell<Cell<S>>",
         "Choice<S>",
-        "@[S]",
-        "@Unsized<S>",
+        "@'a [S]",
+        "@'a Unsized<S>",
         "Nested<S>",
         "TakeValue<S>",
         "MakeCell<S>",
     ] {
-        let source = format!("data Boxed<some S>{{value:{field};}} {wrappers}");
+        let source = format!("data Boxed<'a,some S>{{value:{field};}} {wrappers}");
         let error = check(&[("layout.omg", &source)]).unwrap_err();
         assert!(error.message.contains("witness-dependent representation"), "{field}: {error:?}");
         assert!(
@@ -176,18 +179,18 @@ fn packaged_fields_require_a_uniform_representation_at_the_declaration() {
         );
     }
     for field in [
-        "@S",
-        "[@S;2]",
-        "Cell<Cell<@S>>",
-        "Choice<View<S>>",
+        "@'a S",
+        "[@'a S;2]",
+        "Cell<Cell<@'a S>>",
+        "Choice<View<'a,S>>",
         "Phantom<S>",
-        "Link<S>",
-        "@Cell<S>",
-        "Cell<Nested<Cell<@S>>>",
-        "InspectView<S>",
+        "Link<'a,S>",
+        "@'a Cell<S>",
+        "Cell<Nested<Cell<@'a S>>>",
+        "InspectView<'a,S>",
         "InspectBuffer<S>",
     ] {
-        let source = format!("data Boxed<some S>{{value:{field};}} {wrappers}");
+        let source = format!("data Boxed<'a,some S>{{value:{field};}} {wrappers}");
         check(&[("layout.omg", &source)]).unwrap_or_else(|error| panic!("{field}: {error:?}"));
     }
     let cases = "data Choice<some S>{case Known(value:u8);case Hidden(value:S);}";
@@ -219,15 +222,15 @@ fn library_carriers_can_keep_the_packaged_type_in_a_domain_index() {
 
 #[test]
 fn packaged_reference_requires_a_sized_concrete_witness() {
-    let schema = "data View<some S>{ptr:@S;} data Holder<T>{v:T;} data Huge{values:[u8];}";
+    let schema = "data View<'a,some S>{ptr:@'a S;} data Holder<T>{v:T;} data Huge{values:[u8];}";
     for (borrow, accepted) in [
-        ("@[u8]", false),
-        ("@[u8;2]", true),
-        ("@@[u8]", true),
-        ("@Holder<Huge>", false),
-        ("@Holder<@Huge>", true),
+        ("@'a [u8]", false),
+        ("@'a [u8;2]", true),
+        ("@'a @[u8]", true),
+        ("@'a Holder<Huge>", false),
+        ("@'a Holder<@Huge>", true),
     ] {
-        let source = format!("{schema} machine pack(p:{borrow})->View{{View{{ptr:p}}}}");
+        let source = format!("{schema} machine pack<'a>(p:{borrow})->View<'a>{{View{{ptr:p}}}}");
         match check(&[("size.omg", &source)]) {
             Ok(_) => assert!(accepted, "{borrow}"),
             Err(error) => assert!(!accepted && error.message.contains("sized"), "{borrow}: {error:?}"),
@@ -237,16 +240,16 @@ fn packaged_reference_requires_a_sized_concrete_witness() {
 
 #[test]
 fn packaged_size_follows_inline_storage_and_stops_at_references() {
-    let schema = "data View<some S>{ptr:@S;}";
+    let schema = "data View<'a,some S>{ptr:@'a S;}";
     for usage in [
-        "machine pack<const N:u64>(x:@[u8;N])->View{View{ptr:x}}",
-        "machine pack<const N:u64>(x:@u<N>)->View requires N>0 {View{ptr:x}}",
+        "machine pack<'a,const N:u64>(x:@'a [u8;N])->View<'a>{View{ptr:x}}",
+        "machine pack<'a,const N:u64>(x:@'a u<N>)->View<'a> requires N>0 {View{ptr:x}}",
         "machine pack(){let t=(true,0u8); let view=View{ptr:@t};}",
-        "data Link{next:@Link;} machine pack(x:@Link)->View{View{ptr:x}}",
+        "data Link<'a>{next:@'a Link<'a>;} machine pack<'a>(x:@'a Link<'a>)->View<'a>{View{ptr:x}}",
     ] {
         check(&[("size.omg", &format!("{schema} {usage}"))]).unwrap_or_else(|error| panic!("{usage}: {error:?}"));
     }
-    let unbounded = format!("{schema} data Cycle<T>{{next:Cycle<Cycle<T>>;}} machine pack(x:@Cycle<u8>)->View{{View{{ptr:x}}}}");
+    let unbounded = format!("{schema} data Cycle<T>{{next:Cycle<Cycle<T>>;}} machine pack<'a>(x:@'a Cycle<u8>)->View<'a>{{View{{ptr:x}}}}");
     assert!(
         check(&[("size.omg", &unbounded)])
             .unwrap_err()
@@ -260,7 +263,7 @@ fn packaged_size_follows_inline_storage_and_stops_at_references() {
         let child = n - 1;
         shared.push_str(&format!(" data Layer{n}{{a:Layer{child};b:Layer{child};}}"));
     }
-    shared.push_str(" machine pack(x:@Layer28)->View{View{ptr:x}}");
+    shared.push_str(" machine pack<'a>(x:@'a Layer28)->View<'a>{View{ptr:x}}");
     check(&[("shared.omg", &shared)]).unwrap();
 }
 
@@ -585,11 +588,11 @@ fn local_record_annotations_preserve_distinct_external_lifetimes() {
 
 #[test]
 fn a_packaged_hidden_type_leaves_the_value_argument_in_its_external_slot() {
-    let text = "data Packet<some S,const N:u64>{view:@S;bytes:[u8;N];} data X{} const X:u64=2; machine f(input:Packet<X>){}";
+    let text = "data Packet<'a,some S,const N:u64>{view:@'a S;bytes:[u8;N];} data X{} const X:u64=2; machine f<'a>(input:Packet<'a,X>){}";
     let stage = check(&[("packet.omg", text)]).unwrap();
     let signature = stage.signatures.iter().find(|s| s.machine.path == "f").unwrap();
     assert!(
-        matches!(&signature.parameters[0].1, ValueType::Applied(owner,args) if owner.path=="Packet" && matches!(args.as_slice(),[ValueType::StaticInteger {value,..}] if *value==2.into()))
+        matches!(&signature.parameters[0].1, ValueType::Applied(owner,args) if owner.path=="Packet" && matches!(args.as_slice(),[ValueType::Parameter {..},ValueType::StaticInteger {value,..}] if *value==2.into()))
     );
 }
 
@@ -628,6 +631,41 @@ fn two_input_regions_constrain_one_elided_region_at_the_field_initializers() {
             (b"y", ValueType::Parameter { index: 1, .. })
         ]
     ));
+}
+
+// A sum case names its carrier as a record head does, so a case literal with no
+// destination infers the sum's lifetime from its payload: the lifetime the
+// payload names, or a region of this construction for a reference that names
+// none. A case without a payload still forms its carrier.
+#[test]
+fn a_case_literal_infers_its_sum_lifetime_from_the_payload_as_a_record_does() {
+    let text = "data Reply<'a>{case Ready(view:@'a u8);case Empty;} machine build<'x>(x:@'x u8,y:@u8){let named=Reply::Ready{view:x};let local=Reply::Ready{view:y};let empty=Reply::Empty;}";
+    let stage = check(&[("reply.omg", text)]).unwrap();
+    let lifetime = |literal: &str| {
+        let ty = &stage
+            .expressions
+            .iter()
+            .find(|e| e.site.span.slice(text.as_bytes()) == Some(literal.as_bytes()))
+            .unwrap_or_else(|| panic!("no expression {literal}"))
+            .ty;
+        let ValueType::Applied(id, args) = ty else {
+            panic!("{literal}: expected an applied sum, found {ty}")
+        };
+        assert_eq!(id.path, "Reply");
+        let [argument] = args.as_slice() else {
+            panic!("{literal}: expected one lifetime argument")
+        };
+        argument.clone()
+    };
+    assert!(matches!(lifetime("Reply::Ready{view:x}"), ValueType::Parameter { owner, index: 0 } if owner.path == "build"));
+    let region = lifetime("Reply::Ready{view:y}");
+    assert!(matches!(region, ValueType::InferredLifetime { index: 0, .. }), "{region:?}");
+    assert!(stage.obligations.iter().any(|o| {
+        o.site.span.slice(text.as_bytes()) == Some(b"y".as_slice())
+            && matches!(&o.kind, omega_typer::ObligationKind::BindLifetime { reference: ValueType::Reference(..), destination: ValueType::AtLifetime(_, required) }
+                if required.as_ref() == &region)
+    }));
+    assert!(matches!(lifetime("Reply::Empty"), ValueType::InferredLifetime { index: 0, .. }));
 }
 
 #[test]

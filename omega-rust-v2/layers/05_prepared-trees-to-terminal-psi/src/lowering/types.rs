@@ -73,6 +73,61 @@ pub(crate) struct DomainEstablishment {
     pub selects_policy: bool,
 }
 
+/// Data rows share storage when only their lifetime arguments differ. The
+/// checked declaration determines which slots are lifetimes. In particular,
+/// an open type or const parameter must never be mistaken for a lifetime.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct AppliedData {
+    by_owner: std::collections::HashMap<DeclarationId, AppliedDeclaration>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct AppliedDeclaration {
+    lifetime_count: usize,
+    arity: usize,
+    rows: std::collections::HashMap<Vec<ValueType>, DataId>,
+}
+
+impl AppliedData {
+    fn intern(applications: &[super::applied_data::Application<'_>], first: usize) -> Self {
+        let mut result = Self::default();
+        for (index, application) in applications.iter().enumerate() {
+            let ValueType::Applied(owner, arguments) = application.carrier else { continue };
+            let owner = result.by_owner.entry((**owner).clone()).or_insert_with(|| AppliedDeclaration {
+                lifetime_count: application.lifetime_count,
+                arity: arguments.len(),
+                rows: Default::default(),
+            });
+            owner.rows.insert(arguments[owner.lifetime_count..].to_vec(), DataId::from_index(first + index));
+        }
+        result
+    }
+
+    fn storage_arguments<'a>(&self, carrier: &'a ValueType) -> Option<(&AppliedDeclaration, &'a DeclarationId, &'a [ValueType])> {
+        let ValueType::Applied(id, arguments) = carrier else { return None };
+        let owner = self.by_owner.get(id.as_ref())?;
+        if arguments.len() != owner.arity {
+            return None;
+        }
+        Some((owner, id, &arguments[owner.lifetime_count..]))
+    }
+
+    fn id(&self, carrier: &ValueType) -> Option<DataId> {
+        let (owner, _, arguments) = self.storage_arguments(carrier)?;
+        owner.rows.get(arguments).copied()
+    }
+
+    fn shared_indexed_target(&self, carrier: &ValueType) -> Option<IndexedReferent> {
+        let ValueType::Reference(omega_typed::Access::Shared, inner) = carrier else { return None };
+        let (_, owner, arguments) = self.storage_arguments(inner)?;
+        let values = arguments.iter().map(|argument| match argument {
+            ValueType::StaticInteger { carrier, value } => Some((scalar_carrier(carrier).ok()?, value.clone())),
+            _ => None,
+        }).collect::<Option<_>>()?;
+        Some((crate::identity::portable(owner)?, values))
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LoweringTypes {
     rows: Vec<TypeShape>,
@@ -80,7 +135,7 @@ pub struct LoweringTypes {
     /// How many lifetime binders each of `data_declarations` takes, when all
     /// of its binders are lifetimes. Empty when no declaration registered any.
     data_lifetimes: Vec<usize>,
-    applied_data: std::collections::HashMap<ValueType, DataId>,
+    applied_data: AppliedData,
     domain_sets: Vec<Vec<AtomKey>>,
     domain_cleanups: std::collections::BTreeMap<DeclarationId, crate::MachineId>,
     indexed_referents: Vec<IndexedReferent>,
@@ -98,16 +153,16 @@ impl LoweringTypes {
     /// count of each concrete declaration whose binders are all lifetimes,
     /// and zero for any other. Such a declaration has one row, and each of its
     /// applications at lifetimes shares it (`array_dimensions`).
-    pub(crate) fn from_declarations<'a>(
+    pub(super) fn from_declarations<'a>(
         carriers: impl Iterator<Item = &'a ValueType> + Clone,
         data_declarations: Vec<DeclarationId>,
         data_lifetimes: Vec<usize>,
-        applications: Vec<ValueType>,
+        applications: &[super::applied_data::Application<'_>],
         domains: &[DomainSchema<'_>],
     ) -> Result<Self, (usize, TypeError)> {
         let mut sets = std::collections::BTreeSet::new();
         for (index, carrier) in carriers.clone().enumerate() {
-            let subject = match carrier {
+            let subject = match held_reference(carrier) {
                 ValueType::Reference(omega_typed::Access::Shared, inner) => inner.as_ref(),
                 _ => carrier,
             };
@@ -118,14 +173,10 @@ impl LoweringTypes {
         }
         let domain_sets = sets.into_iter().collect();
         let callables = crate::declarations::callables::collect(carriers.clone())?;
-        let indexed_owners: std::collections::HashSet<_> = applications.iter().filter_map(ValueType::nominal_parts).filter_map(|(id, _)| crate::identity::portable(id)).collect();
-        let indexed_referents = carriers.clone().filter_map(shared_indexed_target).filter(|(id, _)| indexed_owners.contains(id))
+        let applied_data = AppliedData::intern(applications, data_declarations.len());
+        let indexed_referents = carriers.clone().map(held_reference)
+            .filter_map(|carrier| applied_data.shared_indexed_target(carrier))
             .collect::<std::collections::BTreeSet<_>>().into_iter().collect();
-        let applied_data = applications
-            .into_iter()
-            .enumerate()
-            .map(|(index, carrier)| (carrier, DataId::from_index(data_declarations.len() + index)))
-            .collect();
         Self {
             applied_data,
             indexed_referents,
@@ -446,7 +497,16 @@ impl LoweringTypes {
             lengths.push(*length);
             carrier = element;
         }
-        if lengths.is_empty() && let Some(key) = shared_indexed_target(carrier) && let Ok(i) = self.indexed_referents.binary_search(&key) {
+        // A lifetime adds no layout, so `@'r T` is the row of `@T`, as every
+        // application of a lifetime-only record below is that record's one
+        // row. The row forgets the region. A stored field keeps it in
+        // `LoweredField::lifetime`, a signature in its `MachineRegion` slots,
+        // and a value typing bound to a declared region in
+        // `MachineBody::lifetime_bindings`.
+        if lengths.is_empty() {
+            carrier = held_reference(carrier);
+        }
+        if lengths.is_empty() && let Some(key) = self.applied_data.shared_indexed_target(carrier) && let Ok(i) = self.indexed_referents.binary_search(&key) {
             return Ok(TypeShape::IndexedSharedReference(omega_psi::IndexedReferentId(i)));
         }
         if lengths.is_empty()
@@ -516,7 +576,7 @@ impl LoweringTypes {
             }
             return Ok(TypeShape::QualifiedScalar { carrier: stored_scalar(base)?, domains });
         }
-        if let Some(&id) = self.applied_data.get(carrier) {
+        if let Some(id) = self.applied_data.id(carrier) {
             return Ok(TypeShape::Nominal(id));
         }
         // A lifetime argument adds no layout, so every application of a
@@ -609,16 +669,18 @@ fn scalar_argument(arg: &ValueType) -> Option<ScalarDomainArgument> {
     }
 }
 
-fn shared_indexed_target(carrier: &ValueType) -> Option<IndexedReferent> {
-    let ValueType::Reference(omega_typed::Access::Shared, inner) = carrier else { return None };
-    let ValueType::Applied(owner, args) = inner.as_ref() else { return None };
-    let arguments = args.iter().map(|arg| match arg {
-        ValueType::StaticInteger { carrier, value } => Some((scalar_carrier(carrier).ok()?, value.clone())),
-        _ => None,
-    }).collect::<Option<_>>()?;
-    Some((crate::identity::portable(owner)?, arguments))
-}
-
+/// The const-indexed application a shared reference refers to, by storage
+/// identity: its declaration and closed integer arguments.
+///
+/// The lifetime arguments an application writes first select no storage, so
+/// `@Link<'a, 4>` and `@Link<'b, 4>` name one referent and the key leaves
+/// them out. This reads only the type, like `lifetime_application`: a leading
+/// run of binders and inferred regions before at least one closed integer.
+/// The type table then decides. A key becomes a row only for a declaration
+/// with a closed application (`from_declarations`), and every type the table
+/// interns is closed apart from regions, so nothing else can lead such a run.
+/// The region positions are kept beside the row: in the field that stores the
+/// reference and in the `MachineRegion` slots of a formal or result.
 fn atom_keys(members: &[DomainApplication]) -> Option<Vec<AtomKey>> {
     members
         .iter()
@@ -662,17 +724,40 @@ fn lifetime_application(ty: &ValueType) -> Option<&DeclarationId> {
     lifetimes.then_some(declaration.as_ref())
 }
 
+/// The reference of a place reference held at a lifetime: `@T` for `@'r T`,
+/// with its access. Any other type is returned as it is. A view at a lifetime,
+/// `@'r [u8]`, is not a place reference and keeps its own handling
+/// (`machines::loans::view_at_region`).
+pub(crate) fn held_reference(carrier: &ValueType) -> &ValueType {
+    match carrier {
+        ValueType::AtLifetime(reference, _) if matches!(reference.as_ref(), ValueType::Reference(..)) && place_reference(reference).is_some() => reference.as_ref(),
+        other => other,
+    }
+}
+
+/// The access and referent of a reference to one place: a scalar, a record or
+/// sum, or a record applied at lifetimes only. The lifetime such a reference
+/// is held at, as in `@'r mutable Leaf`, changes neither, so this reads
+/// through it. Callers that publish the region read it from the type itself
+/// (`declarations::regions`).
 pub(crate) fn place_reference(carrier: &ValueType) -> Option<(crate::ReferenceAccess, &ValueType)> {
+    let carrier = match carrier {
+        ValueType::AtLifetime(reference, _) => reference.as_ref(),
+        other => other,
+    };
     let ValueType::Reference(access, inner) = carrier else { return None };
     // A shared reference to a closed const-indexed application names its
     // referent's identity without that referent's layout. It forms, forwards
     // and reborrows like any shared place reference; only a step that needs
     // the referent's schema refuses it.
     let shared_qualified = *access == omega_typed::Access::Shared && matches!(inner.as_ref(), ValueType::Qualified(base, _) if stored_scalar(base).is_ok());
-    // A shared reference to a record applied at lifetimes refers to that
-    // record's one row, so it reads and forwards like a reference to a bare record.
-    let shared_record = *access == omega_typed::Access::Shared && lifetime_application(inner).is_some();
-    if !matches!(inner.as_ref(), ValueType::Nominal(_)) && stored_scalar(inner).is_err() && !shared_qualified && !shared_record && shared_indexed_target(carrier).is_none() {
+    // A reference to a record applied at lifetimes refers to that record's
+    // one row, so it reads, forwards and lends like a reference to a bare
+    // record, whatever its access. The row forgets the lifetime arguments.
+    let record_at_lifetimes = lifetime_application(inner).is_some();
+    if !matches!(inner.as_ref(), ValueType::Nominal(_)) && stored_scalar(inner).is_err() && !shared_qualified && !record_at_lifetimes && !matches!((access, inner.as_ref()),
+        (omega_typed::Access::Shared, ValueType::Applied(_, arguments))
+            if matches!(arguments.last(), Some(ValueType::StaticInteger { .. }))) {
         return None;
     }
     let access = match access {

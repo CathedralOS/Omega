@@ -826,7 +826,7 @@ impl Expressions<'_> {
                     && crate::declarations::regions::direct(carrier, &self.signature.machine).is_some()
             {
                 if let (NodeKind::Paren, [inner]) = (node.kind, node.children.as_slice()) {
-                    super::loans::check_descriptor(tree, expression, carrier, &self.signature.machine)?;
+                    super::loans::check_descriptor(tree, expression, carrier, &self.signature.machine, None)?;
                     work.push(ExpressionStep::Visit {
                         node: *inner,
                         carrier,
@@ -869,7 +869,7 @@ impl Expressions<'_> {
                 && matches!(node.kind, NodeKind::Move | NodeKind::Dereference | NodeKind::FieldAccess | NodeKind::PathExpression)
                 && (node.kind != NodeKind::PathExpression || matches!(resolved.symbol(expression), Some(Symbol::Binding { .. })))
             {
-                values.push(super::ownership::move_value(self, expression, carrier, block)?);
+                values.push(super::ownership::move_value(self, expression, carrier, None, block)?);
                 continue;
             }
             // `reflect\callable(pick)` is spelled as a call and selects a

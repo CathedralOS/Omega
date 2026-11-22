@@ -93,7 +93,7 @@ fn borrowed_moves(body: &MachineBody) -> Vec<&ProjectedPlace> {
         .collect()
 }
 
-const FIELD_HELD: &str = "data T{v:u8;} data Leaf{t:T;} data Node{next:@mutable Leaf;}";
+const FIELD_HELD: &str = "data T{v:u8;} data Leaf{t:T;} data Node<'r>{next:@'r mutable Leaf;}";
 
 /// `x.next.t` is storage the caller lent through the `@mutable` that the owned
 /// record `x` holds. Restoring it after a move fills the vacancy; it never
@@ -102,8 +102,8 @@ const FIELD_HELD: &str = "data T{v:u8;} data Leaf{t:T;} data Node{next:@mutable 
 /// vacated place, while the same program through `x:@mutable Node` filled it.
 #[test]
 fn a_store_below_a_field_held_exclusive_loan_is_a_store_into_borrowed_storage() {
-    for (parent, prefix) in [("Node", vec![]), ("@mutable Node", vec!["*"])] {
-        let text = format!("{FIELD_HELD} machine f(x:{parent}){{ let o = move x.next.t; x.next.t = move o; }}");
+    for (parent, prefix) in [("Node<'r>", vec![]), ("@mutable Node<'r>", vec!["*"])] {
+        let text = format!("{FIELD_HELD} machine f<'r>(x:{parent}){{ let o = move x.next.t; x.next.t = move o; }}");
         let mut package = lower(&text);
         let f = body(&package, "f");
         let x = formal(f, 0);
@@ -144,8 +144,8 @@ fn a_store_below_a_field_held_exclusive_loan_is_a_store_into_borrowed_storage() 
 
     // Replacing intact borrowed content extracts the old value through the same
     // loan and disposes it on the continuation; the store itself then fills.
-    for parent in ["Node", "@mutable Node"] {
-        let text = format!("{FIELD_HELD} machine f(x:{parent}){{ x.next.t = T{{v:1u8}}; }}");
+    for parent in ["Node<'r>", "@mutable Node<'r>"] {
+        let text = format!("{FIELD_HELD} machine f<'r>(x:{parent}){{ x.next.t = T{{v:1u8}}; }}");
         let package = lower(&text);
         let f = body(&package, "f");
         let [old] = borrowed_moves(f)[..] else {
@@ -265,7 +265,7 @@ fn a_write_only_loan_chosen_by_match_transfers_each_arriving_formal() {
     }
 }
 
-const WRITE_FIELD: &str = "data Leaf{v:u8;} data Node{next:@write Leaf;}";
+const WRITE_FIELD: &str = "data Leaf{v:u8;} data Node<'r>{next:@'r write Leaf;}";
 
 /// A stored `@write` leaves owned storage by transfer, opens a window when
 /// moved through a `@mutable` parent, and reborrows with its own access.
@@ -273,14 +273,14 @@ const WRITE_FIELD: &str = "data Leaf{v:u8;} data Node{next:@write Leaf;}";
 fn a_stored_write_only_reference_transfers_or_reborrows_with_its_own_access() {
     let read = |body: &str| returned_exclusive(&lower(&format!("{WRITE_FIELD} {body}")), "read");
     let cases = [
-        ("machine read(x:Node)->@write Leaf{x.next}", ExclusiveOrigin::Transfer, vec!["Node::next"]),
+        ("machine read<'r>(x:Node<'r>)->@write Leaf{x.next}", ExclusiveOrigin::Transfer, vec!["Node::next"]),
         (
-            "machine read(x:@mutable Node)->@write Leaf{x.next}",
+            "machine read<'r>(x:@mutable Node<'r>)->@write Leaf{x.next}",
             ExclusiveOrigin::BorrowedMove,
             vec!["*", "Node::next"],
         ),
         (
-            "machine read(x:@mutable Node)->@write Leaf{@write $(x.next)}",
+            "machine read<'r>(x:@mutable Node<'r>)->@write Leaf{@write $(x.next)}",
             ExclusiveOrigin::Reborrow,
             vec!["*", "Node::next", "*"],
         ),
@@ -323,7 +323,7 @@ fn a_stored_write_only_reference_transfers_or_reborrows_with_its_own_access() {
     }
     // Taking through a write-only loan reads it: the typer refuses.
     assert_eq!(
-        typer_refusal(&format!("{WRITE_FIELD} machine read(x:@write Node)->@write Leaf{{x.next}}")),
+        typer_refusal(&format!("{WRITE_FIELD} machine read<'r>(x:@write Node<'r>)->@write Leaf{{x.next}}")),
         "cannot read through a write-only reference"
     );
 }
@@ -335,10 +335,10 @@ fn a_stored_write_only_reference_transfers_or_reborrows_with_its_own_access() {
 #[test]
 fn a_write_through_a_stored_write_only_reference_keeps_its_crossings() {
     for (parent, path) in [
-        ("Node", vec!["Node::next", "*"]),
-        ("@mutable Node", vec!["*", "Node::next", "*"]),
+        ("Node<'r>", vec!["Node::next", "*"]),
+        ("@mutable Node<'r>", vec!["*", "Node::next", "*"]),
     ] {
-        let package = lower(&format!("{WRITE_FIELD} machine f(x:{parent}){{x.next.v = 1u8;}}"));
+        let package = lower(&format!("{WRITE_FIELD} machine f<'r>(x:{parent}){{x.next.v = 1u8;}}"));
         let f = body(&package, "f");
         let stores: Vec<_> = f
             .operations
@@ -356,17 +356,17 @@ fn a_write_through_a_stored_write_only_reference_keeps_its_crossings() {
         );
     }
     // A write-only crossing may not be followed by another one: that reads the stored reference.
-    let mut_field = "data Leaf{v:u8;} data Node{next:@mutable Leaf;}";
+    let mut_field = "data Leaf{v:u8;} data Node<'r>{next:@'r mutable Leaf;}";
     assert_eq!(
-        typer_refusal(&format!("{mut_field} machine f(x:@write Node){{x.next.v = 1u8;}}")),
+        typer_refusal(&format!("{mut_field} machine f<'r>(x:@write Node<'r>){{x.next.v = 1u8;}}")),
         "cannot read through a write-only reference"
     );
     assert_eq!(
-        typer_refusal("data Leaf{v:u8;} data Node{next:@Leaf;} machine f(x:@mutable Node){x.next.v = 1u8;}"),
+        typer_refusal("data Leaf{v:u8;} data Node<'r>{next:@'r Leaf;} machine f<'r>(x:@mutable Node<'r>){x.next.v = 1u8;}"),
         "place requires writable authority"
     );
     assert_eq!(
-        typer_refusal(&format!("{WRITE_FIELD} machine look(v:@u8) {{}} machine f(x:@mutable Node){{look(@x.next.v)}}")),
+        typer_refusal(&format!("{WRITE_FIELD} machine look(v:@u8) {{}} machine f<'r>(x:@mutable Node<'r>){{look(@x.next.v)}}")),
         "cannot read through a write-only reference"
     );
 }
@@ -419,9 +419,9 @@ fn a_second_name_for_an_exclusive_reference_transfers_into_its_own_place() {
     }
 }
 
-const HOLDER: &str = "data Holder{r:@u8;} machine wait() suspends {}";
-const NESTED: &str = "data Inner{r:@u8;} data Outer{i:Inner;} machine wait() suspends {}";
-const TWO_RECORDS: &str = "data A{r:@u8;} data B{r:@u8;} data H{a:A; b:B;} machine wait() suspends {}";
+const HOLDER: &str = "data Holder<'r>{r:@'r u8;} machine wait() suspends {}";
+const NESTED: &str = "data Inner<'r>{r:@'r u8;} data Outer<'r>{i:Inner<'r>;} machine wait() suspends {}";
+const TWO_RECORDS: &str = "data A<'r>{r:@'r u8;} data B<'r>{r:@'r u8;} data H<'a,'b>{a:A<'a>; b:B<'b>;} machine wait() suspends {}";
 
 /// For the one parked owner of `forward`, each embedded descriptor path and the
 /// position of the formal whose loan it holds.
@@ -495,7 +495,7 @@ fn a_parked_home_names_the_newest_store_at_each_descriptor_prefix() {
 }
 
 /// The three programs of the former gap `parked home descriptor without one
-/// reaching store`, byte for byte: `h.r` assigned a join of two formals, a
+/// reaching store`, with the stored lifetime written: `h.r` assigned a join of two formals, a
 /// store before an unrelated branch, and a full field store after a call that
 /// lent `h` with write access.
 fn original_programs() -> [String; 3] {
@@ -505,7 +505,7 @@ fn original_programs() -> [String; 3] {
         format!("{HOLDER} {branch} {{let mutable h=Holder{{r:first}};h.r=match c {{true -> second, false -> first,}};suspend wait()}}"),
         format!("{HOLDER} {branch} {{let mutable h=Holder{{r:first}};h.r=second;let n=match c {{true -> 1u8, false -> 2u8,}};suspend wait()}}"),
         format!(
-            "data Holder{{r:@u8;}} machine poke(h:@mutable Holder) {{}} machine wait() suspends {{}} {forward} {{let mutable h=Holder{{r:first}};poke(@mutable h);h.r=second;suspend wait()}}"
+            "data Holder<'r>{{r:@'r u8;}} machine poke<'r>(h:@mutable Holder<'r>) {{}} machine wait() suspends {{}} {forward} {{let mutable h=Holder{{r:first}};poke(@mutable h);h.r=second;suspend wait()}}"
         ),
     ]
 }
@@ -795,29 +795,29 @@ fn parked_descriptor_arrivals_follow_fields_joins_and_reads() {
     let cases: Vec<(String, Summary)> = vec![
         // The writable borrow happens after the crossing, within its block or after a join.
         (
-            format!("{HOLDER} machine keep(h:@mutable Holder) {{}} {f3} {{let mutable h=Holder{{r:first}};h.r=second;suspend wait();let k=@mutable h;keep(k)}}"),
+            format!("{HOLDER} machine keep<'r>(h:@mutable Holder<'r>) {{}} {f3} {{let mutable h=Holder{{r:first}};h.r=second;suspend wait();let k=@mutable h;keep(k)}}"),
             vec![row(r, &[(0, 1, &[], 0)])],
         ),
         (
             format!(
-                "{HOLDER} machine keep(h:@mutable Holder) {{}} {f3} {{let mutable h=Holder{{r:first}};h.r=second;suspend wait();let n=match c {{true -> 1u8, false -> 2u8,}};let k=@mutable h;keep(k)}}"
+                "{HOLDER} machine keep<'r>(h:@mutable Holder<'r>) {{}} {f3} {{let mutable h=Holder{{r:first}};h.r=second;suspend wait();let n=match c {{true -> 1u8, false -> 2u8,}};let k=@mutable h;keep(k)}}"
             ),
             vec![row(r, &[(0, 1, &[], 0)])],
         ),
         (
-            format!("data Inner{{r:@u8;}} data Outer{{i:Inner;}} {wait} {f3} {{let mutable o=Outer{{i:Inner{{r:first}}}};o.i.r={join};suspend wait()}}"),
+            format!("data Inner<'r>{{r:@'r u8;}} data Outer<'r>{{i:Inner<'r>;}} {wait} {f3} {{let mutable o=Outer{{i:Inner{{r:first}}}};o.i.r={join};suspend wait()}}"),
             vec![row(&["Outer::i", "Inner::r"], both)],
         ),
         (
             format!(
-                "{HOLDER} machine keep(h:@mutable Holder) {{}} machine relay(h:@mutable Holder)->@mutable Holder {{h}} {f3} {{let mutable h=Holder{{r:first}};h.r=second;transition c {{true -> suspend wait(), false -> keep(relay(@mutable h)),}}}}"
+                "{HOLDER} machine keep<'r>(h:@mutable Holder<'r>) {{}} machine relay<'r>(h:@mutable Holder<'r>)->@mutable Holder<'r> {{h}} {f3} {{let mutable h=Holder{{r:first}};h.r=second;transition c {{true -> suspend wait(), false -> keep(relay(@mutable h)),}}}}"
             ),
             vec![row(r, &[(0, 1, &[], 0)])],
         ),
         // The direct twin of a refused program below: both fields are replaced after the loan.
         (
             format!(
-                "data H{{a:@u8;b:@u8;}} machine poke(h:@mutable H) {{}} {wait} {f2} {{let mutable h=H{{a:first,b:first}};poke(@mutable h);h.a=second;h.b=first;suspend wait()}}"
+                "data H<'a,'b>{{a:@'a u8;b:@'b u8;}} machine poke<'a,'b>(h:@mutable H<'a,'b>) {{}} {wait} {f2} {{let mutable h=H{{a:first,b:first}};poke(@mutable h);h.a=second;h.b=first;suspend wait()}}"
             ),
             vec![
                 row(&["H::a"], &[(0, 1, &[], 0)]),
@@ -826,7 +826,7 @@ fn parked_descriptor_arrivals_follow_fields_joins_and_reads() {
         ),
         (
             format!(
-                "data A{{r:@u8;}} data H{{a:A;b:A;}} machine pokeb(b:@mutable A) {{}} {wait} {f2} {{let mutable h=H{{a:A{{r:first}},b:A{{r:first}}}};pokeb(@mutable h.b);h.b.r=second;suspend wait()}}"
+                "data A<'r>{{r:@'r u8;}} data H<'a,'b>{{a:A<'a>;b:A<'b>;}} machine pokeb<'r>(b:@mutable A<'r>) {{}} {wait} {f2} {{let mutable h=H{{a:A{{r:first}},b:A{{r:first}}}};pokeb(@mutable h.b);h.b.r=second;suspend wait()}}"
             ),
             vec![
                 row(&["H::a", "A::r"], &[(0, 0, &[], 0)]),
@@ -857,7 +857,7 @@ fn parked_descriptor_arrivals_follow_fields_joins_and_reads() {
         ),
         (
             format!(
-                "data H{{a:@u8;b:@u8;}} {wait} machine forward(first:@u8,second:@u8,c:bool,d:bool) suspends {{let mutable h=H{{a:first,b:first}};h.a={join};h.b=match d {{true -> first, false -> second,}};suspend wait()}}"
+                "data H<'a,'b>{{a:@'a u8;b:@'b u8;}} {wait} machine forward(first:@u8,second:@u8,c:bool,d:bool) suspends {{let mutable h=H{{a:first,b:first}};h.a={join};h.b=match d {{true -> first, false -> second,}};suspend wait()}}"
             ),
             vec![
                 row(&["H::a"], both),
@@ -867,7 +867,7 @@ fn parked_descriptor_arrivals_follow_fields_joins_and_reads() {
         // A shared borrow of the home kept across the park does not hide stores; two parks see the same arrivals.
         (
             format!(
-                "data Holder{{r:@u8;}} machine look(h:@Holder) {{}} {wait} {f3} {{let mutable h=Holder{{r:first}};h.r={join};let b=@h;suspend wait();look(b)}}"
+                "data Holder<'r>{{r:@'r u8;}} machine look<'r>(h:@Holder<'r>) {{}} {wait} {f3} {{let mutable h=Holder{{r:first}};h.r={join};let b=@h;suspend wait();look(b)}}"
             ),
             vec![row(r, both)],
         ),
@@ -880,7 +880,9 @@ fn parked_descriptor_arrivals_follow_fields_joins_and_reads() {
             vec![row(r, both)],
         ),
         (
-            format!("{HOLDER} {f3} {{let h=match c {{true -> Holder{{r:second}}, false -> Holder{{r:first}},}};suspend wait()}}"),
+            // Both arms construct the same declared holder type. Each carries
+            // a different loan, which the parked descriptor must preserve.
+            format!("{HOLDER} machine forward<'a>(first:@'a u8,second:@'a u8,c:bool) suspends {{let h=match c {{true -> Holder::<'a>{{r:second}}, false -> Holder::<'a>{{r:first}},}};suspend wait()}}"),
             vec![row(r, both)],
         ),
         (
@@ -897,12 +899,12 @@ fn parked_descriptor_arrivals_follow_fields_joins_and_reads() {
             vec![row(r, both), row(r, &[(1, 1, &[], 1), (1, 0, &[], 1)])],
         ),
         (
-            format!("data Holder{{r:@u8;}} data Box{{h:Holder;}} {wait} {f3} {{let mutable h=Holder{{r:first}};h.r={join};let b=Box{{h:move h}};suspend wait()}}"),
+            format!("data Holder<'r>{{r:@'r u8;}} data Box<'r>{{h:Holder<'r>;}} {wait} {f3} {{let mutable h=Holder{{r:first}};h.r={join};let b=Box{{h:move h}};suspend wait()}}"),
             vec![row(&["Box::h", "Holder::r"], both)],
         ),
         (
             format!(
-                "data Cell{{r:@u8;}} {HOLDER} machine forward(x:Cell,y:Cell,c:bool) suspends {{let mutable h=Holder{{r:x.r}};h.r=match c {{true -> y.r, false -> x.r,}};suspend wait()}}"
+                "data Cell<'r>{{r:@'r u8;}} {HOLDER} machine forward<'r>(x:Cell<'r>,y:Cell<'r>,c:bool) suspends {{let mutable h=Holder{{r:x.r}};h.r=match c {{true -> y.r, false -> x.r,}};suspend wait()}}"
             ),
             vec![
                 row(&["Cell::r"], &[(0, 0, &["Cell::r"], 0)]),
@@ -913,13 +915,13 @@ fn parked_descriptor_arrivals_follow_fields_joins_and_reads() {
         // A lending call before the store is no writer at the crossing, whatever it returns or keeps.
         (
             format!(
-                "data Holder{{r:@u8;}} machine poke(h:@mutable Holder, s:@u8) {{}} {wait} {f2} {{let mutable h=Holder{{r:first}};poke(@mutable h, second);h.r=second;suspend wait()}}"
+                "data Holder<'r>{{r:@'r u8;}} machine poke<'r>(h:@mutable Holder<'r>, s:@u8) {{}} {wait} {f2} {{let mutable h=Holder{{r:first}};poke(@mutable h, second);h.r=second;suspend wait()}}"
             ),
             vec![row(r, &[(0, 1, &[], 0)])],
         ),
         (
             format!(
-                "data Holder{{r:@u8;}} machine poke(h:@mutable Holder)->u8 {{1u8}} {wait} {f2} {{let mutable h=Holder{{r:first}};let n=poke(@mutable h);h.r=second;suspend wait()}}"
+                "data Holder<'r>{{r:@'r u8;}} machine poke<'r>(h:@mutable Holder<'r>)->u8 {{1u8}} {wait} {f2} {{let mutable h=Holder{{r:first}};let n=poke(@mutable h);h.r=second;suspend wait()}}"
             ),
             vec![row(r, &[(0, 1, &[], 0)])],
         ),
@@ -950,23 +952,23 @@ fn parked_descriptor_arrivals_follow_fields_joins_and_reads() {
 }
 
 /// The archived programs of the former gap `parked descriptor after an unreplaced
-/// writable loan`, byte for byte (`a_writable_loan_leaves_a_parked_descriptor_unknown_until_a_store_replaces_it`).
+/// writable loan`, with each stored lifetime written (`a_writable_loan_leaves_a_parked_descriptor_unknown_until_a_store_replaces_it`).
 const UNREPLACED_ORIGINALS: [&str; 4] = [
-    "data H{a:@u8;b:@u8;} machine poke(h:@mutable H) {} machine wait() suspends {} machine forward(first:@u8,second:@u8) suspends {let mutable h=H{a:first,b:first};poke(@mutable h);h.a=second;suspend wait()}",
-    "data A{r:@u8;} data H{a:A;b:A;} machine pokeb(b:@mutable A) {} machine wait() suspends {} machine forward(first:@u8,second:@u8) suspends {let mutable h=H{a:A{r:first},b:A{r:first}};pokeb(@mutable h.b);suspend wait()}",
-    "data Holder{r:@u8;} machine poke(h:@mutable Holder) {} machine wait() suspends {} machine forward(first:@u8,second:@u8) suspends {let mutable h=Holder{r:first};h.r=second;poke(@mutable h);suspend wait()}",
-    "data Holder{r:@u8;} machine wait(h:@mutable Holder) suspends {} machine forward(first:@u8,second:@u8) suspends {let mutable h=Holder{r:first};h.r=second;suspend wait(@mutable h)}",
+    "data H<'a,'b>{a:@'a u8;b:@'b u8;} machine poke<'a,'b>(h:@mutable H<'a,'b>) {} machine wait() suspends {} machine forward(first:@u8,second:@u8) suspends {let mutable h=H{a:first,b:first};poke(@mutable h);h.a=second;suspend wait()}",
+    "data A<'r>{r:@'r u8;} data H<'a,'b>{a:A<'a>;b:A<'b>;} machine pokeb<'r>(b:@mutable A<'r>) {} machine wait() suspends {} machine forward(first:@u8,second:@u8) suspends {let mutable h=H{a:A{r:first},b:A{r:first}};pokeb(@mutable h.b);suspend wait()}",
+    "data Holder<'r>{r:@'r u8;} machine poke<'r>(h:@mutable Holder<'r>) {} machine wait() suspends {} machine forward(first:@u8,second:@u8) suspends {let mutable h=Holder{r:first};h.r=second;poke(@mutable h);suspend wait()}",
+    "data Holder<'r>{r:@'r u8;} machine wait<'r>(h:@mutable Holder<'r>) suspends {} machine forward(first:@u8,second:@u8) suspends {let mutable h=Holder{r:first};h.r=second;suspend wait(@mutable h)}",
 ];
 
 /// The archived programs of the former gap `parked descriptor behind a writable
-/// loan that can outlive its operation`, byte for byte
+/// loan that can outlive its operation`, with each stored lifetime written
 /// (`a_writable_loan_that_can_outlive_its_operation_hides_later_stores`).
 const OUTLIVING_ORIGINALS: [&str; 5] = [
-    "data Holder{r:@u8;} machine wait() suspends {} machine keep(h:@mutable Holder) {} machine forward(first:@u8,second:@u8) suspends {let mutable h=Holder{r:first};h.r=second;suspend wait();let k=@mutable h;keep(k);suspend wait()}",
-    "data Holder{r:@u8;} machine wait() suspends {} machine keep(h:@mutable Holder) {} machine forward(first:@u8,second:@u8) suspends {let mutable h=Holder{r:first};let m=@mutable h;keep(m);h.r=second;suspend wait()}",
-    "data Holder{r:@u8;} machine wait() suspends {} machine keep(h:@mutable Holder)->@mutable Holder {h} machine forward(first:@u8,second:@u8) suspends {let mutable h=Holder{r:first};let m=keep(@mutable h);h.r=second;suspend wait()}",
-    "data Holder{r:@u8;} machine wait() suspends {} data Sink{v:u8;} machine poke(h:@mutable Holder, s:@mutable Sink) {} machine forward(first:@u8,second:@u8) suspends {let mutable h=Holder{r:first};let mutable s=Sink{v:1u8};poke(@mutable h, @mutable s);h.r=second;suspend wait()}",
-    "data Holder{r:@u8;} machine wait() suspends {} data Cell{v:u8;} machine poke(h:@mutable Holder, c:@mutable Cell) {} machine forward(first:@u8,second:@u8,c:@mutable Cell) suspends {let mutable h=Holder{r:first};poke(@mutable h, c);h.r=second;suspend wait()}",
+    "data Holder<'r>{r:@'r u8;} machine wait() suspends {} machine keep<'r>(h:@mutable Holder<'r>) {} machine forward(first:@u8,second:@u8) suspends {let mutable h=Holder{r:first};h.r=second;suspend wait();let k=@mutable h;keep(k);suspend wait()}",
+    "data Holder<'r>{r:@'r u8;} machine wait() suspends {} machine keep<'r>(h:@mutable Holder<'r>) {} machine forward(first:@u8,second:@u8) suspends {let mutable h=Holder{r:first};let m=@mutable h;keep(m);h.r=second;suspend wait()}",
+    "data Holder<'r>{r:@'r u8;} machine wait() suspends {} machine keep<'r>(h:@mutable Holder<'r>)->@mutable Holder<'r> {h} machine forward(first:@u8,second:@u8) suspends {let mutable h=Holder{r:first};let m=keep(@mutable h);h.r=second;suspend wait()}",
+    "data Holder<'r>{r:@'r u8;} machine wait() suspends {} data Sink{v:u8;} machine poke<'r>(h:@mutable Holder<'r>, s:@mutable Sink) {} machine forward(first:@u8,second:@u8) suspends {let mutable h=Holder{r:first};let mutable s=Sink{v:1u8};poke(@mutable h, @mutable s);h.r=second;suspend wait()}",
+    "data Holder<'r>{r:@'r u8;} machine wait() suspends {} data Cell{v:u8;} machine poke<'r>(h:@mutable Holder<'r>, c:@mutable Cell) {} machine forward(first:@u8,second:@u8,c:@mutable Cell) suspends {let mutable h=Holder{r:first};poke(@mutable h, c);h.r=second;suspend wait()}",
 ];
 
 /// One origin as `(join edges, source, path, reborrows)`. A source is `f<n>`
@@ -1126,7 +1128,7 @@ fn writers_agree(
     }
 }
 
-const POKE: &str = "machine poke(h:@mutable Holder) {}";
+const POKE: &str = "machine poke<'r>(h:@mutable Holder<'r>) {}";
 
 /// A call operand that lends the home, or a field enclosing the descriptor,
 /// with write access is a possible writer. The descriptor at the crossing may
@@ -1152,21 +1154,21 @@ fn a_writable_call_operand_is_a_possible_writer_of_a_parked_descriptor() {
         // A local mutator that replaces the record through its loan.
         (
             format!(
-                "{HOLDER} machine poke(h:@mutable Holder, s:@u8) {{$h=Holder{{r:s}};}} {f2} {{let mutable h=Holder{{r:first}};poke(@mutable h, second);suspend wait()}}"
+                "{HOLDER} machine poke<'r>(h:@mutable Holder<'r>, s:@'r u8) {{$h=Holder{{r:s}};}} {f2} {{let mutable h=Holder{{r:first}};poke(@mutable h, second);suspend wait()}}"
             ),
             vec![d(r, vec![o(0, "poke#0", r, 0), o(0, "f0", &[], 0)])],
         ),
         // A local mutator that writes only a scalar sibling of the descriptor.
         (
             format!(
-                "data Cell{{v:u8;}} data Holder{{r:@u8;c:Cell;}} machine wait() suspends {{}} machine poke(h:@mutable Holder) {{h.c.v=2u8;}} {f2} {{let mutable h=Holder{{r:first,c:Cell{{v:1u8}}}};poke(@mutable h);suspend wait()}}"
+                "data Cell{{v:u8;}} data Holder<'r>{{r:@'r u8;c:Cell;}} machine wait() suspends {{}} machine poke<'r>(h:@mutable Holder<'r>) {{h.c.v=2u8;}} {f2} {{let mutable h=Holder{{r:first,c:Cell{{v:1u8}}}};poke(@mutable h);suspend wait()}}"
             ),
             vec![d(r, vec![o(0, "poke#0", r, 0), o(0, "f0", &[], 0)])],
         ),
         // The parked callee may write through its own operand while parked.
         (
             format!(
-                "data Holder{{r:@u8;}} machine wait(h:@mutable Holder) suspends {{}} {f2} {{let mutable h=Holder{{r:first}};transition{{_ -> suspend wait(@mutable h),}}}}"
+                "data Holder<'r>{{r:@'r u8;}} machine wait<'r>(h:@mutable Holder<'r>) suspends {{}} {f2} {{let mutable h=Holder{{r:first}};transition{{_ -> suspend wait(@mutable h),}}}}"
             ),
             vec![d(r, vec![o(0, "wait#0", r, 0), o(0, "f0", &[], 0)])],
         ),
@@ -1271,6 +1273,136 @@ fn a_writable_call_operand_is_a_possible_writer_of_a_parked_descriptor() {
     assert!(matches!(calls[..], [newer, older] if newer > older), "{calls:?}");
 }
 
+/// A callee that stores one input into another holds the stored input at the
+/// lifetime of the field it lands in: `s: @'r u8` beside
+/// `h: @mutable Holder<'r>`. The holder's own reference names no lifetime,
+/// since only what the record keeps has to live for `'r`. Region `'r` then
+/// lists both formals and the body binds nothing.
+///
+/// With `s: @u8` the input has a lifetime of its own at every call, so the
+/// body itself binds it to `'r`. Lowering lists that binding for the checker,
+/// which owes it the refusal the specification gives `leak`
+/// (`wiki/spec/language/lifetimes.md#caller-chosen-result-lifetimes`). The
+/// binding is the only fact that tells the two callees apart: the caller's
+/// parked record names the same writer and the same construction formal.
+#[test]
+fn a_stored_input_is_held_at_the_lifetime_of_the_field_it_lands_in() {
+    let callee = |stored: &str| format!("machine poke<'r>(h:@mutable Holder<'r>, s:{stored}) {{$h=Holder{{r:s}};}}");
+    let regions = |package: &LoweredPackage| {
+        package
+            .machines
+            .iter()
+            .find(|machine| machine.declaration.path == "poke")
+            .expect("poke has a body")
+            .regions
+            .clone()
+    };
+    let holder = omega_lowering::AggregateRegionSlot { parameter: 0, binder: 0 };
+
+    let named = lower(&format!("{HOLDER} {}", callee("@'r u8")));
+    assert_eq!(
+        regions(&named),
+        [omega_lowering::MachineRegion {
+            reference_parameters: vec![1],
+            aggregate_parameters: vec![holder],
+            ..Default::default()
+        }]
+    );
+    assert!(body(&named, "poke").lifetime_bindings.is_empty());
+
+    let forward = "machine forward(first:@u8,second:@u8) suspends {let mutable h=Holder{r:first};poke(@mutable h, second);suspend wait()}";
+    let unnamed = lower(&format!("{HOLDER} {} {forward}", callee("@u8")));
+    assert_eq!(
+        regions(&unnamed),
+        [omega_lowering::MachineRegion {
+            aggregate_parameters: vec![holder],
+            ..Default::default()
+        }]
+    );
+    let poke = body(&unnamed, "poke");
+    assert_eq!(poke.lifetime_bindings, [(formal(poke, 1), 0)]);
+    let r = &["Holder::r"][..];
+    let expected = vec![d(r, vec![o(0, "poke#0", r, 0), o(0, "f0", &[], 0)])];
+    assert_eq!(writer_summary(&unnamed, "forward"), expected);
+    assert_eq!(replayed_summary(&unnamed, "forward"), Ok(expected));
+}
+
+/// A construction that writes no lifetime takes the one its initializer is
+/// already at. In `let x = h.r; let g = Holder { r: x };` the local `x` is at
+/// the lifetime typing inferred for `h`, and `g` takes it. In
+/// `Holder { r: x.r }` the read is at the region `'r` of the formal `x`, and
+/// the local record takes that. Typing records the landing it made before it
+/// chose, against a lifetime no type keeps. Lowering names no inferred
+/// lifetime, and the value is already at the record's, so it publishes no
+/// binding: each field holds the reborrow the read formed, through the stored
+/// loan it read.
+#[test]
+fn an_initializer_already_at_a_lifetime_gives_its_record_that_lifetime() {
+    let establishments = |f: &MachineBody| -> Vec<CallArgument> {
+        f.operations
+            .iter()
+            .filter_map(|op| match &op.kind {
+                OperationKind::EstablishRecord { fields } => Some(fields[0].operand.clone()),
+                _ => None,
+            })
+            .collect()
+    };
+    let reborrows = |f: &MachineBody| -> Vec<(PlaceId, PlaceId, Vec<String>)> {
+        f.operations
+            .iter()
+            .filter_map(|op| match (&op.kind, op.result) {
+                (
+                    OperationKind::BorrowPlace {
+                        source,
+                        access: ReferenceAccess::Shared,
+                    },
+                    OperationResult::Structural(descriptor),
+                ) => Some((descriptor, source.root, spell(&source.path))),
+                _ => None,
+            })
+            .collect()
+    };
+
+    let local = lower(&format!(
+        "{HOLDER} machine forward(first:@u8,second:@u8) suspends {{let mutable h=Holder{{r:first}};let x=h.r;h.r=second;let g=Holder{{r:x}};suspend wait()}}"
+    ));
+    let f = body(&local, "forward");
+    let [home] = f.mutable_homes[..] else { panic!("one writable home") };
+    let [(x, lender, path)] = &reborrows(f)[..] else {
+        panic!("one read of h.r")
+    };
+    assert_eq!((*lender, path.as_slice()), (home, &["Holder::r".to_string(), "*".to_string()][..]));
+    assert_eq!(
+        establishments(f),
+        [CallArgument::CopyWhole(formal(f, 0)), CallArgument::CopyWhole(*x)]
+    );
+    assert!(f.lifetime_bindings.is_empty() && f.call_regions.is_empty());
+
+    let incoming = lower(&format!(
+        "data Cell<'r>{{r:@'r u8;}} {HOLDER} machine forward<'r>(x:Cell<'r>) suspends {{let h=Holder{{r:x.r}};suspend wait()}}"
+    ));
+    let f = body(&incoming, "forward");
+    let [(read, lender, path)] = &reborrows(f)[..] else {
+        panic!("one read of x.r")
+    };
+    assert_eq!((*lender, path.as_slice()), (formal(f, 0), &["Cell::r".to_string(), "*".to_string()][..]));
+    assert_eq!(establishments(f), [CallArgument::CopyWhole(*read)]);
+    // The read is at `'r` by the formal's slot, so nothing is bound here.
+    assert!(f.lifetime_bindings.is_empty());
+    let forward = incoming
+        .machines
+        .iter()
+        .find(|machine| machine.declaration.path == "forward")
+        .expect("forward has a body");
+    assert_eq!(
+        forward.regions,
+        [omega_lowering::MachineRegion {
+            aggregate_parameters: vec![omega_lowering::AggregateRegionSlot { parameter: 0, binder: 0 }],
+            ..Default::default()
+        }]
+    );
+}
+
 /// The record does not depend on what the callee is or returns: an empty
 /// unit machine, a scalar result, a result that can keep the loan, a second
 /// writable operand, a boundary member and a selected local member each
@@ -1293,29 +1425,29 @@ fn every_kind_of_callee_publishes_the_same_writer() {
             same("poke"),
         ),
         (
-            format!("{HOLDER} machine poke(h:@mutable Holder)->u8 {{1u8}} {f2} {{let mutable h=Holder{{r:first}};let n=poke(@mutable h);suspend wait()}}"),
+            format!("{HOLDER} machine poke<'r>(h:@mutable Holder<'r>)->u8 {{1u8}} {f2} {{let mutable h=Holder{{r:first}};let n=poke(@mutable h);suspend wait()}}"),
             same("poke"),
         ),
         (
-            format!("{HOLDER} machine keep(h:@mutable Holder)->@mutable Holder {{h}} {f2} {{let mutable h=Holder{{r:first}};let m=keep(@mutable h);suspend wait()}}"),
+            format!("{HOLDER} machine keep<'r>(h:@mutable Holder<'r>)->@mutable Holder<'r> {{h}} {f2} {{let mutable h=Holder{{r:first}};let m=keep(@mutable h);suspend wait()}}"),
             same("keep"),
         ),
         (
             format!(
-                "{HOLDER} data Sink{{v:u8;}} machine poke(h:@mutable Holder, s:@mutable Sink) {{}} {f2} {{let mutable h=Holder{{r:first}};let mutable s=Sink{{v:1u8}};poke(@mutable h, @mutable s);suspend wait()}}"
+                "{HOLDER} data Sink{{v:u8;}} machine poke<'r>(h:@mutable Holder<'r>, s:@mutable Sink) {{}} {f2} {{let mutable h=Holder{{r:first}};let mutable s=Sink{{v:1u8}};poke(@mutable h, @mutable s);suspend wait()}}"
             ),
             same("poke"),
         ),
         (
             format!(
-                "{HOLDER} boundary trait Sink {{ machine poke(h:@mutable Holder) reaches Sink crashes none; }} machine forward(first:@u8,second:@u8) suspends reaches Sink {{let mutable h=Holder{{r:first}};Sink::poke(@mutable h);suspend wait()}}"
+                "{HOLDER} boundary trait Sink {{ machine poke<'r>(h:@mutable Holder<'r>) reaches Sink crashes none; }} machine forward(first:@u8,second:@u8) suspends reaches Sink {{let mutable h=Holder{{r:first}};Sink::poke(@mutable h);suspend wait()}}"
             ),
             same("member"),
         ),
     ];
     writers_agree("forward", &cases);
     let local = format!(
-        "{HOLDER} trait Poke {{ machine poke(h:@mutable Holder); }} machine p(h:@mutable Holder) {{}} Local satisfies Poke {{ Poke::poke=p; }} machine use_it<const E:Poke>(first:@u8) suspends {{let mutable h=Holder{{r:first}};E::poke(@mutable h);suspend wait()}} {f2} {{suspend use_it::<Local>(first)}}"
+        "{HOLDER} trait Poke {{ machine poke<'r>(h:@mutable Holder<'r>); }} machine p<'r>(h:@mutable Holder<'r>) {{}} Local satisfies Poke {{ Poke::poke=p; }} machine use_it<const E:Poke>(first:@u8) suspends {{let mutable h=Holder{{r:first}};E::poke(@mutable h);suspend wait()}} {f2} {{suspend use_it::<Local>(first)}}"
     );
     writers_agree("use_it", &[(local, same("member"))]);
 }
@@ -1332,8 +1464,8 @@ fn every_kind_of_callee_publishes_the_same_writer() {
 #[test]
 fn a_named_writable_loan_is_a_possible_writer_until_a_store_replaces_it() {
     let f2 = "machine forward(first:@u8,second:@u8) suspends";
-    let f3 = "machine forward(first:@u8,second:@u8,c:bool) suspends";
-    let keep = "machine keep(h:@mutable Holder) {}";
+    let f3 = "machine forward<'a>(first:@'a u8,second:@'a u8,c:bool) suspends";
+    let keep = "machine keep<'r>(h:@mutable Holder<'r>) {}";
     let r = &["Holder::r"][..];
     let cases = vec![
         (
@@ -1350,7 +1482,7 @@ fn a_named_writable_loan_is_a_possible_writer_until_a_store_replaces_it() {
         ),
         (
             format!(
-                "{HOLDER} {keep} {f3} {{let mutable h=Holder{{r:first}};let mutable g=Holder{{r:second}};let m=match c {{true -> @mutable h, false -> @mutable g,}};keep(m);suspend wait()}}"
+                "{HOLDER} {keep} {f3} {{let mutable h=Holder::<'a>{{r:first}};let mutable g=Holder::<'a>{{r:second}};let m=match c {{true -> @mutable h, false -> @mutable g,}};keep(m);suspend wait()}}"
             ),
             vec![
                 d(r, vec![o(1, "borrow", r, 0), o(1, "f0", &[], 0), o(1, "f0", &[], 0)]),
@@ -1443,7 +1575,7 @@ fn the_arrival_reader_rejects_a_changed_writer() {
     let f2 = "machine forward(first:@u8,second:@u8) suspends";
     let call = format!("{HOLDER} {POKE} {f2} {{let mutable h=Holder{{r:first}};poke(@mutable h);suspend wait()}}");
     let twice = format!("{HOLDER} {POKE} {f2} {{let mutable h=Holder{{r:first}};poke(@mutable h);poke(@mutable h);suspend wait()}}");
-    let named = format!("{HOLDER} machine keep(h:@mutable Holder) {{}} {f2} {{let mutable h=Holder{{r:first}};let m=@mutable h;keep(m);suspend wait()}}");
+    let named = format!("{HOLDER} machine keep<'r>(h:@mutable Holder<'r>) {{}} {f2} {{let mutable h=Holder{{r:first}};let m=@mutable h;keep(m);suspend wait()}}");
     let rows = |text: &str, change: &dyn Fn(&mut Vec<EmbeddedLoanOrigin>)| {
         let mut package = lower(text);
         change(origins_mut(&mut package));
@@ -1607,7 +1739,7 @@ fn a_parked_window_names_only_its_own_lender() {
 #[test]
 fn a_match_of_two_field_transfers_names_each_origin_and_no_single_one() {
     let package =
-        lower("data Leaf{v:u8;} data Node{next:@mutable Leaf;} machine read(c:bool, x:Node, y:Node)->@mutable Leaf{match c {true -> x.next, false -> y.next,}}");
+        lower("data Leaf{v:u8;} data Node<'r>{next:@'r mutable Leaf;} machine read<'r>(c:bool, x:Node<'r>, y:Node<'r>)->@'r mutable Leaf{match c {true -> x.next, false -> y.next,}}");
     let f = body(&package, "read");
     let (x, y) = (formal(f, 1), formal(f, 2));
     let returns: Vec<_> = f
@@ -1673,8 +1805,8 @@ const DEEPEST: &str = "data T{v:u8;} data Leaf{v:u8; t:T;}";
 /// once and the write-only path never extracts the displaced storage.
 #[test]
 fn a_structural_store_takes_its_operation_from_the_deepest_loan() {
-    for parent in ["Node", "@mutable Node"] {
-        let text = format!("{DEEPEST} data Node{{next:@write Leaf;}} machine f(x:{parent}){{ x.next.t = T{{v:1u8}}; }}");
+    for parent in ["Node<'r>", "@mutable Node<'r>"] {
+        let text = format!("{DEEPEST} data Node<'r>{{next:@'r write Leaf;}} machine f<'r>(x:{parent}){{ x.next.t = T{{v:1u8}}; }}");
         let mut pkg = lower(&text);
         let f = body(&pkg, "f");
         assert!(borrowed_moves(f).is_empty());
@@ -1685,7 +1817,7 @@ fn a_structural_store_takes_its_operation_from_the_deepest_loan() {
         let [written] = observed.as_slice() else { panic!("one write") };
         spec_corpus::observe_handoff!(psi "psi-output/write-only-affine-replacement", assert_eq!(
             (written.crossing, written.field.as_ref().map(|field| field.path.as_str()), written.formal),
-            (if parent == "Node" { 1 } else { 2 }, Some("Leaf::t"), 0),
+            (if parent == "Node<'r>" { 1 } else { 2 }, Some("Leaf::t"), 0),
         ));
         let schema = pkg.data.iter_mut().find(|row| row.declaration.path == "T").unwrap();
         schema.write_only_cleanup = None;
@@ -1741,9 +1873,9 @@ fn replacing_a_copy_record_through_a_write_only_loan_preserves_its_value_and_des
 
 #[test]
 fn an_intact_structural_write_keeps_every_crossing_to_the_destination() {
-    const TYPES: &str = "data C [copy]{v:u8;} data Leaf{c:C;} data Node{next:@write Leaf;}";
-    for (parent, crossing) in [("Node", false), ("@mutable Node", true)] {
-        let text = format!("{TYPES} machine f(x:{parent},n:C){{x.next.c=n;}}");
+    const TYPES: &str = "data C [copy]{v:u8;} data Leaf{c:C;} data Node<'r>{next:@'r write Leaf;}";
+    for (parent, crossing) in [("Node<'r>", false), ("@mutable Node<'r>", true)] {
+        let text = format!("{TYPES} machine f<'r>(x:{parent},n:C){{x.next.c=n;}}");
         let package = lower(&text);
         let f = body(&package, "f");
         let [(place, disposition)] = stores(f)[..] else { panic!("one intact store") };
@@ -1781,8 +1913,8 @@ fn an_intact_copy_replacement_walks_the_stored_schema() {
 #[test]
 fn replacing_a_copy_value_can_still_require_descriptor_cleanup() {
     for text in [
-        "data C [copy]{r:@u8;} data Leaf{c:C;} machine f(x:@write Leaf,n:C){ x.c=n; }",
-        "data C [copy]{case Plain(v:u8);case Held(r:@u8);} data Leaf{c:C;} machine f(x:@write Leaf){ x.c=C::Plain{v:1u8}; }",
+        "data C<'r> [copy]{r:@'r u8;} data Leaf<'r>{c:C<'r>;} machine f<'r>(x:@write Leaf<'r>,n:C<'r>){ x.c=n; }",
+        "data C<'r> [copy]{case Plain(v:u8);case Held(r:@'r u8);} data Leaf<'r>{c:C<'r>;} machine f<'r>(x:@write Leaf<'r>){ x.c=C::Plain{v:1u8}; }",
     ] {
         let mut pkg = lower(text);
         let f = body(&pkg, "f");

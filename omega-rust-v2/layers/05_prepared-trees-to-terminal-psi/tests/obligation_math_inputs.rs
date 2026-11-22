@@ -388,29 +388,48 @@ fn a_universe_membership_in_a_signature_is_the_applied_argument_and_the_template
 
 /// The signature supplies the closed actuals. The field selects the next
 /// application by referring to the two binders in declaration order or in reverse.
+///
+/// The stored reference names its lifetime, so `Link` declares `'r` before its
+/// two type binders and every application writes a lifetime first. That
+/// lifetime selects nothing and keeps its position: binder 0 of the template,
+/// argument 0 of the field's referent and of the formal's application, and
+/// the one lifetime binder of `pick`, which has no bound.
 #[test]
 fn recursive_field_substitution_preserves_the_next_closed_application() {
     let byte = ScalarType::Integer { signed: false, width: 8 };
     let typed_byte = ValueType::Integer { signed: false, width: Some(8) };
     for (field_args, use_args, actuals, slots, successor) in [
-        ("B,A", "u8,bool", [byte, ScalarType::Boolean], [1, 0], Some([ValueType::Bool, typed_byte.clone()])),
-        ("B,A", "bool,u8", [ScalarType::Boolean, byte], [1, 0], Some([typed_byte, ValueType::Bool])),
-        ("A,B", "u8,bool", [byte, ScalarType::Boolean], [0, 1], None),
+        ("B,A", "u8,bool", [byte, ScalarType::Boolean], [2, 1], Some([ValueType::Bool, typed_byte.clone()])),
+        ("B,A", "bool,u8", [ScalarType::Boolean, byte], [2, 1], Some([typed_byte, ValueType::Bool])),
+        ("A,B", "u8,bool", [byte, ScalarType::Boolean], [1, 2], None),
     ] {
-        let applied = format!("Link<{use_args}>");
-        let source = format!(r"data Link<A:core\Type<0>,B:core\Type<0>>{{next:@Link<{field_args}>;}} boundary let pick(x:{applied}):u8;");
+        let applied = format!("Link<'r,{use_args}>");
+        let source = format!(r"data Link<'r,A:core\Type<0>,B:core\Type<0>>{{next:@'r Link<'r,{field_args}>;}} boundary let pick<'r>(x:{applied}):u8;");
         let lowered = pipeline::lower(&source);
         let pick = mathematics(&lowered, "pick");
         let [template] = lowered.package.data_templates.as_slice() else { panic!("expected Link") };
         assert_eq!(template.declaration.path, "Link");
-        let head = Ty::Named { declaration: template.declaration.clone(), argument_count: 2 };
+        assert!(
+            matches!(template.parameters.as_slice(), [TemplateBinder::Lifetime, TemplateBinder::Kinded(_), TemplateBinder::Kinded(_)]),
+            "{:?}",
+            template.parameters
+        );
+        let head = Ty::Named { declaration: template.declaration.clone(), argument_count: 3 };
         let [first, second] = actuals.map(Ty::Scalar);
-        assert_eq!(pick.signature.0, [first, second, head.clone(), Ty::Scalar(byte), Ty::Function]);
+        // `pick<'r>` declares the lifetime its formal applies `Link` at. It is
+        // the telescope's binder 0 and has no bound.
+        let applied_at = Ty::GenericParameter { owner: pick.declaration.clone(), index: 0 };
+        assert_eq!((pick.lifetime_count, pick.generic_bounds.len()), (1, 0));
+        assert_eq!(pick.signature.0, [applied_at, first, second, head.clone(), Ty::Scalar(byte), Ty::Function]);
 
         let [field] = template.fields.as_slice() else { panic!("expected the recursive field") };
         assert_eq!(field.declaration.path, "Link::next");
         let [first, second] = slots.map(|index| Ty::GenericParameter { owner: template.declaration.clone(), index });
-        assert_eq!(field.ty.0, [first, second, head, Ty::Reference(omega_psi::TemplateAccess::Shared)]);
+        let held_at = Ty::GenericParameter { owner: template.declaration.clone(), index: 0 };
+        assert_eq!(
+            field.ty.0,
+            [held_at.clone(), first, second, head, Ty::Reference(omega_psi::TemplateAccess::Shared), held_at, Ty::AtLifetime]
+        );
 
         let rows = lowered.obligations("FormRecursiveApplication");
         let Some(expected) = successor else {
@@ -422,7 +441,10 @@ fn recursive_field_substitution_preserves_the_next_closed_application() {
         assert_eq!(lowered.spelling(&row.site), applied);
         let ObligationKind::FormRecursiveApplication { declaration, arguments, .. } = &row.kind else { unreachable!() };
         assert_eq!((&declaration.package, &declaration.path), (&template.declaration.package, &template.declaration.path));
-        assert_eq!(arguments.as_slice(), expected);
+        // The next application keeps the lifetime `pick` applied, then the two actuals in the field's order.
+        let [lifetime, successor @ ..] = arguments.as_slice() else { panic!("expected the lifetime argument first") };
+        assert!(matches!(lifetime, ValueType::Parameter { owner, index: 0 } if owner.path == "pick"), "{lifetime:?}");
+        assert_eq!(successor, expected);
     }
     observed("obligation-output/recursive-field-substitution");
 }

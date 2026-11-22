@@ -77,7 +77,8 @@ pub struct MemberCallSelection {
     pub restriction: Option<crate::TemplateRequirementSlot>,
     pub owner: crate::TemplateRequirementSlot,
     pub requirement: crate::TemplateRequirementSlot,
-    /// The requirement's own closed arguments, one per binder in declaration order.
+    /// The requirement's closed static arguments in declaration order. A region-only
+    /// requirement has one selection and records its arguments at each call in `CallRegions`.
     /// A type argument is a type term; a static value keeps its carrier and canonical value.
     /// A value index of a runtime-indexed requirement is supplied here, not as an operand.
     pub static_arguments: Vec<crate::DeclarationTerm>,

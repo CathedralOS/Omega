@@ -18,6 +18,17 @@ pub(crate) trait TypeRelations: Sized {
         operand: &Self,
     ) -> bool;
     fn supports_closed_snapshot(&self) -> bool;
+    /// The reference this value supplies to a destination that names no
+    /// lifetime. A reference held at a region lands there as that reference:
+    /// an elided input mints its own binder at each call, and an elided result
+    /// takes the relation its signature fixes (lifetimes.md, "Returned
+    /// views"). Only the landing reference itself gives up its region. A
+    /// region inside its referent or inside an aggregate is part of the type,
+    /// and one region never lands at another through this.
+    fn reference_for_elided_lifetime(
+        &self,
+        destination: &Self,
+    ) -> Option<&Self>;
 }
 
 impl TypeRelations for ValueType {
@@ -83,6 +94,15 @@ impl TypeRelations for ValueType {
             self.carrier(),
             Self::Bool | Self::Array(..) | Self::IndexedArray(..) | Self::Nominal(_) | Self::Applied(..)
         )
+    }
+    fn reference_for_elided_lifetime(
+        &self,
+        destination: &Self,
+    ) -> Option<&Self> {
+        match (self, destination) {
+            (Self::AtLifetime(reference, _), Self::Reference(..)) => Some(reference),
+            _ => None,
+        }
     }
 }
 

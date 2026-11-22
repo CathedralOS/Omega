@@ -2,7 +2,7 @@ use super::destination::Destination;
 use crate::evaluation::check_static_indices::IndexEvaluations;
 use crate::expressions::body_typer::{BodyTyper, ExpressionContext};
 use crate::type_error::SourceTypeError;
-use crate::type_relations::CallableContract;
+use crate::type_relations::{CallableContract, TypeRelations};
 use crate::type_system::dependent_subjects::DependentSubjects;
 use crate::type_system::substitution::TypeInference;
 use crate::{Access, ObligationKind, Site, TypeError, ValueType};
@@ -160,7 +160,22 @@ impl BodyTyper<'_, '_> {
             return (*access != Access::Mut || self.require_place_access(operand.node, access).is_ok())
                 && inner.infer_with(&operand.value, id, bindings, compare_pending);
         }
-        formal.infer_with(&operand.value, id, bindings, compare_pending)
+        // A reference held at a region matches a formal that names no lifetime,
+        // as `land_value` then lands it. A formal that is a type binder still
+        // receives the reference together with its region.
+        let actual = operand.value.reference_for_elided_lifetime(formal).unwrap_or(&operand.value);
+        // The other direction: a reference that names no lifetime matches the
+        // reference a formal holds at one, as `second` does for `s` in
+        // `poke<'r>(h: @mutable Holder<'r>, s: @'r u8)`. Access and referent
+        // must agree. The operand says nothing about `'r`, so it binds nothing
+        // here: another operand, the result or a written argument supplies the
+        // region, and `land_value` then binds this operand to it. A call where
+        // nothing supplies it still fails to infer its arguments, and a
+        // reference at a different named lifetime still does not match.
+        if let (ValueType::Reference(..), ValueType::AtLifetime(held, _)) = (actual, formal) {
+            return held.infer_with(actual, id, bindings, compare_pending);
+        }
+        formal.infer_with(actual, id, bindings, compare_pending)
     }
 
     pub(super) fn admit_argument(

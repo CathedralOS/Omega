@@ -284,9 +284,9 @@ fn omitted_structural_fields_receive_the_zero_of_their_declared_type() {
 /// zero need a borrow that `..` never supplies, and the literal is refused.
 #[test]
 fn a_sum_zero_establishes_only_its_first_case_and_never_a_reference() {
-    let inactive = "data Slot{case Empty; case Held(at:@u8);}
-data Plan{id:u8; first:Slot;}
-machine build(id:u8){let plan=Plan{id:id,..};}";
+    let inactive = "data Slot<'r>{case Empty; case Held(at:@'r u8);}
+data Plan<'r>{id:u8; first:Slot<'r>;}
+machine build<'r>(id:u8){let plan=Plan::<'r>{id:id,..};}";
     let package = sources::lower(&[(FILE, inactive)]).unwrap_or_else(|error| panic!("the inactive reference lowers: {} at {:?}", error.message, error.site));
     let body = machine_body(&package, "build");
     let slot = schema(&package, "Slot");
@@ -296,17 +296,17 @@ machine build(id:u8){let plan=Plan{id:id,..};}";
     }).collect();
     assert_eq!(cases, [("Slot::Empty", 0, slot.carrier)]);
 
-    let active = inactive.replace("case Empty; case Held(at:@u8);", "case Held(at:@u8); case Empty;");
+    let active = inactive.replace("case Empty; case Held(at:@'r u8);", "case Held(at:@'r u8); case Empty;");
     sources::refuse_with_cli_message(
         &[(FILE, &active)],
         FILE,
-        sources::unique_span(&active, LITERAL),
-        "omitted field `Plan::first` of type `app\\Slot` needs a borrowed reference for `Slot::Held::at`, which `..` never supplies",
-        "omitted field `Plan::first` of type `root\\Slot` needs a borrowed reference for `Slot::Held::at`, which `..` never supplies",
+        sources::unique_span(&active, "Plan::<'r>{id:id,..}"),
+        "omitted field `Plan::first` of type `app\\Slot<app\\build<parameter 0>>` needs a borrowed reference for `Slot::Held::at`, which `..` never supplies",
+        "omitted field `Plan::first` of type `root\\Slot<root\\build<parameter 0>>` needs a borrowed reference for `Slot::Held::at`, which `..` never supplies",
     );
 
     // With a scalar in the same payload the first case is established from its zero.
-    let scalar = active.replace("at:@u8", "at:u8");
+    let scalar = active.replace("at:@'r u8", "at:u8");
     let package = sources::lower(&[(FILE, &scalar)]).unwrap_or_else(|error| panic!("the scalar payload lowers: {} at {:?}", error.message, error.site));
     let body = machine_body(&package, "build");
     let held: Vec<_> = body.operations.iter().filter_map(|op| match &op.kind {
@@ -325,26 +325,26 @@ machine build(id:u8){let plan=Plan{id:id,..};}";
 /// The refusal names the omitted field and the field that needs the borrow.
 #[test]
 fn a_reference_below_an_omitted_field_refuses_at_the_literal() {
-    let nested = "data Reach{at:@u8; n:u64;}
-data Plan{id:u8; reach:Reach;}
-machine build(id:u8){let plan=Plan{id:id,..};}";
+    let nested = "data Reach<'r>{at:@'r u8; n:u64;}
+data Plan<'r>{id:u8; reach:Reach<'r>;}
+machine build<'r>(id:u8){let plan=Plan::<'r>{id:id,..};}";
     sources::refuse_with_cli_message(
         &[(FILE, nested)],
         FILE,
-        sources::unique_span(nested, LITERAL),
-        "omitted field `Plan::reach` of type `app\\Reach` needs a borrowed reference for `Reach::at`, which `..` never supplies",
-        "omitted field `Plan::reach` of type `root\\Reach` needs a borrowed reference for `Reach::at`, which `..` never supplies",
+        sources::unique_span(nested, "Plan::<'r>{id:id,..}"),
+        "omitted field `Plan::reach` of type `app\\Reach<app\\build<parameter 0>>` needs a borrowed reference for `Reach::at`, which `..` never supplies",
+        "omitted field `Plan::reach` of type `root\\Reach<root\\build<parameter 0>>` needs a borrowed reference for `Reach::at`, which `..` never supplies",
     );
-    let element = nested.replace("reach:Reach;", "reaches:[Reach;2];");
+    let element = nested.replace("reach:Reach<'r>;", "reaches:[Reach<'r>;2];");
     sources::refuse_with_cli_message(
         &[(FILE, &element)],
         FILE,
-        sources::unique_span(&element, LITERAL),
-        "omitted field `Plan::reaches` of type `[app\\Reach; 2]` needs a borrowed reference for `Reach::at`, which `..` never supplies",
-        "omitted field `Plan::reaches` of type `[root\\Reach; 2]` needs a borrowed reference for `Reach::at`, which `..` never supplies",
+        sources::unique_span(&element, "Plan::<'r>{id:id,..}"),
+        "omitted field `Plan::reaches` of type `[app\\Reach<app\\build<parameter 0>>; 2]` needs a borrowed reference for `Reach::at`, which `..` never supplies",
+        "omitted field `Plan::reaches` of type `[root\\Reach<root\\build<parameter 0>>; 2]` needs a borrowed reference for `Reach::at`, which `..` never supplies",
     );
     // Changing only the referenced field to a scalar lets the same literal lower.
-    let scalar = nested.replace("at:@u8", "at:u8");
+    let scalar = nested.replace("at:@'r u8", "at:u8");
     let package = sources::lower(&[(FILE, &scalar)]).unwrap_or_else(|error| panic!("the scalar twin lowers: {} at {:?}", error.message, error.site));
     let body = machine_body(&package, "build");
     let reach = schema(&package, "Reach");

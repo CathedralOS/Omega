@@ -5,7 +5,10 @@ use omega_syntax::NodeKind;
 use omega_typed::{GenericParameters, TypedSignature, TypedTree, TypedTrees, ValueType};
 
 /// The region belongs to this declaration, not merely a binder at the same
-/// position. Only direct place references have a slot mapping here.
+/// position. Only direct place references have a slot mapping here. A place
+/// reference held at any other region, such as one typing inferred for a
+/// local record, has the same type row and no ordinal
+/// (`lowering::types::held_reference`).
 pub(crate) fn direct<'a>(
     ty: &'a ValueType,
     machine: &DeclarationId,
@@ -38,6 +41,18 @@ fn names_binder(
     owner: &DeclarationId,
 ) -> bool {
     ty.components().any(|part| binder(part, owner).is_some())
+}
+
+/// Whether `ty` names one of the first `count` binders of `owner`, which are
+/// its lifetimes. A record such as `Link<'r, const N: u64>` declares a const
+/// binder after them, and `value: u<N>` names that one alone: it stores no
+/// region.
+fn names_region(
+    ty: &ValueType,
+    owner: &DeclarationId,
+    count: usize,
+) -> bool {
+    ty.components().any(|part| binder(part, owner).is_some_and(|index| index < count))
 }
 
 /// The shared view of `ty` when `ty` is that view at a region binder of
@@ -82,7 +97,17 @@ pub(crate) fn parameter_carries(
 /// `@Bytes<'t>` with no lifetime on the reference, or `@'t mutable Bytes<'t>`,
 /// remains a data template. Imported declarations are judged in
 /// their defining package before a caller uses their region slots.
-pub(crate) struct RegionData<'a>(Vec<(&'a DeclarationId, usize)>);
+///
+/// `indexed` lists the records and sums that take lifetimes and then type or
+/// const binders, such as `Link<'r, const N: u64>`, with the lifetime count
+/// and the whole arity. Such a declaration has no row of its own. Each closed
+/// application of it has one (`lowering::applied_data`), chosen by the type
+/// and const arguments alone, so the leading lifetime arguments of
+/// `Link<'r, 3>` are regions exactly as the arguments of `Schema<'t>` are.
+pub(crate) struct RegionData<'a> {
+    rows: Vec<(&'a DeclarationId, usize)>,
+    indexed: Vec<(&'a DeclarationId, usize, usize)>,
+}
 
 impl<'a> RegionData<'a> {
     /// Judge every data declaration of `trees`, whose typed facts are in
@@ -122,8 +147,46 @@ impl<'a> RegionData<'a> {
             .collect();
         rows.sort_unstable();
         rows.dedup();
+        let mut indexed: Vec<(&'a DeclarationId, usize, usize)> = trees
+            .iter()
+            .flat_map(|tree| tree.resolved().declaration_nodes())
+            .filter(|(_, declaration)| declaration.kind == NodeKind::Data)
+            .filter(|(_, declaration)| {
+                !forest.type_alias_targets.contains_key(declaration)
+                    && forest
+                        .enclosing_data_parameters
+                        .get(declaration)
+                        .is_none_or(Vec::is_empty)
+            })
+            .filter_map(|(_, declaration)| {
+                let telescope = forest
+                    .generic_parameters
+                    .get(declaration)
+                    .filter(|t| t.witness_count == 0 && t.equations.is_empty())?;
+                // The lifetimes come first, as an application writes them, so
+                // the first `lifetimes` arguments of every application are its
+                // regions and nothing else is.
+                let lifetimes = telescope
+                    .parameters
+                    .iter()
+                    .take_while(|p| p.kind == NodeKind::LifetimeParam)
+                    .count();
+                let arity = telescope.parameters.len();
+                (lifetimes != 0
+                    && lifetimes != arity
+                    && telescope.parameters[lifetimes..]
+                        .iter()
+                        .all(|p| p.kind != NodeKind::LifetimeParam))
+                .then_some((declaration, lifetimes, arity))
+            })
+            .collect();
+        indexed.sort_unstable();
+        indexed.dedup();
         loop {
-            let judged = Self(rows.clone());
+            let judged = Self {
+                rows: rows.clone(),
+                indexed: indexed.clone(),
+            };
             rows.retain(|&(declaration, lifetimes)| {
                 let payloads = forest
                     .case_owners
@@ -136,8 +199,8 @@ impl<'a> RegionData<'a> {
                     .flat_map(|fields| fields.iter())
                     .all(|field| stored(&field.ty, declaration, lifetimes, &judged).is_some())
             });
-            if rows.len() == judged.0.len() {
-                return Self(rows);
+            if rows.len() == judged.rows.len() {
+                return Self { rows, indexed };
             }
         }
     }
@@ -150,11 +213,15 @@ impl<'a> RegionData<'a> {
         &self,
         other: &Self,
     ) -> Self {
-        let mut rows = self.0.clone();
-        rows.extend(&other.0);
+        let mut rows = self.rows.clone();
+        rows.extend(&other.rows);
         rows.sort_unstable();
         rows.dedup();
-        Self(rows)
+        let mut indexed = self.indexed.clone();
+        indexed.extend(&other.indexed);
+        indexed.sort_unstable();
+        indexed.dedup();
+        Self { rows, indexed }
     }
 
     pub(crate) fn contains(
@@ -169,20 +236,40 @@ impl<'a> RegionData<'a> {
         declaration: &DeclarationId,
     ) -> Option<usize> {
         let row = self
-            .0
+            .rows
             .binary_search_by(|(listed, _)| (*listed).cmp(declaration))
             .ok()?;
-        Some(self.0[row].1)
+        Some(self.rows[row].1)
+    }
+
+    /// The number of leading lifetime binders of `declaration` when it also
+    /// takes type or const binders, and its whole arity.
+    pub(crate) fn indexed_lifetimes(
+        &self,
+        declaration: &DeclarationId,
+    ) -> Option<(usize, usize)> {
+        let row = self
+            .indexed
+            .binary_search_by(|(listed, _, _)| (*listed).cmp(declaration))
+            .ok()?;
+        Some((self.indexed[row].1, self.indexed[row].2))
     }
 
     /// The lifetime arguments of `ty` when it is one of these declarations
-    /// applied to exactly its lifetime binders.
+    /// applied to exactly its binders: every argument of a lifetime-only
+    /// declaration, and the leading ones of a declaration that then takes
+    /// type or const arguments. The declaration says how many those are; an
+    /// argument is never taken for a region by what it looks like.
     pub(crate) fn lifetime_arguments<'t>(
         &self,
         ty: &'t ValueType,
     ) -> Option<&'t [ValueType]> {
         let ValueType::Applied(owner, arguments) = ty else { return None };
-        (self.binders(owner)? == arguments.len()).then_some(arguments.as_slice())
+        if let Some(lifetimes) = self.binders(owner) {
+            return (lifetimes == arguments.len()).then_some(arguments.as_slice());
+        }
+        let (lifetimes, arity) = self.indexed_lifetimes(owner)?;
+        (arity == arguments.len()).then(|| &arguments[..lifetimes])
     }
 }
 
@@ -215,7 +302,7 @@ pub(crate) fn stored<'t>(
     count: usize,
     data: &RegionData<'_>,
 ) -> Option<Stored<'t>> {
-    if !names_binder(ty, owner) {
+    if !names_region(ty, owner, count) {
         return Some(Stored::Plain);
     }
     // Each argument of a stored record, or of the record a stored reference
@@ -237,7 +324,7 @@ pub(crate) fn stored<'t>(
         // reference to a record with a row has that form. The owner stores
         // the descriptor and forwards it whole; nothing here says a body may
         // read the borrows the referent holds.
-        let referent = if !names_binder(referent, owner) {
+        let referent = if !names_region(referent, owner, count) {
             Vec::new()
         } else if *access == omega_typed::Access::Shared {
             fills(referent)?
@@ -263,7 +350,7 @@ pub(crate) fn stored<'t>(
 /// parameter or result whose record this package lowers (`RegionData`). The
 /// result is those slots.
 ///
-/// A signature with an unsupported slot, such as `schema: @mutable Schema<'t>`, stays an
+/// A signature with an unsupported slot, such as `schema: @@Schema<'t>`, stays an
 /// open template, and the template planner judges it with its generic
 /// signature intact. It must not become a checked body whose carriers name an
 /// unapplied binder.
@@ -305,7 +392,9 @@ struct Slot<'t> {
     /// The value without that binder: the reference itself, or `ty`.
     held: &'t ValueType,
     /// The lifetime arguments, by binder, of the `RegionData` record the
-    /// value holds or refers to through one shared reference.
+    /// value holds or refers to through one reference. The reference's access
+    /// is in its type row; it changes which loan the value carries, not which
+    /// regions the record behind it is applied at.
     record: Option<&'t [ValueType]>,
 }
 
@@ -319,8 +408,13 @@ impl<'t> Slot<'t> {
             Some((index, reference)) => (Some(index), reference),
             None => (None, ty),
         };
+        // `poke<'r>(h: @mutable Holder<'r>)` names `'r` exactly as
+        // `look<'r>(h: @Holder<'r>)` does: binder 0 of the record its formal
+        // refers to. Whether a body may store through the exclusive loan is
+        // the checker's judgment on the store it makes, and a reference typing
+        // bound to `'r` there is listed in `MachineBody::lifetime_bindings`.
         let record = match held {
-            ValueType::Reference(omega_typed::Access::Shared, referent) => data.lifetime_arguments(referent),
+            ValueType::Reference(_, referent) => data.lifetime_arguments(referent),
             owned => data.lifetime_arguments(owned),
         };
         Self { reference, held, record }

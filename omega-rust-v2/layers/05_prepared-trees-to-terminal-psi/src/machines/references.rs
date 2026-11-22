@@ -10,28 +10,45 @@ pub(super) fn call_argument(
     formal: &ValueType,
     body: &MachineBody,
 ) -> Result<Option<CallArgument>, LoweringError> {
-    reference_operand(expressions, node, formal, body, None)
+    // A call names the regions it applies in its `CallRegions` row, and a
+    // borrow operand has no descriptor place to list in
+    // `MachineBody::lifetime_bindings`. So an operand that typing bound to a
+    // region binder of the calling machine has nowhere to publish that
+    // binding, and the call is refused.
+    let tree = expressions.tree;
+    let operand = tree.resolved().file.ungroup(node);
+    let declared = crate::declarations::regions::direct(formal, &expressions.signature.machine).is_some();
+    if declared && super::loans::binding_at(tree, operand, formal).is_some() {
+        return Err(LoweringError::new(
+            &site_at(tree, operand),
+            "a call operand bound to a declared region needs its binding",
+        ));
+    }
+    reference_operand(expressions, node, formal, body)
 }
 
-/// When forming a returned descriptor, consume the binding at the borrow
-/// itself, not merely a lifetime mentioned somewhere in the signature.
+/// The place a reference value at `node` lends, when the node names one: an
+/// explicit borrow, or an existing descriptor whose referent is lent.
+///
+/// `destination` is the type the value lands at: a callee's formal at the
+/// call's regions, or the type of the descriptor being formed. It may hold the
+/// reference at a lifetime, as in `first::<'u>(cell)`; the lent place is the
+/// same, and the region is the call's `CallRegions` argument or the
+/// descriptor's binding. Where typing bound the value to that lifetime, the
+/// node's own rows state the value's own type and this consumes that one
+/// binding (`loans::binding_at`). The caller publishes it.
 pub(super) fn reference_operand(
     expressions: &Expressions<'_>,
     node: usize,
-    formal: &ValueType,
+    destination: &ValueType,
     body: &MachineBody,
-    result_binding: Option<&ValueType>,
 ) -> Result<Option<CallArgument>, LoweringError> {
-    // A formal at one of the calling machine's regions, as in
-    // `first::<'u>(cell)`, lends the same place as its plain reference. The
-    // region is the call's `CallRegions` argument, not part of the place.
-    let stored = crate::declarations::regions::slot_carrier(formal, &expressions.signature.machine);
-    let Some((access, wanted)) = crate::lowering::types::place_reference(stored) else {
+    let Some((access, wanted)) = crate::lowering::types::place_reference(destination) else {
         return Ok(None);
     };
     let tree = expressions.tree;
     let file = tree.resolved().file;
-    let node = super::expressions::ungroup_place_value(tree, node, formal)?;
+    let node = super::expressions::ungroup_place_value(tree, node, destination)?;
     // Expressions that compute a descriptor must run in operand order. Only
     // an existing place or explicit borrow can name the referent immediately.
     if !matches!(
@@ -40,6 +57,9 @@ pub(super) fn reference_operand(
     ) {
         return Ok(None);
     }
+    let binding = super::loans::binding_at(tree, node, destination);
+    let formal = binding.map_or(destination, |bound| bound.reference);
+    let landing = binding.map(|bound| bound.destination);
     let expected_borrow = match access {
         crate::ReferenceAccess::Shared => Access::Shared,
         crate::ReferenceAccess::Mutable => Access::Mut,
@@ -52,8 +72,7 @@ pub(super) fn reference_operand(
         let occurrence = site_at(tree, operand);
         let mut typed = false;
         let mut borrowed = false;
-        let mut bound = false;
-        let mut returned = false;
+        let mut consumed = false;
         for record in tree.semantics_at(node) {
             match record {
                 NodeSemantics::Expression(e) if &e.ty == formal && e.static_argument_slot.is_none() => typed = true,
@@ -62,14 +81,12 @@ pub(super) fn reference_operand(
                 {
                     borrowed = true
                 }
-                NodeSemantics::Obligation(o) if !bound && matches!(&o.kind, ObligationKind::BindLifetime { reference, destination }
-                    if reference == formal && Some(destination) == result_binding) => bound = true,
-                NodeSemantics::Obligation(o) if matches!(&o.kind,ObligationKind::ReturnBorrow{machine} if machine==&expressions.signature.machine) => returned = true,
+                // The binding is consumed at the borrow itself, not merely
+                // through a lifetime mentioned somewhere in the signature.
+                NodeSemantics::Obligation(o) if !consumed && super::loans::is_binding(&o.kind, formal, landing) => consumed = true,
+                NodeSemantics::Obligation(o) if matches!(&o.kind,ObligationKind::ReturnBorrow{machine} if machine==&expressions.signature.machine) => {}
                 _ => return Err(LoweringError::new(&site_at(tree, node), "unsupported reference formation record")),
             }
-        }
-        if result_binding.is_some() && !(bound && returned) {
-            return Err(LoweringError::new(&site_at(tree, node), "returned reference lacks its region binding"));
         }
         if !typed || !borrowed {
             return Err(LoweringError::new(&site_at(tree, node), "shared borrow lacks its type or source obligation"));
@@ -80,7 +97,7 @@ pub(super) fn reference_operand(
         }
         place
     } else {
-        let (mut place, ty) = original_place(expressions, node, body)?;
+        let (mut place, ty) = project_place(expressions, node, body, PlaceUse::Original, landing)?;
         if ty != formal {
             return Err(LoweringError::new(&site_at(tree, node), "borrowed argument has the wrong reference type"));
         }
@@ -103,15 +120,18 @@ pub(super) fn original_place<'a>(
     node: usize,
     body: &MachineBody,
 ) -> Result<(ProjectedPlace, &'a ValueType), LoweringError> {
-    project_place(expressions, node, body, PlaceUse::Original)
+    project_place(expressions, node, body, PlaceUse::Original, None)
 }
 
+/// `landing` is the destination the moved value's lifetime binding names,
+/// when the caller consumes that binding at `node` (`loans::binding_at`).
 pub(super) fn move_place<'a>(
     expressions: &'a Expressions<'_>,
     node: usize,
     body: &MachineBody,
+    landing: Option<&ValueType>,
 ) -> Result<(ProjectedPlace, &'a ValueType), LoweringError> {
-    project_place(expressions, node, body, PlaceUse::Move)
+    project_place(expressions, node, body, PlaceUse::Move, landing)
 }
 
 fn project_place<'a>(
@@ -119,8 +139,9 @@ fn project_place<'a>(
     node: usize,
     body: &MachineBody,
     usage: PlaceUse,
+    landing: Option<&ValueType>,
 ) -> Result<(ProjectedPlace, &'a ValueType), LoweringError> {
-    let (root, path, ty) = select_place(expressions, node, body, usage)?;
+    let (root, path, ty) = select_place(expressions, node, body, usage, landing)?;
     let PlaceRoot::Bound(root) = root else {
         unreachable!("original places require a bound root")
     };
@@ -139,11 +160,16 @@ enum PlaceUse {
     ScalarRead,
 }
 
+/// The selected place has the type its own rows state. `landing` is the
+/// destination named by the lifetime binding recorded on the selection
+/// itself, when the caller consumes that binding (`loans::binding_at`); with
+/// `None`, a lifetime binding there is refused like any other unread row.
 fn select_place<'a>(
     expressions: &'a Expressions<'_>,
     node: usize,
     body: &MachineBody,
     usage: PlaceUse,
+    landing: Option<&ValueType>,
 ) -> Result<(PlaceRoot<'a>, Vec<PlaceProjection>, &'a ValueType), LoweringError> {
     let tree = expressions.tree;
     let resolved = tree.resolved();
@@ -178,8 +204,19 @@ fn select_place<'a>(
         let mut field = None;
         let mut ty = None;
         let mut copied = None;
+        let mut bound = None;
         for record in tree.semantics_at(current) {
             match record {
+                NodeSemantics::Obligation(o)
+                    if bound.is_none()
+                        && landing.is_some()
+                        && current == file.ungroup(node)
+                        && matches!(&o.kind, ObligationKind::BindLifetime { destination, .. } if Some(destination) == landing) =>
+                {
+                    if let ObligationKind::BindLifetime { reference, .. } = &o.kind {
+                        bound = Some(reference);
+                    }
+                }
                 NodeSemantics::Expression(e) if e.static_argument_slot.is_none() && ty.is_none_or(|t| t == &e.ty) => ty = Some(&e.ty),
                 NodeSemantics::Field(id) if field.is_none() => field = Some(id),
                 NodeSemantics::Obligation(o)
@@ -204,6 +241,9 @@ fn select_place<'a>(
             }
         }
         let ty = ty.ok_or_else(|| LoweringError::new(&site, "reference projection lacks a receiver type"))?;
+        if bound.is_some_and(|reference| reference != ty) {
+            return Err(LoweringError::new(&site, "lifetime binding disagrees with the place it binds"));
+        }
         selected_type.get_or_insert(ty);
         match (file.nodes[current].kind, file.nodes[current].children.as_slice(), field) {
             (NodeKind::Paren, [inner], None) => current = *inner,
@@ -313,7 +353,7 @@ pub(super) fn scalar_read<'a>(
         .any(|row| matches!(row, NodeSemantics::Obligation(o) if matches!(&o.kind, ObligationKind::CopyRead(ty) if ty == carrier)));
     // Typing publishes CopyRead when the scalar comes through a loan. An owned
     // field has the same selected path and no loan to justify copying through.
-    let (root, path, selected) = select_place(expressions, node, body, PlaceUse::ScalarRead)?;
+    let (root, path, selected) = select_place(expressions, node, body, PlaceUse::ScalarRead, None)?;
     if selected != carrier || borrowed_read != path.contains(&PlaceProjection::Referent) {
         return Err(LoweringError::new(
             &site,

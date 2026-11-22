@@ -21,7 +21,6 @@ const FORWARDED: &str = include_str!("fixtures/aggregate_regions/forwarded_recor
 const NESTED: &str = include_str!("fixtures/aggregate_regions/nested_record.omg");
 const REFERRED: &str = include_str!("fixtures/aggregate_regions/referred_record.omg");
 const UNRESTRICTED: &str = include_str!("fixtures/domain_access/unrestricted/access_plan.omg");
-const OPEN: &str = "open generic machine requires a closed application before lowering";
 
 fn region(
     parameters: &[(usize, usize)],
@@ -47,34 +46,6 @@ fn data<'a>(
         .iter()
         .find(|data| data.declaration.path == path)
         .unwrap_or_else(|| panic!("no lowered data {path}"))
-}
-
-/// The whole declaration of the one machine named `name`, as its signature site spells it.
-fn declaration<'a>(
-    source: &'a str,
-    name: &str,
-) -> &'a str {
-    let start = source
-        .find(&format!("machine {name}<"))
-        .expect("the machine is declared");
-    let start = if source[..start].ends_with("public ") {
-        start - "public ".len()
-    } else {
-        start
-    };
-    let end = start
-        + source[start..]
-            .find("\n}")
-            .map_or(source.len() - start, |at| at + 2);
-    source[start..end].trim_end()
-}
-
-fn refuses_as_open(
-    source: &str,
-    name: &str,
-) {
-    let span = sources::unique_span(source, declaration(source, name));
-    sources::refuse(&[(FILE, source)], FILE, span, OPEN);
 }
 
 #[test]
@@ -312,13 +283,26 @@ fn typing_refuses_a_result_that_trades_the_reference_region_for_the_referent_reg
 }
 
 #[test]
-fn a_stored_reference_with_no_written_lifetime_keeps_its_record_a_template() {
+fn typing_refuses_a_stored_reference_with_no_written_lifetime_before_lowering_sees_it() {
     // The twin of the forwarded record: only the lifetime on the reference
-    // itself is gone. Typing currently passes this invalid field declaration
-    // to lowering, which cannot publish a binder for it.
+    // itself is gone. Borrow-carrying data declares the lifetimes of its
+    // views, so typing refuses the field, and lowering never receives a
+    // record with no binder to publish for it.
     let unwritten = REFERRED.replace("storage: @'t Bytes<'t>;", "storage: @Bytes<'t>;");
     assert_ne!(unwritten, REFERRED);
-    refuses_as_open(&unwritten, "forward");
+    let package = sources::resolve(&[(FILE, &unwritten)]);
+    let error = omega_preparation::prepare_source_package(&package).expect_err("the stored reference names no lifetime");
+    let at = unwritten.find("storage: @Bytes<'t>;").unwrap() + "storage: ".len();
+    assert_eq!((error.span.get_start_offset(), error.span.get_end_offset()), (at, at + "@Bytes<'t>".len()));
+    assert_eq!(error.message, "a stored reference must name its lifetime");
+
+    // The ownership control: with the lifetime written, the same record keeps
+    // its row and `forward` its one body, and the field names where it is held.
+    let lowered = pipeline::lower(REFERRED);
+    assert!(lowered.package.data_templates.is_empty() && lowered.package.machine_templates.is_empty());
+    let stored = &data(&lowered, "Schema").fields[0];
+    assert_eq!((stored.lifetime, stored.aggregate_lifetimes.as_slice()), (Some(0), &[0][..]));
+    assert_eq!(lowered.machine("forward").regions, [region(&[(0, 0)], &[0])]);
 }
 
 /// The descriptor a rebuilt record's field at `position` holds: the operand of
@@ -462,12 +446,13 @@ fn a_rebuilt_record_takes_each_region_from_the_field_its_source_names() {
 }
 
 #[test]
-fn a_record_behind_a_mutable_or_second_reference_stays_an_open_template() {
-    // A shared reference refers to the record's one row and has a slot. An
-    // exclusive reference, or a reference to a reference, has none.
+fn a_record_behind_a_second_reference_stays_an_open_template() {
+    // One reference, shared or exclusive, refers to the record's one row and
+    // has a slot: `poke<'r>(h: @mutable Holder<'r>)` names `'r` as
+    // `look<'r>(h: @Holder<'r>)` does. A reference to a reference has none.
     for (formal, closed) in [
         ("@Schema<'t>", true),
-        ("@mutable Schema<'t>", false),
+        ("@mutable Schema<'t>", true),
         ("@@Schema<'t>", false),
     ] {
         let source = format!("{FORWARDED}\nmachine peek<'t>(schema: {formal}) -> u64 {{\n    7\n}}\n");
@@ -661,10 +646,13 @@ fn a_field_that_names_a_binder_elsewhere_keeps_its_record_a_template() {
         (names(&[]), names(&["Bytes", "Held"]))
     );
     // With no lifetime on the reference itself nothing says where it is held.
-    assert_eq!(
-        templates(&format!("{bytes} data Held<'t> {{inner:@Bytes<'t>;}}")),
-        (names(&["Held"]), names(&["Bytes"]))
-    );
+    // Typing refuses that field, so the record never reaches lowering as a template.
+    let unwritten = format!("{bytes} data Held<'t> {{inner:@Bytes<'t>;}}");
+    let package = sources::resolve(&[(FILE, &unwritten)]);
+    let error = omega_preparation::prepare_source_package(&package).expect_err("the stored reference names no lifetime");
+    let at = unwritten.find("@Bytes<'t>").unwrap();
+    assert_eq!((error.span.get_start_offset(), error.span.get_end_offset()), (at, at + "@Bytes<'t>".len()));
+    assert_eq!(error.message, "a stored reference must name its lifetime");
     // An exclusive reference, a second reference and an array of references
     // have no such row either.
     for inner in [
@@ -680,7 +668,7 @@ fn a_field_that_names_a_binder_elsewhere_keeps_its_record_a_template() {
     }
     // A record that holds a template is a template too.
     assert_eq!(
-        templates(&format!("{bytes} data Held<'t> {{inner:@Bytes<'t>;}} data Outer<'t> {{held:Held<'t>;}}")),
+        templates(&format!("{bytes} data Held<'t> {{inner:[@'t Bytes<'t>; 2];}} data Outer<'t> {{held:Held<'t>;}}")),
         (names(&["Held", "Outer"]), names(&["Bytes"]))
     );
     // The toolchain's record of the same shape belongs to another package.

@@ -144,7 +144,7 @@ impl<'a> ResolvedSourceFile<'a> {
                                 StableNumber => continue,
                                 Data => annotation = Some(catalog.types.open_data(self.declaration(i)?)),
                                 _ => {
-                                    annotation = catalog.types.indices.ready_annotation(id, self.runtime_annotation(i, &catalog.types))?;
+                                    annotation = catalog.types.indices.ready_annotation(id, self.stored_field_annotation(i, &catalog.types))?;
                                     if annotation.is_none() {
                                         continue 'declarations;
                                     }

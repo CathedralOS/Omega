@@ -290,19 +290,21 @@ fn zero_requests_do_not_bypass_complete_type_admission() {
             fields: [PreparedValue::Integer(0.into())].into(),
         })
     );
-    let borrowed = source.replace("slot:u8", "slot:@u8");
-    let input = package(&borrowed);
+    // A stored reference names its lifetime, and a constant has none to
+    // name, so the borrowed slot reaches the constant through a type argument.
+    let borrowed = "data Packet<T [copy]> [copy] {slot:T;} const VALUE:Packet<@u8> = Packet::<@u8>{..};";
+    let input = package(borrowed);
     let round = PreparationRound::begin(&input, &[], None).unwrap();
     let TypingProgress::Complete(trees) = round.typing() else {
         panic!("expected a complete typed package")
     };
     assert!(trees.obligations.iter().any(|o| matches!(
         &o.kind, ObligationKind::ZeroField { field, ty: ValueType::Reference(..) }
-            if field.path == "Packet::slot" && o.site.span.slice(borrowed.as_bytes()) == Some(b"Packet{..}")
+            if field.path == "Packet::slot" && o.site.span.slice(borrowed.as_bytes()) == Some(b"Packet::<@u8>{..}")
     )));
     refused(
-        &borrowed,
-        "Packet{..}",
+        borrowed,
+        "Packet::<@u8>{..}",
         PreparationReason::ConstantTypeOutsideFragment,
         "the complete constant type is outside the prepared value fragment",
     );
