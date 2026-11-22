@@ -713,6 +713,7 @@ fn payload_contract_at_cut(
         };
         let mut completed = None;
         let mut stores = Vec::new();
+        let mut headers = Vec::new();
         let mut bindings = Vec::new();
         let mut remaining = 65_536usize;
         while let Some(current) = pending.pop_front() {
@@ -842,6 +843,15 @@ fn payload_contract_at_cut(
                 failure = "structural store backing is unresolved";
                 let destinations =
                     analysis.storage_origins(identity, current, destination)?;
+                // A borrowed header such as one slice element has its own
+                // contract beside the storage it reaches. The store replaces
+                // the value behind the header whichever member it selected.
+                if destinations
+                    .iter()
+                    .all(|origin| origin.root != destination.root)
+                {
+                    headers.push((destination.clone(), incoming.clone()));
+                }
                 let strong = destinations.len() == 1;
                 let mut destinations = destinations.into_iter().peekable();
                 while let Some(destination) = destinations.next() {
@@ -881,16 +891,28 @@ fn payload_contract_at_cut(
                 let destination_carrier =
                     qualification_path_carrier(types.iter(), contract.carrier, &path)?;
                 let incoming = incoming.presented(types, domains, destination_carrier)?;
-                if path.is_empty() {
-                    *contract = incoming;
-                } else {
-                    append_scalar_observations(contract, &incoming, &destination.path);
-                    terminal_psi::StructuralPathQualification::append_under(
-                        &incoming.qualifications,
-                        &incoming.projected_qualifications,
-                        &path,
-                        &mut contract.projected_qualifications,
-                    );
+                replace_payload(contract, incoming, &path, &destination.path);
+            }
+            for (header, incoming) in headers.drain(..) {
+                let Some(contract) = after.values.get_mut(&header.root) else {
+                    continue;
+                };
+                let carrier = contract.carrier;
+                // Facts about the replaced value must not outlive it. A
+                // header whose path cannot be typed keeps no facts at all.
+                let Some(path) = descriptor_path(types, carrier, &header.path) else {
+                    after.values.remove(&header.root);
+                    continue;
+                };
+                retire(content_independent, contract, &path, &header.path);
+                if let Some(incoming) = incoming.and_then(|incoming| {
+                    incoming.presented(
+                        types,
+                        domains,
+                        qualification_path_carrier(types.iter(), carrier, &path)?,
+                    )
+                }) {
+                    replace_payload(contract, incoming, &path, &header.path);
                 }
             }
             if let Some(producer) = machine.payload_producers.get(&current) {
@@ -1451,6 +1473,27 @@ fn retire(
                 .is_some()
                 && survives(row.domain))
     });
+}
+
+/// Install the value a strong store placed at `path`. The caller has
+/// already retired what the old value established there.
+fn replace_payload(
+    contract: &mut PayloadMembershipContract,
+    incoming: PayloadMembershipContract,
+    path: &[StructuralPathSegment],
+    scalar_path: &[crate::descriptors::descriptor_lifetimes::DescriptorPathSegment],
+) {
+    if path.is_empty() {
+        *contract = incoming;
+    } else {
+        append_scalar_observations(contract, &incoming, scalar_path);
+        terminal_psi::StructuralPathQualification::append_under(
+            &incoming.qualifications,
+            &incoming.projected_qualifications,
+            path,
+            &mut contract.projected_qualifications,
+        );
+    }
 }
 
 fn observe_scalar(

@@ -2872,6 +2872,89 @@ fn a_returned_element_family_keeps_its_slice_bounds_and_requires_a_live_capture(
     }
 }
 
+/// `slice[index] = value` stores through a header bound to one element. The
+/// header's backing is a captured address into the collection, so the store
+/// may have reached any member of a fixed collection and nothing outside it.
+#[test]
+fn a_store_through_a_captured_element_names_every_member_of_a_fixed_collection() {
+    use semantic_vocabulary::{BlockId, ObligationId, ValueId};
+    let element = scalar_type(1);
+    let fixed = StructuralTypeDeclaration {
+        shape: StructuralTypeShape::FixedArray {
+            element: element.id,
+            length: terminal_psi::ArrayExtent::Literal(2),
+        },
+        ..scalar_type(2)
+    };
+    // A slice has no member list to enumerate.
+    let open = StructuralTypeDeclaration {
+        shape: StructuralTypeShape::ElementView {
+            element: element.id,
+            access: Some(StructuralAccess::MutableBorrow),
+        },
+        ..scalar_type(2)
+    };
+    let owner = location(1);
+    let header = location(4);
+    let at = (BlockId::new(1).unwrap(), 0);
+    let indexed = Projection::new(&[StructuralPathSegment::RuntimeIndex {
+        index: ValueId::new(7).unwrap(),
+        obligation: ObligationId::new(1).unwrap(),
+    }]);
+    let window = Projection::window(ValueId::new(8).unwrap(), ValueId::new(9).unwrap(), at);
+    let members = (0..2)
+        .map(|index| DescriptorLocation {
+            root: owner.root,
+            path: vec![DescriptorPathSegment::FixedIndex(index)],
+        })
+        .collect::<Vec<_>>();
+    for (collection, projection, expected) in [
+        (fixed.clone(), indexed.clone().at(at), Some(members)),
+        (open, indexed.clone().at(at), None),
+        (fixed.clone(), window.then(&indexed.clone().at(at)), None),
+        (fixed, indexed.at((at.0, 1)), None),
+    ] {
+        let types = [element.clone(), collection];
+        let mut machine = bare_machine(
+            MachineId::new(1).unwrap(),
+            vec![
+                DescriptorPlace {
+                    producer: None,
+                    place: owner.root,
+                    definition: DescriptorDefinition::Local,
+                },
+                DescriptorPlace {
+                    producer: None,
+                    place: header.root,
+                    definition: DescriptorDefinition::Arrival {
+                        access: StructuralAccess::MutableBorrow,
+                    },
+                },
+            ],
+            BTreeMap::from([(owner.root, types[1].id), (header.root, types[0].id)]),
+            BTreeSet::new(),
+        );
+        machine.flow.insert(at, Default::default());
+        let graph = [machine];
+        let replay = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::BorrowedStorage);
+        let mut state = State::default();
+        state.slots_mut().insert(
+            owner.clone(),
+            Some(BTreeSet::from([Origin::Storage(owner.clone())])),
+        );
+        Arc::make_mut(&mut state.arrival_backing).insert(
+            header.clone(),
+            Some(BTreeSet::from([Origin::Backing(
+                DescriptorCallOrigin::Argument {
+                    source: owner.root,
+                    projection,
+                },
+            )])),
+        );
+        assert_eq!(replay.storage_origins(&graph[0], &state, &header), expected);
+    }
+}
+
 #[test]
 fn complete_storage_family_refuses_missing_capture_unknown_and_stale_inputs() {
     let (types, machine) = mixed_storage_arrival();
