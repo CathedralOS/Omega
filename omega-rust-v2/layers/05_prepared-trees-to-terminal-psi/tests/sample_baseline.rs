@@ -173,10 +173,9 @@ requires premise(kept);
 machine apply<const Observe: Observer>(kept: bool) -> bool
 requires premise(kept)
 ";
-/// V1's crash statement has no V2 form, so the unreached `bad` arm becomes empty.
-const NO_CRASH_STATEMENT: &[(&str, &str)] = &[
-    ("machine main() crashes Trap {", "machine main() {"),
-    ("    machine bad() { crash Trap; }", "    machine bad() {}"),
+/// The historical failure arm still traps when taken. The explicitly typed addition overflows u8.
+const TRAPPING_BAD_ARM: &[(&str, &str)] = &[
+    ("    machine bad() { crash Trap; }", "    machine bad() crashes Trap { let trap: u8 = 255u8 +! 1u8; }"),
 ];
 
 /// Applies each replacement to exactly one occurrence.
@@ -199,8 +198,8 @@ fn migrated_samples_change_only_retired_spellings() {
     let migrations: [(&str, Vec<(&str, &str)>); 4] = [
         ("cross-width-v2", [FREE_MAIN, &[("    hits: i32 in Wrapping;", "    hits: i32;")]].concat()),
         ("rational-landing-v2", [FREE_MAIN, &[("data Main { hits: i32 in Wrapping; }", "data Main { hits: i32; }")]].concat()),
-        ("abstract-premise-v2", [&[(RETIRED_BINDER, CONST_BINDER)], NO_CRASH_STATEMENT].concat()),
-        ("false-abstract-premise-v2", [&[(RETIRED_BINDER, CONST_BINDER)], NO_CRASH_STATEMENT].concat()),
+        ("abstract-premise-v2", [&[(RETIRED_BINDER, CONST_BINDER)], TRAPPING_BAD_ARM].concat()),
+        ("false-abstract-premise-v2", [&[(RETIRED_BINDER, CONST_BINDER)], TRAPPING_BAD_ARM].concat()),
     ];
     for (id, edits) in &migrations {
         let case = cases::CASES.iter().find(|case| case.id == *id).unwrap();
@@ -584,6 +583,16 @@ fn the_lawful_premise_twins_publish_the_callback_target_and_both_premises() {
                 .unwrap()
         };
         let (main, apply, witness) = (named("main"), named("apply"), named("witness"));
+        let failure = named("main::bad");
+        let [maximum, one, addition] = failure.body.operations.as_slice() else { panic!("the bad arm must trap") };
+        use omega_psi::{OperationResult, ScalarLiteral, ScalarType, TrappingIntegerPrimitive, TypeShape};
+        assert_eq!(maximum.kind, OperationKind::Constant(ScalarLiteral::Integer(255.into())));
+        assert_eq!(one.kind, OperationKind::Constant(ScalarLiteral::Integer(1.into())));
+        let OperationKind::TrappingInteger { primitive: TrappingIntegerPrimitive::Add, left, right } = addition.kind else {
+            panic!("the bad arm requires a trapping addition")
+        };
+        assert_eq!((maximum.result, one.result), (OperationResult::Scalar(left), OperationResult::Scalar(right)));
+        assert_eq!(product.types.get(failure.body.values[left.index()].ty), Some(&TypeShape::PrimitiveScalar(ScalarType::Integer { signed: false, width: 8 })));
         // Producer: the selection names witness and carries the alias clause.
         let StaticArgument::Callable(selection) = &apply.arguments[0] else {
             panic!("apply is instantiated with a callable selection")

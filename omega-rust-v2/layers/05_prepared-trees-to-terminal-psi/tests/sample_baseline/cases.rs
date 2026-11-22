@@ -561,7 +561,7 @@ pub const CASES: &[Case] = &[
         expectation: Expectation::MustRefuse(FALSE_ABSTRACT_PREMISE_CRASH),
     },
     // The same pair with the retired callback binder written as a `const` binder of a callable
-    // alias, and V1's crash statement removed. Only `premise`'s returned literal differs.
+    // alias, and a trapping operation in the failure arm. Only `premise`'s returned literal differs.
     Case {
         id: "abstract-premise-v2",
         directory: "facts/abstract_signature_call/local",

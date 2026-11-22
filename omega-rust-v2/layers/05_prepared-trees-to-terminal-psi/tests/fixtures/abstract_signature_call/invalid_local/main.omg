@@ -27,7 +27,7 @@ requires premise(kept)
     Observe(kept)
 }
 
-machine main() {
+machine main() crashes Trap {
     let kept: bool = true;
     let direct: bool = apply::<witness>(kept);
     transition hold(direct) {
@@ -35,5 +35,5 @@ machine main() {
         _ -> bad()
     }
     machine done() {}
-    machine bad() {}
+    machine bad() crashes Trap { let trap: u8 = 255u8 +! 1u8; }
 }
