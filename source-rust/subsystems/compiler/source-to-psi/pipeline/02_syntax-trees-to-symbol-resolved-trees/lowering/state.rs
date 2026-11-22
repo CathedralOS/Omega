@@ -705,7 +705,6 @@ fn lower_signature_contracts_with_result_sum(
                         crate::resolution::lowering::name::lower_name(syntax_trees, name)
                     }),
                     facts,
-                    token_count: contract.token_count,
                 },
             );
         if let Some((result_data_name, result_data_source_span, result_case_name)) = pending_outcome

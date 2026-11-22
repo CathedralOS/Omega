@@ -124,7 +124,6 @@ pub(crate) fn lower_domain_definition(
         predicate_presence: domain.predicate_presence,
         facts,
         operators,
-        semantic_clause_token_count: domain.semantic_clause_token_count,
         semantic_id,
         semantic_roles,
         establishment_routes: Vec::new(),

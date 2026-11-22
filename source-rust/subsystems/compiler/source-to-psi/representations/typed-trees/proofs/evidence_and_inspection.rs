@@ -2513,7 +2513,6 @@ pub mod inspection {
                 pub establishment_routes: Vec<DomainEstablishmentRouteSnapshot>,
                 pub facts: Vec<ProofFactSnapshot>,
                 pub operators: Vec<OperatorDefinitionSnapshot>,
-                pub semantic_clause_token_count: usize,
             }
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -2812,7 +2811,6 @@ pub mod inspection {
                         .iter()
                         .map(|operator| operator_snapshot(program, operator))
                         .collect(),
-                    semantic_clause_token_count: domain.semantic_clause_token_count,
                 }
             }
 
@@ -3585,7 +3583,6 @@ pub mod inspection {
                 #[serde(skip_serializing_if = "Option::is_none")]
                 pub crash_cause: Option<&'static str>,
                 pub facts: Vec<ProofFactSnapshot>,
-                pub token_count: usize,
             }
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -3951,7 +3948,6 @@ pub mod inspection {
                                 crate::source_state::signature::CrashCause::Abort => "Abort",
                             }),
                             facts: contract_fact_snapshots(program, contract.facts),
-                            token_count: contract.token_count,
                         };
                     }
                 };
@@ -3960,7 +3956,6 @@ pub mod inspection {
                     binding: contract.binding.as_ref().map(ToString::to_string),
                     crash_cause,
                     facts: contract_fact_snapshots(program, contract.facts),
-                    token_count: contract.token_count,
                 }
             }
 

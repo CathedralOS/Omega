@@ -107,7 +107,6 @@ pub mod calls {
             pub keyword_source_span: Option<source_text::SourceSpan>,
             pub binding: Option<DiagnosticName>,
             pub facts: arena::HandleSpan<crate::source_resolved::domain::ProofFact>,
-            pub token_count: usize,
         }
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]

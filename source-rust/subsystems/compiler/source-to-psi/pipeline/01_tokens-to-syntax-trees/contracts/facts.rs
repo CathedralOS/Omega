@@ -83,7 +83,7 @@ pub(crate) fn parse_proof_facts_until<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
-) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
+) -> Result<(HandleSpan<ProofFact>, Input<'tokens, 'source>), ParseError> {
     parse_proof_facts_until_with_machine_semicolon(syntax_trees, input, is_terminator, false)
 }
 
@@ -92,7 +92,7 @@ pub(crate) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
     machine_final_semicolon: bool,
-) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
+) -> Result<(HandleSpan<ProofFact>, Input<'tokens, 'source>), ParseError> {
     parse_fact_list(
         syntax_trees,
         input,
@@ -108,7 +108,7 @@ pub(crate) fn parse_required_proof_facts_until<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
     machine_final_semicolon: bool,
-) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
+) -> Result<(HandleSpan<ProofFact>, Input<'tokens, 'source>), ParseError> {
     parse_fact_list(
         syntax_trees,
         input,
@@ -123,7 +123,7 @@ pub(crate) fn parse_required_logical_proof_facts_until<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     is_terminator: impl FnMut(Input<'tokens, 'source>) -> bool,
-) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
+) -> Result<(HandleSpan<ProofFact>, Input<'tokens, 'source>), ParseError> {
     parse_fact_list(syntax_trees, input, is_terminator, true, true, true)
 }
 
@@ -134,9 +134,8 @@ fn parse_fact_list<'tokens, 'source>(
     machine_final_semicolon: bool,
     logical_subject: bool,
     requires_first_fact: bool,
-) -> Result<((HandleSpan<ProofFact>, usize), Input<'tokens, 'source>), ParseError> {
+) -> Result<(HandleSpan<ProofFact>, Input<'tokens, 'source>), ParseError> {
     let mut input = input;
-    let body_start_tokens = input.tokens.len();
     let mut facts = arena::HandleSpan::empty();
 
     while (requires_first_fact && facts.is_empty()) || !is_terminator(input) {
@@ -330,9 +329,7 @@ fn parse_fact_list<'tokens, 'source>(
         }
     }
 
-    let token_count = body_start_tokens.saturating_sub(input.tokens.len());
-
-    Ok(((facts, token_count), input))
+    Ok((facts, input))
 }
 
 fn range_membership_expression(

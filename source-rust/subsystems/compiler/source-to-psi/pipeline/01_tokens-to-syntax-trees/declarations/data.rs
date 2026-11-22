@@ -155,7 +155,7 @@ pub(crate) fn parse_data_definition<'tokens, 'source>(
     let mut default_domain_facts = arena::HandleSpan::empty();
     while input.at_contextual("requires") {
         input = input.take_contextual("requires")?;
-        let ((facts, _token_count), rest) =
+        let (facts, rest) =
             parse_required_logical_proof_facts_until(syntax_trees, input, |input| {
                 input.at_contextual("requires")
                     || input.at_punctuation(PunctuationKind::LeftBrace)

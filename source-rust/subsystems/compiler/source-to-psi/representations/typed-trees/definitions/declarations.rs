@@ -1106,7 +1106,6 @@ pub mod domain {
         pub predicate_presence: language_core::DomainPredicatePresence,
         pub facts: HandleSpan<ProofFact>,
         pub operators: HandleSpan<crate::source_state::operator::OperatorDefinition>,
-        pub semantic_clause_token_count: usize,
         pub semantic_id: semantic_vocabulary::SemanticDomainId,
         pub semantic_roles: source_declarations::DomainSemanticRoles,
         pub establishment_routes: Vec<source_declarations::DomainEstablishmentRoute>,
@@ -1182,7 +1181,6 @@ pub mod domain {
     fn issuer_clauses_do_not_make_an_empty_content_theory_nonempty() {
         let mut definition = DomainDefinition::default();
         assert!(definition.has_complete_empty_theory());
-        definition.semantic_clause_token_count = 4;
         definition.establishment_routes.push(
             source_declarations::DomainEstablishmentRoute::ExactMachine {
                 machine: symbols::SymbolHandle::invalid(),
@@ -1223,7 +1221,6 @@ pub mod domain {
                 predicate_presence: language_core::DomainPredicatePresence::Absent,
                 facts: HandleSpan::empty(),
                 operators: HandleSpan::empty(),
-                semantic_clause_token_count: 0,
                 semantic_id: semantic_vocabulary::SemanticDomainId::NULL,
                 semantic_roles: source_declarations::DomainSemanticRoles::default(),
                 establishment_routes: Vec::new(),

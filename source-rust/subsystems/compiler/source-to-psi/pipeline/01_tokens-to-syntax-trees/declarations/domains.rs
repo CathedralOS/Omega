@@ -69,7 +69,7 @@ pub(crate) fn parse_domain_definition<'tokens, 'source>(
             "explicit domain subject binders are retired; use `self` in the domain's `requires` predicates",
         ));
     }
-    let ((classification, classification_token_count), input) = parse_domain_classification(input)?;
+    let (classification, input) = parse_domain_classification(input)?;
     let (cleanup_selection, input) = parse_cleanup_selection(syntax_trees, input)?;
     let refinement_parent = if name_segments.len() > 1 {
         let parent_span = name_segments[name_segments.len() - 2].0.source_span();
@@ -128,7 +128,6 @@ pub(crate) fn parse_domain_definition<'tokens, 'source>(
         predicate_presence,
         facts,
         operators,
-        semantic_clause_token_count,
         input,
     ) = if input.at_punctuation(PunctuationKind::Equal) {
         if refinement_parent.is_some() {
@@ -143,7 +142,6 @@ pub(crate) fn parse_domain_definition<'tokens, 'source>(
             DomainPredicatePresence::Absent,
             HandleSpan::empty(),
             HandleSpan::empty(),
-            0,
             input,
         )
     } else {
@@ -156,7 +154,7 @@ pub(crate) fn parse_domain_definition<'tokens, 'source>(
                 .set_proof_fact_source_span(handle, parent_span);
             handle
         });
-        let ((predicate_presence, authored_facts, requires_token_count), input) =
+        let ((predicate_presence, authored_facts), input) =
             parse_domain_requires(syntax_trees, input)?;
         let (predicate_presence, facts) = match parent_fact {
             Some(handle) => (
@@ -165,7 +163,7 @@ pub(crate) fn parse_domain_definition<'tokens, 'source>(
             ),
             None => (predicate_presence, authored_facts),
         };
-        let ((issuance, semantic_clause_token_count), input) =
+        let (issuance, input) =
             parse_domain_establishment(syntax_trees, input, predicate_presence.is_present())?;
         (
             None,
@@ -173,7 +171,6 @@ pub(crate) fn parse_domain_definition<'tokens, 'source>(
             predicate_presence,
             facts,
             HandleSpan::empty(),
-            requires_token_count.saturating_add(semantic_clause_token_count),
             input,
         )
     };
@@ -193,8 +190,6 @@ pub(crate) fn parse_domain_definition<'tokens, 'source>(
             predicate_presence,
             facts,
             operators,
-            semantic_clause_token_count: classification_token_count
-                .saturating_add(semantic_clause_token_count),
         },
         input,
     ))
@@ -202,11 +197,10 @@ pub(crate) fn parse_domain_definition<'tokens, 'source>(
 
 fn parse_domain_classification<'tokens, 'source>(
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, (Option<language_core::DomainClassification>, usize)> {
+) -> ParseResult<'tokens, 'source, Option<language_core::DomainClassification>> {
     if !input.at_contextual("satisfies") {
-        return Ok(((None, 0), input));
+        return Ok((None, input));
     }
-    let start_tokens = input.tokens.len();
     let input = input.take_contextual("satisfies")?;
     let (name, input) = input.take_identifier()?;
     let classification = match name.as_str(&input) {
@@ -222,31 +216,25 @@ fn parse_domain_classification<'tokens, 'source>(
             input.error_here("a domain may select at most one compiler-owned classification")
         );
     }
-    Ok((
-        (
-            Some(classification),
-            start_tokens.saturating_sub(input.tokens.len()),
-        ),
-        input,
-    ))
+    Ok((Some(classification), input))
 }
 
 fn parse_domain_requires<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, (DomainPredicatePresence, HandleSpan<ProofFact>, usize)> {
+) -> ParseResult<'tokens, 'source, (DomainPredicatePresence, HandleSpan<ProofFact>)> {
     if !input.at_contextual("requires") {
         return Ok((
-            (DomainPredicatePresence::Absent, HandleSpan::empty(), 0),
+            (DomainPredicatePresence::Absent, HandleSpan::empty()),
             input,
         ));
     }
 
     let input = input.take_contextual("requires")?;
-    let ((facts, token_count), input) =
+    let (facts, input) =
         parse_required_logical_proof_facts_until(syntax_trees, input, domain_requires_terminator)?;
     Ok((
-        (DomainPredicatePresence::Present, facts, token_count),
+        (DomainPredicatePresence::Present, facts),
         input,
     ))
 }
@@ -334,14 +322,13 @@ fn parse_domain_establishment<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     requires_consumed: bool,
-) -> ParseResult<'tokens, 'source, (DomainIssuanceClause, usize)> {
+) -> ParseResult<'tokens, 'source, DomainIssuanceClause> {
     if input.at_punctuation(PunctuationKind::Semicolon) {
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        return Ok((((Vec::new(), None), 0), input));
+        return Ok(((Vec::new(), None), input));
     }
 
     if input.at_contextual("access") {
-        let clause_start_tokens = input.tokens.len();
         let input = input.take_contextual("access")?;
         let (policy, input) = parse_static_selection(
             syntax_trees,
@@ -352,8 +339,7 @@ fn parse_domain_establishment<'tokens, 'source>(
             return Err(input.error_here(ACCESS_WITH_ESTABLISHED_BY));
         }
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        let token_count = clause_start_tokens.saturating_sub(input.tokens.len());
-        return Ok((((Vec::new(), Some(policy)), token_count), input));
+        return Ok(((Vec::new(), Some(policy)), input));
     }
 
     if input.at_contextual("satisfies") {
@@ -367,7 +353,7 @@ fn parse_domain_establishment<'tokens, 'source>(
         && !input.at_punctuation(PunctuationKind::LeftBrace)
         && domain_requires_terminator(input)
     {
-        return Ok((((Vec::new(), None), 0), input));
+        return Ok(((Vec::new(), None), input));
     }
 
     if input.at_punctuation(PunctuationKind::LeftBrace) {
@@ -402,7 +388,6 @@ fn parse_domain_establishment<'tokens, 'source>(
     }
     let mut input = input.take_contextual("established")?;
     input = input.take_contextual("by")?;
-    let routes_start_tokens = input.tokens.len();
     let mut authored_routes = Vec::new();
 
     loop {
@@ -419,8 +404,7 @@ fn parse_domain_establishment<'tokens, 'source>(
         return Err(input.error_here(ACCESS_WITH_ESTABLISHED_BY));
     }
     input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-    let token_count = routes_start_tokens.saturating_sub(input.tokens.len());
-    Ok((((authored_routes, None), token_count), input))
+    Ok(((authored_routes, None), input))
 }
 
 fn at_legacy_authored_route(mut input: Input<'_, '_>) -> bool {
