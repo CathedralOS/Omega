@@ -25,7 +25,10 @@ fn the_library_plan_constructor_lowers_as_one_closed_body() {
         panic!("the defining library publishes one constructor body")
     };
     assert!(package.machine_templates.iter().all(|template| template.declaration != machine.declaration));
-    assert!(package.data_templates.is_empty());
+    // These lifetime-only constructor carriers each have a concrete data row.
+    for path in [r"reflect\TypeSchema", "Issuance", "AccessPlan"] {
+        assert!(package.data_templates.iter().all(|template| template.declaration.path != core(path)));
+    }
     let data = |path: &str| {
         package
             .data

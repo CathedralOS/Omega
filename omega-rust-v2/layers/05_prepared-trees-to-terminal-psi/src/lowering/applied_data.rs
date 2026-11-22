@@ -74,12 +74,13 @@ fn stored_regions(
 
 pub(super) fn collect<'a>(
     trees: &'a TypedTrees<'_>,
+    shapes: impl IntoIterator<Item = (&'a ValueType, &'a StaticDataShape)>,
     templates: &'a [DataTemplate],
     region_data: &RegionData<'_>,
 ) -> Vec<Application<'a>> {
     let by_declaration: HashMap<_, _> = templates.iter().map(|t| (&t.declaration, t)).collect();
     let mut applications = Vec::new();
-    for (carrier, shape) in &trees.static_data_shapes {
+    for (carrier, shape) in shapes {
         let ValueType::Applied(owner, arguments) = carrier else { continue };
         // The declaration says how many of its leading arguments are
         // lifetimes. Those select nothing here; the rest are the key.

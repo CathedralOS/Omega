@@ -12,7 +12,7 @@ pub(crate) fn read(
     nested: &mut Vec<usize>,
     regions: &super::regions::RegionData<'_>,
 ) -> Result<Option<DataTemplate>, LoweringError> {
-    let trees = prepared.typed();
+    let trees = tree.forest();
     let resolved = tree.resolved();
     let file = resolved.file;
     let site = site_at(tree, node);
@@ -194,7 +194,7 @@ fn template_fields(
     field_nodes: &[usize],
     indexed: bool,
 ) -> Result<Vec<TemplateField>, LoweringError> {
-    super::data::checked_fields(prepared.typed(), tree, node, owner, field_nodes)?
+    super::data::checked_fields(tree.forest(), tree, node, owner, field_nodes)?
         .iter()
         .map(|f| {
             Ok(TemplateField {

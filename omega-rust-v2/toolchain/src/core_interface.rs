@@ -120,12 +120,14 @@ impl CoreInterface {
         ]
     }
 }
-pub(crate) const PRODUCT_CORE: [(&str, &str); 11] = [
+pub(crate) const PRODUCT_CORE: [(&str, &str); 13] = [
     ("core/drop.omg", include_str!("../core/drop.omg")),
     ("core/integer/comparisons.omg", include_str!("../core/integer_comparisons.omg")),
     ("core/integer/arithmetic.omg", include_str!("../core/integer_arithmetic.omg")),
     ("core/integer_policies.omg", include_str!("../core/integer_policies.omg")),
     ("indexing/collections.omg", include_str!("../core/indexing.omg")),
+    ("language/core/optional.omg", include_str!("../core/optional.omg")),
+    ("language/core/layout/layout.omg", include_str!("../core/layout.omg")),
     ("language/core/core.omg", include_str!("../core/core.omg")),
     ("language/core/reflect/reflect.omg", include_str!("../core/reflect.omg")),
     ("language/core/access/access.omg", include_str!("../core/access.omg")),

@@ -174,6 +174,8 @@ pub(crate) fn check_stage<'a>(
             }
         }
     }
-    catalog.publish_static_data_shapes(&demands, &dependencies, output);
+    let stored = units.iter().flat_map(|unit| unit.declaration_nodes()).filter_map(|(_, id)| catalog.fields.get(id))
+        .flat_map(|fields| fields.ordered.iter().map(|field| &field.ty));
+    catalog.publish_static_data_shapes(&demands, &dependencies, stored, output);
     Ok((execution, demands))
 }
