@@ -34,7 +34,7 @@ machine equivalent_transitive(
     c: Representative
 )
 requires
-    a == b
+    a == b,
     b == c
 ensures a == c
 {

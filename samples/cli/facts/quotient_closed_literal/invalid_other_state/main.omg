@@ -24,7 +24,7 @@ machine equivalent_transitive(
     c: Representative
 )
 requires
-    core\Identity::<Representative>(a, b)
+    core\Identity::<Representative>(a, b),
     core\Identity::<Representative>(b, c)
 ensures core\Identity::<Representative>(a, c)
 {
@@ -47,8 +47,8 @@ requires amount == 3i32
 
 machine representative_respects(left: Representative, right: Representative, amount: i32)
 requires
-    equivalent(left, right)
-    amount == 3i32
+    equivalent(left, right),
+    amount == 3i32,
     amount == 3i32
 ensures representative(left, amount) == representative(right, amount)
 {}

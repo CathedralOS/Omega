@@ -26,7 +26,7 @@ machine equivalent_transitive(
     c: Representative
 )
 requires
-    core\Identity::<Representative>(a, b)
+    core\Identity::<Representative>(a, b),
     core\Identity::<Representative>(b, c)
 ensures core\Identity::<Representative>(a, c)
 {

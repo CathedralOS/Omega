@@ -75,17 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### A line break or a comment inside a contract clause changes the tree the parser builds
-
-- Category: The documents disagree
-- Where: [fact separation](source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/contracts/facts.rs#L281), [the line-break test](source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/token_input/cursor.rs#L560).
-- Saw: The [lexical profile](wiki/spec/language/data_and_literals.md#lexical-profile) lists line feed as ordinary whitespace, and the [clause rule](wiki/spec/language/state_contracts.md#machine-header-delimiters) says a newline does not change a clause's owner. `parse_fact_list` reads the whitespace tokens anyway.
-
-  - `requires a > 0` with `b > 0` on the next line is two facts. On one line, or with a block comment between them, the parser refuses at the second `>`.
-  - `requires a positive` is one fact, the call `a.positive()`. With a line break between the two words it is two facts, `a` and `positive`.
-- Cost: Reformatting a contract can change which facts it states or turn an accepted program into a refused one, and no test fails. [V2's grammar](omega-rust-v2/layers/01_tokens-to-syntax-trees/GRAMMAR.md) ends a clause at the next clause word and never reads a line break. Settle what separates two facts in one clause, migrate the sources that rely on a line break, and delete `has_newline_before`.
-- Reported: 2026-11-22, Claude Code, while checking V1's lexer-to-parser handoff tests
-
 ### Clippy with `-D warnings` cannot lint an application test because four crates it builds carry warnings
 
 - Category: Tests that pin the bug

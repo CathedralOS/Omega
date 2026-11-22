@@ -275,10 +275,7 @@ fn parse_fact_list<'tokens, 'source>(
                 facts.push_contiguous(handle);
             }
         } else {
-            let expression = if input.at_name_like()
-                && !is_terminator(input)
-                && !fact_input.has_newline_before(input)
-            {
+            let expression = if input.at_name_like() && !is_terminator(input) {
                 let (predicate, rest) = input.take_identifier()?;
                 input = rest;
                 syntax_trees
@@ -322,9 +319,7 @@ fn parse_fact_list<'tokens, 'source>(
             input = after;
         } else if input.at_punctuation(PunctuationKind::Comma) {
             input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-        } else if fact_input.has_newline_before(input) {
-            continue;
-        } else if !is_terminator(input) {
+        } else {
             return Err(input.error_here("expected `;`, `,`, or end of proof facts"));
         }
     }
