@@ -51,6 +51,13 @@ pub(crate) enum StorageResolution {
     OpaqueAlternatives(Vec<DescriptorCallOrigin>, &'static str),
 }
 
+enum TransferDestination {
+    Slot(DescriptorLocation),
+    /// A write to one of several captured addresses, whose value has no
+    /// descriptor slots. It can change a case, but cannot replace a loan.
+    UntrackedFamily,
+}
+
 /// The singular coordinate visible to logical storage and origin queries.
 /// Capture authority stays on the resolution and is checked by checked_storage_family.
 pub(super) enum StorageCoordinate<'a> {
@@ -2183,12 +2190,18 @@ impl<'a> Replay<'a> {
         let canonical = |location: &DescriptorLocation| {
             if position.is_some() {
                 if location.path.last() == Some(&DescriptorPathSegment::UnknownContents) {
-                    return self.canonical_contents_packet(machine, before, location);
+                    return self.canonical_contents_packet(machine, before, location).map(TransferDestination::Slot);
                 }
-                self.resolve_storage(machine, before, location, None)?
-                    .slot_coordinate(location)
+                let resolution = self.resolve_storage(machine, before, location, None)?;
+                if let Some(slot) = resolution.slot_coordinate(location) {
+                    return Some(TransferDestination::Slot(slot));
+                }
+                self.checked_storage_family(machine, before, resolution).ok()?;
+                let (_, endpoint) = self.resolved_location(machine, before, location, reads)?;
+                let inventory = self.slot_kind.owned_slots(self.types, location.root, endpoint?)?;
+                inventory.is_empty().then_some(TransferDestination::UntrackedFamily)
             } else {
-                Some(location.clone())
+                Some(TransferDestination::Slot(location.clone()))
             }
         };
         // Moving an owned parameter ends its name for loan liveness, but
@@ -2210,12 +2223,19 @@ impl<'a> Replay<'a> {
                 .position(|definition| definition == consumed)?;
             overwritten.swap_remove(position);
         }
-        let definitions = overwritten
-            .iter()
-            .map(canonical)
-            .collect::<Option<Vec<_>>>()?;
+        let mut definitions = Vec::with_capacity(overwritten.len());
+        let mut unlocated_write = false;
+        for definition in &overwritten {
+            match canonical(definition)? {
+                TransferDestination::Slot(slot) => definitions.push(slot),
+                TransferDestination::UntrackedFamily => unlocated_write = true,
+            }
+        }
         let mut assigned = Slots::new();
         for (source, destination) in derivations.clone() {
+            let TransferDestination::Slot(slot) = canonical(destination)? else {
+                continue;
+            };
             let projection = position.and_then(|position| {
                 machine
                     .projections
@@ -2231,7 +2251,7 @@ impl<'a> Replay<'a> {
                 let value = self.capture_storage(machine, before, source, reads);
                 merge_value(
                     &mut assigned,
-                    canonical(destination)?,
+                    slot,
                     self.project(machine, value, projection),
                 );
                 continue;
@@ -2246,7 +2266,7 @@ impl<'a> Replay<'a> {
                 None => self.read_with_depth(machine, before, source, reads),
             };
             let value = self.project(machine, value, projection);
-            let destination = canonical(destination)?;
+            let destination = slot;
             merge_value(&mut assigned, destination.clone(), value);
             if contents_query.is_some() {
                 continue;
@@ -2272,7 +2292,7 @@ impl<'a> Replay<'a> {
             self,
             machine,
             (before, base),
-            &definitions,
+            (!unlocated_write).then_some(definitions.as_slice()),
             derivations,
             transfer,
             case_storage,
