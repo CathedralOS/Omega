@@ -899,6 +899,9 @@ pub(crate) mod descriptor_operands {
         if !accessible {
             return Err(invalid());
         }
+        if source.path.is_empty() {
+            return Ok((root, Vec::new()));
+        }
         let regions = reference_projection_regions(root, &source.path, structural_types)
             .ok_or_else(invalid)?;
         let (selected, _, _, leaf_indices) =
@@ -1690,8 +1693,12 @@ pub(crate) mod element_views {
                         source: source.clone(),
                         indices,
                         length_byte_offset:
-                            calling_conventions::terminal_layout::element_view_length_offset(
+                            calling_conventions::terminal_layout::element_view_length_at(
                                 &structural_types.get(selected).ok_or_else(invalid)?.shape,
+                                function
+                                    .arrival_parameter(source.place)
+                                    .filter(|_| source.path.is_empty())
+                                    .map(|formal| formal.access),
                             )
                             .ok_or_else(invalid)?,
                     }),
@@ -2087,10 +2094,9 @@ pub(crate) mod element_views {
                 .ok_or_else(invalid)?;
             let access = descriptor_parameter_access(semantic, structural_types.values().copied())
                 .ok_or_else(invalid)?;
-            let referent = crate::target_lowering::structural_layout::structural_shape(
-                semantic.structural_type,
-                structural_types,
-            )?;
+            let referent = structural_types
+                .formal_storage_shape(semantic.structural_type, semantic.access)
+                .map_err(crate::target_lowering::structural_layout::geometry_error)?;
             let expected_shape =
                 crate::target_lowering::structural_signature::StructuralCallSignature::parameter_shape(
                     crate::target_lowering::structural_signature::ParameterLane::Internal,

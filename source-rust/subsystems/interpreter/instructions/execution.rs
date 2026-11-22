@@ -382,6 +382,7 @@ pub(crate) mod capabilities {
                             &declarations,
                             storage,
                             &mut storage_roots,
+                            |_| true,
                         )
                         .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?;
                     }
@@ -601,6 +602,7 @@ pub(crate) mod capabilities {
                         &declarations,
                         storage.into(),
                         &mut storage_roots,
+                        |_| true,
                     )
                     .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?;
                 }

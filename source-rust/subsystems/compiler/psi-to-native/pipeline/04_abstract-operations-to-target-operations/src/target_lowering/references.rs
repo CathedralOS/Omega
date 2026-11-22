@@ -1985,6 +1985,7 @@ fn formation_indices(
         .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
     let runs = crate::target_lowering::structural_layout::reference_formation_indices(
         root,
+        function.arrival_parameter(source.place),
         &source.path,
         types,
     )?;

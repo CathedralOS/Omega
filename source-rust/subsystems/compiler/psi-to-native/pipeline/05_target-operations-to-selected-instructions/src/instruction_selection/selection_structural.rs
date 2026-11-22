@@ -642,8 +642,15 @@ pub(crate) mod descriptor_operands {
             function,
             source.place,
         )?;
-        let geometry =
-            geometry::descriptor_source_geometry(root, &source.path, function.geometry())?;
+        let geometry = geometry::descriptor_source_geometry_at(
+            root,
+            crate::instruction_selection::selection::arrival_parameter_input::parameter(
+                function,
+                source.place,
+            ),
+            &source.path,
+            function.geometry(),
+        )?;
         if !geometry.readable || source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
             return None;
         }
@@ -651,6 +658,22 @@ pub(crate) mod descriptor_operands {
             .shape
             .clone();
         Some((geometry, shape))
+    }
+
+    fn element_descriptor(
+        function: &crate::instruction_selection::native_geometry::NativeFunction<'_>,
+        source: &StructuralArgument,
+        shape: &StructuralTypeShape,
+    ) -> bool {
+        let formal_access =
+            crate::instruction_selection::selection::arrival_parameter_input::parameter(
+                function,
+                source.place,
+            )
+            .filter(|_| source.path.is_empty())
+            .map(|formal| formal.access);
+        calling_conventions::terminal_layout::element_view_length_at(shape, formal_access)
+            == Some(8)
     }
 
     pub(crate) fn completed_view_words(
@@ -668,9 +691,7 @@ pub(crate) mod descriptor_operands {
             return Err(invalid());
         }
         let length = match shape {
-            StructuralTypeShape::ElementView {
-                access: Some(_), ..
-            } => builder
+            ref shape if element_descriptor(function, source, shape) => builder
                 .transport
                 .element_view(source.place)
                 .map(|view| view.element_length),
@@ -712,11 +733,12 @@ pub(crate) mod descriptor_operands {
             &geometry,
         )?;
         let leaf_indices = &indices[leaf_index..];
-        let address_width = if matches!(
-            shape,
-            StructuralTypeShape::FixedArray { .. }
-                | StructuralTypeShape::ElementView { access: None, .. }
-        ) {
+        let descriptor = element_descriptor(function, source, &shape);
+        let address_width = if !descriptor
+            && matches!(
+                shape,
+                StructuralTypeShape::FixedArray { .. } | StructuralTypeShape::ElementView { .. }
+            ) {
             0
         } else {
             8
@@ -731,13 +753,7 @@ pub(crate) mod descriptor_operands {
         )?;
         let output = transport_register(builder, source.place, geometry.byte_offset)?;
         match shape {
-            StructuralTypeShape::ElementView {
-                access: Some(_), ..
-            }
-            | StructuralTypeShape::ByteSequence(
-                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                | terminal_psi::ByteSequenceCarrier::BoundedView { .. },
-            ) => {
+            ref shape if descriptor || shape.is_borrowed_byte_carrier() => {
                 footprint(
                     builder,
                     row,
@@ -933,7 +949,7 @@ pub(crate) mod leaf_copy {
     use crate::instruction_selection::selection::construction::scalar_graph::structural::local_storage;
     use crate::instruction_selection::selection::construction::scalar_graph::structural::provenance;
     use crate::instruction_selection::structural_inputs::structural_reference_input::{
-        case_projection, leaf_copy_geometry, reference_formation_geometry,
+        case_projection, leaf_copy_geometry, reference_formation_geometry_at,
         reference_source_geometry,
     };
     use selected_instructions::VirtualRegisterId;
@@ -1228,8 +1244,16 @@ pub(crate) mod leaf_copy {
             argument.place,
         )
         .ok_or_else(invalid)?;
-        let geometry = reference_formation_geometry(root, &argument.path, source.geometry())
-            .ok_or_else(invalid)?;
+        let geometry = reference_formation_geometry_at(
+            root,
+            crate::instruction_selection::selection::arrival_parameter_input::parameter(
+                source,
+                argument.place,
+            ),
+            &argument.path,
+            source.geometry(),
+        )
+        .ok_or_else(invalid)?;
         if !geometry.readable
             || !crate::instruction_selection::structural_inputs::runtime_indices_match(
                 indices,

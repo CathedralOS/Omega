@@ -3430,7 +3430,7 @@ pub(crate) mod element_views {
         } {
             return None;
         }
-        descriptor_source_geometry(root, &source.path, types)
+        legalized_operations::structural_inputs::structural_reference_input::descriptor_source_geometry_at(root, function_inputs.arrival_parameter(source.place), &source.path, types)
     }
 
     pub(crate) fn read_geometry(
@@ -3468,8 +3468,12 @@ pub(crate) mod element_views {
             return None;
         }
         geometry.byte_offset = geometry.byte_offset.checked_add(
-            calling_conventions::terminal_layout::element_view_length_offset(
+            calling_conventions::terminal_layout::element_view_length_at(
                 &types.declaration(geometry.selected).ok()?.shape,
+                function_inputs
+                    .arrival_parameter(source.place)
+                    .filter(|_| source.path.is_empty())
+                    .map(|formal| formal.access),
             )?,
         )?;
         Some(geometry)

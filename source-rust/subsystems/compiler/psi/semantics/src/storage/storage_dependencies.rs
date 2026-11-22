@@ -49,11 +49,15 @@ pub fn inline_storage_extent_dependencies(
     Ok(applications)
 }
 
+/// A consumer may use fixed transport words for a particular root occurrence.
+/// Its projected fields, referents and elements still need their own layouts,
+/// even when the path reaches the same declared type again.
 pub fn storage_operand_dependencies(
     machine: &TerminalMachine,
     declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     storage: StructuralStorageUse<'_>,
     roots: &mut BTreeSet<StructuralTypeId>,
+    include_root: impl Fn(semantic_vocabulary::PlaceId) -> bool,
 ) -> Result<(), String> {
     let place_type = |place| {
         machine
@@ -62,7 +66,10 @@ pub fn storage_operand_dependencies(
     };
     match storage {
         StructuralStorageUse::Place(place) => {
-            roots.insert(place_type(place)?);
+            let root = place_type(place)?;
+            if include_root(place) {
+                roots.insert(root);
+            }
         }
         StructuralStorageUse::Type(structural_type) => {
             roots.insert(structural_type);
@@ -73,6 +80,7 @@ pub fn storage_operand_dependencies(
                 place_type(projection.root)?,
                 projection.path,
                 roots,
+                include_root(projection.root),
             )
             .ok_or_else(|| format!("malformed storage projection {projection:?}"))?;
         }
@@ -82,6 +90,7 @@ pub fn storage_operand_dependencies(
                 place_type(root)?,
                 path,
                 roots,
+                include_root(root),
             )
             .ok_or_else(|| {
                 format!("malformed declaration-ID storage projection at {root:?}: {path:?}")
@@ -89,7 +98,9 @@ pub fn storage_operand_dependencies(
         }
         StructuralStorageUse::ObservedField { root, path, .. } => {
             let carrier = place_type(root)?;
-            roots.insert(carrier);
+            if include_root(root) {
+                roots.insert(carrier);
+            }
             let observed = match declarations.get(&carrier).map(|row| &row.shape) {
                 Some(terminal_psi::StructuralTypeShape::Reference { referent, .. }) => {
                     *referent
@@ -101,6 +112,7 @@ pub fn storage_operand_dependencies(
                 observed,
                 path,
                 roots,
+                observed != carrier || include_root(root),
             )
             .ok_or_else(|| {
                 format!("malformed scalar-field carrier projection at {root:?}: {path:?}")
@@ -112,6 +124,7 @@ pub fn storage_operand_dependencies(
                 place_type(descriptor.root)?,
                 descriptor.path,
                 roots,
+                include_root(descriptor.root),
             )
             .flatten()
             .ok_or_else(|| format!("element access has no descriptor at {descriptor:?}"))?;
@@ -127,6 +140,7 @@ pub fn storage_operand_dependencies(
                 *element,
                 path,
                 roots,
+                true,
             )
             .ok_or_else(|| {
                 format!(

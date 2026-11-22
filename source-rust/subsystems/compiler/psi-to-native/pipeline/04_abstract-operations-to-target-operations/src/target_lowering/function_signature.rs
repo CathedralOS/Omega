@@ -314,7 +314,7 @@ pub(crate) mod structural_signature {
     use terminal_psi::StructuralAccess;
 
     use crate::target_lowering::LoweringError;
-    use crate::target_lowering::structural_layout::{scalar_storage_type, structural_shape};
+    use crate::target_lowering::structural_layout::scalar_storage_type;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum ParameterLane {
@@ -382,7 +382,9 @@ pub(crate) mod structural_signature {
                     shapes.push(pointer);
                     continue;
                 }
-                let referent = structural_shape(structural_type, declarations)?;
+                let referent = declarations
+                    .formal_storage_shape(structural_type, access)
+                    .map_err(crate::target_lowering::structural_layout::geometry_error)?;
                 shapes.push(Self::parameter_shape(
                     ParameterLane::Internal,
                     structural_type,

@@ -779,6 +779,7 @@ pub fn projection_storage_dependencies<'a>(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
     dependencies: &mut std::collections::BTreeSet<StructuralTypeId>,
+    include_root: bool,
 ) -> Option<Option<StructuralTypeId>> {
     let backing = match path.split_last() {
         Some((StructuralPathSegment::FixedRange { .. }, backing)) => backing,
@@ -791,7 +792,7 @@ pub fn projection_storage_dependencies<'a>(
         plain_scalar_field,
         |_| {},
         |_, _| true,
-        Some(dependencies),
+        Some((include_root, dependencies)),
     )?;
     Some(match tip {
         ProjectionTip::Declared(declaration) => Some(declaration.id),
@@ -808,7 +809,7 @@ fn walk_primitive_projection_with_policy<'a>(
     scalar_field: impl Fn(&StructuralFieldType) -> Option<ScalarType>,
     step: impl FnMut(Option<CanonicalStructuralPathSegment>),
     may_step: impl FnMut(Option<StructuralTypeId>, &StructuralPathSegment) -> bool,
-    dependencies: Option<&mut TypeDependencies>,
+    dependencies: Option<(bool, &mut TypeDependencies)>,
 ) -> Option<ProjectionTip<'a>> {
     let unique = |id| exactly_one(declarations.clone(), |row| row.id == id);
     walk_primitive_projection_with_lookup(
@@ -832,7 +833,7 @@ fn walk_primitive_projection_with_lookup<'a>(
     scalar_field: impl Fn(&StructuralFieldType) -> Option<ScalarType>,
     mut step: impl FnMut(Option<CanonicalStructuralPathSegment>),
     mut may_step: impl FnMut(Option<StructuralTypeId>, &StructuralPathSegment) -> bool,
-    mut dependencies: Option<&mut TypeDependencies>,
+    mut dependencies: Option<(bool, &mut TypeDependencies)>,
 ) -> Option<ProjectionTip<'a>> {
     let mut position = Position::Declared(root);
     let mut payload_fields = None;
@@ -841,7 +842,10 @@ fn walk_primitive_projection_with_lookup<'a>(
             Position::Declared(root) => Some(root),
             _ => None,
         };
-        if let (Some(dependencies), Some(declared)) = (dependencies.as_mut(), declared) {
+        if let (Some((include_root, dependencies)), Some(declared)) =
+            (dependencies.as_mut(), declared)
+            && (*include_root || ordinal > 0)
+        {
             dependencies.insert(declared);
         }
         if !may_step(declared, segment) {
@@ -1012,7 +1016,9 @@ fn walk_primitive_projection_with_lookup<'a>(
     match position {
         Position::Declared(root) => {
             let declaration = unique(root)?;
-            if let Some(dependencies) = dependencies {
+            if let Some((include_root, dependencies)) = dependencies
+                && (include_root || !path.is_empty())
+            {
                 dependencies.insert(root);
             }
             Some(ProjectionTip::Declared(declaration))

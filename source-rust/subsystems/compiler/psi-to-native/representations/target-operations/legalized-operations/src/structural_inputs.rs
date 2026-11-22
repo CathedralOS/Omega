@@ -157,10 +157,11 @@ pub mod structural_reference_input {
 
     pub fn element_view_length_geometry(
         root: StructuralTypeId,
+        formal: Option<&terminal_psi::StructuralParameterDeclaration>,
         path: &[StructuralPathSegment],
         declarations: &NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
-        let mut geometry = reference_source_geometry(root, path, declarations)?;
+        let mut geometry = descriptor_source_geometry_at(root, formal, path, declarations)?;
         if !geometry.readable
             || !matches!(
                 find_structural_type(declarations, geometry.selected)?.shape,
@@ -170,8 +171,11 @@ pub mod structural_reference_input {
             return None;
         }
         geometry.byte_offset = geometry.byte_offset.checked_add(
-            calling_conventions::terminal_layout::element_view_length_offset(
+            calling_conventions::terminal_layout::element_view_length_at(
                 &find_structural_type(declarations, geometry.selected)?.shape,
+                formal
+                    .filter(|_| path.is_empty())
+                    .map(|formal| formal.access),
             )?,
         )?;
         Some(geometry)
@@ -185,6 +189,124 @@ pub mod structural_reference_input {
         reference_geometry(root, path, declarations, |root, path| {
             descriptor_projection(root, path, declarations)
         })
+    }
+
+    /// A direct slice parameter holds the pointer/count descriptor. Once its
+    /// pointer is crossed, the usual field and nested pointer layouts apply.
+    pub fn reference_formation_geometry_at<'types>(
+        root: StructuralTypeId,
+        formal: Option<&terminal_psi::StructuralParameterDeclaration>,
+        path: &[StructuralPathSegment],
+        declarations: &NativeGeometry<'types>,
+    ) -> Option<ReferenceSourceGeometry<std::borrow::Cow<'types, StructuralFieldType>>> {
+        projection_at(
+            root,
+            formal,
+            path,
+            declarations,
+            |identity| std::borrow::Cow::Owned(StructuralFieldType::Structural(identity)),
+            |root, path| reference_formation_geometry(root, path, declarations),
+        )
+    }
+
+    pub fn descriptor_source_geometry_at(
+        root: StructuralTypeId,
+        formal: Option<&terminal_psi::StructuralParameterDeclaration>,
+        path: &[StructuralPathSegment],
+        declarations: &NativeGeometry<'_>,
+    ) -> Option<ReferenceSourceGeometry> {
+        projection_at(
+            root,
+            formal,
+            path,
+            declarations,
+            |identity| identity,
+            |root, path| descriptor_source_geometry(root, path, declarations),
+        )
+    }
+
+    fn projection_at<Endpoint>(
+        root: StructuralTypeId,
+        formal: Option<&terminal_psi::StructuralParameterDeclaration>,
+        path: &[StructuralPathSegment],
+        declarations: &NativeGeometry<'_>,
+        direct: impl FnOnce(StructuralTypeId) -> Endpoint,
+        project: impl FnOnce(
+            StructuralTypeId,
+            &[StructuralPathSegment],
+        ) -> Option<ReferenceSourceGeometry<Endpoint>>,
+    ) -> Option<ReferenceSourceGeometry<Endpoint>> {
+        let Some(element) = borrowed_slice_element(root, formal, declarations) else {
+            return project(root, path);
+        };
+        if path.is_empty() {
+            return Some(ReferenceSourceGeometry {
+                region_root: root,
+                uses_borrowed_backing: false,
+                readable: true,
+                selected: direct(root),
+                byte_offset: 0,
+                pointer_slots: Vec::new(),
+                elements: Vec::new(),
+            });
+        }
+        let first = calling_conventions::terminal_layout::borrowed_element_index(
+            shape(element, declarations)?,
+            path,
+        )?;
+        let mut geometry = project(element, first.remaining)?;
+        let count = usize::from(first.selector.is_some());
+        for slot in &mut geometry.pointer_slots {
+            slot.indices.start += count;
+            slot.indices.end += count;
+        }
+        if let Some(slot) = geometry.pointer_slots.first_mut() {
+            slot.byte_offset = slot.byte_offset.checked_add(first.fixed_offset)?;
+            slot.indices.start = 0;
+        } else {
+            geometry.byte_offset = geometry.byte_offset.checked_add(first.fixed_offset)?;
+        }
+        if let Some((index, obligation, stride)) = first.selector {
+            geometry.elements.insert(
+                0,
+                RuntimeElement {
+                    index,
+                    obligation,
+                    stride,
+                    extent: None,
+                },
+            );
+        }
+        geometry.pointer_slots.insert(
+            0,
+            PointerSlot {
+                byte_offset: 0,
+                indices: 0..0,
+                scalar_descriptor: false,
+            },
+        );
+        geometry.uses_borrowed_backing = true;
+        Some(geometry)
+    }
+
+    fn borrowed_slice_element(
+        root: StructuralTypeId,
+        formal: Option<&terminal_psi::StructuralParameterDeclaration>,
+        declarations: &NativeGeometry<'_>,
+    ) -> Option<StructuralTypeId> {
+        let formal = formal.filter(|formal| formal.structural_type == root)?;
+        let shape = &find_structural_type(declarations, root)?.shape;
+        match shape {
+            StructuralTypeShape::ElementView { element, .. }
+                if calling_conventions::terminal_layout::borrowed_element_descriptor(
+                    shape,
+                    formal.access,
+                ) =>
+            {
+                Some(*element)
+            }
+            _ => None,
+        }
     }
 
     pub fn reference_formation_geometry<'types>(
@@ -730,7 +852,12 @@ pub mod structural_reference_input {
         structural_type: StructuralTypeId,
         declarations: &NativeGeometry<'_>,
     ) -> Option<ValueShape> {
-        if scalar_storage_type(structural_type, declarations).is_some() {
+        if matches!(
+            find_structural_type(declarations, structural_type)?.shape,
+            StructuralTypeShape::ElementView { access: None, .. }
+        ) {
+            Some(ValueShape::borrowed_reference(16, 8))
+        } else if scalar_storage_type(structural_type, declarations).is_some() {
             Some(ValueShape::borrowed_scalar_reference())
         } else {
             let referent = shape(structural_type, declarations)?;

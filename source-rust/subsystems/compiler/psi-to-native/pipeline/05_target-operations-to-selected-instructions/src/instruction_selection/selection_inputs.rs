@@ -3387,10 +3387,17 @@ pub(crate) mod primitive_local_input {
                     source,
                     argument.place,
                 )?;
-                let geometry =
-                    element_view_length_geometry(root, &argument.path, source.geometry())?;
-                if calling_conventions::terminal_layout::element_view_length_offset(
+                let geometry = element_view_length_geometry(
+                    root,
+                    super::arrival_parameter_input::parameter(source, argument.place),
+                    &argument.path,
+                    source.geometry(),
+                )?;
+                if calling_conventions::terminal_layout::element_view_length_at(
                     &source.geometry().declaration(geometry.selected).ok()?.shape,
+                    super::arrival_parameter_input::parameter(source, argument.place)
+                        .filter(|_| argument.path.is_empty())
+                        .map(|formal| formal.access),
                 ) != Some(*length_byte_offset)
                 {
                     return None;
@@ -3965,7 +3972,7 @@ pub(crate) mod record_input {
 
 pub(crate) mod reference_input {
     use crate::instruction_selection::structural_inputs::structural_reference_input::{
-        PointerSlot, projected_scalar_codec, reference_formation_geometry, reference_projection,
+        PointerSlot, projected_scalar_codec, reference_formation_geometry_at, reference_projection,
         runtime_projection, scalar_storage_type,
     };
     use calling_conventions::ValueShape;
@@ -4170,7 +4177,12 @@ pub(crate) mod reference_input {
         };
         let mut projection_root = root;
         let mut segment_start = 0;
-        let geometry = reference_formation_geometry(root, path, declarations)?;
+        let geometry = reference_formation_geometry_at(
+            root,
+            super::arrival_parameter_input::parameter(function, source.place),
+            path,
+            declarations,
+        )?;
         if !crate::instruction_selection::structural_inputs::runtime_indices_match(
             indices,
             &geometry.elements,
@@ -4917,9 +4929,12 @@ pub(crate) mod reference_input {
                     ),
                     Some((row.operation, result))
                 );
-                let projected =
-                    super::reference_formation_geometry(type_id(4), &source.path, &geometry)
-                        .unwrap();
+                let projected = crate::instruction_selection::reference_formation_geometry(
+                    type_id(4),
+                    &source.path,
+                    &geometry,
+                )
+                .unwrap();
                 assert_eq!(projected.byte_offset, if misaligned { 17 } else { 16 });
                 assert_eq!(projected.selected.as_structural(), Some(type_id(3)));
                 assert!(projected.elements.is_empty());
@@ -5025,8 +5040,11 @@ pub(crate) mod reference_input {
                 else {
                     unreachable!()
                 };
-                let projected =
-                    super::reference_formation_geometry(type_id(4), &source.path, &geometry);
+                let projected = crate::instruction_selection::reference_formation_geometry(
+                    type_id(4),
+                    &source.path,
+                    &geometry,
+                );
                 let region = geometry.storage_region(type_id(4), &source.path);
                 if end <= 32 {
                     assert_eq!(projected.unwrap().byte_offset, 16);
