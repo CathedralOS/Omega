@@ -161,3 +161,47 @@ fn an_exclusive_reference_beside_a_resource_is_a_separate_residual() {
     assert!(matches!(owned.path.as_slice(), [PlaceProjection::Field(f)] if f.path == "Holder::t"));
     assert_eq!(*target, release);
 }
+
+#[test]
+fn imported_drop_specializes_the_normal_return_edge_for_the_callers_resource() {
+    let text = format!(r"use omega\core\drop; {HANDLE} machine finish(h:Handle){{drop(h);}}");
+    let package = source::lower(&[("client.omg", &text)]).unwrap();
+    let drop = machine(&package, r"core\drop");
+    assert_eq!(drop.declaration.package, omega_toolchain::TOOLCHAIN_PACKAGE);
+    let [Parameter::Structural(formal)] = drop.body.parameters[..] else { panic!("owned handle") };
+    let BlockTerminator::Return { cleanup, .. } = &drop.body.blocks[0].terminator else { panic!("normal return") };
+    assert!(matches!(&cleanup[..], [CleanupAction::Invoke { place, target, .. }]
+        if place.root == formal && place.path.is_empty() && *target == machine(&package, "release").id));
+    assert!(!invokes_anything(&package), "the caller has transferred its handle");
+}
+
+#[test]
+fn an_exported_empty_generic_body_keeps_its_formals_on_the_open_return_edge() {
+    use omega_lowering::{TemplateStep, TypeExpressionStep};
+    let text = "public machine finish<A,B>(first:A,second:B) {} machine use_it(x:u8,y:u16){finish(x,y);}";
+    let package = source::lower(&[("client.omg", text)]).unwrap();
+    let template = package.machine_templates.iter().find(|t| t.declaration.path == "finish").unwrap();
+    assert!(package.machines.iter().any(|m| m.declaration == template.declaration));
+    assert_eq!(template.body.len(), 2);
+    for (step, index) in template.body.iter().zip([1, 0]) {
+        let TemplateStep::DisposeFormal { formal, ty, site } = step else { panic!("formal disposition") };
+        assert_eq!(*formal, index);
+        assert_eq!(site.file, "client.omg");
+        assert_eq!(ty, &template.signature.parameters[index]);
+        assert!(matches!(&ty.0[..], [TypeExpressionStep::GenericParameter { owner, index: binder }]
+            if owner == &template.declaration && *binder == index));
+    }
+}
+
+#[test]
+fn an_imported_drop_leaves_an_unsettled_linear_discard_visible() {
+    let text = r"use omega\core\drop; data Claim [linear] { serial:u8; } machine finish(c:Claim){drop(c);}";
+    let package = source::lower(&[("client.omg", text)]).unwrap();
+    let claim = package.data.iter().find(|d| d.declaration.path == "Claim").unwrap();
+    assert_eq!(claim.multiplicity, omega_lowering::Multiplicity::Linear);
+    assert!(claim.cleanup_target.is_none());
+    let drop = machine(&package, r"core\drop");
+    let [Parameter::Structural(formal)] = drop.body.parameters[..] else { panic!("owned linear claim") };
+    let BlockTerminator::Return { cleanup, .. } = &drop.body.blocks[0].terminator else { panic!("normal return") };
+    assert_eq!(cleanup, &[CleanupAction::DiscardRoot(formal)]);
+}

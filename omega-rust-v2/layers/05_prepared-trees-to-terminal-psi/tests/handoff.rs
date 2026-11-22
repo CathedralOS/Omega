@@ -209,22 +209,22 @@ fn a_changed_extent_refuses_a_return_with_the_old_shape_during_preparation() {
 }
 
 #[test]
-fn an_open_array_extent_is_refused_at_the_generic_machine_declaration() {
-    let source = "machine open_extent<const N:u64>(array:[u8; N]){}";
+fn an_open_array_extent_survives_on_the_formal_disposition() {
+    use omega_lowering::{TemplateStep, TypeExpressionStep};
+    let source = "machine open_extent<const M:u64, const N:u64>(array:[u8; N]){}";
     let package = resolve(&[("open.omg", source)]);
     let prepared = prepare_source_package(&package).unwrap();
-    let signature = prepared
-        .typed()
-        .signatures
-        .iter()
-        .find(|sig| sig.machine.path == "open_extent")
-        .unwrap();
+    let signature = prepared.typed().signatures.iter().find(|sig| sig.machine.path == "open_extent").unwrap();
     assert!(matches!(signature.parameters[0].1, ValueType::IndexedArray(..)));
-    let error = lower_package(&prepared).unwrap_err();
-    assert_eq!(error.site, signature.site);
-    assert_eq!(error.site.package, "app");
-    assert_eq!(error.site.file, "open.omg");
-    assert_eq!(error.site.span.slice(source.as_bytes()), Some(source.as_bytes()));
+    let product = lower_package(&prepared).unwrap();
+    let [template] = product.machine_templates.as_slice() else { panic!("one open machine") };
+    let [TemplateStep::DisposeFormal { formal: 0, ty, .. }] = template.body.as_slice() else { panic!("dispose the array") };
+    assert_eq!(ty, &template.signature.parameters[0]);
+    assert!(matches!(&ty.0[..], [
+        TypeExpressionStep::Scalar(omega_lowering::ScalarType::Integer { signed: false, width: 8 }),
+        TypeExpressionStep::GenericParameter { owner, index: 1 },
+        TypeExpressionStep::IndexedArray
+    ] if owner == &template.declaration));
 }
 
 #[test]

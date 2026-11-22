@@ -274,13 +274,13 @@ pub(crate) fn plan(
     // An exported machine whose caller supplies an operation, through a
     // callable bound or an operation record such as `const E: Local`, keeps
     // its interface for external callers beside any local instance.
-    let mut operation_owners: HashSet<_> = prepared
+    let mut exported_template_owners: HashSet<_> = prepared
         .typed()
         .callable_bounds
         .iter()
         .map(|(owner, _, _)| owner)
         .collect();
-    operation_owners.extend(
+    exported_template_owners.extend(
         prepared
             .typed()
             .generic_parameters
@@ -293,9 +293,18 @@ pub(crate) fn plan(
                     .then_some(owner)
             }),
     );
+    // A public generic disposal body remains callable at other type arguments
+    // even when this package also materializes one closed application.
+    for &sig in signatures {
+        if prepared.typed().generic_parameters.get(&sig.machine).is_some_and(|p| !p.parameters.is_empty())
+            && empty_return_body(&trees[sig.node.file], sig)
+        {
+            exported_template_owners.insert(&sig.machine);
+        }
+    }
     let mut open: HashSet<_> = signatures
         .iter()
-        .filter(|s| !instantiated.contains(&s.machine) || trees[s.node.file].resolved().is_exported(s.node.node) && operation_owners.contains(&s.machine))
+        .filter(|s| !instantiated.contains(&s.machine) || trees[s.node.file].resolved().is_exported(s.node.node) && exported_template_owners.contains(&s.machine))
         .map(|s| &s.machine)
         .collect();
     let mut work: Vec<_> = open.iter().copied().collect();
@@ -338,6 +347,12 @@ pub(crate) fn plan(
         .filter(|s| open.contains(&s.machine))
         .map(|s| lower(prepared, &trees[s.node.file], s, traits, &supplied_calls))
         .collect()
+}
+
+fn empty_return_body(tree: &TypedTree<'_>, sig: &TypedSignature) -> bool {
+    let file = tree.resolved().file;
+    sig.result == ValueType::NoResult
+        && file.child(sig.node.node, NodeKind::Body).is_some_and(|body| file.nodes[body].children.is_empty())
 }
 
 fn lower(
@@ -421,7 +436,9 @@ fn lower(
         && parameters
             .iter()
             .all(|p| matches!(p, MachineTemplateBinder::Type(TemplateBinder::Lifetime)));
+    let empty_return = empty_return_body(tree, sig);
     if bounds.is_empty()
+        && !empty_return
         && !lifetimes_only
         && !parameters.iter().any(|p| matches!(p, MachineTemplateBinder::Const(_) | MachineTemplateBinder::Implementation(_)))
         && sig.machine.enclosing_machine.is_none()
@@ -490,7 +507,13 @@ fn lower(
             _ => return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE)),
         }
     }
-    let body = steps.body;
+    let mut body = steps.body;
+    if empty_return {
+        for (formal, (span, ty)) in sig.parameters.iter().enumerate().rev() {
+            let site = Site { span: *span, ..sig.site.clone() };
+            body.push(TemplateStep::DisposeFormal { formal, ty: indexed_expression(ty, &site)?, site });
+        }
+    }
     if effects
         .callback_pause
         .keys()
@@ -498,7 +521,7 @@ fn lower(
     {
         return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
     }
-    if body.is_empty() && result.is_none() || result.is_some() != (sig.result != ValueType::NoResult) {
+    if (!empty_return && body.is_empty() && result.is_none()) || result.is_some() != (sig.result != ValueType::NoResult) {
         return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
     }
     super::crash_routes::check_template_invocations(prepared, sig)?;
@@ -1542,7 +1565,7 @@ fn reads_formal(
     use TemplateOperand as O;
     let direct = |operand: &O| matches!(operand, O::Formal(f) | O::RecordField { formal: f, .. } | O::Borrow { formal: f, .. } | O::BorrowBefore { formal: f, .. } | O::MoveField { formal: f, .. } if formals.contains(f));
     match step {
-        TemplateStep::CopyReferent { formal, .. } | TemplateStep::MoveFormal { formal, .. } => formals.contains(formal),
+        TemplateStep::CopyReferent { formal, .. } | TemplateStep::MoveFormal { formal, .. } | TemplateStep::DisposeFormal { formal, .. } => formals.contains(formal),
         TemplateStep::Call(call) => call.operands.iter().any(direct),
         TemplateStep::Integer(integer) => integer.operands.iter().any(direct),
         TemplateStep::TrappingInteger { operands, .. } => operands.iter().any(direct),
