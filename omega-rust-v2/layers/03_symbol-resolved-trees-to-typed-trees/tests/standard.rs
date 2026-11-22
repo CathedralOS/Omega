@@ -219,6 +219,13 @@ fn production_core_selects_the_policy_and_ranking_declarations() {
     );
 }
 #[test]
+fn a_trapping_integer_operation_cannot_form_a_rank_subject() {
+    let source = "machine f(n:u64) terminates by (n +! 1) - 1 {}";
+    assert_typing_refusal(source, "app.omg", "n +! 1", "n +! 1", "a proof term cannot execute trapping arithmetic");
+    check(&source.replace("+!", "+")).unwrap();
+}
+
+#[test]
 fn the_checked_core_uses_the_same_descending_rank_explicitly_and_by_default() {
     let source = "
         domain u64::Count requires self>0;

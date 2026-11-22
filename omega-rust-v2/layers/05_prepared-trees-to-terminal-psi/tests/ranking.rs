@@ -373,10 +373,6 @@ fn an_unranked_productive_cycle_stays_unranked() {
     assert!(machine(&package, "spin").contract.ranking.is_none());
 }
 
-fn refuses_at(source: &str, span: std::ops::Range<usize>, reason: &str) {
-    sources::refuse(&[("ranking.omg", source)], "ranking.omg", span, reason);
-}
-
 const ORDINARY: &str = "machine count(n:u64)->u64 terminates by n {match n == 0 {true -> 7, false -> count(n - 1),}}";
 
 #[test]
@@ -959,20 +955,151 @@ fn an_exact_difference_rank_uses_the_same_subtraction_over_the_call_actuals() {
 }
 
 #[test]
-fn a_computed_rank_other_than_one_exact_subtraction_has_no_psi_form() {
-    // Wrapping, saturating, additive and nested subjects are not the exact
-    // subtraction Terminal Psi names. Whether the language admits them as
-    // `Nat\Descending` subjects is not settled; lowering refuses them.
-    let constant = "const K:u64 = 3; machine f(n:u64) terminates by K {}";
-    for subject in ["K -% n", "K -| n", "K + n", "K - n - 1"] {
-        let source = constant.replace("by K", &format!("by {subject}"));
-        refuses_at(
-            &source,
-            sources::unique_span(&source, subject),
-            "lowering only represents a computed rank that is one exact subtraction of formals or integer constants",
+fn computed_rank_arithmetic_preserves_operations_and_operands() {
+    use IntegerPrimitive::{Add, Subtract};
+    use omega_lowering::{
+        ArithmeticPolicy::{Exact, Saturating, Wrapping},
+        IntegerObligation::ResultFitsCarrier,
+        IntegerOperation,
+        RankArithmeticStep::{Apply, Operand},
+    };
+    let carrier = ScalarType::Integer { signed: false, width: 64 };
+    let n = Operand {
+        operand: RankOperand::Input(0),
+        carrier,
+    };
+    let k = Operand {
+        operand: RankOperand::Constant(3.into()),
+        carrier,
+    };
+    let one = Operand {
+        operand: RankOperand::Constant(1.into()),
+        carrier,
+    };
+    let operation = |primitive, policy, obligations: &[_]| {
+        Apply(IntegerOperation {
+            primitive,
+            policy,
+            obligations: obligations.to_vec(),
+        })
+    };
+    let mut observed = Vec::new();
+    let mut expected = Vec::new();
+    for (subject, steps, at_four, sites) in [
+        (
+            "K -% n",
+            vec![k.clone(), n.clone(), operation(Subtract, Wrapping, &[])],
+            Some(i128::from(u64::MAX)),
+            vec!["K -% n"],
+        ),
+        (
+            "K -| n",
+            vec![k.clone(), n.clone(), operation(Subtract, Saturating, &[])],
+            Some(0),
+            vec!["K -| n"],
+        ),
+        (
+            "K + n",
+            vec![
+                k.clone(),
+                n.clone(),
+                operation(Add, Exact, &[ResultFitsCarrier]),
+            ],
+            Some(7),
+            vec!["K + n"],
+        ),
+        (
+            "K - n - 1",
+            vec![
+                k,
+                n,
+                operation(Subtract, Exact, &[ResultFitsCarrier]),
+                one,
+                operation(Subtract, Exact, &[ResultFitsCarrier]),
+            ],
+            None,
+            vec!["K - n", "K - n - 1"],
+        ),
+    ] {
+        let text = format!("const K:u64 = 3; machine f(n:u64)->u64 terminates by {subject} {{transition n == 0 {{true -> 7, false -> f(n - 1),}}}}");
+        let package = lower(&text).unwrap();
+        let f = machine(&package, "f");
+        let witness = ranking(f);
+        let RankExpression::Arithmetic(actual) = &witness.rank else {
+            panic!("missing computed rank")
+        };
+        // Replay each formerly refused program, then exercise the same rank on a recursive edge.
+        let original = format!("const K:u64 = 3; machine f(n:u64) terminates by {subject} {{}}");
+        let original_package = lower(&original).unwrap();
+        let original_rank = &ranking(machine(&original_package, "f")).rank;
+        let RankExpression::Arithmetic(original_steps) = original_rank else {
+            panic!("original case lost its computation")
+        };
+        observed.push((original_steps.clone(), actual.clone()));
+        expected.push((steps.clone(), steps.clone()));
+        assert_eq!(
+            witness
+                .arithmetic_sites
+                .iter()
+                .map(|site| site.span.slice(text.as_bytes()).unwrap())
+                .collect::<Vec<_>>(),
+            sites.iter().map(|s| s.as_bytes()).collect::<Vec<_>>()
         );
+        assert_eq!(psi_handoff_consumer::entry_rank(&witness.rank, &[4]), at_four);
+        let [edge] = witness.edges.as_slice() else { panic!("expected one self call") };
+        let next = operation_result(f, Subtract, formal(f, 0));
+        let expected = RankExpression::Arithmetic(steps)
+            .try_map(|index| (index == 0).then_some(next))
+            .unwrap();
+        assert_eq!(edge.successor.as_ref(), Some(&expected));
+        assert_eq!(psi_handoff_consumer::successor_from_call(&package, f.id, edge).unwrap(), expected);
     }
+    spec_corpus::observe_handoff!(psi "psi-output/computed-rank-arithmetic", assert_eq!(observed, expected));
 }
+#[test]
+fn rank_intermediates_keep_their_carriers_and_distinct_formation_obligations() {
+    use omega_lowering::{
+        ArithmeticPolicy::Exact,
+        IntegerObligation::{NonzeroDivisor, ResultFitsCarrier, ShiftCountInRange},
+        IntegerOperation,
+        RankArithmeticStep::{Apply, Operand},
+    };
+    let source = "machine width(n:u64, count:i8, divisor:u64) terminates by (n << count) / divisor {}";
+    let package = lower(source).unwrap();
+    let witness = ranking(machine(&package, "width"));
+    let natural = ScalarType::Integer { signed: false, width: 64 };
+    let signed_count = ScalarType::Integer { signed: true, width: 8 };
+    let input = |slot, carrier| Operand {
+        operand: RankOperand::Input(slot),
+        carrier,
+    };
+    let operation = |primitive, obligations| {
+        Apply(IntegerOperation {
+            primitive,
+            policy: Exact,
+            obligations,
+        })
+    };
+    assert_eq!(
+        witness.rank,
+        RankExpression::Arithmetic(vec![
+            input(0, natural),
+            input(1, signed_count),
+            operation(IntegerPrimitive::ShiftLeft, vec![ShiftCountInRange, ResultFitsCarrier]),
+            input(2, natural),
+            operation(IntegerPrimitive::Divide, vec![NonzeroDivisor]),
+        ])
+    );
+    assert_eq!(
+        witness
+            .arithmetic_sites
+            .iter()
+            .map(|site| site.span.slice(source.as_bytes()).unwrap())
+            .collect::<Vec<_>>(),
+        [b"n << count".as_slice(), b"(n << count) / divisor"]
+    );
+}
+
 #[test]
 fn a_constant_distance_limit_is_the_same_value_on_the_recursive_edge() {
     let package = lower(

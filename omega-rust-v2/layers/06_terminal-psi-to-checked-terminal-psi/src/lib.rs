@@ -5,6 +5,9 @@
 //! Applying the policy still requires evaluation and validation for its schema.
 #![forbid(unsafe_code)]
 
+mod computed_ranks;
+pub use computed_ranks::{ComputedRankError, check_computed_ranks};
+
 mod closed_policy_call;
 pub use closed_policy_call::{CheckedClosedPolicyCall, check_closed_policy_call};
 mod constructor_body;

@@ -97,29 +97,22 @@ and live stack exclusions and call `ProgramStorageEntry::enter` only when it
 can forward both grants. Grant issuance and the semantic transport each need
 an explicit place in the physical adapter’s published effect ceiling.
 
-<a id="descending-rank-entry-expressions"></a>
-### 2. Which entry expressions may supply a descending natural rank?
-
-Does `const K:u64 = 3; machine f(n:u64) terminates by K + n {}` declare a valid ranking witness? The answer determines whether typing must reject the authored expression or lowering must preserve it for the checker. `K - n` and the explicit bounded-distance view already reach Psi. Replacing the subtraction with addition, wrapping subtraction, or a second subtraction stops before checking.
-
-The [language ranking rule](wiki/spec/language/termination.md#ranking) describes a subject and a selected view. The [Terminal Psi control-flow rule](wiki/spec/terminal-psi/control_flow.md#safety-and-progress) describes one exact subtraction and the bounded-distance view’s saturating subtraction. Rewriting an authored expression to another view also changes the witness the checker receives. Which expressions are lawful at entry, and when do two such witnesses have the same identity?
-
 <a id="transparent-alias-carry-assertions"></a>
-### 3. May a transparent alias explicitly restate its target’s carry policy?
+### 2. May a transparent alias explicitly restate its target’s carry policy?
 
 A transparent alias of `u64` cannot acquire a new restriction on suspension. May it explicitly declare the four carry axes with exactly the values `u64` already has? If the target already restricts suspension, may the alias spell a weaker floor while continuing to inherit the restriction? These cases determine which declarations typing accepts and what downstream consumers can rely on. V2 prepares both forms and currently stops in lowering.
 
 [Transparent aliases](wiki/spec/language/generics.md#transparent-type-aliases) equates an alias and its expansion. The [carry policy](wiki/spec/resources/carry.md) combines the structurally derived policy with an authored floor. Neither example changes the effective target policy under intersection. Should the written list be a checked equality assertion, a redundant floor, or unavailable on aliases?
 
 <a id="machine-hypothesis-without-a-binder"></a>
-### 4. Does a theorem’s machine hypothesis require an explicit binder?
+### 3. Does a theorem’s machine hypothesis require an explicit binder?
 
 When a theorem writes `requires machine Step(...)` but its generic binders do not name `Step`, must the compiler reject the declaration, or does the hypothesis introduce an evidence parameter? For the latter interpretation, which argument at a citation supplies that evidence? V2 rejects a citation with no evidence for the root hypothesis during typing. The declaration alone still reaches lowering, where it lacks a binder slot. The corresponding declaration with an explicit machine binder gives the citation an evidence position.
 
 [Logical hypotheses and machine use](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use) describes nested machine-shaped requirements. Its [proof-construction example](wiki/spec/proofs/mathematical_bindings.md#witnesses-existence-and-proof-construction) binds `machine Step` explicitly. An answer settles which declarations type and what evidence a citation must supply.
 
 <a id="whole-subject-region-constructor"></a>
-### 5. Which core declaration names the whole subject of an access policy?
+### 4. Which core declaration names the whole subject of an access policy?
 
 A domain can restrict reads of an entire value to one machine and writes to another. The documented policy passes `TypeSchema::root(@schema)` to both rule constructors. Which ordinary core declaration should a caller select to identify that whole subject? The access chapter gives the spelling and its meaning. The machine declaration rule reserves `::` for specific owners, and reflection defines `TypeSchema` as data. [Access plan construction](wiki/spec/resources/access.md) · [Worked domain policy](wiki/spec/language/domains.md#domain-owned-read-and-write-authority) · [Machine declarations](wiki/spec/language/machines.md#static-declarations-and-explicit-state) · [Semantic reflection](wiki/spec/language/reflection.md)
 

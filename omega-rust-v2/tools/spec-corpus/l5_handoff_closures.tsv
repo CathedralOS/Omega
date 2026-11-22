@@ -81,6 +81,7 @@ recursive relay of a boundary view at suspension	checker-input	psi-output/recurs
 restoration through a premised selector	checker-input	psi-output/premised-equal-selector-fill|psi-output/premised-distinct-selector-displacement
 scalar field operand of a record with a non-scalar field	product	psi-output/mixed-record-template-operand|psi-output/mixed-record-operand-carrier
 computed ranking subject	checker-input	psi-output/computed-rank-subject|psi-output/computed-rank-edge
+non-exact computed ranking subject	checker-input	psi-output/computed-rank-arithmetic
 cleanup in a ranked component	checker-input	psi-output/ranked-cleanup-edge|psi-output/ranked-cleanup-actual
 add a tag and a predicate domain in one cast	checker-input	psi-output/mixed-cast-completion
 add an applied domain and a domain of the other origin in one cast	checker-input	psi-output/applied-cast-completion

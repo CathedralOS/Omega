@@ -10,9 +10,10 @@
 //! Unsupported shapes refuse.
 use crate::lowering::applied_tree::LoweringTree;
 use crate::{
-    ArithmeticPolicy, BlockTerminator, CallArgument, IntegerPrimitive, LoweredPackage, LoweringError, MachineBody, MachineId, MachineRanking, OperationKind, Parameter, RankBounds,
+    BlockTerminator, CallArgument, LoweredPackage, LoweringError, MachineBody, MachineId, MachineRanking, OperationKind, Parameter, RankBounds,
     RankComparison, RankExpression, RankOperand, RankOrder, RankRelation, RankedEdge, ScalarType, Site, TypeShape, ValueOrigin, site_at,
 };
+mod arithmetic;
 mod calls;
 mod comparisons;
 use calls::{Actuals, Invocation, RankedTransfer};
@@ -82,7 +83,7 @@ pub(crate) fn authored(
     };
     // An integer literal in the rank carrier: a bound endpoint or a constant
     // rank operand, named by `what` in refusals.
-    let literal = |node: usize, what: &str| -> Result<BigInt, LoweringError> {
+    let literal = |node: usize, what: &str, expected: &ValueType| -> Result<BigInt, LoweringError> {
         let node = file.ungroup(node);
         if file.nodes[node].kind != NodeKind::Literal {
             return Err(refuse(node, &format!("{what} must be an integer literal")));
@@ -90,13 +91,13 @@ pub(crate) fn authored(
         let mut value: Option<&BigInt> = None;
         for record in tree.semantics_at(node) {
             let candidate = match record {
-                NodeSemantics::Landing(l) if l.ty == witness.rank && l.value.is_integer() => Some(l.value.numer()),
+                NodeSemantics::Landing(l) if &l.ty == expected && l.value.is_integer() => Some(l.value.numer()),
                 NodeSemantics::Expression(e) if e.static_argument_slot.is_none() => match &e.ty {
                     ValueType::Exact {
                         value,
                         fractional_origin: None,
                     } if value.is_integer() => Some(value.numer()),
-                    ty if ty == &witness.rank => None,
+                    ty if ty == expected => None,
                     _ => return Err(refuse(node, &format!("{what} has a foreign carrier"))),
                 },
                 _ => return Err(refuse(node, &format!("unsupported typed {what} record"))),
@@ -109,19 +110,19 @@ pub(crate) fn authored(
             }
         }
         value
-            .filter(|v| witness.rank.contains_integer(v))
+            .filter(|v| expected.contains_integer(v))
             .cloned()
             .ok_or_else(|| refuse(node, &format!("{what} has no value in the rank carrier")))
     };
-    let endpoint = |node: usize| literal(node, "rank bound endpoint");
+    let endpoint = |node: usize| literal(node, "rank bound endpoint", &witness.rank);
     // A rank operand is an immutable formal of the carrier or a closed
     // integer constant. A named `const` contributes its prepared value, the
     // same value its other uses read; the declaration adds no runtime input.
-    let operand = |node: usize| -> Result<RankOperand<usize>, LoweringError> {
+    let operand = |node: usize, expected: &ValueType| -> Result<RankOperand<usize>, LoweringError> {
         let node = file.ungroup(node);
         let symbol = resolved.symbol(node);
         if file.nodes[node].kind == NodeKind::Literal {
-            return Ok(RankOperand::Constant(literal(node, "rank literal")?));
+            return Ok(RankOperand::Constant(literal(node, "rank literal", expected)?));
         }
         if let Some(Symbol::Declaration(id)) = symbol
             && id.kind == NodeKind::Const
@@ -129,7 +130,7 @@ pub(crate) fn authored(
             let (mut typed, mut named) = (false, false);
             for record in tree.semantics_at(node) {
                 match record {
-                    NodeSemantics::Expression(e) if !typed && e.static_argument_slot.is_none() && e.ty == witness.rank => typed = true,
+                    NodeSemantics::Expression(e) if !typed && e.static_argument_slot.is_none() && &e.ty == expected => typed = true,
                     NodeSemantics::Constant(constant) if !named && constant == id => named = true,
                     _ => return Err(refuse(node, "unsupported typed ranking subject record")),
                 }
@@ -138,7 +139,7 @@ pub(crate) fn authored(
                 return Err(refuse(node, "ranking constant has no typed carrier"));
             }
             return match prepared.constant(id) {
-                Some(PreparedValue::Integer(value)) if witness.rank.contains_integer(value) => Ok(RankOperand::Constant(value.clone())),
+                Some(PreparedValue::Integer(value)) if expected.contains_integer(value) => Ok(RankOperand::Constant(value.clone())),
                 _ => Err(refuse(node, "ranking constant has no prepared value in the rank carrier")),
             };
         }
@@ -151,12 +152,12 @@ pub(crate) fn authored(
         let index = sig
             .parameters
             .iter()
-            .position(|(candidate, ty)| candidate == span && ty == &witness.rank)
+            .position(|(candidate, ty)| candidate == span && ty == expected)
             .ok_or_else(|| refuse(node, "ranking subject must be an unqualified formal of the rank carrier"))?;
         let mut typed = false;
         for record in tree.semantics_at(node) {
             match record {
-                NodeSemantics::Expression(e) if e.static_argument_slot.is_none() && e.ty == witness.rank => typed = true,
+                NodeSemantics::Expression(e) if e.static_argument_slot.is_none() && &e.ty == expected => typed = true,
                 _ => return Err(refuse(node, "unsupported typed ranking subject record")),
             }
         }
@@ -165,55 +166,13 @@ pub(crate) fn authored(
         }
         Ok(RankOperand::Input(index))
     };
-    // Terminal Psi also admits one exact subtraction of two such operands,
-    // such as `MAX - index`. Keep the authored operand order. The typed
-    // operation and its formation question must be the ones any exact integer
-    // subtraction carries; the checker proves that question at entry and on
-    // each successor. A wrapping, saturating or nested subject has no form.
-    let difference = |node: usize, minuend: usize, subtrahend: usize| -> Result<RankExpression<usize>, LoweringError> {
-        let computed = || {
-            refuse(
-                node,
-                "lowering only represents a computed rank that is one exact subtraction of formals or integer constants",
-            )
-        };
-        let (mut typed, mut operation, mut contract) = (false, None, None);
-        for record in tree.semantics_at(node) {
-            match record {
-                NodeSemantics::Expression(e) if !typed && e.static_argument_slot.is_none() && e.ty == witness.rank => typed = true,
-                NodeSemantics::Operation(op) if operation.is_none() => operation = Some(op),
-                NodeSemantics::Obligation(o) if contract.is_none() && matches!(o.kind, ObligationKind::OperationContract { .. }) => contract = Some(o),
-                _ => return Err(refuse(node, "unsupported typed ranking subject record")),
-            }
-        }
-        let (true, Some(operation), Some(contract)) = (typed, operation, contract) else {
-            return Err(refuse(node, "ranking subtraction has no typed carrier"));
-        };
-        if operation.token != "-" {
-            return Err(computed());
-        }
-        if operation.result != witness.rank || operation.operands.iter().any(|ty| ty != &witness.rank) {
-            return Err(refuse(node, "ranking subtraction has a foreign carrier"));
-        }
-        let lowered = crate::machines::arithmetic::index_operation(operation, contract, &sig.machine)?;
-        if lowered.primitive != IntegerPrimitive::Subtract || lowered.policy != ArithmeticPolicy::Exact {
-            return Err(computed());
-        }
-        if [minuend, subtrahend]
-            .into_iter()
-            .any(|child| matches!(file.nodes[file.ungroup(child)].kind, NodeKind::Binary | NodeKind::Unary))
-        {
-            return Err(computed());
-        }
-        Ok(RankExpression::ExactDifference {
-            minuend: operand(minuend)?,
-            subtrahend: operand(subtrahend)?,
-        })
-    };
     let subject = file.ungroup(measure);
+    let mut arithmetic_sites = Vec::new();
     let rank = match (view, file.nodes[subject].kind, file.nodes[subject].children.as_slice()) {
-        (View::Descending, NodeKind::Binary, &[minuend, subtrahend]) => difference(subject, minuend, subtrahend)?,
-        (View::Descending, kind, _) if kind != NodeKind::Tuple => RankExpression::Operand(operand(subject)?),
+        (View::Descending, NodeKind::Binary | NodeKind::Unary, _) => {
+            arithmetic::subject(tree, sig, measure, &witness.rank, &operand, &mut arithmetic_sites)?
+        }
+        (View::Descending, kind, _) if kind != NodeKind::Tuple => RankExpression::Operand(operand(subject, &witness.rank)?),
         (View::BoundedDistance, NodeKind::Tuple, &[cursor, limit]) => {
             if tree
                 .semantics_at(subject)
@@ -222,8 +181,8 @@ pub(crate) fn authored(
                 return Err(refuse(subject, "unsupported typed ranking subject record"));
             }
             RankExpression::SaturatingDistance {
-                cursor: operand(cursor)?,
-                limit: operand(limit)?,
+                cursor: operand(cursor, &witness.rank)?,
+                limit: operand(limit, &witness.rank)?,
             }
         }
         _ => return Err(refuse(subject, "ranking subject does not match its view")),
@@ -252,6 +211,7 @@ pub(crate) fn authored(
             order: RankOrder::NaturalDescending,
         },
         rank,
+        arithmetic_sites,
         bounds,
         site,
         component: Vec::new(),
@@ -502,14 +462,21 @@ fn check_entry_rank(
     ranking: &MachineRanking,
     types: &crate::TypeTable,
 ) -> Result<(), LoweringError> {
-    for formal in ranking.rank.inputs() {
+    let formals = match &ranking.rank {
+        RankExpression::Arithmetic(steps) => steps.iter().filter_map(|step| match step {
+            crate::RankArithmeticStep::Operand {operand: RankOperand::Input(index), carrier} => Some((*index, *carrier)),
+            _ => None,
+        }).collect::<Vec<_>>(),
+        other => other.inputs().into_iter().map(|index| (index, ranking.relation.carrier)).collect(),
+    };
+    for (formal, expected) in formals {
         let scalar = match body.parameters.get(formal) {
             Some(Parameter::Scalar(value)) => body.values.get(value.index()),
             _ => None,
         };
         let carrier = parameter_types.get(formal).and_then(|&ty| types.get(ty));
         let exact = scalar.is_some_and(|v| v.origin == ValueOrigin::Parameter && Some(v.ty) == parameter_types.get(formal).copied())
-            && carrier == Some(&TypeShape::PrimitiveScalar(ranking.relation.carrier));
+            && carrier == Some(&TypeShape::PrimitiveScalar(expected));
         if !exact {
             return Err(LoweringError::new(&ranking.site, "ranking input is not a scalar formal of the rank carrier"));
         }

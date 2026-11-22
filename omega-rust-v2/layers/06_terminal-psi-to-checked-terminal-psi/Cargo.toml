@@ -6,6 +6,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+num-bigint = "0.4"
 omega-psi = { path = "../../representations/psi" }
 
 [dev-dependencies]

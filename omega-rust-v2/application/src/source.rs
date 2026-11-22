@@ -58,7 +58,12 @@ pub(crate) enum Stage {
     Type,
     Prepare,
     Lower,
-    CheckScalarReplacements,
+    Check(CheckScope),
+}
+
+pub(crate) enum CheckScope {
+    ScalarReplacements,
+    ComputedRanks,
 }
 
 fn read_package_file(
@@ -146,7 +151,7 @@ pub(crate) fn check_files(
         Stage::Type => {
             omega_typer::type_source_package(&resolved).map_err(|e| stage_error("typer", &e.package, &e.file, e.span, e.message))?;
         }
-        Stage::Prepare | Stage::Lower | Stage::CheckScalarReplacements => {
+        Stage::Prepare | Stage::Lower | Stage::Check(_) => {
             use omega_preparation::PreparationFailure;
             let mut prepared = omega_preparation::prepare_source_package_diagnosed(&resolved).map_err(|failure| {
                 let (stage, e) = match failure {
@@ -158,14 +163,23 @@ pub(crate) fn check_files(
                 };
                 stage_error(stage, &e.package, &e.file, e.span, e.message)
             })?;
-            if matches!(stage, Stage::Lower | Stage::CheckScalarReplacements) {
+            if matches!(stage, Stage::Lower | Stage::Check(_)) {
                 let answers = omega::prepare_policy_answers(&mut prepared, omega_interpreter::Ceilings::default())
                     .map_err(|e| stage_error("policy preparation", &e.site.package, &e.site.file, e.site.span, e.message))?;
                 let package = omega::lower_package_with_policy_answers(&prepared, &answers)
                     .map_err(|e| stage_error("lowering", &e.site.package, &e.site.file, e.site.span, e.message))?;
-                if matches!(stage, Stage::CheckScalarReplacements) {
-                    omega_checker::check_scalar_replacements(&package)
-                        .map_err(|e| stage_error("checker", &e.site.package, &e.site.file, e.site.span, e.message))?;
+                if let Stage::Check(scope) = stage {
+                    match scope {
+                        CheckScope::ScalarReplacements => omega_checker::check_scalar_replacements(&package)
+                            .map_err(|e| stage_error("checker", &e.site.package, &e.site.file, e.site.span, e.message))?,
+                        CheckScope::ComputedRanks => {
+                            let core = omega_toolchain::core_interface();
+                            let view = |name| omega_lowering::portable_declaration(core.id(name))
+                                .ok_or_else(|| format!("toolchain ranking view {name} has no Psi identity"));
+                            omega_checker::check_computed_ranks(&package, &view(r"Nat\Descending")?, &view(r"Nat\BoundedDistance")?)
+                                .map_err(|e| stage_error("checker", &e.site.package, &e.site.file, e.site.span, e.message))?;
+                        }
+                    }
                 }
             }
         }

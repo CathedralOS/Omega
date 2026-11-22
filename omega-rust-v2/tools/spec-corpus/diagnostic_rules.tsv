@@ -66,6 +66,7 @@ L4	mutual_recursion_without_a_checked_ranking_is_refused	A local declaration aft
 L3	a_reach_ceiling_requires_a_boundary_trait	L3 checks that each named service in a reach ceiling is a boundary trait.
 L3	a_matched_case_does_not_select_the_sibling_holder_field	A matched sum case applies to the exact subject.
 L3	an_explicit_ranking_view_must_be_admitted	Access plans and progress
+L3	a_rank_subject_requires_total_arithmetic	Access plans and progress
 L3	a_mathematical_application_refuses_excess_arguments	Mathematical terms and assembly
 L3	a_static_index_expression_cannot_read_a_runtime_parameter	Applications
 L3	a_closed_primitive_index_preserves_the_literal_error	Applications

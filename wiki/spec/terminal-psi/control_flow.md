@@ -154,12 +154,18 @@ there is no separate source-state decrease rule.
 
 Rank substitution follows the actual selected scalar and structural successor
 arguments. A length observation belongs to its descriptor binding; rebinding
-the descriptor cannot reuse the previous observation as the new extent. A rank
-may also be one exact subtraction over parameters and integer constants, such as
-a climbing cursor's `MAX - index`. A bounded-distance view uses unsigned
-saturating subtraction so the distance is zero when the cursor is at or past
-its limit. Each arrival uses the same operation over the edge's actual
-arguments. A rank's carrier is any fixed-width integer type: a
+the descriptor cannot reuse the previous observation as the new extent. A
+computed integer subject retains its input bindings, constants, carrier, and
+ordered operations, including each arithmetic policy and its formation
+obligations. Substitute the actual arguments into this same expression on
+every arrival. Grouping that leaves the operation tree unchanged preserves
+the witness. Changing a policy, reordering operands or reassociating partial
+operations changes it, even if some inputs yield the same number. For example,
+`K - n - 1` checks both subtractions. Its final value cannot justify an
+undefined intermediate. The selected view participates in witness identity:
+an authored saturating subtraction and the bounded-distance view can compute
+the same number while selecting different views. The bounded-distance view
+uses unsigned saturating subtraction, producing zero at or beyond its limit. A rank's carrier is any fixed-width integer type: a
 signed carrier is a finite order too, and its sign enters the relation identity.
 
 One grouped control judgment covers each reconstructed component, with a shared

@@ -109,6 +109,20 @@ storage capacity. Its lower bound establishes the floor. Short form without
 elaborated to an explicit view. A uniquely visible user measure is not a default;
 adding another declaration cannot reinterpret existing code.
 
+A computed subject uses the ordinary proof-term meaning of each operation.
+At machine entry, every intermediate must be defined under the admitted
+requirements. With `K = 3`, an Exact `u64` subject `K + n` fits if the entry
+facts imply `n <= u64::MAX - 3`. A guard reached later in the body cannot
+supply that entry fact. Wrapping and saturating operators keep their authored
+meaning, including at a carrier boundary. Each recursive transfer still owes
+the comparison required by the selected view.
+
+To express mathematical arithmetic, embed the operands before the operation.
+In `embed(K + n)` the addition still owes its Exact carrier bound. In
+`embed(K) + embed(n)` the addition is mathematical. In either case the
+resulting subject needs an admitted ranking view. Embedding alone supplies
+no descending order on mathematical integers. [Total arithmetic](../proofs/contracts.md#total-arithmetic)
+
 Terminating recursive machines use one joint ranking for the entire strongly
 connected call component, whether declarations are nested or top-level and
 whether an edge is an ordinary call or terminal transfer. Edges may preserve

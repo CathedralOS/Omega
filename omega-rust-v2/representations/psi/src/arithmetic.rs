@@ -58,3 +58,29 @@ pub struct IntegerOperation {
     pub policy: ArithmeticPolicy,
     pub obligations: Vec<IntegerObligation>,
 }
+
+impl IntegerOperation {
+    /// The formation questions for this primitive on an integer of the given sign.
+    /// An unavailable arithmetic-policy spelling has no contract.
+    pub fn required_obligations(
+        primitive: IntegerPrimitive,
+        policy: ArithmeticPolicy,
+        signed: bool,
+    ) -> Option<&'static [IntegerObligation]> {
+        use ArithmeticPolicy::{Exact, Saturating, Wrapping};
+        use IntegerObligation::*;
+        use IntegerPrimitive::*;
+        Some(match (policy, primitive) {
+            (Exact, Negate) if !signed => return None,
+            (Exact, Add | Subtract | Multiply | Negate) => &[ResultFitsCarrier],
+            (Exact, Divide | Remainder) if signed => &[NonzeroDivisor, QuotientFitsCarrier],
+            (_, Divide | Remainder) => &[NonzeroDivisor],
+            (Exact, ShiftLeft) => &[ShiftCountInRange, ResultFitsCarrier],
+            (Exact, ShiftRight) | (Saturating, ShiftLeft | ShiftRight) => &[ShiftCountInRange],
+            (Wrapping | Saturating, Add | Subtract | Multiply)
+            | (Wrapping, ShiftLeft | ShiftRight)
+            | (Exact, BitwiseAnd | BitwiseOr | BitwiseXor | BitwiseNot | Equal | NotEqual | LessThan | LessOrEqual | GreaterThan | GreaterOrEqual) => &[],
+            _ => return None,
+        })
+    }
+}

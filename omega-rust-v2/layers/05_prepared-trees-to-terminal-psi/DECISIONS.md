@@ -4,11 +4,10 @@ This is the starting map for the repair pass at `f572107080eda`. The readiness c
 
 ## Cases awaiting a language-owner ruling
 
-Three measured cases await three open decisions. A test that reproduces the current refusal keeps its case open. Follow the named entries in the repository owner queue for the ruling and then test its effect on the indicated input.
+Two measured cases await two open decisions. A test that reproduces the current refusal keeps its case open. Follow the named entries in the repository owner queue for the ruling and then test its effect on the indicated input.
 
 | Case | Decision that would change its expected output |
 | --- | --- |
-| Non-exact computed ranking subject | [Descending rank entry expressions](../../../OWNER_QUESTIONS.md#descending-rank-entry-expressions) determines which arithmetic expressions are valid rank subjects. |
 | Carry policy on a transparent data alias | [Transparent alias carry assertions](../../../OWNER_QUESTIONS.md#transparent-alias-carry-assertions) determines whether an alias can declare a floor that leaves its effective policy unchanged. |
 | Hypothesis outside a theorem binder | [Machine hypotheses without a binder](../../../OWNER_QUESTIONS.md#machine-hypothesis-without-a-binder) determines whether the declaration is invalid or the citation owes an implicit evidence argument. |
 
@@ -77,6 +76,6 @@ The next baseline had 33 blocking cases. Five of the original 31 had met their e
 | `handoff/non-scalar field operand of a formal record` | The carrier and transfer of the selected structural field at a template call. | Pass the array field itself versus its scalar sibling. |
 | `handoff/nested scalar field operand of a formal record` | The complete path from the formal through its nested record to the scalar leaf. | Read `track.tag.id` versus a scalar directly on `track`. |
 | `handoff/projected field operand beside a sibling with cleanup or linear use` | The selected scalar read and any ownership obligations that remain on the formal. | Change only the unselected sibling to a type with cleanup or a linear-use requirement. |
-| `handoff/non-exact computed ranking subject` | The arithmetic meaning and admissibility of the subject used for the well-founded relation. | Change the subtraction mode or expression shape while keeping the same formal and constant. |
+| `handoff/non-exact computed ranking subject` | L5 supplies the typed arithmetic to the rank checker. | The four original subjects use the same formal and constant. Their operators, overflow policies and intermediate obligations distinguish the resulting ranks. [Computed ranks](tests/ranking.rs) |
 | `handoff/add a tag child and a predicate domain in one cast` | The parent and its tag child each have an origin on the same arrival. The unrelated predicate domain carries the only predicate debt. | Compare the explicit parent entry with the child shorthand and inspect the same exact memberships on their jumps. |
 | `handoff/add an applied domain and a domain of the other origin in one cast` | Each added domain’s complete application and its establishment origin. | Keep the family fixed and vary its index, then remove only the other domain. |
