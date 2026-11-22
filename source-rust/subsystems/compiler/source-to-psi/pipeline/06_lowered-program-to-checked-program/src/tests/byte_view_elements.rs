@@ -274,14 +274,12 @@ fn a_typed_slice_window_needs_bounds_on_its_own_descriptor() {
     assert_eq!(verdict(&source("numbers", "1..2")), "accepted");
     assert!(verdict(&source("numbers", "1..3")).starts_with("rejected"));
     assert!(verdict(&source("peer", "1..")).starts_with("rejected"));
-    assert_ne!(
-        verdict(
-            "machine build_entry(numbers: @mutable [u32]) requires numbers.length > 1 {
-                 let rest: @[u32] = numbers[1..];
-             }"
-        ),
-        "accepted"
-    );
+    let from_mutable = "machine build_entry(numbers: @mutable [u32]) requires numbers.length > 1 {
+        let rest: @[u32] = numbers[1..];
+    }";
+    assert_eq!(verdict(from_mutable), "accepted");
+    let unrequested_mutable = from_mutable.replace("rest: @[u32]", "rest: @mutable [u32]");
+    assert_ne!(verdict(&unrequested_mutable), "accepted");
 }
 
 /// The lowered form of an accepted read is the measurement of the view and
