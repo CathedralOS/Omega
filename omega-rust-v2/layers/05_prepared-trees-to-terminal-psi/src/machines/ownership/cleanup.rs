@@ -1,5 +1,5 @@
 //! Follow the lowered branch edges to derive each normal exit's cleanup from its live places.
-use super::super::{branches, expressions::Expressions};
+use super::super::{branches, expressions::OperationOutput};
 use crate::{
     BlockTerminator, CallArgument, CleanupAction, LoweredData, LoweringError, LoweringTypes, MachineBody, Multiplicity, OperationKind, OperationResult,
     Parameter, PlaceId, PlaceProjection, ProjectedPlace, ReturnEdge, Site, TypeId, TypeShape,
@@ -97,6 +97,14 @@ impl LiveRoot {
     }
 }
 
+enum Replacement {
+    Direct(crate::StructuralStoreDisposition),
+    Dispatch {
+        plan: sum_cleanup::Plan,
+        destination_intact: bool,
+    },
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Frontier(Vec<LiveRoot>);
 
@@ -170,25 +178,32 @@ impl Frontier {
         destination: &ProjectedPlace,
         ty: TypeId,
         context: &CleanupContext<'_>,
-    ) -> Result<crate::StructuralStoreDisposition, LoweringError> {
+    ) -> Result<Replacement, LoweringError> {
         let Some(root) = self.0.iter_mut().find(|r| r.place == destination.root) else {
             if destination.path.is_empty() {
                 self.establish(destination.root);
-                return Ok(crate::StructuralStoreDisposition::FillVacancy);
+                return Ok(Replacement::Direct(crate::StructuralStoreDisposition::FillVacancy));
             }
             return Err(LoweringError::new(context.site, "field replacement requires its live enclosing root"));
         };
         if let Some(i) = root.moved.iter().position(|p| p == &destination.path) {
             root.moved.remove(i);
-            return Ok(crate::StructuralStoreDisposition::FillVacancy);
+            return Ok(Replacement::Direct(crate::StructuralStoreDisposition::FillVacancy));
         }
         if root.moved.iter().any(|p| destination.path.starts_with(p)) {
             return Err(LoweringError::new(context.site, "field replacement requires its live enclosing storage"));
         }
-        let mut actions = Vec::new();
-        context.at(root, destination.path.clone(), ty, &mut actions)?;
+        let mut plan = sum_cleanup::Plan::default();
+        context.at(root, destination.path.clone(), ty, &mut plan)?;
+        let disposition = match plan.into_flat_or_dispatch() {
+            Ok(actions) => Replacement::Direct(crate::StructuralStoreDisposition::Dispose(actions)),
+            Err(plan) => Replacement::Dispatch {
+                plan,
+                destination_intact: root.holes_below(&destination.path).is_empty(),
+            },
+        };
         root.moved.retain(|p| !p.starts_with(&destination.path));
-        Ok(crate::StructuralStoreDisposition::Dispose(actions))
+        Ok(disposition)
     }
 
     fn consume_cleanups(
@@ -303,26 +318,17 @@ pub(in crate::machines) fn owned(
 }
 
 pub(in crate::machines) fn dispose_temporary(
-    expressions: &Expressions<'_>,
     body: &mut MachineBody,
     flow: &mut branches::BlockFlow,
     place: PlaceId,
     site: Site,
-) -> Result<(), LoweringError> {
-    let context = CleanupContext {
-        places: &body.places,
-        types: expressions.types,
-        data: expressions.data,
-        site: &site,
-    };
-    let mut actions = Vec::new();
-    context.at(&LiveRoot { place, moved: vec![] }, vec![], body.places[place.index()].ty, &mut actions)?;
+) {
     let target = flow.reserve();
     let mut edge = branches::successor(body, target, vec![], site);
-    edge.cleanup = actions;
+    // Ownership scheduling expands this temporary's disposition before publication.
+    edge.cleanup.push(CleanupAction::DiscardRoot(place));
     flow.close(body, BlockTerminator::Jump(edge));
     flow.open(body, target, None);
-    Ok(())
 }
 
 #[path = "sum_cleanup.rs"]
@@ -331,12 +337,14 @@ mod sum_cleanup;
 #[path = "parked.rs"]
 mod parked;
 pub(crate) use parked::OwnedCrossings;
+pub(in crate::machines) use parked::ReturnBackings;
 
 pub(in crate::machines) fn schedule(
     body: &mut MachineBody,
     types: &LoweringTypes,
     data: &[LoweredData],
     callees: &super::super::calls::Callees<'_>,
+    completion_result: OperationOutput,
 ) -> Result<OwnedCrossings, LoweringError> {
     let mut crossings = OwnedCrossings::default();
     if !body.places.iter().any(|place| owned(place.ty, types, data)) {
@@ -366,7 +374,9 @@ pub(in crate::machines) fn schedule(
     let mut arrivals = vec![None; body.blocks.len()];
     arrivals[0] = Some(initial);
     let mut pending = VecDeque::from([0]);
-    let mut sum_returns = Vec::new();
+    let mut exit_plans = Vec::new();
+    let mut temporary_plans = Vec::new();
+    let mut store_plans = Vec::new();
     while let Some(index) = pending.pop_front() {
         let mut state = arrivals[index].as_ref().expect("queued predecessor").clone();
         let block = &mut body.blocks[index];
@@ -430,7 +440,19 @@ pub(in crate::machines) fn schedule(
                         state.take(&ProjectedPlace { root: *value, path: vec![] }, site)?;
                     }
                     if matches!(disposition, crate::StructuralStoreDisposition::Dispose(_)) {
-                        *disposition = state.replace(destination, ty, &context)?;
+                        *disposition = match state.replace(destination, ty, &context)? {
+                            Replacement::Direct(disposition) => disposition,
+                            Replacement::Dispatch { plan, destination_intact } => {
+                                store_plans.push((index, ordinal, plan, destination_intact));
+                                if destination_intact {
+                                    crate::StructuralStoreDisposition::FillVacancy
+                                } else {
+                                    // The continuing graph disposes all surviving regions
+                                    // before this store. The enclosing home stays reserved.
+                                    crate::StructuralStoreDisposition::Dispose(vec![])
+                                }
+                            }
+                        };
                     }
                 }
                 OperationKind::Call { arguments, .. } => state.consume_arguments(arguments, &context)?,
@@ -442,7 +464,7 @@ pub(in crate::machines) fn schedule(
                 state.establish(place);
             }
         }
-        let mut arrive = |edge: &crate::SuccessorEdge, mut incoming: Frontier| -> Result<(), LoweringError> {
+        let mut arrive = |edge: &mut crate::SuccessorEdge, mut incoming: Frontier| -> Result<(), LoweringError> {
             let site = &body.diagnostics.edges[edge.id.get() - 1];
             let context = CleanupContext {
                 places: &body.places,
@@ -451,6 +473,13 @@ pub(in crate::machines) fn schedule(
                 site,
             };
             incoming.consume_arguments(&edge.structural_arguments, &context)?;
+            if let [CleanupAction::DiscardRoot(place)] = edge.cleanup.as_slice() {
+                let root = &incoming.0[incoming.live(&ProjectedPlace { root: *place, path: vec![] }, site)?];
+                match context.root(root)?.into_flat_or_dispatch() {
+                    Ok(actions) => edge.cleanup = actions,
+                    Err(plan) => temporary_plans.push((index, plan)),
+                }
+            }
             incoming.consume_cleanups(&edge.cleanup, &context)?;
             let target = edge.target;
             if predecessors[target.get() - 1] > 1 {
@@ -487,11 +516,9 @@ pub(in crate::machines) fn schedule(
                     state.take(&ProjectedPlace { root: *source, path: vec![] }, site)?;
                 }
                 let context = CleanupContext { places: &body.places, types, data, site };
-                let plan = sum_cleanup::return_plan(&state, &context)?;
-                if let Some(phases) = plan {
-                    sum_returns.push((index, phases));
-                } else {
-                    *cleanup = dispositions(&state, &body.places, types, data, site)?;
+                match context.frontier(&state)?.into_flat_or_dispatch() {
+                    Ok(actions) => *cleanup = actions,
+                    Err(plan) => exit_plans.push((index, plan)),
                 }
             }
             BlockTerminator::TerminalCall {
@@ -507,14 +534,26 @@ pub(in crate::machines) fn schedule(
                     crossings.record(crate::CallSite::Edge(*id), &state, arguments, &context)?;
                 }
                 state.consume_arguments(arguments, &CleanupContext { places: &body.places, types, data, site })?;
-                *cleanup = dispositions(&state, &body.places, types, data, site)?;
+                let context = CleanupContext { places: &body.places, types, data, site };
+                match context.frontier(&state)?.into_flat_or_dispatch() {
+                    Ok(actions) => *cleanup = actions,
+                    Err(plan) => exit_plans.push((index, plan)),
+                }
             }
             // Exit abandons the bound domain: no cleanup, receipt or merged frontier.
             BlockTerminator::ExternalExit(_) => {}
         }
     }
-    for (block, phases) in sum_returns {
-        sum_cleanup::emit(body, block, phases, types, data)?;
+    for (block, plan) in exit_plans {
+        sum_cleanup::emit_exit(body, block, plan, types, data, completion_result)?;
+    }
+    for (block, plan) in temporary_plans {
+        sum_cleanup::emit_temporary(body, block, plan, types)?;
+    }
+    // Split a block's stores from last to first so each earlier split still
+    // finds its operation in the original block, before the later suffix.
+    for (block, operation, plan, destination_intact) in store_plans.into_iter().rev() {
+        sum_cleanup::emit_store(body, block, operation, plan, types, destination_intact)?;
     }
     crossings.sort_by_call();
     let context = CleanupContext {
@@ -527,21 +566,6 @@ pub(in crate::machines) fn schedule(
     Ok(crossings)
 }
 
-fn dispositions(
-    state: &Frontier,
-    places: &[crate::Place],
-    types: &LoweringTypes,
-    data: &[LoweredData],
-    site: &Site,
-) -> Result<Vec<CleanupAction>, LoweringError> {
-    let mut actions = Vec::new();
-    let context = CleanupContext { places, types, data, site };
-    for root in state.0.iter().rev() {
-        context.at(root, vec![], places[root.place.index()].ty, &mut actions)?;
-    }
-    Ok(actions)
-}
-
 struct CleanupContext<'a> {
     places: &'a [crate::Place],
     types: &'a LoweringTypes,
@@ -550,12 +574,29 @@ struct CleanupContext<'a> {
 }
 
 impl CleanupContext<'_> {
+    fn frontier(&self, state: &Frontier) -> Result<sum_cleanup::Plan, LoweringError> {
+        let mut plan = sum_cleanup::Plan::default();
+        for root in state.0.iter().rev() {
+            plan.extend(self.root(root)?);
+        }
+        Ok(plan)
+    }
+
+    fn root(&self, root: &LiveRoot) -> Result<sum_cleanup::Plan, LoweringError> {
+        let mut plan = sum_cleanup::Plan::default();
+        self.at(root, vec![], self.places[root.place.index()].ty, &mut plan)?;
+        if plan.dispatches() {
+            plan.retire(root.place);
+        }
+        Ok(plan)
+    }
+
     fn at(
         &self,
         root: &LiveRoot,
         start: Vec<PlaceProjection>,
         ty: TypeId,
-        actions: &mut Vec<CleanupAction>,
+        plan: &mut sum_cleanup::Plan,
     ) -> Result<(), LoweringError> {
         enum Work {
             Region(Vec<PlaceProjection>,TypeId),
@@ -577,12 +618,24 @@ impl CleanupContext<'_> {
             if root.moved.binary_search(&path).is_ok() {continue;}
             let holes=root.holes_below(&path);
             if let Some(&TypeShape::FixedArray {element,length})=types.get(ty)
+                && length != 0
                 && (!holes.is_empty() || ensure_disposable(element,types,data,site,LinearDebt::Refuse).is_err())
             {
-                // Each intact child contributes at least one action. Keep only
-                // the descending cursor and the current child's path in scratch.
-                let count=usize::try_from(length).map_err(|_|LoweringError::new(site,"fixed-array residual schedule exceeds the host address space"))?;
-                actions.try_reserve(count.saturating_sub(holes.len())).map_err(|_|LoweringError::new(site,"insufficient storage for the fixed-array residual schedule"))?;
+                // Account for each intact child before enumerating its index.
+                // Dynamic case plans reserve phase slots instead of action rows.
+                let intact = length.saturating_sub(holes.len() as u64);
+                let dispatch = sum_cleanup::contains_dispatch(element, self);
+                // Every intact element needs its own case-selection block. The
+                // portable block count is u32, independent of available host RAM.
+                if dispatch && intact > u64::from(u32::MAX) {
+                    return Err(LoweringError::new(site, "fixed-array cleanup exceeds the Psi block count"));
+                }
+                let count = usize::try_from(intact).map_err(|_| {
+                    LoweringError::new(site, "fixed-array residual schedule exceeds the host address space")
+                })?;
+                plan.reserve_array(count, dispatch).map_err(|_| {
+                    LoweringError::new(site, "insufficient storage for the fixed-array residual schedule")
+                })?;
                 pending.push(Work::Array{prefix:path,remaining:length,element});
                 continue;
             }
@@ -611,7 +664,7 @@ impl CleanupContext<'_> {
             } else {
                 if let Some(target) = types.cleanup_target(ty, data)
                 {
-                    actions.push(CleanupAction::Invoke {
+                    plan.push(CleanupAction::Invoke {
                         place: ProjectedPlace { root: root.place, path },
                         ty,
                         target,
@@ -619,7 +672,7 @@ impl CleanupContext<'_> {
                     continue;
                 }
                 if let Err(error) = ensure_disposable(ty, types, data, site, LinearDebt::Refuse) {
-                    let Some(TypeShape::Nominal(id)) = types.get(ty) else {
+                    let Some(TypeShape::Nominal(id) | TypeShape::QualifiedNominal { data: id, .. }) = types.get(ty) else {
                         return Err(error);
                     };
                     let record = &data[id.get() - 1];
@@ -631,7 +684,27 @@ impl CleanupContext<'_> {
                         // stand in for a cleanup call or a loan restoration.
                         ensure_disposable(ty, types, data, site, LinearDebt::Publish)?;
                     } else if !record.cases.is_empty() {
-                        return Err(error);
+                        if !sum_cleanup::contains_cleanup_call(record, self) {
+                            return Err(error);
+                        }
+                        let mut alternatives = Vec::new();
+                        for case in &record.cases {
+                            let mut payload = sum_cleanup::Plan::default();
+                            for field in case.fields.iter().rev() {
+                                if plain_copy_storage(field.carrier, types, data)
+                                    || matches!(types.get(field.carrier), Some(TypeShape::QualifiedScalar { .. }))
+                                {
+                                    continue;
+                                }
+                                let mut child = path.clone();
+                                child.push(PlaceProjection::Case(case.declaration.clone()));
+                                child.push(PlaceProjection::Field(field.declaration.clone()));
+                                self.at(root, child, field.carrier, &mut payload)?;
+                            }
+                            alternatives.push((case.declaration.clone(), payload));
+                        }
+                        plan.cases(ProjectedPlace { root: root.place, path }, ty, alternatives);
+                        continue;
                     } else {
                         for field in &record.fields {
                             let mut child = path.clone();
@@ -642,9 +715,9 @@ impl CleanupContext<'_> {
                     }
                 }
                 if path.is_empty() {
-                    actions.push(CleanupAction::DiscardRoot(root.place));
+                    plan.push(CleanupAction::DiscardRoot(root.place));
                 } else {
-                    actions.push(CleanupAction::DiscardResidual {
+                    plan.push(CleanupAction::DiscardResidual {
                         place: ProjectedPlace { root: root.place, path },
                         ty,
                     });
@@ -749,7 +822,8 @@ fn ensure_disposable(
             // which holds nothing linear and nothing with a cleanup
             // (`admit_sequence_elements`).
             Some(TypeShape::ElementSequence { .. }) => {}
-            Some(TypeShape::FixedArray { element, .. }) => pending.push(*element),
+            Some(TypeShape::FixedArray { element, length }) if *length != 0 => pending.push(*element),
+            Some(TypeShape::FixedArray { .. }) => {}
             Some(TypeShape::Nominal(id) | TypeShape::QualifiedNominal { data: id, .. }) => {
                 let schema = &data[id.get() - 1];
                 let linear_refused = schema.multiplicity == Multiplicity::Linear && linear == LinearDebt::Refuse;

@@ -11,6 +11,8 @@ pub struct CallAcknowledgement {
 pub enum CompletionContinuation {
     Operation(OperationId),
     Terminator(BlockId),
+    /// Enter the terminal call's normal-completion block and bind its result.
+    Block(BlockId),
     Return,
 }
 

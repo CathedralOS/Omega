@@ -210,3 +210,72 @@ fn a_returned_reference_still_names_the_borrowed_field_after_completion() {
         assert!(matches!(&read.kind, OperationKind::ProjectedScalarRead {source, ..} if source.root == result && source.path == [PlaceProjection::Referent]));
     }
 }
+
+#[test]
+fn a_parked_terminal_call_keeps_the_dying_sum_and_binds_its_result_only_on_completion() {
+    use omega_psi::{CallTarget, Parameter};
+    let program = "data Token { value:u8; }
+        data Lease dropped by release { id:u8; }
+        machine release(x:Lease) { let Lease{id as _}=x; }
+        data Choice { case A(x:Lease); case B(x:Token); }
+        machine relay(x:Token)->Token suspends { x }
+        machine forward(kept:Choice, input:Token)->Token suspends {
+            transition { _ -> suspend relay(move input), }
+        }";
+    let pkg = source::lower(&[("terminal.omg", program)]).unwrap();
+    let forward = pkg
+        .machines
+        .iter()
+        .find(|m| m.declaration.path == "forward")
+        .unwrap();
+    let relay = pkg
+        .machines
+        .iter()
+        .find(|m| m.declaration.path == "relay")
+        .unwrap();
+    let body = &forward.body;
+    let Parameter::Structural(kept) = body.parameters[0] else {
+        panic!("owned sum")
+    };
+    let [site] = body.suspension_sites.as_slice() else { panic!("one park") };
+    let (edge, target) = body
+        .blocks
+        .iter()
+        .find_map(|block| match &block.terminator {
+            BlockTerminator::TerminalCall {
+                id,
+                callee,
+                completion: Some(target),
+                cleanup,
+                ..
+            } => {
+                assert_eq!(*callee, CallTarget::Machine(relay.id));
+                assert!(cleanup.is_empty());
+                Some((*id, *target))
+            }
+            _ => None,
+        })
+        .expect("terminal call has a normal completion path");
+    assert_eq!(site.call, CallSite::Edge(edge));
+    assert_eq!(site.continuation, CompletionContinuation::Block(target));
+    let [result] = body.blocks[target.get() - 1].structural_parameters[..] else {
+        panic!("returned token")
+    };
+    assert_eq!(body.places[result.index()].origin, PlaceOrigin::BlockParameter(target));
+    assert_eq!(Some(body.places[result.index()].ty), relay.result_type);
+    assert!(body.blocks.iter().any(|block| matches!(block.terminator,
+        BlockTerminator::Return { result: ReturnEdge::Structural { source, .. }, .. } if source == result)));
+    assert!(site.retained_homes.iter().all(|row| row.place != result));
+    assert!(site.retained_owners.iter().all(|row| row.place != result));
+    assert!(
+        site.retained_owners
+            .iter()
+            .any(|row| row.place == kept && row.custody == OwnedCustody::Caller)
+    );
+    let observe = |site: &_| psi_handoff_consumer::parked_homes(body, site);
+    let mut wrong = site.clone();
+    wrong.continuation = CompletionContinuation::Return;
+    spec_corpus::observe_handoff!(psi "psi-output/parked-terminal-cleanup-result", assert!(
+        observe(site).is_ok() && observe(&wrong).is_err()
+    ));
+}

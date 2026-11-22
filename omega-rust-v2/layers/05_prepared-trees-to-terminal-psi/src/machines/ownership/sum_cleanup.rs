@@ -1,23 +1,142 @@
-//! A dying intact owned sum has an actual runtime discriminator. When one
-//! alternative needs a cleanup invocation, place each payload's ordered
-//! actions on its selected successor. Other roots keep their positions in
-//! the normal return's reverse establishment order.
+//! Plan ordered disposition, branching only where a live sum's tag selects it.
 use super::*;
-use crate::machines::body::next_id;
+use crate::machines::body::{MachineBodyValues, next_id};
 use crate::machines::expressions::{EmitOperation, OperationOutput};
-use crate::{BlockId, BranchBlock, CaseSelection, DeclarationId, Place, PlaceOrigin, ReferenceAccess};
+use crate::{BlockId, BranchBlock, CaseSelection, DeclarationId, Place, PlaceOrigin, ReferenceAccess, SuccessorEdge, ValueOrigin};
 
-pub(super) enum Phase {
+#[derive(Default)]
+pub(super) struct Plan(Vec<Phase>);
+
+enum Phase {
     Actions(Vec<CleanupAction>),
     Cases {
         source: ProjectedPlace,
-        alternatives: Vec<(DeclarationId, Vec<CleanupAction>)>,
+        ty: TypeId,
+        alternatives: Vec<(DeclarationId, Plan)>,
     },
+}
+
+impl Plan {
+    fn actions(&mut self) -> &mut Vec<CleanupAction> {
+        if !matches!(self.0.last(), Some(Phase::Actions(_))) {
+            self.0.push(Phase::Actions(Vec::new()));
+        }
+        let Some(Phase::Actions(actions)) = self.0.last_mut() else { unreachable!() };
+        actions
+    }
+
+    pub(super) fn push(
+        &mut self,
+        action: CleanupAction,
+    ) {
+        self.actions().push(action);
+    }
+
+    pub(super) fn reserve_array(
+        &mut self,
+        count: usize,
+        dispatch: bool,
+    ) -> Result<(), std::collections::TryReserveError> {
+        if dispatch {
+            self.0.try_reserve(count)
+        } else {
+            self.actions().try_reserve(count)
+        }
+    }
+
+    pub(super) fn extend(
+        &mut self,
+        other: Self,
+    ) {
+        for phase in other.0 {
+            match phase {
+                Phase::Actions(actions) => self.actions().extend(actions),
+                dispatch => self.0.push(dispatch),
+            }
+        }
+    }
+
+    pub(super) fn cases(
+        &mut self,
+        source: ProjectedPlace,
+        ty: TypeId,
+        alternatives: Vec<(DeclarationId, Plan)>,
+    ) {
+        self.0.push(Phase::Cases { source, ty, alternatives });
+    }
+
+    pub(super) fn retire(
+        &mut self,
+        root: PlaceId,
+    ) {
+        // Settle the whole selected payload before its alternatives rejoin.
+        if let [Phase::Cases { source, alternatives, .. }] = self.0.as_mut_slice()
+            && source.root == root
+            && source.path.is_empty()
+        {
+            for (_, alternative) in alternatives {
+                alternative.push(CleanupAction::RetireHome(root));
+            }
+        } else {
+            self.push(CleanupAction::RetireHome(root));
+        }
+    }
+
+    pub(super) fn dispatches(&self) -> bool {
+        self.0.iter().any(|phase| matches!(phase, Phase::Cases { .. }))
+    }
+
+    fn relocate(
+        &mut self,
+        from: &ProjectedPlace,
+        to: PlaceId,
+    ) {
+        let relocate_place = |place: &mut ProjectedPlace| {
+            debug_assert_eq!(place.root, from.root);
+            debug_assert!(place.path.starts_with(&from.path));
+            place.root = to;
+            place.path.drain(..from.path.len());
+        };
+        for phase in &mut self.0 {
+            match phase {
+                Phase::Actions(actions) => {
+                    for action in actions {
+                        match action {
+                            CleanupAction::DiscardRoot(place) | CleanupAction::RetireHome(place) => {
+                                debug_assert_eq!(*place, from.root);
+                                *place = to;
+                            }
+                            CleanupAction::DiscardResidual { place, .. } | CleanupAction::Invoke { place, .. } => relocate_place(place),
+                        }
+                    }
+                }
+                Phase::Cases { source, alternatives, .. } => {
+                    relocate_place(source);
+                    for (_, alternative) in alternatives {
+                        alternative.relocate(from, to);
+                    }
+                }
+            }
+        }
+    }
+
+    pub(super) fn into_flat_or_dispatch(mut self) -> Result<Vec<CleanupAction>, Self> {
+        if self.dispatches() {
+            return Err(self);
+        }
+        let actions = match self.0.pop() {
+            Some(Phase::Actions(actions)) => actions,
+            None => Vec::new(),
+            _ => unreachable!(),
+        };
+        debug_assert!(self.0.is_empty());
+        Ok(actions)
+    }
 }
 
 /// A child that selects a cleanup machine requires an executable disposition
 /// for the case that actually contains it.
-fn contains_cleanup_call(
+pub(super) fn contains_cleanup_call(
     schema: &LoweredData,
     context: &CleanupContext<'_>,
 ) -> bool {
@@ -52,215 +171,391 @@ fn contains_cleanup_call(
     false
 }
 
-pub(super) fn return_plan(
-    state: &Frontier,
+/// Transparent array elements can each contribute a case phase. Check
+/// the lower bound on their required storage before expanding the array.
+pub(super) fn contains_dispatch(
+    ty: TypeId,
     context: &CleanupContext<'_>,
-) -> Result<Option<Vec<Phase>>, LoweringError> {
-    let selected_sum = |root: &LiveRoot| {
-        let ty = context.places[root.place.index()].ty;
-        let (TypeShape::Nominal(id) | TypeShape::QualifiedNominal { data: id, .. }) = context.types.get(ty)? else {
-            return None;
-        };
-        let schema = &context.data[id.get() - 1];
-        (root.moved.is_empty()
-            && schema.multiplicity == Multiplicity::Affine
-            && context.types.cleanup_target(ty, context.data).is_none()
-            && !schema.cases.is_empty()
-            && contains_cleanup_call(schema, context))
-        .then_some(schema)
-    };
-    if !state.0.iter().any(|root| selected_sum(root).is_some()) {
-        return Ok(None);
-    }
-    let mut phases = Vec::new();
-    let mut pending = Vec::new();
-    for root in state.0.iter().rev() {
-        if let Some(schema) = selected_sum(root) {
-            if !pending.is_empty() {
-                phases.push(Phase::Actions(std::mem::take(&mut pending)));
-            }
-            let mut alternatives = Vec::new();
-            for case in &schema.cases {
-                let mut actions = Vec::new();
-                for field in case.fields.iter().rev() {
-                    // Unrestricted scalar, array and record payloads carry no
-                    // disposal. A descriptor still needs its own loan closure.
-                    if (plain_copy_storage(field.carrier, context.types, context.data)
-                        || matches!(context.types.get(field.carrier), Some(TypeShape::QualifiedScalar { .. })))
-                        && ensure_disposable(field.carrier, context.types, context.data, context.site, LinearDebt::Refuse).is_ok()
-                    {
-                        continue;
-                    }
-                    let path = vec![
-                        PlaceProjection::Case(case.declaration.clone()),
-                        PlaceProjection::Field(field.declaration.clone()),
-                    ];
-                    context.at(root, path, field.carrier, &mut actions)?;
+) -> bool {
+    let mut pending = vec![ty];
+    let mut visited = std::collections::HashSet::new();
+    while let Some(ty) = pending.pop() {
+        if !visited.insert(ty) || context.types.cleanup_target(ty, context.data).is_some() {
+            continue;
+        }
+        match context.types.get(ty) {
+            Some(TypeShape::FixedArray { element, length }) if *length != 0 => pending.push(*element),
+            Some(TypeShape::Nominal(id) | TypeShape::QualifiedNominal { data: id, .. }) => {
+                let schema = &context.data[id.get() - 1];
+                if !schema.cases.is_empty() && contains_cleanup_call(schema, context) {
+                    return true;
                 }
-                actions.push(CleanupAction::RetireHome(root.place));
-                alternatives.push((case.declaration.clone(), actions));
+                pending.extend(schema.fields.iter().map(|field| field.carrier));
             }
-            phases.push(Phase::Cases {
-                source: ProjectedPlace {
-                    root: root.place,
-                    path: vec![],
-                },
-                alternatives,
-            });
-        } else {
-            context.at(root, vec![], context.places[root.place.index()].ty, &mut pending)?;
+            _ => {}
         }
     }
-    if !pending.is_empty() {
-        phases.push(Phase::Actions(pending));
-    }
-    Ok(Some(phases))
+    false
 }
 
-fn block_id(index: usize) -> BlockId {
-    BlockId(next_id(index))
-}
-
-fn finish_block(
+fn append_block(
     body: &mut MachineBody,
     start: usize,
     terminator: BlockTerminator,
-) {
+) -> BlockId {
+    let id = BlockId(next_id(body.blocks.len()));
     body.blocks.push(BranchBlock {
-        id: block_id(body.blocks.len()),
+        id,
         scalar_parameters: vec![],
         structural_parameters: vec![],
         scalar_domain_invariants: vec![],
         operations: start..body.operations.len(),
         terminator,
     });
+    id
 }
 
-fn selected_edge(
-    body: &mut MachineBody,
-    target: BlockId,
-    source: &ProjectedPlace,
-    alternative: (DeclarationId, Vec<CleanupAction>),
-    site: &Site,
-) -> crate::SuccessorEdge {
-    let mut edge = branches::successor(body, target, vec![], site.clone());
-    edge.selected_case = Some(CaseSelection {
-        source: source.clone(),
-        case: alternative.0,
-    });
-    edge.cleanup = alternative.1;
-    edge
-}
-
-fn cases(
-    body: &mut MachineBody,
-    source: &ProjectedPlace,
-    alternatives: Vec<(DeclarationId, Vec<CleanupAction>)>,
+struct Emitter<'a> {
+    body: &'a mut MachineBody,
+    site: &'a Site,
     bool_ty: TypeId,
-    site: &Site,
-) {
-    let target = block_id(body.blocks.len() + alternatives.len().saturating_sub(1).max(1));
-    let mut alternatives = alternatives.into_iter().peekable();
-    while let Some(alternative) = alternatives.next() {
-        let start = body.operations.len();
-        if alternatives.peek().is_none() {
-            let edge = selected_edge(body, target, source, alternative, site);
-            finish_block(body, start, BlockTerminator::Jump(edge));
-            break;
+}
+
+impl Emitter<'_> {
+    fn edge(
+        &mut self,
+        target: BlockId,
+    ) -> SuccessorEdge {
+        branches::successor(self.body, target, vec![], self.site.clone())
+    }
+
+    /// Emit each case's prefix on its selected edge, and share the continuation
+    /// across the alternatives after all selected payload actions finish.
+    fn selected_edge(
+        &mut self,
+        target: BlockId,
+        source: &ProjectedPlace,
+        case: DeclarationId,
+        plan: Plan,
+    ) -> SuccessorEdge {
+        let (first_actions, rest) = {
+            let mut phases = plan.0.into_iter();
+            match phases.next() {
+                Some(Phase::Actions(actions)) => (actions, Plan(phases.collect())),
+                Some(first) => (Vec::new(), Plan(std::iter::once(first).chain(phases).collect())),
+                None => (Vec::new(), Plan::default()),
+            }
+        };
+        let start = self.prepend(rest, target);
+        let mut edge = self.edge(start);
+        edge.selected_case = Some(CaseSelection { source: source.clone(), case });
+        edge.cleanup = first_actions;
+        edge
+    }
+
+    fn prepend(
+        &mut self,
+        plan: Plan,
+        mut target: BlockId,
+    ) -> BlockId {
+        for phase in plan.0.into_iter().rev() {
+            match phase {
+                Phase::Actions(cleanup) if cleanup.is_empty() => {}
+                Phase::Actions(cleanup) => {
+                    let mut edge = self.edge(target);
+                    edge.cleanup = cleanup;
+                    target = append_block(self.body, self.body.operations.len(), BlockTerminator::Jump(edge));
+                }
+                Phase::Cases { source, ty, alternatives } => {
+                    target = self.case_dispatch(source, ty, alternatives, target);
+                }
+            }
         }
-        let OperationResult::Scalar(condition) = body.push_operation(
-            OperationOutput::Scalar(bool_ty),
-            OperationKind::StructuralCaseMembership {
-                source: source.clone(),
-                case: alternative.0.clone(),
-            },
-            site.clone(),
-        ) else {
-            unreachable!("case membership is Boolean")
-        };
-        let when_true = selected_edge(body, target, source, alternative, site);
-        // On the last test the false arm is the only remaining declared case.
-        let when_false = if alternatives.len() == 1 {
-            selected_edge(body, target, source, alternatives.next().unwrap(), site)
+        target
+    }
+
+    fn case_dispatch(
+        &mut self,
+        mut source: ProjectedPlace,
+        ty: TypeId,
+        mut alternatives: Vec<(DeclarationId, Plan)>,
+        target: BlockId,
+    ) -> BlockId {
+        // On every alternative the enclosing home now has the same missing
+        // region. A temporary's selected payload and home die before the join.
+        let displacement = if source.path.is_empty() {
+            None
         } else {
-            branches::successor(body, block_id(body.blocks.len() + 1), vec![], site.clone())
+            let start = self.body.operations.len();
+            let OperationResult::Structural(old) = self.body.push_operation(
+                OperationOutput::Structural(ty),
+                OperationKind::MoveStructural { source: source.clone() },
+                self.site.clone(),
+            ) else {
+                unreachable!("moving a sum produces structural storage")
+            };
+            for (_, plan) in &mut alternatives {
+                plan.relocate(&source, old);
+                plan.push(CleanupAction::RetireHome(old));
+            }
+            source = ProjectedPlace { root: old, path: vec![] };
+            let edge = self.edge(target);
+            Some(append_block(self.body, start, BlockTerminator::Jump(edge)))
         };
-        finish_block(
-            body,
-            start,
-            BlockTerminator::Conditional {
-                condition,
-                when_true,
-                when_false,
-            },
-        );
+        let (last, plan) = alternatives.pop().expect("a sum has a case");
+        let mut next = self.selected_edge(target, &source, last, plan);
+        let mut tests = alternatives.into_iter().rev().peekable();
+        let first = loop {
+            let Some((case, plan)) = tests.next() else {
+                break append_block(self.body, self.body.operations.len(), BlockTerminator::Jump(next));
+            };
+            let when_true = self.selected_edge(target, &source, case.clone(), plan);
+            let start = self.body.operations.len();
+            let OperationResult::Scalar(condition) = self.body.push_operation(
+                OperationOutput::Scalar(self.bool_ty),
+                OperationKind::StructuralCaseMembership { source: source.clone(), case },
+                self.site.clone(),
+            ) else {
+                unreachable!("case membership is Boolean")
+            };
+            let test = append_block(
+                self.body,
+                start,
+                BlockTerminator::Conditional {
+                    condition,
+                    when_true,
+                    when_false: next,
+                },
+            );
+            if tests.peek().is_none() {
+                break test;
+            }
+            next = self.edge(test);
+        };
+        if let Some(displacement) = displacement {
+            let BlockTerminator::Jump(edge) = &mut self.body.blocks[displacement.get() - 1].terminator else {
+                unreachable!()
+            };
+            edge.target = first;
+            displacement
+        } else {
+            first
+        }
     }
 }
 
-pub(super) fn emit(
+fn bool_type(
+    types: &LoweringTypes,
+    site: &Site,
+) -> Result<TypeId, LoweringError> {
+    types
+        .id_for(&omega_typed::ValueType::Bool)
+        .map_err(|error| LoweringError::new(site, error.to_string()))
+}
+
+pub(super) fn emit_temporary(
     body: &mut MachineBody,
     original: usize,
-    phases: Vec<Phase>,
+    plan: Plan,
+    types: &LoweringTypes,
+) -> Result<(), LoweringError> {
+    let BlockTerminator::Jump(edge) = &body.blocks[original].terminator else {
+        unreachable!("a temporary disposes on a normal continuation")
+    };
+    let site = body.diagnostics.edges[edge.id.get() - 1].clone();
+    let (target, bool_ty) = (edge.target, bool_type(types, &site)?);
+    let entry = Emitter { body, site: &site, bool_ty }.prepend(plan, target);
+    let BlockTerminator::Jump(edge) = &mut body.blocks[original].terminator else {
+        unreachable!()
+    };
+    edge.target = entry;
+    edge.cleanup.clear();
+    Ok(())
+}
+
+pub(super) fn emit_store(
+    body: &mut MachineBody,
+    original: usize,
+    operation: usize,
+    mut plan: Plan,
+    types: &LoweringTypes,
+    destination_intact: bool,
+) -> Result<(), LoweringError> {
+    let OperationKind::StructuralStore { destination, value, .. } = &body.operations[operation].kind else {
+        unreachable!("the store installs the replacement after disposal")
+    };
+    let destination = destination.clone();
+    let ty = body.places[value.index()].ty;
+    let site = body.diagnostics.operations[operation].clone();
+    let bool_ty = bool_type(types, &site)?;
+
+    // Keep the original store operation identity. Its RHS and destination
+    // selector operations already dominate the new displacement and its tests.
+    let tail = BlockId(next_id(body.blocks.len()));
+    let enter = branches::successor(body, tail, vec![], site.clone());
+    let block = &mut body.blocks[original];
+    let terminator = std::mem::replace(&mut block.terminator, BlockTerminator::Jump(enter));
+    let end = std::mem::replace(&mut block.operations.end, operation);
+    body.blocks.push(BranchBlock {
+        id: tail,
+        scalar_parameters: vec![],
+        structural_parameters: vec![],
+        scalar_domain_invariants: vec![],
+        operations: operation..end,
+        terminator,
+    });
+
+    let (displacement, cleanup_entry) = if destination_intact {
+        let start = body.operations.len();
+        let OperationResult::Structural(old) = body.push_operation(
+            OperationOutput::Structural(ty),
+            OperationKind::MoveStructural { source: destination.clone() },
+            site.clone(),
+        ) else {
+            unreachable!("displacing a value produces a structural place")
+        };
+        plan.relocate(&destination, old);
+        plan.retire(old);
+
+        // Finish the displacement block before appending membership operations.
+        let placeholder = branches::successor(body, tail, vec![], site.clone());
+        let displacement = append_block(body, start, BlockTerminator::Jump(placeholder));
+        let cleanup = Emitter { body, site: &site, bool_ty }.prepend(plan, tail);
+        (Some(displacement), cleanup)
+    } else {
+        // The partial destination itself cannot move. Its live regions
+        // dispose in place without retiring the mutable home.
+        (None, Emitter { body, site: &site, bool_ty }.prepend(plan, tail))
+    };
+    if let Some(displacement) = displacement {
+        let BlockTerminator::Jump(edge) = &mut body.blocks[displacement.get() - 1].terminator else {
+            unreachable!()
+        };
+        edge.target = cleanup_entry;
+    }
+    let BlockTerminator::Jump(edge) = &mut body.blocks[original].terminator else {
+        unreachable!()
+    };
+    edge.target = displacement.unwrap_or(cleanup_entry);
+    Ok(())
+}
+
+pub(super) fn emit_exit(
+    body: &mut MachineBody,
+    original: usize,
+    plan: Plan,
     types: &LoweringTypes,
     data: &[LoweredData],
+    completion_result: OperationOutput,
 ) -> Result<(), LoweringError> {
-    let BlockTerminator::Return { id, mut result, .. } = body.blocks[original].terminator else {
-        unreachable!("a planned normal return")
+    let (site_id, mut result, terminal) = match body.blocks[original].terminator {
+        BlockTerminator::Return { id, result, .. } => (id, result, false),
+        BlockTerminator::TerminalCall { id, .. } => (id, ReturnEdge::Unit, true),
+        _ => unreachable!("a planned normal exit"),
     };
-    let site = body.diagnostics.edges[id.get() - 1].clone();
-    let bool_ty = types
-        .id_for(&omega_typed::ValueType::Bool)
-        .map_err(|e| LoweringError::new(&site, e.to_string()))?;
-    let first = body.blocks.len();
-    let mut enter = branches::successor(body, block_id(first), vec![], site.clone());
-    // Capture a structural result before any cleanup. The immutable scalar
-    // result already names its evaluated SSA value throughout these blocks.
-    let mut captured = None;
-    if let ReturnEdge::Structural { source, result: output } = result {
-        let ty = body.places[source.index()].ty;
-        let exclusive = matches!(
-            types.get(ty),
-            Some(
-                TypeShape::MutableElementView { .. }
-                    | TypeShape::ScalarReference {
-                        access: ReferenceAccess::Mutable | ReferenceAccess::WriteOnly,
-                        ..
-                    }
-                    | TypeShape::NominalReference {
-                        access: ReferenceAccess::Mutable | ReferenceAccess::WriteOnly,
-                        ..
-                    }
-            )
-        );
-        enter
-            .structural_arguments
-            .push(if exclusive || owned(ty, types, data) {
-                CallArgument::MoveWhole(source)
-            } else {
-                CallArgument::CopyWhole(source)
-            });
-        let place = PlaceId(next_id(body.places.len()));
-        body.places.push(Place {
-            ty,
-            origin: PlaceOrigin::BlockParameter(block_id(first)),
-        });
-        captured = Some(place);
-        result = ReturnEdge::Structural { source: place, result: output };
-    }
-    body.blocks[original].terminator = BlockTerminator::Jump(enter);
-    for phase in phases {
-        match phase {
-            Phase::Actions(cleanup) => {
-                let mut edge = branches::successor(body, block_id(body.blocks.len() + 1), vec![], site.clone());
-                edge.cleanup = cleanup;
-                finish_block(body, body.operations.len(), BlockTerminator::Jump(edge));
+    let site = body.diagnostics.edges[site_id.get() - 1].clone();
+    let bool_ty = bool_type(types, &site)?;
+    let return_id = if terminal {
+        let id = crate::EdgeId(next_id(body.diagnostics.edges.len()));
+        body.diagnostics.edges.push(site.clone());
+        id
+    } else {
+        site_id
+    };
+    let finish = append_block(
+        body,
+        body.operations.len(),
+        BlockTerminator::Return {
+            id: return_id,
+            result,
+            cleanup: vec![],
+        },
+    );
+    let mut emitter = Emitter { body, site: &site, bool_ty };
+    let first = emitter.prepend(plan, finish);
+    if terminal {
+        result = match completion_result {
+            OperationOutput::Unit => ReturnEdge::Unit,
+            OperationOutput::Scalar(ty) => {
+                let value = emitter.body.push_value(ty, ValueOrigin::BlockParameter(first));
+                emitter.body.blocks[first.get() - 1]
+                    .scalar_parameters
+                    .push(value);
+                ReturnEdge::Scalar(value)
             }
-            Phase::Cases { source, alternatives } => cases(body, &source, alternatives, bool_ty, &site),
+            OperationOutput::Structural(ty) => {
+                let result_home = emitter
+                    .body
+                    .places
+                    .iter()
+                    .position(|place| place.origin == PlaceOrigin::Result)
+                    .map(|index| PlaceId(next_id(index)))
+                    .unwrap_or_else(|| push_place(emitter.body, ty, PlaceOrigin::Result));
+                let source = capture_place(emitter.body, first, ty);
+                ReturnEdge::Structural { source, result: result_home }
+            }
+        };
+        let BlockTerminator::TerminalCall { completion, .. } = &mut emitter.body.blocks[original].terminator else {
+            unreachable!()
+        };
+        *completion = Some(first);
+    } else {
+        let mut enter = emitter.edge(first);
+        // A scalar already names its evaluated SSA value. Capture a structural
+        // result before any cleanup, preserving the existing transfer/copy rule.
+        if let ReturnEdge::Structural { source, result: output } = result {
+            let ty = emitter.body.places[source.index()].ty;
+            let exclusive = matches!(
+                types.get(ty),
+                Some(
+                    TypeShape::MutableElementView { .. }
+                        | TypeShape::ScalarReference {
+                            access: ReferenceAccess::Mutable | ReferenceAccess::WriteOnly,
+                            ..
+                        }
+                        | TypeShape::NominalReference {
+                            access: ReferenceAccess::Mutable | ReferenceAccess::WriteOnly,
+                            ..
+                        }
+                )
+            );
+            enter
+                .structural_arguments
+                .push(if exclusive || owned(ty, types, data) {
+                    CallArgument::MoveWhole(source)
+                } else {
+                    CallArgument::CopyWhole(source)
+                });
+            result = ReturnEdge::Structural {
+                source: capture_place(emitter.body, first, ty),
+                result: output,
+            };
         }
+        emitter.body.blocks[original].terminator = BlockTerminator::Jump(enter);
     }
-    if let Some(place) = captured {
-        body.blocks[first].structural_parameters.push(place);
-    }
-    finish_block(body, body.operations.len(), BlockTerminator::Return { id, result, cleanup: vec![] });
+    let BlockTerminator::Return { result: returned, .. } = &mut emitter.body.blocks[finish.get() - 1].terminator else {
+        unreachable!()
+    };
+    *returned = result;
     Ok(())
+}
+
+fn push_place(
+    body: &mut MachineBody,
+    ty: TypeId,
+    origin: PlaceOrigin,
+) -> PlaceId {
+    let place = PlaceId(next_id(body.places.len()));
+    body.places.push(Place { ty, origin });
+    place
+}
+
+fn capture_place(
+    body: &mut MachineBody,
+    block: BlockId,
+    ty: TypeId,
+) -> PlaceId {
+    let place = push_place(body, ty, PlaceOrigin::BlockParameter(block));
+    body.blocks[block.get() - 1].structural_parameters.push(place);
+    place
 }

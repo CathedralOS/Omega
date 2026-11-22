@@ -375,6 +375,7 @@ fn a_closed_body_that_departs_from_its_template_is_refused() {
                     unreachable!()
                 };
                 *terminator(unit) = BlockTerminator::TerminalCall {
+                    completion: None,
                     id,
                     callee,
                     arguments,

@@ -44,6 +44,11 @@ pub enum BlockTerminator {
     },
     Jump(SuccessorEdge),
     TerminalCall {
+        /// When set, normal completion binds the call result to the target block's
+        /// parameter (none for Unit) and runs its cleanup graph before returning.
+        /// In that form `cleanup` is empty. With no target, the ordered actions
+        /// in `cleanup` run after the call completes and the result returns directly.
+        completion: Option<BlockId>,
         id: EdgeId,
         callee: crate::CallTarget,
         arguments: Vec<CallArgument>,

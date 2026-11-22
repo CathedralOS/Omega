@@ -28,7 +28,14 @@ pub(crate) fn lower_body(
     declarations: &Declarations<'_>,
 ) -> Result<(MachineBody, super::ownership::OwnedCrossings), LoweringError> {
     let mut body = emit_body(prepared, tree, signature, parameter_types, result_type, declarations)?;
-    let crossings = super::ownership::schedule(&mut body, declarations.types, declarations.data, declarations.callees)?;
+    use super::expressions::OperationOutput;
+    let result_carrier = crate::declarations::regions::slot_carrier(&signature.result, &signature.machine);
+    let completion_result = match result_type {
+        None => OperationOutput::Unit,
+        Some(ty) if crate::lowering::types::uses_structural_place(result_carrier) => OperationOutput::Structural(ty),
+        Some(ty) => OperationOutput::Scalar(ty),
+    };
+    let crossings = super::ownership::schedule(&mut body, declarations.types, declarations.data, declarations.callees, completion_result)?;
     Ok((body, crossings))
 }
 
@@ -310,7 +317,7 @@ fn emit_body(
                 if let OperationResult::Structural(place) = result
                     && super::ownership::owned(block.places[place.index()].ty, types, data)
                 {
-                    super::ownership::dispose_temporary(&expressions, &mut block, &mut flow, place, site_at(file, *expression))?;
+                    super::ownership::dispose_temporary(&mut block, &mut flow, place, site_at(file, *expression));
                 }
             }
             (NodeKind::Tail, [expression]) if index + 1 == statements.len() => {

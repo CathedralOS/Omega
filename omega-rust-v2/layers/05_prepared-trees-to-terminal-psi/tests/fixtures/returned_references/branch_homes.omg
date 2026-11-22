@@ -1,0 +1,10 @@
+machine identity(x:@mutable u64)->@mutable u64 { x }
+machine wait() suspends {}
+machine read(flag:bool)->u64 suspends {
+    let mutable a=11u64;
+    let mutable b=22u64;
+    let chosen=match flag { true -> @mutable a, false -> @mutable b, };
+    let loan=identity(chosen);
+    suspend wait();
+    $loan
+}

@@ -252,6 +252,7 @@ pub(crate) fn lower_tail_dispatch(
             flow.close(
                 body,
                 BlockTerminator::TerminalCall {
+                    completion: None,
                     id,
                     callee,
                     arguments,

@@ -6,7 +6,7 @@ use omega_syntax::NodeKind;
 use omega_typed::{NodeSemantics, ObligationKind, ValueType};
 mod cleanup;
 pub(crate) use cleanup::{OwnedCrossings, admit_sequence_elements};
-pub(super) use cleanup::{dispose_temporary, owned, schedule};
+pub(super) use cleanup::{ReturnBackings, dispose_temporary, owned, schedule};
 
 /// An owned transfer needs the entire selected subtree. A parked borrow that
 /// overlaps a hole stays in Psi for the checker to judge.
@@ -250,7 +250,7 @@ pub(super) fn decompose(
         site.clone(),
     );
     for p in ignored.into_iter().rev() {
-        dispose_temporary(expressions, body, flow, p, site.clone())?;
+        dispose_temporary(body, flow, p, site.clone());
     }
     Ok(())
 }
