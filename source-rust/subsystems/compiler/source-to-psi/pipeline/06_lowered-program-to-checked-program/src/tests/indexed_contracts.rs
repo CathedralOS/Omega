@@ -256,7 +256,24 @@ machine entry(bag: @mutable Bag, index: u64) requires index < 2 {
 }
 "#;
     let verdict = judge(invocation(source, "entry")).unwrap();
-    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}");
+    };
+    let module = &accepted.elaboration.module;
+    let semantic_vocabulary::TargetMachineCallable::Machine(entry) = module.entry.unwrap() else {
+        panic!("the entry must be an ordinary machine");
+    };
+    let program = terminal_semantics::callable_values::terminal_callable_values(module).unwrap();
+    let reached =
+        terminal_semantics::callable_values::reachable_callable_invocations(&program, [entry])
+            .expect("execution must retain the indexed actual at its call");
+    assert!(reached.invocations.iter().any(|call| {
+        call.invocation.structural_arguments.iter().any(|actual| {
+            actual.path.iter().any(|step| {
+                matches!(step, terminal_psi::ResolvedStructuralPathSegment::RuntimeIndex { .. })
+            })
+        })
+    }));
 
     let unbounded = source.replace(" requires index < 2", "");
     let verdict = judge(invocation(&unbounded, "entry")).unwrap();

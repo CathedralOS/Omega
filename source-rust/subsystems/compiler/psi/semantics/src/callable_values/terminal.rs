@@ -464,34 +464,24 @@ pub fn project_callable_invocation(
     scalar_arguments: &[ValueId],
     structural_arguments: &[terminal_psi::StructuralArgument],
 ) -> CallableValueResult<CallableInvocation> {
-    let structural_actual_types = structural_arguments
-        .iter()
-        .map(|actual| {
-            let root = *flow
-                .place_types
-                .get(&actual.place)
-                .ok_or("callable actual lost its exact structural declaration")?;
-            let projected = crate::runtime_structural_path_tip(types.iter(), root, &actual.path)
-                .ok_or("callable actual has no exact structural type")?;
-            Ok((projected.id, actual.access))
-        })
-        .collect::<CallableValueResult<Vec<_>>>()?;
-    let structural_arguments = structural_arguments
-        .iter()
-        .map(|actual| {
-            crate::descriptor_lifetimes::descriptor_location(
-                types,
-                actual.place,
-                *flow
-                    .place_types
-                    .get(&actual.place)
-                    .ok_or("callable actual lost its exact structural declaration")?,
-                &actual.path,
-                None,
-            )
-            .ok_or("callable actual has no exact descriptor coordinate")
-        })
-        .collect::<CallableValueResult<Vec<_>>>()?;
+    let mut locations = Vec::with_capacity(structural_arguments.len());
+    let mut structural_actual_types = Vec::with_capacity(structural_arguments.len());
+    for actual in structural_arguments {
+        let root = *flow
+            .place_types
+            .get(&actual.place)
+            .ok_or("callable actual lost its exact structural declaration")?;
+        let projected = crate::runtime_structural_path_tip(types.iter(), root, &actual.path)
+            .ok_or("callable actual has no exact structural type")?;
+        // The invocation records its actual at this evaluation point. A
+        // query that substitutes a stored callable must separately resolve
+        // the descriptor contents at that point.
+        locations.push(DescriptorLocation {
+            root: actual.place,
+            path: crate::resolved_structural_path(types.iter(), root, &actual.path)?,
+        });
+        structural_actual_types.push((projected.id, actual.access));
+    }
     Ok(CallableInvocation {
         operation: site.operation(),
         site,
@@ -500,7 +490,7 @@ pub fn project_callable_invocation(
         successor: None,
         target,
         scalar_arguments: scalar_arguments.to_vec(),
-        structural_arguments,
+        structural_arguments: locations,
         structural_actual_types,
     })
 }
