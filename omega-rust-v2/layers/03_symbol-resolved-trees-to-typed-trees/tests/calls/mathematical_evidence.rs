@@ -224,6 +224,61 @@ fn a_machine_shaped_hypothesis_keeps_its_premises_and_cannot_be_executed() {
 }
 
 #[test]
+fn a_theorem_citation_supplies_evidence_for_each_root_hypothesis() {
+    // Step has no `machine Step` binder, so a citation has no argument for its
+    // evidence. The declaration alone still types; only the citation is refused.
+    let theorem = "machine theorem(x:u8) requires machine Step(y:u8) requires y != 0 ensures y > 0; requires x != 0 {}";
+    let lemma = "machine lemma(y:u8) requires y != 0 ensures y > 0 {}";
+    let declared = check(&[("proof.omg", theorem)]).unwrap();
+    assert_eq!(declared.logical_hypotheses.len(), 1);
+    assert!(declared.calls.is_empty());
+    let refused = |source: &str, callee: &str, hypothesis: &str| {
+        let error = check(&[("proof.omg", source)]).unwrap_err();
+        assert_eq!(error.file, "proof.omg");
+        assert_eq!(
+            error.message,
+            format!("theorem citation supplies no evidence for logical hypothesis `{hypothesis}`")
+        );
+        assert_eq!(error.span.get_start_offset(), source.rfind(callee).unwrap(), "{error:?}");
+        assert_eq!(error.span.slice(source.as_bytes()), Some(callee.as_bytes()));
+    };
+    let supplied = |stage: &omega_typer::TypedStage| {
+        stage
+            .obligations
+            .iter()
+            .filter(|o| matches!(o.kind, omega_typer::ObligationKind::SupplyHypothesis { .. }))
+            .count()
+    };
+    let cited = format!("{theorem} {lemma} machine run(x:u8) requires x != 0 {{ theorem(x); }}");
+    refused(&cited, "theorem", "Step");
+
+    // Twin: only the binder differs, and the citation names its evidence.
+    let bound = cited
+        .replace("theorem(x:u8)", "theorem<machine Step>(x:u8)")
+        .replace("{ theorem(x); }", "{ theorem::<lemma>(x); }");
+    let stage = check(&[("proof.omg", &bound)]).unwrap();
+    assert_eq!(supplied(&stage), 1);
+    assert!(stage.calls.iter().any(|c| c.machine.path == "theorem"));
+
+    // Evidence for one root does not cover another root that no binder names.
+    let two = bound.replace("requires x != 0 {}", "requires machine Other(z:u8) ensures z == z; requires x != 0 {}");
+    refused(&two, "theorem::<lemma>", "Other");
+    let both = two
+        .replace("theorem<machine Step>", "theorem<machine Step,machine Other>")
+        .replace("theorem::<lemma>", "theorem::<lemma,lemma>");
+    assert_eq!(supplied(&check(&[("proof.omg", &both)]).unwrap()), 2);
+
+    // A nested hypothesis arrives inside its parent's evidence and needs no binder.
+    let nested = bound.replace(
+        "ensures y > 0; requires",
+        "requires machine Inner(z:u8) ensures z == z; ensures y > 0; requires",
+    );
+    assert_ne!(nested, bound);
+    let stage = check(&[("proof.omg", &nested)]).unwrap();
+    assert_eq!((stage.logical_hypotheses.len(), supplied(&stage)), (2, 1));
+}
+
+#[test]
 fn tuples_mathematical_prefixes_and_write_only_places() {
     check(&[(
         "a.omg",

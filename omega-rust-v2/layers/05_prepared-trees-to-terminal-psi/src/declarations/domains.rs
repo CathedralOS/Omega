@@ -203,6 +203,9 @@ pub(crate) fn read_domain<'a>(
         let reason = match (demand.schema, demand.pending_construction) {
             (omega_prepared::PolicySchemaInput::NeedsPackageOwner, _) => "domain access policy needs the package owner for its semantic schema",
             (omega_prepared::PolicySchemaInput::UnsupportedSubject, _) => "domain access policy needs a semantic schema for this carrier",
+            (omega_prepared::PolicySchemaInput::Ready { .. }, Some(_)) if demand.construction_checked() => {
+                "domain access policy needs admitted execution of the selected plan for its semantic schema"
+            }
             (omega_prepared::PolicySchemaInput::Ready { .. }, Some(construction)) => {
                 let (data, _) = construction.carrier.nominal_parts().ok_or_else(|| LoweringError::new(
                     &demand.selection.site, "domain access policy construction lacks its data carrier"

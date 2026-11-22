@@ -62,6 +62,35 @@ pub(crate) fn check_application(
     Ok(())
 }
 
+/// A citation supplies evidence for a root hypothesis through the machine binder
+/// that names it, and `validate_call_bindings` checks that argument. A root
+/// hypothesis no binder names has no argument at the call, so the citation would
+/// use the theorem without that evidence. Nested hypotheses are exempt: they
+/// arrive inside their parent's evidence. The declaration itself still types.
+pub(crate) fn check_root_evidence(
+    catalog: &DeclarationCatalog<'_>,
+    owner: &DeclarationId,
+    unit: &ResolvedSourceFile<'_>,
+    callee: usize,
+    supplied: usize,
+) -> std::result::Result<(), TypeError> {
+    let Some(sites) = catalog.hypotheses_by_owner.get(owner) else {
+        return Ok(());
+    };
+    for site in sites {
+        let requirement = &catalog.hypotheses[site];
+        let bound = (0..supplied).any(|index| matches!(catalog.types.bound(owner, index), Some(ValueType::LogicalRequirement(binder)) if binder == site));
+        if requirement.parent.is_none() && !bound {
+            return Err(TypeError::at(
+                unit.file,
+                callee,
+                format!("theorem citation supplies no evidence for logical hypothesis `{}`", requirement.name),
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn index_logical_hypotheses<'a>(
     unit: &mut ResolvedSourceFile<'a>,
     catalog: &mut DeclarationCatalog<'a>,

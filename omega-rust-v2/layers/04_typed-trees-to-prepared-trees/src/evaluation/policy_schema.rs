@@ -19,7 +19,8 @@ pub(crate) fn prepare(
                 .domain_carriers
                 .get(domain)
                 .and_then(ScalarRoot::from_type);
-            let schema = match (scalar, source.package_key(&domain.package)) {
+            let package_key = source.package_key(&domain.package);
+            let schema = match (scalar, package_key) {
                 (None, _) => PolicySchemaInput::UnsupportedSubject,
                 (Some(_), None) => PolicySchemaInput::NeedsPackageOwner,
                 (Some(root), Some(key)) => root.argument(domain, key),
@@ -28,7 +29,7 @@ pub(crate) fn prepare(
                 PolicySchemaInput::Ready { argument, .. } => super::policy_execution::prepare(typed, selection, argument, boundary_slots),
                 _ => None,
             };
-            (domain.clone(), PolicyPreparation { schema, pending_construction })
+            (domain.clone(), PolicyPreparation::pending(package_key.copied(), schema, pending_construction))
         })
         .collect()
 }

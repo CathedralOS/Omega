@@ -209,6 +209,7 @@ impl BodyTyper<'_, '_> {
             .enclosing
             .extend(self.catalog.types.lexical_machine_arguments(target.machine));
         self.validate_call_bindings(node, callee, target.machine, target.explicit_arguments, &target.arguments, &target.enclosing)?;
+        crate::contracts::logical_hypotheses::check_root_evidence(self.catalog, target.machine, self.unit, callee, target.arguments.len())?;
         let instantiate =
             |ty: &ValueType, applied: &[crate::AppliedOperand]| ty.at_machine_application(target.machine, &target.arguments, &target.enclosing, applied);
         let mut applied = Vec::with_capacity(operands.len());

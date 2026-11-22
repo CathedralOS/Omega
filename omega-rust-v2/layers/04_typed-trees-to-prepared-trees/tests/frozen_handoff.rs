@@ -532,6 +532,8 @@ fn pending_access_plans_bind_each_selection_to_its_own_domain_and_carrier() {
     let locked = prepared.pending_access_plan(domain("i32::Locked")).unwrap();
     let small = prepared.pending_access_plan(domain("u8::Small")).unwrap();
     assert!(prepared.pending_access_plan(domain("i32::Free")).is_none());
+    assert!(prepared.policy_invocation(domain("i32::Locked")).is_none());
+    assert!(prepared.policy_invocation(domain("i32::Free")).is_none());
     assert_eq!(locked.selection.plan_machine, small.selection.plan_machine);
     assert_eq!(locked.selection.domain, *domain("i32::Locked"));
     assert_eq!(small.selection.domain, *domain("u8::Small"));
@@ -585,6 +587,7 @@ fn policy_schema_argument_describes_the_scalar_and_the_requesting_domain() {
     for selection in &prepared.typed().access_policies {
         let demand = prepared.pending_access_plan(&selection.domain).unwrap();
         if selection.domain.path == "R::Record" {
+            assert!(prepared.policy_invocation(&selection.domain).is_none());
             assert_eq!(*demand.schema, PolicySchemaInput::UnsupportedSubject);
             continue;
         }
@@ -769,9 +772,17 @@ fn selected_policy_executes_the_librarys_written_construction_inputs() {
         else { panic!("Build supplied the schema owner") };
         let Some(expected_case) = expected_case else {
             assert!(demand.pending_construction.is_none(), "an unsupported statement cannot be skipped");
+            assert!(prepared.policy_invocation(&selection.domain).is_none());
             continue;
         };
+        let invocation = prepared.policy_invocation(&selection.domain).expect("frozen policy inputs");
+        assert!(std::ptr::eq(invocation.selection, selection));
+        assert!(std::ptr::eq(invocation.schema, argument));
+        assert_eq!(*invocation.package_key, build.package_key());
+        let PolicySchemaInput::Ready { subject_revision, .. } = demand.schema else { unreachable!() };
+        assert_eq!(invocation.subject_revision, subject_revision);
         let construction = demand.pending_construction.expect("selected construction in the defining library");
+        assert!(std::ptr::eq(invocation.construction, construction));
         assert_eq!(construction.machine.machine.as_ref(), core.id(r"access\new_plan"));
         assert_eq!(construction.site.package, omega_toolchain::TOOLCHAIN_PACKAGE);
         let (definition, _) = prepared.typed().imported_machine_definition(&construction.machine.machine).unwrap();
@@ -791,4 +802,39 @@ fn selected_policy_executes_the_librarys_written_construction_inputs() {
         assert!(construction.fields[2..].iter().all(|(_, input)| matches!(input, PolicyFieldInput::Zero(_))));
         assert_eq!(construction.fields[8].0, *core.id("AccessPlan::reach"));
     }
+}
+
+#[test]
+fn policy_comparison_rejects_replayed_inputs_from_another_frozen_occurrence() {
+    let source = include_str!("fixtures/access_policy/selected.omg");
+    let mut package = package(source);
+    package.bind_package_key("app", [0x42; 32]).unwrap();
+    let original = prepare_source_package(&package).unwrap();
+    let mut fresh = prepare_source_package(&package).unwrap();
+    let domain = &original.typed().access_policies[0].domain;
+    let invocation = original.policy_invocation(domain).unwrap();
+    let PreparedValue::Record { fields, .. } = invocation.schema else { panic!("expected schema record") };
+    let [PreparedValue::SharedBytes(image)] = fields.as_ref() else { panic!("expected schema image") };
+
+    let previous = original.policy_construction_occurrence(domain).unwrap();
+    assert_eq!(
+        fresh.record_policy_construction_comparison(
+            previous, invocation.package_key, invocation.subject_revision, image, &invocation.selection.site, &invocation.construction.site,
+        ),
+        Err("checked construction belongs to different policy inputs")
+    );
+    for (key, revision, image) in [
+        (&[0x41; 32], invocation.subject_revision, image.as_ref()),
+        (invocation.package_key, &[][..], image.as_ref()),
+        (invocation.package_key, invocation.subject_revision, &[][..]),
+    ] {
+        let occurrence = fresh.policy_construction_occurrence(domain).unwrap();
+        assert_eq!(
+            fresh.record_policy_construction_comparison(
+                occurrence, key, revision, image, &invocation.selection.site, &invocation.construction.site,
+            ),
+            Err("checked construction belongs to different policy inputs")
+        );
+    }
+    assert!(!fresh.pending_access_plan(domain).unwrap().construction_checked());
 }

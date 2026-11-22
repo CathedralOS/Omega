@@ -6,6 +6,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+omega-checker = { path = "../layers/06_terminal-psi-to-checked-terminal-psi" }
 omega-lowering = { path = "../layers/05_prepared-trees-to-terminal-psi" }
 omega-lexer = { path = "../layers/00_bytes-to-tokens" }
 omega-parser = { path = "../layers/01_tokens-to-syntax-trees" }

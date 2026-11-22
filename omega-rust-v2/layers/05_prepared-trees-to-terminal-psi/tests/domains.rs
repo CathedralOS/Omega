@@ -345,7 +345,7 @@ fn inherited_subject_cast_reads_the_parent_qualified_value_in_the_child_predicat
 fn domain_access_refusal_identifies_the_authored_policy() {
     let source = include_str!("fixtures/domain_access/empty-issuers/policy.omg");
     sources::refuse_built_fixture("domain_access/empty-issuers", "policy.omg", source,
-        sources::unique_span(source, "access Rule"), r"domain access policy needs checked establishment of `language\core\AccessPlan` in `language\core\access\new_plan`");
+        sources::unique_span(source, "access Rule"), "domain access policy needs admitted execution of the selected plan for its semantic schema");
 }
 
 #[test]
@@ -889,7 +889,10 @@ fn a_schema_argument_without_a_policy_result_cannot_supply_issuance() {
                         }
                     }";
     for issuance in ["Issuance::Unrestricted{}", "Issuance::Only{routes: []}"] {
-        let source = template.replace("ISSUANCE", issuance);
+        let policy = template.replace("ISSUANCE", issuance);
+        let source = format!("{policy}
+            machine issue(x:i32)->i32 in Locked {{ x as +Locked }}
+            machine forward(x:i32 in Locked)->i32 in Locked {{ x }}");
         let mut package = sources::resolve(&[("policy.omg", &source)]);
         package.bind_package_key("app", [0x42; 32]).unwrap();
         let prepared = omega_preparation::prepare_source_package(&package).unwrap();
@@ -900,6 +903,13 @@ fn a_schema_argument_without_a_policy_result_cannot_supply_issuance() {
             prepared.pending_access_plan(&selection.domain).unwrap().schema,
             omega_prepared::PolicySchemaInput::Ready { .. }
         ));
+        // Only the cast asks to introduce the qualification. Forwarding requires
+        // the formal to carry it already, regardless of which policy was selected.
+        let establishments: Vec<_> = prepared.typed().obligations.iter().filter_map(|obligation| {
+            let omega_typed::ObligationKind::EstablishDomain(domain) = &obligation.kind else { return None };
+            (domain.declaration == selection.domain).then_some(obligation.site.span.slice(source.as_bytes()).unwrap())
+        }).collect();
+        assert_eq!(establishments, [b"x as +Locked".as_slice()]);
         let error = omega_lowering::lower_package(&prepared).unwrap_err();
         assert_eq!(error.message, r"domain access policy needs checked establishment of `language\core\AccessPlan` in `language\core\access\new_plan`");
         assert_eq!(error.site, selection.site);

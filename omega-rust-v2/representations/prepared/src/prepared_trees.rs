@@ -21,12 +21,54 @@ pub struct PendingAccessPlan<'a> {
     pub carrier: &'a omega_typed::ValueType,
     pub schema: &'a PolicySchemaInput,
     pub pending_construction: Option<&'a PolicyConstruction>,
+    checked_construction: bool,
+}
+
+impl PendingAccessPlan<'_> {
+    /// Constructor correspondence is diagnostic progress. Policy execution and
+    /// validation of the returned plan still belong to this pending demand.
+    pub fn construction_checked(&self) -> bool {
+        self.checked_construction
+    }
+}
+
+/// Identifies one frozen occurrence even across independent preparations of the
+/// same source and package. Keeping the construction alive prevents address reuse.
+#[derive(Debug)]
+pub struct PolicyConstructionOccurrence {
+    domain: DeclarationId,
+    construction: Arc<PolicyConstruction>,
+}
+
+impl PolicyConstructionOccurrence {
+    pub fn domain(&self) -> &DeclarationId {
+        &self.domain
+    }
+}
+
+/// Frozen arguments and the outstanding construction of one selected invocation.
+/// The Build owner and subject revision travel with the particular schema value.
+#[derive(Debug)]
+pub struct PolicyInvocation<'a> {
+    pub selection: &'a omega_typed::AccessPolicySelection,
+    pub package_key: &'a [u8; 32],
+    pub schema: &'a PreparedValue,
+    pub subject_revision: &'a [u8],
+    pub construction: &'a PolicyConstruction,
 }
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct PolicyPreparation {
+    pub package_key: Option<[u8; 32]>,
     pub schema: PolicySchemaInput,
-    pub pending_construction: Option<PolicyConstruction>,
+    pending_construction: Option<Arc<PolicyConstruction>>,
+    checked_construction: bool,
+}
+
+impl PolicyPreparation {
+    pub fn pending(package_key: Option<[u8; 32]>, schema: PolicySchemaInput, construction: Option<PolicyConstruction>) -> Self {
+        Self { package_key, schema, pending_construction: construction.map(Arc::new), checked_construction: false }
+    }
 }
 
 /// The checked body reached this data construction in its defining forest.
@@ -154,8 +196,61 @@ impl<'text> PreparedTrees<'text> {
             selection,
             carrier,
             schema: progress.map_or(&PolicySchemaInput::UnsupportedSubject, |p| &p.schema),
-            pending_construction: progress.and_then(|p| p.pending_construction.as_ref()),
+            pending_construction: progress.and_then(|p| p.pending_construction.as_deref()),
+            checked_construction: progress.is_some_and(|p| p.checked_construction),
         })
+    }
+
+    /// The closed inputs L4 actually prepared for this domain's constructor.
+    /// A missing owner, unsupported schema, or unevaluated input leaves the
+    /// demand pending without supplying a construction to the checker.
+    pub fn policy_invocation(&self, domain: &DeclarationId) -> Option<PolicyInvocation<'_>> {
+        let progress = self.policies.get(domain)?;
+        let PolicySchemaInput::Ready { argument, subject_revision } = &progress.schema else {
+            return None;
+        };
+        let selection = self.typed.access_policies.iter().find(|policy| &policy.domain == domain)?;
+        Some(PolicyInvocation {
+            selection,
+            package_key: progress.package_key.as_ref()?,
+            schema: argument,
+            subject_revision,
+            construction: progress.pending_construction.as_deref()?,
+        })
+    }
+
+    pub fn policy_construction_occurrence(&self, domain: &DeclarationId) -> Option<PolicyConstructionOccurrence> {
+        self.policy_invocation(domain)?;
+        Some(PolicyConstructionOccurrence {
+            domain: domain.clone(),
+            construction: self.policies.get(domain)?.pending_construction.clone()?,
+        })
+    }
+
+    /// L4 publishes a comparison against the observed input of the checker.
+    /// A receipt from another preparation cannot advance this occurrence, even
+    /// when the program and schema bytes are identical. This records only the
+    /// comparison, never an evaluated plan or an authorization decision.
+    pub fn record_policy_construction_comparison(
+        &mut self,
+        occurrence: PolicyConstructionOccurrence,
+        package_key: &[u8; 32],
+        subject_revision: &[u8],
+        image: &[u8],
+        selection_site: &omega_typed::Site,
+        construction_site: &omega_typed::Site,
+    ) -> Result<(), &'static str> {
+        let invocation = self.policy_invocation(&occurrence.domain).ok_or("policy construction is not pending")?;
+        let PreparedValue::Record { fields, .. } = invocation.schema else { return Err("policy schema has no record") };
+        let [PreparedValue::SharedBytes(bytes)] = fields.as_ref() else { return Err("policy schema has no byte view") };
+        if !std::ptr::eq(invocation.construction, occurrence.construction.as_ref())
+            || invocation.package_key != package_key || invocation.subject_revision != subject_revision || bytes.as_ref() != image
+            || &invocation.selection.site != selection_site || &invocation.construction.site != construction_site
+        {
+            return Err("checked construction belongs to different policy inputs");
+        }
+        self.policies.get_mut(&occurrence.domain).expect("matched pending policy").checked_construction = true;
+        Ok(())
     }
 
     pub fn typed(&self) -> &TypedTrees<'text> {
