@@ -815,3 +815,245 @@ fn rereads_preserve_common_observation_but_writes_and_instances_retire_it() {
         None
     );
 }
+
+/// The machine stores `value` through a header that borrows one element of
+/// `owner`. `index` is `Some` when the element is written as a fixed index
+/// and `None` when it is chosen by a runtime index, which is how a slice
+/// element arrives. Returns what the replay knows afterwards about the owner
+/// and about the header, as `(path, value identity)` pairs.
+fn facts_after_an_element_store(
+    length: u64,
+    index: Option<u64>,
+    invalidation: bool,
+) -> [Vec<(Vec<DescriptorPathSegment>, u64)>; 2] {
+    use semantic_vocabulary::ObligationId;
+    use terminal_psi::{StructuralTypeShape, TerminalIdentityIndex};
+
+    let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let element = StructuralTypeDeclaration {
+        declaration_identity: Default::default(),
+        requires: Vec::new(),
+        quotient_carrier: None,
+        id: StructuralTypeId::new(1).unwrap(),
+        identity: TerminalIdentityIndex(1),
+        owns_linear_claim: false,
+        no_code_affine_cleanup: true,
+        multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+        descriptor_cleanup: false,
+        nominal_cleanup: None,
+        shape: StructuralTypeShape::PrimitiveScalar(integer),
+        scalar_restriction: None,
+    };
+    let array = StructuralTypeDeclaration {
+        id: StructuralTypeId::new(2).unwrap(),
+        identity: TerminalIdentityIndex(2),
+        shape: StructuralTypeShape::FixedArray {
+            element: element.id,
+            length: terminal_psi::ArrayExtent::Literal(length),
+        },
+        ..element.clone()
+    };
+    let types = [element.clone(), array.clone()];
+    let owner = PlaceId::new(1).unwrap();
+    let value = PlaceId::new(2).unwrap();
+    let header = PlaceId::new(3).unwrap();
+    let [arrival, store, after] = [1, 2, 3].map(position);
+
+    let mut binding = match index {
+        Some(index) => DescriptorFlowBinding::new(
+            DescriptorLocation {
+                root: owner,
+                path: vec![DescriptorPathSegment::FixedIndex(index)],
+            },
+            DescriptorLocation::whole(header),
+            StructuralAccess::MutableBorrow,
+            StructuralAccess::MutableBorrow,
+        ),
+        None => {
+            let selected = [StructuralPathSegment::RuntimeIndex {
+                index: ValueId::new(7).unwrap(),
+                obligation: ObligationId::new(1).unwrap(),
+            }];
+            DescriptorFlowBinding::new(
+                DescriptorFlowSource::from_query(
+                    owner,
+                    descriptor_contents_query(&types, owner, array.id, &selected, None),
+                ),
+                DescriptorLocation::whole(header),
+                StructuralAccess::MutableBorrow,
+                StructuralAccess::MutableBorrow,
+            )
+            .map(|mut binding| {
+                binding.captured_storage = Some((
+                    DescriptorLocation::whole(owner),
+                    Projection::new(&selected).at(arrival),
+                ));
+                binding
+            })
+        }
+    }
+    .unwrap();
+    binding.source_access = StructuralAccess::MutableBorrow;
+    let edge = |target, parameters, bindings| DescriptorFlowEdge {
+        edge: None,
+        effects: Vec::new(),
+        definitions: Vec::new(),
+        target,
+        parameters,
+        bindings,
+    };
+    let mut stored = DescriptorFlowStep {
+        successors: vec![edge(after, Vec::new(), Vec::new())],
+        ..Default::default()
+    };
+    stored.copy_value(
+        DescriptorLocation::whole(value),
+        DescriptorLocation::whole(header),
+    );
+    let (mut machine, _) = forked_history(&[]);
+    machine.places = vec![
+        DescriptorPlace {
+            producer: None,
+            place: owner,
+            definition: DescriptorDefinition::Parameter {
+                position: 0,
+                access: StructuralAccess::MutableBorrow,
+                structural_type: array.id,
+            },
+        },
+        DescriptorPlace {
+            producer: None,
+            place: value,
+            definition: DescriptorDefinition::Parameter {
+                position: 1,
+                access: StructuralAccess::Owned,
+                structural_type: element.id,
+            },
+        },
+        DescriptorPlace {
+            producer: None,
+            place: header,
+            definition: DescriptorDefinition::Arrival {
+                access: StructuralAccess::MutableBorrow,
+            },
+        },
+    ];
+    machine.place_types =
+        BTreeMap::from([(owner, array.id), (value, element.id), (header, element.id)]);
+    machine.payload_entry_predicates = None;
+    machine.payload_scalar_postconditions.clear();
+    machine.entry = arrival;
+    machine.normal_exits = vec![after];
+    machine.flow = BTreeMap::from([
+        (
+            arrival,
+            DescriptorFlowStep {
+                successors: vec![edge(
+                    store,
+                    vec![DescriptorLocation::whole(header)],
+                    vec![binding],
+                )],
+                ..Default::default()
+            },
+        ),
+        (store, stored),
+        (after, DescriptorFlowStep::default()),
+    ]);
+    if invalidation {
+        // The reader records every structural store as a write to its
+        // destination, here the header.
+        machine.payload_invalidations.insert(
+            store,
+            vec![descriptor_contents_query(
+                &types,
+                header,
+                element.id,
+                &[],
+                None,
+            )],
+        );
+    }
+
+    let observed = |path: Vec<DescriptorPathSegment>, identity| PayloadScalarObservation {
+        path,
+        value: Some(ScalarTerm::value(ValueId::new(identity).unwrap(), integer)),
+        entry: None,
+    };
+    let contract = |carrier, scalar_observations| PayloadMembershipContract {
+        carrier,
+        scalar_requirements: Vec::new(),
+        scalar_observations,
+        qualifications: Vec::new(),
+        projected_qualifications: Vec::new(),
+    };
+    // Every element of the owner starts out known to hold value 1. The
+    // stored value is known to hold value 2. The header declares nothing.
+    let source = |place| {
+        Some(if place == owner {
+            contract(
+                array.id,
+                (0..length)
+                    .map(|member| observed(vec![DescriptorPathSegment::FixedIndex(member)], 1))
+                    .collect(),
+            )
+        } else if place == value {
+            contract(element.id, vec![observed(Vec::new(), 2)])
+        } else {
+            contract(element.id, Vec::new())
+        })
+    };
+    let graph = [machine];
+    [owner, header].map(|root| {
+        let contract =
+            current_payload_contract(&types, &[], &graph, graph[0].id, after, root, &source)
+                .unwrap();
+        let mut facts = contract
+            .scalar_observations
+            .into_iter()
+            .map(|observation| {
+                let known = observation.value.as_ref().and_then(|term| {
+                    (1..=2).find(|identity| {
+                        *term == ScalarTerm::value(ValueId::new(*identity).unwrap(), integer)
+                    })
+                });
+                (
+                    observation.path.clone(),
+                    known.unwrap_or_else(|| panic!("{observation:?}")),
+                )
+            })
+            .collect::<Vec<_>>();
+        facts.sort();
+        facts
+    })
+}
+
+/// `slice[index] = value` may have written any element of the array behind
+/// the slice. The replay must forget what it knew about each of them and
+/// must not credit any of them with the stored value's facts. Only the
+/// borrowed element itself, and a destination that is certain, hold the
+/// stored value afterwards.
+#[test]
+fn a_store_through_one_unknown_element_credits_no_element_with_the_stored_value() {
+    let member = |index| vec![DescriptorPathSegment::FixedIndex(index)];
+    let stored = vec![(Vec::new(), 2)];
+    for invalidation in [true, false] {
+        // One of two elements, chosen at run time.
+        assert_eq!(
+            facts_after_an_element_store(2, None, invalidation),
+            [Vec::new(), stored.clone()],
+            "invalidation={invalidation}"
+        );
+        // A one-element array leaves the store nowhere else to land.
+        assert_eq!(
+            facts_after_an_element_store(1, None, invalidation),
+            [vec![(member(0), 2)], stored.clone()],
+            "invalidation={invalidation}"
+        );
+        // A fixed index names its element, and the other keeps its fact.
+        assert_eq!(
+            facts_after_an_element_store(2, Some(0), invalidation),
+            [vec![(member(0), 2), (member(1), 1)], stored.clone()],
+            "invalidation={invalidation}"
+        );
+    }
+}

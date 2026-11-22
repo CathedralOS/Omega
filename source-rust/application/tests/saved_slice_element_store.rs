@@ -10,7 +10,7 @@ use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use terminal_codec::{CanonicalTerminalArtifact, ClosedTerminalModule, CodecError};
-use terminal_psi::TerminalModule;
+use terminal_psi::{OperationKind, OperationResult, TerminalMachine, TerminalModule};
 
 fn omega(directory: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
@@ -50,6 +50,22 @@ fn saved_artifact(scratch: &Path) -> PathBuf {
     assert!(emitted.status.success(), "{}", report(&emitted));
     std::fs::remove_dir_all(&source).unwrap();
     artifact
+}
+
+/// The saved `apply_room`, where the tests below remove one fact at a time.
+fn apply_room(module: &mut TerminalModule) -> &mut TerminalMachine {
+    let identities = &module.identities;
+    module
+        .machines
+        .iter_mut()
+        .find(|machine| {
+            machine
+                .declaration
+                .as_ref()
+                .and_then(|declaration| identities.text(declaration.callable))
+                .is_some_and(|identity| identity.contains("apply_room"))
+        })
+        .expect("the saved program keeps apply_room")
 }
 
 /// Change one fact in the saved program and read the result back.
@@ -101,18 +117,7 @@ fn a_saved_copy_is_refused_when_the_source_room_loses_its_ascii_fact() {
     let artifact = saved_artifact(scratch.path());
     assert!(reopen_with(&artifact, |_| {}).is_ok());
     let refused = reopen_with(&artifact, |module| {
-        let apply_room = module
-            .machines
-            .iter_mut()
-            .find(|machine| {
-                machine
-                    .declaration
-                    .as_ref()
-                    .and_then(|declaration| module.identities.text(declaration.callable))
-                    .is_some_and(|identity| identity.contains("apply_room"))
-            })
-            .expect("the saved program keeps apply_room");
-        let room = &mut apply_room.contract.structural_parameters[0];
+        let room = &mut apply_room(module).contract.structural_parameters[0];
         assert_eq!(room.projected_qualifications.len(), 1);
         room.projected_qualifications.clear();
     });
@@ -127,4 +132,98 @@ fn a_saved_copy_is_refused_when_the_source_room_loses_its_ascii_fact() {
         reason,
         "view element memberships do not hold for every actual source element"
     );
+}
+
+/// The reader cannot tell which exit `out_exits[0] = ...` wrote. It may keep
+/// treating every exit of the destination as holding ASCII commands only
+/// because each stored exit has to bring that fact with it. A saved file
+/// whose first copied exit no longer claims ASCII commands must be refused
+/// at the store through the slice element.
+#[test]
+fn a_saved_copy_is_refused_when_the_stored_exit_loses_its_ascii_fact() {
+    let scratch = TemporaryDirectory::create("saved-slice-element-store", false).unwrap();
+    let artifact = saved_artifact(scratch.path());
+    let refused = reopen_with(&artifact, |module| {
+        let copied = apply_room(module)
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| matches!(operation.kind, OperationKind::StructuralLeafCopy { .. }))
+            .expect("apply_room copies an exit out of the source slice");
+        let OperationResult::Structural(exit) = &mut copied.result else {
+            panic!("{:?}", copied.result);
+        };
+        assert_eq!(exit.projected_qualifications.len(), 1);
+        exit.projected_qualifications.clear();
+    });
+    let Err(CodecError::MalformedOperationFoundation {
+        machine, reason, ..
+    }) = refused
+    else {
+        panic!("{:?}", refused.map(|_| ()));
+    };
+    assert!(machine.contains("apply_room"), "{machine}");
+    assert_eq!(
+        reason,
+        "structural field store does not restore the selected memberships"
+    );
+}
+
+/// The twin fixture borrows the source slice from the destination room, so
+/// `out_exits[0] = room_exits[0]` would write storage that `room_exits` still
+/// reads. The compiler must refuse it and save nothing: the reader of a saved
+/// file checks the facts in it and does not check loans.
+#[test]
+fn the_compiler_refuses_a_source_slice_that_borrows_the_destination_room() {
+    let scratch = TemporaryDirectory::create("slice-element-store-overlap", false).unwrap();
+    std::fs::copy(
+        support::repository_root()
+            .join("source-rust/application/tests/fixtures/borrows/fail/slice_element_store")
+            .join("main.omg"),
+        scratch.path().join("main.omg"),
+    )
+    .unwrap();
+    let artifact = scratch.path().join("rooms.psi");
+    let refused = omega(scratch.path())
+        .arg("--emit-psi")
+        .arg(&artifact)
+        .arg("main.omg")
+        .output()
+        .expect("compile the overlapping room copy");
+    let refusal = report(&refused);
+    assert!(!refused.status.success(), "{refusal}");
+    for expected in [
+        "the successor would borrow one place as both mutable and read-only",
+        "in machine `apply_room` (conflicting loans)",
+        "main.omg:9:14",
+    ] {
+        assert!(refusal.contains(expected), "{refusal}");
+    }
+    assert!(!artifact.exists(), "{refusal}");
+}
+
+/// The compiler's refusal above is the only one. Pointing the saved source
+/// slice at the destination room writes the same overlap into the saved
+/// program. No fact the reader checks changes, so it reopens the file. This
+/// test records that boundary; it does not ask for the overlap to be legal.
+#[test]
+fn the_reader_reopens_a_saved_copy_whose_source_slice_borrows_the_destination() {
+    let scratch = TemporaryDirectory::create("saved-slice-element-store", false).unwrap();
+    let artifact = saved_artifact(scratch.path());
+    let reopened = reopen_with(&artifact, |module| {
+        let machine = apply_room(module);
+        let out_room = machine.contract.structural_parameters[1].place;
+        let room_exits = machine
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+            .find_map(|operation| match &mut operation.kind {
+                OperationKind::EstablishElementView { source, .. } => Some(source),
+                _ => None,
+            })
+            .expect("apply_room forms the shared source slice");
+        assert_ne!(room_exits.place, out_room);
+        room_exits.place = out_room;
+    });
+    assert!(reopened.is_ok(), "{:?}", reopened.map(|_| ()));
 }
