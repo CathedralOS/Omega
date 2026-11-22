@@ -82,43 +82,6 @@ pub(crate) fn bind_constant_uses(
             ));
         }
     }
-    let unsupported_array_projection_sources = body_expressions(program)
-        .iter_expressions()
-        .filter_map(|(_, node)| {
-            let mut collection = match node {
-                ExpressionNode::Indexed(indexed)
-                    if !matches!(
-                        program.tables.bodies.expressions.expression(indexed.index),
-                        ExpressionNode::Integer(_)
-                    ) || matches!(
-                        body_expressions(program).expression(indexed.collection),
-                        ExpressionNode::Borrow(_)
-                    ) =>
-                {
-                    indexed.collection
-                }
-                ExpressionNode::Borrow(borrow)
-                    if borrow.access != language_core::ReferenceAccess::Shared
-                        || matches!(
-                            body_expressions(program).expression(borrow.target),
-                            ExpressionNode::Indexed(_) | ExpressionNode::Member(_)
-                        ) =>
-                {
-                    borrow.target
-                }
-                _ => return None,
-            };
-            loop {
-                match program.tables.bodies.expressions.expression(collection) {
-                    ExpressionNode::Borrow(borrow) => collection = borrow.target,
-                    ExpressionNode::Indexed(inner) => collection = inner.collection,
-                    ExpressionNode::Member(member) => collection = member.receiver,
-                    _ => break,
-                }
-            }
-            Some(collection)
-        })
-        .collect::<Vec<_>>();
     for occurrence in authored {
         let Some((reference, selected)) =
             selected_expression_constant(program, occurrence.expression)
@@ -153,18 +116,6 @@ pub(crate) fn bind_constant_uses(
                 "constant use selected a declaration with a missing or mismatched initializer",
             )
             .with_source_span(reference));
-        }
-        if mode != crate::resolution::lowering::lowerer::ConstResolutionMode::ArgumentSelection
-            && declaration.evaluated_value.is_some()
-            && matches!(
-                program.tables.bodies.expressions.expression(initializer),
-                ExpressionNode::ArrayLiteral(_)
-            )
-            && unsupported_array_projection_sources.contains(&occurrence.expression)
-        {
-            return Err(Diagnostic::error(
-            "array constant projection currently requires unborrowed literal integer selectors; dynamic indexing, borrowing and slicing require value-based array projection"
-        ).with_source_span(reference));
         }
         // A use keeps the declaration selected in its own scope. Evaluation
         // stores the value on that declaration, including for literal initializers.
