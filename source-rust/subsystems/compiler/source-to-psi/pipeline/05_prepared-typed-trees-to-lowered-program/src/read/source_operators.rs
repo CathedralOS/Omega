@@ -506,7 +506,9 @@ impl Program<'_> {
             {
                 return Err(crate::lowering::reject(
                     machine,
-                    crate::lowering::SourceOrigin::of(typed.expression_table.source_span(expression)),
+                    crate::lowering::SourceOrigin::of(
+                        typed.expression_table.source_span(expression),
+                    ),
                     format!(
                         "no `[]` declaration accepts collection `{}` and index `{}`; a qualified index requires an exactly matching parameter or an explicit domain cast",
                         typed.display_type_reference_with_constraints(*collection),

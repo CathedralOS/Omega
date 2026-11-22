@@ -312,26 +312,26 @@ machine entry() -> bool {
 fn qualified_index_requires_a_matching_declaration() {
     let read = |declaration: &str| {
         let source = format!(
-            "data Cell [copy] {{ value: u32; }}
-\
-             {declaration}
-\
-             machine entry() -> bool {{
-\
-                 let cells: [Cell; 1];
-\
-                 let index: u64 in Wrapping = 0u64 as +Wrapping;
-\
-                 cells[index].value == 0u32
-\
-             }}"
+            r#"
+data Cell [copy] {{ value: u32; }}
+{declaration}
+machine entry() -> bool {{
+    let cells: [Cell; 1];
+    let index: u64 in Wrapping = 0u64 as +Wrapping;
+    cells[index].value == 0u32
+}}
+"#
         );
         let typed = super::boundary_calls::typed(&source);
         let prepared = crate::preparation::prepare_typed_trees(typed, &[], &[]).unwrap();
-        operator_program(prepared.trees()).expect_err("no builtin meaning may replace the declared index")
+        operator_program(prepared.trees())
+            .expect_err("no builtin meaning may replace the declared index")
     };
     let missing = read("");
-    assert!(missing.contains("no `[]` declaration accepts collection"), "{missing}");
+    assert!(
+        missing.contains("no `[]` declaration accepts collection"),
+        "{missing}"
+    );
     assert!(missing.contains("Wrapping"), "{missing}");
 
     let supplied = read(
