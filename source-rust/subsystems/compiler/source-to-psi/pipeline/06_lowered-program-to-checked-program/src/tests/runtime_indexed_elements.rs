@@ -145,3 +145,19 @@ machine build_entry() {{
     let rejected = verdict(&program(3));
     assert!(rejected.starts_with("rejected"), "{rejected}");
 }
+
+#[test]
+fn enum_comparisons_measure_the_view_of_each_indexed_operand() {
+    let program = r#"
+data Kind [copy] { case Key; case Token; }
+data Item [copy] { kind: Kind; }
+machine build_entry(left: @[Item], right: @[Item], index: u64) -> bool
+requires index < left.length, index < right.length
+{ left[index].kind == right[index].kind }
+"#;
+    assert_eq!(verdict(program), "accepted");
+    for missing in [", index < right.length", "index < left.length, "] {
+        let result = verdict(&program.replace(missing, ""));
+        assert!(result.starts_with("rejected"), "{result}");
+    }
+}

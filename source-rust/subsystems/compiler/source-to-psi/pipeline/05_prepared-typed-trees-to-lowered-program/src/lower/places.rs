@@ -3287,9 +3287,7 @@ impl<'a> Lowering<'a> {
         // A reference or view captures its single operand at formation. Keep
         // the measured descriptor and selector together for its bounds check.
         // A staged call operand already holds its captured address in a root.
-        if let Some((view, _, _)) = self.element_view_projection(root, &steps)? {
-            self.measured_view(&view, place.source)?;
-        }
+        self.measure_indexed_views(root, &steps, place.source)?;
         let value_type = place
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
@@ -3904,6 +3902,7 @@ impl<'a> Lowering<'a> {
         source: SourceOrigin,
     ) -> Checked<Value> {
         self.name_contents(at.place, ValueType::record(at.record))?;
+        self.measure_indexed_views(at.root, &at.path, source)?;
         let operation = self.operation_identity(source);
         let path = self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
         self.emit(
@@ -3966,6 +3965,7 @@ impl<'a> Lowering<'a> {
         if data.cases().is_empty() {
             return Err(self.internal("a dispatch on storage that is no sum"));
         }
+        self.measure_indexed_views(at.root, &at.path, source)?;
         let path = self.storage_path(&at.path, ExecutionSite::Block(self.current()?), source)?;
         self.name_contents(at.place, ValueType::record(at.record))?;
         let mut blocks = Vec::with_capacity(arms.len());
@@ -4306,6 +4306,39 @@ impl<'a> Lowering<'a> {
         )
     }
 
+    /// A projected operation owes a bound for each runtime-sized view it crosses.
+    /// Measure the outer descriptors first so each nested measurement has the
+    /// bounds it needs for its own path. Fixed arrays carry their extent in the type.
+    fn measure_indexed_views(
+        &mut self,
+        root: PlaceId,
+        steps: &[Step],
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        for (offset, step) in steps.iter().enumerate() {
+            if let Step::Index {
+                owner, fixed: None, ..
+            } = *step
+                && self.record_type(owner)?.shape.length_operation().is_some()
+            {
+                let prefix = &steps[..offset];
+                let mut place = self.exact_root(root)?;
+                for &step in prefix {
+                    place = self.step(place, step)?;
+                }
+                let descriptor = Located {
+                    root,
+                    place,
+                    path: prefix.to_vec(),
+                    record: owner,
+                    fresh: false,
+                };
+                self.measured_view(&descriptor, source)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Measuring a view keeps the storage form chosen for its descriptor.
     /// Stored shared-view fields use the field operation; descriptors with
     /// their own declared type retain the complete ordinary source path.
@@ -4456,9 +4489,7 @@ impl<'a> Lowering<'a> {
             (at.root, path)
         } else {
             let (root, steps, _, _) = continuing!(self.capture_place(place));
-            if let Some((view, _, _)) = self.element_view_projection(root, &steps)? {
-                self.measured_view(&view, source)?;
-            }
+            self.measure_indexed_views(root, &steps, source)?;
             (root, steps)
         };
         let operation = self.operation_identity(source);
