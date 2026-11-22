@@ -1029,16 +1029,18 @@ fn chain_math(first: ProofNode, second: ProofNode) -> Option<ProofNode> {
     ))
 }
 
-/// `a == b` to `a <= b`.
-fn weaken(equality: ProofNode) -> Result<ProofNode, Unproven> {
-    let Proposition::Equal(left, right) = &equality.conclusion else {
-        return Err("weakening of a non-equality");
+/// An equality or strict order implies the corresponding non-strict order.
+fn weaken(relation: ProofNode) -> Result<ProofNode, Unproven> {
+    let (Proposition::Equal(left, right) | Proposition::LessThan(left, right)) =
+        &relation.conclusion
+    else {
+        return Err("weakening requires an equality or strict order");
     };
     let conclusion = Proposition::LessOrEqual(left.clone(), right.clone());
     Ok(node(
         conclusion,
         ProofRule::IntegerOrderWeakening {
-            relation: Box::new(equality),
+            relation: Box::new(relation),
         },
     ))
 }
@@ -2511,6 +2513,12 @@ impl<'a> Prover<'a> {
         {
             return Ok(proof);
         }
+        if let Some((_, _, divisor)) = left.integer_remainder_operands()
+            && divisor == right
+            && let Some((_, proof)) = self.remainder_below_divisor(None, left, left)
+        {
+            return if strict { Ok(proof) } else { weaken(proof) };
+        }
         if let Some(proof) = self.saturating_subtract_order(left, right, strict) {
             return Ok(proof);
         }
@@ -2818,15 +2826,7 @@ impl<'a> Prover<'a> {
             if &at == to {
                 if at_strict || !strict {
                     return Some(if at_strict && !strict {
-                        // A strict path proves the non-strict goal.
-                        let (_, left, right) = order(&proof.conclusion)?;
-                        let conclusion = Proposition::LessOrEqual(left.clone(), right.clone());
-                        node(
-                            conclusion,
-                            ProofRule::IntegerOrderWeakening {
-                                relation: Box::new(proof),
-                            },
-                        )
+                        weaken(proof).ok()?
                     } else {
                         proof
                     });
@@ -2974,13 +2974,12 @@ impl<'a> Prover<'a> {
                     }
                 }
                 // `a % d < d` for an unsigned remainder when `0 < d`.
-                Proposition::Equal(
-                    output,
-                    expression @ ScalarTerm::ExactIntegerRemainder { .. },
-                ) if output == at => {
+                Proposition::Equal(output, expression)
+                    if output == at && expression.integer_remainder_operands().is_some() =>
+                {
                     if let Some(axiom) = axiom
                         && let Some((divisor, below)) =
-                            self.remainder_below_divisor(axiom, output, expression)
+                            self.remainder_below_divisor(Some(axiom), output, expression)
                     {
                         steps.push((divisor, below, true));
                     }
@@ -3830,7 +3829,7 @@ impl<'a> Prover<'a> {
                 let defined = self.definition(axiom, subject, integer, expression, direction);
                 // An unsigned remainder is also below its divisor.
                 let below = (direction == Direction::Upper)
-                    .then(|| self.remainder_below_divisor(axiom, subject, expression))
+                    .then(|| self.remainder_below_divisor(Some(axiom), subject, expression))
                     .flatten()
                     .and_then(|(divisor, relation)| self.through(relation, &divisor, direction));
                 // A remainder by a divisor no literal fixes lies between

@@ -1641,7 +1641,7 @@ mod remainder {
         semantic_axioms: &[Proposition],
         witness: &IntegerAffineWitness,
     ) -> Result<Option<CheckedIntegerAffineForm>, IntegerAffineWitnessError> {
-        let (expression, definition) = if operands(&witness.target).is_some() {
+        let (expression, definition) = if witness.target.integer_remainder_operands().is_some() {
             (&witness.target, None)
         } else if let [position] = witness.definition_axioms.as_slice()
             && let Some(Proposition::Equal(result, expression)) = semantic_axioms.get(*position)
@@ -1652,7 +1652,8 @@ mod remainder {
         } else {
             return Ok(None);
         };
-        let Some((integer_type, dividend, divisor)) = operands(expression) else {
+        let Some((integer_type, dividend, divisor)) = expression.integer_remainder_operands()
+        else {
             return Ok(None);
         };
         if divisor != &witness.root {
@@ -2414,27 +2415,6 @@ mod remainder {
             Ok(())
         } else {
             Err(IntegerAffineBoundConversionError::ConclusionMismatch)
-        }
-    }
-
-    fn operands(expression: &ScalarTerm) -> Option<(IntegerType, &ScalarTerm, &ScalarTerm)> {
-        match expression {
-            ScalarTerm::ExactIntegerRemainder {
-                scalar_type,
-                left,
-                right,
-            }
-            | ScalarTerm::WrappingIntegerRemainder {
-                scalar_type,
-                left,
-                right,
-            }
-            | ScalarTerm::SaturatingIntegerRemainder {
-                scalar_type,
-                left,
-                right,
-            } => Some((*scalar_type, left, right)),
-            _ => None,
         }
     }
 

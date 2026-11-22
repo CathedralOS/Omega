@@ -442,9 +442,11 @@ pub(crate) fn infer<'a>(
         }
         let entry = ProgramPoint::BlockEntry(join.id);
         let declared = predicate_row(tables, join.id);
-        // A declared invariant keeps its own telescope even when one member
-        // of a ranked call cycle dominates another member's head.
-        let dominating_bindings = declared.is_none().then_some(graph);
+        // Acyclic arrivals can retain dominating values beside the checked
+        // declaration, including when a qualification edge declares Truth.
+        // At a declared cyclic head only the inductive telescope is available.
+        let dominating_bindings =
+            (declared.is_none() || !graph.in_cycle(join.id)?).then_some(graph);
         let mut disjuncts = Vec::new();
         // A block entered by a cycle, or by an edge that passes no arguments
         // (a dispatch arm, whose parameters the payload binds through
@@ -783,14 +785,16 @@ fn describe(
             )
         });
     for binding in scalar_bindings.chain(snapshot_bindings) {
-        // Reuse the kernel's bounded definition traversal. Expanding an
-        // arithmetic DAG by recursive cloning here can grow exponentially.
-        // A failed or exhausted transport leaves the original binding for
-        // the ordinary scope filter to weaken, never an assumed relation.
-        let defined =
+        // A dominating argument keeps its exact identity even if substituting
+        // definitions would expand the arithmetic. Later proofs can cite its
+        // operation equation. An out-of-scope identity is filtered below.
+        if let Ok(defined) =
             check_value_equality_substitution(context, &binding, equations.iter().copied())
-                .unwrap_or(binding);
-        parts.push(defined);
+            && defined != binding
+        {
+            parts.push(defined);
+        }
+        parts.push(binding);
     }
     for (justification, proposition, path) in &available {
         // A dominating fact about an argument is not yet a fact about the

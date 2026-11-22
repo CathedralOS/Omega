@@ -241,28 +241,22 @@ impl Prover<'_> {
     /// carrier) or the divisor is not known positive.
     pub(super) fn remainder_below_divisor(
         &mut self,
-        axiom: usize,
+        axiom: Option<usize>,
         output: &ScalarTerm,
         expression: &ScalarTerm,
     ) -> Option<(ScalarTerm, ProofNode)> {
-        let ScalarTerm::ExactIntegerRemainder {
-            scalar_type, right, ..
-        } = expression
-        else {
-            return None;
-        };
-        let divisor = right.as_ref();
+        let (integer, _, divisor) = expression.integer_remainder_operands()?;
         if !matches!(divisor, ScalarTerm::Value { .. }) || divisor == output {
             return None;
         }
         let witness = IntegerAffineWitness {
             root: divisor.clone(),
             target: output.clone(),
-            definition_axioms: vec![axiom],
-            literal_axioms: vec![None],
+            definition_axioms: axiom.into_iter().collect(),
+            literal_axioms: axiom.map(|_| None).into_iter().collect(),
         };
         let form = check_integer_affine_witness(self.context, self.axioms, &witness).ok()?;
-        let positive = self.positive(*scalar_type, divisor)?;
+        let positive = self.positive(integer, divisor)?;
         let image = map_integer_affine_bound(&form, &positive.conclusion).ok()?;
         matches!(&image, Proposition::LessThan(left, right) if left == output && right == divisor)
             .then(|| {
