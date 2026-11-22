@@ -221,15 +221,19 @@ pub(super) fn template_binders(
     let binders = params
         .parameters
         .iter()
-        .map(|p| match (p.kind, p.carrier.as_deref(), p.multiplicity) {
-            (NodeKind::TypeParam, None, multiplicity) => Ok(TemplateBinder::Type { multiplicity }),
-            (NodeKind::LifetimeParam, None, None) => Ok(TemplateBinder::Lifetime),
-            (NodeKind::KindedParam, Some(bound), None) => Ok(TemplateBinder::Kinded(type_expression(bound, site)?)),
-            (NodeKind::ConstParam, Some(bound), None) => Ok(TemplateBinder::Const(type_expression(bound, site)?)),
-            _ => Err(LoweringError::new(site, "unsupported checked generic binder")),
-        })
+        .map(|param| template_binder(param, site))
         .collect::<Result<Vec<_>, _>>()?;
     Ok((binders, params.witness_count))
+}
+
+pub(super) fn template_binder(p: &omega_typed::GenericParameter, site: &Site) -> Result<TemplateBinder, LoweringError> {
+    match (p.kind, p.carrier.as_deref(), p.multiplicity) {
+        (NodeKind::TypeParam, None, multiplicity) => Ok(TemplateBinder::Type { multiplicity }),
+        (NodeKind::LifetimeParam, None, None) => Ok(TemplateBinder::Lifetime),
+        (NodeKind::KindedParam, Some(bound), None) => Ok(TemplateBinder::Kinded(type_expression(bound, site)?)),
+        (NodeKind::ConstParam, Some(bound), None) => Ok(TemplateBinder::Const(type_expression(bound, site)?)),
+        _ => Err(LoweringError::new(site, "unsupported checked generic binder")),
+    }
 }
 
 pub(crate) fn callable_interface(

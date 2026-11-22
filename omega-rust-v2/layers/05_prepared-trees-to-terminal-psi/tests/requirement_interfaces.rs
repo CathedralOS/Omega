@@ -334,3 +334,106 @@ fn a_trait_publishes_its_direct_applied_parent() {
         assert_eq!(row.requirement.arguments.as_slice(), arguments);
     });
 }
+
+#[test]
+fn bodyless_entry_ceilings_preserve_the_applied_target_and_omission() {
+    use omega_psi::{SynchronousEntry, TypeExpressionStep};
+    let source = "boundary trait Handler<T> { machine run() reaches none; }
+        boundary trait Driver {
+            machine read() reaches none invokes Handler<u8>;
+            machine idle() reaches none;
+            machine generic<T>() reaches none invokes Handler<T>;
+        }
+        machine caller() {Driver::read();}";
+    let pkg = sources::lower(&[("entries.omg", source)]).unwrap();
+    let driver = pkg.traits.iter().find(|row| row.declaration.path == "Driver").unwrap();
+    let read = driver.requirements.iter().find(|row| row.declaration.path == "Driver::read").unwrap();
+    assert!(read.reach.as_ref().unwrap().is_empty());
+    let [clause] = read.invokes.as_slice() else { panic!("one synchronous entry allowed") };
+    let SynchronousEntry::Declaration(slot) = &clause.entry else { panic!("expected named entry") };
+    assert_eq!(slot.declaration.path, "Handler");
+    assert_eq!(slot.arguments.len(), 1);
+    let caller = pkg.machines.iter().find(|row| row.declaration.path == "caller").unwrap();
+    assert_eq!(caller.contract.invokes.as_slice(), std::slice::from_ref(&clause.entry));
+    assert!(caller.contract.realized_reach.is_empty());
+    assert_eq!(caller.contract.realized_pause, Default::default());
+    assert_eq!(clause.site.span.slice(source.as_bytes()), Some(&b"invokes Handler<u8>"[..]));
+    assert!(driver.requirements.iter().find(|row| row.declaration.path == "Driver::idle").unwrap().invokes.is_empty());
+    let [generic] = driver.dependent_requirements.as_slice() else { panic!("one generic member") };
+    let [clause] = generic.invokes.as_slice() else { panic!("generic entry was lost") };
+    let SynchronousEntry::Declaration(open) = &clause.entry else { panic!("expected applied entry") };
+    assert_eq!(open.declaration, slot.declaration);
+    assert!(matches!(open.arguments[0].0.as_slice(),
+        [TypeExpressionStep::GenericParameter {owner, index: 0}] if owner == &generic.declaration));
+}
+
+#[test]
+fn entry_ceilings_distinguish_same_typed_callable_parameters_and_static_binders() {
+    use omega_psi::SynchronousEntry;
+    let program = "data Fn = machine() reaches none crashes none;
+        boundary trait Driver {
+            machine first(a:Fn,b:Fn) reaches none invokes a;
+            machine second(a:Fn,b:Fn) reaches none invokes b;
+            machine invoke<const F:Fn>() reaches none invokes F;
+        }";
+    let pkg = sources::lower(&[("entries.omg", program)]).unwrap();
+    let driver = &pkg.traits[0];
+    for (name, index) in [("Driver::first", 0), ("Driver::second", 1)] {
+        let requirement = driver.requirements.iter().find(|r| r.declaration.path == name).unwrap();
+        let [clause] = requirement.invokes.as_slice() else { panic!("expected one parameter") };
+        assert_eq!(clause.entry, SynchronousEntry::RuntimeParameter(index));
+    }
+    let [generic] = driver.dependent_requirements.as_slice() else { panic!("expected one static binder") };
+    let [clause] = generic.invokes.as_slice() else { panic!("expected one static target") };
+    assert_eq!(clause.entry, SynchronousEntry::StaticParameter(0));
+}
+
+#[test]
+fn a_forwarded_entry_reaches_the_caller_with_its_exact_requirement() {
+    use omega_psi::SynchronousEntry;
+    let source = "trait Entry { machine enter() reaches none crashes none; }
+        boundary trait Registrar { machine dispatch() reaches none crashes none invokes Entry::enter; }
+        machine inferred() { Registrar::dispatch(); }
+        machine declared() invokes Entry::enter { inferred(); }";
+    let pkg = sources::lower(&[("entry.omg",source)]).unwrap();
+    let registrar = pkg.traits.iter().find(|row| row.declaration.path == "Registrar").unwrap();
+    let [required] = registrar.requirements.as_slice() else { panic!("one dispatch") };
+    let [clause] = required.invokes.as_slice() else { panic!("one entry") };
+    let SynchronousEntry::Declaration(slot) = &clause.entry else { panic!("named entry") };
+    assert_eq!(slot.declaration.path, "Entry::enter");
+    for name in ["inferred", "declared"] {
+        let caller = pkg.machines.iter().find(|row| row.declaration.path == name).unwrap();
+        assert_eq!(caller.contract.invokes.as_slice(), std::slice::from_ref(&clause.entry));
+        assert!(caller.contract.realized_reach.is_empty());
+        if name == "declared" {
+            let [written] = caller.contract.invocation_ceiling.as_slice() else { panic!("one authored entry") };
+            assert_eq!(written.entry, clause.entry);
+            assert_ne!(written.site, clause.site);
+        } else {
+            assert!(caller.contract.invocation_ceiling.is_empty());
+        }
+    }
+}
+
+#[test]
+fn entry_arguments_keep_their_values_without_service_parent_closure() {
+    use omega_psi::{SynchronousEntry, TypeExpressionStep};
+    let source = "boundary trait Parent<const N:u64> {}
+        boundary trait Handler<const N:u64>:Parent<0u64> {}
+        boundary trait Driver { machine dispatch() reaches none invokes Handler<17u64> invokes Handler<29u64>; }
+        machine caller() { Driver::dispatch(); }";
+    let pkg = sources::lower(&[("entries.omg",source)]).unwrap();
+    let driver = pkg.traits.iter().find(|row| row.declaration.path == "Driver").unwrap();
+    let [requirement] = driver.requirements.as_slice() else { panic!("one dispatch") };
+    assert_eq!(requirement.invokes.len(), 2);
+    for (row, n) in requirement.invokes.iter().zip([17, 29]) {
+        let SynchronousEntry::Declaration(slot) = &row.entry else { panic!("declared entry") };
+        assert_eq!(slot.declaration.path, "Handler");
+        assert!(matches!(slot.arguments[0].0.as_slice(),
+            [TypeExpressionStep::StaticInteger {value, ..}] if *value == n.into()));
+    }
+    let caller = &pkg.machines[0].contract;
+    assert_eq!(caller.invokes.len(), 2);
+    assert!(requirement.invokes.iter().all(|row| caller.invokes.contains(&row.entry)));
+    assert!(caller.realized_reach.is_empty());
+}

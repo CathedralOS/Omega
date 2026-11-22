@@ -58,6 +58,9 @@ pub(super) fn signature(
             | NodeKind::Reaches
             | NodeKind::Blocks
             | NodeKind::Suspends => {}
+            // Trait lowering publishes these clauses alongside the requirement signature.
+            NodeKind::Invokes if file.child(sig.node.node, NodeKind::Body).is_none()
+                && file.nodes[sig.node.node].parent.is_some_and(|n| file.nodes[n].kind == NodeKind::Trait) => {}
             // Routes, including guards over the entry formals, are lowered below.
             NodeKind::Crashes => {}
             NodeKind::OperatorToken if sig.operator.as_ref().is_some_and(|binding| binding.node == file.node_id(child)) => {}
@@ -115,7 +118,7 @@ fn reach(
                     crate::identity::declaration(&row.service, site)?,
                     row.arguments
                         .iter()
-                        .map(|v| type_expression(v, site))
+                        .map(|v| indexed_expression(v, site))
                         .collect::<Result<Vec<_>, _>>()?,
                 ))
             })
@@ -401,51 +404,7 @@ fn lower(
                     .find(|(d, i, _)| d == &sig.machine && *i == index)
                     .ok_or_else(|| LoweringError::new(&sig.site, OPEN_TEMPLATE))?;
                 bounds.push((index, bound));
-                let (requirement, interface) = if let Some(slot) = &bound.requirement {
-                    // Nominal predicates refer to the exact requirement declaration.
-                    if bound.requires || bound.has_guarantee {
-                        return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
-                    }
-                    let interface = TemplateCallable {
-                        parameters: bound
-                            .parameters
-                            .iter()
-                            .map(|v| type_expression(v, &bound.contract))
-                            .collect::<Result<_, _>>()?,
-                        result: result_type(&bound.result, &bound.contract)?,
-                        result_lifetime_input: super::callables::result_lifetime_input(&bound.result, bound.parameters.iter()),
-                        requires: vec![],
-                        ensures: vec![],
-                        reach: reach(bound.reach.as_deref(), &bound.contract)?,
-                        crash_ceiling: bound.crash_ceiling.clone(),
-                        // Like its predicates, the routes stay on the named requirement.
-                        crash_routes: Vec::new(),
-                        pause: bound.pause,
-                        terminates: bound.terminates,
-                        site: bound.contract.clone(),
-                    };
-                    let requirement = TemplateRequirementSlot {
-                        declaration: crate::identity::declaration(&slot.declaration, &bound.contract)?,
-                        arguments: slot
-                            .trait_arguments
-                            .iter()
-                            .map(|v| type_expression(v, &bound.contract))
-                            .collect::<Result<_, _>>()?,
-                    };
-                    (Some(requirement), interface)
-                } else {
-                    // The bound names an alias; its signature owns the contract clauses.
-                    let (origin, input) = prepared
-                        .typed()
-                        .callable_origin(&bound.contract)
-                        .ok_or_else(|| LoweringError::new(&sig.site, OPEN_TEMPLATE))?;
-                    let interface = super::type_expression::callable_interface(prepared, &origin, input, bound)?;
-                    (None, interface)
-                };
-                MachineTemplateBinder::Callable {
-                    requirement,
-                    signature: Box::new(interface),
-                }
+                callback_binder(prepared, bound)?
             }
             _ => return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE)),
         };
@@ -571,6 +530,51 @@ fn lower(
         body,
         result,
     })
+}
+
+pub(super) fn callback_binder(prepared: &PreparedTrees<'_>, bound: &CallableType) -> Result<MachineTemplateBinder, LoweringError> {
+    let (requirement, interface) = if let Some(slot) = &bound.requirement {
+        // Nominal predicates refer to the exact requirement declaration.
+        if bound.requires || bound.has_guarantee {
+            return Err(LoweringError::new(&bound.contract, OPEN_TEMPLATE));
+        }
+        let interface = TemplateCallable {
+            parameters: bound
+                .parameters
+                .iter()
+                .map(|v| type_expression(v, &bound.contract))
+                .collect::<Result<_, _>>()?,
+            result: result_type(&bound.result, &bound.contract)?,
+            result_lifetime_input: super::callables::result_lifetime_input(&bound.result, bound.parameters.iter()),
+            requires: vec![],
+            ensures: vec![],
+            reach: reach(bound.reach.as_deref(), &bound.contract)?,
+            crash_ceiling: bound.crash_ceiling.clone(),
+            // Like its predicates, the routes stay on the named requirement.
+            crash_routes: Vec::new(),
+            pause: bound.pause,
+            terminates: bound.terminates,
+            site: bound.contract.clone(),
+        };
+        let requirement = TemplateRequirementSlot {
+            declaration: crate::identity::declaration(&slot.declaration, &bound.contract)?,
+            arguments: slot
+                .trait_arguments
+                .iter()
+                .map(|v| type_expression(v, &bound.contract))
+                .collect::<Result<_, _>>()?,
+        };
+        (Some(requirement), interface)
+    } else {
+        // The bound names an alias; its signature owns the contract clauses.
+        let (origin, input) = prepared
+            .typed()
+            .callable_origin(&bound.contract)
+            .ok_or_else(|| LoweringError::new(&bound.contract, OPEN_TEMPLATE))?;
+        let interface = super::type_expression::callable_interface(prepared, &origin, input, bound)?;
+        (None, interface)
+    };
+    Ok(MachineTemplateBinder::Callable { requirement, signature: Box::new(interface) })
 }
 
 const OPEN_TEMPLATE: &str = "open generic machine requires a closed application before lowering";

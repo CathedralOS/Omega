@@ -77,9 +77,10 @@ pub struct TemplateRequirementSlot {
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct TemplateRequirement {
+    pub invokes: Vec<crate::InvocationClause>,
     pub declaration: DeclarationId,
     /// The requirement's own binders. Enclosing trait binders retain their separate owner.
-    pub parameters: Vec<TemplateBinder>,
+    pub parameters: Vec<MachineTemplateBinder>,
     pub signature: TemplateCallable,
     pub declared_pause: DeclaredPauseBounds,
 }

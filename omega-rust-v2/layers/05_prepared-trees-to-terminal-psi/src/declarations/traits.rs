@@ -28,6 +28,7 @@ struct RequirementSchema<'a> {
     requires: Vec<ContractClause>,
     ensures: Vec<ContractClause>,
     crash_routes: Vec<crate::CrashRoute>,
+    invokes: Vec<crate::InvocationClause>,
 }
 
 pub(crate) fn read_trait<'a>(
@@ -43,11 +44,12 @@ pub(crate) fn read_trait<'a>(
         .declaration_at(node)
         .ok_or_else(|| LoweringError::new(&site, "trait has no resolved identity"))?;
     let mut requirements = Vec::new();
-    let (parameters, witnesses) = super::type_expression::template_binders(tree.forest().generic_parameters.get(declaration), &site)?;
-    if witnesses != 0
+    let telescope = tree.forest().generic_parameters.get(declaration);
+    let (parameters, witnesses) = super::type_expression::template_binders(telescope, &site)?;
+    if witnesses != 0 || telescope.is_some_and(|params| !params.equations.is_empty())
         || !parameters
             .iter()
-            .all(|b| matches!(b, crate::TemplateBinder::Type { .. }))
+            .all(|b| matches!(b, crate::TemplateBinder::Type { .. } | crate::TemplateBinder::Const(_)))
     {
         return Err(LoweringError::new(&site, "unsupported generic trait binder"));
     }
@@ -141,6 +143,7 @@ pub(crate) fn read_trait<'a>(
             dependent_requirements.push(crate::TemplateRequirement {
                 declaration: crate::identity::declaration(&signature.machine, &signature.site)?,
                 parameters: Vec::new(),
+                invokes: super::invocations::authored(tree, signature, None)?,
                 signature: super::machine_templates::signature(prepared, tree, signature)?,
                 declared_pause: signature.pause,
             });
@@ -165,6 +168,7 @@ pub(crate) fn read_trait<'a>(
         let mut ensures = Vec::new();
         for &part in &file.nodes[child].children {
             match file.nodes[part].kind {
+                NodeKind::Invokes if file.child(child, NodeKind::Body).is_none() => {}
                 NodeKind::Path | NodeKind::Params | NodeKind::Result | NodeKind::GenericParams | NodeKind::Reaches | NodeKind::Blocks | NodeKind::Suspends => {}
                 // Routes, including guards over the requirement formals, are lowered below.
                 NodeKind::Crashes => {}
@@ -191,6 +195,7 @@ pub(crate) fn read_trait<'a>(
             signature.crash_ceiling.as_deref(),
         )?;
         requirements.push(RequirementSchema {
+            invokes: super::invocations::authored(tree, signature, None)?,
             signature,
             indices,
             requires,
@@ -224,13 +229,26 @@ fn generic_requirement(
         return Err(LoweringError::new(&signature.site, "generic trait member requires a bodyless requirement"));
     }
     let checked = tree.forest().generic_parameters.get(&signature.machine);
-    let (parameters, witnesses) = super::type_expression::template_binders(checked, &signature.site)?;
-    if witnesses != 0 || checked.is_some_and(|p| !p.equations.is_empty()) || parameters.len() != file.generic_parameters(child).count() {
+    let checked = checked.ok_or_else(|| LoweringError::new(&signature.site, "generic requirement lacks its typed telescope"))?;
+    let mut parameters = Vec::with_capacity(checked.parameters.len());
+    for param in &checked.parameters {
+        let binder = match (param.kind, param.carrier.as_deref()) {
+            (NodeKind::ConstParam, Some(ValueType::Callable(bound))) if param.multiplicity.is_none() =>
+                super::machine_templates::callback_binder(prepared, bound)?,
+            _ => match super::type_expression::template_binder(param, &signature.site)? {
+                crate::TemplateBinder::Const(ty) => crate::MachineTemplateBinder::Const(ty),
+                binder => crate::MachineTemplateBinder::Type(binder),
+            },
+        };
+        parameters.push(binder);
+    }
+    if checked.witness_count != 0 || !checked.equations.is_empty() || parameters.len() != file.generic_parameters(child).count() {
         return Err(LoweringError::new(&signature.site, "generic requirement needs exactly its checked binders"));
     }
     Ok(crate::TemplateRequirement {
         declaration: crate::identity::declaration(&signature.machine, &signature.site)?,
         parameters,
+        invokes: super::invocations::authored(tree, signature, None)?,
         signature: super::machine_templates::signature(prepared, tree, signature)?,
         declared_pause: signature.pause,
     })
@@ -296,6 +314,7 @@ impl<'a> TraitSchema<'a> {
                 .map(|row| super::members::reach(row, Clone::clone, &sig.site))
                 .transpose()?;
             requirements.push(LoweredRequirement {
+                invokes: r.invokes,
                 declaration: crate::identity::declaration(&sig.machine, &sig.site)?,
                 family: super::finite_family::declared_family(value_indices.len(), &r.requires),
                 value_indices,

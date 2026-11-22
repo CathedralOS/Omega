@@ -104,7 +104,8 @@ fn check_conformance(
         || member.requirement.declaration != required.declaration
         || required.declaration.kind != DeclarationKind::Machine
         || !owns_member(&trait_decl.declaration, &required.declaration)
-        || required.parameters != [TemplateBinder::Lifetime]
+        || !required.invokes.is_empty()
+        || required.parameters != [omega_psi::MachineTemplateBinder::Type(TemplateBinder::Lifetime)]
         || required.signature.result_lifetime_input.is_some()
         || !required.signature.requires.is_empty()
         || !required.signature.ensures.is_empty()

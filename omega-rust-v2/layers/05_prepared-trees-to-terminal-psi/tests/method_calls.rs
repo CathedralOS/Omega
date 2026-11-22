@@ -46,7 +46,7 @@ fn generic_boundary_method_publishes_its_binders_and_each_static_argument_tuple(
         panic!("expected the generic requirement")
     };
     assert_eq!(pass.declaration.path, "Codec::pass");
-    assert_eq!(pass.parameters, [TemplateBinder::Type { multiplicity: None }]);
+    assert_eq!(pass.parameters, [omega_psi::MachineTemplateBinder::Type(TemplateBinder::Type { multiplicity: None })]);
     let open = TypeExpression(vec![TypeExpressionStep::GenericParameter {
         owner: pass.declaration.clone(),
         index: 0,
@@ -83,7 +83,7 @@ fn const_indexed_boundary_method_keeps_each_canonical_static_value() {
     };
     assert_eq!(
         slot.parameters,
-        [TemplateBinder::Const(TypeExpression(vec![
+        [omega_psi::MachineTemplateBinder::Const(TypeExpression(vec![
             TypeExpressionStep::Scalar(u64_carrier)
         ]))]
     );
