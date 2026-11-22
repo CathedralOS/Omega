@@ -115,8 +115,18 @@ path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/prepared_boole
 required-features = ["test-support"]
 
 [[test]]
+name = "lowering_variant_parent_identity"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/variant_parent_identity.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "checking_dominance"
 path = "pipeline/06_lowered-program-to-checked-program/tests/dominance.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_variant_parent_identity"
+path = "pipeline/06_lowered-program-to-checked-program/tests/variant_parent_identity.rs"
 required-features = ["test-support"]
 
 [[example]]
