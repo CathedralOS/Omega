@@ -423,6 +423,11 @@ fn lower(
                     omega_typed::NodeSemantics::Expression(e) if e.static_argument_slot.is_some() && matches!(e.ty, ValueType::Callable(_)) => continue,
                     omega_typed::NodeSemantics::Expression(e) => (&e.ty, &e.site),
                     omega_typed::NodeSemantics::Landing(e) => (&e.ty, &e.site),
+                    // A combined carrier cast first produces this unqualified numeric value,
+                    // then establishes the written domains on its continuation.
+                    omega_typed::NodeSemantics::Obligation(omega_typed::TypingObligation {
+                        kind: omega_typed::ObligationKind::ExactCast { destination, .. }, site, ..
+                    }) if file.nodes[node].kind == NodeKind::Cast => (destination, site),
                     _ => continue,
                 };
                 body_types.push(carrier);

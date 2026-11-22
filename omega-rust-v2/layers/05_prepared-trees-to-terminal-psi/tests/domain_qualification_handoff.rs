@@ -372,3 +372,68 @@ fn a_record_formal_retains_its_whole_value_domain_and_nominal_schema() {
     assert_eq!(domains.len(), 1);
     assert_eq!(domains[0].declaration.path, "S::Live");
 }
+
+#[test]
+fn a_combined_numeric_cast_publishes_its_plain_result_before_adding_the_core_domain() {
+    use omega_psi::{OperationKind, OperationResult, QualificationDirection, ScalarQualificationChange};
+    for (from, to, signed, width) in [
+        ("u32", "u64", false, 64),
+        ("u16", "u8", false, 8),
+        ("f64", "i32", true, 32),
+    ] {
+        let destination = ScalarType::Integer { signed, width };
+        for expression in [
+            format!("x as {to} +Wrapping"),
+            format!("(x as {to}) as +Wrapping"),
+        ] {
+            let text = format!(r"use omega\core; machine change(x:{from})->{to} in Wrapping {{ {expression} }}");
+            let pkg = sources::lower(&[("cast.omg", &text)]).unwrap();
+            let machine = pkg
+                .machines
+                .iter()
+                .find(|m| m.declaration.path == "change")
+                .unwrap();
+            let body = &machine.body;
+            let [Parameter::Scalar(input)] = body.parameters[..] else {
+                panic!("scalar formal")
+            };
+            let [op] = &body.operations[..] else { panic!("exactly one conversion") };
+            assert!(matches!(op.kind, OperationKind::ExactNumericCast {operand} if operand==input));
+            let OperationResult::Scalar(converted) = op.result else {
+                panic!("converted value")
+            };
+            assert_eq!(pkg.types.get(body.values[converted.index()].ty), Some(&TypeShape::PrimitiveScalar(destination)));
+            let [entry, qualified] = &body.blocks[..] else {
+                panic!("one domain establishment")
+            };
+            let BlockTerminator::Jump(edge) = &entry.terminator else {
+                panic!("qualification edge")
+            };
+            assert_eq!(edge.arguments, [converted]);
+            assert_eq!(edge.target, qualified.id);
+            assert_eq!(
+                edge.scalar_qualification_changes,
+                [ScalarQualificationChange {
+                    argument_index: 0,
+                    direction: QualificationDirection::Add
+                }]
+            );
+            let [tagged] = qualified.scalar_parameters[..] else {
+                panic!("qualified value")
+            };
+            assert_eq!(Some(body.values[tagged.index()].ty), machine.result_type);
+            let Some(TypeShape::QualifiedScalar { carrier, domains }) = pkg.types.get(body.values[tagged.index()].ty) else {
+                panic!("qualified destination")
+            };
+            assert_eq!(*carrier, destination);
+            let atoms: Vec<_> = pkg
+                .types
+                .domain_atoms(*domains)
+                .unwrap()
+                .map(|(id, _)| id.path.as_str())
+                .collect();
+            assert_eq!(atoms, [if signed { r"core\i::Wrapping" } else { r"core\u::Wrapping" }]);
+            assert!(matches!(qualified.terminator,BlockTerminator::Return{result:ReturnEdge::Scalar(out),..} if out==tagged));
+        }
+    }
+}
