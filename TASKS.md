@@ -22,6 +22,8 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
   - Carry the checked bounds of `size_of` and `align_of` through arithmetic on them and validate them at installation. Exercise [record geometry](samples/cli/probes/record_geometry), scalar and generic carriers, and the value form `align_of(view)`.
 
+  - Give an unannotated constant the type of an initializer that only typing can find: a call, another constant or a typed operand, as in `const second = flag();`, `const first = second;` and `const mask = 2u8 + 3;`. The [parser](source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/declarations/constants.rs) writes the type of a suffixed literal, a cast or a Boolean and refuses the rest as unsupported, because name resolution reads every constant's declared type before typing runs.
+
 - **NESTED-MACHINE-UNIFICATION.** Finish checking calls and returns in nested machines ([machines.md](wiki/spec/language/machines.md#nested-machines-and-identity), [state_contracts.md](wiki/spec/language/state_contracts.md)).
   - Resolve recursive scopes, elaborate flat identities, and reject runtime capture or code after trailing declarations.
   - Complete [local inference](wiki/drafts/designs/local_inference_and_contracts.md), cyclic arrivals, normal returns, loans, restoration, linear custody, and SCC rank measures across call shapes.

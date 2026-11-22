@@ -1,0 +1,15 @@
+const LIMIT = 7u16;
+const OFFSET = -3i32;
+const READY = true;
+const WIDE = 300u16 as u64;
+machine byte(value: u8) -> u8 { value }
+machine signed(value: i32) -> i32 { value }
+machine wide(value: u64) -> u64 { value }
+machine main() crashes Trap {
+    transition byte(LIMIT) == 7 && signed(OFFSET) == -3 && READY && wide(WIDE) == 300 {
+        true -> done(),
+        false -> failed(),
+    }
+    machine done() {}
+    machine failed() { crash Trap; }
+}
