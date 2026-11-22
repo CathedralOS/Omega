@@ -1,5 +1,5 @@
 //! Preserve the applied requirement separately from the body or boundary that realizes it.
-use super::type_expression::type_expression;
+use super::type_expression::indexed_expression;
 use crate::lowering::applications::MachineInstance;
 use crate::machines::calls::Callees;
 use crate::{
@@ -20,7 +20,7 @@ pub(super) fn slot(
         declaration: crate::identity::declaration(id, site)?,
         arguments: arguments
             .iter()
-            .map(|v| type_expression(v, site))
+            .map(|v| indexed_expression(v, site))
             .collect::<Result<_, _>>()?,
     })
 }

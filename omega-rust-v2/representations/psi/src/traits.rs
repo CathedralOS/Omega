@@ -32,8 +32,29 @@ pub struct MemberRestriction {
     pub requires_termination: bool,
 }
 
+/// A requirement's permitted synchronous entry at the authored clause.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InvocationClause {
+    pub site: Site,
+    pub entry: SynchronousEntry,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum SynchronousEntry {
+    Declaration(crate::TemplateRequirementSlot),
+    AppliedMachine(crate::TemplateSelection),
+    /// The occurrence that supplies a callable with no named static target.
+    StoredCallable(Site),
+    /// Position in the owner's ordered runtime parameters.
+    RuntimeParameter(usize),
+    /// Position in the owner's static telescope.
+    StaticParameter(usize),
+}
+
 #[derive(Debug, Eq, PartialEq)]
 pub struct LoweredRequirement {
+    /// Omission on a bodyless requirement permits no synchronous entries.
+    pub invokes: Vec<InvocationClause>,
     pub declaration: DeclarationId,
     /// Value indices in declaration order, distinct from the ordinary call parameters.
     pub value_indices: Vec<TypeId>,

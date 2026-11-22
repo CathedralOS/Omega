@@ -110,6 +110,8 @@ fn supports_closed_caller(plan: &LoweredMachine) -> bool {
         && contract.requires.is_empty()
         && contract.ensures.is_empty()
         && contract.reach.as_deref() == Some(&[])
+        && contract.invocation_ceiling.is_empty()
+        && contract.invokes.is_empty()
         && contract.realized_reach.is_empty()
         && contract.has_empty_crash_ceiling
         && contract.crash_routes.is_empty()

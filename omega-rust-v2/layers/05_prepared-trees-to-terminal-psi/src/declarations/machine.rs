@@ -42,6 +42,7 @@ pub(crate) fn machine_header(
             | NodeKind::Params
             | NodeKind::Result
             | NodeKind::Body
+            | NodeKind::Invokes
             | NodeKind::Reaches
             | NodeKind::Crashes
             | NodeKind::Blocks
@@ -92,7 +93,11 @@ pub(crate) fn machine_header(
         sig.crash_ceiling.as_deref(),
     )?;
     let realized_reach = effects.realized_reach.as_deref().ok_or_else(|| LoweringError::new(&sig.site, "checked machine is missing its derived service reach"))?;
+    let application = Some(&instance.application);
     let contract = MachineContract {
+        invocation_ceiling: super::invocations::authored(tree, sig, application)?,
+        invokes: effects.invokes.iter().map(|target| super::invocations::target_entry(tree, sig, target, application, &sig.site))
+            .collect::<Result<_, _>>()?,
         public: tree.resolved().is_exported(sig.node.node),
         promises_termination: sig.terminates,
         reach: sig.reach.as_deref().map(|row|super::members::reach(row,|v|instance.application.instantiate(v),&sig.site)).transpose()?,

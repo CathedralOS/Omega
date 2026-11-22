@@ -184,6 +184,10 @@ pub(crate) fn realized_pause(
     };
     if !effects.invokes.iter().all(|target| match target {
         InvocationTarget::StaticParameter { owner, index } if owner == &effects.machine => demand(*index).is_some(),
+        // An applied entry interface bounds which callbacks a provider may enter.
+        // Merely naming the interface has no pause effect. Calls still contribute
+        // their typed fixed pause or the appropriate callable parameter's term.
+        InvocationTarget::Declaration(slot) if slot.declaration.kind == omega_syntax::NodeKind::Trait => true,
         InvocationTarget::Declaration(slot) if slot.trait_arguments.is_empty() => signatures
             .get(&slot.declaration)
             .is_some_and(|sig| known(sig).is_some()),

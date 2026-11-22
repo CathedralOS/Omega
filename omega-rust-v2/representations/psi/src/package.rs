@@ -24,6 +24,10 @@ pub struct LoweredOperator {
 /// contributions remain separate from the authored crash ceiling.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MachineContract {
+    /// Written ceiling. Omission on an executable body uses its inferred entries.
+    pub invocation_ceiling: Vec<crate::InvocationClause>,
+    /// L3's published synchronous entries, including any wider authored ceiling.
+    pub invokes: Vec<crate::SynchronousEntry>,
     pub public: bool,
     pub promises_termination: bool,
     pub reach: Option<Vec<crate::TemplateRequirementSlot>>,

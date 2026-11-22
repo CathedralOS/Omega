@@ -208,6 +208,9 @@ fn changing_one_fact_of_the_closed_body_invalidates_its_proof() {
             };
             fields[1].operand = ValueOperand::CopyWhole(issuance);
         }),
+        ("admit an undeclared synchronous callback", |m| {
+            m.contract.invokes.push(omega_psi::SynchronousEntry::RuntimeParameter(0));
+        }),
         ("omit a required field", |m| {
             returned(m).pop();
         }),
