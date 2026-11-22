@@ -51,7 +51,7 @@ families! {
     CleanupAction => [DiscardRoot, DiscardResidual, Invoke, RetireHome],
     StructuralStoreDisposition => [FillVacancy, ReplaceUnrestricted, Dispose, ReplaceWriteOnly],
     ValueOperand => [Scalar, CopyWhole, MoveWhole, Borrow],
-    PlaceProjection => [Referent, Case, Field, FixedIndex, ViewElement],
+    PlaceProjection => [Referent, Case, Field, FixedIndex, RuntimeIndex, ViewElement],
     CallTarget => [Machine, Member, Runtime],
     MemberRealization => [Boundary, Conformance],
     PredicateStep => [

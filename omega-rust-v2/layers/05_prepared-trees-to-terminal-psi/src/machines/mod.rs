@@ -9,6 +9,7 @@ pub(crate) mod casts;
 pub(crate) mod construction;
 pub(crate) mod expressions;
 pub(super) mod fixed_arrays;
+mod indexed_stores;
 mod reflection;
 pub(crate) mod runtime_calls;
 mod operand_reads;

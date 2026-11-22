@@ -359,8 +359,8 @@ impl Replacement {
             .types
             .id_for(carrier)
             .map_err(|e| LoweringError::new(&site, e.to_string()))?;
-        if !matches!(expressions.types.get(id), Some(TypeShape::Nominal(_))) {
-            return Err(LoweringError::new(&site, "structural replacement needs an exact nominal type"));
+        if !matches!(expressions.types.get(id), Some(TypeShape::Nominal(_) | TypeShape::FixedArray { .. })) {
+            return Err(LoweringError::new(&site, "structural replacement needs an exact nominal or fixed-array type"));
         }
         let OperationResult::Structural(value) = expressions.lower(rhs, carrier, body, flow)? else {
             return Err(LoweringError::new(&site, "structural store needs an owned value"));

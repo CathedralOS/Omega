@@ -406,6 +406,9 @@ pub enum PlaceProjection {
     /// Canonical zero-based literal ordinal below the reached array's declared
     /// nonzero extent. It is a static claim segment, never a runtime selector.
     FixedIndex(u64),
+    /// One element of the fixed array selected by the preceding path. The
+    /// operation owns the bounds obligation against that array's extent.
+    RuntimeIndex(crate::RuntimeIndex),
     /// One element below an exclusive element view's `Referent`. The view owns
     /// none of its elements and has no static extent: the element is selected
     /// by this occurrence's evaluated selector, owed against `length`, the same
