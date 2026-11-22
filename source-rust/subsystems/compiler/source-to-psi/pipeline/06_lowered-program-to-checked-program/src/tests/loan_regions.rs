@@ -299,3 +299,44 @@ machine journey(left: @mutable Cell, right: @mutable Cell, first: bool) {{
         ))
     );
 }
+
+#[test]
+fn sum_store_changes_only_the_element_selected_by_a_returned_loan() {
+    let text = r#"
+data Tag [copy] { case Empty; case Present; }
+data Room { value: Tag; }
+data Level { rooms: [Room; 2]; }
+
+machine select(level: @mutable Level, second: bool) -> @mutable Room {
+    let rooms: @mutable [Room] = @mutable level.rooms[..];
+    transition second { true -> @mutable rooms[1], false -> @mutable rooms[0] }
+}
+machine change(level: @mutable Level, second: bool) {
+    let room: @mutable Room = select(level, second);
+    room.value = Tag::Present;
+}
+machine entry() crashes Trap {
+    let mutable level: Level;
+    change(@mutable level, true);
+    let preserved: bool = level.rooms[0].value == Tag::Empty;
+    let changed: bool = level.rooms[1].value == Tag::Present;
+    transition preserved && changed { true -> done(), false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    assert_eq!(
+        run(text),
+        Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ))
+    );
+    let conflict = text
+        .replace(
+            "    change(@mutable level, true);",
+            "    let held: @Room = @level.rooms[1];\n    change(@mutable level, true);",
+        )
+        .replace("let changed: bool = level.rooms[1].value", "let changed: bool = held.value");
+    let refused = run(&conflict).unwrap_err();
+    assert!(refused.contains("ChangeWhileBorrowed"), "{refused}");
+}

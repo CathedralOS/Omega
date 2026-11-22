@@ -337,7 +337,7 @@ pub(crate) fn transport<'locations>(
     replay: &Replay<'_>,
     machine: &DescriptorMachine,
     states: (&State, &State),
-    definitions: &[DescriptorLocation],
+    definitions: Option<&[DescriptorLocation]>,
     derivations: impl Iterator<
         Item = (
             &'locations DescriptorLocation,
@@ -350,7 +350,8 @@ pub(crate) fn transport<'locations>(
     let (before, base) = states;
     let reads = transfer.reads();
     let position = transfer.position();
-    let writes = written_locations(replay, machine, before, definitions, position, reads);
+    let writes = definitions
+        .and_then(|known| written_locations(replay, machine, before, known, position, reads));
     let mut derivations = derivations.peekable();
     if derivations.peek().is_none() && writes.as_ref().is_some_and(Vec::is_empty) {
         return Some(base.cases.clone());
