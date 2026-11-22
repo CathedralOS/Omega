@@ -1,4 +1,8 @@
-use semantic_vocabulary::{PlaceId, StructuralTypeId};
+use crate::descriptor_lifetimes::{
+    DescriptorFlowStep, DescriptorLifetime, DescriptorPosition, descriptor_path,
+};
+use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     StructuralAccess, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
@@ -18,30 +22,12 @@ pub struct ReferenceCompletionOccurrence<'a, Identity> {
 pub fn disposed_reference_on_return(
     machine: &terminal_psi::TerminalMachine,
     types: &[StructuralTypeDeclaration],
-    lifetime: &crate::descriptor_lifetimes::DescriptorLifetime,
-    formed_in: semantic_vocabulary::BlockId,
-    at: crate::descriptor_lifetimes::DescriptorPosition,
+    lifetime: &DescriptorLifetime,
+    formed_in: BlockId,
+    at: DescriptorPosition,
     cleanup: &[TerminalAffineCleanupAction],
-    flow: Option<
-        &std::collections::BTreeMap<
-            crate::descriptor_lifetimes::DescriptorPosition,
-            crate::descriptor_lifetimes::DescriptorFlowStep,
-        >,
-    >,
+    flow: Option<&BTreeMap<DescriptorPosition, DescriptorFlowStep>>,
 ) -> bool {
-    use crate::descriptor_lifetimes::{DescriptorLocation, descriptor_path};
-    use std::collections::BTreeSet;
-
-    let disposed = |names: &BTreeSet<DescriptorLocation>,
-                    actions: &[TerminalAffineCleanupAction]| {
-        !names.is_empty()
-            && names.iter().all(|name| {
-                machine
-                    .structural_place_type(name.root)
-                    .and_then(|root| descriptor_path(types, root, &name.path))
-                    .is_some_and(|path| cleanup_disposes_reference(actions, name.root, &path))
-            })
-    };
     // An empty intersection at a join proves no release: a different arrival
     // can still owe the loan. A closing cut must name actual authority there
     // and dispose every spelling that can survive on any arrival.
@@ -50,13 +36,24 @@ pub fn disposed_reference_on_return(
             .authorized
             .get(&position)
             .is_some_and(|names| !names.is_empty())
-            && lifetime
-                .surviving
-                .get(&position)
-                .is_some_and(|names| disposed(names, actions))
+            && lifetime.surviving.get(&position).is_some_and(|names| {
+                !names.is_empty()
+                    && names.iter().all(|name| {
+                        machine
+                            .structural_place_type(name.root)
+                            .and_then(|root| descriptor_path(types, root, &name.path))
+                            .is_some_and(|path| {
+                                cleanup_disposes_reference(actions, name.root, &path)
+                            })
+                    })
+            })
     };
-    if closes_names(at, cleanup) {
-        return true;
+    if lifetime
+        .surviving
+        .get(&at)
+        .is_some_and(|names| !names.is_empty())
+    {
+        return closes_names(at, cleanup);
     }
     let Some(flow) = flow else { return false };
     let mut pending = vec![formed_in];

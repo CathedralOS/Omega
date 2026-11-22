@@ -2432,20 +2432,15 @@ impl<'a> Storage<'a> {
                 .lowered
                 .blocks
                 .iter()
-                .any(|parameter| parameter.access != StructuralAccess::Owned)
-        }) || self
-            .lowered
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .any(|operation| {
-                matches!(
-                    operation.kind,
-                    terminal_psi::OperationKind::EstablishReference { .. }
-                        | terminal_psi::OperationKind::EstablishElementView { .. }
-                        | terminal_psi::OperationKind::EstablishMutableElementView { .. }
-                )
-            }) {
+                .flat_map(|block| &block.operations)
+                .any(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::EstablishReference { .. }
+                            | terminal_psi::OperationKind::EstablishElementView { .. }
+                            | terminal_psi::OperationKind::EstablishMutableElementView { .. }
+                    )
+                }) {
             Some(references.flow(self.machine).map_err(|error| {
                 self.unsupported(
                     error

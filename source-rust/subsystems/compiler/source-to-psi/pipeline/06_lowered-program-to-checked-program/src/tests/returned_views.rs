@@ -77,10 +77,11 @@ machine entry() -> u64 {
     ));
 
     let mut incomplete = elaborate(source).unwrap();
-    let actions = incomplete
+    let removed = incomplete
         .module
         .machines
         .iter_mut()
+        .filter(|machine| machine.result.structural().is_some())
         .flat_map(|machine| &mut machine.blocks)
         .filter(|block| {
             block
@@ -88,31 +89,25 @@ machine entry() -> u64 {
                 .iter()
                 .any(|op| op.declared_invocation().is_some())
         })
-        .find_map(|block| match &mut block.terminator {
-            terminal_psi::Terminator::Jump {
+        .find_map(|block| {
+            let terminal_psi::Terminator::Jump {
                 cleanup_actions, ..
-            } if cleanup_actions.iter().any(|action| {
+            } = &mut block.terminator
+            else {
+                return None;
+            };
+            let parent = cleanup_actions.iter().position(|action| {
                 matches!(
                     action,
                     terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
                 )
-            }) =>
-            {
-                Some(cleanup_actions)
-            }
-            _ => None,
-        })
-        .expect("returning the helper's result disposes its local view on the preceding edge");
-    let parent = actions
-        .iter()
-        .position(|action| {
-            matches!(
-                action,
-                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
-            )
-        })
-        .unwrap();
-    actions.remove(parent);
+            })?;
+            Some(cleanup_actions.remove(parent))
+        });
+    assert!(
+        removed.is_some(),
+        "the helper return disposes its parent on an earlier edge"
+    );
     let rejected = crate::checking::judge(Ok(incomplete));
     let refusal = match rejected {
         Err(refusal) | Ok(RouteVerdict::FallBack(refusal)) => refusal,
