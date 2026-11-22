@@ -18,9 +18,18 @@ impl ResolvedSourceFile<'_> {
         if self.file.nodes[node].children.is_empty()
             && let Some(Symbol::Declaration(id)) = self.name_in_role(node, true)
             && id.kind == NodeKind::Data
-            && let Some(ty) = self.inferred_lifetime_application(node, id, types)?
         {
-            return Ok(if let Some(value) = value { FieldLifetimes::from_value(ty, value) } else { ty });
+            if let Some(ty) = self.inferred_lifetime_application(node, id, types)? {
+                return Ok(if let Some(value) = value { FieldLifetimes::from_value(ty, value) } else { ty });
+            }
+            // An expected application of this very declaration determines its
+            // omitted arguments. Each initializer still checks against its
+            // substituted field type, including any data establishment goals.
+            if let Some(applied @ ValueType::Applied(owner, _)) = value
+                && owner.as_ref() == id
+            {
+                return Ok(applied.clone());
+            }
         }
         self.annotation(node, types)
     }
@@ -28,7 +37,7 @@ impl ResolvedSourceFile<'_> {
     /// Apply `data` at `node`, which wrote no arguments, with one inferred
     /// region for each lifetime argument. A record head and a sum case both
     /// name their carrier this way. `None` means the data takes no lifetime, or
-    /// also takes a type, const or machine argument that the source must write.
+    /// also needs an argument supplied explicitly or by the expected application.
     pub(crate) fn inferred_lifetime_application(
         &self,
         node: usize,
