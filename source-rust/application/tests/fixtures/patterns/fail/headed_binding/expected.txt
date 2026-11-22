@@ -1,0 +1,2 @@
+this pattern names `Other`, but `pair` is a `Pair`
+main.omg:4:9

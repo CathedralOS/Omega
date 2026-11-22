@@ -106,6 +106,21 @@ pub enum PatternComponent {
     Case,
 }
 
+/// How one row of a data pattern picks the part of its subject it binds or
+/// waives. A named row gives a field's declared name. A positional row gives
+/// the field's place in declaration order, and its written name is only the
+/// binding. A final `..` stands for every field no earlier row took.
+///
+/// Typing replaces `Position` and `Rest` rows by the fields they select once
+/// it knows the subject's record, so later stages read named rows only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, record_storage::Record)]
+pub enum PatternSelector {
+    #[default]
+    Name,
+    Position(u32),
+    Rest,
+}
+
 /// The parser's purpose for a local, independent of its diagnostic name and
 /// relevance. Pattern markers retain coverage metadata but do not capture an
 /// owned runtime value; their per-field bindings are ordinary values.

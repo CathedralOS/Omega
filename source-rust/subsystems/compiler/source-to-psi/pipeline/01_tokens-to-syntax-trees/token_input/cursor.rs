@@ -277,6 +277,18 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
+    /// The `..` that ends a data pattern, kept as the two bytes it spans so
+    /// later stages can point at it.
+    pub(crate) fn take_rest_marker(self) -> Result<(Identifier, Self), ParseError> {
+        let (token, rest) = self.expect_token()?;
+        if token.punctuation() == Some(PunctuationKind::DotDot) {
+            let span = self.source_span(token);
+            Ok((Identifier::source_backed(self.source_owner, span), rest))
+        } else {
+            Err(diagnostics::expected(self, token, "`..`"))
+        }
+    }
+
     pub(crate) fn take_optional_label(self) -> Result<(Option<Identifier>, Self), ParseError> {
         if let Ok((binding, after_binding)) = self.take_identifier()
             && after_binding.at_punctuation(PunctuationKind::Colon)

@@ -454,6 +454,11 @@ pub struct TableMemberExpression {
     pub receiver: ExpressionHandle,
     pub access_source_span: SourceSpan,
     pub member: Identifier,
+    /// Set on the read a positional pattern generates for one binding: the
+    /// field at this place in the receiver's declaration order. `member` is
+    /// then empty, because the pattern wrote a binding name and no field
+    /// name, and a lookup by name must find nothing.
+    pub position: Option<u32>,
     pub case_variant: Option<Identifier>,
 }
 
@@ -728,6 +733,11 @@ pub struct TableDestructurePattern {
 )]
 pub struct TableMatchField {
     pub component: language_core::PatternComponent,
+    /// A named row keeps its field name in `member`. A positional row and a
+    /// final `..` keep only the source span of what was written there:
+    /// `member` is empty for a position and spells `..` for the rest, so
+    /// neither can be mistaken for a field name.
+    pub selector: language_core::PatternSelector,
     pub member: Identifier,
     pub action: MatchFieldAction,
 }

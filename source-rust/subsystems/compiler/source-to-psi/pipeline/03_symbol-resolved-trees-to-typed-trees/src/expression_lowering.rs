@@ -633,7 +633,12 @@ pub(crate) mod expression {
                                     }
                                     resolved::expression::MatchPattern::Destructure(pattern) => {
                                         typed::expression::MatchPattern::Destructure(
-                                            self.lower_destructure_pattern(pattern, capture, None)?,
+                                            self.lower_destructure_pattern(
+                                                pattern,
+                                                dispatch.subject,
+                                                capture,
+                                                None,
+                                            )?,
                                         )
                                     }
                                 };
@@ -662,6 +667,7 @@ pub(crate) mod expression {
                     fn lower_destructure_pattern(
                         &mut self,
                         pattern: resolved::expression::TableDestructurePattern,
+                        subject: resolved::expression::ExpressionHandle,
                         capture: Handle<typed::expression::CompletedValueCapture>,
                         completed_subject: Option<typed::expression::ExpressionHandle>,
                     ) -> Result<typed::expression::TableDestructurePattern, Diagnostic>
@@ -680,7 +686,39 @@ pub(crate) mod expression {
                             self.lower_application_type(pattern.application_type, pattern.head)?;
                         let head = self.lower_value(pattern.head)?;
                         let mut fields = Vec::new();
-                        for field in self.source.match_fields(pattern.fields) {
+                        let written = self.source.match_fields(pattern.fields);
+                        // A positional pattern's rows name no field. The
+                        // subject's record gives each place its field here.
+                        // The arm keeps its own `has_rest`, so a field only
+                        // `..` covers gets no row.
+                        let placed = crate::typing::data_patterns::field_rows(
+                            program,
+                            self.source,
+                            subject,
+                            written,
+                        )?;
+                        let written = if placed.is_some() { &[][..] } else { written };
+                        for row in placed.into_iter().flatten().filter(|row| row.written) {
+                            use typed::expression::MatchFieldAction;
+                            let action = match &row.action {
+                                resolved::expression::MatchFieldAction::Bind(binding) => {
+                                    MatchFieldAction::Bind(lower_name(binding))
+                                }
+                                resolved::expression::MatchFieldAction::Equal(value) => {
+                                    MatchFieldAction::Equal(self.lower_value(*value)?)
+                                }
+                                resolved::expression::MatchFieldAction::Waive => {
+                                    MatchFieldAction::Waive
+                                }
+                            };
+                            fields.push(typed::expression::TableMatchField {
+                                component: language_core::PatternComponent::Fields,
+                                member: lower_name(&row.field.name),
+                                field_symbol: row.field.symbol,
+                                action,
+                            });
+                        }
+                        for field in written {
                             use typed::expression::MatchFieldAction;
                             let action = match &field.action {
                                 resolved::expression::MatchFieldAction::Bind(binding) => {
@@ -772,6 +810,7 @@ pub(crate) mod expression {
                         let subject = self.lower_value(retained.subject)?;
                         let pattern = self.lower_destructure_pattern(
                             retained.pattern,
+                            retained.subject,
                             Handle::invalid(),
                             Some(subject),
                         )?;
@@ -1786,6 +1825,23 @@ pub(crate) mod expression {
                         resolved::expression::ExpressionNode::Membership(membership) => {
                             self.lower_membership_expression(membership)
                         }
+                        resolved::expression::ExpressionNode::Member(member)
+                            if member.position.is_some() =>
+                        {
+                            let field = self.positional_member(member, expression)?;
+                            let selection = typed::expression::MemberSelection::Field(field.0);
+                            let receiver = self.lower_value(member.receiver)?;
+                            Ok(self
+                                .target()
+                                .insert(typed::expression::ExpressionNode::Member(
+                                    typed::expression::TableMemberExpression {
+                                        receiver,
+                                        selection,
+                                        member: field.1,
+                                        case_variant: None,
+                                    },
+                                )))
+                        }
                         resolved::expression::ExpressionNode::Member(member) => {
                             let (selection, case_variant) = self.selected_member(member)?;
                             if matches!(
@@ -2764,6 +2820,37 @@ pub(crate) mod expression {
             }
 
             impl ExpressionTableLowerer<'_, '_> {
+                /// The declared field a positional pattern's read selects:
+                /// its symbol and its name. After this the read is the same
+                /// member a named pattern or `subject.field` produces.
+                pub(crate) fn positional_member(
+                    &self,
+                    member: &TableMemberExpression,
+                    expression: ExpressionHandle,
+                ) -> Result<
+                    (SymbolHandle, crate::source_state::name::Identifier),
+                    diagnostics::Diagnostic,
+                > {
+                    let at = self.source.source_span(expression);
+                    let (Some(program), Some(position)) = (self.program, member.position) else {
+                        return Err(diagnostics::Diagnostic::error(
+                            "a positional pattern's read requires its resolved declaration context",
+                        )
+                        .with_source_span(at));
+                    };
+                    let field = crate::typing::data_patterns::positional_field(
+                        program,
+                        self.source,
+                        member.receiver,
+                        position,
+                        at,
+                    )?;
+                    Ok((
+                        field.symbol,
+                        crate::typing::lowerer::name::lower_name(&field.name),
+                    ))
+                }
+
                 pub(crate) fn selected_member(
                     &self,
                     member: &TableMemberExpression,
@@ -2851,6 +2938,20 @@ pub(crate) mod expression {
             ) -> Option<&'program DataField> {
                 if depth >= 128 || !expressions.expression_is_valid(member.receiver) {
                     return None;
+                }
+                if let Some(position) = member.position {
+                    // A positional pattern's read names no field: its place
+                    // in the receiver's record selects one.
+                    return crate::typing::data_patterns::subject_record_within(
+                        program,
+                        expressions,
+                        member.receiver,
+                        depth + 1,
+                    )
+                    .ok()?
+                    .fields
+                    .get(position as usize)
+                    .copied();
                 }
                 if let ExpressionNode::StructLiteral(literal) =
                     expressions.expression(member.receiver)
@@ -3018,6 +3119,20 @@ pub(crate) mod expression {
                         &declared_receiver_field(program, expressions, member, depth + 1)?
                             .type_reference,
                     ),
+                    // An arm that binds its whole subject, or decomposes it by
+                    // position, reads the subject the dispatch saved. A headed
+                    // pattern's members carry their field from that head.
+                    ExpressionNode::SavedSubject(saved)
+                        if !saved.pattern_head.is_valid()
+                            && saved.component == language_core::PatternComponent::Fields =>
+                    {
+                        declared_type(
+                            program,
+                            expressions,
+                            expressions.match_subject(saved.capture).subject,
+                            depth + 1,
+                        )
+                    }
                     _ => None,
                 }
             }
@@ -3166,8 +3281,15 @@ pub(crate) mod expression {
                     .iter()
                     .find_map(|(_, state)| (state.symbol == parent).then_some(state))?;
                 let (local, declared_type_ref) = program.state_local(state, symbol)?;
+                // A dispatch saves its subject in a local of its own, which
+                // has the subject's type exactly as an inferred `let` has
+                // its initializer's.
                 if !local.type_is_inferred
-                    || local.role != language_core::LocalBindingRole::Value
+                    || !matches!(
+                        local.role,
+                        language_core::LocalBindingRole::Value
+                            | language_core::LocalBindingRole::DispatchSubject
+                    )
                     || !local.initial_value.is_valid()
                 {
                     return Some(declared_type_ref);

@@ -1,0 +1,39 @@
+data Pair { first: i32; second: i32; }
+data Shape [copy] {
+    case Circle(radius: i32);
+    case Square(side: i32);
+}
+machine first_of(pair: @Pair) -> i32 {
+    match pair {
+        (first, ..) -> first,
+    }
+}
+machine second_of(pair: @Pair) -> i32 {
+    match pair {
+        (_, second) -> second,
+    }
+}
+machine size_of(shape: @Shape) -> i32 {
+    match shape {
+        (radius, ..) -> radius,
+        Shape::Square { side } -> side,
+    }
+}
+machine main() crashes Trap {
+    let pair: Pair = Pair { first: 3, second: 7 };
+    let shape: Shape = Shape::Circle { radius: 5 };
+    let by_rest: i32 = first_of(@pair);
+    let by_place: i32 = second_of(@pair);
+    let size: i32 = size_of(@shape);
+    transition pair {
+        (first, second) -> check(first, second, by_rest, by_place, size),
+    }
+    machine check(first: i32, second: i32, by_rest: i32, by_place: i32, size: i32) {
+        transition first == 3 && second == 7 && by_rest == 3 && by_place == 7 && size == 5 {
+            true -> done(),
+            false -> failed(),
+        }
+    }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

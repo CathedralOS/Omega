@@ -663,7 +663,16 @@ serves:
   record ([patterns](../../../../../wiki/spec/language/patterns.md#irrefutable-data-bindings):
   "A pattern that can fail rejects; a binding introduces no hidden branch,
   trap, fallback or runtime assertion."). One that omits a field is refused
-  as `statement record pattern that omits a field`;
+  as `statement record pattern that omits a field`. The positional pattern
+  `let (x, _) = r;`, a final `..` and the headed `let R { a, b as _ } = r;`
+  reach this stage as the same marker and field reads, because typing gave
+  each place and each waived field its name;
+- a dispatch arm whose pattern decomposes a record, `R { a, b as _ } -> ...`
+  or `(x, ..) -> ...`, in a `match` and in a `transition`. A record has one
+  shape, so the arm takes every value as `_` does and the dispatch has no
+  case terminator: lowering jumps to the arm's block with the subject saved
+  for the field reads its bindings became. The pattern must name each field
+  at most once, and all of them unless it ends in `..`;
 - a `requires` on the declaration, over `self` and its fields
   ([Data `requires`](#data-requires)).
 
@@ -893,6 +902,7 @@ the slice that serves it:
 | a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |
 | `let x;` with neither a type nor an initializer | `statement uninitialized local without a declared type` |
 | a record pattern that omits a field, or whose subject is not a place | `statement record pattern that omits a field`, `statement record pattern over a value that is not a place` |
+| a record arm that tests a field's value or has a guard | `transition record pattern that tests a field`, `transition record arm with a guard` |
 | a payload member whose spelling two cases share | `spelling member without a field symbol` (finding 19) |
 | a field of a data payload binding, `inner.x` | `expression field read beneath a case payload` |
 | a case arm with a separate guard or a pattern that binds its case | `transition case arm with a guard`, `transition pattern that binds its case` |

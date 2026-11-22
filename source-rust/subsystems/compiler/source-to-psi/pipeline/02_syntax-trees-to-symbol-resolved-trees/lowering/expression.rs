@@ -231,6 +231,7 @@ pub(crate) mod match_dispatch {
             };
             fields.push(TableMatchField {
                 component: field.component,
+                selector: field.selector,
                 member: lower_name(syntax_trees, &field.member),
                 field_symbol: Handle::invalid(),
                 action,
@@ -268,6 +269,7 @@ pub(crate) mod match_dispatch {
                         receiver: saved,
                         member_symbol: field.field_symbol,
                         member: field.member.clone(),
+                        position: None,
                         case_variant: None,
                     },
                 ));
@@ -661,6 +663,7 @@ fn lower_nonbinary_expression_node_into_table(
                     receiver,
                     member_symbol: SymbolHandle::invalid(),
                     member: lower_name(syntax_trees, &member.member),
+                    position: member.position,
                     case_variant: member
                         .case_variant
                         .as_ref()

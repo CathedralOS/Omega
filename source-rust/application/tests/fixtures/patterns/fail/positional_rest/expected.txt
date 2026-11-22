@@ -1,0 +1,2 @@
+`..` waives the remaining components, so it is the last thing in a positional pattern
+main.omg:3:12

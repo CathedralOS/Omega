@@ -1401,6 +1401,23 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 let rest = input.take_contextual("_")?;
                 return self.match_after_pattern(state, MatchPattern::Wildcard, rest);
             }
+            if crate::patterns::positional::starts_positional_arm(input) {
+                let (positional, rest) =
+                    crate::patterns::positional::parse_positional_pattern(syntax_trees, input)?;
+                state.phase = MatchPhase::PatternFields {
+                    head: ExpressionHandle::invalid(),
+                };
+                return self.match_after_fields(
+                    syntax_trees,
+                    state,
+                    DestructureFields {
+                        fields: positional.rows,
+                        has_rest: positional.has_rest,
+                        proof_selectors: Vec::new(),
+                    },
+                    rest,
+                );
+            }
             state.phase = MatchPhase::PatternHead;
             self.frames.push(Frame::Match(state));
             return Ok(Step::Descend(
@@ -1513,6 +1530,10 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                         component: field.component,
                         binding: binding.clone(),
                         member: Some(field.member.clone()),
+                        position: match field.selector {
+                            language_core::PatternSelector::Position(position) => Some(position),
+                            _ => None,
+                        },
                         case_variant: None,
                     })
                 })
@@ -1523,6 +1544,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 bindings.push(DestructureBinding {
                     binding,
                     member: None,
+                    position: None,
                     component: Default::default(),
                     case_variant: None,
                 });
@@ -1707,6 +1729,7 @@ fn push_destructure_field(
     state.fields.push(TableMatchField {
         member,
         component,
+        selector: language_core::PatternSelector::Name,
         action,
     });
     Ok(())

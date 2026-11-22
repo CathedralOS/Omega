@@ -3963,7 +3963,27 @@ impl<'a> Lowering<'a> {
     ) -> Evaluation<CaseSelection> {
         let data = self.record_type(at.record)?;
         if data.cases().is_empty() {
-            return Err(self.internal("a dispatch on storage that is no sum"));
+            // A record has one shape, so its dispatch decides nothing and
+            // has no case terminator. The one arm that takes every value
+            // runs in its own block, with the subject saved for the reads
+            // its pattern's bindings became.
+            if !arms.is_empty() || wildcard.is_none() {
+                return Err(self.internal("a dispatch on storage that is no sum"));
+            }
+            let block = self.block(source);
+            self.jump(block, Vec::new(), source)?;
+            return Ok(Reached::Value((
+                Vec::new(),
+                Some((
+                    block,
+                    Chosen {
+                        capture: capture.map(|id| (id, at.clone())),
+                        place: at.place,
+                        case: None,
+                        parameters: Vec::new(),
+                    },
+                )),
+            )));
         }
         self.measure_indexed_views(at.root, &at.path, source)?;
         let path = self.storage_path(&at.path, ExecutionSite::Block(self.current()?), source)?;

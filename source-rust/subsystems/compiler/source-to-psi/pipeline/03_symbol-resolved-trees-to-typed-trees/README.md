@@ -20,6 +20,22 @@ This note maps its Rust implementation. Limits on which appended cohorts
   [source continuation tests](../../driver/resolve_and_type/tests.rs)
   check their exact pairings.
 
+## Data patterns
+
+A positional pattern, `(first, _, ..)`, names no field, and a final `..` in
+any data pattern stands for the fields it leaves out. Typing is the first
+stage that knows the subject's record, so [data_patterns.rs](src/data_patterns.rs)
+gives each such row its declared field there: a place selects the field at
+that position in declaration order, and `..` becomes one waived row per
+remaining field of a `let` pattern. The read of a positional binding becomes
+an ordinary member with that field's symbol and name. A `let` pattern that
+names a record, `let Pair { .. } = pair;`, is checked against the subject's
+own record. Preparation and lowering then receive the same named roster and
+field reads that `let { first as _, second } = pair;` gives them. A pattern
+whose subject has no record declared at that point is refused at the pattern.
+[tests/positional_patterns.rs](tests/positional_patterns.rs) asserts the
+selected fields and the refusals.
+
 ## One typing route
 
 Every appended declaration kind uses the ordinary

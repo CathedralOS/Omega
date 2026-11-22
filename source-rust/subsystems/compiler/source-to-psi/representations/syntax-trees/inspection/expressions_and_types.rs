@@ -139,6 +139,12 @@ pub enum MatchPatternSnapshot {
 pub struct MatchFieldSnapshot {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub component: Option<&'static str>,
+    /// The place a positional row selects, counted from zero.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<u32>,
+    /// Whether this row is the final `..` of its pattern.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub rest: bool,
     pub member: IdentifierSnapshot,
     pub action: MatchFieldActionSnapshot,
 }
@@ -223,6 +229,8 @@ pub enum ExpressionSnapshot {
     Member {
         receiver: Box<ExpressionSnapshot>,
         member: IdentifierSnapshot,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        position: Option<u32>,
         #[serde(skip_serializing_if = "Option::is_none")]
         case_variant: Option<IdentifierSnapshot>,
     },
@@ -506,6 +514,7 @@ pub(crate) fn snapshot_expression_handle(
         ExpressionNode::Member(member) => ExpressionSnapshot::Member {
             receiver: Box::new(snapshot_expression_handle(syntax_trees, member.receiver)),
             member: snapshot_identifier(syntax_trees, &member.member),
+            position: member.position,
             case_variant: member
                 .case_variant
                 .as_ref()
@@ -773,6 +782,11 @@ pub(crate) fn snapshot_match_fields(
         .iter()
         .map(|field| MatchFieldSnapshot {
             component: (field.component == language_core::PatternComponent::Case).then_some("case"),
+            position: match field.selector {
+                language_core::PatternSelector::Position(position) => Some(position),
+                _ => None,
+            },
+            rest: field.selector == language_core::PatternSelector::Rest,
             member: snapshot_identifier(syntax_trees, &field.member),
             action: match &field.action {
                 MatchFieldAction::Bind(binding) => MatchFieldActionSnapshot::Bind {

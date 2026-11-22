@@ -569,6 +569,7 @@ mod static_operands {
                         source_text::Span::new(term_span.span.end, member_span.span.end),
                     ),
                     member: projection.member.clone(),
+                    position: None,
                     case_variant: None,
                 },
             ));

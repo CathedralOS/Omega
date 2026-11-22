@@ -239,6 +239,7 @@ impl ExpressionTable {
                     receiver,
                     member_symbol: member.member_symbol,
                     member: member.member,
+                    position: member.position,
                     case_variant: member.case_variant,
                 }))
             }

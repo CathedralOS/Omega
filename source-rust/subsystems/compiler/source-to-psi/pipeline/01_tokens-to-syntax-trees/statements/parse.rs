@@ -2,7 +2,7 @@ use crate::assembly::parse::parse_asm_block_statement_handles;
 use crate::declarations::items::starts_machine_declaration;
 use crate::expressions::parse::parse_expression_handle;
 use crate::statements::destructuring::{
-    reject_retired_proof_output_binding, try_parse_destructure_let, try_parse_proof_output_binding,
+    parse_data_pattern_let, reject_retired_proof_output_binding, try_parse_proof_output_binding,
 };
 use crate::statements::expressions::{
     expression_handle_to_statement_call, root_binding_declaration,
@@ -33,7 +33,7 @@ pub(crate) fn parse_statement_handles<'tokens, 'source>(
         parse_asm_block_statement_handles(syntax_trees, input)
     } else if let Some(parsed) = try_parse_proof_output_binding(syntax_trees, input) {
         Ok(parsed)
-    } else if let Some(parsed) = try_parse_destructure_let(syntax_trees, input) {
+    } else if let Some(parsed) = parse_data_pattern_let(syntax_trees, input)? {
         Ok(parsed)
     } else if input.at_keyword(KeywordKind::Let) {
         let input = input.take_keyword(KeywordKind::Let, "let")?;

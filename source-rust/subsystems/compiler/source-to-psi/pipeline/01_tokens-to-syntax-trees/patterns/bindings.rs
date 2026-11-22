@@ -32,6 +32,9 @@ pub(crate) struct DestructureBinding {
     pub(crate) component: language_core::PatternComponent,
     pub(crate) binding: Identifier,
     pub(crate) member: Option<Identifier>,
+    /// Set when a positional pattern introduced the binding: each use reads
+    /// the field at this place, and `member` names no field.
+    pub(crate) position: Option<u32>,
     pub(crate) case_variant: Option<Identifier>,
 }
 
@@ -212,6 +215,7 @@ fn rewrite_expression(
             receiver: rewrite_expression(syntax_trees, member.receiver, subject, fields, captures),
             access_source_span: member.access_source_span,
             member: member.member,
+            position: member.position,
             case_variant: member.case_variant,
         }),
         ExpressionNode::Borrow(inner) => ExpressionNode::Borrow(TableBorrowExpression {
@@ -222,18 +226,19 @@ fn rewrite_expression(
             members: path,
             application: path_application,
         } => {
-            if let Some((field, case_variant, component)) = path_application
+            if let Some(bound) = path_application
                 .is_none()
                 .then(|| single_destructured_field_name(syntax_trees, path.to_owned(), fields))
                 .flatten()
             {
-                match (field, component) {
+                match (bound.member.clone(), bound.component) {
                     (Some(member), language_core::PatternComponent::Fields) => {
                         ExpressionNode::Member(TableMemberExpression {
                             receiver: subject,
                             access_source_span: Default::default(),
                             member,
-                            case_variant,
+                            position: bound.position,
+                            case_variant: bound.case_variant.clone(),
                         })
                     }
                     (_, component) => {
@@ -340,15 +345,11 @@ fn rewrite_expression_span(
         .insert_expression_handles(expressions)
 }
 
-fn single_destructured_field_name(
+fn single_destructured_field_name<'fields>(
     syntax_trees: &SyntaxTrees,
     path: HandleSpan<Identifier>,
-    fields: &[DestructureBinding],
-) -> Option<(
-    Option<Identifier>,
-    Option<Identifier>,
-    language_core::PatternComponent,
-)> {
+    fields: &'fields [DestructureBinding],
+) -> Option<&'fields DestructureBinding> {
     let members = syntax_trees.expressions.identifier_path_members(path);
     let [member] = members else {
         return None;
@@ -356,11 +357,4 @@ fn single_destructured_field_name(
     fields
         .iter()
         .find(|field| field.binding.as_str(syntax_trees) == member.as_str(syntax_trees))
-        .map(|field| {
-            (
-                field.member.clone(),
-                field.case_variant.clone(),
-                field.component,
-            )
-        })
 }

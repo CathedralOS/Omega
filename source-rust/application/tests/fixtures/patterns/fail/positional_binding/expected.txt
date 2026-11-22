@@ -1,0 +1,2 @@
+this pattern has 1 component, but `Command` has 2 fields: give every field a place in declaration order, or end the pattern with `..` to waive the rest
+main.omg:10:10
