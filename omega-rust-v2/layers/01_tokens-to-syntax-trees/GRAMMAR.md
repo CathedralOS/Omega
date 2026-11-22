@@ -292,7 +292,7 @@ mathematical declarations and in machine parameters
 ## Header clauses
 
     clause = requires | hypothesis | 'ensures' expression
-           | 'reaches' type
+           | 'reaches' type ('+' type)*
            | 'crashes' path_type expression?
            | 'blocks' ( 'true' | 'false' )?
            | 'suspends' ( 'true' | 'false' )?
@@ -773,6 +773,6 @@ added.
 - Expressions: an `if` guard on an arm, `Name { fields } if condition -> ...`;
   an evidence lane in calls `f(a, b; evidence)`; `&state`
   borrows; `zero_value<T>()`; `utf16 "..."`.
-- Clauses: `stack N bytes`, `reaches A + B`, `reaches <= Bound`, labelled
+- Clauses: `stack N bytes`, `reaches <= Bound`, labelled
   predicates `requires name: pred`.
 - Optional semicolons after data members.

@@ -91,11 +91,12 @@ pub(crate) fn machine_header(
         &sig.site,
         sig.crash_ceiling.as_deref(),
     )?;
+    let realized_reach = effects.realized_reach.as_deref().ok_or_else(|| LoweringError::new(&sig.site, "checked machine is missing its derived service reach"))?;
     let contract = MachineContract {
         public: tree.resolved().is_exported(sig.node.node),
         promises_termination: sig.terminates,
         reach: sig.reach.as_deref().map(|row|super::members::reach(row,|v|instance.application.instantiate(v),&sig.site)).transpose()?,
-        realized_reach: super::members::reach(&effects.reach,|v|instance.application.instantiate(v),&sig.site)?,
+        realized_reach: super::members::reach(realized_reach,|v|instance.application.instantiate(v),&sig.site)?,
         has_empty_crash_ceiling: sig.crash_ceiling.as_ref().is_some_and(Vec::is_empty),
         crash_routes,
         callback_crash_routes: tree.callback_routes.iter().map(|(_, row)| row.clone()).collect(),

@@ -3,7 +3,7 @@ machine every_clause(n: u32, limit: u32) -> u32
 requires n > 0
 requires n < limit
 ensures result >= n
-reaches Outcome<u32>
+reaches Outcome<u32> + Logger
 crashes none
 blocks
 suspends false

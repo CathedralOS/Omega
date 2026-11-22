@@ -253,7 +253,7 @@ impl<'unit> Admission<'unit, '_> {
         if !contract.requires.is_empty() {
             return Err(refuse(contract.requires.first().map(|clause| &clause.site), Reason::Precondition));
         }
-        if !contract.realized_reach.is_empty() {
+        if !contract.realized_reach.is_empty() || contract.reach.as_ref().is_some_and(|services| !services.is_empty()) {
             return Err(refuse(whole, Reason::Reach));
         }
         if contract.realized_pause != PauseEffects::default() || !body.suspension_sites.is_empty() || !body.call_acknowledgements.is_empty() {

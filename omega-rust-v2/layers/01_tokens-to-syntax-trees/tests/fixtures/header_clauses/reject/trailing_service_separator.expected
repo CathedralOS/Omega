@@ -1,0 +1,4 @@
+error UnexpectedToken at 1:30 bytes 29..30
+  found: {
+  expected: a type
+  expected a type

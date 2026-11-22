@@ -43,6 +43,8 @@ File
           '<'
           PathType 'u32'
           '>'
+      '+'
+      PathType 'Logger'
     Crashes
       'crashes'
       PathType 'none'

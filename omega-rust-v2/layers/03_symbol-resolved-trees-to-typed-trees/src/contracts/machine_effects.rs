@@ -44,16 +44,29 @@ pub(crate) fn check_machine_effects(
         let ceiling = c.caller.as_ref().map(|caller| catalog.signatures[caller].pause);
         check_direct_pause(specialized, c.acknowledgements, ceiling).map_err(|cause| TypeError::for_reason(&c.site, cause))?;
     }
-    let mut reach = catalog
+    let mut realized = catalog
         .signatures
         .iter()
         .map(|(&id, s)| (id, s.reach.iter().flatten().cloned().collect::<HashSet<_>>()))
         .collect::<HashMap<_, _>>();
     for imported in &out.machine_effects {
-        reach
+        realized
             .get_mut(&imported.machine)
             .unwrap()
             .extend(imported.reach.iter().cloned());
+    }
+    // The interface row is also the starting point for admission of callers.
+    let mut reach = realized.clone();
+    // A checked body's own ceiling cannot seed its derived row, including
+    // through recursion. Calls with no local checked body use their interface.
+    let mut checked_bodies = HashSet::new();
+    for &id in &catalog.local_machines {
+        let sig = &catalog.signatures[id];
+        let file = units[sig.node.file].file;
+        if file.nodes[sig.node.node].kind == omega_syntax::NodeKind::AsmMachine || file.child(sig.node.node, omega_syntax::NodeKind::Body).is_some() {
+            checked_bodies.insert(id);
+            realized.get_mut(id).unwrap().clear();
+        }
     }
     for &index in &graph.indirect {
         let call = &out.indirect_calls[index];
@@ -71,7 +84,10 @@ pub(crate) fn check_machine_effects(
             }
         }
         if let Some(row) = &call.contract.reach {
-            reach.get_mut(caller).unwrap().extend(row.iter().cloned());
+            realized.get_mut(caller).unwrap().extend(row.iter().cloned());
+            if catalog.signatures[caller].reach.is_none() {
+                reach.get_mut(caller).unwrap().extend(row.iter().cloned());
+            }
         }
         for &cause in call.contract.crash_ceiling.iter().flatten() {
             out.obligations.push(crate::TypingObligation {
@@ -86,37 +102,21 @@ pub(crate) fn check_machine_effects(
     }
     graph.propagate(
         &out.calls,
+        &mut realized,
+        "derived service reach exceeds implementation capacity",
+        |call, _, required| Ok(selected_service(call, required, catalog)),
+    )?;
+    // Admission follows published contracts even in code that will never execute.
+    // The narrower checked-body row above is independent audit evidence.
+    graph.propagate(
+        &out.calls,
         &mut reach,
         "service reach inference exceeds implementation capacity",
         |call, caller, required| {
-            let service = ServiceApplication {
-                service: required.service.clone(),
-                arguments: required.arguments.iter().map(|t| call.instantiate(t)).collect(),
-            };
-            for (refinement, owner) in catalog.evidence_refinements(call.evidence.as_ref()) {
-                if let Some(allowed) = &refinement.reach {
-                    let allowed: Vec<_> = allowed
-                        .iter()
-                        .map(|s| ServiceApplication {
-                            service: s.service.clone(),
-                            arguments: s
-                                .arguments
-                                .iter()
-                                .map(|a| a.substitute(&owner.declaration, &owner.trait_arguments))
-                                .collect(),
-                        })
-                        .collect();
-                    if !catalog.reach_covers(&allowed, &service) {
-                        return Ok(None);
-                    }
-                }
-            }
-            if let Some(bound) = &catalog.signatures[caller].reach {
-                if !catalog.reach_covers(bound, &service) {
-                    return Err(TypeError::for_site(
-                        &call.site,
-                        format!("call exceeds service reach for {}", service.service.path),
-                    ));
+            let Some(service) = selected_service(call, required, catalog) else { return Ok(None) };
+            if let Some(ceiling) = &catalog.signatures[caller].reach {
+                if !catalog.reach_covers(ceiling, &service) {
+                    return Err(TypeError::for_site(&call.site, format!("call exceeds service reach for {}", service.service.path)));
                 }
                 return Ok(None);
             }
@@ -177,6 +177,8 @@ pub(crate) fn check_machine_effects(
         }
         let mut row = reach.remove(id).unwrap().into_iter().collect::<Vec<_>>();
         row.sort_by_cached_key(|r| format!("{r:?}"));
+        let mut realized_reach: Vec<_> = realized.remove(id).unwrap().into_iter().collect();
+        realized_reach.sort_by_cached_key(|service| format!("{service:?}"));
         let mut entries: Vec<_> = invokes.remove(id).unwrap().into_iter().collect();
         entries.sort_by_cached_key(|e| format!("{e:?}"));
         out.machine_effects.push(std::sync::Arc::new(MachineEffects {
@@ -186,6 +188,7 @@ pub(crate) fn check_machine_effects(
             fixed_pause: formulas[id].fixed,
             callback_pause: formulas[id].binders.clone(),
             reach: row,
+            realized_reach: checked_bodies.contains(id).then_some(realized_reach),
             crash_ceiling: catalog.signatures[id].crash_ceiling.clone().or_else(|| empty_crashes.contains(id).then(Vec::new)),
             terminates: catalog.signatures[id].terminates,
         }));
@@ -193,6 +196,38 @@ pub(crate) fn check_machine_effects(
 
     check_fact_effects(out, catalog, &formulas, dependencies)
 }
+
+/// Instantiate the service at this call and apply any evidence refinement before composition.
+fn selected_service(
+    call: &crate::TypedCall,
+    required: &ServiceApplication,
+    catalog: &DeclarationCatalog<'_>,
+) -> Option<ServiceApplication> {
+    let service = ServiceApplication {
+        service: required.service.clone(),
+        arguments: required.arguments.iter().map(|t| call.instantiate(t)).collect(),
+    };
+    for (refinement, owner) in catalog.evidence_refinements(call.evidence.as_ref()) {
+        if let Some(allowed) = &refinement.reach {
+            let allowed: Vec<_> = allowed
+                .iter()
+                .map(|s| ServiceApplication {
+                    service: s.service.clone(),
+                    arguments: s
+                        .arguments
+                        .iter()
+                        .map(|a| a.substitute(&owner.declaration, &owner.trait_arguments))
+                        .collect(),
+                })
+                .collect();
+            if !catalog.reach_covers(&allowed, &service) {
+                return None;
+            }
+        }
+    }
+    Some(service)
+}
+
 #[derive(Clone, Default)]
 struct PauseEffectFormula {
     fixed: PauseEffects,

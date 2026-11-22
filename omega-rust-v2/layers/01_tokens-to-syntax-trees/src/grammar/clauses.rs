@@ -128,8 +128,14 @@ impl SyntaxParser<'_> {
                 NodeKind::Crashes
             }
             Clause::Type(kind) => {
-                // `none` is an ordinary name here; what it means is not this layer's question.
+                // Each service is one type child of the reach clause. Typing checks its identity.
                 self.parse_type(TypePosition::Plain)?;
+                if kind == NodeKind::Reaches {
+                    while self.at(Punctuation::Plus) {
+                        self.bump();
+                        self.parse_type(TypePosition::Plain)?;
+                    }
+                }
                 kind
             }
             Clause::Flag(kind) => {

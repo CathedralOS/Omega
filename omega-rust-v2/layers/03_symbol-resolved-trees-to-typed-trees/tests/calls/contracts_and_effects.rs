@@ -305,10 +305,14 @@ fn inferred_crash_row_includes_the_producer_of_an_indirect_callee() {
 
 #[test]
 fn a_runtime_callback_carries_its_reach_into_the_calling_machine() {
-    let prefix = "boundary trait Sensor{} ";
-    let accepted = format!("{prefix} data ReadSensor=machine() reaches Sensor crashes none terminates; machine run(f:ReadSensor) reaches Sensor {{f()}}");
+    let prefix = "boundary trait Sensor{} boundary trait Spare{} ";
+    let accepted = format!("{prefix} data ReadSensor=machine() reaches Sensor crashes none terminates; machine run(f:ReadSensor) reaches Spare + Sensor {{f()}}");
     let stage = check(&[("effects.omg", &accepted)]).unwrap();
     assert!(stage.indirect_calls[0].contract.terminates);
+    let run = stage.machine_effects.iter().find(|row| row.machine.path == "run").unwrap();
+    assert_eq!(run.reach.len(), 2);
+    let [actual] = run.realized_reach.as_deref().unwrap() else { panic!("only the callback contributes reach") };
+    assert_eq!(actual.service.path, "Sensor");
     let refused = format!("{prefix} data ReadSensor=machine() reaches Sensor crashes none; machine run(f:ReadSensor) reaches none {{f()}}");
     assert!(
         check(&[("effects.omg", &refused)])

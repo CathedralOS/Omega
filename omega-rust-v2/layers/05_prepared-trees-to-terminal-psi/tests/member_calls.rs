@@ -48,6 +48,31 @@ fn boundary_demand_preserves_the_requirement_and_authored_argument_interleave() 
 }
 
 #[test]
+fn a_service_after_plus_is_part_of_the_declared_ceiling() {
+    let src = "boundary trait A {} boundary trait B { machine ping() reaches B crashes none; }
+               machine run() reaches A + B { B::ping(); }";
+    let package = source::lower(&[("reach.omg", src)]).unwrap();
+    let run = package.machines.iter().find(|m| m.declaration.path == "run").unwrap();
+    let names = run.contract.reach.as_ref().unwrap().iter()
+        .map(|service| service.declaration.path.as_str()).collect::<Vec<_>>();
+    assert_eq!(names, ["A", "B"]);
+    let [used] = run.contract.realized_reach.as_slice() else { panic!("one call to B") };
+    assert_eq!(used.declaration.path, "B");
+    let recursive = src.replace("B::ping();", "B::ping(); helper();");
+    let recursive = format!("{recursive} machine helper() {{ run(); }}");
+    let product = source::lower(&[("reach.omg", &recursive)]).unwrap();
+    for path in ["run", "helper"] {
+        let machine = product.machines.iter().find(|m| m.declaration.path == path).unwrap();
+        let [used] = machine.contract.realized_reach.as_slice() else { panic!("a cycle cannot add unused A") };
+        assert_eq!(used.declaration.path, "B");
+    }
+    let missing = src.replace("reaches A + B", "reaches A");
+    let resolved = source::resolve(&[("reach.omg", &missing)]);
+    let error = omega_typer::type_source_package(&resolved).unwrap_err();
+    assert_eq!(error.message, "call exceeds service reach for B");
+}
+
+#[test]
 fn machine_reach_uses_each_closed_type_argument() {
     let src = "boundary trait Device<T>{} machine pass<T>(x:T)->T reaches Device<T>{x} machine small(x:u8)->u8{pass::<u8>(x)} machine flag(x:bool)->bool{pass::<bool>(x)}";
     let pkg = source::lower(&[("reach.omg", src)]).unwrap();
