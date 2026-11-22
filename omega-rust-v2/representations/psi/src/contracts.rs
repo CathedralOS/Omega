@@ -161,6 +161,8 @@ pub enum PredicateStep {
     Result,
     /// The value whose named or default domain predicate is being checked.
     SelfValue,
+    /// Cross the preceding reference to observe its readable referent in this clause.
+    Referent,
     /// Selects one declared record field of the preceding structural subject.
     Field(DeclarationId),
     /// Selects one payload field of the named case of the preceding sum subject.

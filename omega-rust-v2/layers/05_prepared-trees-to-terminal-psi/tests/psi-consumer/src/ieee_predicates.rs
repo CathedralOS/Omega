@@ -34,6 +34,7 @@ pub fn float_formal(
 pub enum PredicateValue {
     Bits(IeeeFloatBits),
     Bool(bool),
+    ReadableReference(Box<PredicateValue>),
     /// A record subject: its declared fields and their values.
     Record(Vec<(DeclarationId, PredicateValue)>),
 }
@@ -55,6 +56,10 @@ pub fn evaluate_ieee_clause(
             PredicateStep::Formal(index) => formals.get(*index)?.clone(),
             PredicateStep::Result => result?.clone(),
             PredicateStep::SelfValue => self_value?.clone(),
+            PredicateStep::Referent => match stack.pop()? {
+                PredicateValue::ReadableReference(value) => *value,
+                _ => return None,
+            },
             PredicateStep::Field(field) => match stack.pop()? {
                 PredicateValue::Record(fields) => fields.into_iter().find(|(declared, _)| declared == field)?.1,
                 _ => return None,

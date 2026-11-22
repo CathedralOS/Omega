@@ -591,3 +591,54 @@ fn exact_comparisons_publish_the_truth_in_each_psi_context() {
         )
     );
 }
+
+#[test]
+fn a_predicate_follows_both_references_to_the_exact_field() {
+    let text = "data Reading { sample:f32; other:f32; }
+                data View<'a> { reading:@'a Reading; }
+                machine check<'a>(view:@View<'a>) requires view.reading.sample < 1.0 {}";
+    let package = sources::lower(&[("view.omg", text)]).unwrap();
+    let field = |owner: &str, name: &str| {
+        package
+            .data
+            .iter()
+            .find(|d| d.declaration.path == owner)
+            .unwrap()
+            .fields
+            .iter()
+            .find(|f| f.declaration.path == name)
+            .unwrap()
+            .declaration
+            .clone()
+    };
+    let stored = field("View", "View::reading");
+    let sample = field("Reading", "Reading::sample");
+    let other = field("Reading", "Reading::other");
+    let clause = sole(&machine(&package, "check").contract.requires);
+    assert_eq!(
+        clause.predicate,
+        [
+            PredicateStep::Formal(0),
+            PredicateStep::Referent,
+            PredicateStep::Field(stored.clone()),
+            PredicateStep::Referent,
+            PredicateStep::Field(sample.clone()),
+            PredicateStep::IeeeFloat(IeeeFloatBits::Binary32(ONE)),
+            less(IeeeFloatFormat::Binary32),
+        ]
+    );
+    let reference = |value| PredicateValue::ReadableReference(Box::new(value));
+    let input = |value| {
+        reference(PredicateValue::Record(vec![(
+            stored.clone(),
+            reference(PredicateValue::Record(vec![(sample.clone(), bits32(value)), (other.clone(), bits32(ONE))])),
+        )]))
+    };
+    let decide = |clause: &ContractClause, bits| evaluate_ieee_clause(clause, &[input(bits)], None, None);
+    assert_eq!((decide(clause, HALF), decide(clause, ONE)), (Some(true), Some(false)));
+    for crossing in [1, 3] {
+        let mut missing = clause.clone();
+        missing.predicate.remove(crossing);
+        assert_eq!(decide(&missing, HALF), None);
+    }
+}
