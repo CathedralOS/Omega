@@ -4,7 +4,7 @@ Compile-scope probe. No standard-library dependency.
 
 - exact_sub_guard: exact `remaining - 2` discharged by
   `requires <= 5` + `>= 2` transition guard — no domain, no `as`.
-- transitivity_lemma: `requires a<b b<c` `ensures a<c` — kernel
+- transitivity_lemma: `requires a < b, b < c` `ensures a<c` — kernel
   entailment hop, empty body.
 - nat_import_surface: core::nat imports depend-free and Nat values
   flow through machines. GAP filed: every Nat operator is private

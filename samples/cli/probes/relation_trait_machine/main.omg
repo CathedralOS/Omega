@@ -40,7 +40,7 @@ ensures related(right, left)
 machine related_transitive(left: Carrier, middle: Carrier, right: Carrier)
 satisfies Transitive<Carrier, related>::transitive
 requires
-    related(left, middle)
+    related(left, middle),
     related(middle, right)
 ensures related(left, right)
 {
@@ -49,7 +49,7 @@ ensures related(left, right)
 machine related_antisymmetric(left: Carrier, right: Carrier)
 satisfies Antisymmetric<Carrier, related>::antisymmetric
 requires
-    related(left, right)
+    related(left, right),
     related(right, left)
 ensures left == right
 {

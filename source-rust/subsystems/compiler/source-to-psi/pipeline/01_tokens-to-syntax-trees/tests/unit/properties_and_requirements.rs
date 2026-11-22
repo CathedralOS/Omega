@@ -595,7 +595,7 @@ fn parses_guarded_crash_buckets_on_machines_and_requirements() {
     let source = r#"
         machine divide(numerator: i32, denominator: i32)
         crashes Trap
-            denominator == 0
+            denominator == 0,
             numerator == 0
         crashes Abort
         {
@@ -1331,5 +1331,51 @@ fn effect_rows_preserve_static_service_arguments_in_reaches_and_invokes() {
         };
         let span = parsed.expressions.source_span(*value).span;
         assert_eq!(&source[span.start..span.end], argument);
+    }
+}
+
+#[test]
+fn whitespace_and_comments_keep_a_postfix_predicate_on_its_receiver() {
+    use syntax_trees::item::ProofFact;
+
+    for gap in [" ", "\n", "\r\n", " /* note */ ", " // note\n"] {
+        let source = format!("machine check(a: i32, b: i32) requires a{gap}positive, b > 0 {{}}");
+        let parsed = crate::tests::parse_source(&source, "two comma-separated facts");
+        let machine = crate::tests::root_machine(&parsed, "machine check");
+        let [contract] = parsed.items.capability_contracts(machine.contracts) else {
+            panic!("expected one requires clause");
+        };
+        let [
+            ProofFact::Expression(predicate),
+            ProofFact::Expression(comparison),
+        ] = parsed.items.proof_facts(contract.facts)
+        else {
+            panic!("expected a predicate call and a comparison");
+        };
+        let ExpressionNode::Call(call) = parsed.expressions.expression(*predicate) else {
+            panic!("expected a call with a receiver");
+        };
+        assert_eq!(call.target.as_str(&parsed), "positive");
+        let ExpressionNode::Name { members, .. } = parsed.expressions.expression(call.receiver)
+        else {
+            panic!("expected a named receiver");
+        };
+        let [receiver] = parsed.expressions.identifier_path_members(*members) else {
+            panic!("expected one receiver name");
+        };
+        assert_eq!(receiver.as_str(&parsed), "a");
+        assert!(
+            matches!(parsed.expressions.expression(*comparison), ExpressionNode::Binary(binary) if binary.operator == syntax_trees::expression::BinaryOperator::Greater)
+        );
+    }
+}
+
+#[test]
+fn whitespace_and_comments_cannot_separate_two_comparisons() {
+    for gap in [" ", "\n", "\r\n", " /* note */ ", " // note\n"] {
+        let source = format!("machine check(a: i32, b: i32) requires a > 0{gap}b > 0 {{}}");
+        let error = crate::tests::parse_tokenized_error(&source, "missing fact separator");
+        assert_eq!(error.message, "expected `;`, `,`, or end of proof facts");
+        assert_eq!(error.source_span.span.start, source.rfind('>').unwrap());
     }
 }

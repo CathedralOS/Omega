@@ -26,7 +26,7 @@ requires proposition Relation(left: C, right: C);
 {
     machine transitive(left: C, middle: C, right: C)
     requires
-        Relation(left, middle)
+        Relation(left, middle),
         Relation(middle, right)
     ensures Relation(left, right);
 }
@@ -36,7 +36,7 @@ requires proposition Relation(left: C, right: C);
 {
     machine antisymmetric(left: C, right: C)
     requires
-        Relation(left, right)
+        Relation(left, right),
         Relation(right, left)
     ensures core\Identity::<C>(left, right);
 }

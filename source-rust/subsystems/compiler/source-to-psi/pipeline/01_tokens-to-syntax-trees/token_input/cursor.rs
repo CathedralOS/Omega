@@ -557,23 +557,6 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             })
     }
 
-    pub(crate) fn has_newline_before(self, later: Self) -> bool {
-        let skipped_count = self.tokens.len().saturating_sub(later.tokens.len());
-        let mut index = skipped_count;
-        while index > 0 {
-            let token = &self.tokens[index - 1];
-            if !token.is_trivia() {
-                return false;
-            }
-            if self.spelling(token).contains('\n') {
-                return true;
-            }
-            index -= 1;
-        }
-
-        false
-    }
-
     pub(crate) fn split_at_top_level_punctuation(
         self,
         delimiter: PunctuationKind,
