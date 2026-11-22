@@ -60,7 +60,7 @@ pub(crate) struct Expressions<'a> {
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum OperationOutput {
+pub(crate) enum OperationOutput {
     Unit,
     Scalar(TypeId),
     Structural(TypeId),
@@ -723,9 +723,16 @@ impl Expressions<'_> {
                                 },
                                 site.clone(),
                             );
-                            for root in temporary_owners.into_iter().rev() {
-                                if super::ownership::owned(block.places[root.index()].ty, self.types, self.data) {
-                                    super::ownership::dispose_temporary(block, flow, root, site.clone());
+                            if !temporary_owners.is_empty()
+                                && let OperationOutput::Structural(ty) = output
+                                && super::references::has_loan_route(self.types, self.data, ty, super::references::LoanRoute::Descriptor)
+                            {
+                                flow.returned_temporaries.push(super::ownership::ReturnedTemporary { operation, roots: temporary_owners });
+                            } else {
+                                for root in temporary_owners.into_iter().rev() {
+                                    if super::ownership::owned(block.places[root.index()].ty, self.types, self.data) {
+                                        super::ownership::dispose_temporary(block, flow, root, site.clone());
+                                    }
                                 }
                             }
                             values.push(result);
@@ -947,15 +954,10 @@ impl Expressions<'_> {
                     }
                     passing.push(plan.passing);
                 }
-                if passing
-                    .iter()
-                    .any(|p| matches!(p, ArgumentPassing::LendTemporary { .. }))
-                    && super::references::may_export_temporary_loan(self, output, &call.operands)
+                if passing.iter().any(|p| matches!(p, ArgumentPassing::LendTemporary { .. }))
+                    && super::references::has_writable_loan_destination(self, &call.operands)
                 {
-                    return Err(LoweringError::new(
-                        &site_at(file, expression),
-                        "a loan carried beyond this call needs its temporary backing on the later continuation",
-                    ));
+                    return Err(LoweringError::new(&site_at(file, expression), "a loan written through a call needs its temporary backing on the later continuation"));
                 }
                 work.push(ExpressionStep::Emit {
                     node: expression,

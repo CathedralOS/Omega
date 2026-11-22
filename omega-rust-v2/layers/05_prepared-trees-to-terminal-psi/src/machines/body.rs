@@ -19,6 +19,16 @@ pub(crate) struct Declarations<'a> {
     pub requires: &'a [crate::ContractClause],
 }
 
+/// Ownership schedules that depend on another machine's selected return wait
+/// until every body in this package is available.
+pub(crate) enum Completion {
+    Scheduled(super::ownership::OwnedCrossings),
+    ReturnedLoans {
+        result: super::expressions::OperationOutput,
+        borrows: Vec<super::ownership::ReturnedTemporary>,
+    },
+}
+
 pub(crate) fn lower_body(
     prepared: &PreparedTrees<'_>,
     tree: &LoweringTree<'_>,
@@ -26,8 +36,8 @@ pub(crate) fn lower_body(
     parameter_types: &[TypeId],
     result_type: Option<TypeId>,
     declarations: &Declarations<'_>,
-) -> Result<(MachineBody, super::ownership::OwnedCrossings), LoweringError> {
-    let mut body = emit_body(prepared, tree, signature, parameter_types, result_type, declarations)?;
+) -> Result<(MachineBody, Completion), LoweringError> {
+    let (mut body, borrows) = emit_body(prepared, tree, signature, parameter_types, result_type, declarations)?;
     use super::expressions::OperationOutput;
     let result_carrier = crate::declarations::regions::slot_carrier(&signature.result, &signature.machine);
     let completion_result = match result_type {
@@ -35,8 +45,11 @@ pub(crate) fn lower_body(
         Some(ty) if crate::lowering::types::uses_structural_place(result_carrier) => OperationOutput::Structural(ty),
         Some(ty) => OperationOutput::Scalar(ty),
     };
+    if !borrows.is_empty() {
+        return Ok((body, Completion::ReturnedLoans { result: completion_result, borrows }));
+    }
     let crossings = super::ownership::schedule(&mut body, declarations.types, declarations.data, declarations.callees, completion_result)?;
-    Ok((body, crossings))
+    Ok((body, Completion::Scheduled(crossings)))
 }
 
 fn emit_body(
@@ -46,7 +59,7 @@ fn emit_body(
     parameter_types: &[TypeId],
     result_type: Option<TypeId>,
     declarations: &Declarations<'_>,
-) -> Result<MachineBody, LoweringError> {
+) -> Result<(MachineBody, Vec<super::ownership::ReturnedTemporary>), LoweringError> {
     let Declarations {
         types,
         data,
@@ -154,9 +167,7 @@ fn emit_body(
     }
     if assembly {
         super::assembly::machine(&expressions, declaration, &mut block, &mut flow, result_type)?;
-        flow.finish(&mut block);
-
-        return Ok(block);
+        return Ok(flow.finish(block));
     }
     let statements = &file.nodes[body].children;
     // The grammar places nested machines after the enclosing machine's
@@ -184,8 +195,7 @@ fn emit_body(
         {
             check_container(tree, statement)?;
             super::external_exit::lower(&expressions, *expression, completion, &mut block, &mut flow)?;
-            flow.finish(&mut block);
-            return Ok(block);
+            return Ok(flow.finish(block));
         }
         match (node.kind, node.children.as_slice()) {
             (NodeKind::Let, [binder, _])
@@ -324,21 +334,15 @@ fn emit_body(
                 check_container(tree, statement)?;
                 if file.nodes[file.ungroup(*expression)].kind == NodeKind::Match {
                     crate::machines::branches::lower_tail_dispatch(&expressions, *expression, &mut block, &mut flow, result_type)?;
-                    flow.finish(&mut block);
-
-                    return Ok(block);
+                    return Ok(flow.finish(block));
                 }
                 let value = expressions.lower(*expression, &signature.result, &mut block, &mut flow)?;
                 crate::machines::branches::emit_return_block(&mut block, &flow, Some(value), result_type, site_at(file, *expression))?;
-                flow.finish(&mut block);
-
-                return Ok(block);
+                return Ok(flow.finish(block));
             }
             (NodeKind::Transition, _) if index + 1 == statements.len() => {
                 crate::machines::branches::lower_tail_dispatch(&expressions, statement, &mut block, &mut flow, result_type)?;
-                flow.finish(&mut block);
-
-                return Ok(block);
+                return Ok(flow.finish(block));
             }
             _ => return Err(unsupported_node(file, statement, "unsupported statement")),
         }
@@ -347,9 +351,7 @@ fn emit_body(
         return Err(LoweringError::new(&block.diagnostics.body, "machine body has no result"));
     }
     crate::machines::branches::emit_return_block(&mut block, &flow, None, None, body_site)?;
-    flow.finish(&mut block);
-
-    Ok(block)
+    Ok(flow.finish(block))
 }
 
 pub(crate) trait MachineBodyValues {

@@ -525,7 +525,7 @@ fn lower(
         .map(|callable| crate::declarations::callables::contract(prepared, callable))
         .collect::<Result<Vec<_>, _>>()?;
     let mut machines = Vec::with_capacity(instances.len());
-    let mut crossing_owners = Vec::with_capacity(instances.len());
+    let mut completion = Vec::with_capacity(instances.len());
     let mut callees = calls::Callees {
         runtime_pause: callable_contracts.iter().map(|contract| contract.pause).collect(),
         runtime_requirements: callable_contracts
@@ -657,7 +657,7 @@ fn lower(
         let result_type = (sig.result != ValueType::NoResult)
             .then(|| id_for(slot_carrier(&sig.result, &sig.machine)))
             .transpose()?;
-        let (body, owners) = body::lower_body(
+        let (body, schedule) = body::lower_body(
             prepared,
             &instance.tree,
             sig,
@@ -671,7 +671,7 @@ fn lower(
                 requires: &contract.requires,
             },
         )?;
-        crossing_owners.push(owners);
+        completion.push(schedule);
         machines.push(LoweredMachine {
             regions: regions::signature(sig, instance.tree.forest().generic_parameters.get(&sig.machine), machine_regions)?,
             operator,
@@ -712,6 +712,7 @@ fn lower(
             body,
         });
     }
+    let mut crossing_owners = crate::machines::ownership::finish_returned_loans(&mut machines, &member_calls, &types, &data, &callees, completion)?;
     crate::machines::suspension::plan_package(
         &mut machines,
         &member_calls,

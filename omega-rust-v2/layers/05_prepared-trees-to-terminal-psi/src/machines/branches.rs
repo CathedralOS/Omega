@@ -23,6 +23,7 @@ pub(crate) struct BooleanArm {
 /// Reserves identities before emitting edges that name them. Only the active
 /// block can receive operations; opening another block starts a new range.
 pub(crate) struct BlockFlow {
+    pub(super) returned_temporaries: Vec<super::ownership::ReturnedTemporary>,
     reserved: usize,
     active: BlockId,
     operation_start: usize,
@@ -43,6 +44,7 @@ impl BlockFlow {
 
     pub(crate) fn entry() -> Self {
         Self {
+            returned_temporaries: Vec::new(),
             reserved: 1,
             active: BlockId(next_id(0)),
             operation_start: 0,
@@ -194,8 +196,8 @@ impl BlockFlow {
 
     pub(crate) fn finish(
         self,
-        body: &mut MachineBody,
-    ) {
+        mut body: MachineBody,
+    ) -> (MachineBody, Vec<super::ownership::ReturnedTemporary>) {
         debug_assert_eq!(self.reserved, body.blocks.len());
         body.blocks.sort_unstable_by_key(|block| block.id.get());
         debug_assert!(
@@ -204,6 +206,7 @@ impl BlockFlow {
                 .enumerate()
                 .all(|(index, block)| block.id.get() == index + 1)
         );
+        (body, self.returned_temporaries)
     }
 }
 

@@ -166,13 +166,14 @@ fn plan_reference<'a>(
 /// Inspect result storage for loan descriptors, or input storage for a writable
 /// route that can receive one. A writable scalar field alone cannot export a loan.
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
-enum LoanRoute {
+pub(super) enum LoanRoute {
     Descriptor,
     WritableDestination,
 }
 
-fn has_loan_route(
-    expressions: &Expressions<'_>,
+pub(super) fn has_loan_route(
+    types: &crate::LoweringTypes,
+    data: &[crate::LoweredData],
     ty: crate::TypeId,
     route: LoanRoute,
 ) -> bool {
@@ -183,10 +184,10 @@ fn has_loan_route(
         if !seen.insert((ty, route)) {
             continue;
         }
-        match expressions.types.get(ty) {
+        match types.get(ty) {
             Some(TypeShape::PrimitiveScalar(_) | TypeShape::QualifiedScalar { .. } | TypeShape::Callable(_)) => {}
             Some(TypeShape::Nominal(id) | TypeShape::QualifiedNominal { data: id, .. }) => {
-                let schema = &expressions.data[id.get() - 1];
+                let schema = &data[id.get() - 1];
                 let fields = schema
                     .fields
                     .iter()
@@ -201,10 +202,10 @@ fn has_loan_route(
                     element: ViewElement::Nominal(referent),
                 },
             ) if route == LoanRoute::WritableDestination => {
-                let referent = expressions.data[referent.get() - 1].carrier;
+                let referent = data[referent.get() - 1].carrier;
                 work.push((referent, route));
                 if !matches!(
-                    expressions.types.get(ty),
+                    types.get(ty),
                     Some(TypeShape::NominalReference {
                         access: ReferenceAccess::Shared,
                         ..
@@ -216,7 +217,7 @@ fn has_loan_route(
             Some(TypeShape::SharedElementView {
                 element: ViewElement::Nominal(id),
             }) if route == LoanRoute::WritableDestination => {
-                work.push((expressions.data[id.get() - 1].carrier, route));
+                work.push((data[id.get() - 1].carrier, route));
             }
             Some(TypeShape::IndexedSharedReference(_)) if route == LoanRoute::WritableDestination => return true,
             Some(_) if route == LoanRoute::Descriptor => return true,
@@ -227,22 +228,16 @@ fn has_loan_route(
     false
 }
 
-pub(super) fn may_export_temporary_loan(
+pub(super) fn has_writable_loan_destination(
     expressions: &Expressions<'_>,
-    result: super::expressions::OperationOutput,
     operands: &[(usize, &ValueType)],
 ) -> bool {
-    if let super::expressions::OperationOutput::Structural(ty) = result
-        && has_loan_route(expressions, ty, LoanRoute::Descriptor)
-    {
-        return true;
-    }
     operands.iter().any(|(_, ty)| {
         let ty = crate::declarations::regions::slot_carrier(ty, &expressions.signature.machine);
         expressions
             .types
             .id_for(ty)
-            .map_or(true, |id| has_loan_route(expressions, id, LoanRoute::WritableDestination))
+            .map_or(true, |id| has_loan_route(expressions.types, expressions.data, id, LoanRoute::WritableDestination))
     })
 }
 

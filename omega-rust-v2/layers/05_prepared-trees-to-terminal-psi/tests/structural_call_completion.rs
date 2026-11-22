@@ -390,15 +390,158 @@ fn a_terminal_consumer_cleans_its_anonymous_owner_after_completion() {
 }
 
 #[test]
-fn a_returned_child_cannot_trigger_cleanup_at_its_producing_call() {
-    let text = "data Item { v:u8; }
-                machine make()->Item {Item{v:7u8}}
-                machine retain(item:@Item)->@Item {item}
-                machine test()->u8 {let saved=retain(@make()); saved.v}";
+fn a_returned_child_keeps_its_exact_owner_until_its_last_use() {
+    use omega_psi::CallTarget;
+    for (signature, binder, read) in [
+        ("retain(item:@Item)->@Item", "let child=retain(@make());", "child.v"),
+        (
+            "retain<'a>(item:@'a Item)->@'a Item",
+            "let child=View { item:retain(@make()) };",
+            "child.item.v",
+        ),
+    ] {
+        let text = format!(
+            "data Item dropped by release {{ v:u8; }}
+            data View<'a> {{ item:@'a Item; }}
+            machine release(item:Item) {{ let Item{{v as _}}=move item; }}
+            machine make()->Item {{Item{{v:7u8}}}}
+            machine {signature} {{item}}
+            machine between(){{}} machine after(){{}}
+            machine test()->u8 {{ {binder} let x={read}; between(); let y={read}; after(); y }}"
+        );
+        let package = source::lower(&[("child.omg", &text)]).unwrap();
+        let machine = |name: &str| {
+            package
+                .machines
+                .iter()
+                .find(|m| m.declaration.path == name)
+                .unwrap()
+        };
+        let body = &machine("test").body;
+        let call = |name: &str| {
+            body.operations
+                .iter()
+                .find(|op| matches!(op.kind, OperationKind::Call {callee: CallTarget::Machine(id), ..} if id == machine(name).id))
+                .unwrap()
+        };
+        let OperationResult::Structural(owner) = call("make").result else {
+            panic!("owner")
+        };
+        let [consume, resumed] = &body.blocks[..] else {
+            panic!("one cleanup continuation")
+        };
+        let last = consume.operations.end - 1;
+        assert!(call("retain").id.index() < call("between").id.index() && call("between").id.index() < last);
+        assert!(matches!(&body.operations[last].kind, OperationKind::ProjectedScalarRead { .. }));
+        let BlockTerminator::Jump(edge) = &consume.terminator else {
+            panic!("last use continues")
+        };
+        assert_eq!(edge.target, resumed.id);
+        assert!(matches!(&edge.cleanup[..], [CleanupAction::Invoke {place, target, ..}]
+            if place.root == owner && place.path.is_empty() && *target == machine("release").id));
+        assert_eq!(resumed.operations.start, call("after").id.index());
+        assert!(matches!(&resumed.terminator, BlockTerminator::Return { .. }));
+    }
+}
+
+#[test]
+fn returning_the_other_input_releases_the_temporary_at_the_call() {
+    use omega_psi::CallTarget;
+    let text = "data Item dropped by release { v:u8; }
+                machine release(x:Item){let Item{v as _}=move x;}
+                machine make()->Item{Item{v:8u8}}
+                machine second(x:@Item,y:@Item)->@Item{y}
+                machine between(){}
+                machine test(other:@Item)->u8{let child=second(@make(),other); between(); child.v}";
+    let package = source::lower(&[("other.omg", text)]).unwrap();
+    let machine = |name: &str| {
+        package
+            .machines
+            .iter()
+            .find(|m| m.declaration.path == name)
+            .unwrap()
+    };
+    let body = &machine("test").body;
+    let [first, later] = &body.blocks[..] else { panic!("one cleanup") };
+    let call = &body.operations[first.operations.end - 1];
+    assert!(matches!(call.kind, OperationKind::Call { callee: CallTarget::Machine(id), .. } if id == machine("second").id));
+    let OperationResult::Structural(owner) = body.operations[0].result else {
+        panic!("temporary owner")
+    };
+    let BlockTerminator::Jump(edge) = &first.terminator else {
+        panic!("normal completion")
+    };
+    assert!(matches!(&edge.cleanup[..],[CleanupAction::Invoke{place,target,..}] if place.root==owner && *target==machine("release").id));
+    assert_eq!(edge.target, later.id);
+    assert!(matches!(body.operations[later.operations.start].kind, OperationKind::Call {callee:CallTarget::Machine(id),..} if id==machine("between").id));
+}
+
+#[test]
+fn a_joined_child_requires_backing_on_each_arrival() {
+    let text = "data Item {v:u8;}
+                machine make()->Item{Item{v:7u8}}
+                machine retain(x:@Item)->@Item{x}
+                machine test(other:@Item,flag:bool)->u8 {
+                    let child=match flag {true -> retain(@make()), false -> other};
+                    child.v
+                }";
     source::refuse(
-        &[("child.omg", text)],
-        "child.omg",
+        &[("join.omg", text)],
+        "join.omg",
         source::unique_span(text, "retain(@make())"),
         "a loan carried beyond this call needs its temporary backing on the later continuation",
     );
+}
+
+#[test]
+fn parking_after_a_returned_loan_retains_the_descriptor_and_its_original_backing() {
+    use omega_psi::CallTarget;
+    for props in ["", " [copy]"] {
+        let text = format!(
+            "data Item{props} {{ v:u8; }} machine make()->Item{{Item{{v:8u8}}}}
+            machine retain(x:@Item)->@Item{{x}} machine wait() suspends {{}}
+            machine test()->u8 suspends {{let saved=retain(@make()); suspend wait(); saved.v}}"
+        );
+        let package = source::lower(&[("park.omg", &text)]).unwrap();
+        let machine = |name: &str| {
+            package
+                .machines
+                .iter()
+                .find(|m| m.declaration.path == name)
+                .unwrap()
+        };
+        let body = &machine("test").body;
+        let call = |name: &str| {
+            body.operations
+                .iter()
+                .find(|op| matches!(op.kind,OperationKind::Call{callee:CallTarget::Machine(id),..} if id==machine(name).id))
+                .unwrap()
+        };
+        let OperationResult::Structural(backing) = call("make").result else {
+            panic!("backing")
+        };
+        let OperationResult::Structural(descriptor) = call("retain").result else {
+            panic!("descriptor")
+        };
+        let [site] = &body.suspension_sites[..] else { panic!("one wait") };
+        assert_eq!(site.call, CallSite::Operation(call("wait").id));
+        assert!(
+            site.retained_loans
+                .iter()
+                .any(|loan| loan.descriptor == descriptor && loan.needed_after_completion && !loan.needed_by_callee)
+        );
+        if props.is_empty() {
+            assert!(
+                site.retained_owners
+                    .iter()
+                    .any(|owner| owner.place == backing && owner.custody == OwnedCustody::Caller)
+            );
+        } else {
+            assert!(
+                site.retained_homes
+                    .iter()
+                    .any(|home| home.place == backing && home.needed_after_completion && !home.needed_by_callee)
+            );
+        }
+    }
 }
