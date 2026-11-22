@@ -835,6 +835,7 @@ mod structural_case {
     use crate::target_lowering::structural_layout::reference_projection_regions;
     use crate::target_lowering::structural_type_lookup::StructuralTypeLookup;
     use abstract_operations::{AbstractFunction, AbstractOperation};
+    use legalized_operations::structural_inputs::structural_reference_input::descriptor_source_geometry_at;
     use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
     use target_operations::{
         TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlTerminator,
@@ -862,8 +863,15 @@ mod structural_case {
         let identity = live
             .structural_observation_type(function, *source)
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-        let (tag_byte_offset, case_tag, runs, pointer_slots) =
-            case_projection(identity, path, *case, types)?;
+        let (tag_byte_offset, case_tag, runs, pointer_slots) = case_projection(
+            identity,
+            function
+                .structural_parameter(*source)
+                .or_else(|| function.block_structural_parameter(*source)),
+            path,
+            *case,
+            types,
+        )?;
         if result.scalar_type != ScalarType::Boolean {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
@@ -963,6 +971,7 @@ mod structural_case {
     #[allow(clippy::type_complexity)]
     fn case_projection(
         identity: StructuralTypeId,
+        formal: Option<&terminal_psi::StructuralParameterDeclaration>,
         path: &[StructuralPathSegment],
         case: semantic_vocabulary::StructuralCaseId,
         types: &StructuralTypeLookup<'_>,
@@ -976,26 +985,30 @@ mod structural_case {
         LoweringError,
     > {
         let invalid = || LoweringError::UnknownStructuralType(identity);
-        let regions = crate::target_lowering::structural_layout::reference_projection_regions(
-            identity, path, types,
-        )
-        .ok_or_else(invalid)?;
-        if !regions.readable
-            || regions
+        let projection = descriptor_source_geometry_at(identity, formal, path, &types.projections)
+            .ok_or_else(invalid)?;
+        if !projection.readable
+            || projection
                 .pointer_slots
                 .iter()
                 .any(|slot| slot.scalar_descriptor)
         {
             return Err(invalid());
         }
-        let pointer_slots = prepared_pointer_slots(&regions.pointer_slots).ok_or_else(invalid)?;
-        let (identity, _, tag_byte_offset, leaf_runs) =
-            crate::target_lowering::structural_layout::runtime_projection(
-                regions.root,
-                regions.path,
-                types,
-            )?;
-        let runs = regions.selector_runs(leaf_runs);
+        let pointer_slots = projection
+            .pointer_slots
+            .into_iter()
+            .map(|slot| {
+                Ok(target_operations::TargetCasePointerSlot {
+                    byte_offset: slot.byte_offset,
+                    index_start: u32::try_from(slot.indices.start).map_err(|_| invalid())?,
+                    index_end: u32::try_from(slot.indices.end).map_err(|_| invalid())?,
+                    scalar_descriptor: slot.scalar_descriptor,
+                })
+            })
+            .collect::<Result<_, LoweringError>>()?;
+        let identity = projection.selected;
+        let tag_byte_offset = projection.byte_offset;
         let declaration = types.get(identity).ok_or_else(invalid)?;
         let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
             &declaration.shape
@@ -1007,7 +1020,7 @@ mod structural_case {
             .position(|candidate| candidate.id == case)
             .and_then(|ordinal| u32::try_from(ordinal).ok())
             .ok_or_else(invalid)?;
-        Ok((tag_byte_offset, case_tag, runs, pointer_slots))
+        Ok((tag_byte_offset, case_tag, projection.elements, pointer_slots))
     }
 
     fn prepared_pointer_slots(

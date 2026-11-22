@@ -434,6 +434,7 @@ pub(crate) mod structural_type_lookup {
 
     pub(crate) struct StructuralTypeLookup<'a> {
         layouts: StructuralLayouts<'a>,
+        pub(crate) projections: legalized_operations::native_geometry::NativeGeometry<'a>,
         borrowed_layouts: &'a [runtime_abi::NativeBorrowedStorageLayout],
         catalog: &'a StructuralTypeCatalog,
         carriers: TargetCarrierLayout,
@@ -451,6 +452,9 @@ pub(crate) mod structural_type_lookup {
                 layouts: StructuralLayouts::with_owned_sequence_bounds(
                     source.iter(),
                     source.owned_sequence_bounds(),
+                )?,
+                projections: legalized_operations::native_geometry::NativeGeometry::with_owned_sequence_bounds(
+                    source, source.owned_sequence_bounds(), target,
                 )?,
                 catalog: source,
                 borrowed_layouts,
