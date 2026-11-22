@@ -406,6 +406,9 @@ pub(crate) fn build_call_expression_handle(
     Ok(expression)
 }
 
+/// The `::<...>` before a call's `(`. Its own `>` closes the list, and it is
+/// a static argument list only when a `(` follows; the list is parsed only
+/// after its end is found to have one.
 pub(crate) fn try_parse_static_machine_arguments<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
@@ -414,61 +417,19 @@ pub(crate) fn try_parse_static_machine_arguments<'tokens, 'source>(
         return Ok(None);
     }
     let input = input.take_punctuation(PunctuationKind::ColonColon, "::")?;
-
-    let mut group_depth = 0usize;
-    let mut previous = None;
-    for (offset, token) in input.tokens.iter().enumerate() {
-        if token.is_trivia() {
-            continue;
-        }
-        let Some(punctuation) = token.punctuation() else {
-            previous = None;
-            continue;
-        };
-        if group_depth == 0
-            && punctuation == PunctuationKind::LeftParen
-            && matches!(
-                previous,
-                Some(PunctuationKind::Greater | PunctuationKind::GreaterGreater)
-            )
-        {
-            let mut prefix = input;
-            prefix.tokens = &input.tokens[..offset];
-            let checkpoint = syntax_trees.append_checkpoint();
-            if let Ok(Some((arguments, end))) = parse_static_call_arguments(syntax_trees, prefix)
-                && end.tokens.is_empty()
-                && !end.at_punctuation(PunctuationKind::Greater)
-            {
-                let mut rest = input;
-                rest.tokens = &input.tokens[offset..];
-                return Ok(Some((arguments, rest)));
-            }
-            syntax_trees.rewind_appended(checkpoint);
-        }
-        match punctuation {
-            PunctuationKind::LeftParen
-            | PunctuationKind::LeftBracket
-            | PunctuationKind::LeftBrace => group_depth += 1,
-            PunctuationKind::RightParen
-            | PunctuationKind::RightBracket
-            | PunctuationKind::RightBrace => {
-                let Some(depth) = group_depth.checked_sub(1) else {
-                    break;
-                };
-                group_depth = depth;
-            }
-            PunctuationKind::Semicolon
-            | PunctuationKind::Colon
-            | PunctuationKind::Equal
-            | PunctuationKind::Arrow
-                if group_depth == 0 =>
-            {
-                break;
-            }
-            _ => {}
-        }
-        previous = Some(punctuation);
+    if !input
+        .after_static_argument_list()
+        .is_some_and(|after| after.at_punctuation(PunctuationKind::LeftParen))
+    {
+        return Ok(None);
     }
+    let checkpoint = syntax_trees.append_checkpoint();
+    if let Ok(Some((arguments, rest))) = parse_static_call_arguments(syntax_trees, input)
+        && rest.at_punctuation(PunctuationKind::LeftParen)
+    {
+        return Ok(Some((arguments, rest)));
+    }
+    syntax_trees.rewind_appended(checkpoint);
     Ok(None)
 }
 
@@ -476,6 +437,9 @@ fn parse_static_call_arguments<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Result<Option<(Box<[StaticMachineArgument]>, Input<'tokens, 'source>)>, ParseError> {
+    if input.after_static_argument_list().is_none() {
+        return Ok(None);
+    }
     let mut cursor = input.take_punctuation(PunctuationKind::Less, "<")?;
     let mut arguments = Vec::new();
     loop {
@@ -616,15 +580,6 @@ fn try_parse_static_argument<'tokens, 'source>(
         return parse_static_type_argument(syntax_trees, authored).map(Some);
     }
 
-    if input.at_punctuation(PunctuationKind::GreaterGreater)
-        && let Some(value) = try_parse_static_value_argument(syntax_trees, authored)?
-    {
-        if argument.application.is_some() {
-            syntax_trees.rewind_appended(argument_checkpoint);
-            return try_parse_static_value_argument(syntax_trees, authored);
-        }
-        return Ok(Some(value));
-    }
     if !(input.at_punctuation(PunctuationKind::Comma)
         || input.at_punctuation(PunctuationKind::Greater))
     {
@@ -703,6 +658,12 @@ fn parse_static_symbol_application<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> Result<Option<(Box<StaticSymbolApplication>, Input<'tokens, 'source>)>, ParseError> {
     if input.at_punctuation(PunctuationKind::Less) {
+        // A list that never closes is not an application. Refuse it before
+        // reading its arguments: each argument is tried as a name and then
+        // as a value, so reading an unclosed nested list doubles per level.
+        if input.after_static_argument_list().is_none() {
+            return Ok(None);
+        }
         let mut cursor = input.take_punctuation(PunctuationKind::Less, "<")?;
         let mut lifetime_arguments = Vec::new();
         let mut arguments = Vec::new();

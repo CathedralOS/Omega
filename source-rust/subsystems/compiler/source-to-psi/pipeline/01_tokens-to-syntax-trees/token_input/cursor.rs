@@ -21,7 +21,6 @@ pub(crate) struct Input<'tokens, 'source> {
     stream: &'tokens TokenStream<'source>,
     source_owner: Handle<syntax_trees::RetainedSource>,
     depth: u16,
-    pending_greater: bool,
     /// Set while parsing a constant initializer or a constant integer
     /// expression. Those are folded before any operand is typed, so
     /// a suffixed policy operator rejects there at its own token.
@@ -41,7 +40,6 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             stream,
             tokens: skip_trivia(stream.as_slice()),
             depth: 0,
-            pending_greater: false,
             constant_position: false,
         }
     }
@@ -53,7 +51,6 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             source_owner: self.source_owner,
             tokens: skip_trivia(tokens),
             depth: self.depth,
-            pending_greater: self.pending_greater,
             constant_position: self.constant_position,
         }
     }
@@ -62,7 +59,6 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         Self {
             tokens: skip_trivia(tokens),
             depth: 0,
-            pending_greater: false,
             ..self
         }
     }
@@ -160,9 +156,6 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     pub(crate) fn expect_token(self) -> Result<(&'tokens Token, Self), ParseError> {
-        if self.pending_greater {
-            return Err(self.error_here("expected `>` before the next token"));
-        }
         match self.tokens.split_first() {
             Some((token, rest)) => Ok((token, self.advanced(rest))),
             None => Err(diagnostics::unexpected_eof(self, "token")),
@@ -187,25 +180,6 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         punctuation: PunctuationKind,
         label: &str,
     ) -> Result<Self, ParseError> {
-        if self.pending_greater {
-            if punctuation == PunctuationKind::Greater {
-                return Ok(Self {
-                    pending_greater: false,
-                    ..self
-                });
-            }
-            return Err(self.error_here(format!("expected `{label}`")));
-        }
-        if punctuation == PunctuationKind::Greater
-            && self.tokens.first().and_then(Token::punctuation)
-                == Some(PunctuationKind::GreaterGreater)
-        {
-            let (_, rest) = self.expect_token()?;
-            return Ok(Self {
-                pending_greater: true,
-                ..rest
-            });
-        }
         let (token, rest) = self.expect_token()?;
         if token.punctuation() == Some(punctuation) {
             Ok(rest)
@@ -392,18 +366,74 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     }
 
     pub(crate) fn at_punctuation(&self, punctuation: PunctuationKind) -> bool {
-        if self.pending_greater {
-            return punctuation == PunctuationKind::Greater;
-        }
-        let actual = self.tokens.first().and_then(Token::punctuation);
-        actual == Some(punctuation)
-            || (punctuation == PunctuationKind::Greater
-                && actual == Some(PunctuationKind::GreaterGreater))
+        self.tokens.first().and_then(Token::punctuation) == Some(punctuation)
+    }
+
+    /// A right shift is two `>` with no byte between them; `> >` is not one
+    /// (wiki/spec/language/expressions.md). Returns the span of the pair and
+    /// the cursor after it.
+    pub(crate) fn take_right_shift(self) -> Option<(SourceSpan, Self)> {
+        let [first, second, rest @ ..] = self.tokens else {
+            return None;
+        };
+        let touching = first.punctuation() == Some(PunctuationKind::Greater)
+            && second.punctuation() == Some(PunctuationKind::Greater)
+            && first.span.end == second.span.start;
+        touching.then(|| {
+            (
+                SourceSpan::new(self.source_id, Span::new(first.span.start, second.span.end)),
+                self.advanced(rest),
+            )
+        })
     }
 
     pub(crate) fn at_expression_arguments(&self) -> bool {
         self.at_punctuation(PunctuationKind::ColonColon)
             && self.peek_semantic(1).and_then(Token::punctuation) == Some(PunctuationKind::Less)
+    }
+
+    /// The cursor after the `>` that closes the static argument list opened
+    /// by the `<` here, found without parsing the list. A parser that tries
+    /// a list and rewinds when no `(` or `::member` follows re-reads every
+    /// nested list on each attempt, which is exponential in the nesting; a
+    /// caller asks this first and parses only a list whose end has the
+    /// expected follower.
+    ///
+    /// Outside parentheses, brackets and braces, a `<` in the list only opens
+    /// a nested list and a `>` only closes one: a value argument is an
+    /// arithmetic chain with no comparison, and there is no `>>` token. So
+    /// counting them finds the end; a block such as a `match` arm list is a
+    /// group like parentheses. `None` when the list does not close before a
+    /// `;` outside every group, an unmatched closer, or the end.
+    pub(crate) fn after_static_argument_list(&self) -> Option<Self> {
+        if !self.at_punctuation(PunctuationKind::Less) {
+            return None;
+        }
+        let mut angles = 0usize;
+        let mut groups = 0usize;
+        for (offset, token) in self.tokens.iter().enumerate() {
+            let Some(punctuation) = token.punctuation() else {
+                continue;
+            };
+            match punctuation {
+                PunctuationKind::LeftParen
+                | PunctuationKind::LeftBracket
+                | PunctuationKind::LeftBrace => groups += 1,
+                PunctuationKind::RightParen
+                | PunctuationKind::RightBracket
+                | PunctuationKind::RightBrace => groups = groups.checked_sub(1)?,
+                PunctuationKind::Semicolon if groups == 0 => return None,
+                PunctuationKind::Less if groups == 0 => angles += 1,
+                PunctuationKind::Greater if groups == 0 => {
+                    angles -= 1;
+                    if angles == 0 {
+                        return Some(self.advanced(&self.tokens[offset + 1..]));
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
     }
 
     pub(crate) fn at_path_member(&self) -> bool {

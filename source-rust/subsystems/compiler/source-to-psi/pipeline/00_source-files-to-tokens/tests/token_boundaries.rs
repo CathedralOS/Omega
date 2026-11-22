@@ -16,9 +16,36 @@ fn punctuation_keeps_longest_matches_and_adjacent_tokens_separate() {
     assert_eq!(
         spellings,
         [
-            "+%", "+=", "+", "<<!", "<<", "<=", "..=", "..", ">>", "=", ">", "::", "->"
+            "+%", "+=", "+", "<<!", "<<", "<=", "..=", "..", ">", ">=", ">", "::", "->"
         ]
     );
+}
+
+/// There is no `>>` token (wiki/spec/language/expressions.md): a right shift
+/// reaches the parser as two `>` whose spans touch, and `> >` as two that do
+/// not, so the parser can tell a shift from two closing angle brackets.
+#[test]
+fn a_right_shift_is_two_greater_tokens_whose_spans_touch() {
+    for (source, touching) in [("a >> b", true), ("a > > b", false)] {
+        let tokens = Lexer::new(source).tokenize().unwrap();
+        let greaters: Vec<_> = tokens
+            .iter()
+            .filter(|token| !token.is_trivia() && tokens.spelling(token) != "a")
+            .take(2)
+            .collect();
+        let [first, second] = greaters[..] else {
+            panic!("{source}: two tokens after `a`");
+        };
+        for token in [first, second] {
+            assert_eq!(
+                token.kind,
+                TokenKind::Punctuation(tokens::PunctuationKind::Greater),
+                "{source}"
+            );
+            assert_eq!(tokens.spelling(token), ">", "{source}");
+        }
+        assert_eq!(first.span.end == second.span.start, touching, "{source}");
+    }
 }
 
 #[test]
