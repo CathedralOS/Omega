@@ -488,9 +488,6 @@ fn operand_type(
 ) -> Result<TypeReferenceHandle, Unaccounted> {
     let (first, first_cast, _) = run[0];
     let operand = first_cast.value;
-    if let Some(reference) = owner.and_then(|owner| declared_type(program, owner, operand)) {
-        return Ok(reference);
-    }
     let label = entry_label(program, &first_cast);
     let destination = cast_destinations
         .get(run[run.len() - 1].0.arena_index() as usize)
@@ -514,6 +511,9 @@ fn operand_type(
         ) {
             return Ok(plain);
         }
+    }
+    if let Some(reference) = owner.and_then(|owner| declared_type(program, owner, operand)) {
+        return Ok(reference);
     }
     // A quoted literal is a shared view of its bytes in no domain
     // (domains.md, "Byte containers and encoding domains": "Quoted literals
