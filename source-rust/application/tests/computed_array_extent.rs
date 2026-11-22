@@ -29,13 +29,9 @@ fn fixture(tier: &str) -> PathBuf {
 
 /// Run `omega` on a copy of the fixture's one source file, so nothing the
 /// compiler writes lands in the checkout.
-fn invoke(tier: &str, arguments: &[&str]) -> (Output, String) {
+fn invoke(source: &str, arguments: &[&str]) -> (Output, String) {
     let scratch = TemporaryDirectory::create("computed-array-extent", false).unwrap();
-    std::fs::copy(
-        fixture(tier).join("main.omg"),
-        scratch.path().join("main.omg"),
-    )
-    .unwrap();
+    std::fs::write(scratch.path().join("main.omg"), source).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(arguments)
         .arg("main.omg")
@@ -54,7 +50,8 @@ fn invoke(tier: &str, arguments: &[&str]) -> (Output, String) {
 
 #[test]
 fn an_array_sized_by_a_computed_constant_runs_natively_and_in_psi() {
-    let (output, report) = invoke("run", &["run", "--both"]);
+    let source = std::fs::read_to_string(fixture("run").join("main.omg")).unwrap();
+    let (output, report) = invoke(&source, &["run", "--both"]);
     assert_eq!(output.status.code(), Some(0), "{report}");
     for receipt in ["native exit 0", "interp exit: 0"] {
         assert!(report.lines().any(|line| line == receipt), "{report}");
@@ -67,7 +64,7 @@ fn a_computed_extent_of_three_is_refused_where_two_bytes_are_required() {
     let read = |tier| std::fs::read_to_string(fixture(tier).join("main.omg")).unwrap();
     assert_eq!(read("run").replace("{ 2u64 }", "{ 3u64 }"), read("fail"));
 
-    let (output, report) = invoke("fail", &["--check"]);
+    let (output, report) = invoke(&read("fail"), &["--check"]);
     assert!(!output.status.success(), "{report}");
     let expected = std::fs::read_to_string(fixture("fail").join("expected.txt")).unwrap();
     assert!(report.contains(expected.trim_end()), "{report}");
@@ -76,4 +73,18 @@ fn a_computed_extent_of_three_is_refused_where_two_bytes_are_required() {
     let source = read("fail");
     let line = source.lines().nth(11).unwrap();
     assert_eq!(&line[26..], "@values);");
+}
+
+#[test]
+fn a_literal_initializer_supplies_its_declared_array_length() {
+    let source = std::fs::read_to_string(fixture("run").join("main.omg")).unwrap();
+    let (before, after) = source.split_once("const N: u64 = extent();").unwrap();
+    let literal = |n| format!("{before}const N: u64 = {n}u64;{after}");
+    let (output, report) = invoke(&literal(2), &["run", "--both"]);
+    assert_eq!(output.status.code(), Some(0), "{report}");
+    assert!(report.contains("native exit 0") && report.contains("interp exit: 0"), "{report}");
+    let (output, report) = invoke(&literal(3), &["--check"]);
+    assert!(!output.status.success(), "{report}");
+    let expected = std::fs::read_to_string(fixture("fail").join("expected.txt")).unwrap();
+    assert!(report.contains(expected.trim_end()), "{report}");
 }

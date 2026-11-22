@@ -14,16 +14,9 @@
 //! values, so each assertion below fails if an extent is paired with the
 //! other module's constant.
 //!
-//! The two ways to write a constant reach stage 04 in different forms.
-//! Resolution records the value of `const N: u64 = 2u64;`, so typing writes
-//! the length 2 into the array type and keeps the constant as that type's
-//! origin. `const N: u64 = extent();` has no value while typing runs, because
-//! running `extent` needs typed, checked and published code. Typing leaves the
-//! extent naming the constant, and the source driver evaluates the constant
-//! before stage 04 freezes the trees. A reader of the array type gets the same
-//! length either way (`TypedTrees::declared_array_extent`). Stage 05's side of
-//! this handoff is tested in
-//! `05_prepared-typed-trees-to-lowered-program/tests/prepared_array_extents.rs`.
+//! Resolution evaluates a literal initializer. The source driver evaluates a
+//! call after typing. Both array types retain the selected constant, so
+//! lowering reads the value from the same place in either case.
 
 #[path = "support/constant_array_extents.rs"]
 mod program;
