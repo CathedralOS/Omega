@@ -45,6 +45,86 @@ fn verdict(text: &str) -> String {
 }
 
 #[test]
+fn returning_a_child_keeps_its_earlier_parent_disposal() {
+    let source = r#"
+data Tag [copy] { case A; case B; }
+data Cell [copy] { value: u64; }
+data Boxes [copy] { cells: [Cell; 2]; }
+machine first(boxes: @mutable Boxes, tag: Tag, branch: bool) -> @mutable Cell {
+    let cells: @mutable [Cell] = @mutable boxes.cells[..];
+    transition branch {
+        true -> selected(cells, tag),
+        false -> @mutable cells[0]
+    }
+    machine selected(items: @mutable [Cell], tag: Tag) -> @mutable Cell
+    requires items.length == 2 { @mutable items[0] }
+}
+machine entry() -> u64 {
+    let mutable boxes: Boxes;
+    let cell: @mutable Cell = first(@mutable boxes, Tag::A, true);
+    cell.value = 7u64;
+    boxes.cells[0].value
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let write_while_lent = source.replace(
+        "    cell.value = 7u64;",
+        "    boxes.cells[0].value = 3u64;\n    cell.value = 7u64;",
+    );
+    assert!(matches!(
+        crate::checking::judge(elaborate(&write_while_lent)),
+        Ok(RouteVerdict::Rejected { conflicts, .. }) if !conflicts.is_empty()
+    ));
+
+    let mut incomplete = elaborate(source).unwrap();
+    let actions = incomplete
+        .module
+        .machines
+        .iter_mut()
+        .flat_map(|machine| &mut machine.blocks)
+        .filter(|block| {
+            block
+                .operations
+                .iter()
+                .any(|op| op.declared_invocation().is_some())
+        })
+        .find_map(|block| match &mut block.terminator {
+            terminal_psi::Terminator::Jump {
+                cleanup_actions, ..
+            } if cleanup_actions.iter().any(|action| {
+                matches!(
+                    action,
+                    terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
+                )
+            }) =>
+            {
+                Some(cleanup_actions)
+            }
+            _ => None,
+        })
+        .expect("returning the helper's result disposes its local view on the preceding edge");
+    let parent = actions
+        .iter()
+        .position(|action| {
+            matches!(
+                action,
+                terminal_psi::TerminalAffineCleanupAction::DiscardRoot(_)
+            )
+        })
+        .unwrap();
+    actions.remove(parent);
+    let rejected = crate::checking::judge(Ok(incomplete));
+    let refusal = match rejected {
+        Err(refusal) | Ok(RouteVerdict::FallBack(refusal)) => refusal,
+        other => panic!("missing parent cleanup reached another verdict: {other:?}"),
+    };
+    assert!(
+        refusal.detail.contains("cleanup") || refusal.detail.contains("intermediate parent"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
 fn a_local_collection_window_keeps_its_parent_across_observations() {
     let source = r#"
 data Cell [copy] { number: u64; }

@@ -22,47 +22,87 @@ pub fn disposed_reference_on_return(
     formed_in: semantic_vocabulary::BlockId,
     at: crate::descriptor_lifetimes::DescriptorPosition,
     cleanup: &[TerminalAffineCleanupAction],
-    flow: Option<&std::collections::BTreeMap<
-        crate::descriptor_lifetimes::DescriptorPosition,
-        crate::descriptor_lifetimes::DescriptorFlowStep,
-    >>,
+    flow: Option<
+        &std::collections::BTreeMap<
+            crate::descriptor_lifetimes::DescriptorPosition,
+            crate::descriptor_lifetimes::DescriptorFlowStep,
+        >,
+    >,
 ) -> bool {
     use crate::descriptor_lifetimes::{DescriptorLocation, descriptor_path};
     use std::collections::BTreeSet;
 
-    let disposed = |names: &BTreeSet<DescriptorLocation>, actions: &[TerminalAffineCleanupAction]| {
-        !names.is_empty() && names.iter().all(|name| {
-            machine.structural_place_type(name.root)
-                .and_then(|root| descriptor_path(types, root, &name.path))
-                .is_some_and(|path| cleanup_disposes_reference(actions, name.root, &path))
-        })
+    let disposed = |names: &BTreeSet<DescriptorLocation>,
+                    actions: &[TerminalAffineCleanupAction]| {
+        !names.is_empty()
+            && names.iter().all(|name| {
+                machine
+                    .structural_place_type(name.root)
+                    .and_then(|root| descriptor_path(types, root, &name.path))
+                    .is_some_and(|path| cleanup_disposes_reference(actions, name.root, &path))
+            })
     };
-    if let Some(names) = lifetime.surviving.get(&at)
-        && !names.is_empty()
-    {
-        return disposed(names, cleanup);
+    // An empty intersection at a join proves no release: a different arrival
+    // can still owe the loan. A closing cut must name actual authority there
+    // and dispose every spelling that can survive on any arrival.
+    let closes_names = |position, actions: &[TerminalAffineCleanupAction]| {
+        lifetime
+            .authorized
+            .get(&position)
+            .is_some_and(|names| !names.is_empty())
+            && lifetime
+                .surviving
+                .get(&position)
+                .is_some_and(|names| disposed(names, actions))
+    };
+    if closes_names(at, cleanup) {
+        return true;
     }
     let Some(flow) = flow else { return false };
     let mut pending = vec![formed_in];
     let mut visited = BTreeSet::new();
+    let mut found_cleanup = false;
     while let Some(id) = pending.pop() {
-        if !visited.insert(id) { continue; }
-        if id == at.0 { return false; }
-        let Some(block) = machine.block(&id) else { return false };
-        let Ok(end) = u32::try_from(block.operations.len()) else { return false };
+        if !visited.insert(id) {
+            continue;
+        }
+        if id == at.0 {
+            return false;
+        }
+        let Some(block) = machine.block(&id) else {
+            return false;
+        };
+        let Ok(end) = u32::try_from(block.operations.len()) else {
+            return false;
+        };
         let before = (id, end);
-        let Some(step) = flow.get(&before) else { return false };
-        for edge in &step.successors {
-            let Some(identity) = edge.edge else { return false };
-            let closed = lifetime.surviving.get(&before).is_some_and(|names| {
-                block.terminator.cleanup_rosters().any(|(id, actions)| {
-                    id == identity && disposed(names, actions)
-                }) && edge.transport_locations(names, false, true).is_empty()
-            });
-            if !closed { pending.push(edge.target.0); }
+        let Some(step) = flow.get(&before) else {
+            return false;
+        };
+        for (identity, target) in block.terminator.successor_edges() {
+            let Some(edge) = step
+                .successors
+                .iter()
+                .find(|edge| edge.edge == Some(identity) && edge.target.0 == target)
+            else {
+                return false;
+            };
+            let closed = block
+                .terminator
+                .cleanup_rosters()
+                .any(|(id, actions)| id == identity && closes_names(before, actions))
+                && lifetime
+                    .surviving
+                    .get(&before)
+                    .is_some_and(|names| edge.transport_locations(names, false, true).is_empty());
+            if closed {
+                found_cleanup = true;
+            } else {
+                pending.push(target);
+            }
         }
     }
-    true
+    found_cleanup
 }
 
 pub fn borrowed_entry_reference_referent<'a>(

@@ -156,6 +156,12 @@ struct CleanupCohort {
 }
 type CleanupCohorts =
     std::collections::BTreeMap<(ObligationId, semantic_vocabulary::EdgeId, u32), CleanupCohort>;
+struct FormedLoans {
+    loans: Vec<Formed>,
+    header_ends: Vec<BorrowedHeaderEnd>,
+    flow: Option<BTreeMap<DescriptorPosition, DescriptorFlowStep>>,
+}
+
 struct BorrowedHeaderEnd {
     edge: EdgeId,
     target: DescriptorPosition,
@@ -2406,12 +2412,25 @@ impl<'a> Storage<'a> {
         module: &terminal_psi::TerminalModule,
         tables: &MachineTables,
         borrow_ends: Option<&[(EdgeId, PlaceId)]>,
-    ) -> Checked<(Vec<Formed>, Vec<BorrowedHeaderEnd>, Option<BTreeMap<DescriptorPosition, DescriptorFlowStep>>)> {
+    ) -> Checked<FormedLoans> {
         let mut claimed = vec![false; tables.obligations.len()];
         let mut formed = Vec::new();
-        let mut flow = if self.lowered.blocks.iter().any(|block| {
-            block
-                .structural_parameters
+        let returns_reference = self.lowered.result.structural().is_some_and(|result| {
+            terminal_psi::structural_type_contains_reference_by(
+                |id| module.structural_type(id),
+                result.structural_type,
+            )
+        });
+        let mut flow = if returns_reference
+            || self.lowered.blocks.iter().any(|block| {
+                block
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.access != StructuralAccess::Owned)
+            })
+            || self
+                .lowered
+                .blocks
                 .iter()
                 .any(|parameter| parameter.access != StructuralAccess::Owned)
         }) || self
@@ -2668,7 +2687,11 @@ impl<'a> Storage<'a> {
                 }
             }
         }
-        Ok((formed, header_ends, flow))
+        Ok(FormedLoans {
+            loans: formed,
+            header_ends,
+            flow,
+        })
     }
 
     /// The advertised return paths must be the paths the body actually
@@ -2871,8 +2894,13 @@ impl<'a> Storage<'a> {
                         false
                     } else if let Some(lifetime) = &loan.lifetime {
                         terminal_semantics::disposed_reference_on_return(
-                            self.lowered, self.types, lifetime, loan.formed_in,
-                            at, cleanup_actions, flow,
+                            self.lowered,
+                            self.types,
+                            lifetime,
+                            loan.formed_in,
+                            at,
+                            cleanup_actions,
+                            flow,
                         )
                     } else {
                         // Its normal call completion closes a duration-only loan.
@@ -2904,7 +2932,11 @@ impl<'a> Storage<'a> {
         borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     ) -> Checked<(Vec<(ObligationId, Checked<()>)>, Vec<ConflictingLoan>)> {
         self.reference_results(references, module)?;
-        let (mut formed, header_ends, flow) = self.formed(references, module, tables, borrow_ends)?;
+        let FormedLoans {
+            loans: mut formed,
+            header_ends,
+            flow,
+        } = self.formed(references, module, tables, borrow_ends)?;
         let addresses =
             terminal_semantics::plain_affine::borrowed_address_liveness(self.lowered, self.types)
                 .map_err(|error| match error {
