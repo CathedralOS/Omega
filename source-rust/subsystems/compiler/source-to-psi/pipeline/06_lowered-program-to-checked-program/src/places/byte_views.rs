@@ -384,7 +384,7 @@ impl<'a> Storage<'a> {
             || !(region == ElementViewRegion::WholeCollection || whole_representation)
             || result.multiplicity != multiplicity
             || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
+            || (whole_representation && !result.projected_qualifications.is_empty())
             || !result.qualification_establishments.is_empty()
             || !result.additional_input_qualifications.is_empty()
             || !result.claims.is_empty()
@@ -472,7 +472,7 @@ impl<'a> Storage<'a> {
                     })
             });
         if (!whole.is_empty() && !shared_predicate_backing)
-            || !projected.is_empty()
+            || projected.iter().any(|row| !typed || !row.is_element_membership())
             || !actual.additional_input_qualifications.is_empty()
         {
             return Err(self.unsupported(
@@ -994,7 +994,7 @@ impl<'a> Storage<'a> {
         };
         if result.multiplicity != multiplicity
             || !result.qualifications.is_empty()
-            || !result.projected_qualifications.is_empty()
+            || (!typed && !result.projected_qualifications.is_empty())
             || !result.qualification_establishments.is_empty()
             || !result.additional_input_qualifications.is_empty()
             || !result.claims.is_empty()
