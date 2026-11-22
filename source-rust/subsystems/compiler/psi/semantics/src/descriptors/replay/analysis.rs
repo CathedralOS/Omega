@@ -2201,21 +2201,16 @@ impl<'a> DescriptorAnalysis<'a> {
                                 // An element of a view lives in its backing storage.
                                 // Keep the lending descriptor live without treating
                                 // its header as the returned element's address.
-                                let segments = crate::resolved_structural_path(
-                                    types.iter(), root_type, &spelling,
-                                )
-                                .ok()
-                                .ok_or_else(incomplete_step)?;
+                                let segments =
+                                    crate::resolved_structural_path(types.iter(), root_type, &spelling)
+                                        .map_err(|_| incomplete_step())?;
                                 let element = crate::descriptor_lifetimes::view_element_descriptor_prefix(
                                     types, root_type, &segments,
                                 )
-                                .ok()
-                                .flatten()
+                                .map_err(|_| incomplete_step())?
                                 .ok_or_else(incomplete_step)?;
-                                let descriptor = DescriptorLocation::captured(
-                                    source.root, &segments[..element],
-                                )
-                                .ok_or_else(incomplete_step)?;
+                                let descriptor = DescriptorLocation::captured(source.root, &segments[..element])
+                                    .ok_or_else(incomplete_step)?;
                                 step.derivations.push((canonical(&descriptor)?, destination.clone()));
                                 continue;
                             }

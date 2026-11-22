@@ -88,6 +88,46 @@ fn run(text: &str) -> Result<terminal_interpreter::TerminalExecutionStatus, Stri
         .unwrap())
 }
 
+#[test]
+fn a_forwarded_view_element_keeps_its_lender_and_actual_value() {
+    let source = r#"
+data Cell [copy] { value: u32; }
+data Pair { cells: [Cell; 2]; }
+
+machine forward(cells: @[Cell]) -> @Cell
+requires cells.length == 2u64 {
+    transition { _ -> second(cells) }
+
+    machine second(cells: @[Cell]) -> @Cell
+    requires cells.length == 2u64 {
+        transition { _ -> @cells[1u64] }
+    }
+}
+
+machine entry() crashes Trap {
+    let mutable pair: Pair;
+    pair.cells[0u64].value = 7u32;
+    pair.cells[1u64].value = 34u32;
+    let selected: @Cell = forward(@pair.cells[..]);
+    transition selected.value == 34u32 { true -> done(), false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    assert_eq!(
+        run(source),
+        Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ))
+    );
+    let conflict = source.replace(
+        "    transition selected.value",
+        "    pair.cells[1u64].value = 11u32;\n    transition selected.value",
+    );
+    let refused = run(&conflict).unwrap_err();
+    assert!(refused.contains("ChangeWhileBorrowed"), "{refused}");
+}
+
 fn completes(journey: &str) {
     assert_eq!(
         run(&format!("{CELLS}{journey}{ENTRY}")),
