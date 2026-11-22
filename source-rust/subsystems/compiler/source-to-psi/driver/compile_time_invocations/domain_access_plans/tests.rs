@@ -118,6 +118,26 @@ fn assert_zero_tail(plan: &BuildTimeValue) {
     );
 }
 
+/// Evaluates everything `request` demands of `typed`, the way source
+/// preparation does, with no deployment and no package authority.
+fn evaluate(
+    typed: &mut crate::source_state::TypedTrees,
+    request: production::TerminalSourceCompilation<'_>,
+    accounting: &mut SourceCompletionAccounting,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    crate::compile_time_invocations::evaluate_demanded_values(
+        typed,
+        &crate::compile_time_invocations::ValueDemand {
+            compilation: request,
+            layout_scopes: &[],
+            authority: None,
+            source_consent: None,
+        },
+        accounting,
+    )
+    .map(drop)
+}
+
 fn typed_source(source: &str) -> crate::source_state::TypedTrees {
     schema_customer_source::actual_library_source(
         &fixture_repository::root().join("source/library"),
@@ -362,7 +382,7 @@ fn actual_policy_callers_keep_their_selected_declaration_after_transport() {
         supplies: &[],
     };
     let mut accounting = SourceCompletionAccounting::default();
-    super::evaluate(&mut typed, request, None, None, &mut accounting)
+    evaluate(&mut typed, request, &mut accounting)
         .expect("evaluate the actual domain's selected policy with normal call accounting");
     let source = preparation::prepare_typed_trees(typed.clone(), &[], &[])
         .expect("ordinary preparation keeps the exact caller description");
@@ -611,7 +631,7 @@ machine write_number(ticket: @mutable Ticket in Stamped) { ticket.number = 41; }
             supplies: &[],
         };
         let mut accounting = SourceCompletionAccounting::default();
-        super::evaluate(&mut typed, request, None, None, &mut accounting)
+        evaluate(&mut typed, request, &mut accounting)
             .expect("evaluate the actual complete selected read/write policy");
         let policy = typed
             .domain_definitions

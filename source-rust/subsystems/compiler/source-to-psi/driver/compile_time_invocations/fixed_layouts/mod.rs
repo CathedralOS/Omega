@@ -5,15 +5,17 @@
 use checked_program_to_psi::production;
 use std::sync::Arc;
 
-use crate::source_state::references::collect_program_type_occurrences;
+use crate::source_state::references::{
+    collect_program_type_occurrences, collect_type_symbol_dependencies,
+};
 use crate::source_state::{
     PlanLaidGeometry, PlanLaidLayout, PlanLaidRealizations, PlanLaidRetiredFieldIdentity,
     PlanLaidSchemaArgument, PlanLaidTargetLayout, TypedTrees,
 };
-use declaration_scope::PackageDeclarationScope;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
+use super::demanded_values::{DemandedValues, RoundProgram};
 use super::{FixedLayoutTargetScope, PreparedBuildMachineProgram};
 use crate::compile_time_invocations::{BuildTimeValue, InvocationTarget, SourceCompletionAccounting};
 
@@ -68,121 +70,224 @@ impl super::PreparedBuildMachineEntry {
     }
 }
 
-pub(crate) fn evaluate_fixed_layout_applications(
-    typed: &mut TypedTrees,
-    scopes: &[FixedLayoutTargetScope],
-    authority: Option<Arc<PackageDeclarationScope>>,
-    consent: Option<Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>>,
-    purpose: source_provenance::DependencyScope,
-    accounting: &mut SourceCompletionAccounting,
-) -> Result<(), Vec<Diagnostic>> {
-    if !typed.plan_laid_layouts.is_empty() || !typed.plan_laid_target_layouts.is_empty() {
-        return Err(vec![Diagnostic::error(
-            "layout policy input contains plans without their producing invocation",
-        )]);
-    }
-    // A containing schema may consume another application's layout. The
-    // profile must therefore name the same immutable facts across every
-    // scope, before any policy runs or nested geometry is consulted.
-    let mut targets = scopes.iter().collect::<Vec<_>>();
-    targets.sort_unstable_by(|left, right| left.target.cmp(&right.target));
-    for pair in targets.windows(2) {
-        if pair[0].target == pair[1].target && pair[0].facts != pair[1].facts {
+/// One storage application whose policy plans its layout for one target.
+struct Demand {
+    /// The deployment, as its position in the request's scopes.
+    scope: usize,
+    /// The first demanded declaration that writes the application. The
+    /// policy runs as its request.
+    requester: SymbolHandle,
+    storage: crate::source_state::layout_storage::LayoutStorageArguments,
+    /// Every declaration that writes the application, sorted. Each stores
+    /// through the plan once it is installed.
+    holders: Vec<SymbolHandle>,
+    /// The declarations the application names: the sealed storage type, the
+    /// stored type and the policy with its arguments.
+    roots: Vec<SymbolHandle>,
+}
+
+/// The layout applications the request's deployments demand, one per
+/// application and target.
+pub(super) struct Layouts<'scope> {
+    scopes: &'scope [FixedLayoutTargetScope],
+    demands: Vec<Demand>,
+}
+
+impl<'scope> Layouts<'scope> {
+    pub(super) fn demanded(
+        typed: &mut TypedTrees,
+        scopes: &'scope [FixedLayoutTargetScope],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if !typed.plan_laid_layouts.is_empty() || !typed.plan_laid_target_layouts.is_empty() {
             return Err(vec![Diagnostic::error(
-                "layout scopes disagree on one target's immutable facts",
+                "layout policy input contains plans without their producing invocation",
             )]);
         }
-    }
-    for scope in targets {
-        if let Some(facts) = &scope.facts {
-            facts
-                .validate()
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            if facts.profile != scope.target {
+        // A containing schema may consume another application's layout. The
+        // profile must therefore name the same immutable facts across every
+        // scope, before any policy runs or nested geometry is consulted.
+        let mut targets = scopes.iter().collect::<Vec<_>>();
+        targets.sort_unstable_by(|left, right| left.target.cmp(&right.target));
+        for pair in targets.windows(2) {
+            if pair[0].target == pair[1].target && pair[0].facts != pair[1].facts {
                 return Err(vec![Diagnostic::error(
-                    "layout scope and immutable target facts disagree",
+                    "layout scopes disagree on one target's immutable facts",
                 )]);
             }
         }
-    }
-    // Available target facts do not request geometry. With no computation
-    // roots, retain the declarations' deferred requests without preparing
-    // a whole-program occurrence inventory or running any layout policy.
-    if scopes
-        .iter()
-        .all(|scope| scope.entry_declarations.is_empty() && scope.provider_declarations.is_empty())
-    {
-        return super::frontier::refresh_layout_policy_requests(typed);
-    }
-    let occurrences = collect_program_type_occurrences(typed);
-    let mut requests = Vec::new();
-    for (scope_index, scope) in scopes.iter().enumerate() {
-        if scope.entry_declarations.is_empty() && scope.provider_declarations.is_empty() {
-            continue;
+        for scope in targets {
+            if let Some(facts) = &scope.facts {
+                facts
+                    .validate()
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                if facts.profile != scope.target {
+                    return Err(vec![Diagnostic::error(
+                        "layout scope and immutable target facts disagree",
+                    )]);
+                }
+            }
         }
-        let selection = scope
-            .demanded_declarations(typed)
-            .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        for occurrence in &occurrences {
-            if !selection.contains(typed.refusal_declaration(occurrence.lexical_owner)) {
+        let mut demanded = Self {
+            scopes,
+            demands: Vec::new(),
+        };
+        // Available target facts do not request geometry. With no computation
+        // roots, retain the declarations' deferred requests without preparing
+        // a whole-program occurrence inventory or running any layout policy.
+        if scopes.iter().all(|scope| {
+            scope.entry_declarations.is_empty() && scope.provider_declarations.is_empty()
+        }) {
+            super::frontier::refresh_evaluated_requests(typed)?;
+            return Ok(demanded);
+        }
+        // Open library templates remain requests of their declarations.
+        // Their concrete applications are judged when actually demanded.
+        let closed_storage = |typed: &TypedTrees, reference| {
+            let storage = typed.layout_storage_arguments(reference)?;
+            let data = typed.closed_data_definition(storage.semantic_type)?;
+            data.type_parameters.is_empty().then_some(storage)
+        };
+        let occurrences = collect_program_type_occurrences(typed);
+        let mut requests = Vec::new();
+        for (scope_index, scope) in scopes.iter().enumerate() {
+            if scope.entry_declarations.is_empty() && scope.provider_declarations.is_empty() {
                 continue;
             }
-            let Some(storage) = typed.layout_storage_arguments(occurrence.reference) else {
-                continue;
-            };
-            let Some(data) = typed.closed_data_definition(storage.semantic_type) else {
-                continue;
-            };
-            // Open library templates remain requests of their declarations.
-            // Their concrete applications are judged when actually demanded.
-            if !data.type_parameters.is_empty() {
-                continue;
+            let selection = scope
+                .demanded_declarations(typed)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
+            for occurrence in &occurrences {
+                if !selection.contains(typed.refusal_declaration(occurrence.lexical_owner)) {
+                    continue;
+                }
+                let Some(storage) = closed_storage(typed, occurrence.reference) else {
+                    continue;
+                };
+                requests.push((
+                    scope_index,
+                    typed.normalized_type_identity(storage.application),
+                    occurrence.lexical_owner,
+                    storage,
+                ));
             }
-            requests.push((
-                scope_index,
-                typed.normalized_type_identity(storage.application),
-                occurrence.lexical_owner,
+        }
+        requests.sort_by_key(|(scope, identity, _, _)| (*scope, *identity));
+        requests.dedup_by_key(|(scope, identity, _, _)| (*scope, *identity));
+        if requests.is_empty() {
+            super::frontier::refresh_evaluated_requests(typed)?;
+            return Ok(demanded);
+        }
+        // Every declaration that writes a requested application holds its
+        // plan, whichever deployment selects it.
+        let key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
+        let mut written = occurrences
+            .iter()
+            .filter_map(|occurrence| {
+                let storage = closed_storage(typed, occurrence.reference)?;
+                Some((
+                    typed.normalized_type_identity(storage.application),
+                    typed.refusal_declaration(occurrence.lexical_owner),
+                ))
+            })
+            .collect::<Vec<_>>();
+        written.sort_unstable_by_key(|(identity, holder)| (*identity, key(*holder)));
+        written.dedup();
+        demanded.demands = requests
+            .into_iter()
+            .map(|(scope, identity, requester, storage)| Demand {
+                scope,
+                requester,
                 storage,
-            ));
-        }
+                holders: written
+                    .iter()
+                    .filter(|(written, _)| *written == identity)
+                    .map(|(_, holder)| *holder)
+                    .collect(),
+                roots: collect_type_symbol_dependencies(typed, storage.application),
+            })
+            .collect();
+        Ok(demanded)
     }
-    requests.sort_by_key(|(scope, identity, _, _)| (*scope, *identity));
-    requests.dedup_by_key(|(scope, identity, _, _)| (*scope, *identity));
-    if requests.is_empty() {
-        return super::frontier::refresh_layout_policy_requests(typed);
+
+    fn data_name(&self, typed: &TypedTrees, value: usize) -> Option<String> {
+        typed
+            .closed_data_definition(self.demands[value].storage.semantic_type)
+            .map(|data| data.name.to_string())
     }
-    // Keep one immutable source owner for all policy calls. Installing an
-    // earlier result cannot change the program used to judge a later policy.
-    let program =
-        PreparedBuildMachineProgram::prepare_for_layout(typed, authority, purpose, consent)?;
-    for (scope_index, _, requester, storage) in requests {
-        let scope = &scopes[scope_index];
-        if let Some(plan) = typed.plan_laid_layout_for_type(storage.application)
+}
+
+impl DemandedValues for Layouts<'_> {
+    fn len(&self) -> usize {
+        self.demands.len()
+    }
+
+    fn holders(&self, value: usize) -> &[SymbolHandle] {
+        &self.demands[value].holders
+    }
+
+    fn roots(&self, value: usize) -> &[SymbolHandle] {
+        &self.demands[value].roots
+    }
+
+    fn description(&self, typed: &TypedTrees, value: usize) -> String {
+        format!(
+            "the layout of `{}` on `{}`",
+            self.data_name(typed, value).unwrap_or_default(),
+            self.scopes[self.demands[value].scope].target,
+        )
+    }
+
+    fn source_span(&self, typed: &TypedTrees, value: usize) -> Option<source_text::SourceSpan> {
+        typed
+            .symbols
+            .symbol_source_span(self.demands[value].requester)
+    }
+
+    /// The holders carry a layout-policy row until the plan is installed.
+    fn serves_recorded_requests(&self) -> bool {
+        true
+    }
+
+    fn evaluate(
+        &mut self,
+        value: usize,
+        round: &RoundProgram,
+        typed: &mut TypedTrees,
+        accounting: &mut SourceCompletionAccounting,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let demand = &self.demands[value];
+        let scope = &self.scopes[demand.scope];
+        if let Some(plan) = typed.plan_laid_layout_for_type(demand.storage.application)
             && plan
                 .geometry_for_target(typed, Some(&scope.target))
                 .is_some()
         {
-            continue;
+            return Ok(());
         }
-        let data_name = typed
-            .closed_data_definition(storage.semantic_type)
-            .ok_or_else(|| vec![Diagnostic::error("demanded layout lost its semantic type")])?
-            .name
-            .to_string();
-        if let Err(reason) =
-            evaluate_application(typed, &program, requester, storage, scope, accounting)
-        {
+        let data_name = self
+            .data_name(typed, value)
+            .ok_or_else(|| vec![Diagnostic::error("demanded layout lost its semantic type")])?;
+        // The policy is judged in the round's program. Installing an earlier
+        // result of the same round cannot change it.
+        evaluate_application(
+            typed,
+            round.layout_policies(),
+            demand.requester,
+            demand.storage,
+            scope,
+            accounting,
+        )
+        .map_err(|reason| {
             let mut diagnostic = Diagnostic::error(format!(
                 "layout policy for `{data_name}` on `{}`: {reason}",
                 scope.target,
             ));
-            if let Some(span) = typed.symbols.symbol_source_span(requester) {
+            if let Some(span) = typed.symbols.symbol_source_span(demand.requester) {
                 diagnostic = diagnostic.with_source_span(span);
             }
-            return Err(vec![diagnostic]);
-        }
+            vec![diagnostic]
+        })
     }
-    super::frontier::refresh_layout_policy_requests(typed)
 }
 
 fn evaluate_application(
