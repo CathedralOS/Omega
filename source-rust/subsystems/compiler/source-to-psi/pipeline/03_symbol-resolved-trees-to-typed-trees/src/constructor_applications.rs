@@ -1257,11 +1257,13 @@ fn unify(
             },
             TypeReferenceNode::FixedArray {
                 element_type: right,
-                length: FixedArrayLength::Literal(length),
+                ..
             },
         ) => {
-            let argument = integer_argument(program, length);
-            bind(program, symbol, argument, parameters, inferred)?;
+            if let Some(length) = program.closed_fixed_array_length(actual) {
+                let argument = integer_argument(program, length);
+                bind(program, symbol, argument, parameters, inferred)?;
+            }
             unify(program, left, right, parameters, inferred)?;
         }
         (

@@ -403,8 +403,8 @@ fn decode_snapshot(
             let BuildTimeValue::Array(elements) = value else {
                 return Err("constant result is not an array of its declared type".into());
             };
-            let length = program.closed_array_length(underlying).ok_or("array type has no evaluated extent")?;
-            if u64::try_from(elements.len()).ok() != Some(length) {
+            let length = program.closed_fixed_array_length(underlying).ok_or("array type has no evaluated extent")?;
+            if elements.len() != length {
                 return Err("constant result differs from its declared array extent".into());
             }
             let values = elements

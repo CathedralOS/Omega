@@ -431,8 +431,8 @@ fn materialize_argument(
             let BuildTimeValue::Array(elements) = value else {
                 return Err("expected an array value".into());
             };
-            let length = program.closed_array_length(destination).ok_or("array type has no evaluated extent")?;
-            if u64::try_from(elements.len()).ok() != Some(length) {
+            let length = program.closed_fixed_array_length(destination).ok_or("array type has no evaluated extent")?;
+            if elements.len() != length {
                 return Err("array argument differs from its declared extent".into());
             }
             let elements = elements

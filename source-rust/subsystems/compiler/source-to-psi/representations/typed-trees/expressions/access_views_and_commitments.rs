@@ -849,7 +849,7 @@ pub(crate) mod access_views {
             let mut value = self.value_type;
             let mut accessor = self.accessor_type;
             loop {
-                use crate::source_state::types::{FixedArrayLength, TypeReferenceNode};
+                use crate::source_state::types::TypeReferenceNode;
                 match (
                     program.type_reference_table.type_reference(value),
                     program.type_reference_table.type_reference(accessor),
@@ -857,13 +857,15 @@ pub(crate) mod access_views {
                     (
                         TypeReferenceNode::FixedArray {
                             element_type: value_element,
-                            length: FixedArrayLength::Literal(value_count),
+                            ..
                         },
                         TypeReferenceNode::FixedArray {
                             element_type: accessor_element,
-                            length: FixedArrayLength::Literal(accessor_count),
+                            ..
                         },
-                    ) if value_count == accessor_count && *value_count != 0 => {
+                    ) if program.closed_fixed_array_length(value).is_some_and(|count| {
+                        count != 0 && program.closed_fixed_array_length(accessor) == Some(count)
+                    }) => {
                         value = *value_element;
                         accessor = *accessor_element;
                     }
@@ -1497,11 +1499,6 @@ pub mod constant_recipes {
     }
 
     impl crate::source_state::TypedTrees {
-        /// The fixed array length after evaluating its declared extent.
-        pub fn closed_array_length(&self, reference: TypeReferenceHandle) -> Option<u64> {
-            self.declared_array_extent(reference)?.closed(self)
-        }
-
         pub fn declared_array_extent(
             &self,
             type_reference: TypeReferenceHandle,
@@ -1528,15 +1525,7 @@ pub mod constant_recipes {
             }
         }
 
-        /// The length of `[u8; WIDTH]` when `WIDTH` is a constant whose
-        /// initializer had to run, such as `const WIDTH: u64 = measure();`.
-        ///
-        /// Typing writes the length itself when resolution already recorded
-        /// the constant's value (`const WIDTH: u64 = 4;`). A constant computed
-        /// by a call has no value until the source driver evaluates it, which
-        /// happens after typing, so typing leaves the extent naming the
-        /// constant. The value then exists in one place, on the constant's
-        /// declaration, and this reads it from there.
+/// Read a named extent from the selected constant's evaluated value.
         ///
         /// `None` when `symbol` is not a constant (a const parameter of a
         /// generic declaration is bound by its application instead), when the
@@ -1642,27 +1631,7 @@ pub mod constant_recipes {
             &self,
             type_reference: TypeReferenceHandle,
         ) -> Option<usize> {
-            let TypeReferenceNode::FixedArray { length, .. } =
-                self.type_reference_table.type_reference(type_reference)
-            else {
-                return None;
-            };
-            match length {
-                FixedArrayLength::Literal(length) => Some(*length),
-                FixedArrayLength::ConstParameter { symbol, .. } => self
-                    .named_constant_extent(*symbol)
-                    .and_then(|value| usize::try_from(value).ok()),
-                FixedArrayLength::Expression(argument) => self
-                    .declared_constant_extent(*argument)
-                    .and_then(|extent| extent.closed(self))
-                    .and_then(|value| usize::try_from(value).ok()),
-                FixedArrayLength::ConstCall { .. } => self
-                    .closed_constant_recipe_value(
-                        self.constant_recipe_for_array_length(type_reference),
-                    )
-                    .and_then(BigInt::to_u64)
-                    .and_then(|value| usize::try_from(value).ok()),
-            }
+            usize::try_from(self.declared_array_extent(type_reference)?.closed(self)?).ok()
         }
     }
 

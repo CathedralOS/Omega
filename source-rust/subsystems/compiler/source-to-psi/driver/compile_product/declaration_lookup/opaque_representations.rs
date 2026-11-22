@@ -91,7 +91,7 @@ fn inert_carrier(
                 }
                 pending.push((*base_type, false));
             }
-            TypeReferenceNode::FixedArray { element_type, .. } if typed.closed_array_length(reference).is_some() => pending.push((*element_type, false)),
+            TypeReferenceNode::FixedArray { element_type, .. } if typed.closed_fixed_array_length(reference).is_some() => pending.push((*element_type, false)),
             TypeReferenceNode::Named { .. }
                 if typed.primitive_type_reference(reference).is_some() => {}
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {

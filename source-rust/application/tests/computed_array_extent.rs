@@ -82,7 +82,10 @@ fn a_literal_initializer_supplies_its_declared_array_length() {
     let literal = |n| format!("{before}const N: u64 = {n}u64;{after}");
     let (output, report) = invoke(&literal(2), &["run", "--both"]);
     assert_eq!(output.status.code(), Some(0), "{report}");
-    assert!(report.contains("native exit 0") && report.contains("interp exit: 0"), "{report}");
+    assert!(
+        report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
     let (output, report) = invoke(&literal(3), &["--check"]);
     assert!(!output.status.success(), "{report}");
     let expected = std::fs::read_to_string(fixture("fail").join("expected.txt")).unwrap();

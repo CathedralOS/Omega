@@ -1405,7 +1405,7 @@ pub mod domain {
         program: &TypedTrees,
         type_reference: TypeReferenceHandle,
     ) -> Result<String, Diagnostic> {
-        use crate::source_state::types::{FixedArrayLength, TypeReferenceNode};
+        use crate::source_state::types::TypeReferenceNode;
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Named { .. } => Ok(program
                 .primitive_type_reference(type_reference)
@@ -1414,9 +1414,8 @@ pub mod domain {
                     |primitive| primitive.name(),
                 )),
             TypeReferenceNode::FixedArray {
-                length: FixedArrayLength::Literal(_),
                 ..
-            } => Ok(program.normalized_type_identity_text(type_reference)),
+            } if program.closed_fixed_array_length(type_reference).is_some() => Ok(program.normalized_type_identity_text(type_reference)),
             TypeReferenceNode::Constrained { base_type, .. } => {
                 const_index_type_name(program, *base_type)
             }
@@ -2330,10 +2329,11 @@ pub mod layout_storage {
                     return crate::source_state::PlanLaidFieldLayoutSource::Explicit;
                 }
                 match self.type_reference_table.type_reference(reference) {
-                    TypeReferenceNode::FixedArray {
-                        element_type,
-                        length: crate::source_state::types::FixedArrayLength::Literal(_),
-                    } => reference = *element_type,
+                    TypeReferenceNode::FixedArray { element_type, .. }
+                        if self.closed_fixed_array_length(reference).is_some() =>
+                    {
+                        reference = *element_type
+                    }
                     _ => return crate::source_state::PlanLaidFieldLayoutSource::Default,
                 }
             }

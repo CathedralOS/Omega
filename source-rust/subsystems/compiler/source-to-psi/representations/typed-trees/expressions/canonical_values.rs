@@ -4,8 +4,8 @@ use crate::source_state::expression::{
     ExpressionNode, TableCastExpression, TableStructLiteral, TableStructLiteralField,
 };
 use crate::source_state::types::{
-    DomainConstraint, DomainConstraintSubject, FixedArrayLength, PrimitiveType,
-    TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
+    DomainConstraint, DomainConstraintSubject, PrimitiveType, TypeConstraintNode,
+    TypeReferenceHandle, TypeReferenceNode,
 };
 use application_identity::const_value::DecodedCanonicalConstValue;
 use language_core::cast_form::{CastEntry, CastEntryKind, CastForm};
@@ -155,11 +155,12 @@ fn materialize_carrier(
             let declared_type = program.unwrapped_type_reference(declared_type)?;
             let TypeReferenceNode::FixedArray {
                 element_type,
-                length: FixedArrayLength::Literal(length),
+                ..
             } = program.type_reference_node(declared_type).clone()
             else {
                 return None;
             };
+            let length = program.closed_fixed_array_length(declared_type)?;
             if length != values.len() {
                 return None;
             }
@@ -398,14 +399,14 @@ fn matches_materialized(
             };
             let TypeReferenceNode::FixedArray {
                 element_type,
-                length: FixedArrayLength::Literal(length),
+                ..
             } = program.type_reference_node(underlying)
             else {
                 return false;
             };
             let expressions = program.expression_table.expression_handles(*actual);
             *type_name == program.display_type_reference(carrier)
-                && *length == values.len()
+                && program.closed_fixed_array_length(underlying) == Some(values.len())
                 && expressions.len() == values.len()
                 && expressions.iter().zip(values).all(|(expression, value)| {
                     matches_materialized(program, *element_type, *expression, value, sources)

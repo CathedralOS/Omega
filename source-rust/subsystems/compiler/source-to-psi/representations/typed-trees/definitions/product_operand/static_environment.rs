@@ -412,7 +412,10 @@ impl Capture<'_> {
                         ProductArrayLength::Expression(self.ty(*value)?)
                     }
                     types::FixedArrayLength::ConstParameter { symbol, name } => {
-                        ProductArrayLength::Parameter(self.name(name.as_str(), *symbol))
+                        match program.closed_fixed_array_length(reference) {
+                            Some(length) => ProductArrayLength::Literal(length),
+                            None => ProductArrayLength::Parameter(self.name(name.as_str(), *symbol)),
+                        }
                     }
                     types::FixedArrayLength::ConstCall { machine, name, .. } => {
                         ProductArrayLength::Call(self.name(name.as_str(), *machine))

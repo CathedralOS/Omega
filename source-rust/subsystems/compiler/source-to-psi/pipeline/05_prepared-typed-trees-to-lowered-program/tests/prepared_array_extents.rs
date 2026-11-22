@@ -269,7 +269,9 @@ fn an_extent_whose_constant_has_no_value_is_not_given_a_length() {
 fn an_array_sized_by_a_literal_constant_reads_the_selected_declaration() {
     let prepared = fixture(Initializer::Literal);
     let [eastern, western] = both_extents(&prepared);
-    assert!(matches!(eastern.form, FixedArrayLength::ConstParameter { symbol, .. } if symbol == eastern.selected));
+    assert!(
+        matches!(eastern.form, FixedArrayLength::ConstParameter { symbol, .. } if symbol == eastern.selected)
+    );
     let changed = prepared_with(&prepared, |trees| {
         set_evaluated_value(trees, eastern.selected, western.selected)
     });
