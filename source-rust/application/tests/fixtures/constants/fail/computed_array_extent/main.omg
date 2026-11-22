@@ -1,0 +1,18 @@
+// The array's length is a constant computed by a call. `second` requires two
+// bytes, so the program is valid only while `extent` returns 2.
+const N: u64 = extent();
+machine extent() -> u64 crashes none { 3u64 }
+
+machine second(values: @[u8; 2]) -> u8 { values[1u64] }
+
+machine main() crashes Trap {
+    let mutable values: [u8; N];
+    values[0u64] = 7u8;
+    values[1u64] = 9u8;
+    let last: u8 = second(@values);
+    transition last == 9u8 && values[0u64] == 7u8 && values.length == 2u64 {
+        true -> done(), false -> failed()
+    }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}

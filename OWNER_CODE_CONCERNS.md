@@ -87,6 +87,14 @@ framework or a list of unimplemented features.
 - Cost: Reformatting a contract can change which facts it states or turn an accepted program into a refused one, and no test fails. [V2's grammar](omega-rust-v2/layers/01_tokens-to-syntax-trees/GRAMMAR.md) ends a clause at the next clause word and never reads a line break. Settle what separates two facts in one clause, migrate the sources that rely on a line break, and delete `has_newline_before`. Count grammar tokens only, or delete the count. Then add a clause to the program in `comments_and_whitespace_between_tokens_move_spans_and_change_nothing_else`.
 - Reported: 2026-11-22, Claude Code, while checking V1's lexer-to-parser handoff tests
 
+### Clippy with `-D warnings` cannot lint an application test because four crates it builds carry warnings
+
+- Category: Tests that pin the bug
+- Where: [package manager](source-rust/subsystems/package-manager/review/restricted_build_grants.rs), [review evidence](source-rust/subsystems/package-manager/review/evidence/src/encoding/encode/selected_providers/signature.rs#L4), [target-bound program](source-rust/subsystems/compiler/psi-to-native/representations/target-bound-program/scalar_demand.rs), [target operations](source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/preparation/legalization_scalar_graph.rs).
+- Saw: `mbx clippy -p omega --test computed_array_extent -- -D warnings` stops in the application's dependencies: `review-evidence` (an unused import), `target-bound-program` (two needless borrows), `abstract-operations-to-target-operations` (an unused import) and `package-manager` (ten warnings: one unused import and nine about functions, methods or structs that nothing uses). The same command without `-D warnings` finishes and lists 14 warnings in those crates.
+- Cost: Every test under `source-rust/application/tests/` builds those crates, so the required lint cannot pass for any of them whatever the test contains; the check is skipped or run without `-D warnings` and a new warning in the application or its tests goes unseen. Remove the three unused imports and the two unneeded `&`, and delete or wire up the unused package-manager code.
+- Reported: 2026-11-22, Claude Code, while adding an application test for an array sized by a computed constant
+
 ### A wrong case in a dispatch is reported as a write-frame mismatch in the first machine
 
 - Category: A verdict with nothing behind it
