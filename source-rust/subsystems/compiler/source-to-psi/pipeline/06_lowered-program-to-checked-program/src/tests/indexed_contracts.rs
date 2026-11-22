@@ -246,6 +246,46 @@ fn a_recursive_edge_owes_the_element_at_its_own_selector() {
 const NATIVE: &str = include_str!("../../tests/fixtures/calls/run/indexed_array_contract/main.omg");
 
 #[test]
+fn a_mutable_call_can_update_a_runtime_indexed_inline_record() {
+    let source = r#"
+data Item [copy] { count: u32; }
+data Bag { items: [Item; 2]; }
+machine set(item: @mutable Item) { item.count = 7; }
+machine entry(bag: @mutable Bag, index: u64) requires index < 2 {
+    set(@mutable bag.items[index]);
+}
+"#;
+    let verdict = judge(invocation(source, "entry")).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}");
+    };
+    let module = &accepted.elaboration.module;
+    let semantic_vocabulary::TargetMachineCallable::Machine(entry) = module.entry.unwrap() else {
+        panic!("the entry must be an ordinary machine");
+    };
+    let program = terminal_semantics::callable_values::terminal_callable_values(module).unwrap();
+    let reached =
+        terminal_semantics::callable_values::reachable_callable_invocations(&program, [entry])
+            .expect("execution must retain the indexed actual at its call");
+    assert!(reached.invocations.iter().any(|call| {
+        call.invocation.structural_arguments.iter().any(|actual| {
+            actual.path.iter().any(|step| {
+                matches!(step, terminal_psi::ResolvedStructuralPathSegment::RuntimeIndex { .. })
+            })
+        })
+    }));
+
+    let unbounded = source.replace(" requires index < 2", "");
+    let verdict = judge(invocation(&unbounded, "entry")).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|failure| matches!(failure.kind, ObligationKind::OperationSafety { .. })
+                && failure.statement.ends_with("cannot prove index is within length 2"))),
+        "{verdict:?}"
+    );
+}
+
+#[test]
 fn indexed_call_contracts_and_mutable_handback_keep_the_exact_leaf() {
     let accepted = judge(invocation(NATIVE, "main")).unwrap();
     assert!(
