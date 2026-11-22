@@ -1,0 +1,27 @@
+data Room [copy] { value: u32; }
+data Level { rooms: [Room; 2]; }
+machine select(level: @mutable Level, needle: u32) -> @mutable Room {
+    let rooms: @mutable [Room] = @mutable level.rooms[..];
+    transition { _ -> seek(rooms, needle, 0u64) }
+    machine seek(rooms: @mutable [Room], needle: u32, index: u64) -> @mutable Room
+    requires rooms.length == 2u64, index < 2u64 {
+        let found: bool = rooms[index].value == needle;
+        let next: u64 = index + 1u64;
+        transition {
+            found -> @mutable rooms[index],
+            next < 2u64 -> seek(rooms, needle, next),
+            _ -> @mutable rooms[0u64]
+        }
+    }
+}
+machine main() crashes Trap {
+    let mutable level: Level;
+    level.rooms[1u64].value = 7u32;
+    let selected: @mutable Room = select(@mutable level, 7u32);
+    selected.value = 42u32;
+    transition level.rooms[0u64].value == 0u32 && level.rooms[1u64].value == 42u32 {
+        true -> end(), false -> trapped()
+    }
+    machine end() {}
+    machine trapped() { crash Trap; }
+}

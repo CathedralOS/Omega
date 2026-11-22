@@ -78,6 +78,16 @@ impl<'a> NativeGeometry<'a> {
         self.resolver.shape(root)
     }
 
+    pub fn formal_storage_shape(
+        &self,
+        root: StructuralTypeId,
+        access: terminal_psi::StructuralAccess,
+    ) -> Result<ValueShape, TerminalLayoutError> {
+        formal_storage_shape(&self.resolver.declarations, root, access, || {
+            self.shape(root)
+        })
+    }
+
     pub fn owned_sequence_bounds(&self) -> &'a [(StructuralTypeId, u64)] {
         self.resolver.owned_sequences
     }
@@ -418,16 +428,7 @@ impl<'a> StructuralLayouts<'a> {
         root: StructuralTypeId,
         access: terminal_psi::StructuralAccess,
     ) -> Result<ValueShape, TerminalLayoutError> {
-        let declaration = self
-            .get(root)
-            .ok_or(TerminalLayoutError::UnknownStructuralType(root))?;
-        if let Some(element) = borrowed_slice_element(&declaration.shape, access) {
-            self.get(element)
-                .ok_or(TerminalLayoutError::UnknownStructuralType(element))?;
-            Ok(ValueShape::integer(16, 8))
-        } else {
-            self.shape(root)
-        }
+        formal_storage_shape(&self.declarations, root, access, || self.shape(root))
     }
 
     pub fn field_shape(
@@ -511,6 +512,25 @@ pub struct OwnedSequenceLayout {
     pub shape: ValueShape,
 }
 
+fn formal_storage_shape(
+    declarations: &Declarations<'_>,
+    root: StructuralTypeId,
+    access: terminal_psi::StructuralAccess,
+    stored: impl FnOnce() -> Result<ValueShape, TerminalLayoutError>,
+) -> Result<ValueShape, TerminalLayoutError> {
+    let declaration = declarations
+        .get(root)
+        .ok_or(TerminalLayoutError::UnknownStructuralType(root))?;
+    if let Some(element) = borrowed_slice_element(&declaration.shape, access) {
+        declarations
+            .get(element)
+            .ok_or(TerminalLayoutError::UnknownStructuralType(element))?;
+        Ok(ValueShape::integer(16, 8))
+    } else {
+        stored()
+    }
+}
+
 /// The declaration of `[T]` can occur both as owned inline storage and as a
 /// borrowed formal transporting a pointer and a count. Only the occurrence
 /// supplies the permission that distinguishes their native representations.
@@ -585,9 +605,6 @@ pub fn element_view_length_at(
     }
 }
 
-/// Psi's owned sequence is a logical descriptor, but its native storage is an
-/// aggregate carrying the elements. Only actual view descriptors use the
-/// descriptor-specific native return and forwarding paths.
 /// Borrowing a boundary-opaque value transports the address alone. The shape
 /// describes the pointer word and supplies no size or alignment for its pointee.
 pub fn opaque_borrow_transport(
@@ -599,9 +616,22 @@ pub fn opaque_borrow_transport(
     .then_some(ValueShape::integer(8, 8))
 }
 
+/// Psi's owned sequence is a logical descriptor, but its native storage is an
+/// aggregate carrying the elements. Only actual view descriptors use the
+/// descriptor-specific native return and forwarding paths.
 pub fn is_native_view_descriptor(shape: &StructuralTypeShape) -> bool {
     shape.is_view_descriptor()
         && !matches!(shape, StructuralTypeShape::ElementView { access: None, .. })
+}
+
+/// A descriptor copy must distinguish a borrowed formal from inline owned storage,
+/// even when both occurrences have the same logical element sequence type.
+pub fn is_native_view_descriptor_at(
+    shape: &StructuralTypeShape,
+    formal_access: Option<terminal_psi::StructuralAccess>,
+) -> bool {
+    is_native_view_descriptor(shape)
+        || formal_access.is_some_and(|access| borrowed_slice_element(shape, access).is_some())
 }
 
 fn sequence_capacity(
@@ -1179,6 +1209,9 @@ mod owned_sequence_tests {
         let owned = rows[1].id;
         let bounds = [(owned, 3)];
         let geometry = NativeGeometry::with_owned_sequence_bounds(&rows, &bounds).unwrap();
+        for access in [None, Some(terminal_psi::StructuralAccess::Owned)] {
+            assert!(!is_native_view_descriptor_at(&rows[1].shape, access));
+        }
         let storage = geometry.owned_sequence(owned).unwrap();
         assert_eq!(
             (storage.elements_offset, storage.stride, storage.capacity),
@@ -1200,6 +1233,11 @@ mod owned_sequence_tests {
             terminal_psi::StructuralAccess::SharedBorrow,
             terminal_psi::StructuralAccess::MutableBorrow,
         ] {
+            assert!(is_native_view_descriptor_at(&rows[1].shape, Some(access)));
+            assert_eq!(
+                geometry.formal_storage_shape(owned, access),
+                layouts.formal_storage_shape(owned, access)
+            );
             assert_eq!(
                 element_view_length_at(&rows[1].shape, Some(access)),
                 Some(8)

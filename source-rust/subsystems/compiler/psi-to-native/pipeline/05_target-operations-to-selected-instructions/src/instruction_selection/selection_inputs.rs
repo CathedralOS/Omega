@@ -473,7 +473,7 @@ pub(crate) mod aggregate_result_input {
         arrivals, declares_block_parameter,
     };
     use crate::instruction_selection::structural_inputs::structural_reference_input::{
-        PointerSlot, descriptor_source_geometry, leaf_copy_projection, owned_storage_shape,
+        PointerSlot, descriptor_source_geometry_at, leaf_copy_projection, owned_storage_shape,
         primitive_array_shape, stored_value_shape,
     };
 
@@ -1303,10 +1303,10 @@ pub(crate) mod aggregate_result_input {
             ) {
                 return None;
             }
-            return crate::instruction_selection::structural_inputs::structural_reference_input::shape(
-                parameter.structural_type,
-                source.geometry(),
-            );
+            return source
+                .geometry()
+                .formal_storage_shape(parameter.structural_type, parameter.access)
+                .ok();
         }
         if parameter.access != terminal_psi::StructuralAccess::Owned {
             return None;
@@ -1344,7 +1344,7 @@ pub(crate) mod aggregate_result_input {
             return None;
         }
         let mut pointer_slots = Vec::new();
-        let mut presented_type = None;
+        let mut presentation = BorrowedReferentPresentation::Unchanged;
         let source_byte_offset = if argument.access == StructuralAccess::Owned {
             if !indices.is_empty() {
                 return None;
@@ -1413,7 +1413,13 @@ pub(crate) mod aggregate_result_input {
             {
                 return None;
             }
-            let geometry = descriptor_source_geometry(root, &argument.path, declarations)?;
+            let formal =
+                crate::instruction_selection::selection::arrival_parameter_input::parameter(
+                    source,
+                    argument.place,
+                );
+            let geometry =
+                descriptor_source_geometry_at(root, formal, &argument.path, declarations)?;
             if !geometry.readable
                 || !crate::instruction_selection::structural_inputs::runtime_indices_match(
                     indices,
@@ -1426,7 +1432,23 @@ pub(crate) mod aggregate_result_input {
             {
                 return None;
             }
-            presented_type = Some(geometry.selected);
+            presentation = terminal_semantics::borrowed_referent_presentation(
+                declarations.iter(),
+                geometry.selected,
+                parameter.structural_type,
+            )?;
+            let selected = declarations.declaration(geometry.selected).ok()?;
+            let formal_access = formal
+                .filter(|_| argument.path.is_empty())
+                .map(|row| row.access);
+            if presentation == BorrowedReferentPresentation::Unchanged
+                && !calling_conventions::terminal_layout::is_native_view_descriptor_at(
+                    &selected.shape,
+                    formal_access,
+                )
+            {
+                return None;
+            }
             pointer_slots = geometry.pointer_slots;
             geometry.byte_offset
         };
@@ -1442,16 +1464,6 @@ pub(crate) mod aggregate_result_input {
         let destination = LocalStorageSlotId::StructuralBlockParameter {
             block: target,
             place: parameter.place,
-        };
-        let presentation = if parameter.access == StructuralAccess::Owned {
-            BorrowedReferentPresentation::Unchanged
-        } else {
-            let actual = presented_type?;
-            terminal_semantics::borrowed_referent_presentation(
-                source.structural.as_ref()?.structural_types.iter(),
-                actual,
-                parameter.structural_type,
-            )?
         };
         let storage_offset = pointer_slots
             .first()
