@@ -298,6 +298,7 @@ fn visit_calls(
                 (when_true.target, Some((*condition, true))),
                 (when_false.target, Some((*condition, false))),
             ],
+            BlockTerminator::TerminalCall { completion: Some(target), .. } => vec![(*target, None)],
             _ => vec![],
         }
     };
@@ -388,25 +389,23 @@ fn visit_calls(
         if let BlockTerminator::TerminalCall { id, .. } = &block.terminator {
             inspect(CallSite::Edge(*id), &state)?;
         }
-        let outgoing: Vec<_> = match &block.terminator {
-            BlockTerminator::Jump(e) => vec![(e, None)],
-            BlockTerminator::Conditional {
-                condition,
-                when_true,
-                when_false,
-            } => vec![
-                (when_true, Some((*condition, true))),
-                (when_false, Some((*condition, false))),
-            ],
-            _ => vec![],
-        };
-        for (e, guard) in outgoing {
-            let to = e.target.get() - 1;
+        for (target, guard) in edges(block) {
+            let to = target.get() - 1;
             let mut next = state.clone();
-            if let Some((id, positive)) = guard {
-                next.branch(id, positive);
+            let edge = match &block.terminator {
+                BlockTerminator::Jump(e) => Some(e),
+                BlockTerminator::Conditional { when_true, when_false, .. } => {
+                    let (id, positive) = guard.expect("conditional edge carries its predicate");
+                    next.branch(id, positive);
+                    Some(if positive { when_true } else { when_false })
+                }
+                // The result is a fresh call output. No caller rank fact transfers to it.
+                BlockTerminator::TerminalCall { .. } => None,
+                _ => unreachable!("terminator has no successor"),
+            };
+            if let Some(edge) = edge {
+                next.bind_edge(b, edge, &b.blocks[to]).map_err(|s| fail(&s))?;
             }
-            next.bind_edge(b, e, &b.blocks[to]).map_err(|s| fail(&s))?;
             if let Some(prev) = &mut arrivals[to] {
                 prev.merge(&next)
             } else {

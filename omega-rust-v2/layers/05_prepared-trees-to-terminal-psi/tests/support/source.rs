@@ -183,7 +183,9 @@ pub fn lower_built_fixture(
     file: &str,
     source: &str,
 ) -> (Vec<omega_typed::TypingObligation>, LoweredPackage) {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(directory);
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(directory);
     let build = omega_toolchain::DefaultBuild::capture(&root).expect("capture the fixture package");
     assert_eq!(build.source_bytes(std::path::Path::new(file)).unwrap().as_ref(), source.as_bytes());
     let files = [(file, source)];

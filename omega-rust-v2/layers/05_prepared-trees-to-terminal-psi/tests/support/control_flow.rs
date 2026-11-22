@@ -63,7 +63,8 @@ pub fn check_operation_ownership(body: &MachineBody) -> Result<(), &'static str>
                 pending.push(when_false.target.get() - 1);
             }
             BlockTerminator::Jump(edge) => pending.push(edge.target.get() - 1),
-            BlockTerminator::Return { .. } | BlockTerminator::TerminalCall { .. } | BlockTerminator::ExternalExit(_) => {}
+            BlockTerminator::TerminalCall { completion: Some(target), .. } => pending.push(target.get() - 1),
+            BlockTerminator::Return { .. } | BlockTerminator::TerminalCall { completion: None, .. } | BlockTerminator::ExternalExit(_) => {}
         }
     }
     if reached.contains(&false) {

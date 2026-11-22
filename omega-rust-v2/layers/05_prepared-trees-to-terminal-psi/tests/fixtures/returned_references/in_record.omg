@@ -1,0 +1,4 @@
+data Box<'r> { r:@'r u8; }
+machine pick<'r>(k:@'r u8)->@'r u8 suspends { k }
+machine wait() suspends {}
+machine read<'r>(x:@'r u8)->Box<'r> suspends { let loan = suspend pick::<'r>(x); let item:Box<'r> = Box{r:loan}; suspend wait(); item }

@@ -375,7 +375,11 @@ impl<'unit> Admission<'unit, '_> {
                 }
                 cleanup_supported(&defined, cleanup).map_err(|reason| refuse(edge_site(*id), reason))?;
             }
+            BlockTerminator::TerminalCall { completion: Some(_), id, .. } => {
+                return Err(refuse(edge_site(*id), Reason::NotStraightLine));
+            }
             BlockTerminator::TerminalCall {
+                completion: None,
                 id,
                 callee,
                 arguments,

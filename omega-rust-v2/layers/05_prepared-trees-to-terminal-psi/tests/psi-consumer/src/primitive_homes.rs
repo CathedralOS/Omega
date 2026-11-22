@@ -190,29 +190,32 @@ impl<'a> ParkedCall<'a> {
                 (arguments.as_slice(), block, None)
             }
         };
-        match (site.continuation, resume) {
-            (CompletionContinuation::Operation(next), Some(after)) if next.index() == after => {}
-            (CompletionContinuation::Terminator(id), Some(after)) if id == block.id && after == block.operations.end => {}
-            (CompletionContinuation::Return, None) => {}
-            _ => return Err("continuation does not follow the call"),
+        let terminal_target = match &block.terminator {
+            BlockTerminator::TerminalCall { completion, .. } => *completion,
+            _ => None,
+        };
+        let expected = match resume {
+            Some(after) if after < block.operations.end => CompletionContinuation::Operation(body.operations[after].id),
+            Some(_) => CompletionContinuation::Terminator(block.id),
+            None => terminal_target.map_or(CompletionContinuation::Return, CompletionContinuation::Block),
+        };
+        if site.continuation != expected {
+            return Err("continuation does not follow the call");
         }
-        // Operations and terminators that can run after normal completion.
         let mut later: Vec<&OperationKind> = Vec::new();
         let mut terminators = Vec::new();
         if let Some(after) = resume {
-            later.extend(
-                body.operations[after..block.operations.end]
-                    .iter()
-                    .map(|op| &op.kind),
-            );
-            let mut pending = vec![block.id];
+            later.extend(body.operations[after..block.operations.end].iter().map(|op| &op.kind));
+        }
+        if let Some(first) = resume.map(|_| block.id).or(terminal_target) {
+            let mut pending = vec![first];
             let mut seen: Vec<BlockId> = Vec::new();
             while let Some(id) = pending.pop() {
                 if seen.contains(&id) {
                     continue;
                 }
                 seen.push(id);
-                let current = &body.blocks[id.get() - 1];
+                let current = body.blocks.get(id.get() - 1).ok_or("completion names no block")?;
                 if id != block.id {
                     later.extend(
                         body.operations[current.operations.clone()]
@@ -224,6 +227,7 @@ impl<'a> ParkedCall<'a> {
                 match &current.terminator {
                     BlockTerminator::Jump(edge) => pending.push(edge.target),
                     BlockTerminator::Conditional { when_true, when_false, .. } => pending.extend([when_true.target, when_false.target]),
+                    BlockTerminator::TerminalCall { completion: Some(target), .. } => pending.push(*target),
                     _ => {}
                 }
             }

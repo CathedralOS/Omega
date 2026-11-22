@@ -46,6 +46,7 @@ impl<'a> Windows<'a> {
             let targets = match &block.terminator {
                 BlockTerminator::Jump(edge) => vec![edge.target],
                 BlockTerminator::Conditional { when_true, when_false, .. } => vec![when_true.target, when_false.target],
+                BlockTerminator::TerminalCall { completion: Some(target), .. } => vec![*target],
                 _ => Vec::new(),
             };
             // A block's entry goes from unvisited to its first arrival's state,

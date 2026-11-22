@@ -1,0 +1,9 @@
+machine pick<'r>(flag:bool,first:@'r mutable u64,second:@'r mutable u64)->@'r mutable u64 {
+    match flag {true -> first, false -> second,}
+}
+machine wait() suspends {}
+machine read<'r>(flag:bool, first:@'r mutable u64,second:@'r mutable u64)->u64 suspends {
+    let loan=pick::<'r>(flag,first,second);
+    suspend wait();
+    $loan
+}

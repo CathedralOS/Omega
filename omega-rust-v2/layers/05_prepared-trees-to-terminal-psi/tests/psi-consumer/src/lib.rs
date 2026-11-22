@@ -309,6 +309,8 @@ mod primitive_homes;
 pub use primitive_homes::borrowed_scalar_formal;
 mod copyable_homes;
 pub use copyable_homes::{CopyableHome, parked_copyable_homes};
+mod returned_aggregate_backing;
+pub use returned_aggregate_backing::returned_aggregate_backing;
 pub use primitive_homes::{HomeEvent, ParkedHome, PrimitiveHome, parked_homes, primitive_homes};
 
 mod scalar_terms;
@@ -338,3 +340,6 @@ pub mod sum_cleanup;
 pub mod selector_dispatch;
 
 pub mod parked_local_descriptor;
+
+mod parked_returned_reference;
+pub use parked_returned_reference::parked_reference_inputs;

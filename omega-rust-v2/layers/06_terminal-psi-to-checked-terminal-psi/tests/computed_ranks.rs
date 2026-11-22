@@ -187,3 +187,26 @@ fn the_checker_checks_the_selected_view_and_rejects_orphaned_arithmetic_occurren
             .contains("occurrence")
     );
 }
+
+#[test]
+fn rank_traversal_reaches_a_terminal_calls_normal_cleanup() {
+    let mut unit = lower("const K:u64=3;
+        data Token { v:u8; }
+        data Lease dropped by release { id:u8; }
+        machine release(x:Lease) { let Lease{id as _}=x; }
+        data Choice { case A(x:Lease); case B(x:Token); }
+        machine relay(n:u64)->u64 { n }
+        machine forward(n:u64, extra:Choice)->u64 requires n <= 100 terminates by K + n {
+            transition { _ -> relay(n), }
+        }");
+    check_computed_ranks(&unit).unwrap();
+    let forward = unit.machines.iter_mut().find(|m| m.declaration.path == "forward").unwrap();
+    let returned = forward.body.blocks.iter().find(|block| matches!(block.terminator, BlockTerminator::Return { .. })).unwrap().id;
+    let target = forward.body.blocks.iter_mut().find_map(|block| match &mut block.terminator {
+        BlockTerminator::TerminalCall { completion: Some(target), .. } => Some(target),
+        _ => None,
+    }).expect("terminal call has tag-dependent cleanup");
+    // Bypassing the cleanup makes previously reachable blocks unreachable.
+    *target = returned;
+    assert!(check_computed_ranks(&unit).is_err());
+}

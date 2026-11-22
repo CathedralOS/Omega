@@ -199,7 +199,12 @@ impl<'a> ReturnInputs<'a> {
                     result: ReturnEdge::Structural { source, .. },
                     ..
                 } => slots.extend(origins[source.index()].as_ref()?),
-                BlockTerminator::TerminalCall { callee, arguments, .. } => {
+                BlockTerminator::TerminalCall {
+                    callee,
+                    arguments,
+                    completion: None,
+                    ..
+                } => {
                     for actual in self.actuals(*callee, arguments)? {
                         match actual {
                             ViewSource::Input(actual) => slots.extend(origins[actual.index()].as_ref()?),
@@ -233,16 +238,41 @@ pub(super) fn input_origins(
             destinations[source.index()].push(target.index());
         }
     };
-    for op in &body.operations {
-        if let (OperationKind::Call { callee, arguments, .. }, OperationResult::Structural(result)) = (&op.kind, op.result)
-            && let Some(sources) = returns.actuals(*callee, arguments)
-        {
-            for source in sources {
-                match source {
-                    ViewSource::Input(source) => arrival(result, Some(source)),
-                    ViewSource::Provider => provided[result.index()] = true,
+    // Ordinary completions name an operation result. A terminal completion
+    // with a cleanup continuation binds that result to the target parameter.
+    let ordinary = body
+        .operations
+        .iter()
+        .filter_map(|op| match (&op.kind, op.result) {
+            (OperationKind::Call { callee, arguments, .. }, OperationResult::Structural(result)) => Some((*callee, arguments, result)),
+            _ => None,
+        });
+    let terminal = body.blocks.iter().filter_map(|block| {
+        let BlockTerminator::TerminalCall {
+            callee,
+            arguments,
+            completion: Some(target),
+            ..
+        } = &block.terminator
+        else {
+            return None;
+        };
+        let [result] = body.blocks[target.get() - 1].structural_parameters.as_slice() else {
+            return None;
+        };
+        Some((*callee, arguments, *result))
+    });
+    for (callee, arguments, result) in ordinary.chain(terminal) {
+        match returns.actuals(callee, arguments) {
+            Some(sources) => {
+                for source in sources {
+                    match source {
+                        ViewSource::Input(source) => arrival(result, Some(source)),
+                        ViewSource::Provider => provided[result.index()] = true,
+                    }
                 }
             }
+            None => arrival(result, None),
         }
     }
     let mut edge = |edge: &SuccessorEdge| {

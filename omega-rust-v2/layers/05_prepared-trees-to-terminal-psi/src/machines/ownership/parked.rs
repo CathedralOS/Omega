@@ -4,6 +4,14 @@ use crate::{
     PlaceOrigin, PsiOperation, ReferenceAccess, SuccessorEdge, ValueOperand, WritableLoanSite,
 };
 
+#[path = "returned_backings.rs"]
+mod returned_backings;
+pub(crate) use returned_backings::ReturnBackings;
+
+fn exclusive_reference(ty: TypeId, types: &crate::LoweringTypes) -> bool {
+    matches!(types.get(ty), Some(TypeShape::ScalarReference { access, .. } | TypeShape::NominalReference { access, .. }) if *access != ReferenceAccess::Shared)
+}
+
 const UNTRACED_DESCRIPTOR: &str = "parking this owner requires the backing of its embedded descriptors";
 
 /// Ownership reaches a call in forward execution order; liveness visits it
@@ -496,20 +504,20 @@ impl<'a> Arrivals<'a> {
                 };
                 let field = fields.iter().find(|field| &field.field == name)?;
                 let source = match field.operand {
-                    ValueOperand::CopyWhole(source) => source,
-                    // A descriptor itself is copied; an aggregate holding it may move.
-                    ValueOperand::MoveWhole(source) if path.len() > 1 => source,
+                    ValueOperand::CopyWhole(source) if !exclusive_reference(ty, self.context.types) => source,
+                    ValueOperand::MoveWhole(source) => source,
                     _ => return None,
                 };
                 path.remove(0);
                 self.value(source, path, ty, at)
             }
+            OperationKind::CopyStructural { .. } if exclusive_reference(ty, self.context.types) => None,
             OperationKind::MoveStructural { source } | OperationKind::CopyStructural { source } => {
                 let root = rebase(source, &mut path)?;
                 self.value(root, path, ty, at)
             }
-            OperationKind::Call { callee: crate::CallTarget::Machine(_), .. }
-                if !path.is_empty() && field_type(body.places[place.index()].ty, &path, self.context)? == ty =>
+            OperationKind::Call { callee: crate::CallTarget::Machine(_) | crate::CallTarget::Member(_), .. }
+                if field_type(body.places[place.index()].ty, &path, self.context)? == ty =>
             {
                 Some(vec![EmbeddedLoanOrigin {
                     arrival: Vec::new(),
@@ -517,10 +525,7 @@ impl<'a> Arrivals<'a> {
                     reborrows: Vec::new(),
                 }])
             }
-            OperationKind::BorrowPlace {
-                source,
-                access: ReferenceAccess::Shared,
-            } if path.is_empty() && body.places[place.index()].ty == ty => {
+            OperationKind::BorrowPlace { source, .. } if path.is_empty() && body.places[place.index()].ty == ty => {
                 let Some(referent) = source.path.iter().position(|step| *step == PlaceProjection::Referent) else {
                     // A borrow of local storage begins here. Its operation names
                     // the captured place, even when two homes have the same type.
@@ -542,10 +547,8 @@ impl<'a> Arrivals<'a> {
                     self.context.types.get(expected),
                     Some(
                         TypeShape::ScalarReference {
-                            access: ReferenceAccess::Shared,
                             ..
                         } | TypeShape::NominalReference {
-                            access: ReferenceAccess::Shared,
                             ..
                         }
                     )
@@ -675,8 +678,8 @@ impl<'a> Arrivals<'a> {
                     .iter()
                     .position(|parameter| parameter == place)?;
                 let argument = match successor.structural_arguments.get(position)? {
-                    ValueOperand::CopyWhole(argument) => *argument,
-                    ValueOperand::MoveWhole(argument) if !path.is_empty() => *argument,
+                    ValueOperand::CopyWhole(argument) if !exclusive_reference(*ty, self.context.types) => *argument,
+                    ValueOperand::MoveWhole(argument) => *argument,
                     _ => return None,
                 };
                 self.value(argument, path.clone(), *ty, end)
@@ -978,12 +981,27 @@ impl OwnedCrossings {
         sites: &mut [crate::SuspensionSite],
         types: &crate::LoweringTypes,
         data: &[crate::LoweredData],
+        returned: &mut ReturnBackings<'_>,
     ) -> Result<(), LoweringError> {
         use std::collections::BTreeMap;
 
         let context = CleanupContext { places: &body.places, types, data, site: &body.diagnostics.body };
         let mut arrivals = None;
         for site in sites {
+            let returned_references = site.retained_loans.iter().filter(|loan| {
+                matches!(types.get(loan.ty), Some(TypeShape::ScalarReference { .. } | TypeShape::NominalReference { .. }))
+                    && match body.places[loan.descriptor.index()].origin {
+                        PlaceOrigin::BlockParameter(_) => true,
+                        PlaceOrigin::Operation(id) => matches!(body.operations[id.index()].kind, OperationKind::Call { .. } | OperationKind::MoveStructural { .. } | OperationKind::CopyStructural { .. }),
+                        _ => false,
+                    }
+            });
+            if site.retained_homes.is_empty()
+                && site.retained_owners.iter().all(|owner| owner.embedded_loans.is_empty())
+                && returned_references.clone().next().is_none()
+            {
+                continue;
+            }
             let source = match site.call {
                 CallSite::Operation(id) => &body.diagnostics.operations[id.index()],
                 CallSite::Edge(id) => &body.diagnostics.edges[id.get() - 1],
@@ -991,25 +1009,35 @@ impl OwnedCrossings {
             };
             let at_call = CleanupContext { site: source, ..context };
             let refuse = || LoweringError::new(source, UNTRACED_DESCRIPTOR);
+            let tracer = arrivals.get_or_insert_with(|| Arrivals::new(body, &context));
+            let crossing = tracer.crossing(site.call).ok_or_else(refuse)?;
             let mut pending: Vec<_> = site.retained_homes.drain(..)
-                .map(|home| (home.place, home.needed_by_callee, home.needed_after_completion)).collect();
+                .map(|home| (home.place, home.needed_by_callee, home.needed_after_completion, false)).collect();
             let mut homes = BTreeMap::<usize, crate::RetainedHome>::new();
             let mut seen = BTreeMap::<usize, (bool, bool)>::new();
             let mut checked_backings = std::collections::BTreeSet::new();
 
             for owner in &site.retained_owners {
-                if local_backings(body, &owner.embedded_loans).next().is_none() {
+                if owner.embedded_loans.is_empty() {
                     continue;
                 }
-                let tracer = arrivals.get_or_insert_with(|| Arrivals::new(body, &context));
-                let call = tracer.crossing(site.call).ok_or_else(refuse)?;
                 let transferred = matches!(owner.custody, crate::OwnedCustody::CalleeArgument(_));
-                let borrowed = call.arguments.iter().any(|argument| matches!(argument, ValueOperand::Borrow { place, .. }
+                let borrowed = crossing.arguments.iter().any(|argument| matches!(argument, ValueOperand::Borrow { place, .. }
                     if crate::machines::loans::captured_place(body, place).root == owner.place));
-                pending.push((owner.place, transferred || borrowed, !transferred));
+                pending.push((owner.place, transferred || borrowed, !transferred, false));
             }
 
-            while let Some((place, callee, after)) = pending.pop() {
+            for loan in returned_references {
+                let untraced = || LoweringError::new(source, "suspension needs the exact backing of the live structural place");
+                let origins = tracer.value(loan.descriptor, Vec::new(), loan.ty, crossing.at).ok_or_else(untraced)?;
+                let backings = returned.local_backings(tracer, origins.iter()).ok_or_else(untraced)?;
+                pending.extend(backings.into_iter().map(|place| (place, loan.needed_by_callee, loan.needed_after_completion, true)));
+            }
+
+            while let Some((place, callee, after, backing)) = pending.pop() {
+                if backing && checked_backings.insert(place.index()) && !tracer.established_before(place, crossing.at) {
+                    return Err(LoweringError::new(source, "parked loan backing is established only on some arrivals"));
+                }
                 let need = seen.entry(place.index()).or_default();
                 if (!callee || need.0) && (!after || need.1) {
                     continue;
@@ -1034,8 +1062,6 @@ impl OwnedCrossings {
                             let root = LiveRoot { place, moved: Vec::new() };
                             let mut loans = embedded_loans(&root, ty, &at_call, &mut self.embeds)?;
                             if !loans.is_empty() {
-                                let tracer = arrivals.get_or_insert_with(|| Arrivals::new(body, &context));
-                                let crossing = tracer.crossing(site.call).ok_or_else(refuse)?;
                                 tracer.trace_loans(&crossing, place, &mut loans, None).ok_or_else(refuse)?;
                             }
                             entry.insert(crate::RetainedHome { place, ty, needed_by_callee: false,
@@ -1046,28 +1072,11 @@ impl OwnedCrossings {
                     home.needed_after_completion = need.1;
                     &home.embedded_loans
                 };
-                for backing in local_backings(body, loans) {
-                    if checked_backings.insert(backing.index()) {
-                        let tracer = arrivals.get_or_insert_with(|| Arrivals::new(body, &context));
-                        let crossing = tracer.crossing(site.call).ok_or_else(refuse)?;
-                        if !tracer.established_before(backing, crossing.at) {
-                            return Err(LoweringError::new(source, "parked loan backing is established only on some arrivals"));
-                        }
-                    }
-                    pending.push((backing, callee, after));
-                }
+                let backings = returned.local_backings(tracer, loans.iter().flat_map(|loan| &loan.origins)).ok_or_else(refuse)?;
+                pending.extend(backings.into_iter().map(|place| (place, callee, after, true)));
             }
             site.retained_homes.extend(homes.into_values());
         }
         Ok(())
     }
-}
-
-/// Each possible arrival can keep a different captured allocation alive.
-fn local_backings<'a>(body: &'a MachineBody, loans: &'a [crate::EmbeddedLoan]) -> impl Iterator<Item = PlaceId> + 'a {
-    loans.iter().flat_map(|loan| &loan.origins).filter_map(|origin| {
-        let EmbeddedLoanSource::Borrow { operation } = origin.source else { return None };
-        let OperationKind::BorrowPlace { source, .. } = &body.operations[operation.index()].kind else { unreachable!("borrow formation") };
-        Some(source.root)
-    })
 }

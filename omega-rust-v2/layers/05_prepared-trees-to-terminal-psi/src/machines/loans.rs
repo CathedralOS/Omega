@@ -390,7 +390,7 @@ impl Replacement {
             ) else {
                 unreachable!("an extracted field produces an owned place")
             };
-            super::ownership::dispose_temporary(expressions, body, flow, old, site.clone())?;
+            super::ownership::dispose_temporary(body, flow, old, site.clone());
             crate::StructuralStoreDisposition::FillVacancy
         };
         body.push_operation(

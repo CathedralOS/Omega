@@ -1,0 +1,3 @@
+machine pick(k:@u64)->@u64 suspends { k }
+machine wait() suspends {}
+machine read(x:@u64)->u64 suspends { let loan = suspend pick(x); suspend wait(); $loan }

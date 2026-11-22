@@ -261,6 +261,25 @@ impl<'a> Liveness<'a> {
         }
         self.keys.cleanup(&edge.cleanup, |key| live[key] = true);
     }
+    fn after_terminal_call(
+        &self,
+        completion: Option<crate::BlockId>,
+        cleanup: &[CleanupAction],
+        live: &mut [bool],
+    ) {
+        if let Some(target) = completion {
+            let target = &self.body.blocks[target.get() - 1];
+            live.copy_from_slice(&self.at_entry[target.id.get() - 1]);
+            // The call produces these values only on successful completion.
+            for p in &target.scalar_parameters {
+                live[p.index()] = false;
+            }
+            for p in &target.structural_parameters {
+                live[self.keys.place(*p)] = false;
+            }
+        }
+        self.keys.cleanup(cleanup, |key| live[key] = true);
+    }
     fn before_terminator(
         &self,
         block: &BranchBlock,
@@ -287,10 +306,10 @@ impl<'a> Liveness<'a> {
                 self.keys.cleanup(cleanup, |key| reads.push(key));
             }
             BlockTerminator::TerminalCall {
-                callee, arguments, cleanup, ..
+                callee, arguments, cleanup, completion, ..
             } => {
+                self.after_terminal_call(*completion, cleanup, &mut live);
                 self.keys.call(*callee, arguments, &mut reads);
-                self.keys.cleanup(cleanup, |key| reads.push(key));
             }
             BlockTerminator::ExternalExit(exit) => {
                 for arg in &exit.arguments {
@@ -506,11 +525,18 @@ impl<'a> Liveness<'a> {
             // A boundary result remains
             // anchored at its producing call, with an input lifetime dependency
             // or, for a caller-chosen lifetime, with only the provider's backing.
+            // For local reference results and joins the selected descriptor is
+            // live. trace_home_loans follows every possible arrival and keeps
+            // its backing, including when exclusive returns select different inputs.
+            let reference = matches!(types.get(place.ty), Some(TypeShape::ScalarReference { .. } | TypeShape::NominalReference { .. }));
             let traceable = match place.origin {
                 crate::PlaceOrigin::Parameter => true,
                 crate::PlaceOrigin::Operation(id) if let OperationKind::BorrowPlace { source, .. } = &self.body.operations[id.index()].kind => {
                     self.borrow_backing(source, owners, types, returns, site)?
                 }
+                crate::PlaceOrigin::BlockParameter(_) if reference => true,
+                crate::PlaceOrigin::Operation(id) if reference && matches!(self.body.operations[id.index()].kind,
+                    OperationKind::Call { .. } | OperationKind::MoveStructural { .. } | OperationKind::CopyStructural { .. }) => true,
                 crate::PlaceOrigin::BlockParameter(_) | crate::PlaceOrigin::Operation(_) => self
                     .input_origins
                     .get_or_init(|| input_origins(self.body, returns))[index]
@@ -603,13 +629,14 @@ pub(crate) fn plan_package(
     // Every local callee's return edges now exist. Scalar-only crossings do
     // not need to compute which inputs can back a returned view.
     let returns = LazyCell::new(|| ReturnInputs::from_machines(machines, types, members));
+    let mut returned_backings = super::ownership::ReturnBackings::new(machines, members, types, data);
     let sites = machines
         .iter()
         .zip(crossing_owners)
         .map(|(machine, owners)| {
             // The same authored selector premises that chose each store's disposition.
             let premises = super::view_loans::selector_premises(&machine.contract.requires, &machine.body.parameters);
-            plan(&machine.body, &premises, data, types, callees, &returns, owners)
+            plan(&machine.body, &premises, data, types, callees, &returns, (owners, &mut returned_backings))
         })
         .collect::<Result<Vec<_>, _>>()?;
     for (machine, crossings) in machines.iter_mut().zip(sites) {
@@ -625,7 +652,7 @@ fn plan<'members>(
     types: &LoweringTypes,
     callees: &Callees<'_>,
     returns: &LazyCell<ReturnInputs<'members>, impl FnOnce() -> ReturnInputs<'members>>,
-    owners: &mut super::ownership::OwnedCrossings,
+    (owners, returned_backings): (&mut super::ownership::OwnedCrossings, &mut super::ownership::ReturnBackings<'_>),
 ) -> Result<Vec<SuspensionSite>, LoweringError> {
     let first = body
         .operations
@@ -656,19 +683,20 @@ fn plan<'members>(
             callee,
             arguments,
             cleanup,
+            completion,
             ..
         } = &block.terminator
             && callees.may_park(*callee)
         {
             let mut after = vec![false; body.values.len() + body.places.len()];
-            graph.keys.cleanup(cleanup, |key| after[key] = true);
+            graph.after_terminal_call(*completion, cleanup, &mut after);
             let site = &body.diagnostics.edges[id.get() - 1];
             let retained_owners = owners.take(CallSite::Edge(*id));
             let (activation, retained_callables, retained_loans, retained_homes) = graph.activation(site, *callee, arguments, &after, &retained_owners, types, returns)?;
             crossings.push(SuspensionSite {
                 call: CallSite::Edge(*id),
                 callee: *callee,
-                continuation: CompletionContinuation::Return,
+                continuation: completion.map_or(CompletionContinuation::Return, CompletionContinuation::Block),
                 activation,
                 retained_callables,
                 retained_loans,
@@ -708,6 +736,6 @@ fn plan<'members>(
         }
         crossings[start..].reverse();
     }
-    owners.trace_home_loans(body, &mut crossings, types, data)?;
+    owners.trace_home_loans(body, &mut crossings, types, data, returned_backings)?;
     Ok(crossings)
 }

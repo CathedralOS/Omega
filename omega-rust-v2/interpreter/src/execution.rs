@@ -447,8 +447,11 @@ impl<'unit> Execution<'_, 'unit> {
                     self.install(expected, returned.map(|(value, _)| value))
                         .map_err(|fault| (fault, Some(awaiting)))?;
                 }
+                BlockTerminator::TerminalCall { completion: Some(_), .. } => {
+                    return Err(located(Fault::Inconsistent("an admitted terminal call branches on completion")));
+                }
                 BlockTerminator::TerminalCall {
-                    callee, arguments, cleanup, ..
+                    completion: None, callee, arguments, cleanup, ..
                 } => {
                     let callee = self.enter(callee, arguments).map_err(located)?;
                     self.cleanup(cleanup).map_err(located)?;

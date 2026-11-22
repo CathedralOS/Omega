@@ -776,7 +776,7 @@ impl Expressions<'_> {
                             // The projected scalar is independent once read. The expression owned
                             // its temporary receiver, including any cleanup declared for its type.
                             if super::ownership::owned(block.places[root.index()].ty, self.types, self.data) {
-                                super::ownership::dispose_temporary(self, block, flow, root, site)?;
+                                super::ownership::dispose_temporary(block, flow, root, site);
                             }
                             continue;
                         }
