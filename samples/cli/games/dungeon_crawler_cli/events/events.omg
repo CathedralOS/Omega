@@ -1,3 +1,5 @@
+use enemies\Enemy;
+use rewards\Reward;
 
 data RoomEventKind [copy] {
     case Nothing;

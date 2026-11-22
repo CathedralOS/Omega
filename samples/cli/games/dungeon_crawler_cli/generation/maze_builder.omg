@@ -1,3 +1,27 @@
+use text;
+use enemies\Enemy;
+use enemies\EnemyKind;
+use events\RoomEvent;
+use events\RoomEventKind;
+use events\RoomEvents;
+use events\roll_event;
+use inventory\ItemKind;
+use rewards\Reward;
+use rewards\RewardKind;
+use rng\Random;
+use rng\RandomState;
+use rng\chance;
+use rooms\CellId;
+use rooms\Direction;
+use rooms\Exit;
+use rooms\Level;
+use rooms\Room;
+use rooms\append_exit;
+use rooms\room_mut;
+use text\ExitCommand;
+use text\enemy_name_set;
+use text\room_description_set;
+use text\room_label_set;
 use omega\language\core\max_u32;
 use omega\language\core\max_u64;
 
@@ -13,16 +37,16 @@ machine build(
     level: @mutable Level
 ) {
     let mutable random: RandomState;
-    seed(seed, @mutable random);
+    rng\seed(seed, @mutable random);
     clear_level(maze_builder, level);
 
     level.start_cell = CellId::R00;
     level.room_count = 0;
-    level.deepest_depth = 0;
+    level.deepest_depth = 0u32 as +Wrapping;
 
     // The crawl begins at the bottom of the dungeon, in the bottomless dark
     // room near the dungeon heart; the maze climbs outward toward the surface.
-    carve_room(maze_builder, level, @mutable random, CellId::R00, 9, 0);
+    carve_room(maze_builder, level, @mutable random, CellId::R00, 9u32 as +Wrapping, 0u32 as +Wrapping);
     force_quiet_room(maze_builder, level, CellId::R00);
     transition {
         _ -> build_main_hall_1(maze_builder, level, @mutable random)
@@ -34,7 +58,7 @@ machine build(
         level: @mutable Level,
         random: @mutable RandomState
     ) {
-        build_segment(maze_builder, level, random, CellId::R00, CellId::R01, 1, 0, Direction::North);
+        build_segment(maze_builder, level, random, CellId::R00, CellId::R01, 1u32 as +Wrapping, 0u32 as +Wrapping, Direction::North);
 
         transition {
             _ -> maybe_side_room_1(maze_builder, level, random)
@@ -46,7 +70,7 @@ machine build(
         level: @mutable Level,
         random: @mutable RandomState
     ) {
-        transition should_carve(maze_builder, random, 2) {
+        transition should_carve(maze_builder, random, 2u32 as +Wrapping) {
             true -> build_side_room_1(maze_builder, level, random),
             false -> build_main_hall_2(maze_builder, level, random)
         }
@@ -57,7 +81,7 @@ machine build(
         level: @mutable Level,
         random: @mutable RandomState
     ) {
-        build_segment(maze_builder, level, random, CellId::R01, CellId::R05, 2, 10, Direction::East);
+        build_segment(maze_builder, level, random, CellId::R01, CellId::R05, 2u32 as +Wrapping, 10u32 as +Wrapping, Direction::East);
 
         transition {
             _ -> build_main_hall_2(maze_builder, level, random)
@@ -69,7 +93,7 @@ machine build(
         level: @mutable Level,
         random: @mutable RandomState
     ) {
-        build_segment(maze_builder, level, random, CellId::R01, CellId::R02, 2, 0, Direction::North);
+        build_segment(maze_builder, level, random, CellId::R01, CellId::R02, 2u32 as +Wrapping, 0u32 as +Wrapping, Direction::North);
 
         transition {
             _ -> maybe_side_room_2(maze_builder, level, random)
@@ -81,7 +105,7 @@ machine build(
         level: @mutable Level,
         random: @mutable RandomState
     ) {
-        transition should_carve(maze_builder, random, 3) {
+        transition should_carve(maze_builder, random, 3u32 as +Wrapping) {
             true -> build_side_room_2(maze_builder, level, random),
             false -> build_main_hall_3(maze_builder, level, random)
         }
@@ -92,7 +116,7 @@ machine build(
         level: @mutable Level,
         random: @mutable RandomState
     ) {
-        build_segment(maze_builder, level, random, CellId::R02, CellId::R06, 3, 11, Direction::West);
+        build_segment(maze_builder, level, random, CellId::R02, CellId::R06, 3u32 as +Wrapping, 11u32 as +Wrapping, Direction::West);
 
         transition {
             _ -> build_main_hall_3(maze_builder, level, random)
@@ -104,7 +128,7 @@ machine build(
         level: @mutable Level,
         random: @mutable RandomState
     ) {
-        build_segment(maze_builder, level, random, CellId::R02, CellId::R03, 3, 0, Direction::North);
+        build_segment(maze_builder, level, random, CellId::R02, CellId::R03, 3u32 as +Wrapping, 0u32 as +Wrapping, Direction::North);
 
         transition {
             _ -> maybe_side_room_3(maze_builder, level, random)
@@ -116,7 +140,7 @@ machine build(
         level: @mutable Level,
         random: @mutable RandomState
     ) {
-        transition should_carve(maze_builder, random, 4) {
+        transition should_carve(maze_builder, random, 4u32 as +Wrapping) {
             true -> build_side_room_3(maze_builder, level, random),
             false -> build_main_hall_4(maze_builder, level, random)
         }
@@ -127,7 +151,7 @@ machine build(
         level: @mutable Level,
         random: @mutable RandomState
     ) {
-        build_segment(maze_builder, level, random, CellId::R03, CellId::R07, 4, 12, Direction::East);
+        build_segment(maze_builder, level, random, CellId::R03, CellId::R07, 4u32 as +Wrapping, 12u32 as +Wrapping, Direction::East);
 
         transition {
             _ -> build_main_hall_4(maze_builder, level, random)
@@ -139,7 +163,7 @@ machine build(
         level: @mutable Level,
         random: @mutable RandomState
     ) {
-        build_segment(maze_builder, level, random, CellId::R03, CellId::R04, 4, 0, Direction::North);
+        build_segment(maze_builder, level, random, CellId::R03, CellId::R04, 4u32 as +Wrapping, 0u32 as +Wrapping, Direction::North);
         level.room_count = 8;
         level.deepest_depth = max_u32(level.deepest_depth as u32, 4) as u32 +Wrapping;
     }
@@ -197,11 +221,11 @@ machine clear_room(
     cell: CellId
 ) {
     room.cell = cell;
-    room.depth = 0;
-    room.branch = 0;
-    room_label_set(@mutable room.label, "");
-    room_description_set(@mutable room.description, "");
-    room.exit_count = 0;
+    room.depth = 0u32 as +Wrapping;
+    room.branch = 0u32 as +Wrapping;
+    room_label_set(@mutable room.label, "" as +Ascii);
+    room_description_set(@mutable room.description, "" as +Ascii);
+    room.exit_count = 0u64 as +Wrapping;
     room.discovered = false;
     clear_exits(maze_builder, room);
     clear_event(maze_builder, @mutable room.event);
@@ -230,7 +254,7 @@ machine clear_event(
 
 machine blank_exit() -> Exit {
     Exit {
-        command: ExitCommand { used: 0 },
+        command: ExitCommand { used: 0, .. },
         direction: Direction::North,
         destination: CellId::Empty
     }
@@ -239,13 +263,13 @@ machine blank_exit() -> Exit {
 machine empty_enemy() -> Enemy {
     let mutable enemy: Enemy;
     enemy.kind = EnemyKind::Bat;
-    enemy_name_set(@mutable enemy.name, "");
-    enemy.max_health = 1;
-    enemy.health = 1;
-    enemy.attack = 1;
-    enemy.defense = 0;
-    enemy.xp_reward = 0;
-    enemy.depth = 0;
+    enemy_name_set(@mutable enemy.name, "" as +Ascii);
+    enemy.max_health = 1i32 as +Wrapping;
+    enemy.health = 1i32 as +Wrapping;
+    enemy.attack = 1i32 as +Wrapping;
+    enemy.defense = 0i32 as +Wrapping;
+    enemy.xp_reward = 0u32 as +Wrapping;
+    enemy.depth = 0u32 as +Wrapping;
 
     transition {
         _ -> enemy
@@ -255,7 +279,7 @@ machine empty_enemy() -> Enemy {
 machine maze_builder_empty_reward() -> Reward {
     Reward {
         kind: RewardKind::None,
-        gold: 0,
+        gold: 0u32 as +Wrapping,
         item: ItemKind::RustedDagger
     }
 }
@@ -265,8 +289,8 @@ machine should_carve(
     random: @mutable RandomState,
     depth: u32 in Wrapping
     ) -> bool {
-    let chance: u32 in Wrapping = max_u32(15, (80 - depth * 6) as u32) as u32 +Wrapping;
-    let rolled: bool = chance(@mutable maze_builder.rng, random, chance, 100);
+    let carve_probability: u32 in Wrapping = max_u32(15, (80 - depth * 6) as u32) as u32 +Wrapping;
+    let rolled: bool = chance(@mutable maze_builder.rng, random, carve_probability, 100u32 as +Wrapping);
 
     transition {
         _ -> rolled
@@ -291,7 +315,7 @@ machine carve_room(
     room.branch = branch_id;
     room_label_set(@mutable room.label, room_label(cell));
     room_description_set(@mutable room.description, room_description(depth, branch_id));
-    room.exit_count = 0;
+    room.exit_count = 0u64 as +Wrapping;
     room.discovered = cell == start_cell;
     roll_event(@mutable maze_builder.events, depth, random, @mutable room.event);
     level.room_count = max_u64(level.room_count, index + 1);
@@ -361,8 +385,8 @@ machine room_label(cell: CellId) -> @[u8] in Ascii
 ensures result.length <= 16
 {
     transition {
-        cell == CellId::R00 -> "Gate",
-        _ -> "Branch Room"
+        cell == CellId::R00 -> "Gate" as +Ascii,
+        _ -> "Branch Room" as +Ascii
     }
 }
 
@@ -371,11 +395,11 @@ machine room_description(depth: u32 in Wrapping,
 ensures result.length <= 64
 {
     transition {
-        depth == 0 -> "The old gate room breathes cold air from below.",
-        depth <= 2 -> "A shallow limestone room with fresh claw marks.",
-        depth <= 5 -> "A winding branch room where the walls sweat mineral dust.",
-        depth <= 8 -> "A deep chamber with old bones underfoot.",
-        _ -> "A bottomless dark room near the dungeon heart."
+        depth == 0 -> "The old gate room breathes cold air from below." as +Ascii,
+        depth <= 2 -> "A shallow limestone room with fresh claw marks." as +Ascii,
+        depth <= 5 -> "A winding branch room where the walls sweat mineral dust." as +Ascii,
+        depth <= 8 -> "A deep chamber with old bones underfoot." as +Ascii,
+        _ -> "A bottomless dark room near the dungeon heart." as +Ascii
     }
 }
 
@@ -383,10 +407,10 @@ machine direction_command(direction: Direction) -> @[u8] in Ascii
 ensures result.length <= 8
 {
     transition {
-        direction == Direction::North -> "north",
-        direction == Direction::South -> "south",
-        direction == Direction::East -> "east",
-        _ -> "west"
+        direction == Direction::North -> "north" as +Ascii,
+        direction == Direction::South -> "south" as +Ascii,
+        direction == Direction::East -> "east" as +Ascii,
+        _ -> "west" as +Ascii
     }
 }
 

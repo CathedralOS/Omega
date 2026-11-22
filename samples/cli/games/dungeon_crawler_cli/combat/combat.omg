@@ -1,3 +1,15 @@
+use events\RoomEvent;
+use player\Player;
+use player\PlayerSystem;
+use player\grant_reward;
+use player\grant_xp;
+use player\take_damage;
+use rewards\Reward;
+use rewards\RewardTables;
+use rewards\roll_enemy_reward;
+use rng\Random;
+use rng\RandomState;
+use rng\range;
 use omega\language\core\max_i32;
 
 
@@ -14,7 +26,7 @@ machine combat_system_fight(
     random: @mutable RandomState,
     round: @mutable CombatRound
 ) {
-    round.player_damage = max_i32(0, (player.attack - event.enemy.defense + ((range(@mutable combat_system.rng, random, 3) as i32) as i32 +Wrapping)) as i32) as i32 +Wrapping;
+    round.player_damage = max_i32(0, (player.attack - event.enemy.defense + ((range(@mutable combat_system.rng, random, 3u32 as +Wrapping) as i32) as i32 +Wrapping)) as i32) as i32 +Wrapping;
     event.enemy.health = max_i32(0, (event.enemy.health - round.player_damage) as i32) as i32 +Wrapping;
     round.enemy_defeated = event.enemy.health == 0;
 
@@ -38,7 +50,7 @@ machine combat_system_fight(
 
         event.reward = reward;
         event.consumed = true;
-        round.enemy_damage = 0;
+        round.enemy_damage = 0i32 as +Wrapping;
         round.player_defeated = false;
     }
 
@@ -49,7 +61,7 @@ machine combat_system_fight(
         random: @mutable RandomState,
         round: @mutable CombatRound
     ) {
-        round.enemy_damage = max_i32(0, (event.enemy.attack - player.defense + ((range(@mutable combat_system.rng, random, 3) as i32) as i32 +Wrapping)) as i32) as i32 +Wrapping;
+        round.enemy_damage = max_i32(0, (event.enemy.attack - player.defense + ((range(@mutable combat_system.rng, random, 3u32 as +Wrapping) as i32) as i32 +Wrapping)) as i32) as i32 +Wrapping;
         take_damage(player, round.enemy_damage);
         round.player_defeated = player.health == 0;
     }

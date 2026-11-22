@@ -1,16 +1,18 @@
+use game\Game;
+use game\game_initialize;
+use game\run_game_loop;
 // Interactive dungeon crawler. With closed stdin (the runtime harness, EOF on the
 // first prompt) the game loop reads an empty command and exits cleanly via
 // `finished()`. Native lookup must preserve the generated room description.
 // Expected exit: 0.
 // Expected output contains: A bottomless dark room near the dungeon heart.
-domain [u8]::Utf8 requires valid_utf8(self);
 
 data Main {
     game: Game;
 }
 
 machine main(main: @mutable Main) {
-    game_initialize(@mutable main.game, 7);
+    game_initialize(@mutable main.game, 7u64 as +Wrapping);
 
     transition {
         _ -> block running(main)

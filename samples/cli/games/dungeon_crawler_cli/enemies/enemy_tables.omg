@@ -1,3 +1,8 @@
+use text;
+use rng\Random;
+use rng\RandomState;
+use rng\range;
+use text\enemy_name_set;
 
 data EnemyTables {
     rng: Random;
@@ -52,13 +57,13 @@ machine roll_enemy_kind(
         enemy: @mutable Enemy
     ) {
         enemy.kind = EnemyKind::Bat;
-        enemy_name_set(@mutable enemy.name, "Cave Bat");
-        enemy.depth = 0;
-        enemy.max_health = 6 + ((range(@mutable enemy_tables.rng, random, 3) as i32) as i32 +Wrapping);
+        enemy_name_set(@mutable enemy.name, "Cave Bat" as +Ascii);
+        enemy.depth = 0u32 as +Wrapping;
+        enemy.max_health = 6 + ((range(@mutable enemy_tables.rng, random, 3u32 as +Wrapping) as i32) as i32 +Wrapping);
         enemy.health = enemy.max_health;
-        enemy.attack = 2;
-        enemy.defense = 0;
-        enemy.xp_reward = 3;
+        enemy.attack = 2i32 as +Wrapping;
+        enemy.defense = 0i32 as +Wrapping;
+        enemy.xp_reward = 3u32 as +Wrapping;
     }
 
     machine spider(
@@ -67,13 +72,13 @@ machine roll_enemy_kind(
         enemy: @mutable Enemy
     ) {
         enemy.kind = EnemyKind::Spider;
-        enemy_name_set(@mutable enemy.name, "Gloom Spider");
-        enemy.depth = 2;
-        enemy.max_health = 10 + ((range(@mutable enemy_tables.rng, random, 5) as i32) as i32 +Wrapping);
+        enemy_name_set(@mutable enemy.name, "Gloom Spider" as +Ascii);
+        enemy.depth = 2u32 as +Wrapping;
+        enemy.max_health = 10 + ((range(@mutable enemy_tables.rng, random, 5u32 as +Wrapping) as i32) as i32 +Wrapping);
         enemy.health = enemy.max_health;
-        enemy.attack = 4;
-        enemy.defense = 1;
-        enemy.xp_reward = 6;
+        enemy.attack = 4i32 as +Wrapping;
+        enemy.defense = 1i32 as +Wrapping;
+        enemy.xp_reward = 6u32 as +Wrapping;
     }
 
     machine skeleton(
@@ -82,13 +87,13 @@ machine roll_enemy_kind(
         enemy: @mutable Enemy
     ) {
         enemy.kind = EnemyKind::Skeleton;
-        enemy_name_set(@mutable enemy.name, "Restless Skeleton");
-        enemy.depth = 4;
-        enemy.max_health = 18 + ((range(@mutable enemy_tables.rng, random, 8) as i32) as i32 +Wrapping);
+        enemy_name_set(@mutable enemy.name, "Restless Skeleton" as +Ascii);
+        enemy.depth = 4u32 as +Wrapping;
+        enemy.max_health = 18 + ((range(@mutable enemy_tables.rng, random, 8u32 as +Wrapping) as i32) as i32 +Wrapping);
         enemy.health = enemy.max_health;
-        enemy.attack = 6;
-        enemy.defense = 2;
-        enemy.xp_reward = 12;
+        enemy.attack = 6i32 as +Wrapping;
+        enemy.defense = 2i32 as +Wrapping;
+        enemy.xp_reward = 12u32 as +Wrapping;
     }
 
     machine cultist(
@@ -97,13 +102,13 @@ machine roll_enemy_kind(
         enemy: @mutable Enemy
     ) {
         enemy.kind = EnemyKind::Cultist;
-        enemy_name_set(@mutable enemy.name, "Ashen Cultist");
-        enemy.depth = 6;
-        enemy.max_health = 26 + ((range(@mutable enemy_tables.rng, random, 12) as i32) as i32 +Wrapping);
+        enemy_name_set(@mutable enemy.name, "Ashen Cultist" as +Ascii);
+        enemy.depth = 6u32 as +Wrapping;
+        enemy.max_health = 26 + ((range(@mutable enemy_tables.rng, random, 12u32 as +Wrapping) as i32) as i32 +Wrapping);
         enemy.health = enemy.max_health;
-        enemy.attack = 9;
-        enemy.defense = 3;
-        enemy.xp_reward = 20;
+        enemy.attack = 9i32 as +Wrapping;
+        enemy.defense = 3i32 as +Wrapping;
+        enemy.xp_reward = 20u32 as +Wrapping;
     }
 
     machine hellhound(
@@ -112,13 +117,13 @@ machine roll_enemy_kind(
         enemy: @mutable Enemy
     ) {
         enemy.kind = EnemyKind::Hellhound;
-        enemy_name_set(@mutable enemy.name, "Hellhound");
-        enemy.depth = 8;
-        enemy.max_health = 42 + ((range(@mutable enemy_tables.rng, random, 20) as i32) as i32 +Wrapping);
+        enemy_name_set(@mutable enemy.name, "Hellhound" as +Ascii);
+        enemy.depth = 8u32 as +Wrapping;
+        enemy.max_health = 42 + ((range(@mutable enemy_tables.rng, random, 20u32 as +Wrapping) as i32) as i32 +Wrapping);
         enemy.health = enemy.max_health;
-        enemy.attack = 14;
-        enemy.defense = 5;
-        enemy.xp_reward = 36;
+        enemy.attack = 14i32 as +Wrapping;
+        enemy.defense = 5i32 as +Wrapping;
+        enemy.xp_reward = 36u32 as +Wrapping;
     }
 
     machine pit_fiend(
@@ -127,12 +132,12 @@ machine roll_enemy_kind(
         enemy: @mutable Enemy
     ) {
         enemy.kind = EnemyKind::PitFiend;
-        enemy_name_set(@mutable enemy.name, "Pit Fiend");
-        enemy.depth = 10;
-        enemy.max_health = 80 + ((range(@mutable enemy_tables.rng, random, 40) as i32) as i32 +Wrapping);
+        enemy_name_set(@mutable enemy.name, "Pit Fiend" as +Ascii);
+        enemy.depth = 10u32 as +Wrapping;
+        enemy.max_health = 80 + ((range(@mutable enemy_tables.rng, random, 40u32 as +Wrapping) as i32) as i32 +Wrapping);
         enemy.health = enemy.max_health;
-        enemy.attack = 24;
-        enemy.defense = 8;
-        enemy.xp_reward = 80;
+        enemy.attack = 24i32 as +Wrapping;
+        enemy.defense = 8i32 as +Wrapping;
+        enemy.xp_reward = 80u32 as +Wrapping;
     }
 }

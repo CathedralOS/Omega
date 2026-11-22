@@ -1,3 +1,5 @@
+use text;
+use inventory\Inventory;
 
 data Player [copy] {
     name: PlayerName;

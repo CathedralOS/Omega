@@ -7,7 +7,7 @@ empty. The separate `help_exit.stdin` route has its complete output in
 `expected_help_exit_stdout.txt`. From this folder, run both through one compilation:
 
 ```sh
-omega run --both --input input.txt --input help_exit.stdin --outputs build/acceptance main.omg
+omega run --both --input input.txt --input help_exit.stdin --outputs build/acceptance build.omg
 ```
 
 Both cases must exit zero in both engines. Compare `input.stdout` and
@@ -51,8 +51,8 @@ with status 0. Never run a stale image after a failed build.
 Run the actual product command from the repository root (POSIX shell):
 
 ```sh
-omega run samples/cli/games/dungeon_crawler_cli/main.omg </dev/null
-printf 'help\nexit\n\n' | omega run samples/cli/games/dungeon_crawler_cli/main.omg
+omega run samples/cli/games/dungeon_crawler_cli/build.omg </dev/null
+printf 'help\nexit\n\n' | omega run samples/cli/games/dungeon_crawler_cli/build.omg
 ```
 
 Both cases should exit 0 after the initial room and goodbye output; the second

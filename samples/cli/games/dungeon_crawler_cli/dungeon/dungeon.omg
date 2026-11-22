@@ -1,3 +1,22 @@
+use text;
+use combat\CombatRound;
+use events\EventRuntime;
+use events\RoomEventKind;
+use generation\DungeonGenerator;
+use generation\generate;
+use player\Player;
+use player\PlayerSystem;
+use player\create;
+use rng\Random;
+use rng\RandomState;
+use rooms\CellId;
+use rooms\GameMode;
+use rooms\Level;
+use rooms\Navigation;
+use rooms\Room;
+use rooms\RoomLookup;
+use text\TextBuffer;
+use text\text_buffer_set;
 use omega\language\core\min_i32;
 
 
@@ -55,7 +74,7 @@ machine dungeon_use_event(
     ) {
         dungeon.player.inventory.gold = dungeon.player.inventory.gold + 24;
         dungeon.treasure_taken = true;
-        text_buffer_set(line, "You take the treasure.");
+        text_buffer_set(line, "You take the treasure." as +Ascii);
     }
 
     machine try_use_fountain(
@@ -74,7 +93,7 @@ machine dungeon_use_event(
     ) {
         dungeon.player.health = min_i32(dungeon.player.max_health as i32, (dungeon.player.health + 12) as i32) as i32 +Wrapping;
         dungeon.fountain_used = true;
-        text_buffer_set(line, "The fountain heals your wounds.");
+        text_buffer_set(line, "The fountain heals your wounds." as +Ascii);
     }
 
     machine try_take_gold(
@@ -93,11 +112,11 @@ machine dungeon_use_event(
     ) {
         dungeon.player.inventory.gold = dungeon.player.inventory.gold + 6;
         dungeon.gold_taken = true;
-        text_buffer_set(line, "You collect the loose gold.");
+        text_buffer_set(line, "You collect the loose gold." as +Ascii);
     }
 
     machine no_usable_event(line: @mutable TextBuffer) {
-        text_buffer_set(line, "There is nothing here to use.");
+        text_buffer_set(line, "There is nothing here to use." as +Ascii);
     }
 }
 
@@ -129,11 +148,11 @@ machine dungeon_fight(
         dungeon.player.inventory.gold = dungeon.player.inventory.gold + 6;
         dungeon.player.xp = dungeon.player.xp + 5;
         dungeon.enemy_defeated = true;
-        text_buffer_set(line, "The enemy collapses. You find a little gold.");
+        text_buffer_set(line, "The enemy collapses. You find a little gold." as +Ascii);
     }
 
     machine no_enemy(line: @mutable TextBuffer) {
-        text_buffer_set(line, "There is no enemy here.");
+        text_buffer_set(line, "There is no enemy here." as +Ascii);
     }
 }
 
@@ -185,8 +204,8 @@ machine dungeon_initialize(
     dungeon: @mutable Dungeon,
     seed: u64 in Wrapping
 ) {
-    create(@mutable dungeon.player_system, "Wanderer", @mutable dungeon.player);
-    seed(seed, @mutable dungeon.random);
+    create(@mutable dungeon.player_system, "Wanderer" as +Ascii, @mutable dungeon.player);
+    rng\seed(seed, @mutable dungeon.random);
     generate(@mutable dungeon.generator, seed, @mutable dungeon.level);
     dungeon.current_cell = dungeon.level.start_cell;
     dungeon.mode = GameMode::Exploring;

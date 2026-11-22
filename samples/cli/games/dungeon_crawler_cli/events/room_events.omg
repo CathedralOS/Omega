@@ -1,3 +1,12 @@
+use enemies\EnemyTables;
+use enemies\roll_enemy;
+use rewards\RewardKind;
+use rewards\RewardTables;
+use rewards\roll_gold_cache;
+use rewards\roll_room_treasure;
+use rng\Random;
+use rng\RandomState;
+use rng\range;
 
 data RoomEvents {
     enemies: EnemyTables;
@@ -11,7 +20,7 @@ machine roll_event(
     random: @mutable RandomState,
     event: @mutable RoomEvent
 ) {
-    let roll: u32 in Wrapping = range(@mutable room_events.rng, random, 100) as u32 +Wrapping;
+    let roll: u32 in Wrapping = range(@mutable room_events.rng, random, 100u32 as +Wrapping) as u32 +Wrapping;
     apply_event(room_events, depth, random, event, roll);
 
 }

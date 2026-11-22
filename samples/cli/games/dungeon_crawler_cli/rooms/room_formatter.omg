@@ -1,3 +1,12 @@
+use text;
+use events\RoomEventKind;
+use player\Player;
+use text\EnemyName;
+use text\TextBuffer;
+use text\enemy_name_live;
+use text\join;
+use text\room_description_live;
+use text\text_buffer_set;
 
 data RoomFormatter {
     lookup: RoomLookup;
@@ -16,11 +25,11 @@ machine write_current_cell(level: Level,
     }
 
     machine gate_title(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "== Gate ==");
+        text_buffer_set(out_line, "== Gate ==" as +Ascii);
     }
 
     machine branch_title(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "== Branch Room ==");
+        text_buffer_set(out_line, "== Branch Room ==" as +Ascii);
     }
 }
 
@@ -56,25 +65,25 @@ machine write_room_event(
 
 
     machine describe_fountain(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "A fountain of life glows here. Type use to drink.");
+        text_buffer_set(out_line, "A fountain of life glows here. Type use to drink." as +Ascii);
     }
 
     machine describe_treasure(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "A treasure cache rests against the wall. Type use to claim it.");
+        text_buffer_set(out_line, "A treasure cache rests against the wall. Type use to claim it." as +Ascii);
     }
 
     machine describe_gold(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Loose gold glitters in the dust. Type use to collect it.");
+        text_buffer_set(out_line, "Loose gold glitters in the dust. Type use to collect it." as +Ascii);
     }
 
     machine describe_enemy(enemy_name: EnemyName,
         out_line: @mutable TextBuffer)
     {
-        join(out_line, enemy_name_live(@enemy_name), " blocks the way. Type fight.");
+        join(out_line, enemy_name_live(@enemy_name), " blocks the way. Type fight." as +Ascii);
     }
 
     machine quiet_room(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "The room is quiet.");
+        text_buffer_set(out_line, "The room is quiet." as +Ascii);
     }
 }
 
@@ -96,35 +105,35 @@ machine write_adjacent_rooms(level: Level,
 
 
     machine gate_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] north");
+        text_buffer_set(out_line, "[Paths] north" as +Ascii);
     }
 
     machine room_one_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] south | north | east");
+        text_buffer_set(out_line, "[Paths] south | north | east" as +Ascii);
     }
 
     machine room_two_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] south | north | west");
+        text_buffer_set(out_line, "[Paths] south | north | west" as +Ascii);
     }
 
     machine room_three_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] south | north | east");
+        text_buffer_set(out_line, "[Paths] south | north | east" as +Ascii);
     }
 
     machine room_four_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] south");
+        text_buffer_set(out_line, "[Paths] south" as +Ascii);
     }
 
     machine side_east_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] west");
+        text_buffer_set(out_line, "[Paths] west" as +Ascii);
     }
 
     machine side_west_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] east");
+        text_buffer_set(out_line, "[Paths] east" as +Ascii);
     }
 
     machine no_paths(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "[Paths] none");
+        text_buffer_set(out_line, "[Paths] none" as +Ascii);
     }
 }
 
@@ -161,11 +170,11 @@ machine write_inventory(player: Player,
     }
 
     machine inventory_zero_empty(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Inv: 0 gold. Pack empty.");
+        text_buffer_set(out_line, "Inv: 0 gold. Pack empty." as +Ascii);
     }
 
     machine inventory_zero_with_item(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Inv: 0 gold. Pack holds a charm.");
+        text_buffer_set(out_line, "Inv: 0 gold. Pack holds a charm." as +Ascii);
     }
 
     machine inventory_six(player: Player,
@@ -177,11 +186,11 @@ machine write_inventory(player: Player,
     }
 
     machine inventory_six_only(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Inv: 6 gold. A few scavenged coins.");
+        text_buffer_set(out_line, "Inv: 6 gold. A few scavenged coins." as +Ascii);
     }
 
     machine inventory_six_with_item(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Inv: 6 gold. A few coins and a charm.");
+        text_buffer_set(out_line, "Inv: 6 gold. A few coins and a charm." as +Ascii);
     }
 
     machine inventory_twenty_four(player: Player,
@@ -193,15 +202,15 @@ machine write_inventory(player: Player,
     }
 
     machine inventory_twenty_four_only(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Inv: 24 gold. A rich little haul.");
+        text_buffer_set(out_line, "Inv: 24 gold. A rich little haul." as +Ascii);
     }
 
     machine inventory_twenty_four_with_item(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Inv: 24 gold. A rich haul and a charm.");
+        text_buffer_set(out_line, "Inv: 24 gold. A rich haul and a charm." as +Ascii);
     }
 
     machine inventory_thirty(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Inv: 30 gold. Purse heavy, charm secured.");
+        text_buffer_set(out_line, "Inv: 30 gold. Purse heavy, charm secured." as +Ascii);
     }
 }
 
@@ -223,14 +232,14 @@ machine write_character(player: Player,
     }
 
     machine wounded_character(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Character: wounded, stubborn, still standing.");
+        text_buffer_set(out_line, "Character: wounded, stubborn, still standing." as +Ascii);
     }
 
     machine seasoned_character(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Character: seasoned enough to worry the dungeon.");
+        text_buffer_set(out_line, "Character: seasoned enough to worry the dungeon." as +Ascii);
     }
 
     machine ready_character(out_line: @mutable TextBuffer) {
-        text_buffer_set(out_line, "Character: ready for trouble.");
+        text_buffer_set(out_line, "Character: ready for trouble." as +Ascii);
     }
 }

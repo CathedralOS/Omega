@@ -1,3 +1,12 @@
+use omega_language_std;
+use rooms\CellId;
+use rooms\Direction;
+use rooms\Exit;
+use rooms\Level;
+use rooms\Navigation;
+use rooms\NavigationChoice;
+use rooms\Room;
+use rooms\RoomLookup;
 
 data CommandParser {
     lookup: RoomLookup;
@@ -18,20 +27,21 @@ machine resolve_navigation(
 }
 
 machine resolve_command(line: @[u8] in Utf8) -> NavigationChoice {
+    let bytes: @[u8] = line as -Utf8;
     transition {
-        line == "quit" -> NavigationChoice::Quit,
-        line == "exit" -> NavigationChoice::Quit,
-        line == "look" -> NavigationChoice::Look,
-        line == "info" -> NavigationChoice::Look,
-        line == "paths" -> NavigationChoice::Exits,
-        line == "help" -> NavigationChoice::Exits,
-        line == "inventory" -> NavigationChoice::Inventory,
-        line == "inv" -> NavigationChoice::Inventory,
-        line == "char" -> NavigationChoice::Character,
-        line == "character" -> NavigationChoice::Character,
-        line == "stats" -> NavigationChoice::Character,
-        line == "use" -> NavigationChoice::UseEvent,
-        line == "fight" -> NavigationChoice::Fight,
+        bytes == "quit" -> NavigationChoice::Quit,
+        bytes == "exit" -> NavigationChoice::Quit,
+        bytes == "look" -> NavigationChoice::Look,
+        bytes == "info" -> NavigationChoice::Look,
+        bytes == "paths" -> NavigationChoice::Exits,
+        bytes == "help" -> NavigationChoice::Exits,
+        bytes == "inventory" -> NavigationChoice::Inventory,
+        bytes == "inv" -> NavigationChoice::Inventory,
+        bytes == "char" -> NavigationChoice::Character,
+        bytes == "character" -> NavigationChoice::Character,
+        bytes == "stats" -> NavigationChoice::Character,
+        bytes == "use" -> NavigationChoice::UseEvent,
+        bytes == "fight" -> NavigationChoice::Fight,
         _ -> NavigationChoice::Invalid
     }
 }
@@ -42,21 +52,22 @@ machine resolve_exit(
     cell: CellId,
     line: @[u8] in Utf8
     ) -> Navigation {
+    let bytes: @[u8] = line as -Utf8;
     transition {
-        cell == CellId::R00 && line == "north" -> navigation(NavigationChoice::Move, CellId::R01),
-        cell == CellId::R01 && line == "south" -> navigation(NavigationChoice::Move, CellId::R00),
-        cell == CellId::R01 && line == "north" -> navigation(NavigationChoice::Move, CellId::R02),
-        cell == CellId::R01 && line == "east" -> navigation(NavigationChoice::Move, CellId::R05),
-        cell == CellId::R02 && line == "south" -> navigation(NavigationChoice::Move, CellId::R01),
-        cell == CellId::R02 && line == "north" -> navigation(NavigationChoice::Move, CellId::R03),
-        cell == CellId::R02 && line == "west" -> navigation(NavigationChoice::Move, CellId::R06),
-        cell == CellId::R03 && line == "south" -> navigation(NavigationChoice::Move, CellId::R02),
-        cell == CellId::R03 && line == "north" -> navigation(NavigationChoice::Move, CellId::R04),
-        cell == CellId::R03 && line == "east" -> navigation(NavigationChoice::Move, CellId::R07),
-        cell == CellId::R04 && line == "south" -> navigation(NavigationChoice::Move, CellId::R03),
-        cell == CellId::R05 && line == "west" -> navigation(NavigationChoice::Move, CellId::R01),
-        cell == CellId::R06 && line == "east" -> navigation(NavigationChoice::Move, CellId::R02),
-        cell == CellId::R07 && line == "west" -> navigation(NavigationChoice::Move, CellId::R03),
+        cell == CellId::R00 && bytes == "north" -> navigation(NavigationChoice::Move, CellId::R01),
+        cell == CellId::R01 && bytes == "south" -> navigation(NavigationChoice::Move, CellId::R00),
+        cell == CellId::R01 && bytes == "north" -> navigation(NavigationChoice::Move, CellId::R02),
+        cell == CellId::R01 && bytes == "east" -> navigation(NavigationChoice::Move, CellId::R05),
+        cell == CellId::R02 && bytes == "south" -> navigation(NavigationChoice::Move, CellId::R01),
+        cell == CellId::R02 && bytes == "north" -> navigation(NavigationChoice::Move, CellId::R03),
+        cell == CellId::R02 && bytes == "west" -> navigation(NavigationChoice::Move, CellId::R06),
+        cell == CellId::R03 && bytes == "south" -> navigation(NavigationChoice::Move, CellId::R02),
+        cell == CellId::R03 && bytes == "north" -> navigation(NavigationChoice::Move, CellId::R04),
+        cell == CellId::R03 && bytes == "east" -> navigation(NavigationChoice::Move, CellId::R07),
+        cell == CellId::R04 && bytes == "south" -> navigation(NavigationChoice::Move, CellId::R03),
+        cell == CellId::R05 && bytes == "west" -> navigation(NavigationChoice::Move, CellId::R01),
+        cell == CellId::R06 && bytes == "east" -> navigation(NavigationChoice::Move, CellId::R02),
+        cell == CellId::R07 && bytes == "west" -> navigation(NavigationChoice::Move, CellId::R03),
         _ -> invalid_navigation(command_parser)
     }
 }
@@ -69,7 +80,7 @@ machine find_exit(
     let exits: @[Exit] = @room.exits[..];
 
     transition room.exit_count > 0 {
-        true -> find_exit_at(command_parser, exits, room.exit_count, command, 0),
+        true -> find_exit_at(command_parser, exits, room.exit_count, command, 0u64 as +Wrapping),
         false -> invalid_navigation(command_parser)
     }
 }
@@ -94,12 +105,12 @@ machine find_exit_at(
         command: @[u8] in Utf8,
         index: u64 in Wrapping
     ) -> Navigation {
-        let found: bool = direction_matches(exits[index].direction, command);
+        let found: bool = direction_matches(exits[index as -Wrapping].direction, command);
         let next_index: u64 in Wrapping = index + 1;
         let has_next: bool = next_index < exit_count && next_index < exits.length;
 
         transition {
-            found -> navigation(NavigationChoice::Move, exits[index].destination),
+            found -> navigation(NavigationChoice::Move, exits[index as -Wrapping].destination),
             has_next -> find_exit_at(command_parser, exits, exit_count, command, next_index),
             _ -> invalid_navigation(command_parser)
         }
@@ -114,11 +125,12 @@ machine invalid_navigation(command_parser: @mutable CommandParser) -> Navigation
 
 machine direction_matches(direction: Direction,
     command: @[u8] in Utf8) -> bool {
+    let bytes: @[u8] = command as -Utf8;
     transition {
-        direction == Direction::North && command == "north" -> true,
-        direction == Direction::South && command == "south" -> true,
-        direction == Direction::East && command == "east" -> true,
-        direction == Direction::West && command == "west" -> true,
+        direction == Direction::North && bytes == "north" -> true,
+        direction == Direction::South && bytes == "south" -> true,
+        direction == Direction::East && bytes == "east" -> true,
+        direction == Direction::West && bytes == "west" -> true,
         _ -> false
     }
 }
