@@ -1208,22 +1208,33 @@ data Cell [copy] { value: u32; }
 data Pair { cells: [Cell; 2]; }
 machine select(pair: @mutable Pair) -> @mutable Cell {
     let cells: @mutable [Cell] = @mutable pair.cells[..];
-    transition { _ -> first(cells) }
-    machine first(cells: @mutable [Cell]) -> @mutable Cell
+    transition { _ -> second(cells) }
+    machine second(cells: @mutable [Cell]) -> @mutable Cell
     requires cells.length == 2u64 {
-        transition { _ -> @mutable cells[0u64] }
+        transition { _ -> @mutable cells[1u64] }
     }
 }
-machine entry() {
+machine entry() crashes Trap {
     let mutable pair: Pair;
+    pair.cells[0u64].value = 7u32;
     let cell: @mutable Cell = select(@mutable pair);
     cell.value = 42u32;
+    transition pair.cells[1u64].value == 42u32 && pair.cells[0u64].value == 7u32 {
+        true -> done(), false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
 "#;
-    assert_eq!(verdict(source), "accepted");
+    assert_eq!(
+        super::stored_references::run(source),
+        Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ))
+    );
     let conflict = source.replace(
         "    cell.value = 42u32;",
-        "    pair.cells[0u64].value = 11u32;\n    cell.value = 42u32;",
+        "    pair.cells[1u64].value = 11u32;\n    cell.value = 42u32;",
     );
     assert_eq!(verdict(&conflict), "rejected: 1 conflicts");
 }
