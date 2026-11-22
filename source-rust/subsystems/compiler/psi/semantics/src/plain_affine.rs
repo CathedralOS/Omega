@@ -447,9 +447,20 @@ impl<'a> Components<'a> {
     }
 }
 
+type BackingPath = (PlaceId, Vec<StructuralPathSegment>);
+
 enum WindowBacking {
-    Exact(PlaceId, Vec<StructuralPathSegment>),
-    Alternatives(Vec<(PlaceId, Vec<StructuralPathSegment>)>),
+    Exact(BackingPath),
+    Alternatives(Vec<BackingPath>),
+}
+
+impl WindowBacking {
+    fn targets(&self) -> &[BackingPath] {
+        match self {
+            Self::Exact(target) => std::slice::from_ref(target),
+            Self::Alternatives(targets) => targets,
+        }
+    }
 }
 
 struct Analysis<'a> {
@@ -2246,15 +2257,12 @@ impl<'a> Analysis<'a> {
         }
         let mut referent = path.to_vec();
         referent.push(StructuralPathSegment::Referent);
-        let backings = match self.backings(state, source, &referent, site)? {
-            WindowBacking::Exact(root, path) => vec![(root, path)],
-            WindowBacking::Alternatives(backings) => backings,
-        };
-        for (root, captured) in backings {
-            if self.root(root)?.is_none() {
+        let backings = self.backings(state, source, &referent, site)?;
+        for (root, captured) in backings.targets() {
+            if self.root(*root)?.is_none() {
                 continue;
             }
-            let (captured, inline) = self.observed(root, &captured)?;
+            let (captured, inline) = self.observed(*root, captured)?;
             // Indirect storage cannot hold a tracked vacancy. Its loan
             // still has to pass the reference checker's restoration rules.
             if inline
@@ -2264,7 +2272,7 @@ impl<'a> Analysis<'a> {
             {
                 self.unavailable.push(Unavailable {
                     site,
-                    place: root,
+                    place: *root,
                     unrestored: true,
                 });
             }
@@ -3333,58 +3341,21 @@ impl<'a> Analysis<'a> {
                         // Storing a shared byte view copies its descriptor.
                         None
                     };
-                let (backing, projection) = if self.references.is_some() {
-                    match self.backings(state, *destination, path, site)? {
-                        WindowBacking::Exact(place, path) => (place, path),
-                        WindowBacking::Alternatives(targets) => {
-                            // A replacement leaves the availability frontier unchanged
-                            // when every possible field is already occupied. A vacancy
-                            // still needs a single destination to establish.
-                            for (place, projection) in targets {
-                                let Some(root) = self.root(place)? else {
-                                    continue;
-                                };
-                                let (mut region_path, exact) = self.observed(place, &projection)?;
-                                if exact && let Some(field) = field {
-                                    region_path.push(Segment::Field(*field));
-                                }
-                                if !exact
-                                    && !projection.contains(&StructuralPathSegment::Referent)
-                                    && !crate::projection_stays_in_inline_storage(
-                                        self.types.iter(), root.structural_type, &projection,
-                                    )
-                                {
-                                    return Err(Error::unsupported(
-                                        "indexed replacement crosses outside its intact array storage",
-                                    ));
-                                }
-                                if !state.regions[index(place.get())?].as_ref().is_some_and(
-                                    |region| region.available(&region_path)
-                                        && !region.contains_partition(&region_path),
-                                ) {
-                                    return Err(Error::unsupported(
-                                        "replacement through a choice requires every receiving field occupied",
-                                    ));
-                                }
-                            }
-                            if settled && let Some(disposition) = declared_disposition {
-                                let required = StructuralStoreDisposition::ReplaceDiscardable;
-                                if self.verify_stores && disposition != required {
-                                    return Err(Error::malformed(
-                                        "a vacant store targets established storage behind a reference",
-                                    ));
-                                }
-                                self.stores.push((operation.id, required));
-                            }
-                            return Ok(());
-                        }
-                    }
+                let backings = if self.references.is_some() {
+                    self.backings(state, *destination, path, site)?
                 } else {
-                    (*destination, path.clone())
+                    WindowBacking::Exact((*destination, path.clone()))
                 };
-                let destination = &backing;
-                let path = &projection;
-                if let Some(root) = self.root(*destination)? {
+                // Replacing one of several occupied fields leaves the same
+                // availability frontier whichever field was chosen. Filling
+                // a vacancy requires knowing which field to establish.
+                let unique = matches!(backings, WindowBacking::Exact(_));
+                let mut required_disposition =
+                    (!unique).then_some(StructuralStoreDisposition::ReplaceDiscardable);
+                for (destination, path) in backings.targets() {
+                    let Some(root) = self.root(*destination)? else {
+                        continue;
+                    };
                     // The incoming value transfers from its exact source
                     // above. The receiving region may be an indexed element
                     // only when the entire reached array is already intact:
@@ -3408,17 +3379,8 @@ impl<'a> Analysis<'a> {
                             .any(|segment| matches!(segment, StructuralPathSegment::Referent))
                     {
                         self.read(state, *destination, &receiving, site)?;
-                        if settled && let Some(disposition) = declared_disposition {
-                            let required = StructuralStoreDisposition::ReplaceDiscardable;
-                            if self.verify_stores && disposition != required {
-                                return Err(Error::malformed(
-                                    "a vacant store targets established storage behind a reference",
-                                ));
-                            }
-                            self.stores.push((operation.id, required));
-                        }
-                        // A field store produces no structural result.
-                        return Ok(());
+                        required_disposition = Some(StructuralStoreDisposition::ReplaceDiscardable);
+                        continue;
                     }
                     // An inline array owns its elements, not the external
                     // storage reached through one of their views/references.
@@ -3443,7 +3405,8 @@ impl<'a> Analysis<'a> {
                     // local's `EstablishStructuralLocal` and vacant store do
                     // (structural_access.md: "Root, field, and indexed
                     // destinations do not change construction semantics").
-                    if exact
+                    if unique
+                        && exact
                         && path.is_empty()
                         && root.owned
                         && state.regions[index(destination.get())?].is_none()
@@ -3458,17 +3421,19 @@ impl<'a> Analysis<'a> {
                                 "store cannot reconstruct a decomposed nominal wrapper",
                             ));
                         }
-                        if !exact && !region.available(path) {
-                            return Err(Error::unsupported(
-                                "runtime-indexed replacement in an incomplete affine array",
-                            ));
+                        if (!exact || !unique) && !region.available(path) {
+                            return Err(Error::unsupported(if unique {
+                                "runtime-indexed replacement in an incomplete affine array"
+                            } else {
+                                "replacement through a choice requires every receiving field occupied"
+                            }));
                         }
                         // Incoming frontiers shrink until all predecessor
                         // paths agree. A join may dispose a field on the path
                         // that still holds it, so classify stores only after
                         // that agreement, never from a provisional arrival.
                         if settled {
-                            let required = if region.available(path) {
+                            required_disposition = Some(if region.available(path) {
                                 StructuralStoreDisposition::ReplaceDiscardable
                             } else if self.vacant_region(*destination, region, path)? {
                                 StructuralStoreDisposition::Vacant
@@ -3476,30 +3441,32 @@ impl<'a> Analysis<'a> {
                                 return Err(Error::unsupported(
                                     "replacement of a partially moved region",
                                 ));
-                            };
-                            if let Some(disposition) = declared_disposition {
-                                if self.verify_stores && disposition != required {
-                                    return Err(Error::malformed(match required {
-                                        StructuralStoreDisposition::Vacant => {
-                                            "an occupied replacement store targets vacated affine contents"
-                                        }
-                                        StructuralStoreDisposition::ReplaceDiscardable => {
-                                            "a vacant store displaces established affine contents"
-                                        }
-                                    }));
-                                }
-                                self.stores.push((operation.id, required));
-                            }
+                            });
                         }
                         if !region.base && !path.is_empty() {
                             return Err(Error::unsupported(
                                 "projected reestablishment of an ended owner",
                             ));
                         }
-                        if exact {
+                        if unique && exact {
                             region.set(path, true);
                         }
                     }
+                }
+                if settled && let (Some(disposition), Some(required)) =
+                    (declared_disposition, required_disposition)
+                {
+                    if self.verify_stores && disposition != required {
+                        return Err(Error::malformed(match required {
+                            StructuralStoreDisposition::Vacant => {
+                                "an occupied replacement store targets vacated affine contents"
+                            }
+                            StructuralStoreDisposition::ReplaceDiscardable => {
+                                "a vacant store displaces established affine contents"
+                            }
+                        }));
+                    }
+                    self.stores.push((operation.id, required));
                 }
             }
             kind => {
@@ -4077,7 +4044,7 @@ impl<'a> Analysis<'a> {
         site: Site,
     ) -> Result<WindowBacking, Error> {
         if !path.contains(&StructuralPathSegment::Referent) {
-            return Ok(WindowBacking::Exact(root, path.to_vec()));
+            return Ok(WindowBacking::Exact((root, path.to_vec())));
         }
         let body = self
             .body
@@ -4114,7 +4081,7 @@ impl<'a> Analysis<'a> {
             .ok_or(Error::unsupported(
                 "a borrowed window has no typed lender path",
             ))?;
-            return Ok(WindowBacking::Exact(captured.root, path));
+            return Ok(WindowBacking::Exact((captured.root, path)));
         }
         let unresolved =
             || Error::unsupported("a borrowed window has no exact live backing correspondence");
@@ -4149,7 +4116,7 @@ impl<'a> Analysis<'a> {
         site: Site,
     ) -> Result<(PlaceId, Vec<StructuralPathSegment>), Error> {
         match self.backings(state, root, path, site)? {
-            WindowBacking::Exact(root, path) => Ok((root, path)),
+            WindowBacking::Exact(target) => Ok(target),
             WindowBacking::Alternatives(_) => Err(Error::unsupported(
                 "a borrowed window has no exact live backing correspondence",
             )),
