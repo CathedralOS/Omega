@@ -1,6 +1,13 @@
 # Omega-V2 plan
 
-This plan records the compiler architecture, layer sign-offs and open work. Last updated 2026-11-21.
+This plan records the compiler architecture, layer sign-offs and open work. Last updated 2026-11-22.
+
+**Decided 2026-11-22: compiler work continues in V1 (`source-rust/`).** V2 takes
+no new work: finish or close a V2 pull request that is already open, and start
+no new layer, driver or back-end work here. The layer table and milestones
+below record where V2 stopped; they are not a work queue. V1 takes over V2's
+handoff tests and its rule that a stage links only the products it reads. See
+the [decision log](#decision-log).
 
 For the same content as pictures, open [ARCHITECTURE.html](ARCHITECTURE.html):
 ten diagrams and no prose beyond captions.
@@ -808,3 +815,4 @@ files waits for. Full figures and method are in
 | 2026-11-18 | L2 resolver signed off. L3 begins with typed operands and named machine calls. | Jarod |
 | 2026-11-18 | A binding shows its numeric type in its declaration: `let count: u8 = 5;` or `let count = 5u8;`. `let count = 5; send(count)` is refused; a later use never chooses the type. | Jarod |
 | 2026-11-19 | V1 and V2 share one specification. Changes to language and build rules go in `wiki/spec/`. | Jarod |
+| 2026-11-22 | Compiler work continues in V1. V2 takes no new work: V1 runs authored Builds and native programs, and V2 has no publication layer, driver or back end. V1 takes over the handoff tests from [What solid means](#what-solid-means) and the rule that a stage links only the products it reads, which `mbx xtask check-boundary` now enforces for the V1 source stages. Revisit if V1 repairs keep needing changes in several stages for one decision. | Jarod |

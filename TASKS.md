@@ -292,7 +292,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 ## Parallel language and compiler lanes
 
-- **GENERIC-CALLABLE-FAMILIES.** In the [experimental Rust compiler](omega-rust-v2/PLAN.md), check a callable whose signature introduces its own type parameter. Use one `Visitor = machine<T>(item: T)` at two types and distinguish its binder from an enclosing `Visitor<T>`. [Callable contract](wiki/spec/language/generics.md#invocation-lifetime-families)
+- **GENERIC-CALLABLE-FAMILIES.** In the [Rust compiler](source-rust/README.md#where-code-belongs), check a callable whose signature introduces its own type parameter. Use one `Visitor = machine<T>(item: T)` at two types and distinguish its binder from an enclosing `Visitor<T>`. [Callable contract](wiki/spec/language/generics.md#invocation-lifetime-families)
 
 - **COMPONENT-SUBSTRATE.** (covers **TWO-AXIS-TERMINAL-AUTHORITY-REVIEW**, **RUNTIME-SIZED-ACTIVATION-CONTRACT**, **FILESYSTEM-PLATFORM-SERVICES**, **TR3-TR8**, **CHECKED-REPRESENTATION-REUSE**) Complete [authority review](wiki/spec/build/permissions.md#artifact-production-versus-receiver-admission), [bounded activation](wiki/spec/resources/activation_storage.md), [filesystem services](wiki/spec/build/platform_services.md), [component installation](wiki/spec/build/component_publication.md), [task runtime](wiki/spec/build/task_runtime.md) (`blocking-executor`), and [checked reuse](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse).
 

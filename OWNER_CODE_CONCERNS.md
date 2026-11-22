@@ -75,6 +75,14 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### A constant's value is stored at each use and on its declaration, and nothing after preparation compares them
+
+- Category: One idea, several implementations
+- Where: [the test that pins it](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/tests/prepared_boolean_patterns.rs#L257), [prepared input](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/prepare.rs#L63).
+- Saw: A pattern such as `east\ON` reaches lowering as a Boolean literal copied into the use, plus a selection naming the declaration. The declaration carries the same value again as `evaluated_value` and its materialized initializer. Name resolution writes the copy for a literal initializer and the source driver's evaluation writes it for a computed one. Lowering reads only the copy at the use. `a_use_takes_no_value_from_its_declaration` changes the declaration consistently, leaves the use alone, and lowering accepts the product and compares with the old value.
+- Cost: The two copies agree only because two separate writers make them agree. A change to either writer can make a use disagree with the constant it names, and no stage from lowering on would refuse it. No program is known to separate them today. Keep one value, on the declaration, and have lowering read it through the use's selection; then delete the copy and update that test.
+- Reported: 2026-11-22, Claude Code, while porting V2's prepared-constant handoff test to V1 lowering
+
 ### Lowering and publication still link earlier source stages instead of reading their products
 
 - Category: Knowledge crossing a boundary

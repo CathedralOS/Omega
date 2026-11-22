@@ -13,7 +13,7 @@ Code, create an ignored checkout-local link when `.claude/skills` is absent:
 Omega is a proof-checked systems language whose programs are data-oriented
 state machines:
 - [source-rust/](source-rust/README.md) contains the Rust compiler, CLI, interpreter and package manager in the root Cargo workspace.
-- [omega-rust-v2/](omega-rust-v2/Cargo.toml) is a separate Cargo workspace.
+- [omega-rust-v2/](omega-rust-v2/Cargo.toml) is a separate Cargo workspace holding the experimental V2 compiler. The owner decided on 2026-11-22 that compiler work continues in `source-rust/`. Finish or close a V2 pull request that is already open; start no new V2 work. [Decision](omega-rust-v2/PLAN.md#decision-log)
 - `source/application/` and `source/subsystems/compiler/` — the Omega-written product compiler.
 - `source/library/` — bundled `omega::` packages (`name.omg` or `name/mod.omg`).
 - [`bootstrap/`](bootstrap/README.md) groups implementations by language. All routes share Alpha and Beta. For Gamma, Delta and Epsilon, compare interpretation, compilation to Alpha tape and compilation to native code. Host launchers, checks and optional proof research live in `tests/bootstrap/`. Record route experiments in [the development wiki](wiki/development/bootstrap/README.md).
