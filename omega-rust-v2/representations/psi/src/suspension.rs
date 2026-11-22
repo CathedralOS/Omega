@@ -176,6 +176,8 @@ pub struct RetainedHome {
     /// The checker derives which loans are live from their uses and the call.
     pub embedded_loans: Vec<EmbeddedLoan>,
     pub needed_by_callee: bool,
+    /// The continuation directly needs this home or an already-live loan backed by it.
+    /// A loan returned on completion can still select this storage via the call's operands.
     pub needed_after_completion: bool,
 }
 

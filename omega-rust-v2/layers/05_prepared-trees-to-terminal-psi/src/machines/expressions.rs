@@ -362,13 +362,6 @@ impl Expressions<'_> {
             call_node = *inner;
         }
         let call = super::calls::select_call(self, call_node, carrier, body)?;
-        if self.callees.may_park(call.callee) && crate::lowering::types::uses_structural_place(carrier) {
-            return Err(unsupported_node(
-                file,
-                call_node,
-                "suspending structural results need their completion claim binding",
-            ));
-        }
         let mut arguments = Vec::with_capacity(call.operands.len());
         for (operand, carrier) in call.operands {
             if let Some(argument) = super::references::call_argument(self, operand, carrier, body)? {
