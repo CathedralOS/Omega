@@ -636,16 +636,108 @@ fn a_forwarded_predicate_binds_the_formal_and_result_and_is_required_at_each_cal
     );
 }
 
+/// Reconstruct the first cast's added atoms from the produced Psi. The
+/// completion reader also checks the declared parent of each child, the
+/// exact source argument, and the predicates still owed at its destination.
+fn first_cast_origins(pkg: &omega_psi::LoweredPackage) -> Result<Vec<(&str, omega_psi::CompletionOrigin)>, &'static str> {
+    let body = &pkg.machines[0].body;
+    let omega_psi::BlockTerminator::Jump(edge) = &body.blocks[0].terminator else { panic!("expected a cast jump") };
+    psi_handoff_consumer::cast_completions(pkg, body, edge, 0).map(|rows| {
+        rows.into_iter().map(|(atom, origin)| (atom.declaration.path.as_str(), origin)).collect()
+    })
+}
+
 #[test]
-fn a_predicate_completion_cannot_stand_in_for_other_origins_or_required_memberships() {
-    for (source, cast, message) in [
-        ("domain u8::P; domain u8::P::Child requires true; machine make(x:u8 in P)->u8 in P::Child {x as =P +P::Child}",
-         "x as =P +P::Child", "predicate completion does not support a domain requiring parent membership"),
-        // A vacuous origin needs empty required memberships, and a tag child requires its parent.
-        ("domain u8::P requires true; domain u8::T; domain u8::T::C; machine make(x:u8)->u8 { let q = x as +P +T +T::C; q as -P -T -T::C }",
-         "x as +P +T +T::C", "vacuous completion does not support a domain requiring parent membership"),
-    ] {
-        sources::refuse(&[("limit.omg", source)], "limit.omg", sources::unique_span(source, cast), message);
+fn an_inherited_predicate_uses_the_retained_parent_on_its_own_arrival() {
+    use omega_psi::{BlockTerminator, CompletionOrigin::Proved, DomainIssuers};
+
+    let long = "domain u8::P; domain u8::P::Child requires true; machine make(x:u8 in P)->u8 in P::Child {x as =P +P::Child}";
+    let short = long.replace("=P +P::Child", "+P::Child");
+    for source in [long, short.as_str()] {
+        let mut pkg = sources::lower(&[("limit.omg", source)]).unwrap();
+        let expected = vec![("u8::P::Child", Proved)];
+        spec_corpus::observe_handoff!(psi "psi-output/inherited-predicate-completion", assert_eq!(
+            first_cast_origins(&pkg), Ok(expected.clone())
+        ));
+
+        // Nobody can introduce the parent, but it already travels on this
+        // input; a child's own proof is all the completion still owes.
+        let parent = pkg.domains.iter_mut().find(|d| d.declaration.path == "u8::P").unwrap();
+        parent.issuers = DomainIssuers::Nobody;
+        assert_eq!(first_cast_origins(&pkg), Ok(expected));
+        let child = pkg.domains.iter().position(|d| d.declaration.path == "u8::P::Child").unwrap();
+        pkg.domains[child].issuers = DomainIssuers::Nobody;
+        assert_eq!(first_cast_origins(&pkg), Err("a vacuous or proved origin cannot authorize restricted issuance"));
+    }
+
+    // Two paths for the same child: one carries P already, the other adds P
+    // on its own jump. Deleting the latter origin cannot borrow the former.
+    let branches = "domain u8::P; domain u8::P::Child requires true;
+        machine make(x:u8 in P,y:u8,c:bool)->u8 in P::Child {
+            match c { true -> x as +P::Child, false -> y as +P::Child, }
+        }";
+    let mut pkg = sources::lower(&[("limit.omg", branches)]).unwrap();
+    let body = &mut pkg.machines[0].body;
+    let mut removed = 0;
+    for block in &mut body.blocks {
+        if let BlockTerminator::Jump(edge) = &mut block.terminator
+            && edge.domain_completions.len() == 2 {
+            edge.domain_completions.retain(|row| row.domain.declaration.path != "u8::P");
+            assert_eq!(edge.domain_completions.len(), 1);
+            removed += 1;
+        }
+    }
+    assert_eq!(removed, 1);
+    let body = &pkg.machines[0].body;
+    let mut outcomes = Vec::new();
+    for block in &body.blocks {
+        if let BlockTerminator::Jump(edge) = &block.terminator
+            && !edge.domain_completions.is_empty() {
+            outcomes.push(psi_handoff_consumer::cast_completions(&pkg, body, edge, 0).is_ok());
+        }
+    }
+    outcomes.sort();
+    assert_eq!(outcomes, [false, true]);
+}
+
+#[test]
+fn a_tag_child_and_its_parent_share_the_predicate_cast_arrival() {
+    use omega_psi::CompletionOrigin::{Proved, Vacuous};
+
+    let long = "domain u8::P requires true; domain u8::T; domain u8::T::C; machine make(x:u8)->u8 { let q = x as +P +T +T::C; q as -P -T -T::C }";
+    for source in [long.to_string(), long.replace("+P +T +T::C", "+T::C +P")] {
+        let mut pkg = sources::lower(&[("limit.omg", &source)]).unwrap();
+        spec_corpus::observe_handoff!(psi "psi-output/inherited-tag-completion", assert_eq!(
+            first_cast_origins(&pkg), Ok(vec![("u8::P", Proved), ("u8::T", Vacuous), ("u8::T::C", Vacuous)])
+        ));
+        let parent = pkg.domains.iter().position(|d| d.declaration.path == "u8::T").unwrap();
+        pkg.domains[parent].issuers = omega_psi::DomainIssuers::Nobody;
+        assert_eq!(first_cast_origins(&pkg), Err("a vacuous or proved origin cannot authorize restricted issuance"));
+        pkg.domains[parent].issuers = omega_psi::DomainIssuers::Unrestricted;
+
+        // Give T the child's own subject (T), keeping both target and rows
+        // unchanged. A destination annotation does not ground a cycle.
+        let child_subject = pkg.domains.iter().find(|d| d.declaration.path == "u8::T::C").unwrap().carrier;
+        pkg.domains[parent].carrier = child_subject;
+        assert_eq!(first_cast_origins(&pkg), Err("an added domain lacks independently grounded parent membership on this argument"));
+    }
+}
+
+#[test]
+fn a_literal_mint_keeps_both_predicate_obligations_on_its_single_arrival() {
+    use omega_psi::CompletionOrigin::Proved;
+    let declarations = "domain i32::Positive requires self > 0;
+        domain i32::Positive::Small requires (self as -Positive) < 100;";
+    for value in [7, 120] {
+        for entries in ["+Positive::Small", "+Positive +Positive::Small", "+Positive::Small +Positive"] {
+            let text = format!("{declarations} machine small()->i32 in Positive::Small {{ {value} as {entries} }}");
+            let pkg = sources::lower(&[("limit.omg", &text)]).unwrap();
+            // Even at 120, L5 still hands the checker the child's predicate.
+            assert_eq!(first_cast_origins(&pkg), Ok(vec![("i32::Positive", Proved), ("i32::Positive::Small", Proved)]));
+            let [parent, child] = pkg.domains.as_slice() else { panic!("expected both domain declarations") };
+            assert_eq!(parent.requires[0].predicate, [PredicateStep::SelfValue, PredicateStep::Integer(0.into()), PredicateStep::Apply(PredicateOperator::GreaterThan)]);
+            assert_eq!(child.requires[0].predicate, [PredicateStep::SelfValue, PredicateStep::Integer(100.into()), PredicateStep::Apply(PredicateOperator::LessThan)]);
+        }
     }
 }
 

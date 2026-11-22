@@ -124,8 +124,8 @@ fn published_domain_casts_require_complete_accounting() {
         (
             666,
             [
-                ("small as -Positive =Positive::Small", "cast omits ancestor i32::Positive"),
-                ("7 as +Positive::Small", "cast omits ancestor i32::Positive"),
+                ("small as -Positive =Positive::Small", r"cast removes domain game\i32::Positive required by game\i32::Positive::Small"),
+                ("positive as -Positive +Positive::Small", r"cast removes domain game\i32::Positive required by game\i32::Positive::Small"),
             ],
         ),
     ] {
@@ -135,22 +135,22 @@ fn published_domain_casts_require_complete_accounting() {
         let wrap = |extra: &str| format!("{declarations}\n{comparison}\n{before_let}machine example() {{\n{good}\n{extra}\n}}");
         let source = wrap("");
         let stage = check(&[("published.omg", &source)]).unwrap();
-        let added: Vec<_> = stage
-            .obligations
-            .iter()
-            .filter_map(|o| match &o.kind {
-                ObligationKind::EstablishDomain(d) => Some(d.declaration.path.as_str()),
+        let new_memberships = |cast: &str| stage.obligations.iter().filter_map(|o| {
+            match &o.kind {
+                ObligationKind::EstablishDomain(d) if o.site.file == "published.omg" && o.site.span.slice(source.as_bytes()) == Some(cast.as_bytes()) =>
+                    Some(d.declaration.path.as_str()),
                 _ => None,
-            })
-            .collect();
-        assert_eq!(
-            added,
-            if line == 623 {
-                ["i32::Km", "i32::Positive"]
-            } else {
-                ["i32::Positive", "i32::Positive::Small"]
             }
-        );
+        }).collect::<Vec<_>>();
+        if line == 623 {
+            assert_eq!(new_memberships("5 as +Km +Positive"), ["i32::Km", "i32::Positive"]);
+        } else {
+            let both = ["i32::Positive", "i32::Positive::Small"];
+            assert_eq!(new_memberships("7 as +Positive::Small"), both);
+            assert_eq!(new_memberships("7 as +Positive +Positive::Small"), both);
+            assert_eq!(new_memberships("positive as +Positive::Small"), ["i32::Positive::Small"]);
+            assert!(new_memberships("small as =Positive -Positive::Small").is_empty());
+        }
         if line == 666 {
             let call = stage
                 .calls

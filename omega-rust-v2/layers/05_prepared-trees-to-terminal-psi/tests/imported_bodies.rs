@@ -102,6 +102,22 @@ fn selected_unit(source: &str) -> Option<omega_lowering::PolicyUnit> {
     omega_lowering::lower_selected_policy_unit(&prepared, selection).unwrap()
 }
 
+#[test]
+fn a_policy_unit_excludes_the_domains_that_depend_on_its_issuance_decision() {
+    let source = format!("{SELECTED}
+        domain i32::Locked::Child requires true;
+        domain i32::Locked::Child::Grandchild;
+        domain i32::Alias = i32::Locked::Child::Grandchild;
+        domain i32::Independent;
+        domain i32::Independent::Child;
+        domain i32::IndependentAlias = i32::Independent::Child;");
+    let unit = selected_unit(&source).expect("the selected plan closes without the policy-governed domains");
+    let names: Vec<_> = unit.domains.iter().map(|domain| domain.declaration.path.as_str()).collect();
+    assert_eq!(names, ["i32::Independent", "i32::Independent::Child"]);
+    let aliases: Vec<_> = unit.domain_aliases.iter().map(|alias| alias.declaration.path.as_str()).collect();
+    assert_eq!(aliases, ["i32::IndependentAlias"]);
+}
+
 /// The plan reaches the toolchain's constructor through a local wrapper. The
 /// unit holds the three bodies in call order, each under its own package. Each
 /// call names the next body and applies the caller's one region to it.

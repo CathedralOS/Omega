@@ -150,3 +150,5 @@ float arithmetic in a contract predicate	product	psi-output/float-arithmetic-pre
 restoration through an unproved selector	checker-input	psi-output/guarded-selector-disposal
 reconstruct a record from its stored view	checker-input	psi-output/rebuilt-stored-view
 call with an inferred body-local region	checker-input	psi-output/operand-carried-call-region
+add an inherited child with its own predicate	checker-input	psi-output/inherited-predicate-completion
+add a tag child and a predicate domain in one cast	checker-input	psi-output/inherited-tag-completion

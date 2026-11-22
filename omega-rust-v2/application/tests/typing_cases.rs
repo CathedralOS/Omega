@@ -378,6 +378,23 @@ fn domain_cast_requires_complete_accounting() {
 }
 
 #[test]
+fn a_child_cast_cannot_remove_its_required_parent() {
+    let declarations = "domain u8::P; domain u8::P::Small requires true;";
+    let good = format!("{declarations} machine small(p:u8 in P)->u8 in P::Small {{p as +P::Small}}");
+    let bad = good.replace("p as +P::Small", "p as -P +P::Small");
+    check(Case {
+        layer: "L3",
+        producer: "typer",
+        good: &[("domains.omg", &good)],
+        bad: &[("domains.omg", &bad)],
+        file: "domains.omg",
+        occurrence: "p as -P +P::Small",
+        reason: r"cast removes domain root\u8::P required by root\u8::P::Small",
+        rule: "Domains",
+    });
+}
+
+#[test]
 fn a_known_builtin_domain_carrier_refuses_arguments_during_typing() {
     check(Case {
         layer: "L3",

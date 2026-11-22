@@ -98,7 +98,8 @@ impl BodyTyper<'_, '_> {
             }
         }
         let mut mentioned = HashSet::new();
-        let mut result = Vec::new();
+        let mut attached = Vec::new();
+        let mut removed = HashSet::new();
         for &entry in entries {
             let path = self.unit.single_child(entry)?;
             let domain = self
@@ -121,38 +122,45 @@ impl BodyTyper<'_, '_> {
                         format!("invalid {action} entry for domain {}", atom.declaration.path),
                     ));
                 }
-                if action == "+" {
-                    self.record_obligation(node_index, ObligationKind::EstablishDomain(atom.clone()));
-                }
-                if action != "-" {
-                    result.push(atom);
+                if action == "-" {
+                    removed.insert(atom);
+                } else {
+                    attached.push((atom, action));
                 }
             }
         }
-        if let Some(missing) = source.domains().iter().find(|d| !mentioned.contains(*d)) {
+        let mut result = Vec::new();
+        for (atom, action) in attached {
+            let lineage = self
+                .catalog
+                .types
+                .expanded_domain_at(&atom, &carrier, true, self.unit, node_index)
+                .map_err(|m| TypeError::at(source_file, node_index, m))?;
+            if let Some(parent) = lineage.iter().find(|parent| removed.contains(*parent)) {
+                return Err(TypeError::at(source_file, node_index, format!("cast removes domain {parent} required by {atom}")));
+            }
+            if action == "+" {
+                // Naming a child introduces its whole applied lineage. An ancestor
+                // already carried by the operand is retained on this same cast.
+                result.extend(lineage);
+            } else {
+                result.push(atom);
+            }
+        }
+        let target = omega_typed::qualified(carrier, result);
+        let after = target.domains();
+        if let Some(missing) = source.domains().iter().find(|d| !mentioned.contains(*d) && !after.contains(*d)) {
             return Err(TypeError::at(
                 source_file,
                 node_index,
                 format!("cast omits domain {}", missing.declaration.path),
             ));
         }
-        for atom in &result {
-            for parent in self
-                .catalog
-                .types
-                .expanded_domain_at(atom, &carrier, true, self.unit, node_index)
-                .map_err(|m| TypeError::at(source_file, node_index, m))?
-            {
-                if !result.contains(&parent) {
-                    return Err(TypeError::at(
-                        source_file,
-                        node_index,
-                        format!("cast omits ancestor {}", parent.declaration.path),
-                    ));
-                }
-            }
+        // The normalized before/after sets give exactly one establishment per
+        // newly attached atom, including shared ancestors of sibling domains.
+        for atom in after.iter().filter(|d| !source.domains().contains(*d)) {
+            self.record_obligation(node_index, ObligationKind::EstablishDomain(atom.clone()));
         }
-        let target = omega_typed::qualified(carrier, result);
         self.record_operator(node_index, "as", vec![source], &target);
         Ok(target)
     }

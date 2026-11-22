@@ -533,8 +533,8 @@ include the parent's requirements. Multiple-parent predicate reuse is explicit,
 as `requires value in X & Y`. Names do not create a separate classifier declaration.
 Establishing the child also requires the parent's routed provenance when present;
 nesting a name cannot turn a routed parent into predicate-only membership.
-A type carrying the child carries every ancestor, and a
-[domain cast](#domain-only-casts) names each of them.
+A type carrying the child carries every ancestor. Adding the child in a
+[domain cast](#domain-only-casts) accounts for those ancestors.
 Pure total helper machines may supply denotational Boolean terms in predicates,
 but do not replace general mathematical predicates with executable deciders.
 
@@ -564,8 +564,8 @@ source migration are tracked by `NAMED-DOMAIN-CASTS`. The
 [design record](../../drafts/designs/named_domain_casts.md) lists the questions
 left open.
 
-A declared type gains or loses a domain only through a cast that names that
-domain. No proof, expected type, literal, call boundary or join attaches or
+A cast may change membership in a domain it names directly or as an ancestor
+of a child it adds. No proof, expected type, literal, call boundary or join attaches or
 drops one. The rule is uniform: a predicate-only domain is named in the same
 way as a unit, an arithmetic policy or a routed domain.
 
@@ -608,17 +608,17 @@ happens to every domain:
 | `-D` | carries `D` | does not carry `D` |
 | `+D` | does not carry `D` | carries `D` |
 
-The entries are one simultaneous accounting, not a sequence, and their order
-has no meaning. Every domain attached to the operand's type appears exactly
-once, as `=` or `-`. That includes each inherited parent, each constituent of
-an alias and each compiler-owned domain. Every `+` entry names a domain the
-operand lacks. The result carries exactly the `=` and `+` domains.
+Entries apply simultaneously. Adding a child retains each ancestor the operand carries
+and adds each missing ancestor, at its exact application. Explicit entries may state
+the same actions in any order. Removing an ancestor conflicts with keeping or adding
+its child. All other attached domains still require `=` or `-`, including alias
+constituents and compiler-owned domains. The result carries the retained and added domains.
 
-A missing entry, a repeated domain, `=D` or `-D` for a domain the operand lacks,
-and `+D` for a domain it already carries each reject, and the diagnostic names
-the domain. A reader therefore sees the complete before and after of every
-cast, and adding a domain to a declaration surfaces every cast that must now
-decide what to do with it.
+An unaccounted domain, two explicit entries for the same domain, `=D` or `-D` for
+a domain the operand lacks, and `+D` for a domain it carries each reject.
+The diagnostic names the domain. Children sharing an ancestor account for it once.
+Every added ancestor owes its own predicate and issuer evidence on the same value,
+just as if the cast had named it explicitly.
 
 ```omega
 let both: i32 in Km & Positive = 5 as +Km +Positive;
@@ -660,21 +660,21 @@ meaning and introduces another, and converts nothing. Unit conversion remains
 a library operation. Changing arithmetic policy likewise changes future
 operations, not the interpretation of earlier work or the stored payload.
 
-A child domain travels with its ancestors, and a cast names each one. The
-result must be ancestor-complete:
+Adding a child and adding its missing ancestors explicitly give the same type and
+obligations. A cast can remove a child and retain its parent. A child always retains its ancestors:
 
 ```omega
 domain i32::Positive::Small
     requires self < 100;
 
-let small: i32 in Positive::Small = 7 as +Positive +Positive::Small;
+let small: i32 in Positive::Small = 7 as +Positive::Small;
+let explicit: i32 in Positive::Small = 7 as +Positive +Positive::Small;
 let positive: i32 in Positive = small as =Positive -Positive::Small;
+let again: i32 in Positive::Small = positive as +Positive::Small;
 
-// Rejected: the result would carry the child without its parent.
+// Rejected: keeping or adding the child conflicts with removing its parent.
 let orphan = small as -Positive =Positive::Small;
-
-// Rejected: `Positive` is not attached and not added.
-let short = 7 as +Positive::Small;
+let conflict = positive as -Positive +Positive::Small;
 ```
 
 Naming an alias names its expansion: for `Socket::Usable` below, `-Usable`

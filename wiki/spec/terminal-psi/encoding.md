@@ -131,14 +131,24 @@ rather than selecting an optional dialect:
 | float entry ranges | machine id + parameter value id + minimum IEEE float value + maximum IEEE float value + `bool` maximum-inclusive flag |
 | integer entry ranges | machine id + parameter value id + integer type + minimum integer value + maximum integer value |
 
+<a id="scalar-completion-prerequisites"></a>
+
 In both domain rows an optional field is a `bool` presence flag followed by
 the field when present. Required memberships are counted semantic domain ids,
 and establishment routes are counted routes from the
 [domain establishment-route table](#domain-establishment-routes). An absent
 list and a present empty list are different values: absent establishment
 routes put no issuer restriction on the domain, while a present empty list
-permits no issuer. The vacuous and proved return origins below need absent
-establishment routes and present, empty required memberships.
+permits no issuer. Vacuous and proved scalar completion origins require absent
+establishment routes and a present required-membership list. On the same jump,
+argument ordinal and scalar value, each listed membership must be retained from
+the source or independently established on that arrival. Use exact applied domain
+identities. Start with retained memberships and admit additions whose prerequisites
+have been accounted for and whose own origin is valid. A cycle without independent support fails
+regardless of row order. The destination must carry every required
+ancestor. Each predicate proof uses facts available on that incoming path before the cast.
+A destination invariant, another origin row or evidence from a different arrival
+cannot serve as its proof. A routed ancestor still needs its authorized provenance.
 
 Canonical identity-table references retain
 [stable index identity](../proofs/contracts.md#stable-canonical-index-identity).

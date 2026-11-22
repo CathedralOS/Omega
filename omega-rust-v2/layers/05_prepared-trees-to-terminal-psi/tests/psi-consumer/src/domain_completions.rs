@@ -29,8 +29,8 @@ pub fn cast_completions<'a>(
             .get(value.index())
             .and_then(|value| package.types.get(value.ty))
     };
-    let members = |value| -> Result<_, &'static str> {
-        match shape(value) {
+    let members = |shape: Option<&TypeShape>| -> Result<_, &'static str> {
+        match shape {
             Some(TypeShape::PrimitiveScalar(carrier)) => Ok((*carrier, Vec::new())),
             Some(TypeShape::QualifiedScalar { carrier, domains }) => Ok((
                 *carrier,
@@ -43,8 +43,8 @@ pub fn cast_completions<'a>(
             _ => Err("completion argument is not a scalar"),
         }
     };
-    let (from, held) = members(source)?;
-    let (to, gained) = members(destination)?;
+    let (from, held) = members(shape(source))?;
+    let (to, gained) = members(shape(destination))?;
     if from != to {
         return Err("completion changes the payload carrier");
     }
@@ -73,6 +73,7 @@ pub fn cast_completions<'a>(
         return Err("completion rows do not name each added domain once in destination order");
     }
     let mut proved = Vec::new();
+    let mut pending_parents = Vec::new();
     for row in &rows {
         let domain = package
             .domains
@@ -82,14 +83,37 @@ pub fn cast_completions<'a>(
         if row.domain.arguments.len() != domain.index_binders.len() {
             return Err("a completion atom does not supply one argument per domain index");
         }
-        if !matches!(package.types.get(domain.carrier), Some(TypeShape::PrimitiveScalar(_))) {
-            return Err("a vacuous or proved origin needs empty required memberships");
+        if domain.issuers != omega_psi::DomainIssuers::Unrestricted {
+            return Err("a vacuous or proved origin cannot authorize restricted issuance");
         }
+        let (payload, parents) = members(package.types.get(domain.carrier))?;
+        if payload != from {
+            return Err("the domain declaration has a different payload carrier");
+        }
+        pending_parents.push(((&row.domain.declaration, row.domain.arguments.as_slice()), parents));
         match row.origin {
             CompletionOrigin::Vacuous if domain.requires.is_empty() => {}
             CompletionOrigin::Vacuous => return Err("a vacuous origin names a domain with predicates"),
             CompletionOrigin::Proved if !domain.requires.is_empty() => proved.push(&row.domain),
             CompletionOrigin::Proved => return Err("a proved origin names a predicate-free domain"),
+        }
+    }
+    // Seed with this argument's existing qualifications. A new row contributes its
+    // exact atom only after all of its own prerequisites have been accounted for.
+    // The rows' canonical order need not be an order of parenthood.
+    let mut grounded = held;
+    while !pending_parents.is_empty() {
+        let count = pending_parents.len();
+        pending_parents.retain(|(atom, parents)| {
+            if parents.iter().all(|parent| grounded.contains(parent)) {
+                grounded.push(*atom);
+                false
+            } else {
+                true
+            }
+        });
+        if count == pending_parents.len() {
+            return Err("an added domain lacks independently grounded parent membership on this argument");
         }
     }
     // Every arrival owes exactly the proved predicates, bound to this destination.
