@@ -2192,14 +2192,33 @@ impl<'a> DescriptorAnalysis<'a> {
                                 descriptor_path(self.replay.types, root_type, &source.path)
                                     .ok_or_else(incomplete_step)?;
                             spelling.extend_from_slice(&projection.path);
-                            source = descriptor_location(
-                                self.replay.types,
-                                source.root,
-                                root_type,
-                                &spelling,
-                                None,
-                            )
-                            .ok_or_else(incomplete_step)?;
+                            let types = self.replay.types;
+                            if let Some(home) =
+                                descriptor_location(types, source.root, root_type, &spelling, None)
+                            {
+                                source = home;
+                            } else {
+                                // An element of a view lives in its backing storage.
+                                // Keep the lending descriptor live without treating
+                                // its header as the returned element's address.
+                                let segments = crate::resolved_structural_path(
+                                    types.iter(), root_type, &spelling,
+                                )
+                                .ok()
+                                .ok_or_else(incomplete_step)?;
+                                let element = crate::descriptor_lifetimes::view_element_descriptor_prefix(
+                                    types, root_type, &segments,
+                                )
+                                .ok()
+                                .flatten()
+                                .ok_or_else(incomplete_step)?;
+                                let descriptor = DescriptorLocation::captured(
+                                    source.root, &segments[..element],
+                                )
+                                .ok_or_else(incomplete_step)?;
+                                step.derivations.push((canonical(&descriptor)?, destination.clone()));
+                                continue;
+                            }
                         }
                         source
                     }
