@@ -45,6 +45,35 @@ fn verdict(text: &str) -> String {
 }
 
 #[test]
+fn a_local_collection_window_keeps_its_parent_across_observations() {
+    let source = r#"
+data Cell [copy] { number: u64; }
+data Room [copy] { cells: [Cell; 2]; }
+machine count(view: @[Cell]) -> u64 { view.length }
+machine entry() -> u64 {
+    let mutable room: Room;
+    let whole: @[Cell] = @room.cells[..];
+    let window: @[Cell] = @whole[1u64..2u64];
+    window.length
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    assert_eq!(
+        verdict(&source.replace("window.length", "count(window)")),
+        "accepted"
+    );
+    let conflicting = source.replace(
+        "    window.length",
+        "    room.cells[1u64].number = 5u64;\n    window[0u64].number",
+    );
+    let result = crate::checking::judge(elaborate(&conflicting));
+    assert!(
+        matches!(&result, Ok(RouteVerdict::Rejected { conflicts, .. }) if !conflicts.is_empty()),
+        "{result:?}"
+    );
+}
+
+#[test]
 fn a_boundary_normal_guarantee_observes_its_returned_view() {
     let source = r#"
 data Token { id: u64; }
