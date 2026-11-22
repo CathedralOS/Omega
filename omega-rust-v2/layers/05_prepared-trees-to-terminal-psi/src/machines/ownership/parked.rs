@@ -337,6 +337,39 @@ impl<'a> Arrivals<'a> {
         (block != usize::MAX).then_some(Point { block, end: ordinal })
     }
 
+    /// An unconditional home row is meaningful only if every arrival at
+    /// the crossing has executed the operation that established this home.
+    fn established_before(&self, place: PlaceId, crossing: Point) -> bool {
+        let definition = match self.body.places[place.index()].origin {
+            PlaceOrigin::Parameter => return true,
+            PlaceOrigin::Result => return false,
+            PlaceOrigin::BlockParameter(block) => block.get() - 1,
+            PlaceOrigin::Operation(id) | PlaceOrigin::Component { operation: id, .. } => {
+                let Some(definition) = self.point(id.index()) else { return false };
+                if definition.block == crossing.block {
+                    return definition.end < crossing.end;
+                }
+                definition.block
+            }
+        };
+        if definition == crossing.block {
+            return true;
+        }
+        let mut pending = vec![crossing.block];
+        let mut visited = vec![false; self.body.blocks.len()];
+        while let Some(block) = pending.pop() {
+            if block == definition || std::mem::replace(&mut visited[block], true) {
+                continue;
+            }
+            let incoming = &self.incoming[self.starts[block]..self.starts[block + 1]];
+            if block == 0 || incoming.is_empty() {
+                return false;
+            }
+            pending.extend(incoming.iter().map(|(_, predecessor)| *predecessor));
+        }
+        true
+    }
+
     fn end_of(
         &self,
         block: usize,
@@ -488,10 +521,18 @@ impl<'a> Arrivals<'a> {
                 source,
                 access: ReferenceAccess::Shared,
             } if path.is_empty() && body.places[place.index()].ty == ty => {
-                let referent = source
-                    .path
-                    .iter()
-                    .position(|step| *step == PlaceProjection::Referent)?;
+                let Some(referent) = source.path.iter().position(|step| *step == PlaceProjection::Referent) else {
+                    // A borrow of local storage begins here. Its operation names
+                    // the captured place, even when two homes have the same type.
+                    if source.path.iter().any(|step| matches!(step, PlaceProjection::ViewElement { .. })) {
+                        return None;
+                    }
+                    return Some(vec![EmbeddedLoanOrigin {
+                        arrival: Vec::new(),
+                        source: EmbeddedLoanSource::Borrow { operation: op.id },
+                        reborrows: Vec::new(),
+                    }]);
+                };
                 let parent = &source.path[..referent];
                 if source.path[referent + 1..].contains(&PlaceProjection::Referent) {
                     return None;
@@ -928,8 +969,9 @@ impl Embeds {
 }
 
 impl OwnedCrossings {
-    /// A copyable home has no custody claim, but its descriptors still need
-    /// the same reaching stores and backing as an owned record's descriptors.
+    /// Follow each stored borrow to its captured allocation. Needs flow from a
+    /// descriptor's home to its backing, including homes reached only through
+    /// another loan. Each place can gain each of the two need bits only once.
     pub(in crate::machines) fn trace_home_loans(
         &mut self,
         body: &MachineBody,
@@ -937,6 +979,8 @@ impl OwnedCrossings {
         types: &crate::LoweringTypes,
         data: &[crate::LoweredData],
     ) -> Result<(), LoweringError> {
+        use std::collections::BTreeMap;
+
         let context = CleanupContext { places: &body.places, types, data, site: &body.diagnostics.body };
         let mut arrivals = None;
         for site in sites {
@@ -946,18 +990,84 @@ impl OwnedCrossings {
                 CallSite::Cleanup(_) => context.site,
             };
             let at_call = CleanupContext { site: source, ..context };
-            for home in &mut site.retained_homes {
-                let root = LiveRoot { place: home.place, moved: Vec::new() };
-                let mut loans = embedded_loans(&root, home.ty, &at_call, &mut self.embeds)?;
-                if !loans.is_empty() {
-                    let tracer = arrivals.get_or_insert_with(|| Arrivals::new(body, &context));
-                    let refuse = || LoweringError::new(source, UNTRACED_DESCRIPTOR);
-                    let crossing = tracer.crossing(site.call).ok_or_else(refuse)?;
-                    tracer.trace_loans(&crossing, home.place, &mut loans, None).ok_or_else(refuse)?;
+            let refuse = || LoweringError::new(source, UNTRACED_DESCRIPTOR);
+            let mut pending: Vec<_> = site.retained_homes.drain(..)
+                .map(|home| (home.place, home.needed_by_callee, home.needed_after_completion)).collect();
+            let mut homes = BTreeMap::<usize, crate::RetainedHome>::new();
+            let mut seen = BTreeMap::<usize, (bool, bool)>::new();
+            let mut checked_backings = std::collections::BTreeSet::new();
+
+            for owner in &site.retained_owners {
+                if local_backings(body, &owner.embedded_loans).next().is_none() {
+                    continue;
                 }
-                home.embedded_loans = loans;
+                let tracer = arrivals.get_or_insert_with(|| Arrivals::new(body, &context));
+                let call = tracer.crossing(site.call).ok_or_else(refuse)?;
+                let transferred = matches!(owner.custody, crate::OwnedCustody::CalleeArgument(_));
+                let borrowed = call.arguments.iter().any(|argument| matches!(argument, ValueOperand::Borrow { place, .. }
+                    if crate::machines::loans::captured_place(body, place).root == owner.place));
+                pending.push((owner.place, transferred || borrowed, !transferred));
             }
+
+            while let Some((place, callee, after)) = pending.pop() {
+                let need = seen.entry(place.index()).or_default();
+                if (!callee || need.0) && (!after || need.1) {
+                    continue;
+                }
+                need.0 |= callee;
+                need.1 |= after;
+                let ty = body.places[place.index()].ty;
+                let loans = if super::owned(ty, types, data) {
+                    // Custody comes from the ownership frontier. A move before
+                    // the call remains visible to the checker; it cannot create
+                    // a second claim merely because a borrow still names it.
+                    let Ok(index) = site.retained_owners.binary_search_by_key(&place.index(), |owner| owner.place.index()) else { continue };
+                    &site.retained_owners[index].embedded_loans
+                } else {
+                    let home = match homes.entry(place.index()) {
+                        std::collections::btree_map::Entry::Occupied(entry) => entry.into_mut(),
+                        std::collections::btree_map::Entry::Vacant(entry) => {
+                            if !matches!(types.get(ty), Some(TypeShape::PrimitiveScalar(_) | TypeShape::QualifiedScalar { .. }
+                                | TypeShape::Nominal(_) | TypeShape::QualifiedNominal { .. } | TypeShape::FixedArray { .. })) {
+                                return Err(refuse());
+                            }
+                            let root = LiveRoot { place, moved: Vec::new() };
+                            let mut loans = embedded_loans(&root, ty, &at_call, &mut self.embeds)?;
+                            if !loans.is_empty() {
+                                let tracer = arrivals.get_or_insert_with(|| Arrivals::new(body, &context));
+                                let crossing = tracer.crossing(site.call).ok_or_else(refuse)?;
+                                tracer.trace_loans(&crossing, place, &mut loans, None).ok_or_else(refuse)?;
+                            }
+                            entry.insert(crate::RetainedHome { place, ty, needed_by_callee: false,
+                                needed_after_completion: false, embedded_loans: loans })
+                        }
+                    };
+                    home.needed_by_callee = need.0;
+                    home.needed_after_completion = need.1;
+                    &home.embedded_loans
+                };
+                for backing in local_backings(body, loans) {
+                    if checked_backings.insert(backing.index()) {
+                        let tracer = arrivals.get_or_insert_with(|| Arrivals::new(body, &context));
+                        let crossing = tracer.crossing(site.call).ok_or_else(refuse)?;
+                        if !tracer.established_before(backing, crossing.at) {
+                            return Err(LoweringError::new(source, "parked loan backing is established only on some arrivals"));
+                        }
+                    }
+                    pending.push((backing, callee, after));
+                }
+            }
+            site.retained_homes.extend(homes.into_values());
         }
         Ok(())
     }
+}
+
+/// Each possible arrival can keep a different captured allocation alive.
+fn local_backings<'a>(body: &'a MachineBody, loans: &'a [crate::EmbeddedLoan]) -> impl Iterator<Item = PlaceId> + 'a {
+    loans.iter().flat_map(|loan| &loan.origins).filter_map(|origin| {
+        let EmbeddedLoanSource::Borrow { operation } = origin.source else { return None };
+        let OperationKind::BorrowPlace { source, .. } = &body.operations[operation.index()].kind else { unreachable!("borrow formation") };
+        Some(source.root)
+    })
 }

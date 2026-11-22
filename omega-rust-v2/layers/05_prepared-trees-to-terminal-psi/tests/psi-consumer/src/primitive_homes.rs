@@ -241,7 +241,9 @@ pub fn parked_homes(
     body: &MachineBody,
     site: &SuspensionSite,
 ) -> Result<Vec<ParkedHome>, &'static str> {
-    let ParkedCall { arguments, later, terminators } = ParkedCall::read(body, site)?;
+    let call = ParkedCall::read(body,site)?;
+    let backing = super::copyable_homes::embedded_backing_needs(body,site,&call)?;
+    let ParkedCall { arguments, later, terminators } = call;
     let mut rows = site.retained_homes.iter().filter(|row| home_of(body, row.place).is_some()).peekable();
     let mut parked = Vec::new();
     for home in primitive_homes(body)? {
@@ -250,8 +252,8 @@ pub fn parked_homes(
             .iter()
             .filter(|loan| loan_home(body, loan.descriptor) == Some(home.place))
             .collect();
-        let by_callee = borrows(arguments, home.place) || loans.iter().any(|loan| loan.needed_by_callee);
-        let after = later.iter().any(|kind| uses_home(kind, home.place))
+        let by_callee = backing[home.place.index()].0 || borrows(arguments, home.place) || loans.iter().any(|loan| loan.needed_by_callee);
+        let after = backing[home.place.index()].1 || later.iter().any(|kind| uses_home(kind, home.place))
             || terminators
                 .iter()
                 .any(|t| matches!(t, BlockTerminator::TerminalCall { arguments, .. } if borrows(arguments, home.place)))

@@ -121,6 +121,45 @@ fn terminator_uses(
     }
 }
 
+/// Follow local borrow formations from storage the call or continuation actually
+/// uses. The stored origins identify each dependency, while the operands and
+/// continuation independently determine which need travels over those edges.
+pub(super) fn embedded_backing_needs(body: &MachineBody, site: &SuspensionSite, call: &ParkedCall<'_>) -> Result<Vec<(bool,bool)>, &'static str> {
+    use omega_psi::{EmbeddedLoanSource, OwnedCustody, ReferenceAccess};
+    let mut pending = Vec::new();
+    let mut edges = vec![Vec::new(); body.places.len()];
+    for (root, stored, custody) in site.retained_homes.iter().map(|h|(h.place,&h.embedded_loans,None))
+        .chain(site.retained_owners.iter().map(|o|(o.place,&o.embedded_loans,Some(o.custody)))) {
+        let out = edges.get_mut(root.index()).ok_or("unknown storage root")?;
+        for origin in stored.iter().flat_map(|l| &l.origins) {
+            if let EmbeddedLoanSource::Borrow { operation } = origin.source {
+                let Some(OperationKind::BorrowPlace { source, access: ReferenceAccess::Shared }) = body.operations.get(operation.index()).map(|op| &op.kind)
+                    else { return Err("stored local origin has no shared borrow formation") };
+                out.push(source.root);
+            }
+        }
+        if out.is_empty() { continue }
+        let mut callee = custody.is_some_and(|c|matches!(c,OwnedCustody::CalleeArgument(_))) || call.arguments.iter().any(|arg|operand_uses(arg,root));
+        let mut after = custody == Some(OwnedCustody::Caller) || call.later.iter().any(|op|mentions(op,root)) || call.terminators.iter().any(|t|terminator_uses(t,root));
+        for loan in &site.retained_loans {
+            if loan_root(body,loan.descriptor).is_some_and(|source|source.root == root) {
+                callee |= loan.needed_by_callee;
+                after |= loan.needed_after_completion;
+            }
+        }
+        pending.extend(out.iter().map(|backing|(*backing,callee,after)));
+    }
+    let mut needs = vec![(false,false);body.places.len()];
+    while let Some((backing,callee,after))=pending.pop() {
+        let need = needs.get_mut(backing.index()).ok_or("unknown local backing")?;
+        if (!callee || need.0) && (!after || need.1) { continue }
+        need.0 |= callee;
+        need.1 |= after;
+        pending.extend(edges[backing.index()].iter().map(|root|(*root,callee,after)));
+    }
+    Ok(needs)
+}
+
 /// Reconstruct which copyable storage the parked call and its continuation
 /// need, and require the site's non-primitive home rows to match exactly, in
 /// place order.
@@ -130,6 +169,7 @@ pub fn parked_copyable_homes(
     site: &SuspensionSite,
 ) -> Result<Vec<CopyableHome>, &'static str> {
     let call = ParkedCall::read(body, site)?;
+    let backing = embedded_backing_needs(body,site,&call)?;
     let primitive = |place: PlaceId| {
         matches!(body.places.get(place.index()).map(|p| p.origin), Some(PlaceOrigin::Operation(id))
             if matches!(body.operations.get(id.index()).map(|op| &op.kind), Some(OperationKind::EstablishPrimitiveLocal { .. })))
@@ -167,8 +207,8 @@ pub fn parked_copyable_homes(
             .iter()
             .filter(|loan| loan_root(body, loan.descriptor).is_some_and(|source| source.root == root))
             .collect();
-        let by_callee = call.arguments.iter().any(|a| operand_uses(a, root)) || loans.iter().any(|loan| loan.needed_by_callee);
-        let after = call.later.iter().any(|kind| mentions(kind, root))
+        let by_callee = backing[index].0 || call.arguments.iter().any(|a| operand_uses(a, root)) || loans.iter().any(|loan| loan.needed_by_callee);
+        let after = backing[index].1 || call.later.iter().any(|kind| mentions(kind, root))
             || call.terminators.iter().any(|t| terminator_uses(t, root))
             || loans.iter().any(|loan| loan.needed_after_completion);
         if !by_callee && !after {

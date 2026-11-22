@@ -78,6 +78,10 @@ pub enum WritableLoanSite {
 /// What one origin of a parked descriptor is.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EmbeddedLoanSource {
+    /// This BorrowPlace formed the loan from a place in the caller's storage.
+    /// Its operand names the exact root and projection; subsequent reborrows
+    /// remain in the origin's ordered reborrow list.
+    Borrow { operation: OperationId },
     /// The descriptor arrived with this structural formal, at `path` inside
     /// it. An empty path selects the formal itself.
     Formal {
