@@ -623,11 +623,17 @@ impl CleanupContext<'_> {
             {
                 // Account for each intact child before enumerating its index.
                 // Dynamic case plans reserve phase slots instead of action rows.
-                let count = usize::try_from(length).map_err(|_| {
+                let intact = length.saturating_sub(holes.len() as u64);
+                let dispatch = sum_cleanup::contains_dispatch(element, self);
+                // Every intact element needs its own case-selection block. The
+                // portable block count is u32, independent of available host RAM.
+                if dispatch && intact > u64::from(u32::MAX) {
+                    return Err(LoweringError::new(site, "fixed-array cleanup exceeds the Psi block count"));
+                }
+                let count = usize::try_from(intact).map_err(|_| {
                     LoweringError::new(site, "fixed-array residual schedule exceeds the host address space")
                 })?;
-                let dispatch = sum_cleanup::contains_dispatch(element, self);
-                plan.reserve_array(count.saturating_sub(holes.len()), dispatch).map_err(|_| {
+                plan.reserve_array(count, dispatch).map_err(|_| {
                     LoweringError::new(site, "insufficient storage for the fixed-array residual schedule")
                 })?;
                 pending.push(Work::Array{prefix:path,remaining:length,element});

@@ -416,11 +416,11 @@ fn partially_moved_replacement_disposes_the_live_complement_before_reusing_the_h
 #[test]
 fn an_unrepresentably_large_dispatched_array_refuses_before_expansion() {
     let program = format!("{TYPES}machine discard(x:[Choice;9223372036854775807]){{}}");
-    let error = sources::lower(&[("case.omg", &program)]).unwrap_err();
-    assert!(
-        error
-            .to_string()
-            .contains("insufficient storage for the fixed-array residual schedule")
+    sources::refuse(
+        &[("case.omg", &program)],
+        "case.omg",
+        sources::unique_span(&program, "{}"),
+        "fixed-array cleanup exceeds the Psi block count",
     );
 }
 #[test]
