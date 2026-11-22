@@ -336,3 +336,5 @@ pub use member_bodies::{BodyCallee, BodyValue, ReturnedBodyCall, Supply, body_re
 pub mod callable_loans;
 pub mod sum_cleanup;
 pub mod selector_dispatch;
+
+pub mod parked_local_descriptor;

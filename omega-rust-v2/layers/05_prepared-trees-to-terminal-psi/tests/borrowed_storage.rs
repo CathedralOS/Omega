@@ -1076,7 +1076,12 @@ fn writer_summary(
                 .iter()
                 .map(|origin| {
                     let (source, path) = match &origin.source {
+                        EmbeddedLoanSource::Borrow { operation } => {
+                            let OperationKind::BorrowPlace { source, .. } = &f.operations[operation.index()].kind else { panic!("borrow formation") };
+                            (format!("borrow {}", operation.index()), &source.path)
+                        }
                         EmbeddedLoanSource::Formal { formal, path } => (format!("f{}", position(*formal)), path),
+                        EmbeddedLoanSource::CallResult { operation, path, .. } => (format!("result of operation {}", operation.index()), path),
                         EmbeddedLoanSource::Written { loan, path } => (site_name(package, f, *loan), path),
                     };
                     (origin.arrival.len(), source, spell(path), origin.reborrows.len())

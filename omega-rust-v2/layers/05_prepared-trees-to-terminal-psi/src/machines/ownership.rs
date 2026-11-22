@@ -43,11 +43,10 @@ pub(super) fn move_value(
                 NodeSemantics::Obligation(o) if !moved && matches!(&o.kind,ObligationKind::Move{place,ty} if *place==site_at(tree,operand) && ty==carrier) => {
                     moved = true
                 }
-                // A moved reference returned by this machine keeps its loan; the
-                // return edge carries the moved place, as for any returned binding.
+                // The return edge names the moved place. Its loan can be the
+                // value itself or be stored inside the returned aggregate.
                 NodeSemantics::Obligation(o)
-                    if crate::lowering::types::place_reference(carrier).is_some()
-                        && matches!(&o.kind,ObligationKind::ReturnBorrow{machine} if machine==&expressions.signature.machine) => {}
+                    if matches!(&o.kind,ObligationKind::ReturnBorrow{machine} if machine==&expressions.signature.machine) => {}
                 // An explicit move lands as a whole, so its binding is on the
                 // `move`, not on the place it moves.
                 NodeSemantics::Obligation(o) if super::loans::is_binding(&o.kind, carrier, landing) => {}

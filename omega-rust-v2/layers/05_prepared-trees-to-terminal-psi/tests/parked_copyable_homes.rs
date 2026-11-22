@@ -171,3 +171,26 @@ fn the_reader_rejects_a_missing_or_misstated_copyable_home() {
         Err("a home row names storage that is neither a primitive home nor needed copyable storage")
     );
 }
+
+#[test]
+fn only_storage_established_before_the_call_can_be_retained() {
+    for (steps, retains_item) in [
+        ("let item = Item{key:7u64}; suspend wait();", true),
+        ("suspend wait(); let item = Item{key:7u64};", false),
+    ] {
+        let program = format!(
+            "data Item [copy] {{ key:u64; }} machine wait() suspends {{}}
+             machine f()->u64 suspends {{ {steps} item.key }}"
+        );
+        let package = source::lower(&[("completion.omg", &program)]).unwrap();
+        let body = &caller(&package).body;
+        let [site] = body.suspension_sites.as_slice() else { panic!("one parked call") };
+        let homes = parked_copyable_homes(&package, body, site).unwrap();
+        if retains_item {
+            let [home] = homes.as_slice() else { panic!("one live copyable home") };
+            assert_eq!((home.formal, home.needed_by_callee, home.needed_after_completion), (None, false, true));
+        } else {
+            assert!(homes.is_empty());
+        }
+    }
+}

@@ -1,7 +1,7 @@
 //! Account for the parked activation's copyable structural storage, reading
 //! published Psi alone.
 //!
-//! A `[copy]` record or fixed array whose leaves are all scalars has
+//! A copyable aggregate without a selected cleanup has
 //! no ownership claim and no cleanup. When a parked call or its continuation
 //! needs it, for example because `@x.key` lends one of its fields, the storage
 //! stays in the activation and the site gives it a home row
@@ -9,7 +9,7 @@
 //! derives that need independently, then requires the
 //! site's non-primitive home rows to say exactly that.
 use omega_psi::{
-    BlockTerminator, CallArgument, LoweredPackage, MachineBody, Multiplicity, OperationKind, PlaceId, PlaceOrigin, PlaceProjection, ProjectedPlace,
+    BlockTerminator, CallArgument, CallSite, LoweredPackage, MachineBody, Multiplicity, OperationKind, PlaceId, PlaceOrigin, PlaceProjection, ProjectedPlace,
     ReturnEdge, SuspensionSite, TypeId, TypeShape, ValueOperand,
 };
 
@@ -26,31 +26,31 @@ pub struct CopyableHome {
     pub loans: Vec<PlaceId>,
 }
 
-fn is_copyable_scalar_storage(package: &LoweredPackage, ty: TypeId) -> bool {
+/// Which aggregates may reside in caller storage without a cleanup claim.
+fn is_copyable_storage(package: &LoweredPackage, ty: TypeId) -> bool {
     match package.types.get(ty) {
-        Some(TypeShape::PrimitiveScalar(_) | TypeShape::QualifiedScalar { .. }) => true,
-        Some(TypeShape::FixedArray { element, .. }) => is_copyable_scalar_storage(package, *element),
-        Some(TypeShape::Nominal(id)) => package.data.get(id.get() - 1).is_some_and(|schema| {
-            schema.multiplicity == Multiplicity::Copy
-                && schema.cases.is_empty()
-                && schema.fields.iter().all(|field| is_copyable_scalar_storage(package, field.carrier))
-        }),
+        Some(TypeShape::FixedArray { element, .. }) => is_copyable_storage(package, *element),
+        Some(TypeShape::Nominal(id) | TypeShape::QualifiedNominal { data: id, .. }) => {
+            let Some(schema) = package.data.get(id.get() - 1) else { return false };
+            let domain_cleanup = match package.types.get(ty) {
+                Some(TypeShape::QualifiedNominal { domains, .. }) => package.types.domain_atoms(*domains)
+                    .is_some_and(|mut atoms| atoms.any(|(id, _)| package.domains.iter().any(|d| d.declaration == *id && d.cleanup_target.is_some()))),
+                _ => false,
+            };
+            schema.multiplicity == Multiplicity::Copy && schema.cleanup_target.is_none() && !domain_cleanup
+        }
+        Some(TypeShape::PrimitiveScalar(_) | TypeShape::QualifiedScalar { .. }
+            | TypeShape::SharedByteView | TypeShape::SharedElementView { .. }
+            | TypeShape::SharedQualifiedScalarReference { .. } | TypeShape::IndexedSharedReference(_)
+            | TypeShape::ScalarReference { access: omega_psi::ReferenceAccess::Shared, .. }
+            | TypeShape::NominalReference { access: omega_psi::ReferenceAccess::Shared, .. }) => true,
         _ => false,
     }
 }
 
-fn inside(
-    place: &ProjectedPlace,
-    root: PlaceId,
-) -> bool {
-    place.root == root
-        && place
-            .path
-            .iter()
-            .all(|step| !matches!(step, PlaceProjection::Referent | PlaceProjection::ViewElement { .. }))
-}
-
-/// The storage a loan descriptor's defining borrows select, through named reborrows.
+/// The place a loan descriptor's defining borrows select, through named reborrows.
+/// If the path passes through a stored reference, its root still holds the
+/// parent descriptor the loan depends on.
 fn loan_root(
     body: &MachineBody,
     mut descriptor: PlaceId,
@@ -121,6 +121,45 @@ fn terminator_uses(
     }
 }
 
+/// Follow local borrow formations from storage the call or continuation actually
+/// uses. The stored origins identify each dependency, while the operands and
+/// continuation independently determine which need travels over those edges.
+pub(super) fn embedded_backing_needs(body: &MachineBody, site: &SuspensionSite, call: &ParkedCall<'_>) -> Result<Vec<(bool,bool)>, &'static str> {
+    use omega_psi::{EmbeddedLoanSource, OwnedCustody, ReferenceAccess};
+    let mut pending = Vec::new();
+    let mut edges = vec![Vec::new(); body.places.len()];
+    for (root, stored, custody) in site.retained_homes.iter().map(|h|(h.place,&h.embedded_loans,None))
+        .chain(site.retained_owners.iter().map(|o|(o.place,&o.embedded_loans,Some(o.custody)))) {
+        let out = edges.get_mut(root.index()).ok_or("unknown storage root")?;
+        for origin in stored.iter().flat_map(|l| &l.origins) {
+            if let EmbeddedLoanSource::Borrow { operation } = origin.source {
+                let Some(OperationKind::BorrowPlace { source, access: ReferenceAccess::Shared }) = body.operations.get(operation.index()).map(|op| &op.kind)
+                    else { return Err("stored local origin has no shared borrow formation") };
+                out.push(source.root);
+            }
+        }
+        if out.is_empty() { continue }
+        let mut callee = custody.is_some_and(|c|matches!(c,OwnedCustody::CalleeArgument(_))) || call.arguments.iter().any(|arg|operand_uses(arg,root));
+        let mut after = custody == Some(OwnedCustody::Caller) || call.later.iter().any(|op|mentions(op,root)) || call.terminators.iter().any(|t|terminator_uses(t,root));
+        for loan in &site.retained_loans {
+            if loan_root(body,loan.descriptor).is_some_and(|source|source.root == root) {
+                callee |= loan.needed_by_callee;
+                after |= loan.needed_after_completion;
+            }
+        }
+        pending.extend(out.iter().map(|backing|(*backing,callee,after)));
+    }
+    let mut needs = vec![(false,false);body.places.len()];
+    while let Some((backing,callee,after))=pending.pop() {
+        let need = needs.get_mut(backing.index()).ok_or("unknown local backing")?;
+        if (!callee || need.0) && (!after || need.1) { continue }
+        need.0 |= callee;
+        need.1 |= after;
+        pending.extend(edges[backing.index()].iter().map(|root|(*root,callee,after)));
+    }
+    Ok(needs)
+}
+
 /// Reconstruct which copyable storage the parked call and its continuation
 /// need, and require the site's non-primitive home rows to match exactly, in
 /// place order.
@@ -130,6 +169,7 @@ pub fn parked_copyable_homes(
     site: &SuspensionSite,
 ) -> Result<Vec<CopyableHome>, &'static str> {
     let call = ParkedCall::read(body, site)?;
+    let backing = embedded_backing_needs(body,site,&call)?;
     let primitive = |place: PlaceId| {
         matches!(body.places.get(place.index()).map(|p| p.origin), Some(PlaceOrigin::Operation(id))
             if matches!(body.operations.get(id.index()).map(|op| &op.kind), Some(OperationKind::EstablishPrimitiveLocal { .. })))
@@ -138,19 +178,37 @@ pub fn parked_copyable_homes(
     let mut homes = Vec::new();
     for (index, place) in body.places.iter().enumerate() {
         let root = PlaceId(std::num::NonZeroUsize::new(index + 1).unwrap());
-        if primitive(root) || !matches!(package.types.get(place.ty), Some(TypeShape::Nominal(_) | TypeShape::FixedArray { .. })) {
+        if primitive(root) || !matches!(package.types.get(place.ty), Some(TypeShape::Nominal(_) | TypeShape::QualifiedNominal { .. } | TypeShape::FixedArray { .. })) {
             continue;
         }
-        if !is_copyable_scalar_storage(package, place.ty) {
+        if !is_copyable_storage(package, place.ty) {
+            continue;
+        }
+        // Storage established by the call or along its continuation cannot
+        // be retained at the crossing, even when the continuation reads it.
+        let established_on_completion = match place.origin {
+            PlaceOrigin::Operation(id) | PlaceOrigin::Component { operation: id, .. } => {
+                site.call == CallSite::Operation(id)
+                    || call.later.iter().any(|kind| std::ptr::eq(*kind, &body.operations[id.index()].kind))
+            }
+            PlaceOrigin::BlockParameter(id) => {
+                let block = &body.blocks[id.get() - 1];
+                matches!(site.call, CallSite::Operation(call) if !block.operations.contains(&call.index()))
+                    && call.terminators.iter().any(|terminator| std::ptr::eq(*terminator, &block.terminator))
+            }
+            PlaceOrigin::Parameter => false,
+            PlaceOrigin::Result => true,
+        };
+        if established_on_completion {
             continue;
         }
         let loans: Vec<_> = site
             .retained_loans
             .iter()
-            .filter(|loan| loan_root(body, loan.descriptor).is_some_and(|source| inside(&source, root)))
+            .filter(|loan| loan_root(body, loan.descriptor).is_some_and(|source| source.root == root))
             .collect();
-        let by_callee = call.arguments.iter().any(|a| operand_uses(a, root)) || loans.iter().any(|loan| loan.needed_by_callee);
-        let after = call.later.iter().any(|kind| mentions(kind, root))
+        let by_callee = backing[index].0 || call.arguments.iter().any(|a| operand_uses(a, root)) || loans.iter().any(|loan| loan.needed_by_callee);
+        let after = backing[index].1 || call.later.iter().any(|kind| mentions(kind, root))
             || call.terminators.iter().any(|t| terminator_uses(t, root))
             || loans.iter().any(|loan| loan.needed_after_completion);
         if !by_callee && !after {

@@ -311,33 +311,82 @@ impl<'a> Liveness<'a> {
         matches!(self.body.places[place.index()].origin, crate::PlaceOrigin::Operation(id)
             if matches!(self.body.operations[id.index()].kind, OperationKind::EstablishPrimitiveLocal { .. }))
     }
-    /// Copyable structural storage the activation holds directly: a record
-    /// or fixed array with no ownership claim, no cleanup and only
-    /// scalar leaves. Like a primitive home, it stays in the parked activation
-    /// when a loan or operand needs it.
+    /// Copyable aggregate storage needs a home when a call or continuation
+    /// uses it. Descriptors stored inside that home keep their own origins.
     fn copyable_home(
         &self,
         place: PlaceId,
         types: &LoweringTypes,
     ) -> bool {
-        let ty = self.body.places[place.index()].ty;
-        matches!(types.get(ty), Some(TypeShape::Nominal(_) | TypeShape::FixedArray { .. }))
-            && has_copyable_scalar_storage(ty, types, self.data)
+        let mut ty = self.body.places[place.index()].ty;
+        if !matches!(types.get(ty), Some(TypeShape::Nominal(_) | TypeShape::QualifiedNominal { .. } | TypeShape::FixedArray { .. })) {
+            return false;
+        }
+        while let Some(TypeShape::FixedArray { element, .. }) = types.get(ty) {
+            ty = *element;
+        }
+        match types.get(ty) {
+            Some(TypeShape::Nominal(_) | TypeShape::QualifiedNominal { .. }) => !super::ownership::owned(ty, types, self.data),
+            Some(TypeShape::PrimitiveScalar(_) | TypeShape::QualifiedScalar { .. }
+                | TypeShape::SharedByteView | TypeShape::SharedElementView { .. }
+                | TypeShape::SharedQualifiedScalarReference { .. } | TypeShape::IndexedSharedReference(_)
+                | TypeShape::ScalarReference { access: crate::ReferenceAccess::Shared, .. }
+                | TypeShape::NominalReference { access: crate::ReferenceAccess::Shared, .. }) => true,
+            _ => false,
+        }
     }
-    /// The home a borrowed place selects, directly or through named reborrows.
-    /// A copyable home may be selected below its root, but never through a
-    /// stored reference or a runtime view element.
+    /// The activation home needed by a borrow. Below a stored reference,
+    /// the home holds the parent descriptor and its traced origin supplies
+    /// the referent's backing.
     fn backing_home(
         &self,
         place: &crate::ProjectedPlace,
         types: &LoweringTypes,
+        site: &Site,
     ) -> Option<PlaceId> {
+        use crate::PlaceProjection;
+
         let captured = super::loans::captured_place(self.body, place);
-        let inside = captured
+        if captured.path.is_empty() && self.is_home(captured.root) {
+            return Some(captured.root);
+        }
+        if !self.copyable_home(captured.root, types) {
+            return None;
+        }
+        if let Some(crossing) = captured
             .path
             .iter()
-            .all(|step| !matches!(step, crate::PlaceProjection::Referent | crate::PlaceProjection::ViewElement { .. }));
-        ((captured.path.is_empty() && self.is_home(captured.root)) || (inside && self.copyable_home(captured.root, types))).then_some(captured.root)
+            .position(|step| matches!(step, PlaceProjection::Referent | PlaceProjection::ViewElement { .. }))
+        {
+            let (fields, rest) = captured.path.split_at(crossing);
+            let [PlaceProjection::Referent, referent_path @ ..] = rest else {
+                return None;
+            };
+            let mut parent = self.body.places[captured.root.index()].ty;
+            let mut steps = fields.iter();
+            while let Some(step) = steps.next() {
+                let (TypeShape::Nominal(id) | TypeShape::QualifiedNominal { data: id, .. }) = types.get(parent)? else {
+                    return None;
+                };
+                let schema = &self.data[id.get() - 1];
+                let (fields, field) = match step {
+                    PlaceProjection::Case(case) => {
+                        let case = schema.cases.iter().find(|candidate| candidate.declaration == *case)?;
+                        (&case.fields, steps.next()?)
+                    }
+                    _ => (&schema.fields, step),
+                };
+                let PlaceProjection::Field(field) = field else {
+                    return None;
+                };
+                parent = fields.iter().find(|candidate| candidate.declaration == *field)?.carrier;
+            }
+            let TypeShape::NominalReference { referent, access: crate::ReferenceAccess::Shared } = types.get(parent)? else {
+                return None;
+            };
+            field_reborrows::check_backing(*referent, referent_path, types, self.data, site).ok()?;
+        }
+        Some(captured.root)
     }
     /// A direct operand names its storage. A named reborrow reaches that same
     /// storage through its defining BorrowPlace. Loan permissions remain on
@@ -384,19 +433,18 @@ impl<'a> Liveness<'a> {
             return Ok(true);
         }
         // The activation retains a borrowed home; `activation` publishes its row.
-        if self.backing_home(place, types).is_some() {
+        if self.backing_home(place, types, site).is_some() {
             return Ok(true);
         }
-        if !matches!(types.get(root.ty), Some(TypeShape::Nominal(_) | TypeShape::FixedArray { .. })) {
+        if !matches!(types.get(root.ty), Some(TypeShape::Nominal(_) | TypeShape::QualifiedNominal { .. } | TypeShape::FixedArray { .. })) {
             return Ok(false);
         }
         // The owner row publishes who holds the root during the call and which
         // paths have already moved out. Owned storage transferred whole has
         // no row; its move operation names the destination. A loan that
         // overlaps a hole or a transfer is a conflict the checker judges, as
-        // it does for the same call without a suspension. Copyable storage with
-        // scalar leaves is a home above; a copyable record that holds
-        // references stays unbacked.
+        // it does for the same call without a suspension. A projection through a
+        // stored descriptor needs its own referent, outside that home.
         if owners
             .binary_search_by_key(&place.root.index(), |owner| owner.place.index())
             .is_ok()
@@ -482,7 +530,7 @@ impl<'a> Liveness<'a> {
             // A named loan of a home keeps that home in the activation.
             if let crate::PlaceOrigin::Operation(id) = place.origin
                 && let OperationKind::BorrowPlace { source, .. } = &self.body.operations[id.index()].kind
-                && let Some(home) = self.backing_home(source, types)
+                && let Some(home) = self.backing_home(source, types, site)
             {
                 let need = &mut home_needs[home.index()];
                 *need = (need.0 | held[key], need.1 | after[key]);
@@ -529,31 +577,13 @@ impl<'a> Liveness<'a> {
                 crate::RetainedHome {
                     place,
                     ty: self.body.places[index].ty,
+                    embedded_loans: Vec::new(),
                     needed_by_callee,
                     needed_after_completion,
                 }
             })
             .collect();
         Ok((activation, retained_callables, retained_loans, retained_homes))
-    }
-}
-
-/// These homes have scalar leaves and contain no loan descriptors or owned subtrees.
-fn has_copyable_scalar_storage(
-    ty: crate::TypeId,
-    types: &LoweringTypes,
-    data: &[crate::LoweredData],
-) -> bool {
-    match types.get(ty) {
-        Some(TypeShape::PrimitiveScalar(_) | TypeShape::QualifiedScalar { .. }) => true,
-        Some(TypeShape::FixedArray { element, .. }) => has_copyable_scalar_storage(*element, types, data),
-        Some(TypeShape::Nominal(id)) => {
-            let schema = &data[id.get() - 1];
-            schema.multiplicity == crate::Multiplicity::Copy
-                && schema.cases.is_empty()
-                && schema.fields.iter().all(|field| has_copyable_scalar_storage(field.carrier, types, data))
-        }
-        _ => false,
     }
 }
 
@@ -681,5 +711,6 @@ fn plan<'members>(
         }
         crossings[start..].reverse();
     }
+    owners.trace_home_loans(body, &mut crossings, types, data)?;
     Ok(crossings)
 }
