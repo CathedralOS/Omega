@@ -442,6 +442,9 @@ impl<'a> Storage<'a> {
                 return Ok(PayloadInventory::default());
             }
         };
+        if inventory.slots.is_empty() && inventory.unknown_contents.is_empty() {
+            return Ok(PayloadInventory::default());
+        }
         let prefix = region.descriptor_location().ok_or_else(|| {
             self.unsupported(concerns, "payload write has no captured descriptor path")
         })?;
