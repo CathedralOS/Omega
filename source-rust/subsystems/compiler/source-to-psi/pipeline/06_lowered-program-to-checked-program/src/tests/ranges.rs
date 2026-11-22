@@ -161,11 +161,15 @@ fn policy_remainder_is_below_its_own_positive_unsigned_divisor() {
             "machine sample(a: u32 in {policy}, divisor: u32 in {policy}, other: u32) -> u32
              requires divisor > 0 ensures result < divisor {{ (a % divisor) as u32 }}"
         );
-        let accepted = super::entryless::judged(&source, false);
-        assert!(
-            matches!(accepted, RouteVerdict::Accepted(_)),
-            "{accepted:?}"
-        );
+        for relation in ["<", "<="] {
+            let expected =
+                source.replace("result < divisor", &format!("result {relation} divisor"));
+            let accepted = super::entryless::judged(&expected, false);
+            assert!(
+                matches!(accepted, RouteVerdict::Accepted(_)),
+                "{accepted:?}"
+            );
+        }
 
         let foreign = source.replace("ensures result < divisor", "ensures result < other");
         let unproved = match super::entryless::judged(&foreign, false) {
