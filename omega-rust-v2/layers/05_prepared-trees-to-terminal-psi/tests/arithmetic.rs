@@ -398,3 +398,93 @@ fn boolean_not_and_equality_preserve_their_operand_order() {
     );
     assert_eq!(sole_return(body), ReturnEdge::Scalar(scalar_result(equal)));
 }
+
+/// A clause is already being used to state a proof obligation. The arithmetic
+/// inside it can introduce further obligations before the clause denotes a fact.
+#[test]
+fn contract_integer_terms_keep_their_operands_and_formation_questions() {
+    use ArithmeticPolicy::{Exact, Saturating, Wrapping};
+    use IntegerObligation::{NonzeroDivisor, QuotientFitsCarrier, ResultFitsCarrier, ShiftCountInRange};
+    use IntegerPrimitive::{Add, BitwiseAnd, BitwiseNot, Divide, Negate, Remainder, ShiftLeft};
+    use omega_lowering::{PredicateOperator, PredicateStep};
+
+    let u8_ty = ScalarType::Integer { signed: false, width: 8 };
+    let i8_ty = ScalarType::Integer { signed: true, width: 8 };
+    let u13_ty = ScalarType::Integer { signed: false, width: 13 };
+    for (parameters, spelling, primitive, policy, carriers, obligations) in [
+        ("x:u8,y:u8", "x + y", Add, Exact, &[u8_ty, u8_ty][..], &[ResultFitsCarrier][..]),
+        ("x:u8,y:u8", "x +% y", Add, Wrapping, &[u8_ty, u8_ty], &[]),
+        ("x:u8,y:u8", "x +| y", Add, Saturating, &[u8_ty, u8_ty], &[]),
+        ("x:i8,y:i8", "x % y", Remainder, Exact, &[i8_ty, i8_ty], &[NonzeroDivisor, QuotientFitsCarrier]),
+        ("x:u8,y:u8", "x / y", Divide, Exact, &[u8_ty, u8_ty], &[NonzeroDivisor]),
+        ("x:u13,y:i8", "x << y", ShiftLeft, Exact, &[u13_ty, i8_ty], &[ShiftCountInRange, ResultFitsCarrier]),
+        ("x:u13,y:i8", "x <<% y", ShiftLeft, Wrapping, &[u13_ty, i8_ty], &[]),
+        ("x:u8,y:u8", "x & y", BitwiseAnd, Exact, &[u8_ty, u8_ty], &[]),
+        ("x:u8", "~x", BitwiseNot, Exact, &[u8_ty], &[]),
+        ("x:i8", "-x", Negate, Exact, &[i8_ty], &[ResultFitsCarrier]),
+    ] {
+        let source = format!("machine test({parameters}) requires ({spelling}) == x {{}}");
+        let package = lower(&source);
+        let machine = &package.machines[0];
+        assert!(machine.body.operations.is_empty(), "{spelling}");
+        let [clause] = machine.contract.requires.as_slice() else { panic!("missing requirement for {spelling}") };
+        let (inputs, tail) = clause.predicate.split_at(carriers.len());
+        for (index, input) in inputs.iter().enumerate() {
+            assert_eq!(input, &PredicateStep::Formal(index), "{spelling}");
+        }
+        let [PredicateStep::IntegerArithmetic { operation, operands, site }, PredicateStep::Formal(0),
+             PredicateStep::Apply(PredicateOperator::Equal)] = tail else { panic!("unexpected terms for {spelling}: {tail:?}") };
+        assert_eq!((operation.primitive, operation.policy), (primitive, policy), "{spelling}");
+        assert_eq!(operation.obligations, obligations, "{spelling}");
+        assert_eq!(operands, carriers, "{spelling}");
+        assert_eq!(site.span.slice(source.as_bytes()), Some(spelling.as_bytes()));
+    }
+}
+
+/// At the u8 boundary, substitution distinguishes an unformed exact term,
+/// a wrapping result of zero, and a saturated result of 255 in the same clause.
+#[test]
+fn read_nested_addition_policies_from_the_published_clause() {
+    use omega_lowering::{PredicateOperator, PredicateStep};
+    fn substitute(clause: &[PredicateStep], x: u8) -> Option<bool> {
+        let mut values = Vec::new();
+        let [terms @ .., PredicateStep::Apply(PredicateOperator::Equal)] = clause else { return None };
+        for step in terms {
+            match step {
+                PredicateStep::Formal(0) => values.push(x),
+                PredicateStep::Integer(n) => values.push(u8::try_from(n).ok()?),
+                PredicateStep::IntegerArithmetic { operation, operands, .. } => {
+                    let u8_ty = ScalarType::Integer { signed: false, width: 8 };
+                    if operands != &[u8_ty, u8_ty] || operation.primitive != IntegerPrimitive::Add { return None; }
+                    let right = values.pop()?;
+                    let left = values.pop()?;
+                    values.push(match (operation.policy, operation.obligations.as_slice()) {
+                        (ArithmeticPolicy::Exact, [IntegerObligation::ResultFitsCarrier]) => left.checked_add(right)?,
+                        (ArithmeticPolicy::Wrapping, []) => left.wrapping_add(right),
+                        (ArithmeticPolicy::Saturating, []) => left.saturating_add(right),
+                        _ => return None,
+                    });
+                }
+                _ => return None,
+            }
+        }
+        let [left, right] = values.as_slice() else { return None };
+        Some(left == right)
+    }
+    for (expression, expected) in [
+        ("x + 1u8", None),
+        ("x +% 1u8", Some(true)),
+        ("x +| 1u8", Some(false)),
+        ("(x +| 1u8) +% 1u8", Some(true)),
+        ("(x +% 1u8) +| 1u8", Some(false)),
+    ] {
+        let source = format!("machine test(x:u8) requires {expression} == 0u8 {{}}");
+        let package = lower(&source);
+        let mut terms = package.machines[0].contract.requires[0].predicate.clone();
+        assert_eq!(substitute(&terms, 255), expected, "{expression}");
+        if let Some(PredicateStep::IntegerArithmetic { operation, .. }) = terms.iter_mut().find(|s| matches!(s, PredicateStep::IntegerArithmetic { .. })) {
+            operation.obligations = vec![IntegerObligation::NonzeroDivisor];
+        }
+        assert_eq!(substitute(&terms, 1), None, "the reader accepted a foreign formation obligation");
+    }
+}

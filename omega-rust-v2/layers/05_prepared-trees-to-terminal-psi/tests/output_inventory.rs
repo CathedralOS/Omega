@@ -57,7 +57,7 @@ families! {
     PredicateStep => [
         Formal, MachineApplication, CallbackApplication, CallbackGuarantee, TypesEqual, ValueIndex, Result, SelfValue, Referent, Field, CasePayload, FixedIndex, FixedArrayRead,
         IsCase, InDomain,
-        FixedArrayLength, ByteSequenceLength, ElementViewLength, Boolean, Integer, IeeeFloat, IeeeArithmetic, IeeeComparison, MathematicalTerm,
+        FixedArrayLength, ByteSequenceLength, ElementViewLength, Boolean, Integer, IntegerArithmetic, IeeeFloat, IeeeArithmetic, IeeeComparison, MathematicalTerm,
         HypothesisParameter, HypothesisGuarantee, Apply,
     ],
     TypeShape => [
