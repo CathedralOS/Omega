@@ -8,7 +8,7 @@ use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableUnaryExpression,
     UnaryOperator,
 };
-use tokens::{KeywordKind, PunctuationKind};
+use tokens::PunctuationKind;
 
 use language_core::ReferenceAccess;
 

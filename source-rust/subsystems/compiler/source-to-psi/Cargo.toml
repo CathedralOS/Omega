@@ -105,6 +105,16 @@ path = "pipeline/03_symbol-resolved-trees-to-typed-trees/examples/declaration_sh
 required-features = ["test-support"]
 
 [[test]]
+name = "preparation_qualified_constant_patterns"
+path = "pipeline/04_typed-trees-to-prepared-typed-trees/tests/qualified_constant_patterns.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_prepared_boolean_patterns"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/prepared_boolean_patterns.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "checking_dominance"
 path = "pipeline/06_lowered-program-to-checked-program/tests/dominance.rs"
 required-features = ["test-support"]
