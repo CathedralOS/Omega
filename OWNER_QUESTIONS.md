@@ -128,7 +128,7 @@ A transparent alias of `u64` cannot acquire a new restriction on suspension. May
 <a id="machine-hypothesis-without-a-binder"></a>
 ### 6. Does a theorem’s machine hypothesis require an explicit binder?
 
-When a theorem writes `requires machine Step(...)` but its generic binders do not name `Step`, must the compiler reject the declaration, or does the hypothesis introduce an evidence parameter? For the latter interpretation, which argument at a citation supplies that evidence? V2 types a citation with no such argument and then stops in lowering. The corresponding declaration with an explicit machine binder gives the citation an evidence position.
+When a theorem writes `requires machine Step(...)` but its generic binders do not name `Step`, must the compiler reject the declaration, or does the hypothesis introduce an evidence parameter? For the latter interpretation, which argument at a citation supplies that evidence? V2 rejects a citation with no evidence for the root hypothesis during typing. The declaration alone still reaches lowering, where it lacks a binder slot. The corresponding declaration with an explicit machine binder gives the citation an evidence position.
 
 [Logical hypotheses and machine use](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use) describes nested machine-shaped requirements. Its [proof-construction example](wiki/spec/proofs/mathematical_bindings.md#witnesses-existence-and-proof-construction) binds `machine Step` explicitly. An answer settles which declarations type and what evidence a citation must supply.
 
