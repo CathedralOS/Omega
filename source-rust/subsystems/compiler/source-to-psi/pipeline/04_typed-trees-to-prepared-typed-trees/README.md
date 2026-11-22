@@ -125,13 +125,10 @@ A pending deployment stays explicit. Build reads its constant dependencies from
 this result after lowering. Source admission refuses unsupported wire demands
 before evaluation.
 
-An array extent that names a constant, `[u8; WIDTH]`, arrives in one of two
-forms. When resolution recorded the constant's value (`const WIDTH: u64 = 4;`),
-typing wrote the length into the array type. When the constant is computed by a
-call (`const WIDTH: u64 = measure();`), the array type still names the constant
-and the length is the value the source driver recorded on that declaration.
-Read either form with `TypedTrees::declared_array_extent`; matching
-`FixedArrayLength::Literal` alone misses the second.
+An array type such as `[u8; WIDTH]` names the constant that supplies its length.
+Preparation reads the evaluated value from that declaration for both a literal
+initializer and one that calls a machine. A numeric extent such as `[u8; 4]`
+stores its length directly.
 [Extent handoff test](tests/computed_array_extents.rs)
 
 The Product driver forms Build-selected operands against the authored typed

@@ -817,7 +817,7 @@ impl Program<'_> {
                 length,
             } => {
                 match length {
-                    FixedArrayLength::Literal(_) => {}
+                    _ if typed.closed_fixed_array_length(reference).is_some() => {}
                     FixedArrayLength::ConstParameter { symbol, .. } if own(*symbol, true) => {}
                     _ => return Err(unserved()),
                 }

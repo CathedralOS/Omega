@@ -277,9 +277,8 @@ impl<'source> ApplicationPreparation<'source> {
             TypeReferenceNode::Reference { referee, .. } => self.reference(referee),
             TypeReferenceNode::Slice { element_type } => self.reference(element_type),
             TypeReferenceNode::FixedArray {
-                element_type,
-                length,
-            } => Ok(matches!(length, FixedArrayLength::Literal(_)) && self.reference(element_type)?),
+                element_type, ..
+            } => Ok(self.source.closed_fixed_array_length(reference).is_some() && self.reference(element_type)?),
             TypeReferenceNode::Constrained { base_type, .. } => self.reference(base_type),
             TypeReferenceNode::Callable { contract } => {
                 self.source

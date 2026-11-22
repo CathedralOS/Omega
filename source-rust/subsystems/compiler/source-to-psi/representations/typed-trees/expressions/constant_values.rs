@@ -74,7 +74,7 @@ pub fn canonical_const_carrier_is_supported(
     reference: types::TypeReferenceHandle,
 ) -> bool {
     use data::DataMember;
-    use types::{FixedArrayLength, TypeReferenceNode};
+    use types::TypeReferenceNode;
     let mut pending = vec![(reference, false)];
     let mut active = Vec::new();
     while let Some((reference, exiting)) = pending.pop() {
@@ -101,10 +101,8 @@ pub fn canonical_const_carrier_is_supported(
         }
         active.push(reference);
         pending.push((reference, true));
-        if let TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(_),
-        } = node
+        if let TypeReferenceNode::FixedArray { element_type, .. } = node
+            && program.closed_fixed_array_length(reference).is_some()
         {
             pending.push((*element_type, false));
             continue;

@@ -494,8 +494,8 @@ impl Preparation<'_> {
                 match table.type_reference(*base_type) {
                     TypeReferenceNode::FixedArray {
                         element_type,
-                        length: crate::source_state::types::FixedArrayLength::Literal(_),
-                    } => {
+                        ..
+                    } if self.program.closed_fixed_array_length(*base_type).is_some() => {
                         self.program.primitive_type_reference(*element_type)
                             == Some(symbols::PrimitiveType::U8)
                     }

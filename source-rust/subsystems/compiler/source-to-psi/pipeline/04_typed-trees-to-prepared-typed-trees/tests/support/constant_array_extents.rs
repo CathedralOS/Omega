@@ -53,7 +53,7 @@ pub fn passed_argument(machine: &str) -> std::ops::Range<usize> {
 }
 
 /// How each module writes its constant. Resolution records the value of a
-/// literal, so typing can write the extent. A call has no value until the
+/// literal on its declaration. A call has no value until the
 /// source driver runs it, which happens after typing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Initializer {

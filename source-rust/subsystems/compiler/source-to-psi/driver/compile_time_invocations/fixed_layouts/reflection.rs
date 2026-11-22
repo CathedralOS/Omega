@@ -2,9 +2,7 @@
 //! construction does not inspect source text or choose a replacement layout.
 
 use crate::source_state::data::{DataDefinition, DataMember};
-use crate::source_state::types::{
-    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
-};
+use crate::source_state::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use crate::source_state::{PlanLaidSchemaField, PlanLaidSchemaFieldKind, TypedTrees};
 use layout_plans::{LayoutTargetFacts, StorageGeometry};
 
@@ -127,12 +125,10 @@ fn field_geometry(
         return Err("nested layout policy must finish before its containing schema".into());
     }
     match typed.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(length),
-        } => {
+        TypeReferenceNode::FixedArray { element_type, .. } => {
             let element = field_geometry(typed, *element_type, target, depth + 1)?;
-            let count = u64::try_from(*length).map_err(|_| "layout array extent exceeds u64")?;
+            let length = typed.closed_fixed_array_length(reference).ok_or("layout array extent is not a known length")?;
+            let count = u64::try_from(length).map_err(|_| "layout array extent exceeds u64")?;
             Ok(StorageGeometry {
                 byte_size: element
                     .byte_size

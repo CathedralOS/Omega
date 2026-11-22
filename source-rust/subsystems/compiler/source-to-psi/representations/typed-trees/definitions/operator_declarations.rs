@@ -10,9 +10,7 @@ pub mod operator {
         use symbols::{SymbolHandle, SymbolKind};
 
         use crate::source_state::TypedTrees;
-        use crate::source_state::types::{
-            FixedArrayLength, TypeReferenceHandle, TypeReferenceNode,
-        };
+        use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 
         use super::{OperatorConstBinding, OperatorDefinition};
         use crate::source_state::declarations::operator::operand_signatures::normalized_operand_parameters;
@@ -394,9 +392,8 @@ pub mod operator {
                 | TypeReferenceNode::Callable { .. } => false,
                 TypeReferenceNode::FixedArray {
                     element_type,
-                    length: FixedArrayLength::Literal(_),
-                } => closed_boundary_application_type(program, *element_type),
-                TypeReferenceNode::FixedArray { .. } => false,
+                    ..
+                } => program.closed_fixed_array_length(type_reference).is_some() && closed_boundary_application_type(program, *element_type),
                 TypeReferenceNode::Slice { element_type } => {
                     closed_boundary_application_type(program, *element_type)
                 }
@@ -2646,10 +2643,10 @@ pub mod operator {
                 } => lifetime.is_none() && closed(*referee),
                 TypeReferenceNode::FixedArray {
                     element_type,
-                    length: crate::source_state::types::FixedArrayLength::Literal(_),
-                }
-                | TypeReferenceNode::Slice { element_type } => closed(*element_type),
-                TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::ConstExpression(_) => {
+                    ..
+                } => program.closed_fixed_array_length(reference).is_some() && closed(*element_type),
+                TypeReferenceNode::Slice { element_type } => closed(*element_type),
+                TypeReferenceNode::ConstExpression(_) => {
                     false
                 }
                 TypeReferenceNode::Named { symbol, .. } => {
@@ -4186,7 +4183,9 @@ pub mod operator {
                     fixed_array_lengths_match(
                         program,
                         actual_length,
+                        program.closed_fixed_array_length(actual),
                         expected_length,
+                        program.closed_fixed_array_length(expected),
                         type_parameters,
                         const_bindings,
                         allow_name_fallback,
@@ -4304,11 +4303,16 @@ pub mod operator {
         fn fixed_array_lengths_match(
             program: &TypedTrees,
             actual: &FixedArrayLength,
+            actual_value: Option<usize>,
             expected: &FixedArrayLength,
+            expected_value: Option<usize>,
             type_parameters: arena::RootRows<'_, TypeParameter>,
             const_bindings: &mut Vec<OperatorConstBinding>,
             allow_name_fallback: bool,
         ) -> bool {
+            if let (Some(actual), Some(expected)) = (actual_value, expected_value) {
+                return actual == expected;
+            }
             let FixedArrayLength::ConstParameter { symbol, name } = expected else {
                 return actual == expected;
             };
@@ -4322,10 +4326,10 @@ pub mod operator {
             else {
                 return false;
             };
-            let FixedArrayLength::Literal(value) = actual else {
+            let Some(value) = actual_value else {
                 return allow_name_fallback && actual == expected;
             };
-            let Ok(value) = i128::try_from(*value) else {
+            let Ok(value) = i128::try_from(value) else {
                 return false;
             };
             let Some(primitive) = program.primitive_type_reference(type_reference) else {
