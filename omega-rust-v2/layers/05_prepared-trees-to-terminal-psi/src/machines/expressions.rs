@@ -79,6 +79,7 @@ enum PendingOperation {
     Call {
         callee: CallTarget,
         owed: super::calls::OwedClauses,
+        regions: Vec<crate::CallRegion>,
         borrowed: Vec<Option<CallArgument>>,
         pause: crate::PauseEffects,
     },
@@ -346,7 +347,7 @@ impl Expressions<'_> {
         node: usize,
         body: &mut MachineBody,
         flow: &mut BlockFlow,
-    ) -> Result<(CallTarget, Vec<CallArgument>, super::calls::OwedClauses, crate::PauseEffects), LoweringError> {
+    ) -> Result<(CallTarget, Vec<CallArgument>, super::calls::OwedClauses, crate::PauseEffects, Vec<crate::CallRegion>), LoweringError> {
         let file = self.tree.resolved().file;
         let carrier = &self.signature.result;
         let mut call_node = node;
@@ -377,7 +378,7 @@ impl Expressions<'_> {
                 arguments.push(self.call_value_argument(result, body, &site_at(file, operand))?);
             }
         }
-        Ok((call.callee, arguments, call.owed, call.acknowledgements))
+        Ok((call.callee, arguments, call.owed, call.acknowledgements, call.regions))
     }
 
     pub(crate) fn lower(
@@ -637,18 +638,49 @@ impl Expressions<'_> {
                             }
                         }
                         PendingOperation::EstablishStructuralArray => {
-                            let elements = operands
-                                .map(|operand| match operand {
-                                    OperationResult::Structural(place) => Ok(place),
-                                    _ => Err(unsupported_node(file, node, "structural array requires an owned place for each element")),
-                                })
-                                .collect::<Result<Vec<_>, _>>()?;
+                            // A sequence has no declared extent to count against, so
+                            // each operand must be a place of exactly its element row.
+                            let element = match output {
+                                OperationOutput::Structural(result) => match self.types.get(result) {
+                                    Some(&crate::TypeShape::ElementSequence { element }) => Some(element),
+                                    _ => None,
+                                },
+                                _ => None,
+                            };
+                            let mut elements = Vec::with_capacity(arity);
+                            for operand in operands {
+                                let place = match (operand, element) {
+                                    (OperationResult::Structural(place), _) => place,
+                                    // A scalar element is a value, and the constructor takes
+                                    // places: give each one its own home, in element order.
+                                    (OperationResult::Scalar(value), Some(element)) if block.values[value.index()].ty == element => {
+                                        let home = block.push_operation(
+                                            OperationOutput::Structural(element),
+                                            OperationKind::EstablishPrimitiveLocal {
+                                                value,
+                                                receiving_domains: None,
+                                            },
+                                            site_at(file, node),
+                                        );
+                                        let OperationResult::Structural(home) = home else {
+                                            unreachable!("a primitive home is a structural place")
+                                        };
+                                        home
+                                    }
+                                    _ => return Err(unsupported_node(file, node, "structural array requires an owned place for each element")),
+                                };
+                                if element.is_some_and(|element| block.places[place.index()].ty != element) {
+                                    return Err(unsupported_node(file, node, "sequence element disagrees with the sequence's element type"));
+                                }
+                                elements.push(place);
+                            }
                             OperationKind::EstablishStructuralArray { elements }
                         }
                         PendingOperation::Call {
                             pause,
                             callee,
                             owed,
+                            regions,
                             borrowed,
                         } => {
                             let site = site_at(file, node);
@@ -662,6 +694,7 @@ impl Expressions<'_> {
                             let operation = OperationId(next_id(block.operations.len()));
                             drop(operands);
                             super::calls::record_acknowledgement(block, crate::CallSite::Operation(operation), pause);
+                            super::calls::apply_regions(block, crate::CallSite::Operation(operation), regions);
                             let requirements = super::calls::owe(block, crate::CallSite::Operation(operation), owed);
                             OperationKind::Call {
                                 callee,
@@ -784,6 +817,10 @@ impl Expressions<'_> {
                 values.push(super::runtime_calls::descriptor_value(self, expression, carrier, block)?);
                 continue;
             }
+            if let Some(view) = super::loans::view_at_region(self, expression, carrier, block)? {
+                values.push(view);
+                continue;
+            }
             if crate::lowering::types::is_reference_descriptor(carrier)
                 || node.kind == NodeKind::Borrow && carrier == &self.signature.result
                     && crate::declarations::regions::direct(carrier, &self.signature.machine).is_some()
@@ -835,6 +872,12 @@ impl Expressions<'_> {
                 values.push(super::ownership::move_value(self, expression, carrier, block)?);
                 continue;
             }
+            // `reflect\callable(pick)` is spelled as a call and selects a
+            // declaration instead. It is a value and never reaches call selection.
+            if let Some(description) = super::reflection::describe(self, expression, carrier, block)? {
+                values.push(description);
+                continue;
+            }
             if node.kind == NodeKind::Call
                 || tree
                     .semantics_at(expression)
@@ -853,10 +896,18 @@ impl Expressions<'_> {
                     continue;
                 }
                 let call = super::calls::select_call(self, expression, carrier, block)?;
-                let output = match carrier {
+                // A reference result at one of this machine's regions is stored
+                // as the reference. The region is on the call's `CallRegions`.
+                let stored = crate::declarations::regions::slot_carrier(carrier, &self.signature.machine);
+                let stored_type = || {
+                    self.types
+                        .id_for(stored)
+                        .map_err(|e| LoweringError::new(&site_at(file, expression), e.to_string()))
+                };
+                let output = match stored {
                     ValueType::NoResult => OperationOutput::Unit,
-                    ty if crate::lowering::types::uses_structural_place(ty) => OperationOutput::Structural(lookup_type()?),
-                    _ => OperationOutput::Scalar(lookup_type()?),
+                    ty if crate::lowering::types::uses_structural_place(ty) => OperationOutput::Structural(stored_type()?),
+                    _ => OperationOutput::Scalar(stored_type()?),
                 };
                 let mut borrowed = Vec::with_capacity(call.operands.len());
                 let mut visits = Vec::new();
@@ -878,6 +929,7 @@ impl Expressions<'_> {
                         borrowed,
                         callee: call.callee,
                         owed: call.owed,
+                        regions: call.regions,
                         pause: call.acknowledgements,
                     },
                     arity: visits.len(),
@@ -968,7 +1020,7 @@ impl Expressions<'_> {
                 continue;
             }
             if node.kind == NodeKind::Index {
-                let read = crate::machines::access::select_indexed_read(self.types, self.data, self.prepared.typed(), tree, expression, carrier)?;
+                let read = crate::machines::access::select_indexed_read(self.types, self.data, tree.forest(), tree, expression, carrier)?;
                 let arity = 1 + read.selectors.len();
                 let output = if crate::lowering::types::uses_structural_place(carrier) {
                     OperationOutput::Structural(lookup_type()?)
@@ -1143,7 +1195,7 @@ impl Expressions<'_> {
                         });
                         continue;
                     }
-                    let cast = super::casts::scalar_cast(op, &obligations, self.types)?;
+                    let cast = super::casts::scalar_cast(op, &obligations, self.types, &self.signature.machine)?;
                     if let Some(change) = cast.change {
                         work.push(ExpressionStep::Qualify {
                             node: expression,
@@ -1225,7 +1277,7 @@ impl Expressions<'_> {
                 }
                 continue;
             }
-            let semantics = return_semantics(tree, expression, carrier)?;
+            let semantics = returned_semantics(tree, expression, carrier, Some(&self.signature.machine))?;
             if inherited.zip(semantics.integer).is_some_and(|(a, b)| a != b) {
                 return Err(LoweringError::new(&site_at(file, expression), "conflicting exact numeric landings"));
             }
@@ -1266,6 +1318,24 @@ impl Expressions<'_> {
             }
             let literal = match (node.kind, node.children.as_slice()) {
                 (NodeKind::ArrayLiteral, elements) if integer.is_none() && semantics.constant.is_none() => {
+                    // Under a by-value `[T]` the literal's own roster is the
+                    // whole sequence: any count, including none. Each element
+                    // lowers under the element type; the constructor homes a
+                    // scalar one and takes every other as its place.
+                    if let ValueType::Slice(element) = carrier {
+                        work.push(ExpressionStep::Emit {
+                            node: expression,
+                            output: OperationOutput::Structural(lookup_type()?),
+                            operation: PendingOperation::EstablishStructuralArray,
+                            arity: elements.len(),
+                        });
+                        work.extend(elements.iter().rev().map(|&node| ExpressionStep::Visit {
+                            node,
+                            carrier: element,
+                            landing: None,
+                        }));
+                        continue;
+                    }
                     let ValueType::Array(element, length) = carrier else {
                         return Err(unsupported_node(file, expression, "array literal requires a fixed-array carrier"));
                     };
@@ -1371,6 +1441,17 @@ fn return_semantics<'a>(
     node: usize,
     carrier: &ValueType,
 ) -> Result<ReturnSemantics<'a>, LoweringError> {
+    returned_semantics(tree, node, carrier, None)
+}
+
+/// `machine` is the machine whose body holds `node`, where a returned borrow
+/// may be recorded on it.
+fn returned_semantics<'a>(
+    tree: &'a LoweringTree<'_>,
+    node: usize,
+    carrier: &ValueType,
+    machine: Option<&DeclarationId>,
+) -> Result<ReturnSemantics<'a>, LoweringError> {
     let file = tree.resolved().file;
     let mut semantic = ReturnSemantics::default();
     let mut typed = false;
@@ -1396,6 +1477,12 @@ fn return_semantics<'a>(
             NodeSemantics::Constant(id) if semantic.constant.is_none_or(|previous| previous == id) => {
                 semantic.constant = Some(id);
             }
+            // A returned sequence that holds borrows keeps them in the operands
+            // that supplied its elements, or in the formal it forwards. The
+            // return edge carries that place, as for a returned record.
+            NodeSemantics::Obligation(obligation)
+                if crate::lowering::types::is_element_sequence(carrier)
+                    && matches!(&obligation.kind, omega_typed::ObligationKind::ReturnBorrow { machine: owner } if Some(owner) == machine) => {}
             NodeSemantics::Obligation(obligation) => {
                 return Err(LoweringError::new(
                     &obligation.site,
@@ -1423,7 +1510,8 @@ fn array_construction<'a>(
     if u64::try_from(count) != Ok(extent) || !supported {
         return Err(LoweringError::new(site, "array construction requires a matching extent and copyable elements"));
     }
-    let operation = if matches!(element, ValueType::Array(..) | ValueType::Nominal(_) | ValueType::Applied(..)) {
+    // A by-value sequence element is a descriptor in its own place, like a nested array.
+    let operation = if matches!(element, ValueType::Array(..) | ValueType::Slice(_) | ValueType::Nominal(_) | ValueType::Applied(..)) {
         PendingOperation::EstablishStructuralArray
     } else {
         PendingOperation::EstablishScalarArray

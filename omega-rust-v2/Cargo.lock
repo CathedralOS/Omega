@@ -242,10 +242,12 @@ name = "omega"
 version = "0.0.0"
 dependencies = [
  "omega-checker",
+ "omega-interpreter",
  "omega-lexer",
  "omega-lowering",
  "omega-parser",
  "omega-preparation",
+ "omega-resolved",
  "omega-resolver",
  "omega-toolchain",
  "omega-typer",
@@ -256,6 +258,21 @@ dependencies = [
 name = "omega-checker"
 version = "0.0.0"
 dependencies = [
+ "omega-lexer",
+ "omega-lowering",
+ "omega-parser",
+ "omega-preparation",
+ "omega-psi",
+ "omega-resolver",
+ "omega-toolchain",
+]
+
+[[package]]
+name = "omega-interpreter"
+version = "0.0.0"
+dependencies = [
+ "num-bigint",
+ "omega-checker",
  "omega-lexer",
  "omega-lowering",
  "omega-parser",
@@ -282,6 +299,8 @@ version = "0.0.0"
 dependencies = [
  "num-bigint",
  "omega",
+ "omega-checker",
+ "omega-interpreter",
  "omega-lexer",
  "omega-parser",
  "omega-preparation",

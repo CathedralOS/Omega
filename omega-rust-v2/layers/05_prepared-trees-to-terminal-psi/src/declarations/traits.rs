@@ -43,7 +43,7 @@ pub(crate) fn read_trait<'a>(
         .declaration_at(node)
         .ok_or_else(|| LoweringError::new(&site, "trait has no resolved identity"))?;
     let mut requirements = Vec::new();
-    let (parameters, witnesses) = super::type_expression::template_binders(prepared.typed().generic_parameters.get(declaration), &site)?;
+    let (parameters, witnesses) = super::type_expression::template_binders(tree.forest().generic_parameters.get(declaration), &site)?;
     if witnesses != 0
         || !parameters
             .iter()
@@ -51,7 +51,7 @@ pub(crate) fn read_trait<'a>(
     {
         return Err(LoweringError::new(&site, "unsupported generic trait binder"));
     }
-    if let Some(base) = prepared.typed().refinement_bases.get(declaration) {
+    if let Some(base) = tree.forest().refinement_bases.get(declaration) {
         if !parameters.is_empty() || !base.trait_arguments.is_empty() || file.nodes[node].has_boundary_modifier() {
             return Err(LoweringError::new(&site, "restricted trait needs an ordinary unapplied base"));
         }
@@ -64,7 +64,7 @@ pub(crate) fn read_trait<'a>(
         let mut all_members = Vec::new();
         for &child in clauses {
             let clause = site_at(tree, child);
-            let checked = prepared.typed().refinements.iter()
+            let checked = tree.forest().refinements.iter()
                 .find(|r| r.schema == *declaration && r.site == clause && file.nodes[child].kind == NodeKind::Restriction)
                 .ok_or_else(|| LoweringError::new(&clause, "restriction lacks its checked wildcard clause"))?;
             let axes = &file.nodes[child].children;
@@ -104,7 +104,7 @@ pub(crate) fn read_trait<'a>(
             continue;
         }
         if file.nodes[child].kind == NodeKind::PathType {
-            let applied = prepared.typed().trait_parents.get(declaration)
+            let applied = tree.forest().trait_parents.get(declaration)
                 .filter(|base| parent.is_none() && matches!(resolved.symbol(child), Some(omega_resolved::Symbol::Declaration(id)) if id == &base.declaration))
                 .ok_or_else(|| LoweringError::new(&site_at(tree, child), "trait inheritance lacks its checked parent application"))?;
             parent = Some(super::members::slot(&applied.declaration, &applied.trait_arguments, &site_at(tree, child))?);
@@ -223,7 +223,7 @@ fn generic_requirement(
     if file.child(child, NodeKind::Body).is_some() {
         return Err(LoweringError::new(&signature.site, "generic trait member requires a bodyless requirement"));
     }
-    let checked = prepared.typed().generic_parameters.get(&signature.machine);
+    let checked = tree.forest().generic_parameters.get(&signature.machine);
     let (parameters, witnesses) = super::type_expression::template_binders(checked, &signature.site)?;
     if witnesses != 0 || checked.is_some_and(|p| !p.equations.is_empty()) || parameters.len() != file.generic_parameters(child).count() {
         return Err(LoweringError::new(&signature.site, "generic requirement needs exactly its checked binders"));

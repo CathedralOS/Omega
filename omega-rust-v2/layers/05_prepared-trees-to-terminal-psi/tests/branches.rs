@@ -585,3 +585,109 @@ fn a_unit_result_cannot_define_a_scalar_or_structural_result_slot() {
     }
     assert_eq!(sources::control_flow::check_operation_ownership(body), Ok(()));
 }
+
+/// `keep` returns a record that stores a view at its region, chosen by a
+/// runtime Boolean. Typing puts one `ReturnBorrow` row on the tail `match`,
+/// because either arm's record may hold the caller's loan.
+const RETURNED_RECORD: &str = "data Schema<'t> [copy] { storage: @'t [u8]; }
+data Held<'t> [copy] { schema: Schema<'t>; }
+machine keep<'t>(first: bool, left: Schema<'t>, right: Schema<'t>) -> Held<'t> {
+    match first { true -> Held::<'t>{ schema: left }, false -> Held::<'t>{ schema: right }, }
+}
+";
+
+/// Each arm of a returned `match` keeps its own borrow and its own return
+/// edge. The body branches on the formal and selects no arm. The `true` block
+/// constructs its record from `left` and returns that place; the `false` block
+/// does the same from `right`. Nothing joins the two records, so the place a
+/// return edge names leads to the one view that arm stored.
+#[test]
+fn each_arm_of_a_returned_match_keeps_its_own_borrow_and_return_edge() {
+    use omega_lowering::{OperationKind, ValueOperand};
+    let files = [("branches.omg", RETURNED_RECORD)];
+    let resolved = sources::resolve(&files);
+    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
+    let rows: Vec<_> = prepared
+        .typed()
+        .obligations
+        .iter()
+        .filter(|o| matches!(&o.kind, omega_typed::ObligationKind::ReturnBorrow { machine } if machine.path == "keep"))
+        .collect();
+    let [row] = rows.as_slice() else {
+        panic!("expected one returned borrow: {rows:?}")
+    };
+    let whole_match = "match first { true -> Held::<'t>{ schema: left }, false -> Held::<'t>{ schema: right }, }";
+    assert_eq!(row.site.span.slice(RETURNED_RECORD.as_bytes()), Some(whole_match.as_bytes()));
+    let package = sources::lower_prepared(&prepared, &files).unwrap();
+    let body = &package.machines[0].body;
+    let [
+        Parameter::Scalar(first),
+        Parameter::Structural(left),
+        Parameter::Structural(right),
+    ] = *body.parameters.as_slice()
+    else {
+        panic!("expected the Boolean and two records: {:?}", body.parameters);
+    };
+    let BlockTerminator::Conditional {
+        condition,
+        when_true,
+        when_false,
+    } = &body.blocks[0].terminator
+    else {
+        panic!("expected a conditional entry: {:?}", body.blocks[0].terminator);
+    };
+    assert_eq!(*condition, first);
+    assert!(body.blocks[0].operations.is_empty());
+    let returned = |target: omega_lowering::BlockId| {
+        let block = &body.blocks[target.get() - 1];
+        let BlockTerminator::Return {
+            result: ReturnEdge::Structural { source, result },
+            ..
+        } = block.terminator
+        else {
+            panic!("expected a structural return: {:?}", block.terminator);
+        };
+        let PlaceOrigin::Operation(formed) = body.places[source.index()].origin else {
+            panic!("the arm returns a place it did not form: {:?}", body.places[source.index()]);
+        };
+        assert!(block.operations.contains(&formed.index()), "the record is formed in its own arm");
+        let OperationKind::EstablishRecord { fields } = &body.operations[formed.index()].kind else {
+            panic!("expected a record construction: {:?}", body.operations[formed.index()].kind);
+        };
+        let [field] = fields.as_slice() else {
+            panic!("expected the one stored record")
+        };
+        (field.operand.clone(), result)
+    };
+    let (true_view, true_result) = returned(when_true.target);
+    let (false_view, false_result) = returned(when_false.target);
+    assert_eq!((true_view, false_view), (ValueOperand::CopyWhole(left), ValueOperand::CopyWhole(right)));
+    assert_eq!(true_result, false_result);
+    assert_eq!(body.places[true_result.index()].origin, PlaceOrigin::Result);
+    assert_eq!(sources::control_flow::check_operation_ownership(body), Ok(()));
+}
+
+#[test]
+fn a_returned_match_arm_forwards_the_exact_borrow_carrying_formal() {
+    let source = RETURNED_RECORD.replace(
+        "keep<'t>(first: bool, left: Schema<'t>, right: Schema<'t>) -> Held<'t> {\n    match first { true -> Held::<'t>{ schema: left }, false -> Held::<'t>{ schema: right }, }",
+        "keep<'t>(first: bool, left: Schema<'t>, held: Held<'t>) -> Held<'t> {\n    match first { true -> Held::<'t>{ schema: left }, false -> held, }",
+    );
+    assert_ne!(source, RETURNED_RECORD);
+    let package = lower(&source).unwrap();
+    let body = &package.machines[0].body;
+    let [_, _, Parameter::Structural(held)] = *body.parameters.as_slice() else {
+        panic!("expected the held record formal");
+    };
+    let BlockTerminator::Conditional { when_false, .. } = &body.blocks[0].terminator else {
+        panic!("expected a conditional return");
+    };
+    let arm = &body.blocks[when_false.target.get() - 1];
+    let BlockTerminator::Return { result: ReturnEdge::Structural { source, result }, .. } = arm.terminator else {
+        panic!("expected a structural return");
+    };
+    assert_eq!(source, held);
+    assert_eq!(body.places[result.index()].origin, PlaceOrigin::Result);
+    assert!(arm.operations.is_empty());
+    assert_eq!(sources::control_flow::check_operation_ownership(body), Ok(()));
+}

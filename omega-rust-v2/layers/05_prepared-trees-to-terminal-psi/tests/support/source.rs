@@ -38,7 +38,11 @@ fn resolve_named<'text>(
 
 // Package identities can appear inside rendered types. Obtain the reference diagnostic
 // under the package command's identity, and require it to come from the same decision.
-fn package_command_reference(files: &[(&str, &str)], original: &LoweringError, owner: Option<[u8; 32]>) -> Result<String, String> {
+fn package_command_reference(
+    files: &[(&str, &str)],
+    original: &LoweringError,
+    owner: Option<[u8; 32]>,
+) -> Result<String, String> {
     let mut package = resolve_named("root", files).map_err(|error| format!("resolution: {}", error.message))?;
     if let Some(owner) = owner {
         package.bind_package_key("root", owner)?;
@@ -48,7 +52,11 @@ fn package_command_reference(files: &[(&str, &str)], original: &LoweringError, o
         omega::check_pending_policy_constructions(&mut prepared).map_err(|error| error.to_string())?;
     }
     let error = lower_package(&prepared).err().ok_or("lowering produced Psi")?;
-    let expected_owner = if original.site.package == "app" { "root" } else { original.site.package.as_str() };
+    let expected_owner = if original.site.package == "app" {
+        "root"
+    } else {
+        original.site.package.as_str()
+    };
     if error.site.package != expected_owner || error.site.file != original.site.file || error.site.span != original.site.span {
         return Err(format!("different diagnostic site: {:?}", error.site));
     }
@@ -84,57 +92,95 @@ struct ExpectedRefusal<'a> {
 
 /// Locate the authored occurrence before consulting either compiler return.
 #[allow(dead_code)]
-pub fn unique_span(source: &str, text: &str) -> std::ops::Range<usize> {
+pub fn unique_span(
+    source: &str,
+    text: &str,
+) -> std::ops::Range<usize> {
     assert!(!text.is_empty(), "an empty expected occurrence needs an explicit byte range");
-    let start = source.find(text).unwrap_or_else(|| panic!("expected occurrence absent: {text:?}"));
+    let start = source
+        .find(text)
+        .unwrap_or_else(|| panic!("expected occurrence absent: {text:?}"));
     let next = start + text.chars().next().unwrap().len_utf8();
     assert!(!source[next..].contains(text), "ambiguous expected occurrence: {text:?}");
     start..start + text.len()
 }
 
 #[allow(dead_code)]
-pub fn span_within(source: &str, context: &str, text: &str) -> std::ops::Range<usize> {
+pub fn span_within(
+    source: &str,
+    context: &str,
+    text: &str,
+) -> std::ops::Range<usize> {
     let outer = unique_span(source, context);
     let inner = unique_span(context, text);
     outer.start + inner.start..outer.start + inner.end
 }
 
 #[allow(dead_code)]
-pub fn refuse(files: &[(&str, &str)], file: &str, span: std::ops::Range<usize>, message: &str) -> LoweringError {
+pub fn refuse(
+    files: &[(&str, &str)],
+    file: &str,
+    span: std::ops::Range<usize>,
+    message: &str,
+) -> LoweringError {
     refuse_with_cli_message(files, file, span, message, message)
 }
 
 #[allow(dead_code)]
-pub fn refuse_with_cli_message(files: &[(&str, &str)], file: &str, span: std::ops::Range<usize>, message: &str, cli_message: &str) -> LoweringError {
+pub fn refuse_with_cli_message(
+    files: &[(&str, &str)],
+    file: &str,
+    span: std::ops::Range<usize>,
+    message: &str,
+    cli_message: &str,
+) -> LoweringError {
     let package = resolve(files);
     let prepared = prepare_source_package(&package).expect("the source reaches L5 after preparation");
-    let expected = ExpectedRefusal { file, span, message, cli_message, package_owner: None };
+    let expected = ExpectedRefusal {
+        file,
+        span,
+        message,
+        cli_message,
+        package_owner: None,
+    };
     lower_and_report(&prepared, files, "source", Some(&expected)).expect_err("expected L5 to refuse")
 }
 
 #[allow(dead_code)]
-pub fn refuse_prepared(prepared: &PreparedTrees, files: &[(&str, &str)], file: &str, span: std::ops::Range<usize>, message: &str) -> LoweringError {
-    let expected = ExpectedRefusal { file, span, message, cli_message: message, package_owner: None };
+pub fn refuse_prepared(
+    prepared: &PreparedTrees,
+    files: &[(&str, &str)],
+    file: &str,
+    span: std::ops::Range<usize>,
+    message: &str,
+) -> LoweringError {
+    let expected = ExpectedRefusal {
+        file,
+        span,
+        message,
+        cli_message: message,
+        package_owner: None,
+    };
     lower_and_report(prepared, files, "prepared", Some(&expected)).expect_err("expected L5 to refuse")
 }
 
 /// Exercise the same default Build capture and owner binding as source lower --package-root.
 #[allow(dead_code)]
-pub fn refuse_built_fixture(
-    directory: &str, file: &str, source: &str, span: std::ops::Range<usize>, message: &str,
-) -> (Vec<omega_typed::TypingObligation>, LoweringError) {
+pub fn lower_built_fixture(
+    directory: &str,
+    file: &str,
+    source: &str,
+) -> (Vec<omega_typed::TypingObligation>, LoweredPackage) {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures").join(directory);
     let build = omega_toolchain::DefaultBuild::capture(&root).expect("capture the fixture package");
     assert_eq!(build.source_bytes(std::path::Path::new(file)).unwrap().as_ref(), source.as_bytes());
     let files = [(file, source)];
     let mut resolved = resolve(&files);
-    let owner = build.package_key();
-    resolved.bind_package_key("app", owner).unwrap();
-    let mut prepared = prepare_source_package(&resolved).expect("the captured package reaches L5");
-    omega::check_pending_policy_constructions(&mut prepared).expect("check the selected policy construction for the captured package");
-    let expected = ExpectedRefusal { file, span, message, cli_message: message, package_owner: Some(owner) };
-    let error = lower_and_report(&prepared, &files, "package", Some(&expected)).expect_err("expected L5 to refuse");
-    (prepared.typed().obligations.clone(), error)
+    resolved.bind_package_key("app", build.package_key()).unwrap();
+    let mut prepared = prepare_source_package(&resolved).expect("the captured package prepares");
+    let product = omega::lower_prepared_package(&mut prepared);
+    let lowered = report_product(&prepared, &files, "package", None, product).expect("the captured package lowers");
+    (prepared.typed().obligations.clone(), lowered)
 }
 
 fn lower_and_report(
@@ -143,14 +189,29 @@ fn lower_and_report(
     entry: &str,
     expected: Option<&ExpectedRefusal<'_>>,
 ) -> Result<LoweredPackage, LoweringError> {
-    let product = lower_package(prepared);
+    report_product(prepared, files, entry, expected, lower_package(prepared))
+}
+
+fn report_product(
+    prepared: &PreparedTrees,
+    files: &[(&str, &str)],
+    entry: &str,
+    expected: Option<&ExpectedRefusal<'_>>,
+    product: Result<LoweredPackage, LoweringError>,
+) -> Result<LoweredPackage, LoweringError> {
     if let Some(expected) = expected {
         let error = product.as_ref().expect_err("expected L5 to refuse");
-        let text = files.iter().find(|(file, _)| *file == expected.file).expect("the expected refusal names an input file").1;
+        let text = files
+            .iter()
+            .find(|(file, _)| *file == expected.file)
+            .expect("the expected refusal names an input file")
+            .1;
         assert!(text.get(expected.span.clone()).is_some(), "expected byte span must select UTF-8 source");
         let actual_span = error.site.span.get_start_offset()..error.site.span.get_end_offset();
-        assert_eq!((error.site.package.as_str(), error.site.file.as_str(), actual_span, error.message.as_str()),
-                   ("app", expected.file, expected.span.clone(), expected.message));
+        assert_eq!(
+            (error.site.package.as_str(), error.site.file.as_str(), actual_span, error.message.as_str()),
+            ("app", expected.file, expected.span.clone(), expected.message)
+        );
     }
     if std::env::var_os("OMEGA_LAYER_REPORT").is_some() {
         let thread = std::thread::current();
@@ -168,10 +229,14 @@ fn lower_and_report(
         let detail = match &product {
             Ok(_) => {
                 let typed = prepared.typed();
-                let files: std::collections::BTreeSet<_> = typed.resolved().trees()
+                let files: std::collections::BTreeSet<_> = typed
+                    .resolved()
+                    .trees()
                     .map(|tree| (tree.file.package, tree.file.path))
                     .collect();
-                let local: std::collections::BTreeSet<_> = typed.obligations.iter()
+                let local: std::collections::BTreeSet<_> = typed
+                    .obligations
+                    .iter()
                     .filter(|row| files.contains(&(row.site.package.as_str(), row.site.file.as_str())))
                     .map(|row| tree_handoff_consumer::obligation_report::name(&row.kind))
                     .collect();
@@ -198,19 +263,31 @@ fn lower_and_report(
                     Some(format!("{}\t{}\t{}", pos.get_line(), pos.get_column(), selected.escape_debug()))
                 });
                 let field = spec_corpus::diagnostic_field;
-                let selected = source.and_then(|(_, text)| text.get(start..end)).unwrap_or_default();
+                let selected = source
+                    .and_then(|(_, text)| text.get(start..end))
+                    .unwrap_or_default();
                 let (reference, root_message) = match package_command_reference(files, error, expected.and_then(|e| e.package_owner)) {
                     Ok(message) => ("root", message),
                     Err(detail) => ("unreproduced", detail),
                 };
-                let mut inputs = vec![field(&error.message), field(selected), reference.into(), field(&root_message)];
+                let mut inputs = vec![
+                    field(&error.message),
+                    field(selected),
+                    reference.into(),
+                    field(&root_message),
+                ];
                 for &(path, source) in files {
                     inputs.push(field(path));
                     inputs.push(field(source));
                 }
                 let entry = if let Some(expected) = expected {
-                    inputs.extend([field(expected.file), expected.span.start.to_string(), expected.span.end.to_string(),
-                                   field(expected.message), field(expected.cli_message)]);
+                    inputs.extend([
+                        field(expected.file),
+                        expected.span.start.to_string(),
+                        expected.span.end.to_string(),
+                        field(expected.message),
+                        field(expected.cli_message),
+                    ]);
                     format!("{entry}+expected-v1")
                 } else {
                     entry.to_owned()
@@ -221,8 +298,10 @@ fn lower_and_report(
                     let at = &obligation.site;
                     inputs.extend([
                         tree_handoff_consumer::obligation_report::name(&obligation.kind).into(),
-                        field(&at.package), field(&at.file),
-                        at.span.get_start_offset().to_string(), at.span.get_end_offset().to_string(),
+                        field(&at.package),
+                        field(&at.file),
+                        at.span.get_start_offset().to_string(),
+                        at.span.get_end_offset().to_string(),
                     ]);
                 }
                 let position = location.unwrap_or_else(|| "\t\t".into());
@@ -256,7 +335,8 @@ fn receipt_checksum(record: &str) -> u32 {
 fn origin_suffix(origin: &std::panic::Location<'_>) -> String {
     const PREFIX: &str = "layers/05_prepared-trees-to-terminal-psi/";
     let path = origin.file().replace('\\', "/");
-    let relative = path.strip_prefix(PREFIX)
+    let relative = path
+        .strip_prefix(PREFIX)
         .or_else(|| path.rsplit_once(&format!("/{PREFIX}")).map(|(_, tail)| tail))
         .unwrap_or(&path);
     assert!(relative.starts_with("src/") && relative.ends_with(".rs"), "non-L5 origin {path}");

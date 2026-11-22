@@ -148,9 +148,12 @@ fn library_definition_rows_stay_in_the_library_forest_for_callers_and_non_caller
     let (reported, local) = counts(&prepared);
     assert_eq!(reported, local);
     let psi = sources::lower_prepared(&prepared, &files).expect("the ordinary imported call lowers");
-    let plan = psi.machine_templates.iter().find(|template| template.declaration.path == "Rule::plan").unwrap();
-    let call = psi_handoff_consumer::returned_template_call(&psi, plan).unwrap();
-    assert_eq!(call.callee, psi_handoff_consumer::TemplateCallee::Provided { package: toolchain.0, path: toolchain.1 });
+    let plan = psi.machines.iter().find(|machine| machine.declaration.path == "Rule::plan").unwrap();
+    let [call] = plan.body.call_regions.as_slice() else { panic!("one selected constructor call") };
+    let (callee, regions) = psi_handoff_consumer::applied_regions(&psi, plan, call.call).unwrap();
+    assert_eq!((callee.declaration.package.as_str(), callee.declaration.path.as_str()), toolchain);
+    assert_eq!(regions.iter().map(|region| region.ordinal).collect::<Vec<_>>(), [0]);
+    assert_eq!(callee.contract.ensures.len(), real.guarantees);
     drop(prepared);
 
     // A normal package that never calls new_plan: the same domain without its policy.
@@ -236,10 +239,12 @@ fn the_toolchain_defines_its_own_constructor_verification_unit() {
     assert_eq!(guarantees, 4);
 
     let product = omega_lowering::lower_package(&prepared).expect("lower the toolchain");
-    let constructor = product.machine_templates.iter().find(|template| {
-        template.declaration.package == omega_toolchain::TOOLCHAIN_PACKAGE && template.declaration.path == definition.path
+    // The constructor is one closed body in its defining unit, with no open template beside it.
+    let constructor = product.machines.iter().find(|machine| {
+        machine.declaration.package == omega_toolchain::TOOLCHAIN_PACKAGE && machine.declaration.path == definition.path
     }).expect("the defining unit owns the actual constructor body");
-    assert_eq!(constructor.signature.ensures.len(), guarantees);
+    assert!(product.machine_templates.iter().all(|template| template.declaration != constructor.declaration));
+    assert_eq!(constructor.contract.ensures.len(), guarantees);
     let supplied: std::collections::BTreeSet<_> = prepared.typed().signatures.iter()
         .filter(|sig| omega_toolchain::core_interface().supplies(&sig.machine))
         .map(|sig| (&sig.machine.package, &sig.machine.path))

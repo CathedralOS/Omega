@@ -1,13 +1,16 @@
-use super::expressions::{EmitOperation, Expressions, OperationOutput};
+use super::expressions::Expressions;
 use crate::{FieldInitializer, LoweredData, LoweringError, MachineBody, OperationKind, OperationResult, TypeId, TypeShape, site_at};
-use crate::{ScalarLiteral, ValueOperand};
 use omega_resolved::DeclarationId;
 use omega_typed::{NodeSemantics, ObligationKind, Site, TypedConstruction, TypingObligation, ValueType};
+
+mod zero;
 
 pub(super) struct Constructor {
     case: Option<crate::DeclarationId>,
     written: Vec<(usize, crate::DeclarationId, TypeId)>,
-    zeros: Vec<(usize, crate::DeclarationId, TypeId, ScalarLiteral)>,
+    /// Each omitted slot, its carrier, what its zero appends to the body, and
+    /// the site of the `ZeroField` obligation that requested it.
+    zeros: Vec<(usize, crate::DeclarationId, TypeId, zero::Roster, Site)>,
 }
 impl Constructor {
     pub(super) fn finish(
@@ -32,15 +35,13 @@ impl Constructor {
                 operand: expressions.value_argument(value, body, site)?,
             });
         }
-        // All authored computations have completed. Supply dominating SSA values for
-        // the omissions; the establishment still consumes a complete, ordered roster.
-        for (position, field, carrier, literal) in self.zeros {
-            let OperationResult::Scalar(value) = body.push_operation(OperationOutput::Scalar(carrier), OperationKind::Constant(literal), site.clone()) else {
-                unreachable!("scalar output")
-            };
+        // All authored computations have completed. Supply a dominating value for
+        // each omission; the establishment still consumes a complete, ordered roster.
+        for (position, field, carrier, roster, origin) in self.zeros {
+            let value = zero::establish(expressions, body, &field, carrier, roster, &origin)?;
             slots[position] = Some(FieldInitializer {
                 field,
-                operand: ValueOperand::Scalar(value),
+                operand: expressions.value_argument(value, body, &origin)?,
             });
         }
         let fields = slots
@@ -77,7 +78,7 @@ pub(super) fn select<'a>(
                 kind: ObligationKind::ZeroField { field, ty },
                 site: origin,
                 ..
-            }) if origin == &site => omitted.push(Input::Zero(field, ty)),
+            }) if origin == &site => omitted.push(Input::Zero(field, ty, origin)),
             NodeSemantics::Obligation(TypingObligation {
                 kind: ObligationKind::EstablishData(owner),
                 node: occurrence,
@@ -85,6 +86,10 @@ pub(super) fn select<'a>(
             }) if !establish_data && owner == &construction.owner && occurrence == &tree.resolved().file.node_id(node) && origin == &site => {
                 establish_data = true;
             }
+            // A returned record that holds a borrow keeps it in the operands
+            // that supply its fields. The return edge carries the constructed
+            // place, as for any returned binding.
+            NodeSemantics::Obligation(o) if matches!(&o.kind, ObligationKind::ReturnBorrow { machine } if machine == &expressions.signature.machine) => {}
             _ => return Err(error("construction requires additional establishment evidence")),
         }
     }
@@ -106,6 +111,22 @@ pub(super) fn select<'a>(
             .iter()
             .map(|i| Input::Written(i.position, i.expression))
             .chain(omitted),
+        // Typing gives the initializer the field's type at the applied
+        // lifetimes; the visit expects exactly that row. A plain reference
+        // that typing binds to a lifetime of this construction has a
+        // `BindLifetime` obligation there instead, as `bytes` does in
+        // `Schema { storage: bytes }`. The visit then takes that destination
+        // and `loans::view_at_region` consumes the obligation.
+        |&initializer, at_lifetimes| {
+            tree.semantics_at(initializer).find_map(|record| match record {
+                NodeSemantics::Expression(e) if e.static_argument_slot.is_none() && &e.ty == at_lifetimes => Some(&e.ty),
+                NodeSemantics::Obligation(TypingObligation {
+                    kind: ObligationKind::BindLifetime { destination, .. },
+                    ..
+                }) if destination == at_lifetimes => Some(destination),
+                _ => None,
+            })
+        },
         &site,
     )
 }
@@ -156,13 +177,15 @@ pub(super) fn plan<'a, T>(
         owner,
         case,
         inputs.map(|(i, value)| Input::Written(i, value)),
+        |_, _| None,
         site,
     )
 }
 
 enum Input<'a, T> {
     Written(usize, T),
-    Zero(&'a DeclarationId, &'a ValueType),
+    /// The omitted field, its declared type, and the requesting obligation's site.
+    Zero(&'a DeclarationId, &'a ValueType, &'a Site),
 }
 
 fn plan_fields<'a, 'z, T>(
@@ -172,11 +195,21 @@ fn plan_fields<'a, 'z, T>(
     owner: &DeclarationId,
     case: Option<&DeclarationId>,
     inputs: impl Iterator<Item = Input<'z, T>>,
+    // The carrier a written input must have when its field's declared type
+    // names a lifetime binder: that type at the construction's lifetimes.
+    at_lifetimes: impl Fn(&T, &ValueType) -> Option<&'a ValueType>,
     site: &Site,
 ) -> Result<(Constructor, Vec<(T, &'a ValueType)>), LoweringError> {
     let error = |message| LoweringError::new(site, message);
-    let stage = expressions.prepared.typed();
+    let stage = expressions.tree.forest();
+    // A record applied at lifetimes only has no shape of its own. Its fields
+    // are its declaration's, each at the lifetimes this construction applies.
+    let lifetimes = match carrier {
+        ValueType::Applied(_, arguments) if schema.lifetime_count != 0 && schema.lifetime_count == arguments.len() => Some(arguments.as_slice()),
+        _ => None,
+    };
     let shape = match carrier {
+        ValueType::Applied(..) if lifetimes.is_some() => None,
         ValueType::Applied(..) => Some(
             stage
                 .static_data_shapes
@@ -237,7 +270,7 @@ fn plan_fields<'a, 'z, T>(
     for input in inputs {
         let position = match &input {
             Input::Written(position, _) => *position,
-            Input::Zero(id, _) => declarations
+            Input::Zero(id, ..) => declarations
                 .iter()
                 .position(|row| &row.declaration == *id)
                 .ok_or_else(|| error("omitted field does not belong to the selected construction"))?,
@@ -250,47 +283,68 @@ fn plan_fields<'a, 'z, T>(
         }
         let field = &schema_fields[position];
         let carrier = carriers.map_or(&declarations[position].ty, |types| &types[position]);
-        if expressions.types.id_for(carrier).ok() != Some(field.carrier) {
+        // A field declared `at: @'t u8` keeps the reference as its row and
+        // names the binder in `lifetime`, so compare the row with the reference.
+        let row = match carrier {
+            ValueType::AtLifetime(reference, _) if field.lifetime.is_some() => reference.as_ref(),
+            declared => declared,
+        };
+        if expressions.types.id_for(row).ok() != Some(field.carrier) {
             return Err(error("field construction disagrees with the prepared carrier"));
         }
+        let applied = lifetimes
+            .filter(|_| carrier.components().any(|part| matches!(part, ValueType::Parameter { owner: binder, .. } if binder.as_ref() == owner)))
+            .map(|arguments| carrier.substitute(owner, arguments));
         let input = match input {
             Input::Written(_, input) => input,
-            Input::Zero(id, ty) => {
-                if carrier != ty {
+            Input::Zero(id, ty, origin) => {
+                if applied.as_ref().unwrap_or(carrier) != ty {
                     return Err(error("omitted field obligation disagrees with its declared carrier"));
                 }
-                let literal = match ty {
-                    ValueType::Bool => ScalarLiteral::Boolean(false),
-                    ValueType::Integer { width: Some(_), .. } => ScalarLiteral::Integer(0.into()),
-                    // `..` supplies no borrowed reference (data_and_literals.md,
-                    // explicit field omission), and a reference to one referent has
-                    // no zero that borrows nothing. A view's zero is the empty view,
-                    // so only a slice referent stays an open lowering form.
-                    _ if ty
-                        .reference_parts()
-                        .is_some_and(|(_, referent)| !matches!(referent, ValueType::Slice(_))) =>
-                    {
-                        return Err(LoweringError::new(
-                            site,
-                            format!(
-                                "omitted field `{}` of type `{ty}` needs a borrowed reference, which `..` never supplies",
-                                id.path
-                            ),
-                        ));
-                    }
-                    _ => {
-                        return Err(LoweringError::new(
-                            site,
-                            format!("cannot lower implicit zero of type `{ty}` for omitted field `{}`", id.path),
-                        ));
-                    }
+                let unsupplied = |needed: &str, below: Option<&crate::DeclarationId>| {
+                    let holder = below.map_or_else(String::new, |field| format!(" for `{}`", field.path));
+                    LoweringError::new(
+                        origin,
+                        format!("omitted field `{}` of type `{ty}` needs {needed}{holder}, which `..` never supplies", id.path),
+                    )
                 };
-                zeros.push((position, field.declaration.clone(), field.carrier, literal));
+                // `..` supplies no borrowed reference (data_and_literals.md,
+                // explicit field omission), and a reference to one referent has
+                // no zero that borrows nothing. A view's zero is the empty view,
+                // so only a slice referent stays an open lowering form.
+                if ty
+                    .reference_parts()
+                    .is_some_and(|(_, referent)| !matches!(referent, ValueType::Slice(_)))
+                {
+                    return Err(unsupplied("a borrowed reference", None));
+                }
+                // The same rule holds below the field: its zero is refused when any
+                // field of an active payload would need a borrow or a callable.
+                let roster = zero::admit(expressions.types, expressions.data, field.carrier).map_err(|refusal| match refusal.stop {
+                    zero::Stop::Reference => unsupplied("a borrowed reference", refusal.below),
+                    zero::Stop::Callable => unsupplied("a callable", refusal.below),
+                    zero::Stop::Host => LoweringError::new(
+                        origin,
+                        format!("the zero of omitted field `{}` needs more operations than this host can address", id.path),
+                    ),
+                    zero::Stop::Blocked(reason) => {
+                        let holder = refusal
+                            .below
+                            .map_or_else(String::new, |field| format!(" at `{}`", field.path));
+                        LoweringError::new(
+                            origin,
+                            format!("cannot lower implicit zero of type `{ty}` for omitted field `{}`{holder}: {reason}", id.path),
+                        )
+                    }
+                })?;
+                zeros.push((position, field.declaration.clone(), field.carrier, roster, origin.clone()));
                 continue;
             }
         };
         match expressions.types.get(field.carrier) {
             Some(TypeShape::PrimitiveScalar(_) | TypeShape::Nominal(_) | TypeShape::FixedArray { .. }) => {}
+            // A by-value sequence is complete and immutable; the field copies it whole.
+            Some(TypeShape::ElementSequence { .. }) => {}
             // The operand copies the initialized descriptor. Its defining operation
             // still identifies any borrow and the place where that borrow began.
             Some(
@@ -303,8 +357,18 @@ fn plan_fields<'a, 'z, T>(
                     ..
                 },
             ) if field.lifetime.is_none() => {}
+            // A view stored at a lifetime binder of its record. The operand
+            // copies the descriptor, as above, and this establishment is what
+            // puts it at that binder: the checker reads the operand's defining
+            // operation for the backing. `at_lifetimes` below requires typing's
+            // row or binding for the field at the construction's lifetimes.
+            Some(TypeShape::SharedByteView | TypeShape::SharedElementView { .. }) if field.lifetime.is_some() && applied.is_some() => {}
             _ => return Err(error("field construction needs its qualification or loan evidence")),
         }
+        let carrier = match &applied {
+            Some(applied) => at_lifetimes(&input, applied).ok_or_else(|| error("field construction disagrees with its type at the applied lifetimes"))?,
+            None => carrier,
+        };
         written.push((position, field.declaration.clone(), field.carrier));
         visits.push((input, carrier));
     }

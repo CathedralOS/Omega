@@ -4,7 +4,7 @@ use crate::{LoweringError, PolicyCasePayload, PolicyConstructionField, PolicyCon
 use omega_prepared::{PolicyFieldInput, PreparedTrees, PreparedValue};
 use omega_typed::{Site, ValueType};
 
-fn schema_value(
+pub(super) fn schema_value(
     value: &PreparedValue,
     site: &Site,
 ) -> Result<PolicySchemaValue, LoweringError> {

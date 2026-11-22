@@ -1,7 +1,7 @@
-//! Read count predicates owed by an open constructor and a zero-initialized record field.
+//! Read count predicates owed by a closed constructor body and a zero-initialized record field.
 use omega_psi::{
-    ContractClause, DeclarationId, LoweredPackage, MachineTemplate, PredicateOperator, PredicateStep, ScalarType, TemplateOperand, TemplateResult,
-    TemplateStep, TypeExpressionStep, TypeShape,
+    BlockTerminator, ContractClause, DeclarationId, LoweredData, LoweredMachine, LoweredPackage, OperationKind, OperationResult, PlaceOrigin,
+    PredicateOperator, PredicateStep, ReturnEdge, ScalarLiteral, ScalarType, TypeId, TypeShape, ValueOperand, ValueOrigin,
 };
 
 #[derive(Debug, PartialEq, Eq)]
@@ -33,63 +33,79 @@ fn count_clause<'a>(
     })
 }
 
+fn record(
+    package: &LoweredPackage,
+    row: TypeId,
+) -> Option<&LoweredData> {
+    let TypeShape::Nominal(id) = package.types.get(row)? else { return None };
+    package
+        .data
+        .get(id.get() - 1)
+        .filter(|data| data.id == *id && data.cases.is_empty())
+}
+
+/// The count predicates the returned record owes where the body wrote a zero
+/// count, then those of each record field the body zeroed whole.
 pub fn returned_counts<'a>(
     package: &'a LoweredPackage,
-    machine: &'a MachineTemplate,
+    machine: &'a LoweredMachine,
 ) -> Option<Vec<ZeroCountClause<'a>>> {
-    let Some(TemplateResult::Operand(TemplateOperand::Step(result))) = &machine.result else {
+    let body = &machine.body;
+    let [block] = body.blocks.as_slice() else { return None };
+    let BlockTerminator::Return {
+        result: ReturnEdge::Structural { source, .. },
+        ..
+    } = &block.terminator
+    else {
         return None;
     };
-    let TemplateStep::Construct(construction) = machine.body.get(*result)? else {
+    let PlaceOrigin::Operation(established) = body.places.get(source.index())?.origin else {
         return None;
     };
-    let template = package
-        .data_templates
-        .iter()
-        .find(|data| data.declaration == construction.declaration)?;
-    if !construction.establishes || !template.cases.is_empty() {
+    let OperationKind::EstablishRecord { fields } = &body.operations.get(established.index())?.kind else {
+        return None;
+    };
+    let returned = record(package, body.places[source.index()].ty)?;
+    if fields.len() != returned.fields.len() {
         return None;
     }
-    let unsigned = ScalarType::Integer { signed: false, width: 64 };
+    let unsigned = TypeShape::PrimitiveScalar(ScalarType::Integer { signed: false, width: 64 });
     let mut clauses = Vec::new();
-    for clause in &template.requires {
+    for clause in &returned.requires {
         let clause = count_clause(clause, None)?;
-        let field = template
+        let position = returned
             .fields
             .iter()
-            .find(|field| &field.declaration == clause.field)?;
-        let (_, operand) = construction.fields.iter().find(|(id, _)| id == clause.field)?;
-        if field.ty.0 != [TypeExpressionStep::Scalar(unsigned)] || !matches!(operand, TemplateOperand::Zero(ty) if ty == &field.ty) {
+            .position(|field| &field.declaration == clause.field)?;
+        // The operand is a zero constant of the count's carrier.
+        let ValueOperand::Scalar(value) = fields[position].operand else { return None };
+        let value = body.values.get(value.index())?;
+        let ValueOrigin::Operation(constant) = value.origin else { return None };
+        let zero = matches!(&body.operations.get(constant.index())?.kind, OperationKind::Constant(ScalarLiteral::Integer(n)) if n == &0.into());
+        if fields[position].field != *clause.field || package.types.get(value.ty) != Some(&unsigned) || value.ty != returned.fields[position].carrier || !zero {
             return None;
         }
         clauses.push(clause);
     }
-    for (id, operand) in &construction.fields {
-        let TemplateOperand::Zero(ty) = operand else { continue };
-        let [
-            TypeExpressionStep::Named {
-                declaration,
-                argument_count: 0,
-            },
-        ] = ty.0.as_slice()
-        else {
+    for (initializer, field) in fields.iter().zip(&returned.fields) {
+        let ValueOperand::MoveWhole(place) = initializer.operand else { continue };
+        let place = body.places.get(place.index())?;
+        let PlaceOrigin::Operation(producer) = place.origin else { continue };
+        let producer = body.operations.get(producer.index())?;
+        if producer.kind != OperationKind::EstablishZeroedStructural || !matches!(producer.result, OperationResult::Structural(_)) {
             continue;
-        };
-        let field = template.fields.iter().find(|field| &field.declaration == id)?;
-        let data = package
-            .data
-            .iter()
-            .find(|data| &data.declaration == declaration)?;
-        if &field.ty != ty || !data.cases.is_empty() {
+        }
+        let data = record(package, place.ty)?;
+        if initializer.field != field.declaration || place.ty != field.carrier {
             return None;
         }
         for clause in &data.requires {
-            let clause = count_clause(clause, Some(id))?;
+            let clause = count_clause(clause, Some(&field.declaration))?;
             let count = data
                 .fields
                 .iter()
                 .find(|field| &field.declaration == clause.field)?;
-            if package.types.get(count.carrier) != Some(&TypeShape::PrimitiveScalar(unsigned)) {
+            if package.types.get(count.carrier) != Some(&unsigned) {
                 return None;
             }
             clauses.push(clause);

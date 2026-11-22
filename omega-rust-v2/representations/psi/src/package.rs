@@ -63,6 +63,28 @@ pub struct CallbackCrashRoutes {
 pub struct MachineRegion {
     pub reference_parameters: Vec<usize>,
     pub reference_result: bool,
+    /// Parameters whose record or sum takes this region as a lifetime
+    /// argument, ordered by parameter and then by binder. The parameter holds
+    /// that record or refers to it through one shared reference, as its type
+    /// row says. The row erases the argument, so this slot is the only record
+    /// of it.
+    pub aggregate_parameters: Vec<AggregateRegionSlot>,
+    /// Lifetime binders of the result's record or sum that this region fills,
+    /// in ascending order.
+    pub aggregate_result: Vec<usize>,
+}
+
+/// One lifetime argument of a parameter's data type. `binder` indexes the
+/// lifetime binders of that data declaration (`LoweredData::lifetime_count`),
+/// so every stored reference declared at it (`LoweredField::lifetime`) lives in
+/// the machine region that owns this slot. So does each record the declaration
+/// stores, or refers to through a stored shared reference, and fills from it
+/// (`LoweredField::aggregate_lifetimes`), binder by binder, down to the
+/// references those records store.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AggregateRegionSlot {
+    pub parameter: usize,
+    pub binder: usize,
 }
 
 #[derive(Debug, Eq, PartialEq)]

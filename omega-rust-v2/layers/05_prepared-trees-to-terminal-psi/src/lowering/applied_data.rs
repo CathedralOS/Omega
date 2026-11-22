@@ -118,6 +118,7 @@ impl<'a> Application<'a> {
                         declaration: field.declaration.clone(),
                         site: field.site.clone(),
                         lifetime: None,
+                        aggregate_lifetimes: Vec::new(),
                         carrier: types.id_for(ty).map_err(|e| LoweringError::new(&field.site, e.to_string()))?,
                     })
                 })

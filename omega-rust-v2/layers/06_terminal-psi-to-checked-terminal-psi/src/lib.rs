@@ -1,9 +1,13 @@
 //! Check a record constructor against its defining Psi unit with
-//! [`check_record_constructor`]. [`check_selected_policy_call`] then checks
+//! [`check_record_constructor`]. The proof subject is the constructor's one
+//! closed machine body in that unit. [`check_selected_policy_call`] then checks
 //! a selected policy's argument formation, call and return against that proof.
 //! Applying the policy still requires evaluation and validation for its schema.
 #![forbid(unsafe_code)]
 
+mod closed_policy_call;
+pub use closed_policy_call::{CheckedClosedPolicyCall, check_closed_policy_call};
+mod constructor_body;
 mod policy_call;
 mod policy_construction;
 pub use policy_construction::{CheckedPolicyConstruction, check_policy_construction};
@@ -12,16 +16,33 @@ mod storage;
 pub use policy_call::{CheckedPolicyCall, check_selected_policy_call};
 
 use omega_psi::{
-    DeclarationId, DeclarationKind, LoweredPackage, MachineTemplate, MachineTemplateBinder, PredicateOperator, PredicateStep, TemplateAccess, TemplateBinder,
-    TemplateConstruct, TemplateOperand, TemplateResult, TemplateStep, TypeExpression, TypeExpressionStep,
+    DeclarationId, DeclarationKind, LoweredMachine, LoweredPackage, MachineTemplate, MachineTemplateBinder, PredicateOperator, PredicateStep, Site,
+    TemplateBinder, TypeExpression,
 };
 
 /// A field's value in terms of the entry arguments of the checked machine.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum FieldOrigin<'unit> {
-    CopySharedFormal { formal: usize, ty: &'unit TypeExpression },
-    MoveFormal { formal: usize, ty: &'unit TypeExpression },
-    Zero(&'unit TypeExpression),
+/// Each type is written with the constructor's own region binder.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum FieldOrigin {
+    /// A copy read through the shared formal; `ty` is the copied referent.
+    CopySharedFormal { formal: usize, ty: TypeExpression },
+    /// The whole owned formal, transferred once.
+    MoveFormal { formal: usize, ty: TypeExpression },
+    /// The zero of the field's declared type, formed by the body's own operations.
+    Zero(TypeExpression),
+}
+
+/// The record a constructor returns, as its closed body establishes it.
+#[derive(Debug)]
+pub struct ConstructedRecord<'unit> {
+    pub declaration: &'unit DeclarationId,
+    /// The result type, written with the constructor's own region binder.
+    pub ty: TypeExpression,
+    /// The establishing operation's occurrence in the defining source.
+    pub site: &'unit Site,
+    /// Whether the record's declaration states predicates that the
+    /// establishing operation owes.
+    pub establishes: bool,
 }
 
 /// The exact ordered inputs, result and immutable Psi unit whose obligations
@@ -30,28 +51,36 @@ pub enum FieldOrigin<'unit> {
 #[derive(Debug)]
 pub struct CheckedRecordConstructor<'unit> {
     unit: &'unit LoweredPackage,
-    machine: &'unit MachineTemplate,
-    result: &'unit TemplateConstruct,
-    fields: Vec<(&'unit DeclarationId, FieldOrigin<'unit>)>,
+    machine: &'unit LoweredMachine,
+    parameters: Vec<TypeExpression>,
+    result: ConstructedRecord<'unit>,
+    fields: Vec<(&'unit DeclarationId, FieldOrigin)>,
 }
 
 impl<'unit> CheckedRecordConstructor<'unit> {
     pub fn unit(&self) -> &'unit LoweredPackage {
         self.unit
     }
-    pub fn machine(&self) -> &'unit MachineTemplate {
+    /// The closed body that was checked.
+    pub fn machine(&self) -> &'unit LoweredMachine {
         self.machine
     }
-    pub fn result(&self) -> &'unit TemplateConstruct {
-        self.result
+    /// Each formal's declared type. The body's type rows erase lifetime
+    /// arguments, so these are read from the rows together with the machine's
+    /// region slots and written with the constructor's region binder.
+    pub fn parameters(&self) -> &[TypeExpression] {
+        &self.parameters
     }
-    pub fn fields(&self) -> &[(&'unit DeclarationId, FieldOrigin<'unit>)] {
+    pub fn result(&self) -> &ConstructedRecord<'unit> {
+        &self.result
+    }
+    pub fn fields(&self) -> &[(&'unit DeclarationId, FieldOrigin)] {
         &self.fields
     }
 }
 
-/// Both judgments below admit a single region, pure terminating evaluation,
-/// established formals and no implicit work left at return.
+/// The caller-side judgment admits a single region, pure terminating
+/// evaluation, established formals and no implicit work left at return.
 fn supports_straight_line_template(machine: &MachineTemplate) -> bool {
     let sig = &machine.signature;
     matches!(machine.parameters.as_slice(), [MachineTemplateBinder::Type(TemplateBinder::Lifetime)])
@@ -70,18 +99,45 @@ fn supports_straight_line_template(machine: &MachineTemplate) -> bool {
         && machine.discarded_fields.is_empty()
 }
 
+/// The same admission for a closed body: one region, no static argument, no
+/// requirement, reach, crash route or pause, and a termination promise.
+fn supports_straight_line_body(machine: &LoweredMachine) -> bool {
+    let contract = &machine.contract;
+    let body = &machine.body;
+    machine.regions.len() == 1
+        && machine.arguments.is_empty()
+        && machine.positive_widths.is_empty()
+        && machine.operator.is_none()
+        && machine.scalar_result.is_none()
+        && contract.promises_termination
+        && contract.ranking.is_none()
+        && contract.requires.is_empty()
+        && contract.reach.as_deref() == Some(&[])
+        && contract.realized_reach.is_empty()
+        && contract.has_empty_crash_ceiling
+        && contract.crash_routes.is_empty()
+        && contract.callback_crash_routes.is_empty()
+        && contract.pause_bounds.declared() == Default::default()
+        && contract.realized_pause == Default::default()
+        && body.lifetime_bindings.is_empty()
+        && body.call_regions.is_empty()
+        && body.call_acknowledgements.is_empty()
+        && body.callback_invocations.is_empty()
+        && body.suspension_sites.is_empty()
+        && body.mutable_homes.is_empty()
+}
+
 /// Check the constructor, its data establishment and every declared guarantee.
-/// The supported body copies or transfers its entry arguments and returns one
-/// record. Each input step is used once. Other bodies require other rules.
+/// The subject is the one closed machine body `unit` publishes for
+/// `declaration`. The supported body copies or transfers its entry arguments,
+/// forms the zero of every other field with its own operations and returns one
+/// record. Each input is used once. Other bodies require other rules.
 pub fn check_record_constructor<'unit>(
     unit: &'unit LoweredPackage,
     declaration: &DeclarationId,
 ) -> Result<CheckedRecordConstructor<'unit>, &'static str> {
-    let mut templates = unit
-        .machine_templates
-        .iter()
-        .filter(|m| &m.declaration == declaration);
-    let machine = templates.next().ok_or("missing constructor template")?;
+    let mut bodies = unit.machines.iter().filter(|m| &m.declaration == declaration);
+    let machine = bodies.next().ok_or("missing constructor body")?;
     let requirement = unit.traits.iter().any(|owner| {
         owner
             .requirements
@@ -92,72 +148,64 @@ pub fn check_record_constructor<'unit>(
                 .iter()
                 .any(|row| &row.declaration == declaration)
     });
+    // One declaration must name one proof subject. An open template of the
+    // same declaration would be a second one, and this judgment reads no
+    // template in place of the body.
     if declaration.kind != DeclarationKind::Machine
-        || templates.next().is_some()
+        || bodies.next().is_some()
         || unit.catalog_declarations.contains(declaration)
-        || unit.machines.iter().any(|m| &m.declaration == declaration)
+        || unit
+            .machine_templates
+            .iter()
+            .any(|m| &m.declaration == declaration)
         || unit.theorems.iter().any(|m| &m.declaration == declaration)
+        || unit
+            .machines
+            .iter()
+            .filter(|other| other.id == machine.id)
+            .count()
+            != 1
         || requirement
     {
         return Err("ambiguous constructor declaration");
     }
-    let sig = &machine.signature;
-    if declaration.enclosing_machine.is_some() || !supports_straight_line_template(machine) {
+    if declaration.enclosing_machine.is_some() || !supports_straight_line_body(machine) {
         return Err("unsupported constructor binders, effects or contract");
     }
-    let Some((TemplateStep::Construct(result), inputs)) = machine.body.split_last() else {
-        return Err("missing returned record construction");
+    let body = constructor_body::read(unit, machine)?;
+    let result = ConstructedRecord {
+        declaration: &body.record.declaration,
+        ty: body.result,
+        site: body.site,
+        establishes: !body.record.requires.is_empty(),
     };
-    if machine.result != Some(TemplateResult::Operand(TemplateOperand::Step(inputs.len())))
-        || sig.result.as_ref() != Some(&result.ty)
-        || result.declaration.kind != DeclarationKind::Data
-    {
-        return Err("constructor does not return the declared record");
+    // A zero field has the type its declaration gives it at the result's
+    // lifetimes. The body's operations were followed to that zero above.
+    let declared = storage::record_fields(unit, &result.ty)?;
+    if declared.len() != body.fields.len() {
+        return Err("constructor does not establish its complete record declaration");
     }
-    let mut used_formals = vec![false; sig.parameters.len()];
-    let mut produced = Vec::with_capacity(inputs.len());
-    for step in inputs {
-        let (formal, value) = match step {
-            TemplateStep::CopyReferent { formal, ty, .. } => {
-                let parameter = sig.parameters.get(*formal).ok_or("unknown borrowed formal")?;
-                if !matches!(parameter.0.split_last(), Some((TypeExpressionStep::Reference(TemplateAccess::Shared), inner)) if inner == ty.0) {
-                    return Err("copy requires a shared reference to the indicated carrier");
-                }
-                (*formal, FieldOrigin::CopySharedFormal { formal: *formal, ty })
-            }
-            TemplateStep::MoveFormal { formal, ty, .. } => {
-                if sig.parameters.get(*formal) != Some(ty) || !matches!(ty.0.last(), Some(TypeExpressionStep::Named { .. })) {
-                    return Err("whole move requires the indicated owned formal");
-                }
-                (*formal, FieldOrigin::MoveFormal { formal: *formal, ty })
-            }
-            _ => return Err("unsupported operation in record constructor"),
-        };
-        if std::mem::replace(&mut used_formals[formal], true) {
-            return Err("constructor formal used more than once");
+    let mut fields = Vec::with_capacity(declared.len());
+    for ((field, origin), (declared_field, declared_type)) in body.fields.into_iter().zip(declared) {
+        if field != declared_field {
+            return Err("constructor field order disagrees with its record declaration");
         }
-        produced.push(Some(value));
-    }
-    if used_formals.contains(&false) {
-        return Err("constructor leaves a formal unaccounted for");
-    }
-    let mut fields = Vec::with_capacity(result.fields.len());
-    for (field, operand) in &result.fields {
-        let origin = match operand {
-            TemplateOperand::Zero(ty) => FieldOrigin::Zero(ty),
-            TemplateOperand::Step(index) => produced
-                .get_mut(*index)
-                .and_then(Option::take)
-                .ok_or("field reads a missing or spent input")?,
-            _ => return Err("unsupported record field operand"),
+        let origin = match origin {
+            constructor_body::Origin::CopySharedFormal(formal) => {
+                let mut ty = body.parameters[formal].clone();
+                ty.0.pop();
+                FieldOrigin::CopySharedFormal { formal, ty }
+            }
+            constructor_body::Origin::MoveFormal(formal) => FieldOrigin::MoveFormal {
+                formal,
+                ty: body.parameters[formal].clone(),
+            },
+            constructor_body::Origin::Zero => FieldOrigin::Zero(declared_type),
         };
         fields.push((field, origin));
     }
-    if produced.iter().any(Option::is_some) {
-        return Err("constructor discards a field input");
-    }
-    storage::check_fields(unit, machine, result, &fields)?;
-    for clause in &sig.ensures {
+    storage::check_fields(unit, &machine.declaration, machine.regions.len(), &result, &fields)?;
+    for clause in &machine.contract.ensures {
         let [
             PredicateStep::Result,
             PredicateStep::Field(first),
@@ -183,5 +231,11 @@ pub fn check_record_constructor<'unit>(
             .collect::<Result<Vec<_>, _>>()?;
         storage::zero_field_integer(unit, ty, &path)?;
     }
-    Ok(CheckedRecordConstructor { unit, machine, result, fields })
+    Ok(CheckedRecordConstructor {
+        unit,
+        machine,
+        parameters: body.parameters,
+        result,
+        fields,
+    })
 }

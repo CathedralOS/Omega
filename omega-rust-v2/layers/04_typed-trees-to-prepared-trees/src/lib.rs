@@ -50,6 +50,9 @@ pub use preparation::rounds::{
     PreparationRound, PreparationStep,
 };
 pub use evaluation::owned_values::{CheckedCanonicalIdentity, CheckedDataEstablishment};
+// Validation of a selected policy's returned plan; see `evaluation/policy_validation.rs`.
+pub use evaluation::policy_validation::read_returned_access_plan;
+pub use omega_prepared::PlanIssuance;
 pub use invocation::admission::{CheckedInvocationFact, CheckedProvider, SelectedRealization};
 pub use invocation::static_callbacks::{CheckedCallableRefinement, CheckedCallableUse};
 pub use invocation::termination::CheckedRecursiveComponent;

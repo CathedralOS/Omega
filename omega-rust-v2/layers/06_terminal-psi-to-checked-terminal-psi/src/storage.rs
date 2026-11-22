@@ -1,9 +1,9 @@
-//! Establish the fields of a lifetime-parametric record constructor. An omitted
+//! Establish the fields of a lifetime-parametric record constructor. A zero
 //! aggregate recursively owes the predicates of every active zero value.
-use crate::FieldOrigin;
+use crate::{ConstructedRecord, FieldOrigin};
 use omega_psi::{
-    ContractClause, DeclarationId, DeclarationKind, LoweredPackage, MachineTemplate, MachineTemplateBinder, Multiplicity, PredicateOperator, PredicateStep,
-    ScalarType, TemplateAccess, TemplateBinder, TemplateConstruct, TypeExpression, TypeExpressionStep as Step, TypeId, TypeShape,
+    ContractClause, DataId, DeclarationId, DeclarationKind, LoweredPackage, Multiplicity, PredicateOperator, PredicateStep, ReferenceAccess, ScalarType,
+    TemplateAccess, TemplateBinder, TypeExpression, TypeExpressionStep as Step, TypeId, TypeShape,
 };
 use std::collections::BTreeSet;
 
@@ -85,15 +85,65 @@ fn verify_members<'a>(
     Ok(())
 }
 
+/// The record `id` applied at the enclosing binders `regions`, one for each
+/// lifetime binder of that record's own declaration, with the row the
+/// declaration owns. `arguments` are the enclosing declaration's lifetime
+/// arguments, so a binder outside them names nothing.
+fn applied_record(
+    unit: &LoweredPackage,
+    id: DataId,
+    regions: &[usize],
+    arguments: &[Step],
+) -> Check<(TypeId, Vec<Step>)> {
+    let data = unit
+        .data
+        .get(id.get() - 1)
+        .filter(|data| data.id == id && unit.types.get(data.carrier) == Some(&TypeShape::Nominal(id)))
+        .ok_or("field type has no matching concrete data declaration")?;
+    if data.lifetime_count != regions.len() || !data.type_arguments.is_empty() || !data.value_indices.is_empty() {
+        return Err("concrete field type requires its application");
+    }
+    let mut steps = regions
+        .iter()
+        .map(|&binder| {
+            arguments
+                .get(binder)
+                .cloned()
+                .ok_or("field refers to a missing data region")
+        })
+        .collect::<Check<Vec<_>>>()?;
+    steps.push(Step::Named {
+        declaration: data.declaration.clone(),
+        argument_count: regions.len(),
+    });
+    Ok((data.carrier, steps))
+}
+
+/// The type a concrete field stores, written as its declaration writes it.
+/// A row erases the lifetime arguments of the record a field stores, or
+/// refers to through one shared reference. `regions` names the enclosing
+/// binder that fills each of them (`LoweredField::aggregate_lifetimes`), and
+/// `arguments` are the enclosing declaration's own lifetime arguments. The
+/// region a reference itself is held at is not part of this type; `record`
+/// adds it from `LoweredField::lifetime`.
 fn concrete_type(
     unit: &LoweredPackage,
     mut carrier: TypeId,
+    regions: &[usize],
+    arguments: &[Step],
 ) -> Check<TypeExpression> {
-    let mut arrays = Vec::new();
+    // Fixed arrays and owned sequences wrap the stored leaf, outermost first.
+    // A wrapper's row follows the row of its element.
+    let mut wrappers = Vec::new();
+    let mut names_record = false;
     let mut steps = loop {
         match unit.types.get(carrier) {
             Some(TypeShape::FixedArray { element, length }) if element.get() < carrier.get() => {
-                arrays.push(*length);
+                wrappers.push(Step::Array(*length));
+                carrier = *element;
+            }
+            Some(TypeShape::ElementSequence { element }) if element.get() < carrier.get() => {
+                wrappers.push(Step::Slice);
                 carrier = *element;
             }
             Some(TypeShape::PrimitiveScalar(scalar)) => break vec![Step::Scalar(*scalar)],
@@ -105,24 +155,44 @@ fn concrete_type(
                 ];
             }
             Some(TypeShape::Nominal(id)) => {
-                let data = unit
-                    .data
-                    .get(id.get() - 1)
-                    .filter(|data| data.id == *id && data.carrier == carrier)
-                    .ok_or("field type has no matching concrete data declaration")?;
-                if data.lifetime_count != 0 || !data.type_arguments.is_empty() || !data.value_indices.is_empty() {
-                    return Err("concrete field type requires its application");
+                let (row, steps) = applied_record(unit, *id, regions, arguments)?;
+                if row != carrier {
+                    return Err("field type has no matching concrete data declaration");
                 }
-                break vec![Step::Named {
-                    declaration: data.declaration.clone(),
-                    argument_count: 0,
-                }];
+                names_record = true;
+                break steps;
+            }
+            // The field stores the reference, and the row names the record it
+            // refers to. `regions` fill that record's binders, checked against
+            // its declaration exactly as for a record held by value. A row
+            // gives those binders only to a field that is the reference
+            // itself, so one under an array or sequence is not read here.
+            Some(TypeShape::NominalReference {
+                access: ReferenceAccess::Shared,
+                referent,
+            }) if wrappers.is_empty() => {
+                let (_, mut steps) = applied_record(unit, *referent, regions, arguments)?;
+                steps.push(Step::Reference(TemplateAccess::Shared));
+                names_record = true;
+                break steps;
             }
             _ => return Err("unsupported field carrier in constructor data"),
         }
     };
-    steps.extend(arrays.into_iter().rev().map(Step::Array));
+    if !names_record && !regions.is_empty() {
+        return Err("stored record regions must bind a record field");
+    }
+    steps.extend(wrappers.into_iter().rev());
     Ok(TypeExpression(steps))
+}
+
+/// The fields of the record type `ty` in declaration order, each with its
+/// declared type at `ty`'s lifetime arguments.
+pub(crate) fn record_fields<'a>(
+    unit: &'a LoweredPackage,
+    ty: &TypeExpression,
+) -> Check<Fields<'a>> {
+    Ok(record(unit, &ty.0, Selection::Record)?.fields)
 }
 
 fn record<'a>(
@@ -225,18 +295,27 @@ fn record<'a>(
             let fields = selected
                 .iter()
                 .map(|field| {
-                    let mut ty = concrete_type(unit, field.carrier)?;
-                    if let Some(region) = field.lifetime {
-                        if !matches!(ty.0.last(), Some(Step::Reference(_))) {
-                            return Err("a stored region must bind a reference field");
+                    let mut ty = concrete_type(unit, field.carrier, &field.aggregate_lifetimes, arguments)?;
+                    let reference = matches!(ty.0.last(), Some(Step::Reference(_)));
+                    match field.lifetime {
+                        Some(region) if reference => {
+                            ty.0.push(
+                                arguments
+                                    .get(region)
+                                    .cloned()
+                                    .ok_or("field refers to a missing data region")?,
+                            );
+                            ty.0.push(Step::AtLifetime);
                         }
-                        ty.0.push(
-                            arguments
-                                .get(region)
-                                .cloned()
-                                .ok_or("field refers to a missing data region")?,
-                        );
-                        ty.0.push(Step::AtLifetime);
+                        Some(_) => return Err("a stored region must bind a reference field"),
+                        // The row fills the referent's binders and leaves out
+                        // the region the reference is held at. No rule
+                        // supplies an unwritten stored lifetime, so the
+                        // field's declared type is unknown.
+                        None if reference && !field.aggregate_lifetimes.is_empty() => {
+                            return Err("a stored reference to a record at regions needs its own region");
+                        }
+                        None => {}
                     }
                     Ok((&field.declaration, ty))
                 })
@@ -390,6 +469,19 @@ fn check_value(
                 Step::GenericParameter { .. },
                 Step::AtLifetime,
             ] if usage == Use::Copy => {}
+            // A stored shared reference to a record is a descriptor as well.
+            // The copy holds the same reference and reads nothing behind it.
+            // The referent must be a declared record at these arguments, but
+            // its fields are not this value's storage: they are not visited,
+            // and no borrow held behind the reference is copied here.
+            [
+                referent @ ..,
+                Step::Reference(TemplateAccess::Shared),
+                Step::GenericParameter { .. },
+                Step::AtLifetime,
+            ] if usage == Use::Copy && matches!(referent.last(), Some(Step::Named { .. })) => {
+                record(unit, referent, Selection::WholeInput)?;
+            }
             [.., Step::Named { .. }] => {
                 let selection = if usage == Use::Zero { Selection::Zero } else { Selection::Record };
                 let record = record(unit, &ty.0, selection)?;
@@ -415,14 +507,18 @@ fn check_value(
     Ok(())
 }
 
+/// `constructor` declares `regions` region binders. The establishing operation
+/// owes every predicate of the record's declaration, so each one is judged
+/// here against the fields the body supplied.
 pub(crate) fn check_fields(
     unit: &LoweredPackage,
-    constructor: &MachineTemplate,
-    construct: &TemplateConstruct,
-    fields: &[(&DeclarationId, FieldOrigin<'_>)],
+    constructor: &DeclarationId,
+    regions: usize,
+    construct: &ConstructedRecord<'_>,
+    fields: &[(&DeclarationId, FieldOrigin)],
 ) -> Check<()> {
     let schema = record(unit, &construct.ty.0, Selection::Record)?;
-    if schema.declaration != &construct.declaration
+    if schema.declaration != construct.declaration
         || fields.len() != schema.fields.len()
         || schema.multiplicity == Multiplicity::Linear
         || construct.establishes != !schema.clauses.is_empty()
@@ -431,7 +527,7 @@ pub(crate) fn check_fields(
     }
     for step in &construct.ty.0 {
         if let Step::GenericParameter { owner, index } = step
-            && (owner != &constructor.declaration || !matches!(constructor.parameters.get(*index), Some(MachineTemplateBinder::Type(TemplateBinder::Lifetime))))
+            && (owner != constructor || *index >= regions)
         {
             return Err("constructor result uses a foreign lifetime");
         }
@@ -442,8 +538,8 @@ pub(crate) fn check_fields(
             .find(|(field, _)| field == id)
             .ok_or("constructor omitted a field")?;
         match origin {
-            FieldOrigin::CopySharedFormal { ty, .. } if *ty == expected => check_value(unit, ty, Use::Copy)?,
-            FieldOrigin::MoveFormal { ty, .. } if *ty == expected => {
+            FieldOrigin::CopySharedFormal { ty, .. } if ty == expected => check_value(unit, ty, Use::Copy)?,
+            FieldOrigin::MoveFormal { ty, .. } if ty == expected => {
                 let source = record(unit, &ty.0, Selection::WholeInput)?;
                 if source.multiplicity == Multiplicity::Linear {
                     return Err("moving a linear input needs claim transfer evidence");
@@ -452,7 +548,7 @@ pub(crate) fn check_fields(
                     check_value(unit, ty, Use::Copy)?;
                 }
             }
-            FieldOrigin::Zero(ty) if *ty == expected => {
+            FieldOrigin::Zero(ty) if ty == expected => {
                 check_value(unit, ty, Use::Zero)?;
                 if schema.multiplicity == Multiplicity::Copy {
                     check_value(unit, ty, Use::Copy)?;
@@ -464,7 +560,7 @@ pub(crate) fn check_fields(
     check_clauses(&schema, |field| {
         fields
             .iter()
-            .any(|&(id, origin)| id == field && matches!(origin, FieldOrigin::Zero(_)))
+            .any(|(id, origin)| *id == field && matches!(origin, FieldOrigin::Zero(_)))
     })
 }
 

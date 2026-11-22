@@ -39,7 +39,7 @@ macro_rules! families {
 families! {
     OperationKind => [
         BeginAssembly, AssemblyInstruction, Constant, Boolean, ExactNumericCast, TrappingInteger, Integer, Float, Call, ApplyTheorem,
-        ConstructCallableDescriptor, RefineCallableDescriptor, ByteSequenceLength, ByteSequenceRead, BorrowPlace, ScalarBitRecast,
+        ConstructCallableDescriptor, RefineCallableDescriptor, DescribeMachine, ByteSequenceLength, ByteSequenceRead, BorrowPlace, ScalarBitRecast,
         MutableScalarBitRecast, BorrowedMove,
         StructuralStore, ElementViewLength, ElementViewRead, ElementViewWrite, EstablishZeroedStructural, EstablishCase, EstablishRecord,
         CopyStructural, MoveStructural, DecomposeRecord, StructuralScalarFieldStore, ProjectedScalarStore,
@@ -62,7 +62,7 @@ families! {
     ],
     TypeShape => [
         PrimitiveScalar, QualifiedScalar, Nominal, QualifiedNominal, SharedQualifiedScalarReference, SharedByteView, SharedElementView, MutableElementView,
-        ScalarReference, NominalReference, IndexedSharedReference, Callable, FixedArray,
+        ElementSequence, ScalarReference, NominalReference, IndexedSharedReference, Callable, FixedArray,
     ],
 }
 

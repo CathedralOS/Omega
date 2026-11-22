@@ -1,0 +1,36 @@
+// `Schema` stores one shared byte view at its lifetime, as the toolchain's
+// `TypeSchema<'t>` does. `Span` stores one view at each of two lifetimes, and
+// `Route` stores its view in a case payload, as `CallableInfo<'t>` does.
+public data Schema<'t> [copy] {
+    storage: @'t [u8];
+}
+
+public data Span<'a, 'b> [copy] {
+    head: @'a [u8];
+    tail: @'b [u8];
+}
+
+public data Route<'t> [copy] {
+    case Known(identity: @'t [u8]);
+    case Unknown;
+}
+
+public machine forward<'t>(schema: Schema<'t>) -> Schema<'t> {
+    schema
+}
+
+public machine pick<'a, 'b>(left: Schema<'a>, right: Schema<'b>) -> Schema<'b> {
+    right
+}
+
+public machine keep<'x, 'y>(span: Span<'x, 'y>) -> Span<'x, 'y> {
+    span
+}
+
+public machine fold<'x>(span: Span<'x, 'x>, count: u64) -> u64 {
+    count
+}
+
+public machine route<'t>(route: Route<'t>) -> Route<'t> {
+    route
+}

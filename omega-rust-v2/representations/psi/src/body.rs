@@ -152,6 +152,15 @@ pub enum OperationKind {
         machine: crate::MachineId,
         contract: crate::CallableContractId,
     },
+    /// Describe the exact machine typing selected at `reflect\callable(pick)`.
+    /// This is the closed-body form of `TemplateStep::Describe`: the same
+    /// selection, with the descriptor type on the result place's row. Its
+    /// operands name no formal: `pick::<3>` carries the static integer. The
+    /// result is a value that names the machine. The operation calls nothing,
+    /// reads no place and grants no authority, and no descriptor here is a
+    /// callable. Psi states no bytes or backing for the description; the row
+    /// names the region the value is held at.
+    DescribeMachine(Box<crate::TemplateSelection>),
     /// An erased proof application of a logical theorem. Its result is always
     /// `OperationResult::Unit`; see `TheoremApplication`.
     ApplyTheorem(Box<crate::TheoremApplication>),
@@ -237,10 +246,13 @@ pub enum OperationKind {
         length: ValueId,
         obligation: crate::BoundsObligationId,
     },
-    /// Zero every leaf of fresh storage for the result's nominal record. The
-    /// operation carries the binding's `ZeroValue` obligation: the checker judges
-    /// each default-domain clause of that schema, and of each schema it contains,
-    /// for the all-zero value. Lowering neither discharges nor assumes them.
+    /// Zero every leaf of fresh storage for the result's whole type: a record
+    /// whose leaves are all scalars, or a fixed array of scalars or of such
+    /// records, at any extent. The operation carries the obligation that asked
+    /// for the zero, a binding's `ZeroValue` or a literal's `ZeroField`: the
+    /// checker judges each default-domain clause of the result's schema, and of
+    /// each schema it contains, for the all-zero value. Lowering neither
+    /// discharges nor assumes them.
     EstablishZeroedStructural,
     /// Owes every default-domain clause of the result's nominal schema at
     /// this operation, with `self` formed from this case and its payload.
@@ -305,6 +317,10 @@ pub enum OperationKind {
     /// equality with `value`. A mutable local's home is in
     /// `MachineBody::mutable_homes`, and each assignment is a
     /// `ProjectedScalarStore` into it at an empty path.
+    ///
+    /// The same operation homes one scalar element of a by-value sequence:
+    /// `EstablishStructuralArray` takes a place per element, so each scalar
+    /// gets its own home, which the sequence then holds as that element.
     EstablishPrimitiveLocal {
         value: ValueId,
         /// Prove the receiving storage's scalar-domain predicates at this initializer.
@@ -312,6 +328,9 @@ pub enum OperationKind {
     },
     /// Each place supplies one complete element, in source order. An owned
     /// element transfers once and continues beneath `FixedIndex(ordinal)`.
+    /// The result type selects the form: a `FixedArray` takes exactly its
+    /// declared extent, and an `ElementSequence` takes any roster, including
+    /// an empty one, whose count is the sequence's stored length.
     EstablishStructuralArray {
         elements: Vec<PlaceId>,
     },
@@ -450,6 +469,9 @@ pub struct MachineBody {
     /// The descriptor at each explicit binding occurrence and its destination
     /// ordinal in `LoweredMachine::regions`. The checker judges the relation.
     pub lifetime_bindings: Vec<(PlaceId, usize)>,
+    /// One row per call of a machine that has region binders, in emission
+    /// order. A call of a machine without region binders has no row.
+    pub call_regions: Vec<crate::CallRegions>,
     pub call_acknowledgements: Vec<crate::CallAcknowledgement>,
     /// Calls that invoke a closed static callable binder, in emission order.
     pub callback_invocations: Vec<crate::CallbackInvocation>,

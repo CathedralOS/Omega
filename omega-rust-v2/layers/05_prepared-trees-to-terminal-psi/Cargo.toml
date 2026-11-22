@@ -18,9 +18,10 @@ omega-syntax = { path = "../../representations/syntax" }
 omega-resolved = { path = "../../representations/resolved" }
 omega-typed = { path = "../../representations/typed" }
 omega-prepared = { path = "../../representations/prepared" }
-
 [dev-dependencies]
+omega-interpreter = { path = "../../interpreter" }
 omega = { path = "../../application" }
+omega-checker = { path = "../06_terminal-psi-to-checked-terminal-psi" }
 tree-handoff-consumer = { path = "tests/tree-consumer" }
 omega-parser = { path = "../01_tokens-to-syntax-trees" }
 omega-resolver = { path = "../02_syntax-trees-to-symbol-resolved-trees" }

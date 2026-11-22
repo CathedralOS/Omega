@@ -25,10 +25,12 @@ pub(super) fn captures(
     ))).collect()
 }
 
+/// A static integer operand, as in `pick::<3>`, is a value index of the
+/// selected machine. It is published as data applications publish theirs.
 pub(super) fn selection(typed: &TypedStage, application: &MachineApplication, site: &Site) -> Result<TemplateSelection, LoweringError> {
     Ok(TemplateSelection {
         declaration: crate::identity::declaration(&application.machine, site)?,
-        arguments: application.arguments.iter().map(|arg| type_expression(arg, site)).collect::<Result<_, _>>()?,
+        arguments: application.arguments.iter().map(|arg| super::super::type_expression::indexed_expression(arg, site)).collect::<Result<_, _>>()?,
         enclosing_arguments: captures(typed, &application.machine, &application.enclosing_arguments, site)?,
     })
 }

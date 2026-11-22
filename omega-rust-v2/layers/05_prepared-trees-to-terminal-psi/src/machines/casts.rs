@@ -82,10 +82,18 @@ pub(super) enum ScalarChange {
 /// An ordinary addition introduces only predicate-free tags, so an addition
 /// that includes a predicate names every added domain with its origin instead.
 /// Each row keeps the application's closed arguments, so `Above<5>` owes `self > 5`.
+///
+/// `machine` owns the cast, so it is the issuer of every domain the cast adds.
+/// Whether it may issue a domain that selects an access policy is decided by
+/// that policy's executed plan, which lowering does not have: a plan can admit
+/// no issuer, and then the domain has no establishment route for any machine
+/// (`wiki/spec/terminal-psi/encoding.md`, domain rows). The package therefore
+/// reports each such cast to its driver, and this refuses one it does not report.
 pub(super) fn scalar_cast<'a>(
     operation: &'a TypedOperation,
     obligations: &[&TypingObligation],
     types: &LoweringTypes,
+    machine: &DeclarationId,
 ) -> Result<ScalarCast<'a>, LoweringError> {
     let error = |message| LoweringError::new(&operation.site, message);
     let [source] = operation.operands.as_slice() else {
@@ -107,6 +115,21 @@ pub(super) fn scalar_cast<'a>(
         .filter(|atom| !before.contains(atom))
         .collect::<Vec<_>>();
     let removes = before.iter().any(|atom| !after.contains(atom));
+    for atom in &added {
+        if types
+            .domain_establishment(&atom.declaration)
+            .is_some_and(|domain| domain.selects_policy)
+            && !types.reports_policy_introduction(&atom.declaration, machine, &operation.site)
+        {
+            return Err(LoweringError::new(
+                &operation.site,
+                format!(
+                    "machine `{}` introduces domain `{}` in a cast its package does not report for the pending access plan",
+                    machine.path, atom.declaration.path
+                ),
+            ));
+        }
+    }
     let change = match (added.is_empty(), removes) {
         (false, false) => {
             let establishment = |atom: &omega_typed::DomainApplication| types.domain_establishment(&atom.declaration);

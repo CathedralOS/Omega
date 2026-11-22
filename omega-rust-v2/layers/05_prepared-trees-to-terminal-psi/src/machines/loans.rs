@@ -96,6 +96,113 @@ pub(super) fn descriptor(
     }
 }
 
+/// A shared view held at a region, as `@'t [u8]`, in the two forms whose
+/// backing an existing place already names. Any other expression returns
+/// `None` and keeps the refusal it had.
+///
+/// `schema.storage`, at a region binder of this machine, copies the
+/// descriptor the record stores. The copy names the field place, and the
+/// record's own region slot says which region that field is in, so the copy
+/// carries no region of its own.
+///
+/// `bytes` in `Schema { storage: bytes }` is a plain `@[u8]` that typing binds
+/// to the region it inferred for the record (`BindLifetime` at the operand).
+/// The operand forwards the binding's own place. Psi names no region for it:
+/// the `EstablishRecord` that takes this operand for a field stored at a
+/// lifetime binder is the binding, and the place is the backing. The same
+/// operand bound to a region the machine declares is refused.
+pub(super) fn view_at_region(
+    expressions: &Expressions<'_>,
+    node: usize,
+    carrier: &ValueType,
+    body: &mut MachineBody,
+) -> Result<Option<OperationResult>, LoweringError> {
+    let ValueType::AtLifetime(view, region) = carrier else { return Ok(None) };
+    if !(crate::lowering::types::is_shared_byte_view(view) || crate::lowering::types::is_shared_element_view(view)) {
+        return Ok(None);
+    }
+    let tree = expressions.tree;
+    let resolved = tree.resolved();
+    let file = resolved.file;
+    let site = site_at(tree, node);
+    let ty = |site: &Site| {
+        expressions
+            .types
+            .id_for(view)
+            .map_err(|e| LoweringError::new(site, e.to_string()))
+    };
+    match (file.nodes[node].kind, region.as_ref()) {
+        (NodeKind::FieldAccess, _)
+            if crate::declarations::regions::stored_view(carrier, &expressions.signature.machine).is_some()
+                && tree
+                    .semantics_at(node)
+                    .any(|row| matches!(row, NodeSemantics::Field(_))) =>
+        {
+            let (source, selected) = references::move_place(expressions, node, body)?;
+            if selected != carrier {
+                return Err(LoweringError::new(&site, "stored view read disagrees with its checked type"));
+            }
+            // A read through a reference copies out of borrowed storage and
+            // owes typing's copy-read evidence, which this form does not carry.
+            if source.path.contains(&crate::PlaceProjection::Referent) {
+                return Err(LoweringError::new(&site, "a stored view read through a reference needs its copy-read evidence"));
+            }
+            let id = ty(&site)?;
+            Ok(Some(body.push_operation(
+                OperationOutput::Structural(id),
+                OperationKind::CopyStructural { source },
+                site,
+            )))
+        }
+        (NodeKind::PathExpression, _) => {
+            let mut typed = false;
+            let mut bound = false;
+            for row in tree.semantics_at(node) {
+                match row {
+                    NodeSemantics::Expression(e) if !typed && &e.ty == view.as_ref() && e.static_argument_slot.is_none() => typed = true,
+                    NodeSemantics::Obligation(o)
+                        if !bound
+                            && matches!(&o.kind, ObligationKind::BindLifetime { reference, destination }
+                                if reference == view.as_ref() && destination == carrier) =>
+                    {
+                        bound = true
+                    }
+                    _ => return Ok(None),
+                }
+            }
+            if !typed || !bound {
+                return Ok(None);
+            }
+            // A binding to a region the machine declares is a relation the
+            // checker must judge against that binder. An establishment alone
+            // does not publish it, so only an inferred region lowers here.
+            if !matches!(region.as_ref(), ValueType::InferredLifetime { .. }) {
+                return Err(LoweringError::new(
+                    &site,
+                    "a reference bound into a stored field at a declared region needs its binding",
+                ));
+            }
+            let Some(Symbol::Binding { binder_node, .. }) = resolved.symbol(node) else {
+                return Ok(None);
+            };
+            let value = expressions
+                .bindings
+                .iter()
+                .rev()
+                .find(|(n, _)| n == binder_node)
+                .map(|(_, v)| *v);
+            let Some(OperationResult::Structural(source)) = value else {
+                return Err(LoweringError::new(&site, "reference binding has no lowered descriptor"));
+            };
+            if body.places[source.index()].ty != ty(&site)? {
+                return Err(LoweringError::new(&site, "bound reference differs from its declared type"));
+            }
+            Ok(value)
+        }
+        _ => Ok(None),
+    }
+}
+
 pub(super) fn check_descriptor(
     tree: &crate::lowering::applied_tree::LoweringTree<'_>,
     node: usize,

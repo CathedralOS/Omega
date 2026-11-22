@@ -62,19 +62,19 @@ fn returned_borrow_binds_the_descriptor_to_the_declared_machine_region() {
         if source == bound {
             spec_corpus::observe_handoff!(psi "psi-output/region-bound-return", assert_eq!(
                 (machine.regions.as_slice(), body.lifetime_bindings.as_slice(), *returned, Parameter::Structural(backing.root)),
-                (&[MachineRegion { reference_parameters: vec![0], reference_result: true }][..], &[(descriptor, 0)][..], descriptor, body.parameters[0]),
+                (&[MachineRegion { reference_parameters: vec![0], reference_result: true, ..Default::default() }][..], &[(descriptor, 0)][..], descriptor, body.parameters[0]),
             ));
         } else if source == second {
             spec_corpus::observe_handoff!(psi "psi-output/second-region-return", assert_eq!(
                 (machine.regions.as_slice(), body.lifetime_bindings.as_slice()),
-                (&[MachineRegion { reference_parameters: vec![1], reference_result: false },
-                   MachineRegion { reference_parameters: vec![0], reference_result: true }][..], &[(descriptor, 1)][..]),
+                (&[MachineRegion { reference_parameters: vec![1], reference_result: false, ..Default::default() },
+                   MachineRegion { reference_parameters: vec![0], reference_result: true, ..Default::default() }][..], &[(descriptor, 1)][..]),
             ));
         } else {
             spec_corpus::observe_handoff!(psi "psi-output/region-promise-not-backing", assert_eq!(
                 (machine.regions.as_slice(), body.lifetime_bindings.as_slice(), Parameter::Structural(backing.root)),
-                (&[MachineRegion { reference_parameters: vec![1], reference_result: true },
-                   MachineRegion { reference_parameters: vec![0], reference_result: false }][..], &[(*returned, 0)][..], body.parameters[0]),
+                (&[MachineRegion { reference_parameters: vec![1], reference_result: true, ..Default::default() },
+                   MachineRegion { reference_parameters: vec![0], reference_result: false, ..Default::default() }][..], &[(*returned, 0)][..], body.parameters[0]),
             ));
         }
     }

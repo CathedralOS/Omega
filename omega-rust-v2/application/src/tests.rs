@@ -26,7 +26,7 @@ fn toolchain() -> (LoweredPackage, DeclarationId) {
     let prepared = omega_preparation::prepare_source_package(&source).unwrap();
     let unit = omega_lowering::lower_package(&prepared).unwrap();
     let id = unit
-        .machine_templates
+        .machines
         .iter()
         .find(|machine| machine.declaration.package == omega_toolchain::TOOLCHAIN_PACKAGE && machine.declaration.path == r"language\core\access\new_plan")
         .unwrap()

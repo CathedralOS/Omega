@@ -19,8 +19,8 @@ pub(crate) fn recognized<'a>(
     let file = expressions.tree.resolved().file;
     let id = file.node_id(file.ungroup(node));
     expressions
-        .prepared
-        .typed()
+        .tree
+        .forest()
         .external_completions
         .iter()
         .find(|completion| completion.node == id)
@@ -69,7 +69,7 @@ pub(crate) fn lower(
     {
         return Err(error("process exit selection disagrees with its canonical record"));
     }
-    let typed = expressions.prepared.typed();
+    let typed = expressions.tree.forest();
     let signature = typed
         .signatures
         .iter()

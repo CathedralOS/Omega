@@ -37,7 +37,9 @@ fn constructor_zeros_owe_their_records_own_count_clauses() {
         (false_bound, PredicateOperator::GreaterThan, 0),
     ] {
         let package = sources::lower(&[("plan.omg", &source)]).unwrap();
-        let constructor = package.machine_templates.iter().find(|machine| machine.declaration.path == "new_plan").unwrap();
+        // Every record here is local and takes only lifetimes, so the constructor is one closed body.
+        assert!(package.machine_templates.is_empty() && package.data_templates.is_empty());
+        let constructor = package.machines.iter().find(|machine| machine.declaration.path == "new_plan").unwrap();
         let clauses = psi_handoff_consumer::zero_count_clauses::returned_counts(&package, constructor).unwrap();
         let rows: Vec<_> = clauses.iter().map(|c| (c.parent.map(|id| id.path.as_str()), c.field.path.as_str(), c.comparison, c.limit)).collect();
         assert_eq!(rows, [

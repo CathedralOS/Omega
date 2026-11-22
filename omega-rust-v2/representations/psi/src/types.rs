@@ -111,7 +111,16 @@ pub enum TypeShape {
     /// A runtime descriptor of a closed machine application. The contract owns
     /// the full call shape; the descriptor names no representative target.
     Callable(CallableContractId),
-    // Arrays follow their previously interned element shape in the sorted table.
+    /// `[T]` held by value: an immutable sequence of completed elements. It is
+    /// the element descriptor with a stored length and no access of its own, so
+    /// it is neither a borrowed view nor a fixed array. `element` is the exact
+    /// row of one element: a scalar, a record or sum, a shared reference or
+    /// view, a fixed array or another sequence. The establishing roster
+    /// decides the length and backing; the sequence carries no linear claim
+    /// and owes no cleanup
+    /// (`wiki/spec/terminal-psi/structural_access.md#complete-structural-array-construction`).
+    ElementSequence { element: TypeId },
+    // A sequence or array row follows the row of its element.
     FixedArray {
         element: TypeId,
         length: u64,

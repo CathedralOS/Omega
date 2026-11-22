@@ -266,6 +266,8 @@ pub(super) fn select_runtime_call<'a>(
         callee: CallTarget::Runtime { descriptor, contract },
         acknowledgements: call.acknowledgements,
         operands,
+        // A callable contract has no region binders of its own.
+        regions: Vec::new(),
     }))
 }
 

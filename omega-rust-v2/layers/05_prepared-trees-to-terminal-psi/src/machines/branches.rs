@@ -205,6 +205,9 @@ struct PendingArm {
     block: BlockId,
     expression: usize,
     terminal_call: bool,
+    /// The enclosing `match` carried the machine's `ReturnBorrow` row for a
+    /// record or sum result, so this arm returns a value that may hold a loan.
+    returns_borrow: bool,
 }
 
 pub(crate) fn lower_tail_dispatch(
@@ -217,12 +220,12 @@ pub(crate) fn lower_tail_dispatch(
     let tree = expressions.tree;
     let file = tree.resolved().file;
     let mut pending = VecDeque::new();
-    enqueue_dispatch(expressions, root, body, flow, &mut pending)?;
+    enqueue_dispatch(expressions, root, false, body, flow, &mut pending)?;
     while let Some(arm) = pending.pop_front() {
         let ungrouped = file.ungroup(arm.expression);
         flow.open(body, arm.block, None);
         if file.nodes[ungrouped].kind == NodeKind::Match {
-            enqueue_dispatch(expressions, arm.expression, body, flow, &mut pending)?;
+            enqueue_dispatch(expressions, arm.expression, arm.returns_borrow, body, flow, &mut pending)?;
             continue;
         }
         if let Some(completion) = super::external_exit::recognized(expressions, arm.expression) {
@@ -235,9 +238,10 @@ pub(crate) fn lower_tail_dispatch(
                     .semantics_at(ungrouped)
                     .any(|record| matches!(record, NodeSemantics::Call(_))))
         {
-            let (callee, arguments, owed, pause) = expressions.lower_terminal_call(arm.expression, body, flow)?;
+            let (callee, arguments, owed, pause, regions) = expressions.lower_terminal_call(arm.expression, body, flow)?;
             let id = push_edge_site(body, site_at(file, arm.expression));
             super::calls::record_acknowledgement(body, crate::CallSite::Edge(id), pause);
+            super::calls::apply_regions(body, crate::CallSite::Edge(id), regions);
             let requirements = super::calls::owe(body, crate::CallSite::Edge(id), owed);
             flow.close(
                 body,
@@ -252,6 +256,16 @@ pub(crate) fn lower_tail_dispatch(
             continue;
         }
         let value = expressions.lower(arm.expression, &expressions.signature.result, body, flow)?;
+        // The ReturnBorrow row belongs to the enclosing match. Construction
+        // records its field operands. A forwarded formal keeps its original
+        // place as this arm's return source, including the loans it carries.
+        if arm.returns_borrow && tree.construction(ungrouped).is_none() {
+            let forwards_formal = file.nodes[ungrouped].kind == NodeKind::PathExpression
+                && matches!(value, OperationResult::Structural(place) if body.places[place.index()].origin == PlaceOrigin::Parameter);
+            if !forwards_formal {
+                return Err(unsupported_node(file, ungrouped, "returned match arm lacks a source for its carried borrow"));
+            }
+        }
         emit_return_block(body, flow, Some(value), result_type, site_at(file, arm.expression))?;
     }
     Ok(())
@@ -260,6 +274,7 @@ pub(crate) fn lower_tail_dispatch(
 fn enqueue_dispatch(
     expressions: &Expressions<'_>,
     expression: usize,
+    mut returns_borrow: bool,
     body: &mut MachineBody,
     flow: &mut BlockFlow,
     pending: &mut VecDeque<PendingArm>,
@@ -270,11 +285,11 @@ fn enqueue_dispatch(
     loop {
         match (file.nodes[dispatch].kind, file.nodes[dispatch].children.as_slice()) {
             (NodeKind::Paren, [inner]) => {
-                check_match_result(tree, dispatch, &expressions.signature.result, &expressions.signature.machine)?;
+                returns_borrow |= check_returned_match(tree, dispatch, &expressions.signature.result, &expressions.signature.machine)?;
                 dispatch = *inner;
             }
             (NodeKind::Match, _) => {
-                check_match_result(tree, dispatch, &expressions.signature.result, &expressions.signature.machine)?;
+                returns_borrow |= check_returned_match(tree, dispatch, &expressions.signature.result, &expressions.signature.machine)?;
                 break;
             }
             (NodeKind::Transition, _) => {
@@ -315,6 +330,7 @@ fn enqueue_dispatch(
             block,
             expression,
             terminal_call,
+            returns_borrow,
         });
     }
     Ok(())
@@ -484,7 +500,36 @@ pub(crate) fn check_match_result(
     carrier: &ValueType,
     machine: &omega_resolved::DeclarationId,
 ) -> Result<(), LoweringError> {
+    match_result(tree, node, carrier, machine, false).map(|_| ())
+}
+
+/// A `match` in tail position is the value its machine returns. Returns
+/// whether its arms still owe the machine's `ReturnBorrow` row.
+///
+/// For `choose<'t>(open: bool) -> Issuance<'t>` ending in a `match` on
+/// `open`, typing joins the arms: the result may be either case, and
+/// `Issuance::Only` stores `routes: [CallableInfo<'t>]`, so the row sits on
+/// the `match`. A reference result answers the row at the descriptor each arm
+/// forms. A record or sum result is returned as a place, one return edge per
+/// arm, and `lower_tail_dispatch` holds each arm to the row.
+fn check_returned_match(
+    tree: &LoweringTree<'_>,
+    node: usize,
+    carrier: &ValueType,
+    machine: &omega_resolved::DeclarationId,
+) -> Result<bool, LoweringError> {
+    match_result(tree, node, carrier, machine, true)
+}
+
+fn match_result(
+    tree: &LoweringTree<'_>,
+    node: usize,
+    carrier: &ValueType,
+    machine: &omega_resolved::DeclarationId,
+    returned: bool,
+) -> Result<bool, LoweringError> {
     let mut typed = false;
+    let mut arms_owe_borrow = false;
     let file = tree.resolved().file;
     for record in tree.semantics_at(node) {
         match record {
@@ -492,11 +537,18 @@ pub(crate) fn check_match_result(
             NodeSemantics::Obligation(o)
                 if crate::lowering::types::is_reference_descriptor(carrier)
                     && matches!(&o.kind,omega_typed::ObligationKind::ReturnBorrow{machine:owner} if owner==machine) => {}
+            NodeSemantics::Obligation(o)
+                if returned
+                    && crate::lowering::types::contains_nominal_value(carrier)
+                    && matches!(&o.kind,omega_typed::ObligationKind::ReturnBorrow{machine:owner} if owner==machine) =>
+            {
+                arms_owe_borrow = true
+            }
             _ => return Err(unsupported_node(file, node, "unsupported typed match record")),
         }
     }
     if typed {
-        Ok(())
+        Ok(arms_owe_borrow)
     } else {
         Err(unsupported_node(file, node, "match has no compatible typed result"))
     }
