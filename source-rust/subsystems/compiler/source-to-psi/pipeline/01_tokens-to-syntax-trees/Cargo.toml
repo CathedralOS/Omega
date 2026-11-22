@@ -36,6 +36,10 @@ name = "parsing_lexical_handoff"
 path = "tests/lexical_handoff.rs"
 
 [[test]]
+name = "parsing_operator_grouping"
+path = "tests/operator_grouping.rs"
+
+[[test]]
 name = "parsing_positional_patterns"
 path = "tests/positional_patterns.rs"
 

@@ -21,6 +21,10 @@ source-text = { path = "../../../../../foundation/source-text" }
 tokens = { path = "../../representations/tokens" }
 
 [[test]]
+name = "lexing_byte_inputs"
+path = "tests/byte_inputs.rs"
+
+[[test]]
 name = "lexing_lexing"
 path = "tests/lexing.rs"
 
