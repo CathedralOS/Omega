@@ -42,7 +42,11 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Current marker 289 distinguishes callable parameter positions from named services
+Current marker 290 retires external hosted byte-read tag `3`. A reader supplied
+through the current standard library returns a recoverable error. A saved
+program from marker 289 or earlier must be rebuilt.
+
+Marker 289 distinguishes callable parameter positions from named services
 in provider invocation contracts. Earlier markers cannot represent that distinction.
 The archived compiler-private `OMGNTI41` format recorded the same distinction in
 native derivation inputs. The public saved-program path decodes the canonical Psi

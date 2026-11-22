@@ -95,6 +95,13 @@ contract directly if they preserve its byte sequence, stopping reason, logical
 input consumption, bounds, and operational envelope under ordinary provider
 verification and admission. A richer target does not redefine portable meaning.
 
+A provider over a previously captured finite byte sequence observes bytes and
+EOF. The [Alpha tape reader](../../../bootstrap/alpha/SEMANTICS.md) has that
+interface. Its seed executable can report a host read failure using the same
+word as EOF. Its byte/EOF interface therefore implements this contract for
+successfully captured finite input. Adapting a live fallible stream requires
+preserving the host error before that distinction is lost.
+
 POSIX `read(fd, buffer, count)` on Linux/macOS and Windows
 `ReadFile(handle, buffer, count, ...)` accept a maximum byte count. They need
 not return a complete requested range or a line. Short reads alone are not EOF;

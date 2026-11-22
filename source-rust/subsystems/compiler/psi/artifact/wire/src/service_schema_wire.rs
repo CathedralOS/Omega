@@ -88,8 +88,9 @@ wire_enum! {
     }
     Hosted: HostedOperation, "HostedOperation" {
         2 => ConsoleWriteByte,
-        3 => ConsoleReadByte,
         4 => ProcessExit,
+        ; refuse HostedOperation::ConsoleReadByte =>
+            CodecError::InvalidTag("retired hosted byte-read intrinsic", 3)
     }
     FixedImage: FixedImageOperation, "FixedImageOperation" {
         1 => ProgramStorageEntry,
@@ -370,9 +371,25 @@ mod tests {
     }
 
     #[test]
+    fn obsolete_two_case_read_intrinsic_is_refused_in_both_directions() {
+        let meaning = TerminalSealedNativeIntrinsic::Hosted(HostedOperation::ConsoleReadByte);
+        assert!(matches!(
+            SealedIntrinsic::write(&mut Writer::default(), &meaning),
+            Err(CodecError::InvalidTag(
+                "retired hosted byte-read intrinsic",
+                3
+            ))
+        ));
+        let mut reader = Reader::new(&[1, 3]);
+        assert!(matches!(
+            SealedIntrinsic::read(&mut reader),
+            Err(CodecError::InvalidTag("HostedOperation", 3))
+        ));
+    }
+
+    #[test]
     fn sealed_native_meaning_survives_transport() {
         for meaning in [
-            TerminalSealedNativeIntrinsic::Hosted(HostedOperation::ConsoleReadByte),
             TerminalSealedNativeIntrinsic::Hosted(HostedOperation::ConsoleWriteByte),
             TerminalSealedNativeIntrinsic::Hosted(HostedOperation::ProcessExit),
             TerminalSealedNativeIntrinsic::FixedImage(FixedImageOperation::ProgramStorageEntry),

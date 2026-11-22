@@ -32,8 +32,32 @@ impl HostedExitProcessI32Realization {
 pub struct HostedReadByteRealization;
 
 impl HostedReadByteRealization {
-    pub fn supports_target(target: target::NativeTarget) -> bool {
-        target::HostedIntrinsicBundle::from_native_target(target).is_some()
+    pub fn supports_target(_target: target::NativeTarget) -> bool {
+        // This retired intrinsic has no input-error case. Both provider admission
+        // and target lowering must refuse it rather than trap on ordinary errors.
+        false
+    }
+}
+
+#[cfg(test)]
+mod hosted_read_retirement_tests {
+    use super::HostedReadByteRealization;
+    use target::NativeTarget;
+
+    #[test]
+    fn obsolete_two_case_read_cannot_enter_any_native_provider() {
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::linux_arm64(),
+            NativeTarget::macos_x64(),
+            NativeTarget::macos_arm64(),
+            NativeTarget::windows_x64(),
+        ] {
+            assert!(
+                !HostedReadByteRealization::supports_target(target),
+                "{target:?}"
+            );
+        }
     }
 }
 

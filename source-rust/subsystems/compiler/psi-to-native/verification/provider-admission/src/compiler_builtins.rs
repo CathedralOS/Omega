@@ -304,8 +304,7 @@ pub(super) fn settle_compiler_builtins<'request>(
             }
             CompilerBuiltinExecution::HostedReadByte => {
                 return Err(vec![Diagnostic::error(format!(
-                    "local target catalog cannot realize hosted read-byte for `{requirement}` on {:?}",
-                    request.target()
+                    "sealed byte-read intrinsic for `{requirement}` is retired; use a checked byte-input provider"
                 ))]);
             }
             CompilerBuiltinExecution::NearestIeeeFloatArithmetic { operation, format } => {
