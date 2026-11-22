@@ -84,6 +84,14 @@ pub enum EmbeddedLoanSource {
         formal: crate::PlaceId,
         path: Vec<crate::PlaceProjection>,
     },
+    /// The descriptor at `path` in the structural result of a completed
+    /// call. The call names the selected callee and its applied regions.
+    /// The checker derives the referent from the selected return.
+    CallResult {
+        operation: OperationId,
+        result: crate::PlaceId,
+        path: Vec<crate::PlaceProjection>,
+    },
     /// Whatever a holder of this loan, or of a loan derived from it, wrote at
     /// `path` below the loan's captured place while the loan lived.
     Written {
@@ -117,12 +125,13 @@ pub struct EmbeddedLoanOrigin {
     pub reborrows: Vec<OperationId>,
 }
 
-/// One live reference or view descriptor stored inside a retained owner.
-/// It is evidence about the owner's contents, not a separate loan row: the
-/// owner remains the only custody claim for its storage.
+/// One reference or view descriptor in retained storage. A row with a case
+/// projection applies only while that case is active. The enclosing storage
+/// keeps its custody; the row describes its contents.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EmbeddedLoan {
-    /// Ordered field projections from the owner's root to the descriptor.
+    /// Ordered case and field projections from the retained root to the descriptor.
+    /// Each case selects the active payload at that point in the path.
     pub path: Vec<crate::PlaceProjection>,
     /// The descriptor's own type, a reference or view shape.
     pub ty: TypeId,
@@ -152,14 +161,16 @@ pub struct RetainedOwner {
 /// parked activation because the callee or the continuation needs it:
 /// directly, as a borrowed call operand, or as the backing of a retained loan
 /// whose defining `BorrowPlace` starts at this home. It is either a primitive
-/// local's `EstablishPrimitiveLocal` home or copyable structural storage (a
-/// `[copy]` record or a fixed array whose leaves are all scalars),
-/// which a loan may select below its root. Neither has an owner row. A mutable local's
-/// primitive home is also in `MachineBody::mutable_homes`.
+/// local's `EstablishPrimitiveLocal` home or the storage of a copyable aggregate.
+/// A loan may select a field or array element inside that aggregate. A mutable
+/// primitive local also has an entry in `MachineBody::mutable_homes`.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct RetainedHome {
     pub place: crate::PlaceId,
     pub ty: TypeId,
+    /// Origins of the loan descriptors stored in this home at the crossing.
+    /// The checker derives which loans are live from their uses and the call.
+    pub embedded_loans: Vec<EmbeddedLoan>,
     pub needed_by_callee: bool,
     pub needed_after_completion: bool,
 }

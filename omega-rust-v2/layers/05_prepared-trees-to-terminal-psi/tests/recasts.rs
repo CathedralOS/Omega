@@ -745,6 +745,44 @@ fn a_borrowed_scalar_home_stays_in_the_parked_activation() {
 }
 
 #[test]
+fn parked_scalar_home_tracks_the_selected_same_type_parameter() {
+    use psi_handoff_consumer::{parked_homes, primitive_homes};
+
+    for (formal, selected) in [(0, "left"), (1, "right")] {
+        let source = format!(
+            "machine step() suspends {{}}
+             machine f(left:u8, right:u8)->u8 suspends {{
+                 let first:@u8 = @left;
+                 let second:@u8 = @right;
+                 suspend step();
+                 {selected}
+             }}"
+        );
+        let package = sources::lower(&[("homes.omg", &source)]).unwrap();
+        let body = &package.machines.iter().find(|machine| machine.declaration.path == "f").unwrap().body;
+        let homes = primitive_homes(body).unwrap();
+        assert_eq!(homes.len(), 2);
+        let home_of = |slot| homes.iter().find(|home| home.formal == Some(slot)).unwrap().place;
+        let expected = home_of(formal);
+        let sibling = home_of(1 - formal);
+        assert_ne!(expected, sibling);
+        assert_eq!(body.places[expected.index()].ty, body.places[sibling.index()].ty);
+
+        let [site] = body.suspension_sites.as_slice() else { panic!("one suspension") };
+        let [parked] = parked_homes(body, site).unwrap().try_into().unwrap();
+        spec_corpus::observe_handoff!(psi "psi-output/parked-scalar-home-identity", assert_eq!((parked.formal, parked.place), (Some(formal), expected)));
+        assert!(!parked.needed_by_callee && parked.needed_after_completion);
+        assert!(parked.loans.is_empty());
+
+        // Both places exist and have the row's type. Only the continuation distinguishes them.
+        let mut redirected = site.clone();
+        let [row] = redirected.retained_homes.as_mut_slice() else { panic!("one retained home") };
+        row.place = sibling;
+        assert_eq!(parked_homes(body, &redirected), Err("a needed home has no row, or the rows are out of order"));
+    }
+}
+
+#[test]
 fn borrowing_a_qualified_scalar_preserves_the_receiving_predicate_at_its_home() {
     let case = include_str!("fixtures/package_cases/borrow-of-a-qualified-scalar-formal/case/case.omg");
     let control = include_str!("fixtures/package_cases/borrow-of-a-qualified-scalar-formal/control/case.omg");

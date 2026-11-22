@@ -1077,6 +1077,7 @@ fn writer_summary(
                 .map(|origin| {
                     let (source, path) = match &origin.source {
                         EmbeddedLoanSource::Formal { formal, path } => (format!("f{}", position(*formal)), path),
+                        EmbeddedLoanSource::CallResult { operation, path, .. } => (format!("result of operation {}", operation.index()), path),
                         EmbeddedLoanSource::Written { loan, path } => (site_name(package, f, *loan), path),
                     };
                     (origin.arrival.len(), source, spell(path), origin.reborrows.len())

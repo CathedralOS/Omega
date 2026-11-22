@@ -1,0 +1,1 @@
+data Inner [copy] {key:u64;} data Outer<'r> [copy] {key:u64;link:@'r Inner;} machine wait(k:@u64) suspends {} machine forward() suspends {let inner=Inner{key:1u64}; let a=Outer{key:2u64,link:@inner}; suspend wait(@a.link.key);}
