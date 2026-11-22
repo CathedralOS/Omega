@@ -9,8 +9,7 @@ fn repeated_constant_uses_name_one_declaration_and_keep_their_own_source_selecti
     let trees = crate::resolution::resolve(source_request(source)).unwrap();
     let declaration = trees.roots.const_declarations.iter().next().unwrap();
     let table = &trees.tables.bodies.expressions;
-    let ExpressionNode::StructLiteral(_) = table.expression(declaration.initializer)
-    else {
+    let ExpressionNode::StructLiteral(_) = table.expression(declaration.initializer) else {
         panic!("the constant must have a record initializer");
     };
     let mut selected = Vec::new();

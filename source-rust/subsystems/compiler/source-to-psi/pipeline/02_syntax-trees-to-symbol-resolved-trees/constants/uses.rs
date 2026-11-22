@@ -146,8 +146,8 @@ pub(crate) fn bind_constant_uses(
         if mode != crate::resolution::lowering::lowerer::ConstResolutionMode::ArgumentSelection
             && declaration.evaluated_value.is_some()
             && (!body_expressions(program).expression_is_valid(initializer)
-            || program.tables.bodies.expressions.source_span(initializer)
-                != declaration.initializer_source_span)
+                || program.tables.bodies.expressions.source_span(initializer)
+                    != declaration.initializer_source_span)
         {
             return Err(Diagnostic::error(
                 "constant use selected a declaration with a missing or mismatched initializer",
@@ -157,9 +157,10 @@ pub(crate) fn bind_constant_uses(
         if mode != crate::resolution::lowering::lowerer::ConstResolutionMode::ArgumentSelection
             && declaration.evaluated_value.is_some()
             && matches!(
-            program.tables.bodies.expressions.expression(initializer),
-            ExpressionNode::ArrayLiteral(_)
-        ) && unsupported_array_projection_sources.contains(&occurrence.expression)
+                program.tables.bodies.expressions.expression(initializer),
+                ExpressionNode::ArrayLiteral(_)
+            )
+            && unsupported_array_projection_sources.contains(&occurrence.expression)
         {
             return Err(Diagnostic::error(
             "array constant projection currently requires unborrowed literal integer selectors; dynamic indexing, borrowing and slicing require value-based array projection"
@@ -168,8 +169,7 @@ pub(crate) fn bind_constant_uses(
         // A use keeps the declaration selected in its own scope. Evaluation
         // stores the value on that declaration, including for literal initializers.
         let expressions = &mut program.tables.bodies.expressions;
-        let ExpressionNode::Name(path) = expressions.expression_mut(occurrence.expression)
-        else {
+        let ExpressionNode::Name(path) = expressions.expression_mut(occurrence.expression) else {
             unreachable!("selected_expression_constant only selects name paths");
         };
         path.symbol = selected;

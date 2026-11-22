@@ -16,9 +16,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use source_compiler::representations::source_inputs::SourceMap;
 use source_compiler::representations::source_state::TypedTrees;
 use source_compiler::representations::source_state::constant::ConstDeclaration;
-use source_compiler::representations::source_state::expression::{
-    ExpressionNode,
-};
+use source_compiler::representations::source_state::expression::ExpressionNode;
 use source_compiler::test_support::preparation::PreparedTypedTrees;
 use source_compiler::test_support::{
     SourcePreparationRequest, TerminalSourceCompilation, prepare_source_for_test, resolution,

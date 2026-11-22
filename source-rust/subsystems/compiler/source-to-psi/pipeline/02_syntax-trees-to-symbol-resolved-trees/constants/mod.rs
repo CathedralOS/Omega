@@ -63,6 +63,7 @@ mod scalar_carriers;
 mod selections;
 mod uses;
 
+pub(crate) use declaration_values::semantic_const_name;
 pub(crate) use declaration_values::{
     evaluated_declaration_value, retain_const_initializer, selected_expression_constant,
     validate_const_definition,
@@ -79,7 +80,6 @@ pub(crate) use scalar_carriers::{is_builtin_scalar_carrier, is_structural_scalar
 pub(crate) use selections::{
     finalize_const_argument_selections, finalize_const_declarations, finalize_const_selections,
 };
-pub(crate) use declaration_values::semantic_const_name;
 use uses::bind_constant_uses;
 
 use crate::resolution::lowering::lowerer::Lowerer;

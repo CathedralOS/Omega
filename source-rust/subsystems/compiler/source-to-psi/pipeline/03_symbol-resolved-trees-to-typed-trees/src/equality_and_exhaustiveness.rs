@@ -1732,7 +1732,9 @@ pub(crate) mod exhaustiveness {
     }
 
     fn boolean_value(program: &SymbolResolvedTrees, expression: ExpressionHandle) -> Option<bool> {
-        use application_identity::const_value::{DecodedCanonicalConstValue, decode_declaration_value};
+        use application_identity::const_value::{
+            DecodedCanonicalConstValue, decode_declaration_value,
+        };
         match program.tables.bodies.expressions.expression(expression) {
             ExpressionNode::Boolean(value) => Some(*value),
             ExpressionNode::Name(path) => {
