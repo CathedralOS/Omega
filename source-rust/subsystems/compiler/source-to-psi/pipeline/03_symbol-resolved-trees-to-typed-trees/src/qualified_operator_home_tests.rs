@@ -436,6 +436,68 @@ machine fixed_length(items: @[u8; 4], count: u64 in Trapping) -> bool {
 }
 
 #[test]
+fn inferred_local_initializers_retain_one_read_per_written_expression() {
+    use crate::source_state::expression::{ExpressionNode, MemberSelection};
+    use crate::source_state::statement::StatementNode;
+
+    let program = typed(&[(
+        "members.omg",
+        r#"
+data Row [copy] { length: u16 in Wrapping; }
+machine position() -> u64 { 0 }
+machine field(row: @Row) -> u16 in Wrapping { let value = row.length; value }
+machine measure(items: @[u8]) -> u64 { let value = items.length; value }
+machine element(items: @[u8]) -> u8 { let value = items[position()]; value }
+"#,
+    )]);
+    let owners = crate::source_state::references::collect_program_operand_owners(&program);
+    let mut measures = 0;
+    let mut fields = 0;
+    let mut selectors = 0;
+    for (handle, node) in program.expression_table.iter_expressions() {
+        match node {
+            ExpressionNode::Member(member) => match member.selection {
+                MemberSelection::Field(_) => fields += 1,
+                MemberSelection::CollectionMeasure(
+                    crate::declaration_selection::CollectionMeasure::Length,
+                ) => measures += 1,
+                other => panic!("unselected member {other:?}"),
+            },
+            ExpressionNode::Call(call) if call.target.as_str() == "position" => selectors += 1,
+            _ => continue,
+        }
+        assert!(
+            owners.expression_owners(handle).next().is_some(),
+            "unused typed expression {node:?}"
+        );
+    }
+    assert_eq!((fields, measures, selectors), (1, 1, 1));
+    for name in ["field", "measure", "element"] {
+        let machine = program.realized_machine_named(name).unwrap();
+        let state = &program.machine_states(machine)[0];
+        let local = state
+            .statement_nodes
+            .handles()
+            .find_map(|handle| match program.statement_table.statement(handle) {
+                StatementNode::LocalData(local) if local.name.as_str() == "value" => Some(local),
+                _ => None,
+            })
+            .unwrap();
+        let types = &program.type_reference_table;
+        assert_eq!(
+            types.type_symbol(local.type_reference),
+            types.type_symbol(state.return_type),
+            "{name}"
+        );
+        assert_eq!(
+            types.arithmetic_domain(local.type_reference),
+            types.arithmetic_domain(state.return_type),
+            "{name}"
+        );
+    }
+}
+
+#[test]
 fn collection_length_type_queries_use_the_retained_selection() {
     use crate::declaration_selection::CollectionMeasure;
     use crate::source_state::expression::{ExpressionNode, MemberSelection};
