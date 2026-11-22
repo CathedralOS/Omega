@@ -17,8 +17,9 @@ pub(crate) fn root_binding_declaration(
         && matches!(syntax_trees.expressions.expression(call.receiver),
             ExpressionNode::Member(member) if member.member.as_str(syntax_trees) == "roots")
     {
-        return Err(ParseError::new(
+        return Err(ParseError::at_source_span(
             "receiver-style root binding is retired; use Build::bind(builder, slot, entry)",
+            call.target.source_span(),
         ));
     }
     if call.target.as_str(syntax_trees) != "bind"
@@ -46,29 +47,41 @@ pub(crate) fn root_binding_declaration(
     if !call.machine_arguments.is_empty() {
         return Ok(None);
     }
-    let invalid = || {
-        ParseError::new(
+    // A wrong argument count faults the `bind` being called; a slot or
+    // implementation of the wrong shape faults that operand.
+    let invalid = |source_span| {
+        ParseError::at_source_span(
             "root-slot binding requires an explicit Build argument, one slot path and one implementation path or description expression",
+            source_span,
         )
     };
+    let binding = call.target.source_span();
     let [builder, slot, implementation] =
         syntax_trees.expressions.expression_handles(call.arguments)
     else {
-        return Err(invalid());
+        return Err(invalid(binding));
     };
     if !call.machine_arguments.is_empty() || !call.evidence_arguments.is_empty() {
-        return Err(invalid());
+        return Err(invalid(binding));
     }
     let operand = |handle| {
+        // Not every expression kind records where it was written; an
+        // operand without a span falls back to the `bind` it was passed to.
+        let recorded = syntax_trees.expressions.source_span(handle);
+        let operand_span = if recorded.span.end > recorded.span.start {
+            recorded
+        } else {
+            binding
+        };
         let ExpressionNode::Name {
             members: path,
             application: path_application,
         } = syntax_trees.expressions.expression(handle)
         else {
-            return Err(invalid());
+            return Err(invalid(operand_span));
         };
         if path_application.is_some() {
-            return Err(invalid());
+            return Err(invalid(operand_span));
         }
         Ok(syntax_trees
             .expressions

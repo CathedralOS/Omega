@@ -116,3 +116,110 @@ fn module_remains_an_identifier_after_retiring_the_header() {
     parse_syntax_trees(&tokens).expect("a conformance can be named module");
     assert!(!parse_error_message("123").contains("`module`"));
 }
+
+/// The line the compiler prints for a file that does not parse, with the
+/// `path:line:column:` position it reports.
+fn parse_diagnostic(source: &str) -> String {
+    let loaded = [LoadedSource {
+        path: "case.omg".into(),
+        source: std::sync::Arc::from(source),
+        ..Default::default()
+    }]
+    .into_iter()
+    .collect();
+    let lexed = lexing::lex(loaded).expect("tokenization should succeed for diagnostics test");
+    parsing::parse(&lexed, Default::default())
+        .err()
+        .expect("parse should fail for diagnostics test")
+        .into_diagnostic()
+        .message
+}
+
+/// Each of these errors was once built without a span and so was reported at
+/// line 1, column 1 whatever the fault. Every program keeps its fault off the
+/// first line, so a position that falls back to the file start fails here.
+#[test]
+fn errors_found_after_an_expression_is_built_report_where_the_fault_is() {
+    let mut wrong = Vec::new();
+    for (source, expected) in [
+        (
+            "machine main() {\n    let values = [1, 2, 3];\n    let tail = values[1..=];\n}\n",
+            "case.omg:3:24: inclusive range `..=` requires an end expression",
+        ),
+        (
+            "machine main() {\n    let values = [1, 2, 3];\n    let all = values[..=];\n}\n",
+            "case.omg:3:22: inclusive range `..=` requires an end expression",
+        ),
+        (
+            "machine plan(builder: Build) {\n    builder.roots.bind(slot, entry);\n}\n",
+            "case.omg:2:19: receiver-style root binding is retired; use Build::bind(builder, slot, entry)",
+        ),
+        (
+            "machine plan(builder: Build) {\n    Build::bind(builder, slot);\n}\n",
+            "case.omg:2:12: root-slot binding requires an explicit Build argument, one slot path and one implementation path or description expression",
+        ),
+        (
+            "machine plan(builder: Build) {\n    Build::bind(builder, 7, entry);\n}\n",
+            "case.omg:2:26: root-slot binding requires an explicit Build argument, one slot path and one implementation path or description expression",
+        ),
+        (
+            "machine main() {\n    let size = (Describe::<u8>)(1);\n}\n",
+            "case.omg:2:16: a declaration description is not an executable callable value",
+        ),
+    ] {
+        let reported = parse_diagnostic(source);
+        if reported != expected {
+            wrong.push(format!("reported `{reported}`, expected `{expected}`"));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// A source that stops early has no token to blame, so the error points at
+/// the end of the file, where the missing token would have been written.
+#[test]
+fn a_source_that_ends_early_reports_the_end_of_the_file() {
+    assert_eq!(
+        [
+            parse_diagnostic("machine main() {\n    let size = 1;\n"),
+            parse_diagnostic("machine main() {\n    let size ="),
+        ],
+        [
+            "case.omg:3:1: expected expression",
+            "case.omg:2:15: expected expression",
+        ]
+    );
+}
+
+/// Running out of page identities is a limit of the parse, not a mistake in
+/// a file. With one identity left, the first of two sources is placed and the
+/// error names the first token of the second, which sits on its third line.
+#[test]
+fn a_page_directory_limit_reports_the_first_source_left_without_a_page() {
+    let loaded = [
+        ("first.omg", "machine first() {}"),
+        ("second.omg", "\n\n    machine second() {}"),
+    ]
+    .into_iter()
+    .map(|(path, source)| LoadedSource {
+        path: path.into(),
+        source: std::sync::Arc::from(source),
+        ..Default::default()
+    })
+    .collect();
+    let lexed = lexing::lex(loaded).expect("tokenize");
+    let diagnostic = parsing::parse(
+        &lexed,
+        parsing::ParseOptions {
+            first_page_identity: u32::MAX,
+            layout: parsing::ParseLayout::IndependentUnits,
+        },
+    )
+    .err()
+    .expect("two sources need two page identities")
+    .into_diagnostic();
+    assert_eq!(
+        diagnostic.message,
+        "second.omg:3:5: parser exhausted its source-page directory"
+    );
+}

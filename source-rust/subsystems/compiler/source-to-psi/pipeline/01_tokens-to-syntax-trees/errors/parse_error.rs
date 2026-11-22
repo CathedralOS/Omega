@@ -8,14 +8,6 @@ pub struct ParseError {
 }
 
 impl ParseError {
-    pub(crate) fn new(message: impl Into<String>) -> Self {
-        Self {
-            message: message.into(),
-            source_span: SourceSpan::default(),
-            location: None,
-        }
-    }
-
     pub(crate) fn at_source_span(message: impl Into<String>, source_span: SourceSpan) -> Self {
         Self {
             message: message.into(),

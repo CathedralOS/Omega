@@ -359,13 +359,15 @@ pub(crate) fn build_call_expression_handle(
             application: path_application,
         } => {
             if path_application.is_some() {
-                return Err(ParseError::new(
+                return Err(ParseError::at_source_span(
                     "a declaration description is not an executable callable value",
+                    source,
                 ));
             }
             let path = path.to_owned();
             let (target, receiver) = call_path_target_and_receiver(syntax_trees, path);
-            let target = target.ok_or_else(|| ParseError::new("missing call target"))?;
+            let target =
+                target.ok_or_else(|| ParseError::at_source_span("missing call target", source))?;
             Ok(TableCallExpression {
                 callee,
                 target_is_static: true,
