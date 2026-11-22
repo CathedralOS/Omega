@@ -42,7 +42,7 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 291 removes the four policy bytes from suspension plans and live values,
+Current marker 291 removes the four policy bytes from suspension plans and live values,
 and removes conditional carry rows (including their count) from generic
 operational contracts. Readers reject earlier markers before reading the payload.
 
@@ -1125,7 +1125,7 @@ requirements at the cleanup edge and action ordinal.
 
 ## Machine rows
 
-Current marker 287 combines these public-call and observation records with
+Marker 287 combines these public-call and observation records with
 explicit structural qualification changes, normalized service schemas, provider
 selections, entry commitments, complete callable catalogs and installation-bound
 service rows. Marker 266's float-conversion integer carriers remain intact.
@@ -1677,7 +1677,7 @@ The float-conversion predecessor with semantic format marker 278 and vocabulary
 and width must match the exact `FloatSemantics::from_integer` catalog signature.
 Calls substitute this input with their other scalar actuals; it is not an IEEE
 projection or a new float source class. Receiving validates the full equation,
-including the integer carrier. Current marker 287 and vocabulary 142 combine
+including the integer carrier. Marker 287 and vocabulary 142 combine
 these operands with complete callable and installation contracts. Native input
 record `OMGNTI39` retains the semantic module's strict current header. Earlier
 semantic schemas reject before payload decoding. This adds no arithmetic proof
