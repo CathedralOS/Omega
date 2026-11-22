@@ -241,7 +241,7 @@ impl Prover<'_> {
     /// carrier) or the divisor is not known positive.
     pub(super) fn remainder_below_divisor(
         &mut self,
-        axiom: usize,
+        axiom: Option<usize>,
         output: &ScalarTerm,
         expression: &ScalarTerm,
     ) -> Option<(ScalarTerm, ProofNode)> {
@@ -252,8 +252,8 @@ impl Prover<'_> {
         let witness = IntegerAffineWitness {
             root: divisor.clone(),
             target: output.clone(),
-            definition_axioms: vec![axiom],
-            literal_axioms: vec![None],
+            definition_axioms: axiom.into_iter().collect(),
+            literal_axioms: axiom.map(|_| None).into_iter().collect(),
         };
         let form = check_integer_affine_witness(self.context, self.axioms, &witness).ok()?;
         let positive = self.positive(integer, divisor)?;
