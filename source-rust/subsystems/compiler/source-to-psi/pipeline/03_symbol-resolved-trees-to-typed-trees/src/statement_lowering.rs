@@ -467,27 +467,19 @@ pub(crate) mod statement {
                 )));
             }
 
-            // Collection lengths keep their selected u64 observation type
-            // when read from an initializer.
-            if matches!(
-                expressions.expression(initial_value),
-                ExpressionNode::Member(_)
-            ) {
-                let lowered =
-                    crate::typing::expressions::expression::lower_executable_expression_handle(
-                        lowerer,
-                        initial_value,
+            if let ExpressionNode::Member(member) = expressions.expression(initial_value)
+                && member.position.is_none()
+            {
+                let (selection, _) =
+                    crate::typing::expressions::expression::table::member_binding::selected_member(
+                        Some(lowerer.source_trees),
+                        expressions,
+                        member,
                     )?;
-                if lowerer
-                    .typed_trees
-                    .expression_table
-                    .member_node(lowered)
-                    .is_some_and(|member| {
-                        member.selection
-                            == typed::expression::MemberSelection::CollectionMeasure(
-                                typed::expression::CollectionMeasure::Length,
-                            )
-                    })
+                if selection
+                    == typed::expression::MemberSelection::CollectionMeasure(
+                        typed::expression::CollectionMeasure::Length,
+                    )
                 {
                     return builtin_primitive_type(lowerer, symbols::BuiltinTypeAtom::U64, "u64");
                 }
@@ -655,7 +647,7 @@ pub(crate) mod statement {
             place: ExpressionHandle,
         ) -> Result<Option<typed::types::TypeReferenceHandle>, Diagnostic> {
             enum ProjectionStep<'source> {
-                Element(ExpressionHandle),
+                Element,
                 Field(&'source resolved::expression::TableMemberExpression),
             }
             let expressions = &lowerer.source_trees.tables.bodies.expressions;
@@ -670,7 +662,7 @@ pub(crate) mod statement {
                         ) {
                             return Ok(None);
                         }
-                        steps.push(ProjectionStep::Element(indexed.index));
+                        steps.push(ProjectionStep::Element);
                         root = indexed.collection;
                     }
                     ExpressionNode::Member(member) => {
@@ -714,12 +706,7 @@ pub(crate) mod statement {
             let mut current = root_type;
             for step in steps.into_iter().rev() {
                 let projected = match step {
-                    ProjectionStep::Element(selector) => {
-                        // Retain the exact authored operand even though reading
-                        // an element type supplies no index/bounds evidence.
-                        crate::typing::expressions::expression::lower_executable_expression_handle(
-                            lowerer, selector,
-                        )?;
+                    ProjectionStep::Element => {
                         crate::typing::typing_queries::collection_element_type(
                             &lowerer.typed_trees,
                             current,

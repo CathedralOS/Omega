@@ -73,9 +73,8 @@ fn applied_service_rejects_a_const_from_the_wrong_integer_carrier() {
     let source = crate::resolve_fixture(
         "boundary trait Sensor<const Id: u64> {} machine invalid() reaches Sensor<17u32> {}",
     );
-    let error = crate::typing::lower_symbol_resolved_trees(&source)
-        .err()
-        .expect("wrong integer carrier");
+    let error =
+        crate::typing::lower_symbol_resolved_trees(&source).expect_err("wrong integer carrier");
     assert!(
         error
             .message
@@ -94,8 +93,7 @@ fn applied_service_invocation_preserves_a_lexically_shadowing_parameter() {
         machine shadow(Sensor: Callback) invokes Sensor<17u64> {}
         "#,
     )
-    .err()
-    .expect("arguments on the shadowing callback");
+    .expect_err("arguments on the shadowing callback");
     assert!(
         errors
             .iter()
