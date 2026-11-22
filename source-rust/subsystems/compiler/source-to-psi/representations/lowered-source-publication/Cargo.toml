@@ -1,0 +1,27 @@
+[package]
+name = "lowered-source-publication"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+path = "lowered_source_publication.rs"
+
+# What stage 05 was asked to lower and what it kept about the source beside the
+# lowered program. These records name typed trees, so the lowered-form checker
+# must never link this crate: it reads only `terminal-check-tables`.
+[dependencies]
+lowered-source-publication-issuer = { path = "issuer" }
+prepared-source = { path = "../prepared-source" }
+typed-trees = { path = "../typed-trees" }
+source-declarations = { path = "../symbol-resolved-trees/declarations" }
+terminal-check-tables = { path = "../lowered-program" }
+source-admission = { path = "../source-files/custody" }
+source-provenance = { path = "../../../foundation/source-provenance" }
+arena = { path = "../../../../../foundation/arena" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+numerics = { path = "../../../foundation/numerics" }
+semantic-vocabulary = { path = "../../../foundation/semantic-records" }
+symbols = { path = "../../../foundation/declaration-identity" }
+terminal-codec = { path = "../../../psi/artifact/codec" }
+terminal-psi = { path = "../../../psi" }

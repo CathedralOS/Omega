@@ -18,8 +18,18 @@ pub use prepared_source::{
 
 use crate::source_state::TypedTrees;
 use diagnostics::Diagnostic;
+use prepared_source_issuer::PREPARATION;
 
 /// Prepare the typed program that stage 05 will lower.
+///
+/// Cloning the result retains the same source owner for later judgments.
+///
+/// ```
+/// use typed_trees::source_state::TypedTrees;
+/// use typed_trees_to_prepared_typed_trees::prepare_typed_trees;
+/// let prepared = prepare_typed_trees(TypedTrees::default(), &[], &[]).unwrap();
+/// assert!(std::sync::Arc::ptr_eq(prepared.trees(), prepared.clone().trees()));
+/// ```
 pub fn prepare_typed_trees(
     mut program: TypedTrees,
     values: &[ValueInputs],
@@ -34,7 +44,7 @@ pub fn prepare_typed_trees(
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     passes::domain_applications::prepare(&mut program);
     passes::record_patterns::prepare(&mut program);
-    PreparedTypedTrees::new(program, values)
+    PreparedTypedTrees::new(PREPARATION, program, values)
 }
 
 #[cfg(test)]

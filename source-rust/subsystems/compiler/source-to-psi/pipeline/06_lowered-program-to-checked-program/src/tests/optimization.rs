@@ -10,7 +10,7 @@ fn publish(
     let typed = super::boundary_calls::typed(source);
     let entry = typed.machines().at(0).symbol;
     let prepared = crate::prepare_fixture(typed);
-    let input = crate::lowering::LoweredSourcePublication::prepare(
+    let input = crate::lowering::lower_for_publication(
         prepared,
         crate::lowering::Compilation {
             declaration_metadata: &[],
@@ -25,9 +25,9 @@ fn publish(
         },
         terminal_codec::TerminalPublication::Portable,
     )?;
-    let (_, closure, _, _) =
-        crate::checking::judge_publication(input, selections)?.into_source_and_closures();
-    Ok(closure.publish().unwrap())
+    let (judgment, _) = crate::checking::judge_publication(input, selections)?;
+    let (_, program, _) = judgment.into_source_and_program();
+    Ok(program.publish().unwrap())
 }
 
 #[test]

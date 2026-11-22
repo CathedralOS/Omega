@@ -35,7 +35,9 @@ impl SourcePublication {
 
     /// The checker returns the exact lowered roster alongside its own verdicts.
     pub fn from_judgment(
-        judgment: crate::checking::CheckedPublication<crate::lowering::LoweredSourcePublication>,
+        judgment: checked_program::CheckedPublication<
+            lowered_source_publication::LoweredSourcePublication,
+        >,
     ) -> Result<Self, Vec<Diagnostic>> {
         let (accepted, roster) = crate::AcceptedTerminalSource::accept_judgment(judgment)?;
         let roster = roster.ok_or_else(|| {
@@ -105,11 +107,11 @@ impl SourcePublication {
 
     /// Check the package selections against the module the source judgment owns.
     /// This stopping point needs neither a portable envelope nor a native target.
-    pub fn check(
+    pub fn check_selections(
         &self,
         authority: Option<&dyn declaration_scope::DeclarationSelectionAuthority>,
         timings: &mut artifacts::compile_timings::CompileTimings,
-    ) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
+    ) -> Result<(), Vec<Diagnostic>> {
         let accepted = self.accepted()?;
         timings.record_result(artifacts::compile_timings::source::CHECK_SELECTIONS, || {
             let module = accepted.module();
@@ -125,9 +127,6 @@ impl SourcePublication {
                 },
             )
             .map_err(|reason| vec![Diagnostic::error(reason)])
-        })?;
-        timings.record_result(artifacts::compile_timings::source::ADVISORIES, || {
-            Ok(accepted.advisories().to_vec())
         })
     }
 

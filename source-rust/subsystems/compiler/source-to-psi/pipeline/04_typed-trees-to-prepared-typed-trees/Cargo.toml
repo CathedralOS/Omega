@@ -12,6 +12,7 @@ path = "prepare.rs"
 
 [dependencies]
 prepared-source = { path = "../../representations/prepared-source" }
+prepared-source-issuer = { path = "../../representations/prepared-source/issuer" }
 source-declarations = { path = "../../representations/symbol-resolved-trees/declarations" }
 typed-trees = { path = "../../representations/typed-trees" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }

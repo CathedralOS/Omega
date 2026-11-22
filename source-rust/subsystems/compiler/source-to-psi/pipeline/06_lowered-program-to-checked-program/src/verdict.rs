@@ -119,6 +119,8 @@ pub enum RouteVerdict {
 }
 
 pub use super::publication::AcceptedClosure;
+pub use checked_program::{CheckedPublicationModule, PublicationError, RoutePublication};
+use checked_program_issuer::CHECKER;
 
 impl AcceptedClosure {
     /// The advisory diagnostics of this accepted closure, in machine order.
@@ -132,6 +134,24 @@ impl AcceptedClosure {
     /// uninhabited values use the same continuation rule (state_contracts.md,
     /// "Published no-return").
     pub fn advisories(&self) -> Vec<Diagnostic> {
+        AcceptedProgram {
+            elaboration: &self.elaboration,
+            discharge: &self.discharge,
+        }
+        .advisories()
+    }
+}
+
+/// One accepted program with the discharge that accepted it. The root closure
+/// handed to publication keeps its program in a `CheckedProgram`, so its
+/// advisories are read through this view like any other closure's.
+pub(crate) struct AcceptedProgram<'a> {
+    pub(crate) elaboration: &'a Elaboration,
+    pub(crate) discharge: &'a Discharge,
+}
+
+impl AcceptedProgram<'_> {
+    pub(crate) fn advisories(&self) -> Vec<Diagnostic> {
         let mut activity = crate::checking::ProofSearchActivity::default();
         let located = |diagnostic: Diagnostic, origin: SourceOrigin| match origin {
             SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
@@ -186,7 +206,7 @@ impl AcceptedClosure {
                 let premises: Vec<String> = impossible
                     .premises
                     .iter()
-                    .map(|premise| describe::premise(&self.elaboration, machine, *premise))
+                    .map(|premise| describe::premise(self.elaboration, machine, *premise))
                     .collect();
                 let reason = if premises.is_empty() {
                     String::from("its condition can never hold")
@@ -289,134 +309,14 @@ fn a_source_arm_with_two_entries_requires_two_refutations_and_warns_once() {
     assert_eq!(impossible_authored_arms(&branches, &impossible).count(), 1);
 }
 
-/// An accepted closure published as Terminal Psi: the canonical artifact of
-/// the module the route checked, and the evidence seals bound to that
-/// module's identity, which travel beside it in memory to Omega 00.
-#[derive(Debug)]
-pub struct RoutePublication<Artifact = terminal_codec::CanonicalTerminalArtifact> {
-    pub artifact: Artifact,
-    pub seals: terminal_codec::EvidenceSeals,
-}
-
-impl RoutePublication {
-    /// Uses the same nominal-entry receipt as every other Terminal producer.
-    /// A same-spelled machine from another owner cannot satisfy this root.
-    pub fn entry_receipt(
-        &self,
-        declaration: &terminal_psi::PreparedNominalRoot,
-        source_signature_identity: [u8; 32],
-    ) -> Result<
-        psi_publication_records::CheckedProgramEntryTerminalReceipt,
-        terminal_codec::entry_receipt::ProgramEntryTerminalReceiptError,
-    > {
-        terminal_codec::entry_receipt::prepare_program_entry_receipt(
-            declaration,
-            source_signature_identity,
-            &self.artifact,
-        )
-    }
-}
-
-/// Why an accepted closure could not be published.
-#[derive(Debug)]
-pub enum PublicationError {
-    /// A conditional installation refinement is a proof problem, not a program.
-    InstallationReachRefinement,
-    /// The closure retains abstract requirements, logical-frame envelopes,
-    /// open source binders, static-value formals or opaque rigid values.
-    /// These generic check forms are never executable source programs.
-    GenericCheckForm(String),
-    /// A machine of the module has no declaration identity, for the reason
-    /// given (`Elaboration::undeclared`). product.md: "Source-produced
-    /// machine bodies retain a portable checked declaration identity".
-    Undeclared(MachineId, &'static str),
-    /// The module fails a structural check of Terminal semantics.
-    Semantic(String),
-    Artifact(terminal_codec::CanonicalTerminalArtifactError),
-    Seals(terminal_codec::CodecError),
-}
-
-/// The exact module and evidence the lowered-form checker approved for publication.
-/// This value owns no typed tree, source correspondence or checker work tables.
-enum PublicationBody {
-    Complete(terminal_codec::ClosedTerminalModule),
-    Prefix(terminal_codec::InvocationTerminalCode),
-}
-
-pub struct CheckedPublicationModule {
-    module: PublicationBody,
-    optimization: Option<terminal_codec::PsiOptimizationExecutionRecord>,
-    seals: terminal_codec::EvidenceSeals,
-}
-
-impl CheckedPublicationModule {
-    pub fn module(&self) -> &terminal_psi::TerminalModule {
-        match &self.module {
-            PublicationBody::Complete(closed) => closed.module(),
-            PublicationBody::Prefix(prefix) => prefix.view().module(),
-        }
-    }
-
-    pub fn publish(self) -> Result<RoutePublication, PublicationError> {
-        let Self { module, seals, optimization } = self;
-        let PublicationBody::Complete(module) = module else {
-            return Err(PublicationError::Semantic(
-                "the Build prefix still owes a checked suffix".into(),
-            ));
-        };
-        let identity = module.identity();
-        let record = match optimization {
-            Some(record) => record,
-            None => terminal_codec::PsiOptimizationExecutionRecord::new(
-                optimization::PsiOptimizationSelections::default(), identity, identity,
-            ).map_err(|error| PublicationError::Semantic(error.to_string()))?,
-        };
-        let artifact =
-            terminal_codec::CanonicalTerminalArtifact::from_closed_parts(module, record, None)
-                .map_err(PublicationError::Artifact)?;
-        Ok(RoutePublication { artifact, seals })
-    }
-
-    pub fn publish_invocation(
-        self,
-    ) -> Result<RoutePublication<terminal_codec::InvocationTerminalCode>, PublicationError> {
-        let Self { module, seals, optimization } = self;
-        if optimization.is_some() {
-            return Err(PublicationError::Semantic(
-                "executed Psi optimizations require their portable publication record".into(),
-            ));
-        }
-        let artifact = match module {
-            PublicationBody::Complete(closed) => {
-                terminal_codec::InvocationTerminalCode::from_closed_module(closed)
-                    .map_err(PublicationError::Seals)?
-            }
-            PublicationBody::Prefix(prefix) => prefix,
-        };
-        Ok(RoutePublication { artifact, seals })
-    }
-}
-
 impl AcceptedClosure {
     pub fn prepare_publication(&self) -> Result<CheckedPublicationModule, PublicationError> {
-        self.validate_publication()?;
-        let checked = &self.elaboration.module;
-        let (module, identity) = if checked.pending_normal_completions().next().is_some() {
-            let code = terminal_codec::InvocationTerminalCode::from_prefix(checked.clone())
-                .map_err(PublicationError::Seals)?;
-            let identity = code.view().identity();
-            (PublicationBody::Prefix(code), identity)
-        } else {
-            let code = terminal_codec::ClosedTerminalModule::new(checked.clone())
-                .map_err(PublicationError::Seals)?;
-            let identity = code.identity();
-            (PublicationBody::Complete(code), identity)
-        };
-        let seals = terminal_codec::EvidenceSeals {
-            module: identity,
-            seals: self.seals.clone(),
-        };
-        Ok(CheckedPublicationModule { module, seals, optimization: self.optimization.clone() })
+        checked_program::prepare_accepted_publication(
+            CHECKER,
+            &self.elaboration,
+            &self.seals,
+            self.optimization.as_ref(),
+        )
     }
 
     pub fn publish(&self) -> Result<RoutePublication, PublicationError> {
@@ -427,84 +327,6 @@ impl AcceptedClosure {
         &self,
     ) -> Result<RoutePublication<terminal_codec::InvocationTerminalCode>, PublicationError> {
         self.prepare_publication()?.publish_invocation()
-    }
-
-    fn validate_publication(&self) -> Result<(), PublicationError> {
-        if self.elaboration.installation_bound_refinement.is_some() {
-            return Err(PublicationError::InstallationReachRefinement);
-        }
-        if !self.elaboration.requirements.is_empty()
-            || !self.elaboration.static_reach_parameters.is_empty()
-            || !self.elaboration.static_reach_applications.is_empty()
-            || !self.elaboration.static_reach_summaries.is_empty()
-            || !self.elaboration.generic_callable_declarations.is_empty()
-            || !self.elaboration.check_form_envelopes.is_empty()
-            || !self.elaboration.generic_binders.is_empty()
-            || !self.elaboration.generic_storage.is_empty()
-            || !self.elaboration.nominal_calls.is_empty()
-            || !self.elaboration.nominal_types.is_empty()
-            || self
-                .elaboration
-                .module
-                .types.structural_types
-                .iter()
-                .any(|row| matches!(row.shape, terminal_psi::StructuralTypeShape::TypeParameter))
-            || self
-                .elaboration
-                .value_parameters
-                .iter()
-                .any(|(_, count)| *count != 0)
-            || self.elaboration.tables.machines.iter().any(|(_, machine)| {
-                machine
-                    .values
-                    .iter()
-                    .any(|(_, value)| value.rigid.is_some())
-            })
-        {
-            // Report each guarded roster together so a refused publication can
-            // be traced without dumping its module or changing its admission.
-            let mut static_values = self
-                .elaboration
-                .value_parameters
-                .iter()
-                .filter(|(_, count)| **count != 0);
-            let first_static = static_values.next();
-            let static_count = static_values.count() + usize::from(first_static.is_some());
-            let mut rigid_values =
-                self.elaboration
-                    .tables
-                    .machines
-                    .iter()
-                    .flat_map(|(machine, row)| {
-                        row.values.iter().filter_map(move |(value, row)| {
-                            row.rigid.map(|rigid| (machine, value, rigid))
-                        })
-                    });
-            let first_rigid = rigid_values.next();
-            let rigid_count = rigid_values.count() + usize::from(first_rigid.is_some());
-            return Err(PublicationError::GenericCheckForm(format!(
-                "abstract requirements: {} (first {:?}); check-form envelopes: {} (first {:?}); open source binders: {} (first {:?}); static-value machines: {} (first {:?}); rigid values: {} (first {:?})",
-                self.elaboration.requirements.len(),
-                self.elaboration.requirements.first(),
-                self.elaboration.check_form_envelopes.len(),
-                self.elaboration
-                    .check_form_envelopes
-                    .first()
-                    .map(|row| row.machine),
-                self.elaboration.generic_binders.len(),
-                self.elaboration.generic_binders.first(),
-                static_count,
-                first_static,
-                rigid_count,
-                first_rigid,
-            )));
-        }
-        if let Some((machine, reason)) = self.elaboration.undeclared.first() {
-            return Err(PublicationError::Undeclared(*machine, reason));
-        }
-        terminal_semantics::activation_storage::validate_module(&self.elaboration.module)
-            .map_err(|reason| PublicationError::Semantic(reason.to_owned()))?;
-        Ok(())
     }
 }
 

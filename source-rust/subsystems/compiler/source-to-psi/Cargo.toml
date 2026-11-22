@@ -9,7 +9,6 @@ path = "source_to_psi.rs"
 
 [features]
 test-support = [
-    "checked-program-to-psi/test-support",
     "lowered-program-to-checked-program/test-support",
     "symbol-resolved-trees/test-support",
     "syntax-trees-to-symbol-resolved-trees/test-support",
@@ -86,7 +85,6 @@ tokens = { path = "representations/tokens" }
 
 [dev-dependencies]
 proof-admission = { path = "../psi/semantics/proofs/bounded" }
-checked-program-to-psi = { path = "pipeline/07_checked-program-to-psi", features = ["test-support"] }
 lowered-program-to-checked-program = { path = "pipeline/06_lowered-program-to-checked-program", features = ["test-support"] }
 prepared-typed-trees-to-lowered-program = { path = "pipeline/05_prepared-typed-trees-to-lowered-program", features = ["test-support"] }
 symbol-resolved-trees-to-typed-trees = { path = "pipeline/03_symbol-resolved-trees-to-typed-trees", features = ["test-support"] }

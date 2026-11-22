@@ -1,42 +1,25 @@
 //! Only a completely accepted compilation can issue its source for publication.
 mod accepted_closure;
+mod advisories;
 mod optimization;
 pub use accepted_closure::AcceptedClosure;
+pub use advisories::AcceptedAdvisories;
+pub use checked_program::CheckedPublication;
 
 use super::verdict::{CompilationRefusal, RouteVerdict, judge_compilation};
+use checked_program::CheckedProgram;
+use checked_program_issuer::CHECKER;
 use diagnostics::Diagnostic;
+use std::sync::Arc;
 use terminal_check_tables::compilation::CompilationForPublication;
 
-/// The input type identifies the lowering operation that supplied both the
-/// terminal compilation and the source to retain beside the checked closures.
-pub struct CheckedPublication<Input: CompilationForPublication> {
-    source: Input::Source,
-    accepted: AcceptedCompilation,
-    original_for_diagnostics: Option<Box<AcceptedClosure>>,
-}
-
-impl<Input: CompilationForPublication> CheckedPublication<Input> {
-    pub fn into_source_and_closures(
-        self,
-    ) -> (
-        Input::Source,
-        Box<AcceptedClosure>,
-        Vec<Box<AcceptedClosure>>,
-        Option<Box<AcceptedClosure>>,
-    ) {
-        (
-            self.source,
-            self.accepted.closure,
-            self.accepted.additional,
-            self.original_for_diagnostics,
-        )
-    }
-}
-
+/// Judge the whole lowered compilation. An accepted compilation returns the
+/// source of `input` beside the checked root program, and the advisories of
+/// every accepted part for whoever reports the compilation.
 pub fn judge_publication<Input: CompilationForPublication>(
     input: Input,
     selections: ::optimization::PsiOptimizationSelections,
-) -> Result<CheckedPublication<Input>, Vec<Diagnostic>> {
+) -> Result<(CheckedPublication<Input>, AcceptedAdvisories), Vec<Diagnostic>> {
     let (program, source) = input.into_program_and_source();
     // Preserve the unsealed lowering only when there is a transformation to run.
     // Neither run of the checker receives evidence from the other.
@@ -65,11 +48,28 @@ pub fn judge_publication<Input: CompilationForPublication>(
                 .map_err(|error| vec![Diagnostic::error(error.to_string())])?,
         );
     }
-    Ok(CheckedPublication {
-        source,
-        accepted,
-        original_for_diagnostics,
-    })
+    let AcceptedCompilation {
+        closure,
+        additional,
+    } = accepted;
+    let AcceptedClosure {
+        elaboration,
+        discharge,
+        seals,
+        optimization: executed,
+    } = *closure;
+    let program = Arc::new(CheckedProgram::from_judgment(
+        CHECKER,
+        elaboration,
+        seals,
+        executed,
+    ));
+    let publication =
+        CheckedPublication::from_judgment(CHECKER, source, Arc::clone(&program), additional.len());
+    Ok((
+        publication,
+        AcceptedAdvisories::new(program, discharge, original_for_diagnostics, additional),
+    ))
 }
 
 /// All semantic verdicts accepted. Additional parts supply only their

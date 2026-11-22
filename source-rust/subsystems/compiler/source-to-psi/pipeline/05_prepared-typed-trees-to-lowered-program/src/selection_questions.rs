@@ -176,116 +176,50 @@ impl CompletedOperators {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RawSelectionRole {
-    Execution,
-    ProductDesignation,
-}
+pub use lowered_source_publication::selection_questions::{
+    RawDependencyKind, RawDesignationInput, RawSelectionDependency, RawSelectionQuestion,
+    RawSelectionQuestions, RawSelectionRole, RawSelectionTarget,
+};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RawSelectionTarget {
-    Declaration(SymbolHandle),
-    CoreIntegerOperator(numerics::intrinsics::CoreIntegerOperatorSignature),
-    LocalBinding {
-        symbol: SymbolHandle,
-        owner: SymbolHandle,
-    },
-    Intrinsic(AuthoredDeclarationSelectionIntrinsic),
-    RuntimeCall {
-        node: crate::source_state::SourceNode,
-        binding: RuntimeCallBinding,
-    },
-    ProductInput {
-        binding: AuthoredDeclarationSelectionLateBinding,
-        input: RawDesignationInput,
-    },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RawSelectionQuestion {
-    pub lexical_owner: SymbolHandle,
-    pub occurrence: AuthoredDeclarationSelectionOccurrenceId,
-    pub role: RawSelectionRole,
-    pub target: RawSelectionTarget,
-    pub designation: Option<RawDesignationInput>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RawDesignationInput {
-    pub expression: ExpressionHandle,
-    pub request: arena::Handle<crate::source_state::expression::BuildSelectionCall>,
-    pub argument_ordinal: u32,
-    pub resolved_target: Option<SymbolHandle>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum RawDependencyKind {
-    Declaration,
-    Invocation,
-    CodeSelection,
-    Description,
-    Layout,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RawSelectionDependency {
-    pub lexical_owner: SymbolHandle,
-    pub target: SymbolHandle,
-    pub role: RawSelectionRole,
-    pub kind: RawDependencyKind,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct RawSelectionQuestions {
-    /// Anonymous source declarations in this form can own an application
-    /// without supplying emitted code. Their identity belongs to the same
-    /// invocation as the machine and record identities in the lowered form.
-    invocation_declarations: Vec<(SymbolHandle, String)>,
-    pub declarations: Vec<SymbolHandle>,
-    pub questions: Vec<RawSelectionQuestion>,
-    pub dependencies: Vec<RawSelectionDependency>,
-}
-
-impl RawSelectionQuestions {
-    pub fn invocation_declarations(&self) -> &[(SymbolHandle, String)] {
-        &self.invocation_declarations
+/// Give each anonymous declaration of this form that emits no row of its own
+/// the invocation identity the lowered form uses for it.
+pub(super) fn bind_invocation_declarations(
+    mut questions: RawSelectionQuestions,
+    typed: &TypedTrees,
+    form: &mut super::Elaboration,
+    records: &[crate::source_state::SourceRecordCorrespondence],
+) -> Result<RawSelectionQuestions, &'static str> {
+    if form.module.identities.invocation_scope().is_none() {
+        return Ok(questions);
     }
-
-    pub(super) fn bind_invocation_declarations(
-        mut self,
-        typed: &TypedTrees,
-        form: &mut super::Elaboration,
-        records: &[crate::source_state::SourceRecordCorrespondence],
-    ) -> Result<Self, &'static str> {
-        if form.module.identities.invocation_scope().is_none() {
-            return Ok(self);
-        }
-        // These declarations already receive an identity from the row they emit.
-        // A record's checked source identity can differ from a callable coordinate.
-        let mut emitted = Membership::default();
-        emitted.extend(form.machines.iter().map(|(_, symbol)| *symbol));
-        emitted.extend(form.boundaries.iter().map(|(_, symbol)| *symbol));
-        for record in records {
-            emitted.insert(record.declaration);
-            emitted.extend(record.fields.iter().map(|field| field.declaration));
-        }
-        let mut identities = std::mem::take(&mut form.module.identities).into_builder();
-        for &symbol in &self.declarations {
-            if !emitted.contains(&symbol)
-                && typed.symbols.symbol_source_origin(symbol)
-                    == Some(source_admission::SourceOrigin::User)
-                && typed.symbols.symbol_package_identity(symbol).is_none()
-            {
-                let identity = super::declare::invocation_local(typed, symbol, &mut identities)?
-                    .and_then(|id| identities.text(id))
-                    .ok_or("anonymous selection declaration lost its invocation identity")?;
-                self.invocation_declarations
-                    .push((symbol, identity.to_owned()));
-            }
-        }
-        form.module.identities = identities.build();
-        Ok(self)
+    // These declarations already receive an identity from the row they emit.
+    // A record's checked source identity can differ from a callable coordinate.
+    let mut emitted = Membership::default();
+    emitted.extend(form.machines.iter().map(|(_, symbol)| *symbol));
+    emitted.extend(form.boundaries.iter().map(|(_, symbol)| *symbol));
+    for record in records {
+        emitted.insert(record.declaration);
+        emitted.extend(record.fields.iter().map(|field| field.declaration));
     }
+    let mut identities = std::mem::take(&mut form.module.identities).into_builder();
+    let mut bound = Vec::new();
+    for &symbol in &questions.declarations {
+        if !emitted.contains(&symbol)
+            && typed.symbols.symbol_source_origin(symbol)
+                == Some(source_admission::SourceOrigin::User)
+            && typed.symbols.symbol_package_identity(symbol).is_none()
+        {
+            let identity = super::declare::invocation_local(typed, symbol, &mut identities)?
+                .and_then(|id| identities.text(id))
+                .ok_or("anonymous selection declaration lost its invocation identity")?;
+            bound.push((symbol, identity.to_owned()));
+        }
+    }
+    form.module.identities = identities.build();
+    for (symbol, identity) in bound {
+        questions.bind_invocation_declaration(symbol, identity);
+    }
+    Ok(questions)
 }
 
 #[derive(Debug, Clone)]
@@ -1333,10 +1267,7 @@ pub(crate) fn capture_with_bodies(
         signature_views,
         closed_signature_templates,
         template_requirements,
-        output: RawSelectionQuestions {
-            declarations: roots.to_vec(),
-            ..RawSelectionQuestions::default()
-        },
+        output: RawSelectionQuestions::for_declarations(roots.to_vec()),
         owner: SymbolHandle::invalid(),
         dependency_owner: None,
         scopes: Vec::new(),
@@ -1415,26 +1346,8 @@ pub fn declaration_custody(
     typed: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Result<semantic_vocabulary::compiler_evaluation::DeclarationCustody, SelectionCaptureError> {
-    use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
-    if !symbol.is_valid() || !typed.symbols.symbols().nodes().is_valid(symbol) {
-        return Err(SelectionCaptureError::new(
-            "declaration custody has a missing or stale symbol".into(),
-        ));
-    }
-    Ok(
-        match (
-            typed.symbols.symbol_package_identity(symbol),
-            typed.symbols.symbol_source_origin(symbol),
-        ) {
-            (Some(package), _) => DeclarationCustody::Package(package),
-            (_, Some(source_admission::SourceOrigin::Toolchain)) => DeclarationCustody::Toolchain,
-            (_, Some(source_admission::SourceOrigin::ToolchainContract)) => {
-                DeclarationCustody::ToolchainContract
-            }
-            (_, Some(source_admission::SourceOrigin::User)) => DeclarationCustody::UnownedUser,
-            _ => DeclarationCustody::Missing,
-        },
-    )
+    lowered_source_publication::selection_questions::declaration_custody(typed, symbol)
+        .map_err(|detail| SelectionCaptureError::new(detail.into()))
 }
 
 #[cfg(test)]

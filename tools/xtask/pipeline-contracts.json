@@ -19650,18 +19650,18 @@
       "kind": "definition",
       "meaning": "Retain the accepted source and roster and publish one canonical Psi artifact for the optimization selection the checked closure executed.",
       "producer": "stage 07 checked source publication",
-      "signature": "a523f60bcc64dce6250f9f0d7aaaa1ce7d6388877ce5470db75b865f05946d16"
+      "signature": "9e50817fa4ad89e583d5c0ff68743b6986ec49f963f377ac2e34dae48e230ed7"
     },
     {
       "consumers": [
         "source driver Product check"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/source_publication.rs",
-      "item": "impl:SourcePublication::method:check#1",
+      "item": "impl:SourcePublication::method:check_selections#1",
       "kind": "checker",
-      "meaning": "Admit declaration selections against the captured Product package scope and return the accepted source advisories; the caller may measure selection admission and advisory evaluation separately.",
+      "meaning": "Admit declaration selections against the captured Product package scope. The source driver reads the checker's advisories itself and measures them separately.",
       "producer": "stage 07 checked source publication",
-      "signature": "674802bbe1f90ff4cef9ca61159bf501f554c320cfe24b68b095d00f781bf2e6"
+      "signature": "1f2762763cd7325dc7f6e8ff450a58c8165e160531f9207328751d5bc848e0a3"
     },
     {
       "consumers": [
@@ -19939,7 +19939,7 @@
       "kind": "producer",
       "meaning": "Retain the accepted source and its product roster, and read the publication selection from its checked closure.",
       "producer": "checked source publication",
-      "signature": "03898a4bbfdfd1a9ca49a0bda2350df4140113def1013d5d1e119a90eaf43b47"
+      "signature": "237583550329d68a130ca100981cbe7d80c503ef72ce3102f4612b1b683f291e"
     },
     {
       "consumers": [

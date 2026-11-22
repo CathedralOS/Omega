@@ -54,7 +54,8 @@ mod calling_publication;
 mod claim_publication;
 mod compilation;
 pub mod source_roster;
-pub use compilation::LoweredSourcePublication;
+pub use compilation::lower_for_publication;
+pub use lowered_source_publication::LoweredSourcePublication;
 pub use prepared_source::PreparedTypedTrees;
 mod publication;
 use publication::PreparedProgram;
@@ -214,52 +215,7 @@ pub use terminal_check_tables::contracts::RequirementCeilings;
 use terminal_check_tables::{CheckTables, Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::TerminalModule;
 
-/// What one compilation asks to have judged. This is request information: the
-/// typed trees also hold declarations of other packages and do not say which
-/// package the request checks (`wiki/spec/build/validation_subjects.md`: "The subject
-/// set is decided by the request, not by where source lives").
-#[derive(Debug, Clone, Copy)]
-pub struct Compilation<'a> {
-    /// Exact source declarations whose canonical metadata this product needs.
-    /// This nominates descriptors, not executable roots or outbound service
-    /// demand, and grants no compatibility or installation authority.
-    pub declaration_metadata: &'a [SymbolHandle],
-    /// The Build's bound program entries. The first is the module's entry.
-    /// An empty slice checks the declared subjects and selections in a
-    /// declaration module with no executable entry.
-    pub entries: &'a [SymbolHandle],
-    /// Full checks explicitly requested in addition to the entry/selection
-    /// closure. `Some(package)` selects that package; `None` selects standalone
-    /// user source. An empty slice requests only the concrete root closure.
-    pub subjects: &'a [Option<PackageKeyIdentity>],
-    /// Which of a subject's two checked contexts this compilation judges
-    /// (`wiki/spec/build/scoped_execution.md`, "Two checked contexts"). A
-    /// package's Build sources and Product sources are separate programs: a
-    /// Build activation's subject declarations are the ones read under the
-    /// Build dependency scope, and its entry must come from that context.
-    pub purpose: source_provenance::DependencyScope,
-    /// The declarations the Build's selections name (selected providers and
-    /// what each provides, layout-scope entries, chosen representations),
-    /// whichever package declares them. The check claims each with its
-    /// closure: "the obligations of the Build's selections".
-    pub selected: &'a [SymbolHandle],
-    /// One visible-continuation shape obligation per executed Build binding.
-    /// Deduplicating machine roots must not discard distinct slot contracts.
-    pub bindings: &'a [crate::source_state::callable_signature_shapes::BoundCallableShape],
-    /// Exact source applications selected for calling policies and entry ABI
-    /// publication. They are consumed before body closure, never by a later
-    /// target stage reopening typed source.
-    pub calling: Option<CallingPolicySelections<'a>>,
-    /// Build/default precedence has selected these exact source providers.
-    /// Their schemas and choice coordinates are published in the module.
-    pub providers: Option<provider_selections::ProviderSelections<'a>>,
-    /// The implementations chosen for nominal requirements of this compilation:
-    /// the Build's own selections, and the supply settlement chose for each
-    /// requirement the compilation reaches. The check claims each provider's
-    /// machines for the slot as roots and owes, for each, the proof that the
-    /// machine refines the requirement it supplies (`Supply`).
-    pub supplies: &'a [Supply],
-}
+pub use lowered_source_publication::Compilation;
 
 /// One chosen implementation of a nominal slot. `slot` is the declaration
 /// the selection names: a trait, which the provider must cover requirement
@@ -1057,9 +1013,13 @@ fn finish_logical_witness<'source>(
     witness.program.applications = program.applications;
     witness.program.selections = program.selections;
     witness.source.selection_questions = Some(
-        source_selection_questions
-            .bind_invocation_declarations(program.typed, &mut witness.program, &witness.source.records)
-            .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Declaration(reason)))?,
+        selection_questions::bind_invocation_declarations(
+            source_selection_questions,
+            program.typed,
+            &mut witness.program,
+            &witness.source.records,
+        )
+        .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Declaration(reason)))?,
     );
     Ok(witness)
 }
@@ -1284,11 +1244,19 @@ fn finish_reading_into<'source>(
 
     elaboration.boundaries = program.boundaries.rows.map(|_, source| source.source);
     source.selection_questions = Some(
-        source_selection_questions
-            .bind_invocation_declarations(program.typed, &mut elaboration, &source.records)
-            .map_err(|reason| {
-                refuse(diagnostic, Construct::Machine, Unserved::Declaration(reason))
-            })?,
+        selection_questions::bind_invocation_declarations(
+            source_selection_questions,
+            program.typed,
+            &mut elaboration,
+            &source.records,
+        )
+        .map_err(|reason| {
+            refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration(reason),
+            )
+        })?,
     );
     crate::lowering::reach::publish(entry, &services, &mut elaboration)?;
     calling_abis.publish(&mut elaboration.module)?;

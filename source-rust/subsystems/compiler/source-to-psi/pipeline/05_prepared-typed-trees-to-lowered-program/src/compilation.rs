@@ -3,6 +3,8 @@
 //! belong here; the next stage only judges the modules and relationships emitted.
 
 use crate::source_state::TypedTrees;
+use lowered_source_publication::{LoweredSourcePublication, PublicationSource};
+use lowered_source_publication_issuer::LOWERING;
 use symbols::SymbolHandle;
 use terminal_check_tables::compilation::{GenericForms, PreparedCompilation, TerminalCompilation};
 
@@ -21,62 +23,52 @@ pub struct LoweredCompilationWithSource {
     pub source: crate::lowering::SourceCorrespondence,
 }
 
-/// Only this stage can bind a frozen source and its publication mode to the
-/// exact terminal compilation and correspondence it derived from them.
-pub struct LoweredSourcePublication {
-    program: TerminalCompilation,
-    source: PublicationSource,
+/// Lower one selected compilation of the source that completed typed
+/// preparation, and bind the result to that source for the checker and for
+/// publication. A snapshot stage 04 did not issue is not accepted:
+///
+/// ```compile_fail,E0308
+/// use std::sync::Arc;
+/// use typed_trees::source_state::FrozenTypedTrees;
+/// use prepared_typed_trees_to_lowered_program::lowering::{Compilation, lower_for_publication};
+/// fn bypass(snapshot: Arc<FrozenTypedTrees>, roots: Compilation<'_>) {
+///     let _ = lower_for_publication(snapshot, roots, terminal_codec::TerminalPublication::Portable);
+/// }
+/// ```
+///
+/// Lowering cannot issue its own input either. Only stage 04 links the crate
+/// that supplies the capability `PreparedTypedTrees::new` asks for:
+///
+/// ```compile_fail,E0433
+/// let _ = prepared_source_issuer::PREPARATION;
+/// ```
+pub fn lower_for_publication(
+    owner: crate::lowering::PreparedTypedTrees,
+    compilation: crate::lowering::Compilation<'_>,
+    publication: terminal_codec::TerminalPublication,
+) -> Result<LoweredSourcePublication, Vec<diagnostics::Diagnostic>> {
+    let prepared = prepare_compilation(&owner, compilation, publication)?;
+    Ok(bind_source(owner, publication, prepared, None))
 }
 
-pub struct PublicationSource {
-    pub owner: crate::lowering::PreparedTypedTrees,
-    pub publication: terminal_codec::TerminalPublication,
-    pub correspondence: crate::lowering::SourceCorrespondence,
-    pub roster: Option<crate::lowering::source_roster::SourceCompilationRoster>,
-}
-
-impl terminal_check_tables::compilation::CompilationForPublication for LoweredSourcePublication {
-    type Source = PublicationSource;
-
-    fn into_program_and_source(self) -> (TerminalCompilation, Self::Source) {
-        (self.program, self.source)
-    }
-}
-
-impl LoweredSourcePublication {
-    /// Bind the publication to the source that completed typed preparation.
-    ///
-    /// ```compile_fail,E0308
-    /// use std::sync::Arc;
-    /// use typed_trees::source_state::FrozenTypedTrees;
-    /// use prepared_typed_trees_to_lowered_program::lowering::{Compilation, LoweredSourcePublication};
-    /// fn bypass(snapshot: Arc<FrozenTypedTrees>, roots: Compilation<'_>) {
-    ///     let _ = LoweredSourcePublication::prepare(snapshot, roots, terminal_codec::TerminalPublication::Portable);
-    /// }
-    /// ```
-    pub fn prepare(
-        owner: crate::lowering::PreparedTypedTrees,
-        compilation: crate::lowering::Compilation<'_>,
-        publication: terminal_codec::TerminalPublication,
-    ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
-        let prepared = prepare_compilation(&owner, compilation, publication)?;
-        Ok(Self {
-            program: prepared.program,
-            source: PublicationSource {
-                owner,
-                publication,
-                correspondence: prepared.source,
-                roster: None,
-            },
-        })
-    }
-
-    pub(super) fn retain_roster(
-        &mut self,
-        roster: crate::lowering::source_roster::SourceCompilationRoster,
-    ) {
-        self.source.roster = Some(roster);
-    }
+/// Bind what `prepare_compilation` derived from `owner` to that owner.
+/// `roster` is the Product roster the roots were borrowed from, when there is one.
+pub(super) fn bind_source(
+    owner: crate::lowering::PreparedTypedTrees,
+    publication: terminal_codec::TerminalPublication,
+    prepared: LoweredCompilationWithSource,
+    roster: Option<crate::lowering::source_roster::SourceCompilationRoster>,
+) -> LoweredSourcePublication {
+    LoweredSourcePublication::from_lowering(
+        LOWERING,
+        prepared.program,
+        PublicationSource {
+            owner,
+            publication,
+            correspondence: prepared.source,
+            roster,
+        },
+    )
 }
 
 /// Lower the compilation from stage 04's completed output.

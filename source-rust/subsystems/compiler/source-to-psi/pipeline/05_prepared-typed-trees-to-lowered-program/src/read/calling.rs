@@ -18,21 +18,7 @@ use terminal_check_tables::Checked;
 
 use super::{Program, services};
 
-/// This is source selection context, not executable or package authority.
-#[derive(Debug, Clone, Copy)]
-pub struct CallingPolicySelections<'source> {
-    pub source: &'source TypedTrees,
-    pub applications: &'source [TraitApplicationEnvironment],
-    pub entries: &'source [ProgramEntryContractSelection<'source>],
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ProgramEntryContractSelection<'source> {
-    pub target: &'source str,
-    pub application: &'source TraitApplicationEnvironment,
-    pub physical_source_digest: [u8; 32],
-    pub implementation: SymbolHandle,
-}
+pub use lowered_source_publication::{CallingPolicySelections, ProgramEntryContractSelection};
 
 #[derive(Default)]
 pub(crate) struct SourceCallingPolicies {

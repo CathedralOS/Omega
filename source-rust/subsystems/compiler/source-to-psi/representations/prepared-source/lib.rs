@@ -5,16 +5,19 @@
 
 mod values;
 use diagnostics::Diagnostic;
+use prepared_source_issuer::PreparationIssuer;
 use typed_trees::source_state::{self, FrozenTypedTrees, TypedTrees};
 pub use values::{PreparedTarget, PreparedValue, TargetInputs, ValueInputs};
 
 /// A frozen source snapshot with checked computation-input correspondence.
-/// Cloning retains the same source owner.
+/// Cloning retains the same source owner. Only stage 04 links the issuer
+/// crate, so only stage 04 can build one:
 ///
 /// ```
 /// use prepared_source::PreparedTypedTrees;
+/// use prepared_source_issuer::PREPARATION;
 /// use typed_trees::source_state::TypedTrees;
-/// let prepared = PreparedTypedTrees::new(TypedTrees::default(), &[]).unwrap();
+/// let prepared = PreparedTypedTrees::new(PREPARATION, TypedTrees::default(), &[]).unwrap();
 /// assert!(std::sync::Arc::ptr_eq(prepared.trees(), prepared.clone().trees()));
 /// ```
 ///
@@ -36,7 +39,14 @@ impl PreparedTypedTrees {
     /// Check that demanded computations belong to this source and retain its
     /// exact constant handles before freezing the snapshot. Preparation passes
     /// remain the producer's responsibility; this constructor does not run them.
-    pub fn new(program: TypedTrees, values: &[ValueInputs]) -> Result<Self, Vec<Diagnostic>> {
+    /// The issuer argument is why no other crate can call this: only stage 04
+    /// links the crate that supplies one, and `mbx xtask check-boundary`
+    /// refuses any other link.
+    pub fn new(
+        _issuer: PreparationIssuer,
+        program: TypedTrees,
+        values: &[ValueInputs],
+    ) -> Result<Self, Vec<Diagnostic>> {
         let constants = values::constant_inputs(&program, values)?;
         Ok(Self {
             typed: std::sync::Arc::new(program.into()),
@@ -71,6 +81,7 @@ impl PreparedTypedTrees {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use prepared_source_issuer::PREPARATION;
     use symbols::SymbolHandle;
 
     #[test]
@@ -78,7 +89,7 @@ mod tests {
         let program = TypedTrees::default();
         let identity = program.identity.get();
         let expected = program.clone();
-        let prepared = PreparedTypedTrees::new(program, &[]).unwrap();
+        let prepared = PreparedTypedTrees::new(PREPARATION, program, &[]).unwrap();
         let cloned = prepared.clone();
         assert!(std::sync::Arc::ptr_eq(prepared.trees(), cloned.trees()));
         assert_eq!(prepared.trees().identity.get(), identity);
@@ -96,7 +107,7 @@ mod tests {
             Vec::new(),
             TargetInputs::None,
         );
-        let refusal = PreparedTypedTrees::new(other, &[input]).unwrap_err();
+        let refusal = PreparedTypedTrees::new(PREPARATION, other, &[input]).unwrap_err();
         assert_eq!(refusal.len(), 1);
         assert_eq!(
             refusal[0].message,
@@ -113,7 +124,7 @@ mod tests {
             Vec::new(),
             TargetInputs::None,
         );
-        let refusal = PreparedTypedTrees::new(program, &[input]).unwrap_err();
+        let refusal = PreparedTypedTrees::new(PREPARATION, program, &[input]).unwrap_err();
         assert_eq!(refusal.len(), 1);
         assert_eq!(
             refusal[0].message,
@@ -135,7 +146,7 @@ mod tests {
             Vec::new(),
             TargetInputs::None,
         );
-        let refusal = PreparedTypedTrees::new(program, &[input]).unwrap_err();
+        let refusal = PreparedTypedTrees::new(PREPARATION, program, &[input]).unwrap_err();
         assert_eq!(refusal.len(), 1);
         assert_eq!(
             refusal[0].message,

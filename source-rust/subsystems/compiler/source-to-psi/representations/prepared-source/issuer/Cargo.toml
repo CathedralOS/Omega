@@ -1,0 +1,9 @@
+[package]
+name = "prepared-source-issuer"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+publish = false
+
+[lib]
+path = "issuer.rs"

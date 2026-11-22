@@ -10,7 +10,6 @@ use crate::declaration_selection::BuildOperation;
 use crate::declaration_selection::BuildSelectionRequest;
 use crate::declaration_selection::NativeBindingFormation;
 use crate::declaration_selection::ProductDeclarationRequest;
-use crate::lowering::Elaboration;
 use crate::production::{
     AcceptedTerminalSource, BuildCallSite, ProviderSelectionOption, TerminalBuildBindingCall,
     TerminalBuildBindingOperand, TerminalBuildBindingOperation, TerminalBuildFilesystemCall,
@@ -26,6 +25,7 @@ use language_core::build_protocol::SelectionProtocolOperation;
 use semantic_vocabulary::{BoundaryMachineId, InvocationSite, StructuralTypeId};
 use std::sync::Arc;
 use symbols::SymbolHandle;
+use terminal_check_tables::program::Elaboration;
 use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule};
 
 #[derive(Default)]
@@ -351,9 +351,9 @@ fn activated_machines(
 }
 
 fn designated_selection<'a>(
-    correspondence: &'a crate::lowering::SourceFormCorrespondence,
+    correspondence: &'a lowered_source_publication::SourceFormCorrespondence,
     call: &ProtocolCall<'_>,
-) -> Result<&'a crate::lowering::DesignatedOperands, Diagnostic> {
+) -> Result<&'a lowered_source_publication::DesignatedOperands, Diagnostic> {
     correspondence
         .designated
         .get(call.site.machine)
@@ -371,7 +371,7 @@ fn binding(
     module: &TerminalModule,
     call: &ProtocolCall<'_>,
     shapes: &mut NativeLocatorShapes,
-    designated: &crate::lowering::DesignatedOperands,
+    designated: &lowered_source_publication::DesignatedOperands,
     selection: &crate::source_state::expression::BuildSelectionCall,
 ) -> Result<TerminalBuildBindingCall, Diagnostic> {
     let source = accepted.source().as_ref();
