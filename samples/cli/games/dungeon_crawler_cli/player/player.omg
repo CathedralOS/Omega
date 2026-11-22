@@ -1,3 +1,8 @@
+use text;
+use inventory\InventorySystem;
+use inventory\add_reward;
+use inventory\clear;
+use rewards\Reward;
 use omega\language\core\max_i32;
 use omega\language\core\max_u32;
 use omega\language\core\min_i32;
@@ -15,12 +20,12 @@ machine create(
 requires name.length <= 16
 {
     player_name_set(@mutable player.name, name);
-    player.level = 1;
-    player.xp = 0;
-    player.max_health = 30;
+    player.level = 1u32 as +Wrapping;
+    player.xp = 0u32 as +Wrapping;
+    player.max_health = 30i32 as +Wrapping;
     player.health = player.max_health;
-    player.attack = 4;
-    player.defense = 1;
+    player.attack = 4i32 as +Wrapping;
+    player.defense = 1i32 as +Wrapping;
     clear(@mutable player.inventory);
 }
 
@@ -98,7 +103,7 @@ ensures buffer in Ascii
     requires start <= 16, index < 16, index < bytes.length, start + index < 16
     ensures buffer in Ascii
     {
-        buffer[start + index] = bytes[index];
+        (@mutable buffer as -Ascii)[start + index] = (bytes as -Ascii)[index];
         transition { _ -> copying(buffer, bytes, start, index + 1) }
     }
     machine done() {}

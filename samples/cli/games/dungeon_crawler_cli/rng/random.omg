@@ -6,7 +6,7 @@ data Random {
 machine seed(value: u64 in Wrapping,
     state: @mutable RandomState) {
     state.seed = value;
-    state.calls = 0;
+    state.calls = 0u64 as +Wrapping;
 }
 
 machine next_u32(state: @mutable RandomState) -> u32 {
