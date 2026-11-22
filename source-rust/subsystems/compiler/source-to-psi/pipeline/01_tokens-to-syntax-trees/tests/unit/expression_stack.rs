@@ -125,6 +125,43 @@ fn operator_stack_retains_precedence_associativity_and_operator_spans() {
     assert_eq!(parsed.display_expression_name(root.right), "c");
 }
 
+/// A right shift is two `>` that touch. With anything between them, a space
+/// or a comment, they are two greater-than operators, and the second has no
+/// left operand (wiki/spec/language/expressions.md).
+#[test]
+fn two_greater_tokens_shift_only_when_they_touch() {
+    let source = "a >> b";
+    let (parsed, root) = parse_expression(source);
+    let ExpressionNode::Binary(shift) = parsed.expressions.expression(root) else {
+        panic!("binary root");
+    };
+    assert_eq!(shift.operator, BinaryOperator::ShiftRight);
+    assert_eq!(shift.policy, numerics::arithmetic::ArithmeticDomain::Exact);
+    assert_eq!(parsed.display_expression_name(shift.left), "a");
+    assert_eq!(parsed.display_expression_name(shift.right), "b");
+    let span = parsed.expressions.source_span(root).span;
+    assert_eq!(&source[span.start..span.end], ">>");
+
+    for (source, second_greater) in [("a > > b", 4), ("a >/**/> b", 7)] {
+        let tokens = Lexer::new(source).tokenize().expect("tokenize expression");
+        let mut parsed = SyntaxTrees::new(source_text::SourceId::default());
+        let input = crate::token_input::cursor::Input::new(
+            source_text::SourceId::default(),
+            &tokens,
+            &mut parsed,
+        );
+        let error = parse_expression_handle(&mut parsed, input)
+            .err()
+            .unwrap_or_else(|| panic!("`{source}` compares with nothing on the left"));
+        assert_eq!(error.message, "expected expression", "{source}");
+        assert_eq!(
+            error.source_span.span,
+            source_text::Span::new(second_greater, second_greater + 1),
+            "{source}"
+        );
+    }
+}
+
 /// A suffix chooses the policy of one operation and nothing else: every
 /// suffixed form parses as its base operator with that operator's
 /// precedence. A suffixed token's span covers its suffix; `>>` reads its

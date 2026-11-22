@@ -23,7 +23,6 @@ pub enum PunctuationKind {
     ExclamationEqual,
     Greater,
     GreaterEqual,
-    GreaterGreater,
     Hash,
     LeftBrace,
     LeftBracket,
@@ -50,9 +49,10 @@ pub enum PunctuationKind {
     /*
         Policy operators: an arithmetic or left-shift operator with a
         `%` (Wrapping), `|` (Saturating) or `!` (Trapping) suffix is one
-        token. Right shift keeps its `>>` token; the parser reads its
-        suffix from the adjacent punctuation so nested static argument
-        lists still close one `>` at a time.
+        token. Right shift has no token of its own: the lexer emits two
+        `>`, and the parser joins two that touch and reads the suffix that
+        touches the second, so a nested static argument list closes one
+        `>` at a time (wiki/spec/language/expressions.md).
     */
     PlusWrapping,
     PlusSaturating,
@@ -167,7 +167,6 @@ define_punctuation! {
         ("!", Exclamation),
     ],
     b'>' => [
-        (">>", GreaterGreater),
         (">=", GreaterEqual),
         (">", Greater),
     ],

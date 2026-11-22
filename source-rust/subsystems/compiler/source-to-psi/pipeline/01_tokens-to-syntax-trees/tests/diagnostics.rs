@@ -223,3 +223,51 @@ fn a_page_directory_limit_reports_the_first_source_left_without_a_page() {
         "second.omg:3:5: parser exhausted its source-page directory"
     );
 }
+
+/// Five unclosed nestings that a parser which tries a generic argument list
+/// and rewinds re-reads at every level. Before the parser looked for a
+/// list's end ahead of reading it, the first two doubled or worse per level
+/// (depth 15 took over ten seconds); each now fails in under a millisecond
+/// at depth 60. Depth grows in steps and each step must finish in two
+/// seconds, so exponential time fails near depth 20 instead of running for
+/// hours, and ordinary load on a shared machine stays far below the bound.
+#[test]
+fn unclosed_nested_argument_lists_are_refused_without_exponential_rereading() {
+    let shapes: [(&str, fn(usize) -> String); 5] = [
+        ("type holding expression holding type", |depth| {
+            format!("machine f(a: {} !) {{ }}", "A<f::<".repeat(depth))
+        }),
+        ("the same from an expression", |depth| {
+            format!("machine f() {{ _ = {} !; }}", "f::<A<".repeat(depth))
+        }),
+        ("cast whose type holds a cast", |depth| {
+            format!("machine f() {{ _ = {} !; }}", "x as T<".repeat(depth))
+        }),
+        ("parenthesized pattern holding a match", |depth| {
+            format!("machine f() {{ _ = {} !; }}", "match { (".repeat(depth))
+        }),
+        ("array-shaped argument", |depth| {
+            format!("machine f(a: {} !) {{ }}", "A<[".repeat(depth))
+        }),
+    ];
+    std::thread::Builder::new()
+        .stack_size(256 << 20)
+        .spawn(move || {
+            for (name, shape) in shapes {
+                for depth in (4..=60).step_by(4) {
+                    let source = shape(depth);
+                    let tokens = Lexer::new(&source).tokenize().expect("tokenize");
+                    let started = std::time::Instant::now();
+                    assert!(parse_syntax_trees(&tokens).is_err(), "{name}");
+                    let elapsed = started.elapsed();
+                    assert!(
+                        elapsed < std::time::Duration::from_secs(2),
+                        "{name} at depth {depth} took {elapsed:?}"
+                    );
+                }
+            }
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+}

@@ -3,26 +3,102 @@ use syntax_trees::expression::{BinaryOperator, ExpressionNode};
 use syntax_trees::item::{DataMember, Item};
 use syntax_trees::types::{TypeConstraintNode, TypeReferenceNode};
 
+/// The source that puts `operand` in a static argument of `owner`: a nested
+/// type application, a nested domain application or a conformance head.
+fn static_argument_source(owner: &str, operand: &str) -> String {
+    match owner {
+        "domain" => format!("data Packet {{ value: u64 in Quantity<Inner<{operand}>>; }}"),
+        "implementation" => format!("Selected satisfies Outer<{operand}> {{}}"),
+        _ => format!("data Packet {{ value: Outer<Inner<{operand}>>; }}"),
+    }
+}
+
+/// Between `<` and `>` every `>` closes a list, so two that touch close two
+/// lists and never shift. The same shift in parentheses is one argument; the
+/// twin differs only in those parentheses and is refused.
+#[test]
+fn a_right_shift_in_a_static_argument_needs_parentheses() {
+    // The nested owners have two lists open, so `>>` closes both and the
+    // count, three bytes after the first `>`, is the stray token. The
+    // conformance head has one list open, so its second `>` is.
+    for (owner, stray, after_first_greater) in [
+        ("type", "1u64", 3),
+        ("domain", "1u64", 3),
+        ("implementation", ">", 1),
+    ] {
+        let text = static_argument_source(owner, "(8u64 >> 1u64)");
+        let tokens = Lexer::new(&text).tokenize().unwrap();
+        crate::parse_syntax_trees(&tokens).expect("a parenthesized shift is one argument");
+
+        let text = static_argument_source(owner, "8u64 >> 1u64");
+        let tokens = Lexer::new(&text).tokenize().unwrap();
+        let error = crate::parse_syntax_trees(&tokens).expect_err("`>` closes the list");
+        let span = error.source_span.span;
+        assert_eq!(
+            &text[span.start..span.end],
+            stray,
+            "{text}: {}",
+            error.message
+        );
+        assert_eq!(
+            span.start,
+            text.find(">>").unwrap() + after_first_greater,
+            "{text}"
+        );
+    }
+}
+
+/// `Outer<Inner<u8>>` closes two lists with two touching `>`: the outer
+/// application holds exactly the inner one, which holds `u8`.
+#[test]
+fn touching_closers_end_a_nested_type_application() {
+    let text = "data Packet { value: Outer<Inner<u8>>; }";
+    let tokens = Lexer::new(text).tokenize().unwrap();
+    let syntax = crate::parse_syntax_trees(&tokens).expect("nested application");
+    let data = syntax
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(data) => Some(data),
+            _ => None,
+        })
+        .unwrap();
+    let DataMember::Field(field) = &syntax.items.data_members(data.members)[0] else {
+        panic!("field");
+    };
+    let mut reference = field.type_reference;
+    for name in ["Outer", "Inner"] {
+        let TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+            ..
+        } = syntax.type_references.type_reference(reference)
+        else {
+            panic!("`{name}` is an application");
+        };
+        assert_eq!(base_name.as_str(&syntax), name);
+        let [argument] = syntax.type_references.type_reference_handles(*arguments) else {
+            panic!("`{name}` holds one argument");
+        };
+        reference = *argument;
+    }
+    let TypeReferenceNode::Named(element) = syntax.type_references.type_reference(reference) else {
+        panic!("the innermost argument is a name");
+    };
+    assert_eq!(element.as_str(&syntax), "u8");
+    assert_eq!(syntax.expressions.iter_expressions().count(), 0);
+}
+
 #[test]
 fn nested_static_values_keep_closers_shifts_and_named_argument_transactions() {
     for operand in [
         "1u64",
         "N + 1u64",
-        "8u64 >> 1u64",
-        "(N + 8u64) >> 1u64",
+        "(8u64 >> 1u64)",
+        "((N + 8u64) >> 1u64)",
         "N",
     ] {
         for owner in ["type", "domain", "implementation"] {
-            let field_type = if owner == "domain" {
-                format!("u64 in Quantity<Inner<{operand}>>")
-            } else {
-                format!("Outer<Inner<{operand}>>")
-            };
-            let text = if owner == "implementation" {
-                format!("Selected satisfies Outer<{operand}> {{}}")
-            } else {
-                format!("data Packet {{ value: {field_type}; }}")
-            };
+            let text = static_argument_source(owner, operand);
             let tokens = Lexer::new(&text).tokenize().unwrap();
             let syntax = crate::parse_syntax_trees(&tokens).expect("nested static argument");
             let argument = if owner == "implementation" {

@@ -83,6 +83,14 @@ fn probe_applied_requirement_head<'tokens, 'source>(
         let arguments_start = rest
             .take_punctuation(PunctuationKind::ColonColon, "::")
             .ok()?;
+        // An applied head is followed by `::member`. Find the list's end
+        // before parsing it, so a list that is not a head is not read twice.
+        let after_arguments = arguments_start.after_static_argument_list()?;
+        if !after_arguments.at_punctuation(PunctuationKind::ColonColon)
+            || after_arguments.at_expression_arguments()
+        {
+            return None;
+        }
         let (reference, rest) = crate::types::references::parse_named_type_reference(
             syntax,
             name,
