@@ -86,17 +86,17 @@ mod storage {
             for resolved in layouts.resolved_records() {
                 declarations.insert(resolved.id, resolved);
             }
-            // An opaque borrowed formal transports a pointer. Dereferences and
-            // by-value storage still contribute their actual operands below.
+            // Opaque borrows transport an address and direct slices transport a
+            // descriptor. Neither requires inline storage for the formal.
             let parameter_storage = |formal: &terminal_psi::StructuralParameterDeclaration| {
-                let opaque_borrow = declarations.get(&formal.structural_type).is_some_and(|ty| {
-                    calling_conventions::terminal_layout::opaque_borrow_transport(
+                let fixed_transport = declarations.get(&formal.structural_type).is_some_and(|ty| {
+                    calling_conventions::terminal_layout::borrowed_slice_element(
                         &ty.shape,
                         formal.access,
                     )
                     .is_some()
                 });
-                (!opaque_borrow).then_some(formal.structural_type)
+                (!fixed_transport).then_some(formal.structural_type)
             };
             let mut roots = BTreeSet::new();
             for machine in module
@@ -120,6 +120,22 @@ mod storage {
                 for place in &machine.structural_places {
                     roots.extend(place.kind.produced_structural_type());
                 }
+                let borrowed_slices = machine
+                    .structural_parameters
+                    .iter()
+                    .chain(machine.block_structural_parameters())
+                    .filter(|formal| {
+                        declarations.get(&formal.structural_type).is_some_and(|ty| {
+                            calling_conventions::terminal_layout::borrowed_slice_element(
+                                &ty.shape,
+                                formal.access,
+                            )
+                            .is_some()
+                        })
+                    })
+                    .map(|formal| formal.place)
+                    .collect::<BTreeSet<_>>();
+                let include_root = |place| !borrowed_slices.contains(&place);
                 let needs_argument_storage = |argument: &terminal_psi::StructuralArgument| {
                     argument.access == terminal_psi::StructuralAccess::Owned
                         || !argument.path.is_empty()
@@ -144,6 +160,7 @@ mod storage {
                                 &declarations,
                                 storage,
                                 &mut roots,
+                                include_root,
                             )
                             .map_err(|reason| {
                                 format!("native storage demand for {:?}: {reason}", operation.id)
@@ -159,6 +176,7 @@ mod storage {
                             &declarations,
                             projection.into(),
                             &mut roots,
+                            include_root,
                         )
                         .map_err(|reason| {
                             format!(

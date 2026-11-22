@@ -206,6 +206,7 @@ pub fn canonical_storage_dependencies<'a>(
     root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
     dependencies: &mut std::collections::BTreeSet<StructuralTypeId>,
+    include_root: bool,
 ) -> Option<()> {
     let declaration = |identity| exactly_one(types.clone(), |row| row.id == identity);
     canonical_projection_type_with_lookup(
@@ -214,7 +215,7 @@ pub fn canonical_storage_dependencies<'a>(
         root,
         path,
         None,
-        Some(dependencies),
+        Some((include_root, dependencies)),
     )?;
     Some(())
 }
@@ -265,11 +266,13 @@ fn canonical_projection_type_with_lookup<'a>(
     mut root: StructuralTypeId,
     path: &[CanonicalStructuralPathSegment],
     mut storage: Option<&mut Vec<StructuralPathSegment>>,
-    mut dependencies: Option<&mut std::collections::BTreeSet<StructuralTypeId>>,
+    mut dependencies: Option<(bool, &mut std::collections::BTreeSet<StructuralTypeId>)>,
 ) -> Option<StructuralTypeId> {
     let mut case_fields: Option<&[terminal_psi::StructuralFieldDeclaration]> = None;
-    for segment in path {
-        if let Some(dependencies) = dependencies.as_mut() {
+    for (ordinal, segment) in path.iter().enumerate() {
+        if let Some((include_root, dependencies)) = dependencies.as_mut()
+            && (*include_root || ordinal > 0)
+        {
             dependencies.insert(root);
         }
         let shape = &declaration(root)?.shape;
@@ -353,7 +356,9 @@ fn canonical_projection_type_with_lookup<'a>(
     }
     let selected =
         (case_fields.is_none() || dependencies.is_some()).then_some(declaration(root)?.id)?;
-    if let Some(dependencies) = dependencies {
+    if let Some((include_root, dependencies)) = dependencies
+        && (include_root || !path.is_empty())
+    {
         dependencies.insert(selected);
     }
     Some(selected)

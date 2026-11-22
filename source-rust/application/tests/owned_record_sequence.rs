@@ -65,6 +65,11 @@ fn runtime_sequence_fields_survive_separate_results_and_containing_records() {
 }
 
 #[test]
+fn a_forwarded_borrowed_slice_and_an_owned_sequence_keep_their_own_layouts() {
+    assert_both("forwarded_typed_slice");
+}
+
+#[test]
 fn an_insufficient_live_length_guard_still_refuses_the_second_element() {
     let project = fixture("fail", "runtime_sequence_values");
     let expected = std::fs::read_to_string(project.join("expected.txt")).unwrap();

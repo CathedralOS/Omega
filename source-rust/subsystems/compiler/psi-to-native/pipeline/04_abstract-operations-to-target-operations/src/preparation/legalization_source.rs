@@ -3430,8 +3430,8 @@ pub(crate) mod scalar_graph {
                 let indices = if binding.argument.path.iter().any(|segment| segment.runtime_index().is_some()) {
                     let root = scalar_graph_input::primitive_locals::read_root_type(function_inputs, binding.argument.place)
                         .ok_or(Error::custody())?;
-                    let geometry = crate::preparation::structural_inputs::structural_reference_input::reference_formation_geometry(
-                        root, &binding.argument.path, plan.geometry(),
+                    let geometry = crate::preparation::structural_inputs::structural_reference_input::reference_formation_geometry_at(
+                        root, function_inputs.arrival_parameter(binding.argument.place), &binding.argument.path, plan.geometry(),
                     ).ok_or(Error::custody())?;
                     crate::preparation::legalization::runtime_indices::operands(
                         function, unit, optimization_unit::PsiProvenance::Edge(edge.psi_edge), &geometry.elements,

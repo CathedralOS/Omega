@@ -2814,7 +2814,7 @@ pub(crate) mod expressions {
                 Expression::ElementViewLength { psi_operation, source_value, source, indices, length_byte_offset } => {
                     *source_value == resolved
                         && crate::preparation::legalization::scalar_graph_input::element_views::length_geometry(self.function_inputs, source, self.types)
-                            .is_some_and(|geometry| self.types.declaration(geometry.selected).ok().and_then(|declaration| calling_conventions::terminal_layout::element_view_length_offset(&declaration.shape)) == Some(*length_byte_offset) && super::unit::runtime_indices_rejoin(
+                            .is_some_and(|geometry| self.types.declaration(geometry.selected).ok().and_then(|declaration| calling_conventions::terminal_layout::element_view_length_at(&declaration.shape, self.function_inputs.arrival_parameter(source.place).filter(|_| source.path.is_empty()).map(|formal| formal.access))) == Some(*length_byte_offset) && super::unit::runtime_indices_rejoin(
                                 indices, &geometry.elements, self.available.unwrap_or(&crate::preparation::legalization_target::control_flow::sources::EMPTY)))
                         && self.optimized.block_nodes().any(|node| matches!(&node.operation,
                             AbstractOperation::ElementViewLength { psi_operation: operation, result, source: expected }
@@ -7318,8 +7318,8 @@ pub(crate) mod unit {
             .strip_suffix(&[terminal_psi::StructuralPathSegment::Referent])
             .unwrap_or(&source.path);
         let geometry =
-            crate::preparation::structural_inputs::structural_reference_input::reference_formation_geometry(
-                root,
+            crate::preparation::structural_inputs::structural_reference_input::reference_formation_geometry_at(
+                root, function_inputs.arrival_parameter(source.place),
                 path,
                 unit.geometry(),
             )

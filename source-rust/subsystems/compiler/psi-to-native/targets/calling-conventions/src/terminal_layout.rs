@@ -413,6 +413,23 @@ impl<'a> StructuralLayouts<'a> {
         ))
     }
 
+    pub fn formal_storage_shape(
+        &self,
+        root: StructuralTypeId,
+        access: terminal_psi::StructuralAccess,
+    ) -> Result<ValueShape, TerminalLayoutError> {
+        let declaration = self
+            .get(root)
+            .ok_or(TerminalLayoutError::UnknownStructuralType(root))?;
+        if let Some(element) = borrowed_slice_element(&declaration.shape, access) {
+            self.get(element)
+                .ok_or(TerminalLayoutError::UnknownStructuralType(element))?;
+            Ok(ValueShape::integer(16, 8))
+        } else {
+            self.shape(root)
+        }
+    }
+
     pub fn field_shape(
         &self,
         field: &StructuralFieldType,
@@ -494,7 +511,71 @@ pub struct OwnedSequenceLayout {
     pub shape: ValueShape,
 }
 
-pub const fn element_view_length_offset(shape: &StructuralTypeShape) -> Option<u32> {
+/// The declaration of `[T]` can occur both as owned inline storage and as a
+/// borrowed formal transporting a pointer and a count. Only the occurrence
+/// supplies the permission that distinguishes their native representations.
+pub fn borrowed_slice_element(
+    shape: &StructuralTypeShape,
+    access: terminal_psi::StructuralAccess,
+) -> Option<StructuralTypeId> {
+    match shape {
+        StructuralTypeShape::ElementView {
+            element,
+            access: None,
+        } if access != terminal_psi::StructuralAccess::Owned => Some(*element),
+        _ => None,
+    }
+}
+
+/// The first subscript of a borrowed typed slice is relative to the pointer
+/// in descriptor word zero. Further projections use the element's own storage.
+pub struct BorrowedElement<'path> {
+    pub remaining: &'path [terminal_psi::StructuralPathSegment],
+    pub fixed_offset: u32,
+    pub selector: Option<(
+        semantic_vocabulary::ValueId,
+        semantic_vocabulary::ObligationId,
+        u32,
+    )>,
+}
+
+pub fn borrowed_element_index<'path>(
+    shape: ValueShape,
+    path: &'path [terminal_psi::StructuralPathSegment],
+) -> Option<BorrowedElement<'path>> {
+    let (index, remaining) = path.split_first()?;
+    let stride = checked_align_up_u32(shape.byte_size, u32::from(shape.alignment))?;
+    let (fixed_offset, selector) = match index {
+        terminal_psi::StructuralPathSegment::FixedIndex(index) => (
+            u32::try_from(index.checked_mul(u64::from(stride))?).ok()?,
+            None,
+        ),
+        terminal_psi::StructuralPathSegment::RuntimeIndex { index, obligation } => {
+            (0, Some((*index, *obligation, stride)))
+        }
+        _ => return None,
+    };
+    Some(BorrowedElement {
+        remaining,
+        fixed_offset,
+        selector,
+    })
+}
+
+pub fn element_view_length_offset(shape: &StructuralTypeShape) -> Option<u32> {
+    element_view_length_at(shape, None)
+}
+
+pub fn element_view_length_at(
+    shape: &StructuralTypeShape,
+    formal_access: Option<terminal_psi::StructuralAccess>,
+) -> Option<u32> {
+    if formal_access
+        .and_then(|access| borrowed_slice_element(shape, access))
+        .is_some()
+    {
+        return Some(8);
+    }
     match shape {
         StructuralTypeShape::ElementView { access: None, .. } => Some(0),
         StructuralTypeShape::ElementView {
@@ -1114,6 +1195,26 @@ mod owned_sequence_tests {
         );
         assert_eq!(element_view_length_offset(&rows[1].shape), Some(0));
         assert_eq!(element_view_length_offset(&rows[2].shape), Some(8));
+        let layouts = StructuralLayouts::with_owned_sequence_bounds(rows.iter(), &bounds).unwrap();
+        for access in [
+            terminal_psi::StructuralAccess::SharedBorrow,
+            terminal_psi::StructuralAccess::MutableBorrow,
+        ] {
+            assert_eq!(
+                element_view_length_at(&rows[1].shape, Some(access)),
+                Some(8)
+            );
+            assert_eq!(
+                layouts.formal_storage_shape(owned, access).unwrap(),
+                ValueShape::integer(16, 8)
+            );
+        }
+        assert_eq!(
+            layouts
+                .formal_storage_shape(owned, terminal_psi::StructuralAccess::Owned)
+                .unwrap(),
+            storage.shape
+        );
     }
 
     #[test]

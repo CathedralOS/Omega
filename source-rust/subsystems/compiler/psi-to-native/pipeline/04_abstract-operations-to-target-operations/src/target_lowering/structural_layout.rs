@@ -12,7 +12,7 @@ use terminal_semantics::canonical_structural_storage_path;
 use terminal_semantics::primitive_projection_declaration;
 use terminal_semantics::{primitive_projection_type, primitive_read_projection_type};
 
-fn geometry_error(
+pub(crate) fn geometry_error(
     error: calling_conventions::terminal_layout::TerminalLayoutError,
 ) -> LoweringError {
     use calling_conventions::terminal_layout::TerminalLayoutError as Geometry;
@@ -1094,6 +1094,7 @@ pub(crate) fn runtime_borrowed_projection(
 /// the backing before a fixed slice. Neither suffix adds a runtime selector.
 pub(crate) fn reference_formation_indices(
     structural_type: StructuralTypeId,
+    formal: Option<&terminal_psi::StructuralParameterDeclaration>,
     path: &[StructuralPathSegment],
     declarations: &StructuralLayouts<'_>,
 ) -> Result<Vec<RuntimeIndex>, LoweringError> {
@@ -1104,6 +1105,40 @@ pub(crate) fn reference_formation_indices(
         Some((StructuralPathSegment::FixedRange { .. }, prefix)) => prefix,
         _ => path,
     };
+    if let Some(formal) = formal
+        && formal.structural_type == structural_type
+        && let Some(declaration) = declarations.get(structural_type)
+        && let Some(element) = calling_conventions::terminal_layout::borrowed_slice_element(
+            &declaration.shape,
+            formal.access,
+        )
+    {
+        if path.is_empty() {
+            return Ok(Vec::new());
+        }
+        let first = calling_conventions::terminal_layout::borrowed_element_index(
+            structural_shape(element, declarations)?,
+            path,
+        )
+        .ok_or(LoweringError::UnsupportedStructuralReference(
+            structural_type,
+        ))?;
+        let mut indices = Vec::new();
+        if let Some((index, obligation, stride)) = first.selector {
+            indices.push(RuntimeIndex {
+                index,
+                obligation,
+                stride,
+                extent: None,
+            });
+        }
+        indices.extend(storage_address_indices(
+            element,
+            first.remaining,
+            declarations,
+        )?);
+        return Ok(indices);
+    }
     storage_address_indices(structural_type, path, declarations)
 }
 
@@ -1261,7 +1296,7 @@ mod placed_geometry_tests {
         let (_, _, _, indices) = runtime_projection(types[0].id, &path, &declarations).unwrap();
         assert_eq!(indices, selectors);
         assert_eq!(
-            reference_formation_indices(types[0].id, &path, &declarations).unwrap(),
+            reference_formation_indices(types[0].id, None, &path, &declarations).unwrap(),
             selectors
         );
         let through_reference = [
@@ -1270,7 +1305,8 @@ mod placed_geometry_tests {
             path[1].clone(),
         ];
         assert_eq!(
-            reference_formation_indices(types[5].id, &through_reference, &declarations).unwrap(),
+            reference_formation_indices(types[5].id, None, &through_reference, &declarations)
+                .unwrap(),
             selectors
         );
         let slice = [
@@ -1279,12 +1315,12 @@ mod placed_geometry_tests {
             StructuralPathSegment::FixedRange { start: 1, end: 3 },
         ];
         assert_eq!(
-            reference_formation_indices(types[5].id, &slice, &declarations).unwrap(),
+            reference_formation_indices(types[5].id, None, &slice, &declarations).unwrap(),
             selectors[..1]
         );
         let descriptor = [path[0].clone(), StructuralPathSegment::Referent];
         assert_eq!(
-            reference_formation_indices(types[6].id, &descriptor, &declarations).unwrap(),
+            reference_formation_indices(types[6].id, None, &descriptor, &declarations).unwrap(),
             [RuntimeIndex {
                 stride: 8,
                 extent: Some(3),
