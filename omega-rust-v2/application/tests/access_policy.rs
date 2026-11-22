@@ -57,6 +57,24 @@ fn executing_the_selected_policy_distinguishes_issuance_from_forwarding() {
     );
     assert_eq!(diagnostic(&root, "lower", &empty, issue, true), (false, denied));
 
+    // The written child implicitly accounts for Locked. A fresh parent goes
+    // through its own executed plan; a parent already on x can be retained.
+    let child_policy = format!("{POLICY}\ndomain i32::Locked::Child requires true;");
+    let locked_child = child_policy.replace("Issuance::Unrestricted{}", "Issuance::Only{routes:[]}");
+    let mint_child = "machine mint(x:i32)->i32 in Locked::Child {x as +Locked::Child}";
+    let retain_parent = "machine retain(x:i32 in Locked)->i32 in Locked::Child {x as +Locked::Child}";
+    for policy in [&child_policy, &locked_child] {
+        assert_eq!(diagnostic(&root, "lower", policy, retain_parent, true), (true, String::new()));
+    }
+    assert_eq!(diagnostic(&root, "lower", &child_policy, mint_child, true), (true, String::new()));
+    let cast = "x as +Locked::Child";
+    let at = mint_child.find(cast).unwrap();
+    let denied = format!(
+        "consumer.omg:1:{}: lowering: machine `mint` cannot introduce domain `i32::Locked`: its access plan admits no issuer (bytes {at}..{})",
+        at + 1, at + cast.len()
+    );
+    assert_eq!(diagnostic(&root, "lower", &locked_child, mint_child, true), (false, denied));
+
     // Removing the Build owner still stops before construction can be checked.
     assert_eq!(
         diagnostic(&root, "lower", POLICY, issue, false),

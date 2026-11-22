@@ -561,6 +561,61 @@ fn runtime_domain_sets_normalize_when_call_arguments_coincide_or_change_order() 
 }
 
 #[test]
+fn a_child_cast_carries_its_exact_ancestors_and_establishes_only_new_memberships() {
+    let defs = "domain<const N:u8> u8::Limit<N>;
+        domain u8::Limit<2>::Pair; domain u8::Limit<2>::Other;
+        domain u8::PairAlias = u8::Limit<2>::Pair;
+        domain u8::Tag;";
+    for (input, entries, result, newly_attached) in [
+        ("u8", "+Limit<2>::Pair", "Limit<2>::Pair", vec!["u8::Limit", "u8::Limit::Pair"]),
+        ("u8", "+Limit<2> +Limit<2>::Pair", "Limit<2>::Pair", vec!["u8::Limit", "u8::Limit::Pair"]),
+        ("u8", "+Limit<2>::Pair +Limit<2>", "Limit<2>::Pair", vec!["u8::Limit", "u8::Limit::Pair"]),
+        ("u8", "+PairAlias", "Limit<2>::Pair", vec!["u8::Limit", "u8::Limit::Pair"]),
+        ("u8 in Limit<2>", "+Limit<2>::Pair", "Limit<2>::Pair", vec!["u8::Limit::Pair"]),
+        ("u8 in Limit<2>", "=Limit<2> +Limit<2>::Pair", "Limit<2>::Pair", vec!["u8::Limit::Pair"]),
+        ("u8 in Limit<3>", "-Limit<3> +Limit<2>::Pair", "Limit<2>::Pair", vec!["u8::Limit", "u8::Limit::Pair"]),
+        (
+            "u8",
+            "+Limit<2>::Pair +Limit<2>::Other",
+            "Limit<2>::Pair & Limit<2>::Other",
+            vec!["u8::Limit", "u8::Limit::Other", "u8::Limit::Pair"],
+        ),
+    ] {
+        let cast = format!("x as {entries}");
+        let body = format!("machine f(x:{input})->u8 in {result} {{ {cast} }}");
+        let stage = check(&[("domains.omg", defs), ("use.omg", &body)]).unwrap_or_else(|error| panic!("{body}: {error:?}"));
+        let operation = stage.operations.iter().find(|op| op.token == "as").unwrap();
+        let signature = stage.signatures.iter().find(|s| s.machine.path == "f").unwrap();
+        assert_eq!(operation.result, signature.result, "{body}");
+        let obligations: Vec<_> = stage.obligations.iter().filter_map(|obligation| match &obligation.kind {
+            omega_typer::ObligationKind::EstablishDomain(atom) => {
+                assert_eq!(obligation.site.span.slice(body.as_bytes()), Some(cast.as_bytes()));
+                assert!(operation.result.domains().contains(atom));
+                if atom.declaration.path == "u8::Limit" {
+                    assert_eq!(atom.arguments[0].to_string(), "2");
+                }
+                Some(atom.declaration.path.as_str())
+            }
+            _ => None,
+        }).collect();
+        assert_eq!(obligations, newly_attached, "{body}");
+    }
+
+    for (input, entries, message) in [
+        ("u8 in Limit<2>", "-Limit<2> +Limit<2>::Pair", r"cast removes domain game\u8::Limit<2> required by game\u8::Limit::Pair"),
+        ("u8 in Limit<2>", "+Limit<2>::Pair -Limit<2>", r"cast removes domain game\u8::Limit<2> required by game\u8::Limit::Pair"),
+        ("u8 in Limit<3>", "+Limit<2>::Pair", "cast omits domain u8::Limit"),
+        ("u8 in Tag", "+Limit<2>::Pair", "cast omits domain u8::Tag"),
+    ] {
+        let cast = format!("x as {entries}");
+        let body = format!("machine f(x:{input}) {{ let got = {cast}; }}");
+        let error = check(&[("domains.omg", defs), ("use.omg", &body)]).unwrap_err();
+        assert_eq!(error.message, message, "{body}");
+        assert_eq!(error.span.slice(body.as_bytes()), Some(cast.as_bytes()));
+    }
+}
+
+#[test]
 fn indexed_domain_aliases_preserve_each_constituent_and_its_arguments() {
     let defs = "domain<const N:u8> u8::Bound<N>; domain u8::Five = u8::Bound<5>; domain u8::Six = u8::Bound<6>;
         domain<const M:u8> u8::Pair<M> = u8::Five & u8::Bound<M>; domain u8::Both = u8::Pair<6>;";

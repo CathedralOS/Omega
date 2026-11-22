@@ -8,6 +8,28 @@ use crate::{ContractClause, LoweringError, LoweringTypes, site_at};
 
 use crate::lowering::pending::IssuersPending;
 use crate::{LoweredDomain, LoweredDomainAlias};
+/// A policy execution cannot depend on the issuance answers it is computing.
+/// Its declarations must also be closed: a child without its parent or an
+/// alias without a constituent would name a domain absent from the unit. Use
+/// the checked identities, irrespective of declaration order or spelling.
+pub(crate) fn policy_unit_exclusions(typed: &omega_typed::TypedStage) -> std::collections::HashSet<&omega_resolved::DeclarationId> {
+    let mut dependents = std::collections::HashMap::<_, Vec<_>>::new();
+    for (domain, carrier) in &typed.domain_carriers {
+        let members = typed.domain_alias_members.get(domain).into_iter().flatten();
+        for prerequisite in carrier.domains().iter().chain(members) {
+            dependents.entry(&prerequisite.declaration).or_default().push(domain);
+        }
+    }
+    let mut excluded = std::collections::HashSet::new();
+    let mut pending: Vec<_> = typed.access_policies.iter().map(|selection| &selection.domain).collect();
+    while let Some(domain) = pending.pop() {
+        if excluded.insert(domain) && let Some(children) = dependents.remove(domain) {
+            pending.extend(children);
+        }
+    }
+    excluded
+}
+
 pub(crate) enum DomainDeclaration<'a> {
     /// Lowering decides no issuer, so the row states none. `policy` is the
     /// selection whose executed plan decides it. Without one the domain has no

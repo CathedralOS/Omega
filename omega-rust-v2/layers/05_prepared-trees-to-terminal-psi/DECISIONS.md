@@ -4,12 +4,11 @@ This is the starting map for the repair pass at `f572107080eda`. The readiness c
 
 ## Cases awaiting a language-owner ruling
 
-Six measured cases share five open decisions. A test that reproduces the current refusal keeps its case open. Follow the named entries in the repository owner queue for the ruling and then test its effect on the indicated input.
+Four measured cases await four open decisions. A test that reproduces the current refusal keeps its case open. Follow the named entries in the repository owner queue for the ruling and then test its effect on the indicated input.
 
 | Case | Decision that would change its expected output |
 | --- | --- |
 | Simultaneous domain removal and addition | [Checked replacement](../../../OWNER_QUESTIONS.md#named-domain-casts-checked-replacement) determines which Psi evidence can represent one authored cast. |
-| Inherited child with its own predicate; tag child and predicate in one cast | [Inherited establishment](../../../OWNER_QUESTIONS.md#named-domain-casts-inherited-establishment) determines whether evidence for a parent on the incoming value or the same arrival can discharge the child’s requirement. |
 | Non-exact computed ranking subject | [Descending rank entry expressions](../../../OWNER_QUESTIONS.md#descending-rank-entry-expressions) determines which arithmetic expressions are valid rank subjects. |
 | Carry policy on a transparent data alias | [Transparent alias carry assertions](../../../OWNER_QUESTIONS.md#transparent-alias-carry-assertions) determines whether an alias can declare a floor that leaves its effective policy unchanged. |
 | Hypothesis outside a theorem binder | [Machine hypotheses without a binder](../../../OWNER_QUESTIONS.md#machine-hypothesis-without-a-binder) determines whether the declaration is invalid or the citation owes an implicit evidence argument. |
@@ -49,7 +48,7 @@ The unchecked Psi body must already identify its executable operations and clean
 | `handoff/unselected access policy template constructor` | L5 package assembly → template callee | Remove the domain’s access selection. The policy template remains and still calls the imported library constructor, which must have a packaged declaration. |
 | `handoff/carry policy on a transparent data alias` | Alias semantics → normalized type | An alias can inherit its target’s policy. L3 now refuses a list that adds a demand the expansion lacks, including the original `u64` case. The outstanding language question is whether an alias may author a list that adds no demand. |
 | `handoff/add a tag and a predicate domain in one cast` | L5 qualification edge → domain checker | One arrival establishes two memberships with different reasons. Each added domain must retain its own origin on the same value. |
-| `handoff/add an inherited child with its own predicate` | Terminal Psi membership rule → domain checker | The child has a nonempty parent requirement. Evidence for an unrestricted predicate alone cannot justify that parent membership. |
+| `handoff/add an inherited child with its own predicate` | Terminal Psi membership rule → domain checker | On an input that retains the parent, the child’s completion carries its own predicate obligation. The child declaration identifies the parent required on that arrival. |
 | `handoff/simultaneous domain removal and addition` | Terminal Psi cast form → lowering | Erasing alone and adding alone have operations. The canonical spec leaves the terminal form for a simultaneous removal and addition open. |
 
 ## Theorems and callback premises
@@ -80,5 +79,5 @@ The next baseline had 33 blocking cases. Five of the original 31 had met their e
 | `handoff/nested scalar field operand of a formal record` | The complete path from the formal through its nested record to the scalar leaf. | Read `track.tag.id` versus a scalar directly on `track`. |
 | `handoff/projected field operand beside a sibling with cleanup or linear use` | The selected scalar read and any ownership obligations that remain on the formal. | Change only the unselected sibling to a type with cleanup or a linear-use requirement. |
 | `handoff/non-exact computed ranking subject` | The arithmetic meaning and admissibility of the subject used for the well-founded relation. | Change the subtraction mode or expression shape while keeping the same formal and constant. |
-| `handoff/add a tag child and a predicate domain in one cast` | The parent membership required by the child and the separate predicate debt on the same arrival. | Replace the child with a tag that has no parent. |
+| `handoff/add a tag child and a predicate domain in one cast` | The parent and its tag child each have an origin on the same arrival. The unrelated predicate domain carries the only predicate debt. | Compare the explicit parent entry with the child shorthand and inspect the same exact memberships on their jumps. |
 | `handoff/add an applied domain and a domain of the other origin in one cast` | Each added domain’s complete application and its establishment origin. | Keep the family fixed and vary its index, then remove only the other domain. |

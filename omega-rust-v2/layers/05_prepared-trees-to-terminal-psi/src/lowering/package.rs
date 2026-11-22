@@ -66,7 +66,8 @@ fn decided(lowered: PendingPolicyPackage) -> Result<LoweredPackage, LoweringErro
 /// This is the ordinary package lowering with two differences. Only the
 /// selected machine is a root, so no other machine of the package is in the
 /// unit unless the plan calls it. A domain that selects an access policy is
-/// left out, because this unit is what such a plan is computed from. The unit
+/// left out, along with domains and aliases that require it. The full package
+/// retains all of them so its driver can decide every introduction. The unit
 /// runs nothing, validates no plan and grants no issuance.
 ///
 /// The returned [`PolicyUnit`] keeps the package together with the invocation
@@ -137,6 +138,7 @@ fn lower(
         .map_or_else(|| regions::RegionData::of_package(typed, &[]), |library| regions::RegionData::of_package(library, &library_trees));
     let mut data_schemas = Vec::new();
     let mut aliases = Vec::new();
+    let unavailable_domains = unit.map(|_| domains::policy_unit_exclusions(typed)).unwrap_or_default();
     let mut domain_schemas = Vec::new();
     let mut domain_templates = Vec::new();
     // The domains that select a policy, in the order their files declare them.
@@ -193,15 +195,7 @@ fn lower(
             } else if kind == NodeKind::Trait {
                 trait_schemas.push(crate::declarations::traits::read_trait(prepared, tree, child, &signature_by_declaration)?);
             } else if kind == NodeKind::Domain {
-                // A policy's unit is what a domain's plan is computed from, so
-                // it publishes no domain that selects a policy. A validation
-                // recorded for such a domain does not put it in the unit.
-                if unit.is_some()
-                    && tree
-                        .resolved()
-                        .declaration_at(child)
-                        .is_some_and(|domain| typed.access_policies.iter().any(|policy| &policy.domain == domain))
-                {
+                if tree.resolved().declaration_at(child).is_some_and(|domain| unavailable_domains.contains(domain)) {
                     continue;
                 }
                 let schema = domains::read_domain(prepared, tree, child, selected)?;

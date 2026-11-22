@@ -66,8 +66,6 @@ impl std::error::Error for TypeError {}
 pub(crate) struct DomainEstablishment {
     /// The declaration has `requires` clauses, including `requires true`.
     pub predicate: bool,
-    /// The domain's subject carries a parent domain, so membership needs that parent.
-    pub requires_parent: bool,
     /// The domain selects an access policy, so who may add it to a value is
     /// undecided here. A cast that adds it must be one the package reports.
     pub selects_policy: bool,
@@ -187,7 +185,6 @@ impl LoweringTypes {
                 // An indexed family's predicate binds its index; it still owes proof at addition.
                 .map(|d| (d.declaration.clone(), DomainEstablishment {
                     predicate: d.has_predicates(),
-                    requires_parent: !d.carrier.domains().is_empty(),
                     selects_policy: d.policy.is_some(),
                 }))
                 .collect(),

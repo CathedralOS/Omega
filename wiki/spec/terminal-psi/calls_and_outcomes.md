@@ -87,7 +87,10 @@ catalog. Establishment additionally names a checked completion under the
 [retained origin rules](encoding.md): a predicate is the exact
 destination invariant proved on every actual arrival, while an issuer route
 must independently match the checked callable or closed conformance. Neither a
-predicate-free tag coercion nor a proved predicate grants issuer authority.
+predicate-free tag coercion nor a proved predicate grants issuer authority. A child
+addition accounts for its ancestors on the same incoming argument under the
+[scalar completion rules](encoding.md#scalar-completion-prerequisites). Short and
+explicit source spellings carry the same normalized obligations.
 Qualified scalar formals and results retain their predicates in the ordinary
 entry and result contracts; missing predicates reject before those contracts
 can become proof premises. Primitive scalar storage and scalar fields retain

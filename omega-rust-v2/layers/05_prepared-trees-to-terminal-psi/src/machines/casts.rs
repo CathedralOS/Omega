@@ -133,26 +133,19 @@ pub(super) fn scalar_cast<'a>(
     let change = match (added.is_empty(), removes) {
         (false, false) => {
             let establishment = |atom: &omega_typed::DomainApplication| types.domain_establishment(&atom.declaration);
-            for atom in &added {
-                if establishment(atom).is_some_and(|d| d.predicate && d.requires_parent) {
-                    return Err(error("predicate completion does not support a domain requiring parent membership"));
-                }
-            }
             if !added
                 .iter()
                 .any(|atom| establishment(atom).is_some_and(|d| d.predicate))
             {
                 Some(ScalarChange::Ordinary(QualificationDirection::Add))
             } else {
-                // encoding.md: a vacuous origin introduces only a predicate-free, route-free tag
-                // whose required memberships are empty.
+                // Domain declarations already retain their required atoms in the carrier.
+                // Every added atom gets its own row on this argument; retained parents
+                // arrive on its input. Nobody acquires a parent from its child’s row.
                 let mut completions = Vec::with_capacity(added.len());
                 for atom in &added {
                     let origin = match establishment(atom) {
                         Some(d) if d.predicate => omega_psi::CompletionOrigin::Proved,
-                        Some(d) if d.requires_parent => {
-                            return Err(error("vacuous completion does not support a domain requiring parent membership"));
-                        }
                         Some(_) => omega_psi::CompletionOrigin::Vacuous,
                         None => return Err(error("cast completion requires a local domain declaration")),
                     };

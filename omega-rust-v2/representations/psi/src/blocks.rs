@@ -93,7 +93,8 @@ pub struct DomainCompletion {
 /// The completion origins of `wiki/spec/terminal-psi/encoding.md` (scalar return origins).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CompletionOrigin {
-    /// A predicate-free, route-free tag with no required membership. It owes nothing.
+    /// A predicate-free, route-free tag. Its carrier’s required memberships must
+    /// arrive on this argument or be independently established here.
     Vacuous,
     /// An unrestricted predicate domain. The destination's block invariant retains the
     /// predicate, and every arrival owes it; the row itself is not a proof.
