@@ -104,25 +104,43 @@ fn stage(path: &str) -> Option<Phase> {
         })
 }
 
+/// A source stage reads the representation an earlier stage produced. Linking
+/// that stage's crate instead lets it call the code that made the decision, so
+/// a wrong answer could come from either place. These are the links that still
+/// exist, as (owning stage, linked stage) numbers: lowering names the prepared
+/// input, and publication runs lowering and the checker. OWNER_CODE_CONCERNS.md
+/// says what removing each one needs. Do not add a pair: move the type the
+/// stage reads into `representations/`.
+const RETAINED_SOURCE_STAGE_LINKS: [(usize, usize); 3] = [(5, 4), (7, 5), (7, 6)];
+
+/// The stage numbers of a production link from one source stage into another.
+/// The Build text reader is not a stage: it runs the lexer and parser on purpose.
+fn source_stage_link(start: &str, dependency: &str) -> Option<(usize, usize)> {
+    let number = |path: &str| PSI_STAGES.iter().position(|root| under(path, &[*root]));
+    let link = (number(start)?, number(dependency)?);
+    (start != TEXT_READER && link.0 != link.1).then_some(link)
+}
+
 fn forbidden_frontend(start: &str, dependency: &str) -> bool {
     let [lexer, parser, tokens, syntax] = FRONTEND;
+    if source_stage_link(start, dependency)
+        .is_some_and(|link| !RETAINED_SOURCE_STAGE_LINKS.contains(&link))
+    {
+        return true;
+    }
     match start {
         TEXT_READER => stage(dependency).is_some() && ![lexer, parser].contains(&dependency),
-        path if path == PSI_STAGES[6] => {
-            under(dependency, &PSI_STAGES[..6])
-                || under(
-                    dependency,
-                    &[
-                        tokens,
-                        syntax,
-                        "source-rust/subsystems/compiler/source-to-psi/representations/symbol-resolved-trees/declarations",
-                        "source-rust/subsystems/compiler/source-to-psi/representations/symbol-resolved-trees",
-                        "source-rust/subsystems/compiler/source-to-psi/representations/typed-trees",
-                    ],
-                )
-        }
-        path if path == lexer => [parser, syntax].contains(&dependency),
-        path if path == parser => dependency == lexer,
+        path if path == PSI_STAGES[6] => under(
+            dependency,
+            &[
+                tokens,
+                syntax,
+                "source-rust/subsystems/compiler/source-to-psi/representations/symbol-resolved-trees/declarations",
+                "source-rust/subsystems/compiler/source-to-psi/representations/symbol-resolved-trees",
+                "source-rust/subsystems/compiler/source-to-psi/representations/typed-trees",
+            ],
+        ),
+        path if path == lexer => dependency == syntax,
         path if path == tokens || path == syntax => FRONTEND.contains(&dependency),
         _ => false,
     }
@@ -290,6 +308,8 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
                     errors.push(format!("forbidden production dependency: {chain} ({next})"));
                 } else if !scoped_reader
                     && !native_pair.is_some_and(|(owner, dependency)| dependency + 1 == owner)
+                    // A retained link ends this walk; the linked stage is checked as its own owner.
+                    && source_stage_link(start, next).is_none()
                     && visited.insert(next)
                 {
                     queue.push_back((next.as_str(), chain));
@@ -423,6 +443,58 @@ mod tests {
                         .contains(&format!("optimizer -> helper -> {destination}")))
             );
         }
+    }
+
+    /// The typer reaching the resolver through a helper must fail, and so must
+    /// publication linking preparation directly. The three retained links pass,
+    /// and publication is not blamed for what lowering links.
+    #[test]
+    fn a_source_stage_cannot_link_another_stages_implementation() {
+        const SHARED: &str = "shared";
+        let name = |path: &'static str| path.rsplit('/').next().unwrap();
+        let stage = |index: usize, links: &[&'static str]| {
+            let links: Vec<_> = links.iter().map(|path| (name(path), *path, None)).collect();
+            pkg(name(PSI_STAGES[index]), PSI_STAGES[index], &links)
+        };
+        let metadata = Metadata {
+            workspace_root: "/repo".into(),
+            packages: vec![
+                stage(2, &[]),
+                stage(3, &[SHARED]),
+                stage(4, &[]),
+                stage(5, &[PSI_STAGES[4]]),
+                stage(6, &[]),
+                stage(7, &[PSI_STAGES[5], PSI_STAGES[6], PSI_STAGES[4]]),
+                pkg(
+                    SHARED,
+                    SHARED,
+                    &[(name(PSI_STAGES[2]), PSI_STAGES[2], None)],
+                ),
+            ],
+        };
+        let errors: Vec<_> = violations(&metadata)
+            .unwrap()
+            .into_iter()
+            .filter(|error| error.starts_with("forbidden production dependency"))
+            .collect();
+        let [typer, lowering, publication] = [3, 5, 7].map(|index| name(PSI_STAGES[index]));
+        let [resolver, preparation] = [2, 4].map(|index| name(PSI_STAGES[index]));
+        assert_eq!(errors.len(), 2, "{errors:?}");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains(&format!("{typer} -> shared -> {resolver}")))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains(&format!(": {publication} -> {preparation} ")))
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|error| error.contains(&format!("{publication} -> {lowering}")))
+        );
     }
 
     #[test]
