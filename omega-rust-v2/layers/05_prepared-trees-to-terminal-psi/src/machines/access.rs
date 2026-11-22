@@ -92,12 +92,15 @@ pub(crate) fn select_indexed_read<'a>(
         }
         // The path crosses the declared loan. The core Read itself needs only
         // the shared borrow checked by check_read, even for an exclusive root.
-        let through = element_view.map(|(access, _)| access).or(byte_view.then_some(&Access::Shared));
+        let through = element_view
+            .map(|(access, _)| access)
+            .or(byte_view.then_some(&Access::Shared));
         let expected_base = file.node_id(file.ungroup(base));
         let expected_selector = file.node_id(selector);
-        if projections.next().is_none_or(|step| {
-            step.base != expected_base || step.through.as_ref() != through || step.projection != Some(Projection::Index(expected_selector))
-        }) {
+        if projections
+            .next()
+            .is_none_or(|step| step.base != expected_base || step.through.as_ref() != through || step.projection != Some(Projection::Index(expected_selector)))
+        {
             return Err(refuse(selected, "indexed read disagrees with its typed place projection"));
         }
         let selector_carrier = check_read(tree, selected, base, element)?;
@@ -159,4 +162,78 @@ fn check_read<'a>(
             "indexed read has no complete core operation and access obligation",
         ))
     }
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum IndexedPlaceUse {
+    ScalarRead,
+    Store,
+}
+
+/// Check the typed contract for an indexed place. This is separate from a
+/// by-value index read, which selects the core copy primitive.
+pub(super) fn check_indexed_place(
+    tree: &LoweringTree<'_>,
+    node: usize,
+    receiver: usize,
+    element: &ValueType,
+    usage: IndexedPlaceUse,
+) -> Result<(), LoweringError> {
+    let (primitive, access, message) = match usage {
+        IndexedPlaceUse::ScalarRead => (
+            CollectionPrimitive::Element,
+            Access::Shared,
+            "indexed scalar observation lacks its exact core shared element selection, loan or bound",
+        ),
+        IndexedPlaceUse::Store => (
+            CollectionPrimitive::ElementMut,
+            Access::Mut,
+            "indexed store lacks its exact core mutable element selection, loan or bound",
+        ),
+    };
+    let site = site_at(tree, node);
+    let receiver_site = site_at(tree, receiver);
+    let refuse = || LoweringError::new(&site, message);
+    // Authenticate the admitted declaration in the defining catalog. Paired
+    // source rows naming the same unchecked machine confer no authority.
+    let forest = tree.forest();
+    let catalog = forest.library.unwrap_or(forest);
+    let core = catalog
+        .signatures
+        .iter()
+        .find(|signature| {
+            signature.catalog_supplied
+                && signature.machine.kind == NodeKind::Machine
+                && signature.machine.package == "@omega/toolchain"
+                && signature.machine.path == primitive.path()
+        })
+        .map(|signature| &signature.machine)
+        .ok_or_else(refuse)?;
+    let is_element_loan = |ty: &ValueType| matches!(ty, ValueType::Reference(actual, inner) if actual == &access && inner.as_ref() == element);
+    let mut selected = false;
+    let mut bounded = false;
+    let mut borrowed = false;
+    for row in tree.semantics_at(node) {
+        match row {
+            NodeSemantics::CollectionAccess(selection)
+                if !selected
+                    && selection.primitive == primitive
+                    && &selection.machine == core
+                    && &selection.element == element
+                    && selection.selector_carriers == [INDEX_TYPE]
+                    && is_element_loan(&selection.result) =>
+            {
+                selected = true
+            }
+            NodeSemantics::Obligation(obligation) => match &obligation.kind {
+                ObligationKind::CallPrecondition(machine) if !bounded && machine == core => bounded = true,
+                ObligationKind::Borrow { access: actual, place } if !borrowed && actual == &access && place == &receiver_site => borrowed = true,
+                _ => return Err(refuse()),
+            },
+            NodeSemantics::Expression(e)
+                if e.static_argument_slot.is_none() && (&e.ty == element || matches!(usage, IndexedPlaceUse::Store) && is_element_loan(&e.ty)) => {}
+            _ => return Err(refuse()),
+        }
+    }
+    if selected && bounded && borrowed { Ok(()) } else { Err(refuse()) }
 }

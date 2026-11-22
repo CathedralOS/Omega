@@ -7,7 +7,7 @@ use crate::{
 use omega_program_contracts::CollectionPrimitive;
 use omega_resolved::IndexedSource;
 use omega_syntax::NodeKind;
-use omega_typed::{Access, NodeSemantics, ObligationKind, Projection, ValueType};
+use omega_typed::{NodeSemantics, Projection, ValueType};
 
 pub(super) fn has_index(
     file: &IndexedSource<'_>,
@@ -106,7 +106,7 @@ pub(super) fn store(
             if step.projection != Some(Projection::Index(file.node_id(selector))) {
                 return Err(refuse(node, "indexed store lost its typed selector"));
             }
-            check_index(expressions, node, receiver, element)?;
+            super::access::check_indexed_place(tree, node, receiver, element, super::access::IndexedPlaceUse::Store)?;
             let ordinal = super::fixed_arrays::frozen_selector(expressions.prepared, tree, selector)
                 .ok()
                 .and_then(|value| u64::try_from(value).ok())
@@ -233,62 +233,4 @@ fn carrier_at<'a>(
             _ => None,
         })
         .ok_or_else(|| LoweringError::new(&site_at(expressions.tree, node), "indexed store lacks its typed destination carrier"))
-}
-
-fn check_index(
-    expressions: &Expressions<'_>,
-    node: usize,
-    receiver: usize,
-    element: &ValueType,
-) -> Result<(), LoweringError> {
-    let tree = expressions.tree;
-    let site = site_at(tree, node);
-    let receiver_site = site_at(tree, receiver);
-    let refuse = || LoweringError::new(&site, "indexed store lacks its exact core mutable element selection, loan or bound");
-
-    // Match the admitted toolchain declaration, including its complete
-    // resolved identity. A same-spelled helper or paired forged rows cannot
-    // turn a value observation into a writable place.
-    let forest = tree.forest();
-    let primitive = CollectionPrimitive::ElementMut;
-    let catalog = forest.library.unwrap_or(forest);
-    let core = catalog
-        .signatures
-        .iter()
-        .find(|signature| {
-            signature.catalog_supplied
-                && signature.machine.kind == NodeKind::Machine
-                && signature.machine.package == "@omega/toolchain"
-                && signature.machine.path == primitive.path()
-        })
-        .map(|signature| &signature.machine)
-        .ok_or_else(refuse)?;
-
-    let mut selected = false;
-    let mut bounded = false;
-    let mut borrowed = false;
-    for row in tree.semantics_at(node) {
-        match row {
-            NodeSemantics::CollectionAccess(access)
-                if !selected
-                    && access.primitive == primitive
-                    && &access.machine == core
-                    && &access.element == element
-                    && access.selector_carriers == [super::access::INDEX_TYPE]
-                    && matches!(&access.result, ValueType::Reference(Access::Mut, inner) if inner.as_ref() == element) =>
-            {
-                selected = true;
-            }
-            NodeSemantics::Obligation(o) => match &o.kind {
-                ObligationKind::CallPrecondition(machine) if !bounded && machine == core => bounded = true,
-                ObligationKind::Borrow { access: Access::Mut, place } if !borrowed && place == &receiver_site => borrowed = true,
-                _ => return Err(refuse()),
-            },
-            NodeSemantics::Expression(e)
-                if e.static_argument_slot.is_none()
-                    && (&e.ty == element || matches!(&e.ty, ValueType::Reference(Access::Mut, child) if child.as_ref() == element)) => {}
-            _ => return Err(refuse()),
-        }
-    }
-    if selected && bounded && borrowed { Ok(()) } else { Err(refuse()) }
 }
