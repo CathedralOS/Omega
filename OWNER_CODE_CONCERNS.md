@@ -75,6 +75,17 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Lowering and publication still link earlier source stages instead of reading their products
+
+- Category: Knowledge crossing a boundary
+- Where: [retained links](tools/xtask/src/boundary/linear_pipeline.rs), [lowering's re-export](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/lib.rs#L58), [publication's entry](source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/lib.rs#L43), [prepared input](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/prepare.rs#L63).
+- Saw: `check-boundary` now refuses a production link from one numbered source stage to another, with three exceptions that exist today.
+
+  - Lowering (05) links preparation (04) for one type, `PreparedTypedTrees`. That type is lowering's input, but it is defined inside the stage that builds it.
+  - Publication (07) links lowering (05) and the checker (06). Its entry function calls `LoweredSourcePublication::prepare` and `judge_publication` itself, so publication runs the two stages before it. Its input types `LoweredSourcePublication` and `CheckedPublication` are also defined inside those stages.
+- Cost: A stage that links its producer can call the code that made a decision instead of reading the result, and the dependency check cannot tell the two apart. Move the three product types under `source-to-psi/representations/`, keeping each constructor reachable only from its producing stage. Move the calls to lowering and the checker into the source driver. Then delete the three pairs from `RETAINED_SOURCE_STAGE_LINKS`.
+- Reported: 2026-11-22, Claude Code, while tightening the source stage dependency rule
+
 ### Three more portable filesystem calls mean different things on Windows and POSIX
 
 - Category: One idea, several implementations
