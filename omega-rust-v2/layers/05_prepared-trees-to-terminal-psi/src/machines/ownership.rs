@@ -29,6 +29,7 @@ pub(super) fn move_value(
     carrier: &ValueType,
     landing: Option<&ValueType>,
     body: &mut MachineBody,
+    flow: &super::branches::BlockFlow,
 ) -> Result<OperationResult, LoweringError> {
     let tree = expressions.tree;
     let file = tree.resolved().file;
@@ -63,7 +64,7 @@ pub(super) fn move_value(
     } else {
         node
     };
-    let (source, ty) = super::references::move_place(expressions, operand, body, landing.filter(|_| !explicit))?;
+    let (source, ty) = super::references::move_place(expressions, operand, body, flow, landing.filter(|_| !explicit))?;
     if ty != carrier {
         return Err(LoweringError::new(&site, "move source and result differ in type"));
     }
@@ -151,7 +152,7 @@ pub(super) fn decompose(
     let site = site_at(tree, pattern);
     let subject = file.ungroup(initializer);
     let (source, ty) = if file.nodes[subject].kind == NodeKind::PathExpression {
-        super::references::original_place(expressions, initializer, body)?
+        super::references::original_place(expressions, initializer, body, flow)?
     } else {
         // Evaluate the initializer once. An explicit move, field selection or call
         // produces the place the partition consumes. Its source keeps its own

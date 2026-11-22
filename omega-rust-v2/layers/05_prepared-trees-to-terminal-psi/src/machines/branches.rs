@@ -30,10 +30,24 @@ pub(crate) struct BlockFlow {
     // Binder identities, not spellings: only uses resolved in the successful arm
     // can refer to its backing, including in nested expression/terminal dispatch.
     pub(super) payload_bindings: std::collections::BTreeMap<usize, value_patterns::PayloadBinding>,
-    // An owned payload is copied into the selected arm before the arm can alter the subject.
-    pending_payload_captures: std::collections::BTreeMap<usize, Vec<(usize, value_patterns::PayloadPlace, Site)>>,
+    // An owned payload becomes a local in the selected arm before its subject can change.
+    pending_payload_captures: std::collections::BTreeMap<usize, Vec<PayloadCapture>>,
+    arm_owned_payloads: std::collections::BTreeMap<usize, Vec<PlaceId>>,
+    arm_owned_subjects: std::collections::BTreeMap<usize, PlaceId>,
     parameter: Option<crate::Parameter>,
     scalar_domain_invariants: Vec<crate::ScalarDomainInvariant>,
+}
+
+pub(super) enum PayloadCaptureMode {
+    Scalar,
+    Copy,
+    Transfer { owned: bool },
+}
+struct PayloadCapture {
+    binder: usize,
+    place: value_patterns::PayloadPlace,
+    site: Site,
+    mode: PayloadCaptureMode,
 }
 
 impl BlockFlow {
@@ -52,6 +66,8 @@ impl BlockFlow {
             operation_start: 0,
             payload_bindings: Default::default(),
             pending_payload_captures: Default::default(),
+            arm_owned_payloads: Default::default(),
+            arm_owned_subjects: Default::default(),
             parameter: None,
             scalar_domain_invariants: Vec::new(),
         }
@@ -63,8 +79,12 @@ impl BlockFlow {
         id
     }
 
-    pub(super) fn capture_payload(&mut self, arm: BlockId, binder: usize, place: value_patterns::PayloadPlace, site: Site) {
-        self.pending_payload_captures.entry(arm.get()).or_default().push((binder, place, site));
+    pub(super) fn capture_payload(&mut self, arm: BlockId, binder: usize, place: value_patterns::PayloadPlace, site: Site, mode: PayloadCaptureMode) {
+        self.pending_payload_captures.entry(arm.get()).or_default().push(PayloadCapture { binder, place, site, mode });
+    }
+
+    pub(super) fn retain_owned_subject_at_join(&mut self, arm: BlockId, subject: PlaceId) {
+        self.arm_owned_subjects.insert(arm.get(), subject);
     }
 
     pub(crate) fn open(
@@ -78,8 +98,20 @@ impl BlockFlow {
         self.parameter = parameter;
         self.scalar_domain_invariants.clear();
         if let Some(captures) = self.pending_payload_captures.remove(&id.get()) {
-            for (binder, place, site) in captures {
-                self.payload_bindings.insert(binder, value_patterns::PayloadBinding::Captured(place.emit(body, site)));
+            for PayloadCapture { binder, place, site, mode } in captures {
+                use value_patterns::PayloadBinding;
+                let binding = match mode {
+                    PayloadCaptureMode::Scalar => PayloadBinding::Scalar(place.emit(body, site)),
+                    PayloadCaptureMode::Copy => place.capture(body, site, false),
+                    PayloadCaptureMode::Transfer { owned } => {
+                        let binding = place.capture(body, site, true);
+                        if owned && let PayloadBinding::Structural(root) = binding {
+                            self.arm_owned_payloads.entry(id.get()).or_default().push(root);
+                        }
+                        binding
+                    }
+                };
+                self.payload_bindings.insert(binder, binding);
             }
         }
     }
@@ -130,6 +162,22 @@ impl BlockFlow {
         join
     }
 
+    pub(super) fn finish_match_arm(
+        &mut self,
+        body: &mut MachineBody,
+        arm: BlockId,
+        join: BlockId,
+        argument: Option<CallArgument>,
+        site: Site,
+    ) {
+        let captures = self.arm_owned_payloads.remove(&arm.get()).unwrap_or_default();
+        let mut cleanup: Vec<_> = captures.into_iter().rev().map(crate::CleanupAction::DiscardRoot).collect();
+        if let Some(subject) = self.arm_owned_subjects.remove(&arm.get()) {
+            cleanup.push(crate::CleanupAction::RetireHome(subject));
+        }
+        self.jump_with_cleanup(body, join, argument, cleanup, site);
+    }
+
     pub(crate) fn jump_with_result(
         &self,
         body: &mut MachineBody,
@@ -137,7 +185,19 @@ impl BlockFlow {
         argument: Option<CallArgument>,
         site: Site,
     ) {
+        self.jump_with_cleanup(body, join, argument, Vec::new(), site);
+    }
+
+    fn jump_with_cleanup(
+        &self,
+        body: &mut MachineBody,
+        join: BlockId,
+        argument: Option<CallArgument>,
+        cleanup: Vec<crate::CleanupAction>,
+        site: Site,
+    ) {
         let mut edge = successor(body, join, Vec::new(), site);
+        edge.cleanup = cleanup;
         match argument {
             Some(CallArgument::Scalar(value)) => edge.arguments.push(value),
             Some(input @ (CallArgument::CopyWhole(_) | CallArgument::MoveWhole(_))) => edge.structural_arguments.push(input),
@@ -323,7 +383,7 @@ fn enqueue_dispatch(
     }
     let tested = tested_dispatch(file, dispatch);
     let targets = if let Some(TestedDispatch::Literal { subject }) = tested {
-        let captured = match value_patterns::plan(expressions, subject, body)? {
+        let captured = match value_patterns::plan(expressions, subject, body, flow)? {
             value_patterns::SubjectPlan::EvaluateInteger(carrier) => {
                 let OperationResult::Scalar(value) = expressions.lower(subject, carrier, body, flow)? else {
                     return Err(unsupported_node(file, subject, "integer pattern needs a scalar subject"));

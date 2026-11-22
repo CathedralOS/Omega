@@ -1,3 +1,4 @@
+use super::branches::{BlockFlow, PayloadCaptureMode, value_patterns::PayloadBinding};
 use super::expressions::Expressions;
 use crate::{CallArgument, LoweringError, MachineBody, OperationResult, PlaceProjection, ProjectedPlace, site_at};
 use omega_resolved::Symbol;
@@ -25,6 +26,7 @@ pub(super) fn call_argument<'a>(
     node: usize,
     formal: &'a ValueType,
     body: &MachineBody,
+    flow: &BlockFlow,
 ) -> Result<CallOperand<'a>, LoweringError> {
     // A call names the regions it applies in its `CallRegions` row, and a
     // borrow operand has no descriptor place to list in
@@ -40,7 +42,7 @@ pub(super) fn call_argument<'a>(
             "a call operand bound to a declared region needs its binding",
         ));
     }
-    plan_reference(expressions, node, formal, body, true)
+    plan_reference(expressions, node, formal, body, flow, true)
 }
 
 /// The place a reference value at `node` lends, when the node names one: an
@@ -58,8 +60,9 @@ pub(super) fn reference_operand(
     node: usize,
     destination: &ValueType,
     body: &MachineBody,
+    flow: &BlockFlow,
 ) -> Result<Option<CallArgument>, LoweringError> {
-    match plan_reference(expressions, node, destination, body, false)?.passing {
+    match plan_reference(expressions, node, destination, body, flow, false)?.passing {
         ArgumentPassing::Ready(argument) => Ok(Some(argument)),
         ArgumentPassing::Value => Ok(None),
         ArgumentPassing::LendTemporary { .. } => unreachable!("only a call requested a producer"),
@@ -71,6 +74,7 @@ fn plan_reference<'a>(
     node: usize,
     destination: &'a ValueType,
     body: &MachineBody,
+    flow: &BlockFlow,
     call_operand: bool,
 ) -> Result<CallOperand<'a>, LoweringError> {
     let value = || CallOperand {
@@ -130,7 +134,7 @@ fn plan_reference<'a>(
         } else {
             PlaceUse::Original
         };
-        let (root, path, ty) = select_place(expressions, operand, body, usage, None)?;
+        let (root, path, ty) = select_place(expressions, operand, body, flow, usage, None)?;
         if ty != wanted {
             return Err(LoweringError::new(&occurrence, "borrowed field has the wrong referent type"));
         }
@@ -144,7 +148,7 @@ fn plan_reference<'a>(
             }
         }
     } else {
-        let (mut place, ty) = project_place(expressions, node, body, PlaceUse::Original, landing)?;
+        let (mut place, ty) = project_place(expressions, node, body, flow, PlaceUse::Original, landing)?;
         if ty != formal {
             return Err(LoweringError::new(&site_at(tree, node), "borrowed argument has the wrong reference type"));
         }
@@ -247,8 +251,9 @@ pub(super) fn original_place<'a>(
     expressions: &'a Expressions<'_>,
     node: usize,
     body: &MachineBody,
+    flow: &BlockFlow,
 ) -> Result<(ProjectedPlace, &'a ValueType), LoweringError> {
-    project_place(expressions, node, body, PlaceUse::Original, None)
+    project_place(expressions, node, body, flow, PlaceUse::Original, None)
 }
 
 /// `landing` is the destination the moved value's lifetime binding names,
@@ -257,19 +262,21 @@ pub(super) fn move_place<'a>(
     expressions: &'a Expressions<'_>,
     node: usize,
     body: &MachineBody,
+    flow: &BlockFlow,
     landing: Option<&ValueType>,
 ) -> Result<(ProjectedPlace, &'a ValueType), LoweringError> {
-    project_place(expressions, node, body, PlaceUse::Move, landing)
+    project_place(expressions, node, body, flow, PlaceUse::Move, landing)
 }
 
 fn project_place<'a>(
     expressions: &'a Expressions<'_>,
     node: usize,
     body: &MachineBody,
+    flow: &BlockFlow,
     usage: PlaceUse,
     landing: Option<&ValueType>,
 ) -> Result<(ProjectedPlace, &'a ValueType), LoweringError> {
-    let (root, path, ty) = select_place(expressions, node, body, usage, landing)?;
+    let (root, path, ty) = select_place(expressions, node, body, flow, usage, landing)?;
     let PlaceRoot::Bound(root) = root else {
         unreachable!("original places require a bound root")
     };
@@ -297,6 +304,7 @@ fn select_place<'a>(
     expressions: &'a Expressions<'_>,
     node: usize,
     body: &MachineBody,
+    flow: &BlockFlow,
     usage: PlaceUse,
     landing: Option<&ValueType>,
 ) -> Result<(PlaceRoot<'a>, Vec<PlaceProjection>, &'a ValueType), LoweringError> {
@@ -440,10 +448,30 @@ fn select_place<'a>(
                 fields.push(super::fixed_arrays::element_step(expressions, current, ty)?);
                 current = *base;
             }
-            (NodeKind::PathExpression, [], None) if copied.is_none() => {
+            (NodeKind::PathExpression, [], None) => {
                 let Some(Symbol::Binding { binder_node, .. }) = resolved.symbol(current) else {
                     return Err(LoweringError::new(&site, "reference root requires a bound place"));
                 };
+                if let Some(binding) = flow.payload_bindings.get(binder_node) {
+                    let prefix = match binding {
+                        PayloadBinding::Borrowed(payload)
+                            if expressions.types.id_for(ty).ok() == Some(payload.ty)
+                                && tree.forest().place_path(file.node_id(current)) == tree.forest().place_path(file.node_id(*binder_node))
+                                && copied.is_none_or(|carrier| carrier == ty) => payload.source.clone(),
+                        PayloadBinding::Structural(root)
+                            if copied.is_none() && expressions.types.id_for(ty).ok() == Some(body.places[root.index()].ty) =>
+                        {
+                            ProjectedPlace { root: *root, path: Vec::new() }
+                        }
+                        _ => return Err(LoweringError::new(&site, "payload binding disagrees with its selected place")),
+                    };
+                    let mut path = prefix.path;
+                    path.extend(fields.into_iter().rev());
+                    return Ok((PlaceRoot::Bound(prefix.root), path, selected_type.expect("each selected place has a type")));
+                }
+                if copied.is_some() {
+                    return Err(LoweringError::new(&site, "bound place carries an unrelated copy-read obligation"));
+                }
                 let source = expressions
                     .bindings
                     .iter()
@@ -474,6 +502,7 @@ pub(super) fn scalar_read<'a>(
     node: usize,
     carrier: &ValueType,
     body: &MachineBody,
+    flow: &BlockFlow,
 ) -> Result<(PlaceRoot<'a>, Vec<PlaceProjection>), LoweringError> {
     let tree = expressions.tree;
     let site = site_at(tree, node);
@@ -482,7 +511,7 @@ pub(super) fn scalar_read<'a>(
         .any(|row| matches!(row, NodeSemantics::Obligation(o) if matches!(&o.kind, ObligationKind::CopyRead(ty) if ty == carrier)));
     // Typing publishes CopyRead when the scalar comes through a loan. An owned
     // field has the same selected path and no loan to justify copying through.
-    let (root, path, selected) = select_place(expressions, node, body, PlaceUse::ScalarRead, None)?;
+    let (root, path, selected) = select_place(expressions, node, body, flow, PlaceUse::ScalarRead, None)?;
     if selected != carrier || borrowed_read != path.contains(&PlaceProjection::Referent) {
         return Err(LoweringError::new(
             &site,
@@ -524,12 +553,13 @@ pub(super) fn dispatch_cases(
     if expressions.data[owner.get() - 1].cases.is_empty() {
         return Ok(None);
     }
-    let (mut source, _) = original_place(expressions, subject, body)?;
+    let (mut source, _) = original_place(expressions, subject, body, flow)?;
     if borrowed {
         source.path.push(PlaceProjection::Referent);
     }
     let mut targets = Vec::with_capacity(arms.len());
     let mut tests = Vec::with_capacity(arms.len());
+    let mut transfers_owned_payload = false;
     for &arm in arms {
         let [pattern, expression] = *file.nodes[arm].children.as_slice() else {
             return Err(LoweringError::new(&site_at(tree, arm), "case arm requires a pattern and a body"));
@@ -560,14 +590,26 @@ pub(super) fn dispatch_cases(
                 let case = schema.ok_or_else(|| LoweringError::new(&site, "payload binding requires its selected case"))?;
                 let access = carrier.reference_parts().map(|(access, _)| access);
                 let (field, place) = super::branches::value_patterns::payload_place(expressions, subject, &source, case, access, child)?;
-                if !matches!(expressions.types.get(place.ty), Some(crate::TypeShape::PrimitiveScalar(_) | crate::TypeShape::QualifiedScalar { .. }))
-                    || tree.semantics_at(child).any(|row| !matches!(row, NodeSemantics::Field(selected) if selected == field)) {
-                    return Err(LoweringError::new(&site, "case payload binding requires scalar field extraction"));
+                if tree.semantics_at(child).any(|row| !matches!(row, NodeSemantics::Field(selected) if selected == field)) {
+                    return Err(LoweringError::new(&site, "payload binding disagrees with its typed field"));
+                }
+                if matches!(expressions.types.get(place.ty), Some(crate::TypeShape::Callable(_))) {
+                    return Err(LoweringError::new(&site, "case callable payload requires descriptor extraction"));
                 }
                 if source.path.contains(&PlaceProjection::Referent) {
-                    flow.payload_bindings.insert(child, super::branches::value_patterns::PayloadBinding::Borrowed(place));
+                    flow.payload_bindings.insert(child, PayloadBinding::Borrowed(place));
                 } else {
-                    flow.capture_payload(arm_block, child, place, site);
+                    let owned = super::ownership::owned(place.ty, expressions.types, expressions.data);
+                    transfers_owned_payload |= owned;
+                    let exclusive = matches!(expressions.types.get(place.ty), Some(
+                        crate::TypeShape::MutableElementView { .. } |
+                        crate::TypeShape::NominalReference { access: crate::ReferenceAccess::Mutable | crate::ReferenceAccess::WriteOnly, .. } |
+                        crate::TypeShape::ScalarReference { access: crate::ReferenceAccess::Mutable | crate::ReferenceAccess::WriteOnly, .. }
+                    ));
+                    let mode = if place.is_scalar(expressions.types) { PayloadCaptureMode::Scalar }
+                    else if owned || exclusive { PayloadCaptureMode::Transfer { owned } }
+                    else { PayloadCaptureMode::Copy };
+                    flow.capture_payload(arm_block, child, place, site, mode);
                 }
                 continue;
             }
@@ -587,6 +629,11 @@ pub(super) fn dispatch_cases(
         }
         targets.push((arm_block, expression));
         tests.push((pattern, selected));
+    }
+    if transfers_owned_payload {
+        for &(arm, _) in &targets {
+            flow.retain_owned_subject_at_join(arm, source.root);
+        }
     }
     if tests.last().is_some_and(|(_, case)| case.is_some()) {
         let roster = &expressions.data[owner.get() - 1].cases;
@@ -722,9 +769,10 @@ pub(super) fn store_place(
     // L3 already refused a store the source may not make. Which operation
     // represents an admitted store depends on the access of the deepest loan
     // it goes through, not on the permissions of the loans above it.
-    let (mut place, carrier) = original_place(expressions, node, body)?;
+    let (mut place, carrier) = original_place(expressions, node, body, flow)?;
     let mut projected = body.places[place.root.index()].ty;
     let mut deepest_loan = None;
+    let mut selected_case = None;
     for part in &place.path {
         projected = match (part, expressions.types.get(projected)) {
             (PlaceProjection::Referent, Some(crate::TypeShape::ScalarReference { referent, access })) => {
@@ -740,14 +788,17 @@ pub(super) fn store_place(
                 deepest_loan = Some(*access);
                 data[referent.get() - 1].carrier
             }
+            (PlaceProjection::Case(case), Some(crate::TypeShape::Nominal(id))) => {
+                selected_case = Some(data[id.get() - 1].cases.iter().find(|row| row.declaration == *case)
+                    .ok_or_else(|| LoweringError::new(&site, "store case does not belong to its sum"))?);
+                projected
+            }
             (PlaceProjection::Field(field), Some(crate::TypeShape::Nominal(id))) => {
                 let owner = &data[id.get() - 1];
                 // The complete path identifies each enclosing schema and its
                 // default domain. The checker decides which clauses the write
                 // invalidates and where the affected storage must be valid again.
-                owner
-                    .fields
-                    .iter()
+                selected_case.take().map_or(&owner.fields, |case| &case.fields).iter()
                     .find(|f| &f.declaration == field)
                     .ok_or_else(|| LoweringError::new(&site, "field replacement requires a concrete record field"))?
                     .carrier
