@@ -126,6 +126,7 @@ pub(crate) fn parse_member_suffix<'tokens, 'source>(
             receiver: expression,
             access_source_span,
             member,
+            position: None,
             case_variant: None,
         }));
     syntax_trees
@@ -820,6 +821,7 @@ fn spell_test_group_facet(
             receiver: owner,
             access_source_span: facet.source_span(),
             member: facet.clone(),
+            position: None,
             case_variant: None,
         }));
     syntax_trees

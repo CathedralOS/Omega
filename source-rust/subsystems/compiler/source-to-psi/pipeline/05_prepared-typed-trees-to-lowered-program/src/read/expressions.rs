@@ -1034,6 +1034,12 @@ impl<'t> Program<'t> {
                         SourceOrigin::of(arm.source_span),
                     )?))
                 }
+                // A record has no case to select. A pattern that decomposes
+                // it cannot fail, so its arm takes every value as `_` does.
+                MatchPattern::Destructure(pattern) if full_cases.is_empty() => {
+                    self.record_arm(id, record, pattern, SourceOrigin::of(arm.source_span))?;
+                    None
+                }
                 MatchPattern::Destructure(pattern) => Some(self.case_selector(
                     id,
                     slots,

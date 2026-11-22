@@ -29,7 +29,7 @@ pub use source_semantics::{
     BindingRelevance, CallOperationalAcknowledgement, CallOperationalAcknowledgementOrigin,
     CarryAddress, CarryCpu, CarryHostThread, CarryPermission, CarryPolicy, CarrySuspension,
     DataSupplyMode, DomainClassification, DomainPredicatePresence, LocalBindingRole, Multiplicity,
-    PatternComponent, ReferenceAccess,
+    PatternComponent, PatternSelector, ReferenceAccess,
 };
 
 pub mod activation_storage {

@@ -35,6 +35,7 @@ mod call_and_product_selections;
 mod constant_initializers;
 mod constructor_applications;
 mod contracts_and_signatures;
+mod data_patterns;
 mod declarations;
 mod domain_cast_accounting;
 mod equality_and_exhaustiveness;

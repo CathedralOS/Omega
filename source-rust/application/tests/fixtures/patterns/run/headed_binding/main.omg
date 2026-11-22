@@ -1,0 +1,12 @@
+data Pair { first: i32; second: i32; }
+data Other { first: i32; second: i32; }
+machine second_of(pair: @Pair) -> i32 {
+    let Pair { first as _, second } = pair;
+    second
+}
+machine main() crashes Trap {
+    let pair: Pair = Pair { first: 3, second: 7 };
+    transition second_of(@pair) == 7 { true -> done(), false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

@@ -69,13 +69,17 @@ impl ExpressionNode {
                         .joined_path_with_in(table, "::")
                 )
             }
-            Self::Member(member) => {
-                format!(
+            Self::Member(member) => match member.position {
+                Some(position) => format!(
+                    "{}.{position}",
+                    table.display_expression_name(member.receiver)
+                ),
+                None => format!(
                     "{}.{}",
                     table.display_expression_name(member.receiver),
                     member.member.as_str(table)
-                )
-            }
+                ),
+            },
             Self::Borrow(expression) => format!(
                 "{}{}",
                 expression.access.borrow_prefix(),

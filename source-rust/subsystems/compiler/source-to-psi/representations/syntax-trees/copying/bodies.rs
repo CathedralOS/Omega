@@ -770,6 +770,7 @@ impl SyntaxCopy<'_> {
             .iter()
             .map(|field| TableMatchField {
                 component: field.component,
+                selector: field.selector,
                 member: field.member.clone(),
                 action: match &field.action {
                     MatchFieldAction::Bind(binding) => MatchFieldAction::Bind(binding.clone()),
@@ -931,6 +932,7 @@ impl SyntaxCopy<'_> {
                 receiver: self.copy_expression_handle(other, member.receiver),
                 access_source_span: member.access_source_span,
                 member: member.member.clone(),
+                position: member.position,
                 case_variant: member.case_variant.clone(),
             }),
             ExpressionNode::Borrow(expression) => ExpressionNode::Borrow(TableBorrowExpression {

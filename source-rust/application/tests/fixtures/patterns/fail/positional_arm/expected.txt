@@ -1,0 +1,2 @@
+a positional pattern decomposes a record into its fields, and `shape` is the sum `Shape`: match its cases instead
+main.omg:18:10

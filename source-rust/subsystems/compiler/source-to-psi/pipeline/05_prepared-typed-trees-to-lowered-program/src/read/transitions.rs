@@ -116,6 +116,33 @@ impl Program<'_> {
                 guard,
                 Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
             )?),
+            // A pattern that decomposes a record cannot fail, so its arm is
+            // unconditional. Stage 01 has replaced each binding by a read of
+            // its field from the local that holds the subject.
+            (TransitionGuardNode::Always, [pattern])
+                if pattern.is_structural && !self.names_case(pattern) =>
+            {
+                let subject = self.expression(id, slots, pattern.subject, None)?;
+                let record = match self.opened(id, subject.result, Access::Read)? {
+                    Some(record) if self.data_type(id, record.record())?.cases().is_empty() => {
+                        record
+                    }
+                    _ => {
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Transition("destructuring pattern"),
+                        ));
+                    }
+                };
+                self.record_arm(
+                    id,
+                    record,
+                    &pattern.pattern,
+                    SourceOrigin::of(transition.source_span),
+                )?;
+                None
+            }
             (TransitionGuardNode::Always, [pattern]) => {
                 let condition = self.value_pattern(id, pattern)?;
                 Some(self.expression(
@@ -179,8 +206,33 @@ impl Program<'_> {
             .typed
             .statement_table
             .transition_patterns(transition.patterns);
-        matches!(patterns, [pattern] if pattern.pattern.head.is_valid())
+        matches!(patterns, [pattern] if pattern.pattern.head.is_valid()
+            && (self.names_case(pattern) || !pattern.is_structural))
             || self.empty_dispatch_subject(transition, patterns).is_some()
+    }
+
+    /// Whether a pattern's head names a case, which makes its arm one of a
+    /// sum dispatch. A head that names a record, and a positional pattern
+    /// with no head, decompose the one shape their subject has.
+    fn names_case(&self, pattern: &TransitionPattern) -> bool {
+        let head = pattern.pattern.head;
+        if !head.is_valid() {
+            return false;
+        }
+        let named = match self.typed.expression_table.expression(head) {
+            crate::source_state::expression::ExpressionNode::Name(path) => path.symbol,
+            _ => return true,
+        };
+        !(named.is_valid()
+            && self.typed.symbols.get(named).kind == symbols::SymbolKind::Data
+            && self
+                .typed
+                .unique_data_definition_by_symbol(named)
+                .is_some_and(|data| {
+                    self.typed.data_members(data).iter().all(|member| {
+                        matches!(member, crate::source_state::data::DataMember::Field(_))
+                    })
+                }))
     }
 
     fn empty_dispatch_subject(

@@ -1,0 +1,11 @@
+data Triple { first: i32; second: i32; third: i32; }
+machine first_of(triple: @Triple) -> i32 {
+    let (.., first) = triple;
+    first
+}
+machine main() crashes Trap {
+    let triple: Triple = Triple { first: 3, second: 7, third: 11 };
+    transition first_of(@triple) == 3 { true -> done(), false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

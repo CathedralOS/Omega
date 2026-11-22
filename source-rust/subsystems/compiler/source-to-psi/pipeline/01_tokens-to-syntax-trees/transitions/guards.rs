@@ -342,7 +342,8 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     subject: ExpressionHandle,
 ) -> Result<Option<(DispatchPattern, DestructureBindings)>, ParseError> {
-    if !input.at_name_like() {
+    let positional = crate::patterns::positional::starts_positional_arm(input);
+    if !positional && !input.at_name_like() {
         return Ok(None);
     }
 
@@ -362,6 +363,68 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         }
         None => (input, None),
     };
+
+    if positional {
+        // A positional pattern has no head: its subject's record gives each
+        // place its field once the subject is typed.
+        let (written, pattern_rest) =
+            crate::patterns::positional::parse_positional_pattern(syntax_trees, pattern_input)?;
+        if !pattern_rest.tokens.is_empty() {
+            return Err(pattern_rest.error_here("expected `if` or `->` after this pattern"));
+        }
+        let capture = syntax_trees.expressions.insert_transition_subject(subject);
+        let saved = syntax_trees
+            .expressions
+            .insert(ExpressionNode::SavedSubject(
+                syntax_trees::expression::TableSavedSubject {
+                    component: Default::default(),
+                    capture,
+                    pattern_head: Default::default(),
+                },
+            ));
+        let fields = written
+            .rows
+            .iter()
+            .filter_map(|row| match (&row.action, row.selector) {
+                (
+                    MatchFieldAction::Bind(binding),
+                    language_core::PatternSelector::Position(position),
+                ) => Some(DestructureBinding {
+                    component: row.component,
+                    binding: binding.clone(),
+                    member: Some(row.member.clone()),
+                    position: Some(position),
+                    case_variant: None,
+                }),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        let guard = if let Some(guard_input) = guard_input {
+            let (guard, rest) =
+                parse_expression_handle_without_struct_literals(syntax_trees, guard_input)?;
+            if !rest.tokens.is_empty() {
+                return Err(rest.error_here("expected transition pattern guard"));
+            }
+            rewrite_destructure_guard_expression(syntax_trees, guard, saved, &fields)
+        } else {
+            ExpressionHandle::invalid()
+        };
+        return Ok(Some((
+            DispatchPattern {
+                capture,
+                pattern: MatchPattern::Destructure(TableDestructurePattern {
+                    fields: syntax_trees.expressions.insert_match_fields(written.rows),
+                    has_rest: written.has_rest,
+                    guard,
+                    ..Default::default()
+                }),
+            },
+            DestructureBindings {
+                subject: saved,
+                fields,
+            },
+        )));
+    }
 
     let (path, after_path) = parse_path_handle_span(pattern_input, |member| {
         syntax_trees
@@ -399,6 +462,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         let fields = vec![DestructureBinding {
             binding,
             member: None,
+            position: None,
             component: Default::default(),
             case_variant: None,
         }];
@@ -472,6 +536,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
                 component,
                 binding,
                 member: Some(member),
+                position: None,
                 case_variant: None,
             })
         })

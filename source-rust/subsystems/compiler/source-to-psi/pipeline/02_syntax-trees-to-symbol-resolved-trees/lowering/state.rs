@@ -65,6 +65,7 @@ mod lexical_inputs {
                 use crate::source_resolved::expression::{MatchFieldAction, TableMatchField};
                 TableMatchField {
                     component: field.component,
+                    selector: field.selector,
                     member: crate::resolution::lowering::name::lower_name(syntax, &field.member),
                     field_symbol: SymbolHandle::invalid(),
                     action: match &field.action {

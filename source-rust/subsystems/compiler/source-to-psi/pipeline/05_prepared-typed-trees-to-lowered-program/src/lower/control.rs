@@ -125,7 +125,7 @@ impl Lowering<'_> {
         })
     }
 
-    fn jump(
+    pub(super) fn jump(
         &mut self,
         target: BlockId,
         arguments: Vec<ValueId>,

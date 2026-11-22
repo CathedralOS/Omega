@@ -540,6 +540,7 @@ mod statement_nodes {
                         receiver,
                         member_symbol: SymbolHandle::invalid(),
                         member: facet,
+                        position: None,
                         case_variant: None,
                     },
                 ));

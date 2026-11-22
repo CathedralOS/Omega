@@ -44,6 +44,7 @@ fn shared_case_subject_syntax() -> (SyntaxTrees, ExpressionHandle, ExpressionHan
             access_source_span: SourceSpan::new(SourceId(7), Span::new(11, 15)),
             receiver: subject,
             member: Identifier::generated("a"),
+            position: None,
             case_variant: Some(Identifier::generated("Both")),
         }));
     (source, membership, payload)
@@ -84,6 +85,7 @@ fn expression_copy_preserves_shared_subject_and_isolates_transactions() {
                 access_source_span: SourceSpan::new(SourceId(7), Span::new(11, 15)),
                 receiver: independent,
                 member: Identifier::generated("a"),
+                position: None,
                 case_variant: Some(Identifier::generated("Both")),
             }));
     let children =
@@ -1028,6 +1030,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
             receiver: self_value,
             access_source_span: Default::default(),
             member: Identifier::generated("take_non_negative"),
+            position: None,
             case_variant: None,
         }));
     let call = file.statements.insert(StatementNode::Call(TableCall {
@@ -1093,6 +1096,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
             access_source_span: SourceSpan::new(SourceId(7), Span::new(11, 15)),
             receiver: player,
             member: Identifier::generated("level"),
+            position: None,
             case_variant: None,
         }));
 
@@ -1103,6 +1107,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
             receiver: player,
             access_source_span: Default::default(),
             member: Identifier::generated("xp_required"),
+            position: None,
             case_variant: None,
         }));
     let nested_call = file

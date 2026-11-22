@@ -986,39 +986,9 @@ impl Program<'_> {
             .typed
             .expression_table
             .match_fields(local.pattern_fields);
-        let mut declared = source.fields.clone();
-        declared.sort_unstable_by_key(|field| (field.generation(), field.arena_index()));
-        if declared.windows(2).any(|fields| fields[0] == fields[1]) {
-            return Err(refused(Unserved::Spelling(
-                "record pattern over ambiguous field declarations",
-            )));
-        }
-        let mut used = vec![false; declared.len()];
-        for row in roster {
-            let field = row.field_symbol;
-            let position = field
-                .is_valid()
-                .then(|| {
-                    declared
-                        .binary_search_by_key(
-                            &(field.generation(), field.arena_index()),
-                            |candidate| (candidate.generation(), candidate.arena_index()),
-                        )
-                        .ok()
-                })
-                .flatten()
-                .ok_or_else(|| {
-                    refused(Unserved::Spelling("record pattern field without a symbol"))
-                })?;
-            if std::mem::replace(&mut used[position], true) {
-                return Err(refused(Unserved::Typing("record pattern repeats a field")));
-            }
-        }
-        if used.iter().any(|used| !used) {
-            return Err(refused(Unserved::Statement(
-                "record pattern that omits a field",
-            )));
-        }
+        // Typing has replaced a `..` by one waived row for each field it
+        // covers, so a `let` pattern's roster names every field.
+        record_roster_coverage(id, &source.fields, roster, false)?;
         let nominal = self
             .typed
             .unique_data_definition_by_symbol(source.declaration)
@@ -1045,6 +1015,64 @@ impl Program<'_> {
         } else {
             Ok(None)
         }
+    }
+
+    /// A dispatch arm whose pattern decomposes the record `record`:
+    /// `Pair { first as _, second } -> ...`, or the positional
+    /// `(_, second) -> ...` whose rows typing already gave their fields. A
+    /// record has one shape, so the pattern selects nothing: it is served
+    /// when it cannot fail, and the arm then takes every value like `_`.
+    /// Stage 01 has replaced each use of a binding by a read of its field.
+    ///
+    /// `wiki/spec/language/patterns.md`, "Data and case decomposition":
+    /// "Named patterns account for every field once; positional patterns have
+    /// the corresponding exact arity. An explicit `..` may waive the
+    /// remaining components."
+    pub(super) fn record_arm(
+        &self,
+        id: MachineId,
+        record: Opened,
+        pattern: &TableDestructurePattern,
+        at: SourceOrigin,
+    ) -> Checked<()> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Transition(what));
+        if pattern.application_type.is_valid() {
+            return Err(unserved("pattern of an applied type"));
+        }
+        if !pattern.proof_selectors.is_empty() {
+            return Err(unserved("pattern with proof selectors"));
+        }
+        if pattern.guard.is_valid() {
+            return Err(unserved("record arm with a guard"));
+        }
+        let source = self.source(id, record.record())?;
+        if pattern.head.is_valid() {
+            let named = match self.typed.expression_table.expression(pattern.head) {
+                ExpressionNode::Name(path) if !path.static_application.is_valid() => path.symbol,
+                _ => return Err(unserved("record pattern head that is not a name")),
+            };
+            if named != source.declaration {
+                return Err(crate::lowering::reject(
+                    id,
+                    at,
+                    format!(
+                        "this pattern names `{}`, which is not the record its subject holds: a \
+                         record pattern names its subject's own type",
+                        self.typed.expression_table.display_name(pattern.head)
+                    ),
+                ));
+            }
+        }
+        let roster = self.typed.expression_table.match_fields(pattern.fields);
+        for row in roster {
+            if row.component != language_core::PatternComponent::Fields {
+                return Err(unserved("pattern that binds its case"));
+            }
+            if matches!(row.action, MatchFieldAction::Equal(_)) {
+                return Err(unserved("record pattern that tests a field"));
+            }
+        }
+        record_roster_coverage(id, &source.fields, roster, pattern.has_rest)
     }
 
     /// A member the typed trees hold only as a spelling. It is an error
@@ -1690,6 +1718,50 @@ impl Program<'_> {
         }
         Ok(case)
     }
+}
+
+/// Whether the rows of a record pattern name each declared field at most
+/// once, and all of them unless the pattern ends in `..` (`waives_rest`).
+/// Coverage is read from the rows' field symbols and the record's own; no
+/// spelling is compared.
+fn record_roster_coverage(
+    id: MachineId,
+    fields: &[SymbolHandle],
+    roster: &[crate::source_state::expression::TableMatchField],
+    waives_rest: bool,
+) -> Checked<()> {
+    let refused = |what| refuse(id, Construct::Machine, what);
+    let mut declared = fields.to_vec();
+    declared.sort_unstable_by_key(|field| (field.generation(), field.arena_index()));
+    if declared.windows(2).any(|fields| fields[0] == fields[1]) {
+        return Err(refused(Unserved::Spelling(
+            "record pattern over ambiguous field declarations",
+        )));
+    }
+    let mut used = vec![false; declared.len()];
+    for row in roster {
+        let field = row.field_symbol;
+        let position = field
+            .is_valid()
+            .then(|| {
+                declared
+                    .binary_search_by_key(&(field.generation(), field.arena_index()), |candidate| {
+                        (candidate.generation(), candidate.arena_index())
+                    })
+                    .ok()
+            })
+            .flatten()
+            .ok_or_else(|| refused(Unserved::Spelling("record pattern field without a symbol")))?;
+        if std::mem::replace(&mut used[position], true) {
+            return Err(refused(Unserved::Typing("record pattern repeats a field")));
+        }
+    }
+    if !waives_rest && used.iter().any(|used| !used) {
+        return Err(refused(Unserved::Statement(
+            "record pattern that omits a field",
+        )));
+    }
+    Ok(())
 }
 
 /// Whether a data declaration is a plain record or a plain sum this slice

@@ -1113,6 +1113,7 @@ pub mod expression {
                 receiver: counter,
                 member_symbol: count_symbol,
                 member: DiagnosticName::generated("count"),
+                position: None,
                 case_variant: Some(DiagnosticName::generated("Full")),
             }));
             let borrowed = table.insert(ExpressionNode::Borrow(TableBorrowExpression {
@@ -1209,7 +1210,7 @@ expression #43 = Integer(IntegerLiteral { text: "3", landing: None }) at 0:0..0 
 expression #44 = Indexed(TableIndexedExpression { collection: #42, index: #43 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #45 = StructLiteral(TableStructLiteral { zero_omitted_fields: false, application_type: #0@0, type_name: "Room", type_symbol: #11, case_name: Some("Open"), case_symbol: Some(#12), fields: #4+3 }) at 7:60..65 exposure None partition None occurrences #0@0+0
 expression #46 = Name(TableNamePath { members: #14+1, member_symbols: #0@0+0, head_symbol: #0@0, symbol: #0@0, static_application: #0@0, reserved_result_of: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
-expression #47 = Member(TableMemberExpression { receiver: #46, member_symbol: #4, member: "count", case_variant: Some("Full") }) at 0:0..0 exposure None partition None occurrences #0@0+0
+expression #47 = Member(TableMemberExpression { receiver: #46, member_symbol: #4, member: "count", position: None, case_variant: Some("Full") }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #48 = Borrow(TableBorrowExpression { target: #47, access: Mutable }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #49 = Name(TableNamePath { members: #15+1, member_symbols: #8+1, head_symbol: #4, symbol: #4, static_application: #0@0, reserved_result_of: #0@0 }) at 0:0..0 exposure None partition None occurrences #0@0+0
 expression #50 = Atomic(TableAtomicExpression { value: #48, result: #49, ordering: Load(GlobalOrder), result_custody: Scalar }) at 0:0..0 exposure None partition None occurrences #0@0+0
@@ -2218,6 +2219,9 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub receiver: ExpressionHandle,
         pub member_symbol: SymbolHandle,
         pub member: DiagnosticName,
+        /// The read of a positional pattern's binding: the field at this
+        /// place in the receiver's declaration order. `member` is empty.
+        pub position: Option<u32>,
         pub case_variant: Option<DiagnosticName>,
     }
 
@@ -2482,6 +2486,10 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
     pub struct TableMatchField {
         pub component: language_core::PatternComponent,
+        /// How the row picks its field. Typing gives a positional row and a
+        /// final `..` the fields they select, so only this representation
+        /// and the syntax trees hold anything but `Name`.
+        pub selector: language_core::PatternSelector,
         pub member: DiagnosticName,
         pub field_symbol: SymbolHandle,
         pub action: MatchFieldAction,

@@ -97,6 +97,7 @@ coordinate_free!(
     source_text::Span,
     source_text::SourceBytes,
     language_core::PatternComponent,
+    language_core::PatternSelector,
     language_core::OperatorSpelling,
     numeric_literals::FloatFormat,
     numeric_literals::IntegerLiteral,

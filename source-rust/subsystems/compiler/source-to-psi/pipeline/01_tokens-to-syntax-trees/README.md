@@ -24,7 +24,7 @@ returns an error and leaves the input tokens intact.
 | [machine_bodies/states.rs](machine_bodies/states.rs) | Machine entries and states; `defaults.rs` handles trait defaults |
 | [transitions/blocks.rs](transitions/blocks.rs) | One dispatch per transition block, with subjects and ordered arm patterns, guards and targets |
 | [statements/sequence.rs](statements/sequence.rs), [parse.rs](statements/parse.rs) | Statement sequence and dispatch, then binding, destructuring and expression statements |
-| [patterns/fields.rs](patterns/fields.rs) | Destructure field entry and result; `bindings.rs` rewrites captured binding references |
+| [patterns/fields.rs](patterns/fields.rs) | Destructure field entry and result; `bindings.rs` rewrites captured binding references; [positional.rs](patterns/positional.rs) reads `(first, _, ..)`, recording each component's place and a final `..` as a row of its own |
 | [assembly/parse.rs](assembly/parse.rs) | Authored mnemonics, operands, labels and contracts. [Instruction preparation](../02_syntax-trees-to-symbol-resolved-trees/declarations/assembly/mod.rs) resolves their target behavior |
 | [token_input/cursor.rs](token_input/cursor.rs) | Source spans and lookahead across grammar tokens. The cursor retains trivia for newline-sensitive clauses. [delimiters.rs](token_input/delimiters.rs) handles balanced token ranges. |
 | [literals/numbers.rs](literals/numbers.rs) | Numeric value validation after lexical recognition |
@@ -60,6 +60,9 @@ helper tests remain registered with their owner, but their bodies live there too
 [tests/sample_files.rs](tests/sample_files.rs) checks sample source parsing.
 [tests/lexical_handoff.rs](tests/lexical_handoff.rs) checks that comments and
 whitespace between tokens move spans and change nothing else in the tree.
+[tests/positional_patterns.rs](tests/positional_patterns.rs) checks what a
+positional pattern and a final `..` hand to the next stage: each place, the
+two bytes of the `..`, and the reads of the bindings by place.
 Small fixtures use [tests/support/frontend_operations.rs](../../../../../tests/support/frontend_operations.rs)
 to construct complete stage inputs. Private grammar tests can still inspect
 partial construction directly.

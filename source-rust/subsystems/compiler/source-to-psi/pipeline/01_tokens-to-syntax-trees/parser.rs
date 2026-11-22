@@ -296,6 +296,7 @@ mod literals {
 mod patterns {
     pub(crate) mod bindings;
     pub(crate) mod fields;
+    pub(crate) mod positional;
 }
 mod types {
     pub(crate) mod properties;
