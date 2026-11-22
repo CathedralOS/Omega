@@ -316,9 +316,12 @@ impl Program<'_> {
                     }
                     None => None,
                 };
-                let index = index
-                    .result
-                    .and_then(|operand| self.operator_operand_reference(operand));
+                let index = match index.result {
+                    Some(operand) => {
+                        self.structural_operator_operand_reference(machine, indexed.index, operand)?
+                    }
+                    None => None,
+                };
                 self.complete_builtin_operator(machine, owner, expression, &[collection, index])
             }
             (
@@ -492,6 +495,24 @@ impl Program<'_> {
                 .is_empty()
             {
                 return Ok(());
+            }
+            if spelling == OperatorSpelling::Index
+                && let [Some(collection), Some(index)] = operands
+                && crate::source_state::operator::operator_operand_is_qualified(typed, *index)
+                    == Some(true)
+                && !crate::source_state::operator::has_scoped_operator_meaning(
+                    typed, owner, spelling, operands,
+                )
+            {
+                return Err(crate::lowering::reject(
+                    machine,
+                    crate::lowering::SourceOrigin::of(typed.expression_table.source_span(expression)),
+                    format!(
+                        "no `[]` declaration accepts collection `{}` and index `{}`; a qualified index requires an exactly matching parameter or an explicit domain cast",
+                        typed.display_type_reference_with_constraints(*collection),
+                        typed.display_type_reference_with_constraints(*index),
+                    ),
+                ));
             }
         }
         // The static evaluator supplies exact type-equality receipts; typed
