@@ -154,11 +154,23 @@ pub fn refuse_prepared(
     span: std::ops::Range<usize>,
     message: &str,
 ) -> LoweringError {
+    refuse_prepared_with_cli_message(prepared, files, file, span, message, message)
+}
+
+#[allow(dead_code)]
+pub fn refuse_prepared_with_cli_message(
+    prepared: &PreparedTrees,
+    files: &[(&str, &str)],
+    file: &str,
+    span: std::ops::Range<usize>,
+    message: &str,
+    cli_message: &str,
+) -> LoweringError {
     let expected = ExpectedRefusal {
         file,
         span,
         message,
-        cli_message: message,
+        cli_message,
         package_owner: None,
     };
     lower_and_report(prepared, files, "prepared", Some(&expected)).expect_err("expected L5 to refuse")

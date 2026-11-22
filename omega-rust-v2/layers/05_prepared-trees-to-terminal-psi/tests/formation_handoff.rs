@@ -259,8 +259,16 @@ fn zero_field_cannot_supply_a_reference() {
     let file = "zero_field.omg";
     let literal = "Options::<'r>{count:1,..}";
     let source = "data Options<'r>{count:u8;handle:@'r u8;} machine build<'r>(){let options=Options::<'r>{count:1,..};}";
-    let (obligations, error) = refusal(file, source, sources::unique_span(source, literal),
-        "omitted field `Options::handle` of type `@u8 at app\\build<parameter 0>` needs a borrowed reference, which `..` never supplies");
+    let (obligations, error) = with_prepared(file, source, |prepared| {
+        sources::refuse_prepared_with_cli_message(
+            prepared,
+            &[(file, source)],
+            file,
+            sources::unique_span(source, literal),
+            "omitted field `Options::handle` of type `@u8 at app\\build<parameter 0>` needs a borrowed reference, which `..` never supplies",
+            "omitted field `Options::handle` of type `@u8 at root\\build<parameter 0>` needs a borrowed reference, which `..` never supplies",
+        )
+    });
     assert!(obligations.iter().any(|o| matches!(o.kind, ObligationKind::ZeroField {..}) && o.site == error.site));
     assert!(
         obligations
