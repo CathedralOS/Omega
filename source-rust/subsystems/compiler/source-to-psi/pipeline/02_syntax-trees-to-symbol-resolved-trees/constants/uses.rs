@@ -1,13 +1,12 @@
-/* Substituting resolved constants into expressions. */
+//! Bind each constant use to the declaration visible at that source location.
 
 use crate::resolution::constants::declaration_values::selected_expression_constant;
 use crate::resolution::tables::body_expressions;
 use crate::source_resolved::SymbolResolvedTrees;
 use diagnostics::Diagnostic;
 use symbols::SymbolKind;
-use syntax_trees::item::ConstDefinition;
 
-pub(crate) fn substitute_resolved_constants(
+pub(crate) fn bind_constant_uses(
     program: &mut SymbolResolvedTrees,
     authored: &[crate::resolution::lowering::lowerer::PendingAuthoredExpression],
     selections: &mut Vec<crate::resolution::lowering::lowerer::PendingConstSelection>,
@@ -144,12 +143,14 @@ pub(crate) fn substitute_resolved_constants(
             .with_source_span(reference));
         }
         let initializer = declaration.initializer;
-        if declaration.evaluated_value.is_some() && (!body_expressions(program).expression_is_valid(initializer)
+        if mode != crate::resolution::lowering::lowerer::ConstResolutionMode::ArgumentSelection
+            && declaration.evaluated_value.is_some()
+            && (!body_expressions(program).expression_is_valid(initializer)
             || program.tables.bodies.expressions.source_span(initializer)
                 != declaration.initializer_source_span)
         {
             return Err(Diagnostic::error(
-                "constant substitution lost its exact declaration initializer",
+                "constant use selected a declaration with a missing or mismatched initializer",
             )
             .with_source_span(reference));
         }
@@ -189,19 +190,4 @@ pub(crate) fn substitute_resolved_constants(
         );
     }
     Ok(())
-}
-
-pub(crate) fn semantic_const_name(
-    syntax_trees: &syntax_trees::SyntaxTrees,
-    definition: &ConstDefinition,
-) -> String {
-    if definition.scope.as_str(syntax_trees).is_empty() {
-        definition.name.as_str(syntax_trees).to_owned()
-    } else {
-        format!(
-            "{}::{}",
-            definition.scope.as_str(syntax_trees),
-            definition.name.as_str(syntax_trees)
-        )
-    }
 }

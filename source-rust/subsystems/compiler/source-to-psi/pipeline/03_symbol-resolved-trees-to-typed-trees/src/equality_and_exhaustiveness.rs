@@ -1731,21 +1731,15 @@ pub(crate) mod exhaustiveness {
         }
     }
 
-    pub(crate) fn closed_boolean_guard(
-        program: &SymbolResolvedTrees,
-        expression: ExpressionHandle,
-    ) -> Option<bool> {
-        let expressions = &program.tables.bodies.expressions;
-        match expressions.expression(expression) {
+    fn boolean_value(program: &SymbolResolvedTrees, expression: ExpressionHandle) -> Option<bool> {
+        use application_identity::const_value::{DecodedCanonicalConstValue, decode_declaration_value};
+        match program.tables.bodies.expressions.expression(expression) {
             ExpressionNode::Boolean(value) => Some(*value),
-            ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
-                match (
-                    expressions.expression(binary.left),
-                    expressions.expression(binary.right),
-                ) {
-                    (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => {
-                        Some(left == right)
-                    }
+            ExpressionNode::Name(path) => {
+                let declaration = program.const_declaration(path.symbol)?;
+                let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
+                match decode_declaration_value(encoding)? {
+                    DecodedCanonicalConstValue::Boolean(value) => Some(value),
                     _ => None,
                 }
             }
@@ -1753,19 +1747,16 @@ pub(crate) mod exhaustiveness {
         }
     }
 
-    fn closed_boolean_guard_through_names(
+    pub(crate) fn closed_boolean_guard(
         program: &SymbolResolvedTrees,
         expression: ExpressionHandle,
     ) -> Option<bool> {
-        if let Some(value) = closed_boolean_guard(program, expression) {
-            return Some(value);
+        match program.tables.bodies.expressions.expression(expression) {
+            ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
+                Some(boolean_value(program, binary.left)? == boolean_value(program, binary.right)?)
+            }
+            _ => boolean_value(program, expression),
         }
-        let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(expression)
-        else {
-            return None;
-        };
-        let declaration = program.const_declaration(path.symbol)?;
-        closed_boolean_guard(program, declaration.initializer)
     }
 
     fn classify_arm(scope: &DispatchScope<'_>, guard: &TransitionGuardNode) -> ArmShape {
@@ -1796,43 +1787,14 @@ pub(crate) mod exhaustiveness {
                 program.tables.bodies.expressions.expression(conjunct)
             {
                 if binary.operator == BinaryOperator::Equal {
-                    if let ExpressionNode::Boolean(value) =
-                        program.tables.bodies.expressions.expression(binary.right)
-                    {
-                        let value = *value;
-                        if let Some(subject) =
-                            closed_boolean_guard_through_names(program, binary.left)
-                        {
-                            return if subject == value {
-                                ArmShape::Default
-                            } else {
-                                ArmShape::Opaque
-                            };
+                    for (subject, pattern) in [(binary.left, binary.right), (binary.right, binary.left)] {
+                        if let Some(value) = boolean_value(program, pattern) {
+                            return ArmShape::Finite(vec![FiniteConstraint::Bool {
+                                subject,
+                                epoch: 0,
+                                value,
+                            }]);
                         }
-                        return ArmShape::Finite(vec![FiniteConstraint::Bool {
-                            subject: binary.left,
-                            epoch: 0,
-                            value,
-                        }]);
-                    }
-                    if let ExpressionNode::Boolean(value) =
-                        program.tables.bodies.expressions.expression(binary.left)
-                    {
-                        let value = *value;
-                        if let Some(subject) =
-                            closed_boolean_guard_through_names(program, binary.right)
-                        {
-                            return if subject == value {
-                                ArmShape::Default
-                            } else {
-                                ArmShape::Opaque
-                            };
-                        }
-                        return ArmShape::Finite(vec![FiniteConstraint::Bool {
-                            subject: binary.right,
-                            epoch: 0,
-                            value,
-                        }]);
                     }
                 }
                 if matches!(

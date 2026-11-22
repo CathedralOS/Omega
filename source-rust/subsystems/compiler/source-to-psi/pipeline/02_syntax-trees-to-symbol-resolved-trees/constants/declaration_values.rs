@@ -1,7 +1,6 @@
 /* Public declaration value encodings and validated initializers. */
 
 use crate::resolution::constants::initializer_normalization;
-use crate::resolution::constants::substitution::semantic_const_name;
 use crate::resolution::declarations::generic_data::{
     canonicalize_selected_declared_const_definition, const_destination_requires_proof,
 };
@@ -247,7 +246,7 @@ fn validate_scalar_initializer(
 }
 
 /*
-    Declaration validity precedes all use-site substitution, including unused
+    Declaration validity precedes binding constant uses, including unused
     private declarations. Namespace and case collisions are checked later against
     exact symbols; lexical locals do not make a constant declaration ambiguous.
 */
@@ -375,7 +374,7 @@ fn has_scalar_initializer(syntax: &SyntaxTrees, definition: &ConstDefinition) ->
 
 /*
     Select a constant through the ordinary source-scoped path before its value
-    is substituted. Initializer dependency discovery uses the same selection:
+    is read. Initializer dependency discovery uses the same selection:
     module body names need not yet carry their finalized constant ledger rows.
 */
 pub(crate) fn selected_expression_constant(
@@ -492,4 +491,19 @@ fn invalid_literal_initializer(
             .expression(value)
             .display_name(syntax_trees),
     )))
+}
+
+pub(crate) fn semantic_const_name(
+    syntax_trees: &syntax_trees::SyntaxTrees,
+    definition: &ConstDefinition,
+) -> String {
+    if definition.scope.as_str(syntax_trees).is_empty() {
+        definition.name.as_str(syntax_trees).to_owned()
+    } else {
+        format!(
+            "{}::{}",
+            definition.scope.as_str(syntax_trees),
+            definition.name.as_str(syntax_trees)
+        )
+    }
 }

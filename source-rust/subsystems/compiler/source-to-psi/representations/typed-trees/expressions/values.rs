@@ -4532,11 +4532,9 @@ pub mod expression {
                 }
         }
 
-        /// Preserve the captured input storage while materialization appends
-        /// output rows and replaces only its separately authenticated value
-        /// occurrences. Equal expression nodes alone do not preserve an input:
-        /// their spans can still name overwritten argument or capture rows.
-        /// The caller joins the source owner and approved node substitutions.
+        /// Materializing a constant may append its value and its children.
+        /// Every expression already present must still have the same meaning,
+        /// including the rows that its handles refer to.
         pub fn retains_input_storage(&self, source: &Self) -> bool {
             fn rows<T: Default + PartialEq>(current: &Arena<T>, source: &Arena<T>) -> bool {
                 super::retains_input_rows(current, source, |_, current, original| {
@@ -4563,7 +4561,7 @@ pub mod expression {
                         expected.construction_required_type =
                             current.metadata.construction_required_type;
                     }
-                    expected == current.metadata
+                    expected == current.metadata && original.node == current.node
                 },
             ) {
                 return false;

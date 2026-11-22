@@ -1,22 +1,10 @@
 /*
-    Constant substitution and exact const-index declaration custody; value contract: wiki/spec/language/constants.md.
+    Each use of a constant names its selected declaration. An aggregate's
+    constructors and fields are resolved in the declaration's source scope.
+    Typing retains the declared type, and the source driver evaluates a
+    computational initializer once for the deployments that request it.
 
-    Closed values substitute only after resolution has selected their exact
-    declaration. A computational initializer instead remains an ordinary named
-    request: copying its call into every use would execute it at runtime.
-    Typing retains that initializer and its declared destination, and the
-    accepted invocation evaluator later supplies its canonical value and actual
-    receipt before uses are materialized. Resolution supplies no acceptance for
-    that computation. The symbol table preserves declaration provenance for
-    authored-selection and package-authority checks.
-
-    Scalar and closed aggregate literals substitute
-    only after the shared resolver has selected their namespace and lexical
-    binding. Detached initializer roots resolve constructors and fields in their
-    declaring source. Each use deep-copies aggregate children and carries both
-    that declaration-side selection custody and its own constant-use occurrence.
-    Root and module declarations use this same path; no pre-resolution spelling
-    substitution or whole-forest local-shadowing restriction is needed. Module-owned scoped declarations
+    Module-owned scoped declarations
     additionally select an exact nongeneric carrier under their declaring
     source's ordinary name law: a module-local carrier outranks imported and
     unmoduled candidates, and an exact import exposes a foreign-module carrier.
@@ -53,7 +41,7 @@
     This module decides which initializers need evaluation and finalizes
     constants. `initializer_leaves` collects pending initializer leaves
     and their selected destinations, `declaration_values` validates and
-    retains declaration values, `substitution` substitutes resolved
+    retains declaration values, `uses` substitutes resolved
     constants, `selections` finalizes const selections and arguments,
     `normalized_expressions` validates normalized expressions,
     `scalar_carriers` classifies selected builtin scalar atoms and
@@ -74,7 +62,7 @@ pub(crate) use initializer_normalization::constant_initializer_owns_selection;
 mod normalized_expressions;
 mod scalar_carriers;
 mod selections;
-mod substitution;
+mod uses;
 
 pub(crate) use declaration_values::{
     evaluated_declaration_value, retain_const_initializer, selected_expression_constant,
@@ -92,7 +80,8 @@ pub(crate) use scalar_carriers::{is_builtin_scalar_carrier, is_structural_scalar
 pub(crate) use selections::{
     finalize_const_argument_selections, finalize_const_declarations, finalize_const_selections,
 };
-pub(crate) use substitution::{semantic_const_name, substitute_resolved_constants};
+pub(crate) use declaration_values::semantic_const_name;
+use uses::bind_constant_uses;
 
 use crate::resolution::lowering::lowerer::Lowerer;
 use crate::resolution::names::assign_constant_expression_symbols;
@@ -195,7 +184,7 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
     let initializer_custody =
         initializer_normalization::finalize(program, &lowerer.pending_const_initializers)
             .map_err(|diagnostic| vec![diagnostic])?;
-    substitute_resolved_constants(
+    bind_constant_uses(
         program,
         &lowerer.pending_authored_expressions,
         &mut lowerer.pending_const_selections,

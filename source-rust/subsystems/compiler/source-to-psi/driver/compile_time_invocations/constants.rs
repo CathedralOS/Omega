@@ -132,7 +132,7 @@ pub fn validate_constant_evaluations(
         return Ok(());
     }
     // A constant invocation may add expressions to materialize its result.
-    // The original use must still name the declaration selected in its source.
+    // All expressions from before the first invocation must stay intact.
     let mut original_source = None;
     for record in accounting.receipts() {
         if let PureEvaluationRecord::Invocation(receipt) = record
@@ -150,7 +150,6 @@ pub fn validate_constant_evaluations(
     {
         return Err("constant receipt has changed expression input storage".into());
     }
-    let original_uses = original_source.map(|source| named_uses(source, &wanted));
     // Reuse one comparison program for all constants so its owned tables are
     // copied once for this validation.
     let mut comparison = program.clone();
@@ -251,25 +250,12 @@ pub fn validate_constant_evaluations(
             {
                 return Err("constant value differs from its accepted invocation outcome".into());
             }
-            let uses = original_uses
-                .as_ref()
-                .map(|rows| rows[index].as_slice())
-                .unwrap_or_default();
             if !program.canonical_const_materialization_matches(
                 constant.declared_type,
                 constant.materialized_initializer,
                 &value,
             ) {
                 return Err("constant materialization differs from its invocation outcome".into());
-            }
-            for &expression in uses {
-                if !program.expression_table.expression_is_valid(expression)
-                    || !program.expression_table.name_path_node(expression).is_some_and(|path|
-                        program.named_const_declaration(path).is_some_and(|selected|
-                            selected.symbol == constant.symbol))
-                {
-                    return Err("constant use differs from its selected declaration".into());
-                }
             }
         }
     }
@@ -531,47 +517,6 @@ fn decode_snapshot_fields<'a>(
             ))
         })
         .collect()
-}
-
-fn named_uses(program: &TypedTrees, constants: &[SymbolHandle]) -> Vec<Vec<ExpressionHandle>> {
-    // Authored initializers remain source correspondence. Visit ordinary
-    // declarations and emitted initializer machines, not those originals.
-    struct Uses(References);
-    impl Extend<SymbolHandle> for Uses {
-        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
-    }
-    impl TypedReferences for Uses {
-        fn derived_declaration_references(&self) -> bool {
-            false
-        }
-        fn declaration(&mut self, symbol: SymbolHandle) -> bool {
-            self.0.symbols.contains(&symbol)
-        }
-        fn expression(&mut self, expression: ExpressionHandle) -> bool {
-            insert_expression(&mut self.0.expressions, expression)
-        }
-    }
-    let mut uses = Uses(References {
-        symbols: program
-            .machines()
-            .iter()
-            .map(|machine| machine.symbol)
-            .collect(),
-        ..Default::default()
-    });
-    crate::source_state::references::visit_program(program, &mut uses);
-    let mut named = vec![Vec::new(); constants.len()];
-    for expression in uses.0.expressions {
-        // An attached constant is the leaf of a value path. Its head
-        // names the qualifying carrier or module.
-        if let Some(path) = program.expression_table.name_path_node(expression)
-            && !path.static_application.is_valid()
-            && let Some(index) = family_position(constants, path.symbol)
-        {
-            named[index].push(expression);
-        }
-    }
-    named
 }
 
 #[cfg(test)]

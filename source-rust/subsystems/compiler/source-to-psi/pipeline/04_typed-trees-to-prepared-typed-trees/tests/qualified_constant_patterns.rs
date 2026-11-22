@@ -51,7 +51,7 @@ fn each_qualified_pattern_arrives_with_its_own_declaration_and_value() {
             demanded.sort();
             assert_eq!(demanded, ["east\\ON", "west\\ON"], "{initializer:?}");
 
-            // Each use names the declaration of the path written there . The literal `true` in `plain`
+            // Each use names the declaration of the path written there. The literal `true` in `plain`
             // is not among them: it selects no constant.
             let uses = constant_uses(trees);
             let [eastern, western] = uses.as_slice() else {
