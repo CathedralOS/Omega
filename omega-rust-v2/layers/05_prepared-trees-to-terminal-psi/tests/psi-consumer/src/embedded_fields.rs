@@ -107,6 +107,7 @@ pub fn parked_replacement_origin(package: &LoweredPackage) -> Option<&EmbeddedLo
 pub fn check_constructed_field(
     package: &LoweredPackage,
     selected_slot: usize,
+    access: ReferenceAccess,
 ) -> Result<(), &'static str> {
     use omega_psi::{OperationKind, OperationResult, ValueOperand};
     let body = &super::machine(package, "forward").ok_or("missing caller")?.body;
@@ -131,7 +132,11 @@ pub fn check_constructed_field(
         return Err("expected constructed record");
     };
     let [field] = fields.as_slice() else { return Err("expected one initializer") };
-    if field.field.path != "Holder::r" || field.operand != ValueOperand::CopyWhole(*formal) {
+    let operand = match access {
+        ReferenceAccess::Shared => ValueOperand::CopyWhole(*formal),
+        ReferenceAccess::Mutable | ReferenceAccess::WriteOnly => ValueOperand::MoveWhole(*formal),
+    };
+    if field.field.path != "Holder::r" || field.operand != operand {
         return Err("wrong initializer");
     }
     let [loan] = owner.embedded_loans.as_slice() else {
@@ -139,7 +144,7 @@ pub fn check_constructed_field(
     };
     if loan.path != [PlaceProjection::Field(field.field.clone())]
         || loan.ty != body.places[formal.index()].ty
-        || loan.access != ReferenceAccess::Shared
+        || loan.access != access
         || loan.origins
             != [EmbeddedLoanOrigin {
                 arrival: Vec::new(),

@@ -280,22 +280,26 @@ impl Expressions<'_> {
         value.into_call_argument(site)
     }
 
-    /// The operand a match arm supplies to its join parameter. An exclusive
-    /// descriptor is affine: the edge transfers the arm's descriptor, so the
-    /// join parameter becomes its only name and the arm's source binding is
-    /// consumed on that arrival. The checker judges any later use of it.
-    fn join_argument(
+    /// A new field or join parameter receives an exclusive descriptor by move.
+    /// Its place still identifies the operation or formal that supplied the loan.
+    pub(super) fn transfer_argument(
         &self,
         value: OperationResult,
-        carrier: &ValueType,
+        ty: TypeId,
         body: &MachineBody,
         site: &Site,
     ) -> Result<CallArgument, LoweringError> {
-        if crate::lowering::types::is_exclusive_descriptor(carrier) {
-            let OperationResult::Structural(place) = value else {
-                return Err(LoweringError::new(site, "an exclusive descriptor arm must supply a structural descriptor"));
+        use crate::{ReferenceAccess, TypeShape};
+        if matches!(
+            self.types.get(ty),
+            Some(TypeShape::MutableElementView { .. }
+                | TypeShape::ScalarReference { access: ReferenceAccess::Mutable | ReferenceAccess::WriteOnly, .. }
+                | TypeShape::NominalReference { access: ReferenceAccess::Mutable | ReferenceAccess::WriteOnly, .. })
+        ) {
+            let OperationResult::Structural(source) = value else {
+                return Err(LoweringError::new(site, "exclusive loan transfer requires a descriptor place"));
             };
-            return Ok(CallArgument::MoveWhole(place));
+            return Ok(CallArgument::MoveWhole(source));
         }
         self.value_argument(value, body, site)
     }
@@ -537,7 +541,7 @@ impl Expressions<'_> {
                     let site = site_at(file, expression);
                     let argument = match (ty, value) {
                         (None, OperationResult::Unit) => None,
-                        (Some(_), _) => Some(self.join_argument(value, carrier, block, &site)?),
+                        (Some(ty), _) => Some(self.transfer_argument(value, ty, block, &site)?),
                         _ => return Err(LoweringError::new(&site, "unit match arm produced a value")),
                     };
                     flow.finish_match_arm(block, arm, join, argument, site);
