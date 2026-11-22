@@ -128,16 +128,4 @@ framework or a list of unimplemented features.
 - Cost: A stage that links its producer can call the code that made a decision instead of reading the result, and the dependency check cannot tell the two apart. Move the three product types under `source-to-psi/representations/`, keeping each constructor reachable only from its producing stage. Move the calls to lowering and the checker into the source driver. Then delete the three pairs from `RETAINED_SOURCE_STAGE_LINKS`.
 - Reported: 2026-11-22, Claude Code, while tightening the source stage dependency rule
 
-### Three more portable filesystem calls mean different things on Windows and POSIX
-
-- Category: One idea, several implementations
-- Where: [portable service contract](wiki/spec/build/platform_services.md), [timestamp conversion](source/library/std/targets/windows_x86_64/filesystem/metadata.omg#L120), [portable directory entry](source/library/std/filesystem.omg#L66), [Windows name conversion](source/library/std/targets/windows_x86_64/windows_filesystem_directory_entry.omg#L143), [Windows transfer counts](source/library/std/targets/windows_x86_64/windows_filesystem_transfer.omg#L78), [POSIX adapter](source/library/std/posix_filesystem_adapter.omg#L528), [reviewed differences](tools/ratchets/portable_services.txt).
-- Saw: The portable contract promises identical behavior across targets. The current adapters differ in three places.
-
-  - Windows refuses times at or before the 1601 epoch and above 1,833,029,933,770 Unix seconds. POSIX forwards signed seconds to the host, which can still refuse a particular time.
-  - Windows refuses a decoded directory entry name longer than 256 UTF-8 bytes. The portable `DirEntry.name` also has a 256-byte capacity. A legal NTFS name can need more space than either provides.
-  - A plain read or write with a valid buffer and count above `u32::MAX` is refused on Windows. The same limit applies to positioned reads, positioned writes and copy. POSIX can return a short transfer. Windows `write_all` already chunks its requests.
-- Cost: A program using the same portable call encounters different limits. Set a common contract or reconcile the adapters, then remove the corresponding `known` rows. Plain read and write have no such rows today.
-- Reported: 2026-11-16, Claude Code, while piloting a cross-target library diff
-
 <a id="a-build-wide-flag-admits-machine-control-for-every-output"></a>
