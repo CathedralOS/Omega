@@ -73,24 +73,7 @@ use terminal_semantics::descriptor_lifetimes::{
 
 use super::{Backing, Storage, index, lineage};
 
-/// Why two loans of one call may not both be formed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LoanConflict {
-    /// Both loans are exclusive.
-    TwiceExclusive,
-    /// One is exclusive and the other shared.
-    ExclusiveAndShared,
-    /// An exclusive loan of storage this machine holds only shared.
-    ExclusiveOfShared,
-    /// Observation bypasses a live exclusive descriptor.
-    ObserveWhileExclusive,
-    /// A write or move conflicts with a retained loan.
-    ChangeWhileBorrowed,
-    /// A parent is disposed before its children close.
-    ReleaseBeforeChildren,
-    /// The actual projected source does not grant the requested access.
-    AccessExceedsParent,
-}
+pub use terminal_check_tables::LoanConflict;
 
 /// A loan that may not be formed: its row, optional call invocation and
 /// argument position. A persistent reference has its own formation operation
@@ -1845,6 +1828,24 @@ impl<'a> Storage<'a> {
         Ok(relevant)
     }
 
+    fn successor_conflict(&self, at: Construct, conflict: LoanConflict) -> Refusal {
+        let detail = match conflict {
+            LoanConflict::TwiceExclusive => {
+                "the successor would borrow one place as mutable more than once"
+            }
+            LoanConflict::ExclusiveAndShared => {
+                "the successor would borrow one place as both mutable and read-only"
+            }
+            _ => "the successor borrow exceeds its source permission",
+        };
+        crate::checking::refusal(
+            RefusalReason::ConflictingLoan(conflict),
+            self.machine,
+            at,
+            detail,
+        )
+    }
+
     /// An edge transports the original borrow, not a fresh incoming resource.
     /// Capture all actuals before binding names or cleaning the old frontier.
     fn successor_borrows(
@@ -1909,18 +1910,7 @@ impl<'a> Storage<'a> {
                         if let Some(conflict) =
                             competing_borrows(access, &backing, *other_access, other)
                         {
-                            let detail = match conflict {
-                                LoanConflict::TwiceExclusive => {
-                                    "successor arguments duplicate an exclusive borrow"
-                                }
-                                _ => "successor arguments overlap shared and exclusive borrows",
-                            };
-                            return Err(crate::checking::refusal(
-                                RefusalReason::Conflict,
-                                self.machine,
-                                concerns,
-                                detail,
-                            ));
+                            return Err(self.successor_conflict(concerns, conflict));
                         }
                     }
                     for loan in formed {
@@ -1928,25 +1918,11 @@ impl<'a> Storage<'a> {
                             .lifetime
                             .as_ref()
                             .is_some_and(|life| life.live.contains(&at))
-                            && competing_borrows(loan.access, &loan.lineage, access, &backing)
-                                .is_some()
+                            && let Some(conflict) =
+                                competing_borrows(loan.access, &loan.lineage, access, &backing)
                             && !self.authorized_reference(references, loan, &raw, at, formed)?
                         {
-                            return Err(crate::checking::refusal(
-                                RefusalReason::Conflict,
-                                self.machine,
-                                concerns,
-                                &format!(
-                                    "successor borrow conflicts with an original live loan: loan {:?} formed {:?}, lender {:?}, source {:?}, captured {:?}, successor {:?}, at {:?}",
-                                    loan.obligation,
-                                    loan.at,
-                                    loan.lender,
-                                    raw,
-                                    loan.lineage,
-                                    backing,
-                                    at,
-                                ),
-                            ));
+                            return Err(self.successor_conflict(concerns, conflict));
                         }
                     }
                     captured.push((access, backing));

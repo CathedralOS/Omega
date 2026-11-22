@@ -942,8 +942,8 @@ fn exceeded_reach(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConflictingUse {
     pub machine: MachineId,
-    /// The `Loan` row that may not be formed.
-    pub loan: ObligationId,
+    /// The row of a conflicting formation. A successor forwards its existing loans.
+    pub loan: Option<ObligationId>,
     pub conflict: crate::checking::LoanConflict,
     /// Where the call that forms it arises in the source.
     pub site: SourceOrigin,
@@ -1443,6 +1443,7 @@ fn conclude(
                 }
                 RefusalReason::NotConserved
                 | RefusalReason::Conflict
+                | RefusalReason::ConflictingLoan(_)
                 | RefusalReason::Violation
                 | RefusalReason::ForeignIdentity => {
                     return fall_back_or_defect(Roster::of(&elaboration).locate(refused.clone()));
@@ -1494,7 +1495,7 @@ fn conclude(
             };
             conflicts.push(ConflictingUse {
                 machine,
-                loan: conflict.loan,
+                loan: Some(conflict.loan),
                 conflict: conflict.conflict,
                 site,
                 statement: conflict_statement(&elaboration, machine, tables, site, conflict),
@@ -2185,6 +2186,30 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
     let (reason, site) = (refused.reason, refused.site);
     match (reason, site) {
         (RefusalReason::Unsupported, _) => Ok(RouteVerdict::FallBack(refused)),
+        (
+            RefusalReason::ConflictingLoan(conflict),
+            terminal_check_tables::RefusalSite::Machine(machine, _),
+        ) => {
+            let site = refused.source_span.map(SourceOrigin::Authored).unwrap_or(
+                SourceOrigin::Unpositioned(
+                    terminal_check_tables::program::Unpositioned::SpanAbsent,
+                ),
+            );
+            Ok(RouteVerdict::Rejected {
+                formations: Vec::new(),
+                violations: Vec::new(),
+                unproved: Vec::new(),
+                unestablished: Vec::new(),
+                conflicts: vec![ConflictingUse {
+                    machine,
+                    loan: None,
+                    conflict,
+                    site,
+                    statement: refused.detail,
+                }],
+                exceeded: Vec::new(),
+            })
+        }
         // Elaboration or discharge refused the closure outright because some
         // storage is used unestablished: a rejection of the program, with no
         // source correspondence to look its construct up in.
