@@ -1,0 +1,5 @@
+machine width(n: u8) -> u8 crashes none { n +% 1u8 }
+data Buffer<const N: u8> {}
+machine literal(buffer: Buffer<8>) {}
+machine computed(buffer: Buffer<width(7u8)>) { literal(buffer) }
+machine main() {}

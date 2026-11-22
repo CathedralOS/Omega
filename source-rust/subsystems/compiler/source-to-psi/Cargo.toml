@@ -120,6 +120,11 @@ path = "pipeline/04_typed-trees-to-prepared-typed-trees/tests/computed_array_ext
 required-features = ["test-support"]
 
 [[test]]
+name = "preparation_prepared_value_inputs"
+path = "pipeline/04_typed-trees-to-prepared-typed-trees/tests/prepared_value_inputs.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "lowering_prepared_boolean_patterns"
 path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/prepared_boolean_patterns.rs"
 required-features = ["test-support"]
