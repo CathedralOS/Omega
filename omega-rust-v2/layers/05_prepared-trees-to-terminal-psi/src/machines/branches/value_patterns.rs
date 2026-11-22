@@ -30,14 +30,44 @@ pub(super) fn has_literal_test(
     })
 }
 
+pub(in crate::machines) enum PayloadBinding {
+    Borrowed(PayloadPlace),
+    Captured(ValueId),
+}
+
+impl PayloadBinding {
+    pub(in crate::machines) fn read(
+        &self,
+        expressions: &Expressions<'_>,
+        binder: usize,
+        node: usize,
+        carrier: &ValueType,
+        body: &mut MachineBody,
+    ) -> Result<ValueId, LoweringError> {
+        match self {
+            Self::Borrowed(place) => place.read_binding(expressions, binder, node, carrier, body),
+            Self::Captured(value) => {
+                let mut rows = expressions.tree.semantics_at(node);
+                if matches!(rows.next(), Some(NodeSemantics::Expression(e)) if e.static_argument_slot.is_none() && &e.ty == carrier)
+                    && rows.next().is_none() && expressions.types.id_for(carrier).ok() == Some(body.values[value.index()].ty)
+                {
+                    Ok(*value)
+                } else {
+                    Err(unsupported_node(expressions.tree.resolved().file, node, "owned payload use disagrees with its captured scalar"))
+                }
+            }
+        }
+    }
+}
+
 /// Keep the borrowed backing, not a speculatively copied scalar. For a named
 /// binding L4 attaches CopyRead to the use, not to the field declaration.
 pub(in crate::machines) struct PayloadPlace {
     source: ProjectedPlace,
-    ty: TypeId,
+    pub(in crate::machines) ty: TypeId,
 }
 impl PayloadPlace {
-    fn emit(
+    pub(in crate::machines) fn emit(
         &self,
         body: &mut MachineBody,
         site: Site,
@@ -45,7 +75,7 @@ impl PayloadPlace {
         emit_scalar(body, self.ty, OperationKind::ProjectedScalarRead { source: self.source.clone() }, site)
     }
 
-    pub(in crate::machines) fn read_binding(
+    fn read_binding(
         &self,
         expressions: &Expressions<'_>,
         binder: usize,
@@ -71,7 +101,7 @@ impl PayloadPlace {
         if !expression || expressions.types.id_for(carrier).ok() != Some(self.ty) {
             return Err(unsupported_node(file, node, "payload binding lacks its typed scalar use"));
         }
-        let site = copy.ok_or_else(|| unsupported_node(file, node, "payload lacks its integer copy-read obligation"))?;
+        let site = copy.ok_or_else(|| unsupported_node(file, node, "payload lacks its scalar copy-read obligation"))?;
         Ok(self.emit(body, site.clone()))
     }
 }
@@ -124,6 +154,43 @@ pub(in crate::machines) fn plan<'a>(
     ))
 }
 
+/// Resolve the typed projection against the selected case, preserving the full
+/// source path, including any reference crossing above this sum.
+pub(in crate::machines) fn payload_place<'a>(
+    expressions: &'a Expressions<'_>,
+    subject: usize,
+    source: &ProjectedPlace,
+    schema: &crate::LoweredCase,
+    access: Option<&Access>,
+    field: usize,
+) -> Result<(&'a omega_resolved::DeclarationId, PayloadPlace), LoweringError> {
+    let typed = expressions.tree.forest();
+    let file = expressions.tree.resolved().file;
+    let backing = typed.place_path(file.node_id(field));
+    let step = backing
+        .1
+        .last()
+        .filter(|s| s.base == file.node_id(file.ungroup(subject)) && s.through.as_ref() == access);
+    let Some(Projection::Field(id)) = step.and_then(|s| s.projection.as_ref()) else {
+        return Err(unsupported_node(file, field, "payload lacks its typed field projection"));
+    };
+    let field_id = crate::identity::declaration(id, &site_at(file, field))?;
+    let member = schema
+        .fields
+        .iter()
+        .find(|f| f.declaration == field_id)
+        .ok_or_else(|| unsupported_node(file, field, "payload field does not belong to the selected case"))?;
+    let mut place = source.clone();
+    place.path.extend([
+        PlaceProjection::Case(schema.declaration.clone()),
+        PlaceProjection::Field(field_id),
+    ]);
+    Ok((id.as_ref(), PayloadPlace {
+        source: place,
+        ty: member.carrier,
+    }))
+}
+
 struct PayloadTest<'a> {
     case: CaseSelection,
     field: PayloadPlace,
@@ -165,41 +232,18 @@ fn payload_test<'a>(
         if file.nodes[field].kind != NodeKind::FieldPattern {
             return Err(unsupported_node(file, field, "expected an explicit payload field"));
         }
-        let typed = expressions.tree.forest();
-        let backing = typed.place_path(file.node_id(field));
-        let step = backing
-            .1
-            .last()
-            .filter(|s| s.base == file.node_id(file.ungroup(subject)) && s.through.as_ref() == Some(access));
-        let Some(Projection::Field(id)) = step.and_then(|s| s.projection.as_ref()) else {
-            return Err(unsupported_node(file, field, "payload lacks its borrowed field projection"));
-        };
-        let field_id = crate::identity::declaration(id, &site_at(file, field))?;
-        let member = schema
-            .fields
-            .iter()
-            .find(|f| f.declaration == field_id)
-            .ok_or_else(|| unsupported_node(file, field, "payload field does not belong to the selected case"))?;
-        let mut place = source.clone();
-        place.path.extend([
-            PlaceProjection::Case(case.clone()),
-            PlaceProjection::Field(field_id),
-        ]);
-        let payload = PayloadPlace {
-            source: place,
-            ty: member.carrier,
-        };
+        let (id, payload) = payload_place(expressions, subject, source, schema, Some(access), field)?;
         let literal = match file.nodes[field].children[..] {
             [literal] if test.is_none() => literal,
             [] if resolved.pattern_binding(field).is_some()
                 && matches!(
-                    expressions.types.get(member.carrier),
+                    expressions.types.get(payload.ty),
                     Some(TypeShape::PrimitiveScalar(crate::ScalarType::Integer { .. }))
                 ) =>
             {
                 if tree
                     .semantics_at(field)
-                    .any(|row| !matches!(row,NodeSemantics::Field(selected) if selected==id.as_ref()))
+                    .any(|row| !matches!(row,NodeSemantics::Field(selected) if selected==id))
                 {
                     return Err(unsupported_node(file, field, "unsupported payload binding record"));
                 }
@@ -211,11 +255,11 @@ fn payload_test<'a>(
         let mut copied = None;
         for row in tree.semantics_at(field) {
             match row {
-                NodeSemantics::Field(f) if f == id.as_ref() => {}
+                NodeSemantics::Field(f) if f == id => {}
                 NodeSemantics::Obligation(o)
                     if copied.is_none()
                         && let ObligationKind::CopyRead(ty @ ValueType::Integer { width: Some(1..), .. }) = &o.kind
-                        && expressions.types.id_for(ty).ok() == Some(member.carrier) =>
+                        && expressions.types.id_for(ty).ok() == Some(payload.ty) =>
                 {
                     copied = Some((ty, o.site.clone()))
                 }
@@ -277,7 +321,7 @@ pub(in crate::machines) fn lower(
             (Subject::Integer(value, carrier), NodeKind::ValuePattern, [literal]) => (*value, *carrier, *literal),
             (Subject::Borrowed { source, owner, access }, NodeKind::RecordPattern, _) => {
                 let test = payload_test(expressions, subject, source, *owner, access, pattern)?;
-                flow.payload_bindings.extend(test.bindings);
+                flow.payload_bindings.extend(test.bindings.into_iter().map(|(binder, place)| (binder, PayloadBinding::Borrowed(place))));
                 let site = site_at(file, pattern);
                 let condition = emit_scalar(
                     body,

@@ -346,3 +346,75 @@ fn check_compound(
     assert_eq!((operation.primitive, operation.policy), (IntegerPrimitive::Add, ArithmeticPolicy::Wrapping));
     (operands.clone(), [scalar(left), rhs])
 }
+
+/// Two cases name their field identically. Each selected block must use its own
+/// declared field and the original sum. Owned bindings save the scalar once.
+#[test]
+fn exhaustive_case_bindings_select_the_right_payload_at_the_right_time() {
+    const CHOICE: &str = "data Choice { case Left(x: u16); case Right(x: u16); }";
+    for (parameter, subject, parent_field, borrowed) in [
+        ("c: Choice", "c", false, false),
+        ("c: @Choice", "c", false, true),
+        ("c: @mutable Choice", "c", false, true),
+        ("box: @Holder", "box.c", true, true),
+    ] {
+        let source = format!("{CHOICE} data Holder {{ c: Choice; }} machine f({parameter}) -> u16 {{
+            match {subject} {{ Choice::Left {{ x as n }} -> n +% n, Choice::Right {{ x as n }} -> n +% n }}
+        }}");
+        let package = sources::lower(&[("case.omg", &source)]).unwrap();
+        let body = &package.machines[0].body;
+        let BlockTerminator::Conditional { when_true, when_false, .. } = &body.blocks[0].terminator else { panic!("missing case edges") };
+        assert!(body.operations[body.blocks[0].operations.clone()].iter().all(|row| !matches!(row.kind, OperationKind::ProjectedScalarRead { .. })));
+        for (edge, name) in [(when_true, "Choice::Left"), (when_false, "Choice::Right")] {
+            let selected = edge.selected_case.as_ref().unwrap();
+            assert_eq!(selected.case.path, name);
+            let base = &selected.source.path;
+            assert_eq!(base.iter().filter(|s| matches!(s, PlaceProjection::Referent)).count(), usize::from(borrowed));
+            assert_eq!(base.iter().any(|s| matches!(s, PlaceProjection::Field(f) if f.path == "Holder::c")), parent_field);
+            let arm = &body.blocks[edge.target.get() - 1];
+            let [reads @ .., add] = &body.operations[arm.operations.clone()] else { panic!("empty arm") };
+            assert_eq!(reads.len(), if borrowed { 2 } else { 1 });
+            let mut arguments = Vec::new();
+            for read in reads {
+                let OperationKind::ProjectedScalarRead { source } = &read.kind else { panic!("payload field read") };
+                assert_eq!(source.root, selected.source.root);
+                assert_eq!(&source.path[..base.len()], base);
+                assert!(matches!(&source.path[base.len()..], [PlaceProjection::Case(c), PlaceProjection::Field(f)]
+                    if c == &selected.case && f.path == format!("{name}::x")));
+                let OperationResult::Scalar(scalar) = read.result else { panic!("payload scalar") };
+                arguments.push(scalar);
+            }
+            if !borrowed { arguments.push(arguments[0]); }
+            assert!(matches!(&add.kind, OperationKind::Integer { operands, .. } if operands == &arguments));
+        }
+    }
+}
+
+#[test]
+fn a_terminal_arm_forwards_the_selected_float_or_boolean_field() {
+    let source = "data Event { case Float(x:f32); case Flag(x:bool); }
+        machine f(v:@Event)->bool {
+            transition v { Event::Float {x} -> cmp(x), Event::Flag {x} -> (x) }
+            machine cmp(f:f32)->bool { f == 2.0 }
+        }";
+    let package = sources::lower(&[("event.omg", source)]).unwrap();
+    let body = &package.machines.iter().find(|m| m.declaration.path == "f").unwrap().body;
+    let BlockTerminator::Conditional { when_true, when_false, .. } = &body.blocks[0].terminator else { panic!("case dispatch") };
+    for (edge, field_name, ty) in [
+        (when_true, "Event::Float::x", ScalarType::IeeeFloat(omega_lowering::IeeeFloatFormat::Binary32)),
+        (when_false, "Event::Flag::x", ScalarType::Boolean),
+    ] {
+        let target = &body.blocks[edge.target.get() - 1];
+        let [read] = &body.operations[target.operations.clone()] else { panic!("one selected read for {field_name}") };
+        let OperationKind::ProjectedScalarRead { source } = &read.kind else { panic!("read the payload field") };
+        assert!(matches!(&source.path[..], [PlaceProjection::Referent, PlaceProjection::Case(case), PlaceProjection::Field(field)]
+            if case == &edge.selected_case.as_ref().unwrap().case && field.path == field_name));
+        let OperationResult::Scalar(value) = read.result else { panic!("scalar payload") };
+        assert_eq!(package.types.get(body.values[value.index()].ty), Some(&TypeShape::PrimitiveScalar(ty)));
+        match &target.terminator {
+            BlockTerminator::TerminalCall { arguments, .. } => assert_eq!(arguments, &[omega_lowering::ValueOperand::Scalar(value)]),
+            BlockTerminator::Return { result: ReturnEdge::Scalar(result), .. } => assert_eq!(*result, value),
+            other => panic!("unexpected terminal arm: {other:?}"),
+        }
+    }
+}

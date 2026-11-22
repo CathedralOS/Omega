@@ -467,9 +467,9 @@ impl Expressions<'_> {
                 ExpressionStep::Visit { node, carrier, landing } => {
                     if file.nodes[node].kind == NodeKind::PathExpression
                         && let Some(Symbol::Binding { binder_node, .. }) = resolved.symbol(node)
-                        && let Some(place) = flow.payload_bindings.get(binder_node)
+                        && let Some(binding) = flow.payload_bindings.get(binder_node)
                     {
-                        values.push(OperationResult::Scalar(place.read_binding(self, *binder_node, node, carrier, block)?));
+                        values.push(OperationResult::Scalar(binding.read(self, *binder_node, node, carrier, block)?));
                         continue;
                     }
                     (node, carrier, landing)

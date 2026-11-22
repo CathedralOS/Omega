@@ -546,10 +546,30 @@ pub(super) fn dispatch_cases(
                 "pattern needs payload comparison or binding lowering",
             ));
         }
+        let arm_block = flow.reserve();
+        let schema = selected.map(|case| {
+            let site = site_at(tree, pattern);
+            let case = crate::identity::declaration(case, &site)?;
+            expressions.data[owner.get() - 1].cases.iter().find(|row| row.declaration == case)
+                .ok_or_else(|| LoweringError::new(&site, "dispatch case does not belong to the subject"))
+        }).transpose()?;
         for (offset, node) in file.nodes[pattern..file.nodes[pattern].end].iter().enumerate() {
             let child = pattern + offset;
             if node.kind == NodeKind::FieldPattern && tree.resolved().pattern_binding(child).is_some() {
-                return Err(LoweringError::new(&site_at(tree, child), "case payload binding requires its arm-local value"));
+                let site = site_at(tree, child);
+                let case = schema.ok_or_else(|| LoweringError::new(&site, "payload binding requires its selected case"))?;
+                let access = carrier.reference_parts().map(|(access, _)| access);
+                let (field, place) = super::branches::value_patterns::payload_place(expressions, subject, &source, case, access, child)?;
+                if !matches!(expressions.types.get(place.ty), Some(crate::TypeShape::PrimitiveScalar(_) | crate::TypeShape::QualifiedScalar { .. }))
+                    || tree.semantics_at(child).any(|row| !matches!(row, NodeSemantics::Field(selected) if selected == field)) {
+                    return Err(LoweringError::new(&site, "case payload binding requires scalar field extraction"));
+                }
+                if source.path.contains(&PlaceProjection::Referent) {
+                    flow.payload_bindings.insert(child, super::branches::value_patterns::PayloadBinding::Borrowed(place));
+                } else {
+                    flow.capture_payload(arm_block, child, place, site);
+                }
+                continue;
             }
             if tree
                 .semantics_at(child)
@@ -565,7 +585,7 @@ pub(super) fn dispatch_cases(
                 "case arms after a wildcard require unreachable-arm lowering",
             ));
         }
-        targets.push((flow.reserve(), expression));
+        targets.push((arm_block, expression));
         tests.push((pattern, selected));
     }
     if tests.last().is_some_and(|(_, case)| case.is_some()) {
