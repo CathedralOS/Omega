@@ -555,6 +555,16 @@ fn the_lawful_rational_landing_twin_keeps_typed_arithmetic_at_its_carrier() {
     let qualified = replace_once("rational-landing-v2", source, &[("data Main { hits: i32; }", "data Main { hits: i32 in Wrapping; }")]);
     assert_eq!(lower_text(&qualified).unwrap_err().to_string(), "L2\tmain.omg:23:26\tunresolved name Wrapping");
 
+    let initialized = replace_once("rational-landing-v2", &qualified, &[
+        ("let mutable entry_storage: Main;", "let mutable entry_storage: Main = Main { hits: 0i32 as +i32::Wrapping };"),
+        ("main.hits = 0;", "main.hits = 0i32 as +i32::Wrapping;"),
+        ("main.hits = 1;", "main.hits = 1i32 as +i32::Wrapping;"),
+        ("main.hits = -1;", "main.hits = (-1i32) as +i32::Wrapping;"),
+    ]);
+    let imported = format!("use omega\\core;\n{initialized}");
+    let product = lower_text(&imported).expect("the original qualified field lowers when its core domain is imported");
+    assert!(cases::Check::IdentityCalls.matches(&product));
+
     let folded = replace_once("rational-landing-v2", source, &[("let typed: i32 = identity(7i32 / 2 * 2);", "let typed: i32 = identity((7 / 2 * 2) as i32);")]);
     let product = lower_text(&folded).expect("an anonymous argument still lowers");
     assert!(!cases::Check::IdentityCalls.matches(&product), "the witness must see the typed arithmetic");

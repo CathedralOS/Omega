@@ -74,6 +74,9 @@ pub(crate) fn check_stage<'a>(
     library_execution: Option<&ExecutionCalls>,
     allow_pending: bool,
 ) -> Result<(ExecutionCalls, Vec<StaticValueDemand>), TypeError> {
+    if let Some(core) = definition {
+        catalog.types.arithmetic_policies.extend(core.arithmetic_policy_domains());
+    }
     let mut units = index_resolved_sources(resolved);
     catalog.types.indices = IndexEvaluations::admit(&units, environment, allow_pending)?;
     let trait_tokens = trait_operator_tokens(resolved, &catalog.types.trait_operator_tokens);

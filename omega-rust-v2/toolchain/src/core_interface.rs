@@ -51,6 +51,16 @@ impl CoreInterface {
             .expect("declared core name")
             .id
     }
+    pub fn arithmetic_policy_domains(&self) -> impl Iterator<Item = &DeclarationId> {
+        self.exports.declarations.iter().map(|decl| &decl.id).filter(|id| {
+            matches!(id.path.as_str(), r"core\u::Wrapping" | r"core\i::Wrapping"
+                | r"core\u::Saturating" | r"core\i::Saturating"
+                | r"core\u::Trapping" | r"core\i::Trapping")
+        })
+    }
+    pub fn sources(&self) -> &'static [(&'static str, &'static str)] {
+        &PRODUCT_CORE
+    }
     pub fn exports(&self) -> &CompiledInterface {
         &self.exports
     }
@@ -110,7 +120,10 @@ impl CoreInterface {
         ]
     }
 }
-pub(crate) const PRODUCT_CORE: [(&str, &str); 7] = [
+pub(crate) const PRODUCT_CORE: [(&str, &str); 10] = [
+    ("core/integer/comparisons.omg", include_str!("../core/integer_comparisons.omg")),
+    ("core/integer/arithmetic.omg", include_str!("../core/integer_arithmetic.omg")),
+    ("core/integer_policies.omg", include_str!("../core/integer_policies.omg")),
     ("indexing/collections.omg", include_str!("../core/indexing.omg")),
     ("language/core/core.omg", include_str!("../core/core.omg")),
     ("language/core/reflect/reflect.omg", include_str!("../core/reflect.omg")),

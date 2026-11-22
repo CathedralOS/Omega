@@ -1,0 +1,434 @@
+// Policy-qualified integers compare their stored values. Every comparison returns bool.
+use core;
+
+public machine == equal<const N:u64>(left:u<N> in Wrapping, right:u<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Wrapping) == (right as -u<N>::Wrapping) }
+
+public machine == equal<const N:u64>(left:u<N> in Wrapping, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Wrapping) == right }
+
+public machine == equal<const N:u64>(left:u<N>, right:u<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ left == (right as -u<N>::Wrapping) }
+
+public machine == equal<const N:u64>(left:u<N> in Saturating, right:u<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Saturating) == (right as -u<N>::Saturating) }
+
+public machine == equal<const N:u64>(left:u<N> in Saturating, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Saturating) == right }
+
+public machine == equal<const N:u64>(left:u<N>, right:u<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ left == (right as -u<N>::Saturating) }
+
+public machine == equal<const N:u64>(left:u<N> in Trapping, right:u<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Trapping) == (right as -u<N>::Trapping) }
+
+public machine == equal<const N:u64>(left:u<N> in Trapping, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Trapping) == right }
+
+public machine == equal<const N:u64>(left:u<N>, right:u<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ left == (right as -u<N>::Trapping) }
+
+public machine == equal<const N:u64>(left:i<N> in Wrapping, right:i<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Wrapping) == (right as -i<N>::Wrapping) }
+
+public machine == equal<const N:u64>(left:i<N> in Wrapping, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Wrapping) == right }
+
+public machine == equal<const N:u64>(left:i<N>, right:i<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ left == (right as -i<N>::Wrapping) }
+
+public machine == equal<const N:u64>(left:i<N> in Saturating, right:i<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Saturating) == (right as -i<N>::Saturating) }
+
+public machine == equal<const N:u64>(left:i<N> in Saturating, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Saturating) == right }
+
+public machine == equal<const N:u64>(left:i<N>, right:i<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ left == (right as -i<N>::Saturating) }
+
+public machine == equal<const N:u64>(left:i<N> in Trapping, right:i<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Trapping) == (right as -i<N>::Trapping) }
+
+public machine == equal<const N:u64>(left:i<N> in Trapping, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Trapping) == right }
+
+public machine == equal<const N:u64>(left:i<N>, right:i<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ left == (right as -i<N>::Trapping) }
+
+public machine != unequal<const N:u64>(left:u<N> in Wrapping, right:u<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Wrapping) != (right as -u<N>::Wrapping) }
+
+public machine != unequal<const N:u64>(left:u<N> in Wrapping, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Wrapping) != right }
+
+public machine != unequal<const N:u64>(left:u<N>, right:u<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ left != (right as -u<N>::Wrapping) }
+
+public machine != unequal<const N:u64>(left:u<N> in Saturating, right:u<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Saturating) != (right as -u<N>::Saturating) }
+
+public machine != unequal<const N:u64>(left:u<N> in Saturating, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Saturating) != right }
+
+public machine != unequal<const N:u64>(left:u<N>, right:u<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ left != (right as -u<N>::Saturating) }
+
+public machine != unequal<const N:u64>(left:u<N> in Trapping, right:u<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Trapping) != (right as -u<N>::Trapping) }
+
+public machine != unequal<const N:u64>(left:u<N> in Trapping, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Trapping) != right }
+
+public machine != unequal<const N:u64>(left:u<N>, right:u<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ left != (right as -u<N>::Trapping) }
+
+public machine != unequal<const N:u64>(left:i<N> in Wrapping, right:i<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Wrapping) != (right as -i<N>::Wrapping) }
+
+public machine != unequal<const N:u64>(left:i<N> in Wrapping, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Wrapping) != right }
+
+public machine != unequal<const N:u64>(left:i<N>, right:i<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ left != (right as -i<N>::Wrapping) }
+
+public machine != unequal<const N:u64>(left:i<N> in Saturating, right:i<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Saturating) != (right as -i<N>::Saturating) }
+
+public machine != unequal<const N:u64>(left:i<N> in Saturating, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Saturating) != right }
+
+public machine != unequal<const N:u64>(left:i<N>, right:i<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ left != (right as -i<N>::Saturating) }
+
+public machine != unequal<const N:u64>(left:i<N> in Trapping, right:i<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Trapping) != (right as -i<N>::Trapping) }
+
+public machine != unequal<const N:u64>(left:i<N> in Trapping, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Trapping) != right }
+
+public machine != unequal<const N:u64>(left:i<N>, right:i<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ left != (right as -i<N>::Trapping) }
+
+public machine < less<const N:u64>(left:u<N> in Wrapping, right:u<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Wrapping) < (right as -u<N>::Wrapping) }
+
+public machine < less<const N:u64>(left:u<N> in Wrapping, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Wrapping) < right }
+
+public machine < less<const N:u64>(left:u<N>, right:u<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ left < (right as -u<N>::Wrapping) }
+
+public machine < less<const N:u64>(left:u<N> in Saturating, right:u<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Saturating) < (right as -u<N>::Saturating) }
+
+public machine < less<const N:u64>(left:u<N> in Saturating, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Saturating) < right }
+
+public machine < less<const N:u64>(left:u<N>, right:u<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ left < (right as -u<N>::Saturating) }
+
+public machine < less<const N:u64>(left:u<N> in Trapping, right:u<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Trapping) < (right as -u<N>::Trapping) }
+
+public machine < less<const N:u64>(left:u<N> in Trapping, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Trapping) < right }
+
+public machine < less<const N:u64>(left:u<N>, right:u<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ left < (right as -u<N>::Trapping) }
+
+public machine < less<const N:u64>(left:i<N> in Wrapping, right:i<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Wrapping) < (right as -i<N>::Wrapping) }
+
+public machine < less<const N:u64>(left:i<N> in Wrapping, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Wrapping) < right }
+
+public machine < less<const N:u64>(left:i<N>, right:i<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ left < (right as -i<N>::Wrapping) }
+
+public machine < less<const N:u64>(left:i<N> in Saturating, right:i<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Saturating) < (right as -i<N>::Saturating) }
+
+public machine < less<const N:u64>(left:i<N> in Saturating, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Saturating) < right }
+
+public machine < less<const N:u64>(left:i<N>, right:i<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ left < (right as -i<N>::Saturating) }
+
+public machine < less<const N:u64>(left:i<N> in Trapping, right:i<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Trapping) < (right as -i<N>::Trapping) }
+
+public machine < less<const N:u64>(left:i<N> in Trapping, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Trapping) < right }
+
+public machine < less<const N:u64>(left:i<N>, right:i<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ left < (right as -i<N>::Trapping) }
+
+public machine <= less_equal<const N:u64>(left:u<N> in Wrapping, right:u<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Wrapping) <= (right as -u<N>::Wrapping) }
+
+public machine <= less_equal<const N:u64>(left:u<N> in Wrapping, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Wrapping) <= right }
+
+public machine <= less_equal<const N:u64>(left:u<N>, right:u<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ left <= (right as -u<N>::Wrapping) }
+
+public machine <= less_equal<const N:u64>(left:u<N> in Saturating, right:u<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Saturating) <= (right as -u<N>::Saturating) }
+
+public machine <= less_equal<const N:u64>(left:u<N> in Saturating, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Saturating) <= right }
+
+public machine <= less_equal<const N:u64>(left:u<N>, right:u<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ left <= (right as -u<N>::Saturating) }
+
+public machine <= less_equal<const N:u64>(left:u<N> in Trapping, right:u<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Trapping) <= (right as -u<N>::Trapping) }
+
+public machine <= less_equal<const N:u64>(left:u<N> in Trapping, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Trapping) <= right }
+
+public machine <= less_equal<const N:u64>(left:u<N>, right:u<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ left <= (right as -u<N>::Trapping) }
+
+public machine <= less_equal<const N:u64>(left:i<N> in Wrapping, right:i<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Wrapping) <= (right as -i<N>::Wrapping) }
+
+public machine <= less_equal<const N:u64>(left:i<N> in Wrapping, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Wrapping) <= right }
+
+public machine <= less_equal<const N:u64>(left:i<N>, right:i<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ left <= (right as -i<N>::Wrapping) }
+
+public machine <= less_equal<const N:u64>(left:i<N> in Saturating, right:i<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Saturating) <= (right as -i<N>::Saturating) }
+
+public machine <= less_equal<const N:u64>(left:i<N> in Saturating, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Saturating) <= right }
+
+public machine <= less_equal<const N:u64>(left:i<N>, right:i<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ left <= (right as -i<N>::Saturating) }
+
+public machine <= less_equal<const N:u64>(left:i<N> in Trapping, right:i<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Trapping) <= (right as -i<N>::Trapping) }
+
+public machine <= less_equal<const N:u64>(left:i<N> in Trapping, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Trapping) <= right }
+
+public machine <= less_equal<const N:u64>(left:i<N>, right:i<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ left <= (right as -i<N>::Trapping) }
+
+public machine > greater<const N:u64>(left:u<N> in Wrapping, right:u<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Wrapping) > (right as -u<N>::Wrapping) }
+
+public machine > greater<const N:u64>(left:u<N> in Wrapping, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Wrapping) > right }
+
+public machine > greater<const N:u64>(left:u<N>, right:u<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ left > (right as -u<N>::Wrapping) }
+
+public machine > greater<const N:u64>(left:u<N> in Saturating, right:u<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Saturating) > (right as -u<N>::Saturating) }
+
+public machine > greater<const N:u64>(left:u<N> in Saturating, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Saturating) > right }
+
+public machine > greater<const N:u64>(left:u<N>, right:u<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ left > (right as -u<N>::Saturating) }
+
+public machine > greater<const N:u64>(left:u<N> in Trapping, right:u<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Trapping) > (right as -u<N>::Trapping) }
+
+public machine > greater<const N:u64>(left:u<N> in Trapping, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Trapping) > right }
+
+public machine > greater<const N:u64>(left:u<N>, right:u<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ left > (right as -u<N>::Trapping) }
+
+public machine > greater<const N:u64>(left:i<N> in Wrapping, right:i<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Wrapping) > (right as -i<N>::Wrapping) }
+
+public machine > greater<const N:u64>(left:i<N> in Wrapping, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Wrapping) > right }
+
+public machine > greater<const N:u64>(left:i<N>, right:i<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ left > (right as -i<N>::Wrapping) }
+
+public machine > greater<const N:u64>(left:i<N> in Saturating, right:i<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Saturating) > (right as -i<N>::Saturating) }
+
+public machine > greater<const N:u64>(left:i<N> in Saturating, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Saturating) > right }
+
+public machine > greater<const N:u64>(left:i<N>, right:i<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ left > (right as -i<N>::Saturating) }
+
+public machine > greater<const N:u64>(left:i<N> in Trapping, right:i<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Trapping) > (right as -i<N>::Trapping) }
+
+public machine > greater<const N:u64>(left:i<N> in Trapping, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Trapping) > right }
+
+public machine > greater<const N:u64>(left:i<N>, right:i<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ left > (right as -i<N>::Trapping) }
+
+public machine >= greater_equal<const N:u64>(left:u<N> in Wrapping, right:u<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Wrapping) >= (right as -u<N>::Wrapping) }
+
+public machine >= greater_equal<const N:u64>(left:u<N> in Wrapping, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Wrapping) >= right }
+
+public machine >= greater_equal<const N:u64>(left:u<N>, right:u<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ left >= (right as -u<N>::Wrapping) }
+
+public machine >= greater_equal<const N:u64>(left:u<N> in Saturating, right:u<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Saturating) >= (right as -u<N>::Saturating) }
+
+public machine >= greater_equal<const N:u64>(left:u<N> in Saturating, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Saturating) >= right }
+
+public machine >= greater_equal<const N:u64>(left:u<N>, right:u<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ left >= (right as -u<N>::Saturating) }
+
+public machine >= greater_equal<const N:u64>(left:u<N> in Trapping, right:u<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Trapping) >= (right as -u<N>::Trapping) }
+
+public machine >= greater_equal<const N:u64>(left:u<N> in Trapping, right:u<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -u<N>::Trapping) >= right }
+
+public machine >= greater_equal<const N:u64>(left:u<N>, right:u<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ left >= (right as -u<N>::Trapping) }
+
+public machine >= greater_equal<const N:u64>(left:i<N> in Wrapping, right:i<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Wrapping) >= (right as -i<N>::Wrapping) }
+
+public machine >= greater_equal<const N:u64>(left:i<N> in Wrapping, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Wrapping) >= right }
+
+public machine >= greater_equal<const N:u64>(left:i<N>, right:i<N> in Wrapping) -> bool
+    requires N > 0 crashes none
+{ left >= (right as -i<N>::Wrapping) }
+
+public machine >= greater_equal<const N:u64>(left:i<N> in Saturating, right:i<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Saturating) >= (right as -i<N>::Saturating) }
+
+public machine >= greater_equal<const N:u64>(left:i<N> in Saturating, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Saturating) >= right }
+
+public machine >= greater_equal<const N:u64>(left:i<N>, right:i<N> in Saturating) -> bool
+    requires N > 0 crashes none
+{ left >= (right as -i<N>::Saturating) }
+
+public machine >= greater_equal<const N:u64>(left:i<N> in Trapping, right:i<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Trapping) >= (right as -i<N>::Trapping) }
+
+public machine >= greater_equal<const N:u64>(left:i<N> in Trapping, right:i<N>) -> bool
+    requires N > 0 crashes none
+{ (left as -i<N>::Trapping) >= right }
+
+public machine >= greater_equal<const N:u64>(left:i<N>, right:i<N> in Trapping) -> bool
+    requires N > 0 crashes none
+{ left >= (right as -i<N>::Trapping) }

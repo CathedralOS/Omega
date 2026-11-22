@@ -280,10 +280,54 @@ fn lower(
     for schema in &trait_schemas {
         schema.collect_carriers(&mut carriers);
     }
-    domain_templates.sort_unstable_by(|a, b| a.declaration.cmp(&b.declaration));
+    // An imported machine can use a domain only inside its body. Its caller
+    // need not expose that domain in a signature or in its own expressions.
+    let mut demands = std::collections::HashSet::new();
+    let mut collect_domains = |ty: &ValueType| {
+        for part in ty.components() {
+            demands.extend(part.domains().iter().map(|atom| atom.declaration.clone()));
+        }
+    };
+    for instance in &instances {
+        let sig = &instance.signature;
+        for (_, parameter) in &sig.parameters { collect_domains(parameter); }
+        collect_domains(&sig.result);
+        if !std::ptr::eq(instance.tree.forest(), typed) {
+            let file = instance.tree.resolved().file;
+            let mut pending = vec![sig.node.node];
+            while let Some(node) = pending.pop() {
+                if node != sig.node.node && matches!(file.nodes[node].kind, NodeKind::Machine | NodeKind::AsmMachine) {
+                    continue;
+                }
+                pending.extend(&file.nodes[node].children);
+                for record in instance.tree.semantics_at(node) {
+                    if let omega_typed::NodeSemantics::Expression(expr) = record { collect_domains(&expr.ty); }
+                }
+            }
+        }
+    }
+    for ty in typed.expressions.iter().map(|e| &e.ty)
+        .chain(typed.record_fields.values().flat_map(|fields| fields.iter().map(|field| &field.ty)))
+        .chain(typed.type_alias_targets.values())
+    {
+        collect_domains(ty);
+    }
+    for tree in &library_trees {
+        for (node, declaration) in tree.resolved().declaration_nodes() {
+            if declaration.kind == NodeKind::Domain && demands.contains(declaration) {
+                if tree.resolved().file.child(node, NodeKind::DroppedBy).is_some() {
+                    return Err(LoweringError::new(&site_at(tree, node), "imported domain needs its defining cleanup machine in the package"));
+                }
+                let schema = domains::read_domain(prepared, tree, node, domains::SelectedPolicies::Refuse)?;
+                domain_schemas.push(schema);
+            }
+        }
+    }
     domain_schemas.sort_unstable_by(|a, b| a.declaration.cmp(b.declaration));
     for domain in &domain_schemas {
-        carriers.push((domain.carrier, domain.site.clone()));
+        if domain.width_binder().is_none() {
+            carriers.push((domain.carrier, domain.site.clone()));
+        }
     }
     // The data rows keep this position in the type table. They are added once
     // the machine bodies below have named the library data they store.
@@ -715,8 +759,10 @@ fn lower(
                 ));
             }
             domains::DomainDeclaration::Alias(alias) => domain_aliases.push(alias),
+            domains::DomainDeclaration::Template(row) => domain_templates.push(row),
         }
     }
+    domain_templates.sort_unstable_by(|a, b| a.declaration.cmp(&b.declaration));
     pending.sort_unstable_by_key(|(position, _)| *position);
     catalog_declarations.sort_unstable();
     let mut package = LoweredPackage {

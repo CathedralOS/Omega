@@ -21,6 +21,34 @@ struct Domain {
     alias: Vec<DomainApplication>,
 }
 
+/// A directly bound carrier parameter is inferred from the qualified value.
+enum CarrierBinder {
+    Type,
+    Width { signed: bool },
+}
+
+impl CarrierBinder {
+    fn from_head(id: &DeclarationId, declared: &ValueType) -> Option<(usize, Self)> {
+        let (parameter, kind) = match declared {
+            ValueType::IndexedInteger { signed, width } => (width.as_ref(), Self::Width { signed: *signed }),
+            ty => (ty, Self::Type),
+        };
+        match parameter {
+            ValueType::Parameter { owner, index } if owner.as_ref() == id => Some((*index, kind)),
+            _ => None,
+        }
+    }
+
+    fn argument(&self, subject: &ValueType) -> Option<ValueType> {
+        match (self, subject.carrier()) {
+            (Self::Type, _) => Some(subject.clone()),
+            (Self::Width { signed }, ValueType::Integer { signed: actual, width: Some(width) }) if signed == actual => Some(ValueType::static_size(*width)),
+            (Self::Width { signed }, ValueType::IndexedInteger { signed: actual, width }) if signed == actual => Some(width.as_ref().clone()),
+            _ => None,
+        }
+    }
+}
+
 impl TypeCatalog<'_> {
     pub(crate) fn binder_names_type(
         &self,
@@ -79,7 +107,7 @@ impl TypeCatalog<'_> {
                             waiting |= self.indices.declaration_is_pending(&candidate.declaration);
                             continue;
                         };
-                        if declared.carrier() != subject.carrier() {
+                        if !self.domains.admits(&candidate.declaration, subject) {
                             if self.indices.can_wait_for_equality(declared.carrier(), subject.carrier()) {
                                 self.indices.retain_demands(declared);
                                 self.indices.retain_demands(subject);
@@ -349,10 +377,7 @@ impl<'a> ResolvedSourceFile<'a> {
         let carrier = types
             .normalize_at(raw_carrier, self, head)
             .map_err(|message| TypeError::at(f, head, message))?;
-        let carrier_binder = match &carrier {
-            ValueType::Parameter { owner, index } if owner.as_ref() == id => Some(*index),
-            _ => None,
-        };
+        let carrier_binder = CarrierBinder::from_head(id, &carrier).map(|(slot, _)| slot);
         let complete = types.arity(id) == indices.len() + usize::from(carrier_binder.is_some()) && !carrier_binder.is_some_and(|i| indices.contains(&i));
         if !indices.is_empty() && !complete {
             return Err(TypeError::at(f, head, "indexed domain requires its complete binder tuple"));
@@ -433,11 +458,20 @@ impl Domains<'_> {
         carrier: &ValueType,
     ) -> std::borrow::Cow<'b, [ValueType]> {
         let domain = &self.entries[&app.declaration];
-        let generic_carrier = matches!(&domain.carrier, ValueType::Parameter { owner, .. } if owner.as_ref() == &app.declaration);
-        if !generic_carrier && domain.indices.iter().copied().eq(0..app.arguments.len()) {
+        let inferred = CarrierBinder::from_head(&app.declaration, &domain.carrier)
+            .and_then(|(slot, binder)| binder.argument(carrier).map(|value| (slot, value)));
+        if inferred.is_none() && domain.indices.iter().copied().eq(0..app.arguments.len()) {
             return std::borrow::Cow::Borrowed(&app.arguments);
         }
-        let mut args = vec![carrier.clone(); app.arguments.len() + usize::from(generic_carrier)];
+        let count = domain.indices.iter().copied().chain(inferred.as_ref().map(|(slot, _)| *slot)).max().map_or(0, |slot| slot + 1);
+        // A binder absent from the head remains open. Substitution must never
+        // turn an unrelated unused binder into the qualified value's carrier.
+        let mut args: Vec<_> = (0..count)
+            .map(|index| ValueType::Parameter { owner: Box::new(app.declaration.clone()), index })
+            .collect();
+        if let Some((slot, value)) = inferred {
+            args[slot] = value;
+        }
         for (&binder, value) in domain.indices.iter().zip(&app.arguments) {
             args[binder] = value.clone();
         }
@@ -478,7 +512,7 @@ impl Domains<'_> {
         declared == carrier
             || declared == carrier.carrier()
             || (self.parent_domain(id).is_some() && declared.carrier() == carrier.carrier())
-            || matches!(declared,ValueType::Parameter{owner,..} if owner.as_ref()==id)
+            || CarrierBinder::from_head(id, declared).is_some_and(|(_, binder)| binder.argument(carrier).is_some())
     }
     pub(crate) fn is_ancestor(
         &self,

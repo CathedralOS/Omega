@@ -1205,8 +1205,8 @@ fn a_same_path_copy_in_another_package_cannot_acquire_library_supply() {
     assert!(other.obligations.is_empty(), "{:?}", other.obligations);
 }
 
-/// Each forest indexes its own files from zero, in path order. A three-file importer whose last file holds
-/// the toolchain's `new_plan` declaration uses the same file index (2) as the library's
+/// Each forest indexes its files in path order. Pad the importing package so its copy of
+/// the toolchain's `new_plan` declaration uses the same file index as the library's
 /// `access.omg`, so `TreeNodeId`s of the two forests coincide. A reader must keep rows with
 /// their forest: the importer's list holds exactly its own copy's rows, the library's list
 /// holds the library's, and no record appears in both.
@@ -1217,11 +1217,10 @@ fn identical_node_indices_in_two_forests_are_counted_once_each() {
     let selected = core.id("access\\new_plan");
     let header = "use omega\\language\\core;\nuse omega\\language\\core\\reflect;\n\n";
     let copy = format!("{header}{}\n", core_declaration());
-    let files = [
-        ("a.omg", "machine a(){}"),
-        ("b.omg", "machine b(){}"),
-        ("language/core/access/access.omg", copy.as_str()),
-    ];
+    let position = core.declarations.trees().position(|tree| tree.file.path == "language/core/access/access.omg").unwrap();
+    let padding: Vec<_> = (0..position).map(|slot| format!("a{slot}.omg")).collect();
+    let mut files: Vec<_> = padding.iter().map(|path| (path.as_str(), "")).collect();
+    files.push(("language/core/access/access.omg", copy.as_str()));
     with_typed(&files, |stage| {
         let library = stage.library.unwrap();
         let local = &stage
@@ -1513,4 +1512,17 @@ fn an_explicit_empty_route_list_lands_at_the_declared_routes_field() {
     );
     assert_eq!(element_arguments.as_slice(), std::slice::from_ref(lifetime));
     assert_eq!(stage.access_policies.len(), 1);
+}
+
+#[test]
+fn the_core_policy_exclusion_applies_to_the_resulting_qualification() {
+    for source in [
+        r"use omega\core; data Main { value:i32 in Wrapping & Trapping; }",
+        r"use omega\core; machine both(x:i32) { _ = x as +i32::Wrapping +i32::Saturating; }",
+    ] {
+        let refusal = check(source).unwrap_err();
+        assert!(refusal.contains("at most one arithmetic policy"), "{refusal}");
+    }
+    check(r"use omega\core; machine change(x:i32 in Wrapping)->i32 in Trapping {x as -i32::Wrapping +i32::Trapping}").unwrap();
+    check("domain i32::Wrapping; domain i32::Trapping; data Main { value:i32 in Wrapping & Trapping; }").unwrap();
 }

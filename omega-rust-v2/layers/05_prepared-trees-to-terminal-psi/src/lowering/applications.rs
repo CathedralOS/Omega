@@ -151,10 +151,11 @@ pub(crate) fn plan<'a>(
             }
             sig.result = application.instantiate(&sig.result);
         }
+        let forest = template_tree.forest();
         let mut callbacks = Vec::new();
         for (slot, arg) in application.arguments.iter().enumerate() {
             if let ValueType::MachineSelection(selected) = arg {
-                let bound = typed
+                let bound = forest
                     .callable_bounds
                     .iter()
                     .find(|(owner, i, _)| *owner == template.machine && *i == slot)
@@ -162,8 +163,6 @@ pub(crate) fn plan<'a>(
                 callbacks.push(Callback::bind(prepared, slot, selected, &bound.2, &templates)?);
             }
         }
-        // Every fact about this body comes from the forest that declares it.
-        let forest = template_tree.forest();
         let tree = LoweringTree::for_application(forest, template_tree, &signature, &application, &callbacks)?;
         // A call applies regions to a one-body callee in the row beside it
         // (`CallRegions`). An argument is one of two things. It can be the
@@ -182,36 +181,10 @@ pub(crate) fn plan<'a>(
             })
         };
         for call in by_caller.get(&template.machine).into_iter().flatten() {
-            let next = if let Some(selected) = selected_implementation(forest, &templates, call, &application)? {
+            let next = if let Some(selected) = selected_implementation(forest, &definition, call, &application)? {
                 selected
-            } else if !templates.contains_key(&call.machine) {
-                // An imported machine with a body is planned because this call
-                // demands it, from its own library tree and under its own
-                // package. Only a body without static arguments is planned
-                // here: one with no binders, or the one body of a region-only
-                // machine. Any other call keeps its refusal at the call.
-                let Some((target, target_tree)) = definition(&call.machine) else { continue };
-                let unbound = target_tree
-                    .resolved()
-                    .file
-                    .generic_parameters(target.node.node)
-                    .next()
-                    .is_none();
-                if !(unbound && call.type_arguments.is_empty() && call.enclosing_arguments.is_empty()) {
-                    if !region_bodies.contains(&target.machine) {
-                        continue;
-                    }
-                    if !applies_regions(call) {
-                        return Err(LoweringError::new(&call.site, "call of a lifetime-generic machine requires its region arguments in Psi"));
-                    }
-                }
-                MachineApplication {
-                    machine: Box::new(target.machine.clone()),
-                    arguments: vec![],
-                    enclosing_arguments: vec![],
-                }
             } else {
-                let Some(&target) = templates.get(&call.machine) else { continue };
+                let Some((target, target_tree)) = definition(&call.machine) else { continue };
                 // In a whole package this body is already a root and `seen`
                 // holds it. A unit rooted at one machine plans it here.
                 let whole_body = MachineApplication {
@@ -219,7 +192,7 @@ pub(crate) fn plan<'a>(
                     arguments: vec![],
                     enclosing_arguments: vec![],
                 };
-                let target_file = trees[target.node.file].resolved().file;
+                let target_file = target_tree.resolved().file;
                 let count = target_file.generic_parameters(target.node.node).count();
                 if count == 0 && call.type_arguments.is_empty() && call.enclosing_arguments.is_empty() {
                     if seen.insert(whole_body.clone()) {
@@ -241,7 +214,7 @@ pub(crate) fn plan<'a>(
                     continue;
                 }
                 let arguments: Vec<_> = call.type_arguments.iter().map(|v| instantiate(&application, v)).collect();
-                let binders = forest.generic_parameters.get(&target.machine);
+                let binders = target_tree.forest().generic_parameters.get(&target.machine);
                 if !call.enclosing_arguments.is_empty()
                     || count != arguments.len()
                     || !target_file
@@ -449,9 +422,9 @@ fn reads_stored_view(
 /// implementation. The requirement's own static arguments specialize the
 /// implementation by binder position. Without them the implementation is a
 /// rooted declaration and a boundary call has no body to schedule.
-fn selected_implementation(
+fn selected_implementation<'a>(
     typed: &omega_typed::TypedTrees<'_>,
-    templates: &HashMap<&DeclarationId, &TypedSignature>,
+    definition: &impl Fn(&DeclarationId) -> Option<(&'a TypedSignature, &'a TypedTree<'a>)>,
     call: &TypedCall,
     application: &MachineApplication,
 ) -> Result<Option<MachineApplication>, LoweringError> {
@@ -466,15 +439,14 @@ fn selected_implementation(
     let Some(implementation) = key.implementation(typed, &call.site)? else {
         return Ok(None);
     };
-    let target = templates
-        .get(implementation)
+    let (target, target_tree) = definition(implementation)
         .ok_or_else(|| LoweringError::new(&call.site, "selected conformance implementation needs its packaged generic body"))?;
     let instance = MachineApplication {
         machine: Box::new(target.machine.clone()),
         arguments: key.static_arguments().to_vec(),
         enclosing_arguments: vec![],
     };
-    let supported = typed.generic_parameters.get(implementation).is_some_and(|params| {
+    let supported = target_tree.forest().generic_parameters.get(implementation).is_some_and(|params| {
         params.parameters.len() == instance.arguments.len()
             && params.parameters.iter().zip(&instance.arguments).all(|(param, arg)| match arg {
                 ValueType::StaticInteger { carrier, .. } => {

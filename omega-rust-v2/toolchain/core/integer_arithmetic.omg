@@ -1,0 +1,218 @@
+// Each operand keeps its declared carrier. The suffixed primitive selects the overflow behavior.
+use core;
+
+public machine + add<const N:u64>(left:u<N> in Wrapping, right:u<N> in Wrapping) -> u<N> in Wrapping
+    requires N > 0
+{ ((left as -u<N>::Wrapping) +% (right as -u<N>::Wrapping)) as +u<N>::Wrapping }
+
+public machine + add<const N:u64>(left:u<N> in Wrapping, right:u<N>) -> u<N> in Wrapping
+    requires N > 0
+{ ((left as -u<N>::Wrapping) +% right) as +u<N>::Wrapping }
+
+public machine + add<const N:u64>(left:u<N>, right:u<N> in Wrapping) -> u<N> in Wrapping
+    requires N > 0
+{ (left +% (right as -u<N>::Wrapping)) as +u<N>::Wrapping }
+
+public machine + add<const N:u64>(left:u<N> in Saturating, right:u<N> in Saturating) -> u<N> in Saturating
+    requires N > 0
+{ ((left as -u<N>::Saturating) +| (right as -u<N>::Saturating)) as +u<N>::Saturating }
+
+public machine + add<const N:u64>(left:u<N> in Saturating, right:u<N>) -> u<N> in Saturating
+    requires N > 0
+{ ((left as -u<N>::Saturating) +| right) as +u<N>::Saturating }
+
+public machine + add<const N:u64>(left:u<N>, right:u<N> in Saturating) -> u<N> in Saturating
+    requires N > 0
+{ (left +| (right as -u<N>::Saturating)) as +u<N>::Saturating }
+
+public machine + add<const N:u64>(left:u<N> in Trapping, right:u<N> in Trapping) -> u<N> in Trapping
+    requires N > 0 crashes Trap
+{ ((left as -u<N>::Trapping) +! (right as -u<N>::Trapping)) as +u<N>::Trapping }
+
+public machine + add<const N:u64>(left:u<N> in Trapping, right:u<N>) -> u<N> in Trapping
+    requires N > 0 crashes Trap
+{ ((left as -u<N>::Trapping) +! right) as +u<N>::Trapping }
+
+public machine + add<const N:u64>(left:u<N>, right:u<N> in Trapping) -> u<N> in Trapping
+    requires N > 0 crashes Trap
+{ (left +! (right as -u<N>::Trapping)) as +u<N>::Trapping }
+
+public machine + add<const N:u64>(left:i<N> in Wrapping, right:i<N> in Wrapping) -> i<N> in Wrapping
+    requires N > 0
+{ ((left as -i<N>::Wrapping) +% (right as -i<N>::Wrapping)) as +i<N>::Wrapping }
+
+public machine + add<const N:u64>(left:i<N> in Wrapping, right:i<N>) -> i<N> in Wrapping
+    requires N > 0
+{ ((left as -i<N>::Wrapping) +% right) as +i<N>::Wrapping }
+
+public machine + add<const N:u64>(left:i<N>, right:i<N> in Wrapping) -> i<N> in Wrapping
+    requires N > 0
+{ (left +% (right as -i<N>::Wrapping)) as +i<N>::Wrapping }
+
+public machine + add<const N:u64>(left:i<N> in Saturating, right:i<N> in Saturating) -> i<N> in Saturating
+    requires N > 0
+{ ((left as -i<N>::Saturating) +| (right as -i<N>::Saturating)) as +i<N>::Saturating }
+
+public machine + add<const N:u64>(left:i<N> in Saturating, right:i<N>) -> i<N> in Saturating
+    requires N > 0
+{ ((left as -i<N>::Saturating) +| right) as +i<N>::Saturating }
+
+public machine + add<const N:u64>(left:i<N>, right:i<N> in Saturating) -> i<N> in Saturating
+    requires N > 0
+{ (left +| (right as -i<N>::Saturating)) as +i<N>::Saturating }
+
+public machine + add<const N:u64>(left:i<N> in Trapping, right:i<N> in Trapping) -> i<N> in Trapping
+    requires N > 0 crashes Trap
+{ ((left as -i<N>::Trapping) +! (right as -i<N>::Trapping)) as +i<N>::Trapping }
+
+public machine + add<const N:u64>(left:i<N> in Trapping, right:i<N>) -> i<N> in Trapping
+    requires N > 0 crashes Trap
+{ ((left as -i<N>::Trapping) +! right) as +i<N>::Trapping }
+
+public machine + add<const N:u64>(left:i<N>, right:i<N> in Trapping) -> i<N> in Trapping
+    requires N > 0 crashes Trap
+{ (left +! (right as -i<N>::Trapping)) as +i<N>::Trapping }
+
+public machine - subtract<const N:u64>(left:u<N> in Wrapping, right:u<N> in Wrapping) -> u<N> in Wrapping
+    requires N > 0
+{ ((left as -u<N>::Wrapping) -% (right as -u<N>::Wrapping)) as +u<N>::Wrapping }
+
+public machine - subtract<const N:u64>(left:u<N> in Wrapping, right:u<N>) -> u<N> in Wrapping
+    requires N > 0
+{ ((left as -u<N>::Wrapping) -% right) as +u<N>::Wrapping }
+
+public machine - subtract<const N:u64>(left:u<N>, right:u<N> in Wrapping) -> u<N> in Wrapping
+    requires N > 0
+{ (left -% (right as -u<N>::Wrapping)) as +u<N>::Wrapping }
+
+public machine - subtract<const N:u64>(left:u<N> in Saturating, right:u<N> in Saturating) -> u<N> in Saturating
+    requires N > 0
+{ ((left as -u<N>::Saturating) -| (right as -u<N>::Saturating)) as +u<N>::Saturating }
+
+public machine - subtract<const N:u64>(left:u<N> in Saturating, right:u<N>) -> u<N> in Saturating
+    requires N > 0
+{ ((left as -u<N>::Saturating) -| right) as +u<N>::Saturating }
+
+public machine - subtract<const N:u64>(left:u<N>, right:u<N> in Saturating) -> u<N> in Saturating
+    requires N > 0
+{ (left -| (right as -u<N>::Saturating)) as +u<N>::Saturating }
+
+public machine - subtract<const N:u64>(left:u<N> in Trapping, right:u<N> in Trapping) -> u<N> in Trapping
+    requires N > 0 crashes Trap
+{ ((left as -u<N>::Trapping) -! (right as -u<N>::Trapping)) as +u<N>::Trapping }
+
+public machine - subtract<const N:u64>(left:u<N> in Trapping, right:u<N>) -> u<N> in Trapping
+    requires N > 0 crashes Trap
+{ ((left as -u<N>::Trapping) -! right) as +u<N>::Trapping }
+
+public machine - subtract<const N:u64>(left:u<N>, right:u<N> in Trapping) -> u<N> in Trapping
+    requires N > 0 crashes Trap
+{ (left -! (right as -u<N>::Trapping)) as +u<N>::Trapping }
+
+public machine - subtract<const N:u64>(left:i<N> in Wrapping, right:i<N> in Wrapping) -> i<N> in Wrapping
+    requires N > 0
+{ ((left as -i<N>::Wrapping) -% (right as -i<N>::Wrapping)) as +i<N>::Wrapping }
+
+public machine - subtract<const N:u64>(left:i<N> in Wrapping, right:i<N>) -> i<N> in Wrapping
+    requires N > 0
+{ ((left as -i<N>::Wrapping) -% right) as +i<N>::Wrapping }
+
+public machine - subtract<const N:u64>(left:i<N>, right:i<N> in Wrapping) -> i<N> in Wrapping
+    requires N > 0
+{ (left -% (right as -i<N>::Wrapping)) as +i<N>::Wrapping }
+
+public machine - subtract<const N:u64>(left:i<N> in Saturating, right:i<N> in Saturating) -> i<N> in Saturating
+    requires N > 0
+{ ((left as -i<N>::Saturating) -| (right as -i<N>::Saturating)) as +i<N>::Saturating }
+
+public machine - subtract<const N:u64>(left:i<N> in Saturating, right:i<N>) -> i<N> in Saturating
+    requires N > 0
+{ ((left as -i<N>::Saturating) -| right) as +i<N>::Saturating }
+
+public machine - subtract<const N:u64>(left:i<N>, right:i<N> in Saturating) -> i<N> in Saturating
+    requires N > 0
+{ (left -| (right as -i<N>::Saturating)) as +i<N>::Saturating }
+
+public machine - subtract<const N:u64>(left:i<N> in Trapping, right:i<N> in Trapping) -> i<N> in Trapping
+    requires N > 0 crashes Trap
+{ ((left as -i<N>::Trapping) -! (right as -i<N>::Trapping)) as +i<N>::Trapping }
+
+public machine - subtract<const N:u64>(left:i<N> in Trapping, right:i<N>) -> i<N> in Trapping
+    requires N > 0 crashes Trap
+{ ((left as -i<N>::Trapping) -! right) as +i<N>::Trapping }
+
+public machine - subtract<const N:u64>(left:i<N>, right:i<N> in Trapping) -> i<N> in Trapping
+    requires N > 0 crashes Trap
+{ (left -! (right as -i<N>::Trapping)) as +i<N>::Trapping }
+
+public machine * multiply<const N:u64>(left:u<N> in Wrapping, right:u<N> in Wrapping) -> u<N> in Wrapping
+    requires N > 0
+{ ((left as -u<N>::Wrapping) *% (right as -u<N>::Wrapping)) as +u<N>::Wrapping }
+
+public machine * multiply<const N:u64>(left:u<N> in Wrapping, right:u<N>) -> u<N> in Wrapping
+    requires N > 0
+{ ((left as -u<N>::Wrapping) *% right) as +u<N>::Wrapping }
+
+public machine * multiply<const N:u64>(left:u<N>, right:u<N> in Wrapping) -> u<N> in Wrapping
+    requires N > 0
+{ (left *% (right as -u<N>::Wrapping)) as +u<N>::Wrapping }
+
+public machine * multiply<const N:u64>(left:u<N> in Saturating, right:u<N> in Saturating) -> u<N> in Saturating
+    requires N > 0
+{ ((left as -u<N>::Saturating) *| (right as -u<N>::Saturating)) as +u<N>::Saturating }
+
+public machine * multiply<const N:u64>(left:u<N> in Saturating, right:u<N>) -> u<N> in Saturating
+    requires N > 0
+{ ((left as -u<N>::Saturating) *| right) as +u<N>::Saturating }
+
+public machine * multiply<const N:u64>(left:u<N>, right:u<N> in Saturating) -> u<N> in Saturating
+    requires N > 0
+{ (left *| (right as -u<N>::Saturating)) as +u<N>::Saturating }
+
+public machine * multiply<const N:u64>(left:u<N> in Trapping, right:u<N> in Trapping) -> u<N> in Trapping
+    requires N > 0 crashes Trap
+{ ((left as -u<N>::Trapping) *! (right as -u<N>::Trapping)) as +u<N>::Trapping }
+
+public machine * multiply<const N:u64>(left:u<N> in Trapping, right:u<N>) -> u<N> in Trapping
+    requires N > 0 crashes Trap
+{ ((left as -u<N>::Trapping) *! right) as +u<N>::Trapping }
+
+public machine * multiply<const N:u64>(left:u<N>, right:u<N> in Trapping) -> u<N> in Trapping
+    requires N > 0 crashes Trap
+{ (left *! (right as -u<N>::Trapping)) as +u<N>::Trapping }
+
+public machine * multiply<const N:u64>(left:i<N> in Wrapping, right:i<N> in Wrapping) -> i<N> in Wrapping
+    requires N > 0
+{ ((left as -i<N>::Wrapping) *% (right as -i<N>::Wrapping)) as +i<N>::Wrapping }
+
+public machine * multiply<const N:u64>(left:i<N> in Wrapping, right:i<N>) -> i<N> in Wrapping
+    requires N > 0
+{ ((left as -i<N>::Wrapping) *% right) as +i<N>::Wrapping }
+
+public machine * multiply<const N:u64>(left:i<N>, right:i<N> in Wrapping) -> i<N> in Wrapping
+    requires N > 0
+{ (left *% (right as -i<N>::Wrapping)) as +i<N>::Wrapping }
+
+public machine * multiply<const N:u64>(left:i<N> in Saturating, right:i<N> in Saturating) -> i<N> in Saturating
+    requires N > 0
+{ ((left as -i<N>::Saturating) *| (right as -i<N>::Saturating)) as +i<N>::Saturating }
+
+public machine * multiply<const N:u64>(left:i<N> in Saturating, right:i<N>) -> i<N> in Saturating
+    requires N > 0
+{ ((left as -i<N>::Saturating) *| right) as +i<N>::Saturating }
+
+public machine * multiply<const N:u64>(left:i<N>, right:i<N> in Saturating) -> i<N> in Saturating
+    requires N > 0
+{ (left *| (right as -i<N>::Saturating)) as +i<N>::Saturating }
+
+public machine * multiply<const N:u64>(left:i<N> in Trapping, right:i<N> in Trapping) -> i<N> in Trapping
+    requires N > 0 crashes Trap
+{ ((left as -i<N>::Trapping) *! (right as -i<N>::Trapping)) as +i<N>::Trapping }
+
+public machine * multiply<const N:u64>(left:i<N> in Trapping, right:i<N>) -> i<N> in Trapping
+    requires N > 0 crashes Trap
+{ ((left as -i<N>::Trapping) *! right) as +i<N>::Trapping }
+
+public machine * multiply<const N:u64>(left:i<N>, right:i<N> in Trapping) -> i<N> in Trapping
+    requires N > 0 crashes Trap
+{ (left *! (right as -i<N>::Trapping)) as +i<N>::Trapping }

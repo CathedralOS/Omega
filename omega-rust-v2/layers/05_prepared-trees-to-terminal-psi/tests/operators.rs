@@ -459,3 +459,185 @@ fn nested_operator_visibility_uses_the_resolved_export() {
         assert_eq!(machine.operator.as_ref().unwrap().public, public, "{path}");
     }
 }
+
+#[test]
+fn imported_integer_policies_select_the_declared_operation_for_each_operand_shape() {
+    use omega_psi::{ArithmeticPolicy, CallTarget, IntegerPrimitive as Op, OperationKind, TrappingIntegerPrimitive as Trap};
+
+    // Each triple records the source token, its stored primitive, and its trapping counterpart.
+    let operators = [
+        ("+", Op::Add, Some(Trap::Add)), ("-", Op::Subtract, Some(Trap::Subtract)),
+        ("*", Op::Multiply, Some(Trap::Multiply)), ("==", Op::Equal, None), ("!=", Op::NotEqual, None),
+        ("<", Op::LessThan, None), ("<=", Op::LessOrEqual, None), (">", Op::GreaterThan, None), (">=", Op::GreaterOrEqual, None),
+    ];
+    for (domain, policy) in [
+        ("Wrapping", Some(ArithmeticPolicy::Wrapping)), ("Saturating", Some(ArithmeticPolicy::Saturating)), ("Trapping", None),
+    ] {
+        for carrier in ["u8", "i13"] {
+            let qualified = format!("{carrier} in {domain}");
+            let mut program = String::from("use omega\\core;\n");
+            for (index, (token, _, trap)) in operators.iter().enumerate() {
+                let result = if trap.is_some() { &qualified } else { "bool" };
+                let ceiling = if policy.is_none() && trap.is_some() { "Trap" } else { "none" };
+                for (order, left, right) in [
+                    ("left", qualified.as_str(), carrier), ("right", carrier, qualified.as_str()), ("both", qualified.as_str(), qualified.as_str()),
+                ] {
+                    program.push_str(&format!("machine {order}{index}(x:{left},y:{right})->{result} crashes {ceiling} {{x {token} y}}\n"));
+                }
+            }
+            let package = source::lower(&[("main.omg", &program)]).unwrap();
+            let [family] = package.domain_templates.as_slice() else { panic!("expected just the used domain") };
+            assert_eq!(family.declaration.package, omega_toolchain::TOOLCHAIN_PACKAGE);
+            assert_eq!(family.declaration.path, format!("core\\{}::{domain}", &carrier[..1]));
+            let callers: Vec<_> = package.machines.iter().filter(|m| m.declaration.package == "app").collect();
+            assert_eq!(callers.len(), operators.len() * 3);
+            for caller in callers {
+                let index = caller.declaration.path.trim_start_matches(char::is_alphabetic).parse::<usize>().unwrap();
+                let (token, expected_op, trap) = operators[index];
+                let targets: Vec<_> = caller.body.operations.iter().filter_map(|op| match &op.kind {
+                    OperationKind::Call { callee: CallTarget::Machine(id), .. } => Some(*id),
+                    _ => None,
+                }).collect();
+                let [callee] = targets.as_slice() else { panic!("expected one operator call") };
+                let body = package.machines.iter().find(|m| m.id == *callee).unwrap();
+                let operator = body.operator.as_ref().unwrap();
+                assert_eq!(operator.token, token);
+                assert_eq!(operator.home.as_ref(), Some(&family.declaration));
+                assert_eq!(body.parameter_types, caller.parameter_types);
+                assert_eq!(body.result_type, caller.result_type);
+                assert!(body.body.operations.iter().any(|op| match &op.kind {
+                    OperationKind::Integer { operation, .. } => operation.primitive == expected_op
+                        && Some(operation.policy) == if trap.is_some() { policy } else { Some(ArithmeticPolicy::Exact) },
+                    OperationKind::TrappingInteger { primitive, .. } => policy.is_none() && Some(*primitive) == trap,
+                    _ => false,
+                }), "{domain} {carrier} {token}");
+            }
+        }
+    }
+}
+
+#[test]
+fn importing_core_leaves_an_application_machine_named_add_callable() {
+    let program = "use omega\\core;
+        machine add(x:u8) -> u8 { x }
+        machine both(x:u8 in Wrapping)->u8 in Wrapping { x + add(1u8) }";
+    let package = source::lower(&[("main.omg", program)]).unwrap();
+    let caller = package.machines.iter().find(|m| m.declaration.path == "both").unwrap();
+    let targets: Vec<_> = caller.body.operations.iter().filter_map(|row| match &row.kind {
+        omega_psi::OperationKind::Call { callee: omega_psi::CallTarget::Machine(id), .. } =>
+            Some(&package.machines.iter().find(|machine| machine.id == *id).unwrap().declaration.package),
+        _ => None,
+    }).collect();
+    assert_eq!(targets, ["app", omega_toolchain::TOOLCHAIN_PACKAGE]);
+}
+
+#[test]
+fn a_local_wrapping_declaration_has_its_own_operator_semantics() {
+    use omega_lowering::{ArithmeticPolicy, IntegerPrimitive, OperationKind};
+    let program = "domain u8::Wrapping;
+        machine + add(x:u8 in Wrapping,y:u8)->u8 in Wrapping { ((x as -Wrapping) +| y) as +Wrapping }
+        machine f(x:u8 in Wrapping)->u8 in Wrapping {x+1u8}";
+    let pkg = source::lower(&[("main.omg", program)]).unwrap();
+    assert!(pkg.domain_templates.is_empty());
+    let add = pkg.machines.iter().find(|m| m.declaration.path == "add").unwrap();
+    assert_eq!(add.declaration.package, "app");
+    assert!(add.body.operations.iter().any(|op| matches!(&op.kind, OperationKind::Integer { operation, .. }
+        if operation.primitive == IntegerPrimitive::Add && operation.policy == ArithmeticPolicy::Saturating)));
+}
+
+#[test]
+fn core_publishes_the_width_contract_and_casts_of_each_policy_addition() {
+    use omega_psi::{ArithmeticPolicy, IntegerPrimitive, TemplateStep, TrappingIntegerPrimitive, TypeExpressionStep};
+
+    let library = omega_toolchain::SourcePackage::toolchain_definition();
+    let prepared = omega_preparation::prepare_source_package(&library).unwrap();
+    let package = omega_lowering::lower_package(&prepared).unwrap();
+    let mut signatures = std::collections::BTreeSet::new();
+    for template in &package.machine_templates {
+        let Some(operator) = &template.operator else { continue };
+        if operator.token != "+" { continue }
+        let home = operator.home.as_ref().unwrap();
+        assert_eq!(home.package, omega_toolchain::TOOLCHAIN_PACKAGE);
+        assert_eq!(template.signature.requires.len(), 1);
+        assert!(!template.positive_widths.is_empty());
+        assert!(template.positive_widths.iter().all(|(_, width)| matches!(width.0.as_slice(),
+            [TypeExpressionStep::GenericParameter { owner, index: 0 }] if owner == &template.declaration)));
+        let args = &template.signature.parameters;
+        let qualified = |index: usize| matches!(args[index].0.last(), Some(TypeExpressionStep::Qualified(atoms))
+            if atoms.len() == 1 && atoms[0].0 == *home);
+        let shape = (qualified(0), qualified(1));
+        assert_ne!(shape, (false, false));
+        assert!(signatures.insert((home.path.clone(), shape)));
+
+        let (mint, rest) = template.body.split_last().unwrap();
+        let TemplateStep::Qualify { establishes, result, .. } = mint else { panic!("missing result qualification") };
+        assert_eq!(template.signature.result.as_ref(), Some(result));
+        assert_eq!(establishes.len(), 1);
+        assert_eq!(&establishes[0].declaration, home);
+
+        let (arithmetic, erasures) = rest.split_last().unwrap();
+        assert_eq!(erasures.len(), usize::from(shape.0) + usize::from(shape.1));
+        assert!(erasures.iter().all(|step| matches!(step, TemplateStep::Qualify { establishes, .. } if establishes.is_empty())));
+        match (home.path.rsplit("::").next().unwrap(), arithmetic) {
+            ("Wrapping", TemplateStep::Integer(row)) => {
+                assert_eq!(row.operation.primitive, IntegerPrimitive::Add);
+                assert_eq!(row.operation.policy, ArithmeticPolicy::Wrapping);
+            }
+            ("Saturating", TemplateStep::Integer(row)) => {
+                assert_eq!(row.operation.primitive, IntegerPrimitive::Add);
+                assert_eq!(row.operation.policy, ArithmeticPolicy::Saturating);
+            }
+            ("Trapping", TemplateStep::TrappingInteger { primitive: TrappingIntegerPrimitive::Add, .. }) => {
+                assert_eq!(template.signature.crash_routes.len(), 1);
+            }
+            _ => panic!("wrong arithmetic for {}", home.path),
+        }
+    }
+    assert_eq!(signatures.len(), 18);
+}
+
+#[test]
+fn bare_policy_casts_use_the_typed_operand_or_written_destination() {
+    let program = "use omega\\core;
+        machine left(x:u13)->u13 in Wrapping {x as +Wrapping}
+        machine erase(x:i17 in Wrapping)->i17 {x as -Wrapping}
+        machine widen(x:u8)->u13 in Wrapping {x as u13 +Wrapping}";
+    let package = source::lower(&[("main.omg", program)]).unwrap();
+    let homes: std::collections::BTreeSet<_> = package.domain_templates.iter().map(|row| row.declaration.path.as_str()).collect();
+    assert_eq!(homes, [r"core\i::Wrapping", r"core\u::Wrapping"].into_iter().collect());
+}
+
+#[test]
+fn a_width_family_publishes_its_width_predicate_at_definition_and_use() {
+    use omega_psi::PredicateStep;
+    let program = "domain<const N:u64> u<N>::Tag requires N > 3;
+        machine a(x:u13 in Tag)->u13 in Tag { x }
+        machine b(x:u7 in Tag)->u7 in Tag { x }";
+    let package = source::lower(&[("main.omg", program)]).unwrap();
+    let [family] = package.domain_templates.as_slice() else { panic!("expected one domain family") };
+    assert!(family.index_binders.is_empty());
+    assert!(matches!(family.requires[0].predicate.first(), Some(PredicateStep::ValueIndex(0))));
+    for (path, width) in [("a", 13), ("b", 7)] {
+        let machine = package.machines.iter().find(|m| m.declaration.path == path).unwrap();
+        for clauses in [&machine.contract.requires, &machine.contract.ensures] {
+            let [clause] = clauses.as_slice() else { panic!("expected the domain predicate at {path}") };
+            assert_eq!(clause.predicate.first(), Some(&PredicateStep::Integer(width.into())));
+            assert_eq!(clause.predicate[1..], family.requires[0].predicate[1..]);
+        }
+    }
+}
+
+#[test]
+fn an_explicit_domain_index_remains_distinct_from_the_width_of_its_subject() {
+    use omega_psi::PredicateStep;
+    let program = "domain<const N:u64,const Limit:u64> u<N>::Bound<Limit> requires N > Limit;
+        machine f(x:u13 in Bound<4>)->u13 in Bound<4> {x}";
+    let package = source::lower(&[("main.omg", program)]).unwrap();
+    let [family] = package.domain_templates.as_slice() else { panic!("one applied domain family") };
+    assert_eq!(family.index_binders, [1]);
+    let [machine] = package.machines.as_slice() else { panic!("one closed machine") };
+    for clauses in [&machine.contract.requires, &machine.contract.ensures] {
+        let [clause] = clauses.as_slice() else { panic!("one applied requirement") };
+        assert_eq!(clause.predicate[..2], [PredicateStep::Integer(13.into()), PredicateStep::Integer(4.into())]);
+    }
+}

@@ -247,6 +247,10 @@ impl<'a> AppliedRecord<'a> {
             Call(c) => Self::Call(Box::new(c.with_substitutions(|v| app.instantiate(v)))),
             Obligation(o) => {
                 let kind = match &o.kind {
+                    ObligationKind::EstablishDomain(atom) => ObligationKind::EstablishDomain(omega_typed::DomainApplication {
+                        declaration: atom.declaration.clone(),
+                        arguments: atom.arguments.iter().map(|arg| app.instantiate(arg)).collect(),
+                    }),
                     ObligationKind::OperationContract { token, operands } => ObligationKind::OperationContract {
                         token: token.clone(),
                         operands: operands.iter().map(|p| app.instantiate(p)).collect(),

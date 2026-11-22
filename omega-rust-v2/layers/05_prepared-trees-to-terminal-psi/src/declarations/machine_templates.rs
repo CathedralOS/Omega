@@ -2,7 +2,7 @@ mod lexical;
 
 use super::{
     contracts::{self, ClauseOwner},
-    type_expression::type_expression,
+    type_expression::{indexed_expression, type_expression},
 };
 use crate::lowering::applied_tree::LoweringTree;
 use crate::{
@@ -31,7 +31,7 @@ fn result_type(
     site: &Site,
 ) -> Result<Option<TypeExpression>, LoweringError> {
     (ty != &ValueType::NoResult)
-        .then(|| type_expression(ty, site))
+        .then(|| indexed_expression(ty, site))
         .transpose()
 }
 
@@ -45,7 +45,7 @@ pub(super) fn signature(
     let mut requires = Vec::new();
     let mut ensures = Vec::new();
     let bad = || LoweringError::new(&sig.site, "unsupported template machine contract");
-    if sig.operator.is_some() || sig.satisfies.is_some() || !sig.multiplicity_bounds.is_empty() {
+    if sig.satisfies.is_some() || !sig.multiplicity_bounds.is_empty() {
         return Err(bad());
     }
     for &child in &file.nodes[sig.node.node].children {
@@ -60,6 +60,7 @@ pub(super) fn signature(
             | NodeKind::Suspends => {}
             // Routes, including guards over the entry formals, are lowered below.
             NodeKind::Crashes => {}
+            NodeKind::OperatorToken if sig.operator.as_ref().is_some_and(|binding| binding.node == file.node_id(child)) => {}
             NodeKind::Terminates
                 if file.nodes[child].children.is_empty()
                     && tree.semantics_at(child).all(
@@ -88,7 +89,7 @@ pub(super) fn signature(
         parameters: sig
             .parameters
             .iter()
-            .map(|(_, ty)| type_expression(ty, &sig.site))
+            .map(|(_, ty)| indexed_expression(ty, &sig.site))
             .collect::<Result<_, _>>()?,
         result: result_type(&sig.result, &sig.site)?,
         result_lifetime_input: super::callables::result_lifetime_input(&sig.result, sig.parameters.iter().map(|(_, ty)| ty)),
@@ -542,9 +543,23 @@ fn lower(
         return Err(LoweringError::new(&sig.site, OPEN_TEMPLATE));
     }
     super::crash_routes::check_template_invocations(prepared, sig)?;
+    let mut positive_widths = Vec::new();
+    for row in &typed.obligations {
+        let ObligationKind::PositiveWidth(width) = &row.kind else { continue };
+        let at = row.node.node;
+        if row.node.file == sig.node.file && row.site.package == sig.site.package && row.site.file == sig.site.file
+            && (sig.node.node..file.nodes[sig.node.node].end).contains(&at)
+            && std::iter::successors(Some(at), |&n| file.nodes[n].parent)
+                .find(|&n| matches!(file.nodes[n].kind, NodeKind::Machine | NodeKind::Data)) == Some(sig.node.node)
+        {
+            positive_widths.push((row.site.clone(), indexed_expression(width, &row.site)?));
+        }
+    }
     Ok(MachineTemplate {
         declaration: crate::identity::declaration(&sig.machine, &sig.site)?,
         public: tree.resolved().is_exported(sig.node.node),
+        operator: sig.operator.as_ref().map(super::machine::lower_operator).transpose()?,
+        positive_widths,
         parameters,
         signature: signature(prepared, tree, sig)?,
         discarded_fields: residuals(typed, sig, &body)?,
@@ -725,6 +740,7 @@ impl<'a> Steps<'_, '_, 'a, '_> {
             NodeKind::Call if tree.declaration_selection(node).is_some() => self.describe(node, returned),
             NodeKind::CallMarker | NodeKind::Call => self.call(node, returned),
             NodeKind::Binary | NodeKind::Unary => self.integer(node),
+            NodeKind::Cast => self.qualify(node, returned),
             NodeKind::Literal if file.nodes[node].children.is_empty() => {
                 let mut landing = None;
                 let mut expression = None;
@@ -768,7 +784,8 @@ impl<'a> Steps<'_, '_, 'a, '_> {
                 if file.nodes[node].children.is_empty()
                     && let Some(NodeSemantics::Expression(e)) = tree.semantics_at(node).next()
                     && typed_subject(tree, node, &e.ty)
-                    && crate::lowering::types::scalar_carrier(&e.ty).is_ok()
+                    && (crate::lowering::types::scalar_carrier(e.ty.carrier()).is_ok() || matches!(e.ty.carrier(), ValueType::IndexedInteger { .. }))
+                    && e.ty.domains().iter().all(|atom| !tree.forest().cleanups.iter().any(|cleanup| cleanup.owner == atom.declaration))
                     && let Some(formal) = formal(tree, sig, node, &e.ty) =>
             {
                 Ok((TemplateOperand::Formal(formal), &e.ty))
@@ -809,8 +826,43 @@ impl<'a> Steps<'_, '_, 'a, '_> {
         Ok((self.push(TemplateStep::Call(operation)), ty))
     }
 
+    fn qualify(&mut self, node: usize, returned: bool) -> Result<(TemplateOperand, &'a ValueType), LoweringError> {
+        let tree = self.tree;
+        let file = tree.resolved().file;
+        let mut operation = None;
+        let mut result = None;
+        let mut establishes = Vec::new();
+        for row in tree.semantics_at(node) {
+            match row {
+                NodeSemantics::Operation(op) if op.token == "as" && operation.is_none() => operation = Some(op),
+                NodeSemantics::Expression(e) if e.static_argument_slot.is_none() && result.is_none() => result = Some(&e.ty),
+                NodeSemantics::Obligation(o) if o.node == file.node_id(node) => match &o.kind {
+                    ObligationKind::EstablishDomain(atom) => establishes.push(atom),
+                    _ if self.returned_row(&row, node, returned) => {}
+                    _ => return Err(self.refuse()),
+                },
+                _ => return Err(self.refuse()),
+            }
+        }
+        let op = operation.ok_or_else(|| self.refuse())?;
+        let [source] = op.operands.as_slice() else { return Err(self.refuse()) };
+        let result = result.filter(|ty| **ty == op.result && ty.carrier() == source.carrier()).ok_or_else(|| self.refuse())?;
+        let added = result.domains().iter().filter(|atom| !source.domains().contains(atom));
+        if !added.eq(establishes.iter().copied()) || result.domains() == source.domains() {
+            return Err(self.refuse());
+        }
+        let child = *file.nodes[node].children.first().ok_or_else(|| self.refuse())?;
+        let (operand, actual) = self.expression(child, false)?;
+        if actual != source {
+            return Err(self.refuse());
+        }
+        let establishes = establishes.into_iter().map(|atom| crate::LoweringTypes::domain_atom(atom, &op.site)).collect::<Result<_, _>>()?;
+        let step = TemplateStep::Qualify { operand, source: indexed_expression(source, &op.site)?, result: indexed_expression(result, &op.site)?, establishes, site: op.site.clone() };
+        Ok((self.push(step), result))
+    }
+
     /// The classifier a closed body uses selects the primitive, policy and
-    /// checker questions. A trapping operator would need a crash edge in the
+    /// checker questions. A trapping operator retains its crash site in the
     /// template. Literal operands retain their checked numeric landings.
     fn integer(
         &mut self,
@@ -829,7 +881,7 @@ impl<'a> Steps<'_, '_, 'a, '_> {
             }
         }
         let op = selected.ok_or_else(|| self.refuse())?;
-        let fixed = |ty: &ValueType| matches!(ty, ValueType::Integer { width: Some(w), .. } if *w > 0);
+        let fixed = |ty: &ValueType| matches!(ty, ValueType::Integer { width: Some(w), .. } if *w > 0) || matches!(ty, ValueType::IndexedInteger { .. });
         if !fixed(&op.result) && op.result != ValueType::Bool
             || !op.operands.iter().all(fixed)
             || op.operands.len() != file.nodes[node].children.len()
@@ -839,10 +891,7 @@ impl<'a> Steps<'_, '_, 'a, '_> {
         {
             return Err(self.refuse());
         }
-        let crate::machines::arithmetic::LoweredInteger::Ordinary(operation) = crate::machines::arithmetic::lower_integer(op, &obligations, &sig.machine)?
-        else {
-            return Err(self.refuse());
-        };
+        let operation = crate::machines::arithmetic::lower_integer(op, &obligations, &sig.machine)?;
         let mut operands = Vec::with_capacity(op.operands.len());
         for (&child, carrier) in file.nodes[node].children.iter().zip(&op.operands) {
             let (operand, ty) = self.expression(child, false)?;
@@ -851,13 +900,13 @@ impl<'a> Steps<'_, '_, 'a, '_> {
             }
             operands.push(operand);
         }
-        let step = crate::TemplateInteger {
-            operation,
-            operands,
-            result_type: type_expression(&op.result, &op.site)?,
-            site: op.site.clone(),
+        let result_type = indexed_expression(&op.result, &op.site)?;
+        let site = op.site.clone();
+        let step = match operation {
+            crate::machines::arithmetic::LoweredInteger::Ordinary(operation) => TemplateStep::Integer(crate::TemplateInteger { operation, operands, result_type, site }),
+            crate::machines::arithmetic::LoweredInteger::Trapping(primitive) => TemplateStep::TrappingInteger { primitive, operands, result_type, site },
         };
-        Ok((self.push(TemplateStep::Integer(step)), &op.result))
+        Ok((self.push(step), &op.result))
     }
 
     fn copy_referent(&mut self, node: usize, returned: bool) -> Result<(TemplateOperand, &'a ValueType), LoweringError> {
@@ -1492,6 +1541,8 @@ fn reads_formal(
         TemplateStep::CopyReferent { formal, .. } | TemplateStep::MoveFormal { formal, .. } => formals.contains(formal),
         TemplateStep::Call(call) => call.operands.iter().any(direct),
         TemplateStep::Integer(integer) => integer.operands.iter().any(direct),
+        TemplateStep::TrappingInteger { operands, .. } => operands.iter().any(direct),
+        TemplateStep::Qualify { operand, .. } => direct(operand),
         TemplateStep::Construct(construct) => construct.fields.iter().any(|(_, value)| direct(value)),
         TemplateStep::Array(array) => array.elements.iter().any(direct),
         TemplateStep::Describe(_) => false,

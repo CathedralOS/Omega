@@ -39,6 +39,7 @@ pub(crate) struct DeclaredTypes<'a> {
     pub data_properties: HashMap<&'a DeclarationId, crate::DataProperties>,
     pub(crate) scopes: HashMap<&'a DeclarationId, Vec<&'a DeclarationId>>,
     pub domains: Domains<'a>,
+    pub arithmetic_policies: HashSet<&'a DeclarationId>,
     pub service_traits: HashSet<&'a DeclarationId>,
     pub(crate) aliases: HashMap<&'a DeclarationId, ValueType>,
 }
@@ -46,6 +47,14 @@ pub(crate) struct DeclaredTypes<'a> {
 pub(crate) use omega_typed::{GenericParameter, GenericParameters};
 
 impl TypeCatalog<'_> {
+    pub(crate) fn qualified(&self, carrier: ValueType, atoms: Vec<crate::DomainApplication>) -> Result<ValueType, String> {
+        let value = omega_typed::qualified(carrier, atoms);
+        if value.domains().iter().filter(|atom| self.arithmetic_policies.contains(&atom.declaration)).nth(1).is_some() {
+            return Err("a domain chain may carry at most one arithmetic policy".into());
+        }
+        Ok(value)
+    }
+
     fn parameter(
         &self,
         owner: &DeclarationId,
@@ -381,7 +390,7 @@ impl TypeCatalog<'_> {
                     for id in domains {
                         atoms.extend(self.expand_domain(&id, base.carrier(), true, active, requirements)?);
                     }
-                    break Ok(omega_typed::qualified(base.carrier().clone(), atoms));
+                    break self.qualified(base.carrier().clone(), atoms);
                 }
                 Applied(id, args) => (
                     id,

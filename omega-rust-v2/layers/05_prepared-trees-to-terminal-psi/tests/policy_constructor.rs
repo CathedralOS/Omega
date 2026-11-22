@@ -24,7 +24,8 @@ fn the_library_plan_constructor_lowers_as_one_closed_body() {
     let [machine] = found.as_slice() else {
         panic!("the defining library publishes one constructor body")
     };
-    assert!(package.machine_templates.is_empty() && package.data_templates.is_empty());
+    assert!(package.machine_templates.iter().all(|template| template.declaration != machine.declaration));
+    assert!(package.data_templates.is_empty());
     let data = |path: &str| {
         package
             .data

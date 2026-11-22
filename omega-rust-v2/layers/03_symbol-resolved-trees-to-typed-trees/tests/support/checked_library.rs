@@ -342,16 +342,6 @@ fn imported_crash_routes_keep_the_guard_and_the_forwarded_call_operands() {
     }
 }
 
-/// The bundled toolchain sources, in the order `omega_toolchain::core_interface` resolves them.
-const TOOLCHAIN_FILES: [(&str, &str); 7] = [
-    ("indexing/collections.omg", include_str!("../../../../toolchain/core/indexing.omg")),
-    ("language/core/core.omg", include_str!("../../../../toolchain/core/core.omg")),
-    ("language/core/reflect/reflect.omg", include_str!("../../../../toolchain/core/reflect.omg")),
-    ("language/core/access/access.omg", include_str!("../../../../toolchain/core/access.omg")),
-    ("language/core/Nat/nat.omg", include_str!("../../../../toolchain/core/nat.omg")),
-    ("language/core/never.omg", include_str!("../../../../toolchain/core/never.omg")),
-    ("language/core/process_exit.omg", include_str!("../../../../toolchain/core/process_exit.omg")),
-];
 const ACCESS_FILE: &str = "language/core/access/access.omg";
 const CORE_FILE: &str = "language/core/core.omg";
 
@@ -365,7 +355,7 @@ fn check_toolchain(
     edit: impl Fn(&str) -> String,
 ) -> Result<(&'static CheckedLibrary, Texts), crate::TypeError> {
     let parsed: &'static [(&'static str, &'static str, _, _)] = Vec::leak(
-        TOOLCHAIN_FILES
+        omega_toolchain::core_interface().sources()
             .iter()
             .map(|&(path, text)| {
                 let text: &'static str = if path == file { String::leak(edit(text)) } else { text };
@@ -591,7 +581,7 @@ public machine new_plan<'t>(schema: @TypeSchema<'t>, issuance: Issuance<'t>) -> 
     ensures result.writer_count == 0
     ensures result.reach.service_count == 0;
 ";
-    let access = TOOLCHAIN_FILES
+    let access = omega_toolchain::core_interface().sources()
         .iter()
         .find(|(path, _)| *path == ACCESS_FILE)
         .unwrap()
@@ -702,7 +692,7 @@ fn altered_guarantees_become_the_bodys_own_open_rows() {
 #[test]
 fn a_closed_catalog_machine_cannot_also_declare_a_checked_body() {
     let declaration = "public machine size_of<T>() -> u64\n    reaches none crashes none terminates;";
-    let core = TOOLCHAIN_FILES
+    let core = omega_toolchain::core_interface().sources()
         .iter()
         .find(|(path, _)| *path == CORE_FILE)
         .unwrap()
