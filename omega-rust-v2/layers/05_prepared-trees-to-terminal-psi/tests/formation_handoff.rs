@@ -28,8 +28,6 @@ use omega_lowering::{LoweredPackage, LoweringError, MachineBody, OperationKind, 
 use omega_preparation::{PreparedTrees, prepare_source_package};
 use omega_typed::{ObligationKind, Site, TypingObligation};
 
-use std::ops::Range;
-
 /// Read the obligations and run the requested check on the same prepared trees.
 fn with_prepared<T>(
     file: &str,
@@ -40,10 +38,6 @@ fn with_prepared<T>(
     let prepared = prepare_source_package(&package).unwrap_or_else(|error| panic!("{file}: preparation failed: {error:?}\n{source}"));
     let obligations = prepared.typed().obligations.clone();
     (obligations, read(&prepared))
-}
-
-fn refusal(file: &str, source: &str, span: Range<usize>, message: &str) -> (Vec<TypingObligation>, LoweringError) {
-    with_prepared(file, source, |prepared| sources::refuse_prepared(prepared, &[(file, source)], file, span, message))
 }
 
 fn lower(file: &str, source: &str) -> (Vec<TypingObligation>, Result<LoweredPackage, LoweringError>) {
