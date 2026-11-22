@@ -262,8 +262,8 @@ pub fn parked_homes(
         let row = rows
             .next_if(|row| row.place == home.place)
             .ok_or("a needed home has no row, or the rows are out of order")?;
-        if row.ty != body.places[home.place.index()].ty || !row.carry.allows_suspension {
-            return Err("home row disagrees with its home type or carry");
+        if row.ty != body.places[home.place.index()].ty {
+            return Err("home row disagrees with its home type");
         }
         if (row.needed_by_callee, row.needed_after_completion) != (by_callee, after) {
             return Err("home row needs disagree with the call and its continuation");

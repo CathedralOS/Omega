@@ -77,10 +77,29 @@ fn a_parked_call_keeps_its_argument_and_later_operand_without_committing_its_res
         );
         for row in &crossing.activation {
             assert_eq!(row.ty, body.values[row.value.index()].ty);
-            assert!(row.carry.allows_suspension);
-            assert!(!(row.carry.requires_same_thread || row.carry.requires_same_cpu || row.carry.requires_stable_address));
             assert!(row.value != result && row.value != dead);
         }
+    }
+}
+
+#[test]
+fn a_parked_qualified_scalar_retains_the_selected_formal_and_its_domain() {
+    for (selected, position) in [("left", 0), ("right", 1)] {
+        let text = format!(
+            "domain u8::Mark; machine wait() suspends {{}} machine f(left:u8 in Mark,right:u8 in Mark)->u8 in Mark suspends {{suspend wait(); {selected}}}"
+        );
+        let pkg = source::lower(&[("qualified.omg", &text)]).unwrap();
+        let body = &pkg.machines.iter().find(|m| m.declaration.path == "f").unwrap().body;
+        let [site] = body.suspension_sites.as_slice() else { panic!("one parked call") };
+        let [row] = site.activation.as_slice() else { panic!("only the returned formal is live") };
+        let Parameter::Scalar(expected) = body.parameters[position] else { panic!("scalar formal") };
+        assert_eq!((row.value, row.ty), (expected, body.values[expected.index()].ty));
+        assert_eq!((row.needed_by_callee, row.needed_after_completion), (false, true));
+        let Some(omega_lowering::TypeShape::QualifiedScalar { domains, .. }) = pkg.types.get(row.ty) else {
+            panic!("parked type retains the qualification")
+        };
+        let [domain] = pkg.types.domain_set(*domains).unwrap() else { panic!("one domain") };
+        assert_eq!(domain.path, "u8::Mark");
     }
 }
 

@@ -1785,7 +1785,12 @@ fn published_reader_and_factory_bind_their_own_preconditions() {
 
 #[test]
 fn published_equality_binds_a_shadowing_parameter() {
-    let clause = chapter_block("language/generics.md", 310);
+    let clause = spec_corpus::published_chapter("language/generics.md")
+        .unwrap()
+        .into_iter()
+        .find(|block| block.source_text.lines().any(|line| line.trim() == "T == u16 || T == u32 || T == u64"))
+        .expect("published generic constraint comparing T to the three integer types")
+        .source_text;
     let ok = format!("machine restrict<T>() {clause} {{}}");
     run(&[("app", "restrict.omg", &ok)], &[]).unwrap();
     let shadow = ok.replace("restrict<T>()", "restrict<T>(u32:u16)");

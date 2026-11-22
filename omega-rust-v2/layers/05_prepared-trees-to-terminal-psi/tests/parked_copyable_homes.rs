@@ -4,23 +4,15 @@
 //! `suspend wait(@x.key)` lends a field of `x`. For an affine `Item` the
 //! ownership pass publishes an owner row for `x`, and that row backs the loan.
 //! A `[copy]` `Item` has no ownership claim, but its storage must still stay in
-//! the parked activation, so the site gives `x` a home row with the carry its
-//! schema composes. The borrow operand keeps the captured place and access.
+//! the parked activation, so the site gives `x` a home row naming its type. The borrow operand keeps the captured place and access.
 #[path = "support/source.rs"]
 mod source;
 
-use omega_lowering::{Carry, OwnedCustody, PlaceProjection, ReferenceAccess, ValueOperand};
+use omega_lowering::{OwnedCustody, PlaceProjection, ReferenceAccess, ValueOperand};
 use psi_handoff_consumer::{CopyableHome, parked_copyable_homes, parked_homes};
 
 const CASE: &str = include_str!("fixtures/package_cases/copyable-record-field-loan-at-suspension/case/case.omg");
 const CONTROL: &str = include_str!("fixtures/package_cases/copyable-record-field-loan-at-suspension/control/case.omg");
-
-const UNRESTRICTED: Carry = Carry {
-    allows_suspension: true,
-    requires_same_cpu: false,
-    requires_same_thread: false,
-    requires_stable_address: false,
-};
 
 fn caller(package: &omega_lowering::LoweredPackage) -> &omega_lowering::LoweredMachine {
     package.machines.iter().find(|m| m.declaration.path == "f").unwrap()
@@ -76,7 +68,6 @@ fn a_parked_field_loan_keeps_the_copyable_record_in_the_activation() {
             Ok(vec![CopyableHome {
                 place: x,
                 formal: Some(0),
-                carry: UNRESTRICTED,
                 needed_by_callee: true,
                 needed_after_completion: false,
                 loans: vec![],
@@ -121,12 +112,30 @@ fn a_named_loan_of_the_field_is_retained_with_its_copyable_backing() {
         Ok(vec![CopyableHome {
             place: x,
             formal: Some(0),
-            carry: UNRESTRICTED,
             needed_by_callee: true,
             needed_after_completion: false,
             loans: vec![loan.descriptor],
         }])
     );
+}
+
+#[test]
+fn a_parked_field_loan_names_the_selected_backing_even_when_the_inputs_have_the_same_type() {
+    for (name, index) in [("first", 0), ("second", 1)] {
+        let text = format!(
+            "domain u64::Tag; data Item [copy] {{key:u64;counter:u64 in Tag;}} machine wait(k:@u64) suspends {{}}
+             machine f(first:Item,second:Item) suspends {{let k = @{name}.key; suspend wait(k)}}"
+        );
+        let pkg = source::lower(&[("selected.omg", &text)]).unwrap();
+        let body = &caller(&pkg).body;
+        let [site] = body.suspension_sites.as_slice() else { panic!("one parked call") };
+        let [loan] = site.retained_loans.as_slice() else { panic!("one retained field loan") };
+        let homes = parked_copyable_homes(&pkg, body, site).unwrap();
+        let [home] = homes.as_slice() else { panic!("only the selected backing stays live") };
+        assert_eq!(home.formal, Some(index));
+        assert_eq!(body.parameters[index], omega_lowering::Parameter::Structural(home.place));
+        assert_eq!(home.loans, [loan.descriptor]);
+    }
 }
 
 #[test]
@@ -139,12 +148,12 @@ fn the_reader_rejects_a_missing_or_misstated_copyable_home() {
         parked_copyable_homes(&pkg, body, &site),
         Err("needed copyable storage has no row, or the rows are out of order")
     );
-    let mut restricted = row.clone();
-    restricted.carry.requires_same_thread = true;
-    site.retained_homes.push(restricted);
+    let mut mistyped = row.clone();
+    mistyped.ty = pkg.data.iter().find(|schema| schema.declaration.path == "Item").unwrap().fields[0].carrier;
+    site.retained_homes.push(mistyped);
     assert_eq!(
         parked_copyable_homes(&pkg, body, &site),
-        Err("a copyable home row disagrees with its storage type or composed carry")
+        Err("a copyable home row disagrees with its storage type")
     );
     site.retained_homes[0] = row.clone();
     site.retained_homes[0].needed_after_completion = true;

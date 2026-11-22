@@ -173,7 +173,7 @@ fn a_parked_field_reborrow_traces_to_the_same_incoming_loan_named_or_inline() {
     for (binding, actual) in [("", "@h.token"), ("let loan:@Token=@h.token;", "loan")] {
         for (pause, callee_needs) in [("suspend inspect", true), ("suspend tick(); observe", false)] {
             let text = format!(
-                "data Token [carry(suspension:allowed,cpu:same,thread:any,address:stable,)]{{v:u8;}} data Holder{{token:Token;other:Token;}}
+                "data Token{{v:u8;}} data Holder{{token:Token;other:Token;}}
                  machine inspect(t:@Token) suspends{{}} machine tick() suspends{{}} machine observe(t:@Token){{}}
                  machine forward(h:@Holder) suspends{{{binding} {pause}({actual});}}"
             );
@@ -259,100 +259,39 @@ fn a_parked_field_reborrow_traces_to_the_same_incoming_loan_named_or_inline() {
             };
             let subject = &pkg.data[token.get() - 1];
             assert_eq!(selected.carrier, subject.carrier);
-            let carry = subject.carry.as_ref().unwrap();
-            assert!(carry.allows_suspension && carry.requires_same_cpu && carry.requires_stable_address && !carry.requires_same_thread);
+
         }
     }
 }
 
-/// Token forbids suspension, so the checker must reject parking a loan of
-/// `h.token` whether the call borrows it inline or through a named reborrow.
-/// Lowering publishes the crossing instead of judging it: the parked loan leads
-/// to the Token schema and its declared prohibition. The allowed twin differs
-/// only in that axis, and a floor on Holder stays on the path for the checker.
-/// The same holds when the record arrives through a join or behind a
-/// descriptor stored in the incoming record.
 #[test]
-fn naming_a_field_reborrow_cannot_hide_forbidden_backing() {
-    use omega_lowering::{Carry, TypeShape};
-    use psi_handoff_consumer::{ParkedFieldReborrow, parked_field_loan_carry, parked_field_reborrow};
-    let carry = |allows_suspension| Carry {
-        allows_suspension,
-        requires_same_cpu: true,
-        requires_same_thread: false,
-        requires_stable_address: true,
-    };
-    let (forbidden, allowed) = (carry(false), carry(true));
-    for (binding, actual) in [("", "@h.token"), ("let loan:@Token=@h.token;", "loan")] {
-        for (permission, file, expected) in [("forbidden", "forbidden.omg", &forbidden), ("allowed", "allowed.omg", &allowed)] {
-            let text = format!(
-                "data Token [carry(suspension:{permission},cpu:same,thread:any,address:stable,)]{{v:u8;}} data Holder{{token:Token;}}
-             machine inspect(t:@Token) suspends{{}} machine forward(h:@Holder) suspends{{{binding} suspend inspect({actual});}}"
-            );
-            let mut package = source::lower(&[(file, &text)]).unwrap();
-            if permission == "forbidden" {
-                spec_corpus::observe_handoff!(
-                    psi "psi-output/parked-field-carry",
-                    assert_eq!(parked_field_loan_carry(&package), Ok(vec![("Holder", None), ("Token", Some(&forbidden))])),
-                );
-            }
-            assert_eq!(parked_field_loan_carry(&package), Ok(vec![("Holder", None), ("Token", Some(expected))]));
+fn parked_reborrows_preserve_the_selected_field_with_qualified_contents() {
+    use psi_handoff_consumer::{ParkedFieldReborrow, parked_field_reborrow};
 
-            // The reader observes which schema on the loan's path holds the restriction.
-            let token = package.data.iter().position(|d| d.declaration.path == "Token").unwrap();
-            let holder = package.data.iter().position(|d| d.declaration.path == "Holder").unwrap();
-            package.data[holder].carry = package.data[token].carry.take();
-            assert_eq!(parked_field_loan_carry(&package), Ok(vec![("Holder", Some(expected)), ("Token", None)]));
-        }
-
-        let text = format!(
-            "data Token{{v:u8;}} data Holder [carry(suspension:forbidden,cpu:same,thread:any,address:stable,)]{{token:Token;}}
-             machine inspect(t:@Token) suspends{{}} machine forward(h:@Holder) suspends{{{binding} suspend inspect({actual});}}"
-        );
-        let package = source::lower(&[("holder_floor.omg", &text)]).unwrap();
-        assert_eq!(parked_field_loan_carry(&package), Ok(vec![("Holder", Some(&forbidden)), ("Token", None)]));
-    }
-
-    // A joined record and a descriptor stored in the incoming record keep the
-    // same handoff. The reborrow reader recovers the exact loan path down to a
-    // field whose type is inspect's formal referent, and that Token schema
-    // keeps the declared restriction. Each twin differs only in the suspension
-    // axis; the records on the path declare no floor of their own.
-    let joined = (
-        "data Holder{token:Token;}",
-        "(flag:bool,left:@Holder,right:@Holder)",
-        "let h=match flag{true->left,false->right,};",
-    );
-    let stored = ("data Inner{token:Token;} data Holder<'r>{inner:@'r Inner;}", "<'r>(h:@Holder<'r>)", "");
-    let reborrow = |incoming: Vec<usize>, crossings: &[&str], projection: &str| ParkedFieldReborrow {
-        incoming,
-        crossings: crossings.iter().map(|c| vec![c.to_string()]).collect(),
-        projection: vec![projection.to_string()],
-    };
-    for ((records, formals, join), binding, actual, path) in [
-        (joined, "let loan:@Token=@h.token;", "loan", reborrow(vec![1, 2], &[], "Holder::token")),
-        (stored, "", "@h.inner.token", reborrow(vec![0], &["Holder::inner"], "Inner::token")),
-        (stored, "let loan:@Token=@h.inner.token;", "loan", reborrow(vec![0], &["Holder::inner"], "Inner::token")),
-    ] {
-        for (permission, file, expected) in [("forbidden", "forbidden.omg", &forbidden), ("allowed", "allowed.omg", &allowed)] {
-            let text = format!(
-                "data Token [carry(suspension:{permission},cpu:same,thread:any,address:stable,)]{{v:u8;}} {records}
-             machine inspect(t:@Token) suspends{{}} machine forward{formals} suspends{{{join}{binding} suspend inspect({actual});}}"
-            );
-            let package = source::lower(&[(file, &text)]).unwrap();
-            assert_eq!(parked_field_reborrow(&package, "forward", "inspect").as_ref(), Ok(&path), "{text}");
-            let inspect = package.machines.iter().find(|m| m.declaration.path == "inspect").unwrap();
-            let Some(TypeShape::NominalReference { referent, .. }) = package.types.get(inspect.parameter_types[0]) else {
-                panic!("token formal")
+    for field in ["first", "second"] {
+        for named in [false, true] {
+            let borrow = format!("@h.{field}");
+            let call = if named {
+                format!("let loan:@Token = {borrow}; suspend inspect(loan);")
+            } else {
+                format!("suspend inspect({borrow});")
             };
-            let carries: Vec<_> = package
-                .data
-                .iter()
-                .map(|d| (d.declaration.path.as_str(), d.carry.as_ref()))
-                .collect();
-            let token = &package.data[referent.get() - 1];
-            assert_eq!((token.declaration.path.as_str(), token.carry.as_ref()), ("Token", Some(expected)), "{text}");
-            assert!(carries.iter().all(|(name, carry)| *name == "Token" || carry.is_none()), "{carries:?}");
+            let text = format!(
+                "domain u8::Mark; data Token {{v:u8 in Mark;}} data Holder {{first:Token;second:Token;}}
+                 machine inspect(t:@Token) suspends {{}} machine forward(h:@Holder) suspends {{{call}}}"
+            );
+            let package = source::lower(&[("field.omg", &text)]).unwrap();
+            spec_corpus::observe_handoff!(
+                psi "psi-output/parked-qualified-field",
+                assert_eq!(
+                    parked_field_reborrow(&package, "forward", "inspect"),
+                    Ok(ParkedFieldReborrow {
+                        incoming: vec![0],
+                        crossings: vec![],
+                        projection: vec![format!("Holder::{field}")],
+                    })
+                ),
+            );
         }
     }
 }
