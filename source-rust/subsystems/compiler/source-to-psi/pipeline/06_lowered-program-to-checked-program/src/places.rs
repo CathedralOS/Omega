@@ -6864,6 +6864,7 @@ impl<'a> AtCall<'_, 'a> {
             readable,
             places: &self.places,
             extents: None,
+            contents: BTreeMap::new(),
             projections: None,
             terms: Vec::new(),
         }
@@ -6979,6 +6980,7 @@ pub(crate) struct CallObservations<'s, 'a> {
     readable: Vec<(Lineage, usize)>,
     places: &'s [Lineage],
     extents: Option<Vec<(Lineage, usize, ValueId)>>,
+    contents: BTreeMap<(Lineage, ScalarType), Option<ScalarTerm>>,
     // Keep unvisited and unbound distinct. Only named observations keep a term.
     projections: Option<IdTable<ValueId, Option<Option<usize>>>>,
     terms: Vec<ScalarTerm>,
@@ -7046,6 +7048,19 @@ impl<'a> CallObservations<'_, 'a> {
         }
     }
 
+    /// Each candidate value for a projected field sees the same contents at
+    /// this call point. A different call, edge or storage version has its
+    /// own observations.
+    fn contents(&mut self, place: Lineage, ty: ScalarType) -> Option<ScalarTerm> {
+        let key = (place, ty);
+        if let Some(held) = self.contents.get(&key) {
+            return held.clone();
+        }
+        let held = self.held_at(&key.0).observation(&key.0, ty).ok();
+        self.contents.insert(key, held.clone());
+        held
+    }
+
     /// Callee names of the scalar fields of each readable record input, with
     /// the caller value each field holds at this arrival.
     ///
@@ -7100,8 +7115,8 @@ impl<'a> CallObservations<'_, 'a> {
                     ) else {
                         continue;
                     };
-                    let Ok(ScalarTerm::Value { id, .. }) =
-                        self.held_at(&leaf).observation(&leaf, scalar_type)
+                    let Some(ScalarTerm::Value { id, .. }) =
+                        self.contents(leaf, scalar_type)
                     else {
                         continue;
                     };
@@ -7252,10 +7267,7 @@ impl<'a> CallObservations<'_, 'a> {
                 if extent {
                     actual.segments.push(Segment::Extent);
                 }
-                let held = self
-                    .held_at(&actual)
-                    .observation(&actual, scalar_type)
-                    .ok()?;
+                let held = self.contents(actual, scalar_type)?;
                 (formal, path, held)
             } else if let (Some(Segment::Extent), ScalarType::Integer(integer)) =
                 (recorded.segments.last(), scalar_type)

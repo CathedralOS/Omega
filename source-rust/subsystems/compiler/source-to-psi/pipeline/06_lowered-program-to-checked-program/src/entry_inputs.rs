@@ -252,12 +252,13 @@ fn describe_calls(
             point,
             Construct::Edge(edge),
         )?;
+        let mut observations = fields.observations();
         let crossing = target
             .parameters
             .iter()
             .zip(actuals)
             .map(|(formal, actual)| (ScalarTerm::value(formal.id, formal.scalar_type), *actual))
-            .chain(fields.observations().field_crossings())
+            .chain(observations.field_crossings())
             .collect::<Vec<_>>();
         let mut bindings = InputBindings {
             actuals,
@@ -265,7 +266,7 @@ fn describe_calls(
             denotation: crate::checking::known::TransportInputs::new(known.equations.len()),
             known: &known,
             context: &prepared.context,
-            fields: fields.observations(),
+            fields: observations,
             equal: None,
         };
         let predicate = describe(&known, &prepared.context, &crossing, &mut bindings);
@@ -326,8 +327,9 @@ fn describe_calls(
         )?;
         // Record fields cross like scalar formals, so a field the caller
         // overwrote keeps its name beside the field its value was read from.
+        let mut observations = fields.observations();
         let mut described = crossing.clone();
-        described.extend(fields.observations().field_crossings());
+        described.extend(observations.field_crossings());
         let predicate = describe(
             &known,
             &prepared.context,
@@ -338,7 +340,7 @@ fn describe_calls(
                 denotation: crate::checking::known::TransportInputs::new(known.equations.len()),
                 known: &known,
                 context: &prepared.context,
-                fields: fields.observations(),
+                fields: observations,
                 equal: None,
             },
         );
