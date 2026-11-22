@@ -2818,6 +2818,61 @@ fn complete_storage_family_keeps_mixed_arrivals_and_forwarding() {
 }
 
 #[test]
+fn a_returned_element_family_keeps_its_slice_bounds_and_requires_a_live_capture() {
+    let scalar = scalar_type(1);
+    let array = StructuralTypeDeclaration {
+        shape: StructuralTypeShape::FixedArray {
+            element: scalar.id,
+            length: terminal_psi::ArrayExtent::Literal(8),
+        },
+        ..scalar_type(2)
+    };
+    let types = [scalar, array];
+    let root = location(1).root;
+    let at = (semantic_vocabulary::BlockId::new(1).unwrap(), 0);
+    let variable = semantic_vocabulary::ValueId::new(3).unwrap();
+    let window = Projection::window(
+        semantic_vocabulary::ValueId::new(1).unwrap(),
+        semantic_vocabulary::ValueId::new(2).unwrap(),
+        at,
+    );
+    let indexed = Projection::new(&[StructuralPathSegment::RuntimeIndex {
+        index: variable,
+        obligation: semantic_vocabulary::ObligationId::new(1).unwrap(),
+    }]);
+    let literals = |value: semantic_vocabulary::ValueId| match value.get() {
+        1 => Some(2),
+        2 => Some(5),
+        _ => None,
+    };
+    let array_id = types[1].id;
+    let result = window
+        .then(&indexed.clone().at(at))
+        .without_runtime_coordinates_with(literals, |position| position == at);
+    assert!(result.captured_address_path().is_err());
+    assert_eq!(
+        result.returned_element_addresses(&types, root, array_id),
+        Some(
+            (2..5)
+                .map(|index| vec![StructuralPathSegment::FixedIndex(index)])
+                .collect()
+        )
+    );
+    for missing in [
+        window.then(&indexed),
+        window.then(&indexed.clone().at((at.0, 1))),
+        indexed.at(at).without_captured_address(),
+    ] {
+        assert!(
+            missing
+                .without_runtime_coordinates_with(literals, |position| position == at)
+                .returned_element_addresses(&types, root, array_id)
+                .is_none()
+        );
+    }
+}
+
+#[test]
 fn complete_storage_family_refuses_missing_capture_unknown_and_stale_inputs() {
     let (types, machine) = mixed_storage_arrival();
     let point = (semantic_vocabulary::BlockId::new(2).unwrap(), 0);

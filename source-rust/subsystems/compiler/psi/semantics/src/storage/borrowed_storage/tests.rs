@@ -48,11 +48,13 @@ fn a_stripped_element_selector_keeps_the_storage_after_it() {
     assert!(
         !address
             .clone()
-            .without_runtime_coordinates_with(literal)
+            .without_runtime_coordinates_with(literal, |_| true)
             .exact
     );
     let selected = address.at((semantic_vocabulary::BlockId::new(1).unwrap(), 0));
-    let known = selected.clone().without_runtime_coordinates_with(literal);
+    let known = selected
+        .clone()
+        .without_runtime_coordinates_with(literal, |_| true);
     assert!(known.exact);
     assert_eq!(known.path, known.captured_address_path().unwrap());
     assert_eq!(
@@ -80,7 +82,7 @@ fn a_stripped_element_selector_keeps_the_storage_after_it() {
             2 => Some(8),
             3 => Some(2),
             _ => None,
-        });
+        }, |_| true);
     assert!(absolute.exact);
     assert_eq!(
         absolute.captured_storage_path(),
@@ -88,13 +90,17 @@ fn a_stripped_element_selector_keeps_the_storage_after_it() {
     );
     assert!(
         !within_window
-            .without_runtime_coordinates_with(literal)
+            .without_runtime_coordinates_with(literal, |_| true)
             .exact
     );
     // An open call can promise a region without proving the exact address.
     let mut region = Projection::new(&[]);
     region.exact = false;
-    assert!(!region.without_runtime_coordinates_with(literal).exact);
+    assert!(
+        !region
+            .without_runtime_coordinates_with(literal, |_| true)
+            .exact
+    );
     let stripped = selected.clone().without_runtime_coordinates();
     assert!(stripped.captured_address_path().is_err());
     assert_eq!(stripped.path.as_slice(), std::slice::from_ref(&cells));
