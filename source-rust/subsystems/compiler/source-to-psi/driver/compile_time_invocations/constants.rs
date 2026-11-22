@@ -345,7 +345,7 @@ fn decode_snapshot(
     carrier: crate::source_state::types::TypeReferenceHandle,
     value: &BuildTimeValue,
 ) -> Result<DecodedCanonicalConstValue, String> {
-    use crate::source_state::types::{FixedArrayLength, PrimitiveType, TypeReferenceNode};
+    use crate::source_state::types::{PrimitiveType, TypeReferenceNode};
     let unsupported =
         || "no product route yet: constant result needs its pure snapshot materializer".to_owned();
     // The snapshot keeps the value, not the evidence the invocation checked
@@ -399,14 +399,12 @@ fn decode_snapshot(
         });
     }
     let symbol = match program.type_reference_table.type_reference(underlying) {
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(length),
-        } => {
+        TypeReferenceNode::FixedArray { element_type, .. } => {
             let BuildTimeValue::Array(elements) = value else {
                 return Err("constant result is not an array of its declared type".into());
             };
-            if elements.len() != *length {
+            let length = program.closed_array_length(underlying).ok_or("array type has no evaluated extent")?;
+            if u64::try_from(elements.len()).ok() != Some(length) {
                 return Err("constant result differs from its declared array extent".into());
             }
             let values = elements

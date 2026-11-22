@@ -2618,21 +2618,14 @@ pub(crate) mod direct {
                             ))
                             .with_source_span(name.source_span()));
                         };
-                        let value = usize::try_from(value).map_err(|_| Diagnostic::error(format!(
-                        "fixed-array length `{name}` must be nonnegative and fit the supported array extent"
-                    )).with_source_span(name.source_span()))?;
-                        typed::types::FixedArrayLength::Literal(value)
-                    } else {
-                        typed::types::FixedArrayLength::ConstParameter {
-                            symbol: *symbol,
-                            name: lower_name(name),
-                        }
+                        usize::try_from(value).map_err(|_| Diagnostic::error(format!(
+                            "fixed-array length `{name}` must be nonnegative and fit the supported array extent"
+                        )).with_source_span(name.source_span()))?;
                     }
-                } else {
-                    typed::types::FixedArrayLength::ConstParameter {
-                        symbol: *symbol,
-                        name: lower_name(name),
-                    }
+                }
+                typed::types::FixedArrayLength::ConstParameter {
+                    symbol: *symbol,
+                    name: lower_name(name),
                 }
             }
             resolved::types::FixedArrayLength::Expression(value) => {

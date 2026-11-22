@@ -265,38 +265,15 @@ fn an_extent_whose_constant_has_no_value_is_not_given_a_length() {
     assert_eq!([other, plain], [Ok(3), Ok(2)]);
 }
 
-/// The limit to know about. A constant written as a literal reaches stage 05
-/// with its value in two places: on the declaration, and copied into each
-/// array type that names it, because typing writes the length there. Stage 05
-/// reads the copy in the array type and never compares it with the
-/// declaration.
-///
-/// Here `east\N` becomes 3 on its declaration while the array type in
-/// `choose` still says 2: lowering accepts the product and `choose` keeps
-/// length 2. Changing the copy in the array type is what changes the result.
-/// The two agree only because typing made them agree. The stage 04 test
-/// asserts that agreement on the product; stage 05 would not notice its loss.
-///
-/// A constant computed by a call has no such copy (the tests above), so the
-/// same language feature crosses this handoff in two forms.
 #[test]
-fn a_literal_constant_s_extent_is_a_copy_that_takes_nothing_from_its_declaration() {
+fn an_array_sized_by_a_literal_constant_reads_the_selected_declaration() {
     let prepared = fixture(Initializer::Literal);
     let [eastern, western] = both_extents(&prepared);
-    assert_eq!(eastern.form, FixedArrayLength::Literal(2));
-
-    let declaration_is_three = prepared_with(&prepared, |trees| {
+    assert!(matches!(eastern.form, FixedArrayLength::ConstParameter { symbol, .. } if symbol == eastern.selected));
+    let changed = prepared_with(&prepared, |trees| {
         set_evaluated_value(trees, eastern.selected, western.selected)
     });
-    assert_eq!(
-        lowered_extents(&declaration_is_three),
-        [Ok(2), Ok(3), Ok(2)]
-    );
-
-    let copy_is_three = prepared_with(&prepared, |trees| {
-        set_extent(trees, &eastern, FixedArrayLength::Literal(3))
-    });
-    let [choose, other, plain] = lowered_extents(&copy_is_three);
+    let [choose, other, plain] = lowered_extents(&changed);
     assert_wrong_length(&choose, "choose", 2, 3);
     assert_eq!([other, plain], [Ok(3), Ok(2)]);
 }

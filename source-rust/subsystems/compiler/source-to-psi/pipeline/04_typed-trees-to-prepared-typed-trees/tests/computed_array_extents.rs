@@ -90,21 +90,8 @@ fn each_extent_arrives_with_its_own_declaration_and_length() {
                 );
                 let declaration = trees.const_declaration_by_symbol(extent.selected).unwrap();
                 assert_eq!(declared_value(declaration), Some(length), "{initializer:?}");
-                match initializer {
-                    // Typing copied the value resolution recorded.
-                    Initializer::Literal => assert_eq!(
-                        extent.form,
-                        FixedArrayLength::Literal(usize::try_from(length).unwrap())
-                    ),
-                    // The extent still names the constant, and the length
-                    // above was read through that declaration.
-                    Initializer::Call => assert!(
-                        matches!(extent.form, FixedArrayLength::ConstParameter { symbol, .. }
-                            if symbol == extent.selected),
-                        "{:?}",
-                        extent.form
-                    ),
-                }
+                assert!(matches!(extent.form, FixedArrayLength::ConstParameter { symbol, .. }
+                    if symbol == extent.selected), "{:?}", extent.form);
             }
             assert_eq!(eastern.written, "east\\N");
             assert_eq!(western.written, "west\\N");

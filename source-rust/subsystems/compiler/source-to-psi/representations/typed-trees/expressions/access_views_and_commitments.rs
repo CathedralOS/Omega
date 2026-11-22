@@ -1497,6 +1497,11 @@ pub mod constant_recipes {
     }
 
     impl crate::source_state::TypedTrees {
+        /// The fixed array length after evaluating its declared extent.
+        pub fn closed_array_length(&self, reference: TypeReferenceHandle) -> Option<u64> {
+            self.declared_array_extent(reference)?.closed(self)
+        }
+
         pub fn declared_array_extent(
             &self,
             type_reference: TypeReferenceHandle,

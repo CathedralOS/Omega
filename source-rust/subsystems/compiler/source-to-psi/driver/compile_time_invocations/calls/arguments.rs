@@ -10,7 +10,7 @@ use crate::source_state::expression::{
 use crate::source_state::signature::StateParameter;
 use crate::source_state::state::State;
 use crate::source_state::statement::StatementNode;
-use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::data_applications;
 
@@ -427,14 +427,12 @@ fn materialize_argument(
                 program.expression_table.insert_expression_handles(elements),
             )
         }
-        TypeReferenceNode::FixedArray {
-            element_type,
-            length: FixedArrayLength::Literal(length),
-        } => {
+        TypeReferenceNode::FixedArray { element_type, .. } => {
             let BuildTimeValue::Array(elements) = value else {
                 return Err("expected an array value".into());
             };
-            if elements.len() != length {
+            let length = program.closed_array_length(destination).ok_or("array type has no evaluated extent")?;
+            if u64::try_from(elements.len()).ok() != Some(length) {
                 return Err("array argument differs from its declared extent".into());
             }
             let elements = elements

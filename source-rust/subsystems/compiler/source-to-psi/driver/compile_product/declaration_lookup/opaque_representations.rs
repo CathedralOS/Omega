@@ -16,7 +16,7 @@ use crate::source_state::type_identity::ExactOwnerTypeIdentityRequest;
 use crate::source_state::typed_trees::{
     ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
 };
-use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 use application_identity::conformance_identity::{
     ConformanceIdentityDescription, source_identity_commitments,
 };
@@ -91,10 +91,7 @@ fn inert_carrier(
                 }
                 pending.push((*base_type, false));
             }
-            TypeReferenceNode::FixedArray {
-                element_type,
-                length: FixedArrayLength::Literal(_),
-            } => pending.push((*element_type, false)),
+            TypeReferenceNode::FixedArray { element_type, .. } if typed.closed_array_length(reference).is_some() => pending.push((*element_type, false)),
             TypeReferenceNode::Named { .. }
                 if typed.primitive_type_reference(reference).is_some() => {}
             TypeReferenceNode::Named { .. } | TypeReferenceNode::Generic { .. } => {
