@@ -1,4 +1,4 @@
-use crate::{Carry, ContractClause, DeclarationId, Multiplicity, Site, TypeId};
+use crate::{ContractClause, DeclarationId, Multiplicity, Site, TypeId};
 use std::num::NonZeroUsize;
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub struct DataId(NonZeroUsize);
@@ -46,9 +46,6 @@ pub struct LoweredData {
     pub lifetime_count: usize,
     /// Carriers of runtime-capable value indices referenced by the default-domain contract.
     pub value_indices: Vec<TypeId>,
-    /// Authored type-wide restrictions. The checker also composes the
-    /// applicable fields of the value, including the live case of a sum.
-    pub carry: Option<Carry>,
     /// Predicates that every established value of this carrier must satisfy.
     pub requires: Vec<ContractClause>,
     pub fields: Vec<LoweredField>,
@@ -166,7 +163,6 @@ pub struct DataTemplate {
     pub cases: Vec<TemplateCase>,
     pub numbering: Option<std::sync::Arc<crate::SchemaNumbering>>,
     pub multiplicity: Multiplicity,
-    pub carry: Option<Carry>,
     pub requires: Vec<ContractClause>,
     pub site: Site,
 }

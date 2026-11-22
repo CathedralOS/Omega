@@ -83,11 +83,7 @@ impl<'a> ResolvedSourceFile<'a> {
                 match source.nodes[p].kind {
                     NodeKind::TypeParam => {
                         for &attr in &source.nodes[p].children {
-                            let prop = data_properties::read(self, attr)?;
-                            if prop.carry.is_some() {
-                                return Err(TypeError::unsupported(source, attr));
-                            }
-                            multiplicity = Some(prop.multiplicity);
+                            multiplicity = Some(data_properties::read(self, attr)?.multiplicity);
                         }
                     }
                     NodeKind::KindedParam | NodeKind::ConstParam | NodeKind::MachineParam | NodeKind::LifetimeParam => {}

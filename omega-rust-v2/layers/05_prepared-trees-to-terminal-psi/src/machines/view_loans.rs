@@ -529,9 +529,6 @@ fn element_place(
     if expressions.types.get(body.places[root.index()].ty) != Some(&TypeShape::MutableElementView { element: crate::ViewElement::Nominal(*data) }) {
         return Err(refuse("element view descriptor disagrees with its element type"));
     }
-    if expressions.data[data.get() - 1].carry.is_some() {
-        return Err(refuse("element transfer requires the carrier's address stability evidence"));
-    }
     // Capture the destination selector before evaluating the replacement.
     let index_ty = expressions
         .types

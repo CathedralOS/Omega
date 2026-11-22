@@ -137,6 +137,25 @@ File
     ';'
   Data
     'data'
+    'carry'
+    GenericParams
+      '<'
+      TypeParam
+        'T'
+        Attributes
+          '['
+          Attribute 'copy'
+          ']'
+      '>'
+    Attributes
+      '['
+      Attribute 'copy'
+      ']'
+    '='
+    PathType 'T'
+    ';'
+  Data
+    'data'
     'Lease'
     GenericParams
       '<'
@@ -146,7 +165,6 @@ File
       '['
       Attribute 'linear'
       ','
-      Attribute 'carry' '(' 'suspension' ':' 'allowed' ',' 'transfer' ':' 'refused' ')'
       ']'
     DroppedBy
       'dropped'

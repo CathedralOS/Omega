@@ -185,8 +185,8 @@ fn a_linear_local_live_at_return_publishes_its_discard_on_the_return_edge() {
         };
         let data = &pkg.data[point.get() - 1];
         assert_eq!(
-            (data.declaration.path.as_str(), data.cleanup_target, data.carry.is_none()),
-            ("Point", None, true)
+            (data.declaration.path.as_str(), data.cleanup_target),
+            ("Point", None)
         );
         if multiplicity == omega_lowering::Multiplicity::Linear {
             spec_corpus::observe_handoff!(

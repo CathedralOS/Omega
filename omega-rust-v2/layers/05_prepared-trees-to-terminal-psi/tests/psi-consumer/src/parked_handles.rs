@@ -120,12 +120,11 @@ pub fn check_parked_handles(
         || *target != release.id
         || handle.declaration.path != "Handle"
         || handle.carrier != *ty
-        || handle.carry.is_some()
         || caller.parameter_types.as_slice() != [*ty, *ty]
         || callee.parameter_types.as_slice() != [*ty]
         || descriptor.ty != *ty
     {
-        return Err("wrong surviving handle, type, carry or cleanup");
+        return Err("wrong surviving handle, type or cleanup");
     }
     if site.retained_owners.len() != 2
         || !site

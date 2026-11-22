@@ -167,7 +167,7 @@ impl SyntaxParser<'_> {
         Ok(())
     }
 
-    /// `'[' ( attribute % ',' ) ']'` where `attribute = word ( '(' ( word ':' word ) % ',' ')' )?`
+    /// `'[' ( attribute % ',' ) ']'` where `attribute = word`
     pub(crate) fn parse_attributes(&mut self) -> Parsed {
         let attributes = self.open();
 
@@ -177,20 +177,6 @@ impl SyntaxParser<'_> {
             let attribute = self.open();
 
             self.expect_word("an attribute")?;
-
-            if self.eat(Punctuation::LeftParenthesis) {
-                loop {
-                    self.expect_word("a setting name")?;
-                    self.expect(Punctuation::Colon, "`:`")?;
-                    self.expect_word("a setting value")?;
-
-                    if !self.eat(Punctuation::Comma) || self.at(Punctuation::RightParenthesis) {
-                        break;
-                    }
-                }
-
-                self.expect(Punctuation::RightParenthesis, "`,` or `)`")?;
-            }
 
             self.close(attribute, NodeKind::Attribute);
 

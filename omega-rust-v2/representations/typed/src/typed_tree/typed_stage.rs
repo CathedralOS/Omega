@@ -117,7 +117,6 @@ pub struct TypedStage {
     pub type_alias_targets: std::collections::HashMap<DeclarationId, ValueType>,
     /// Authored properties on transparent aliases. Explicit multiplicity has been
     /// checked against the expansion, not installed as a new ownership identity.
-    /// Carry axes here describe the attribute, not a checked floor on the expansion.
     pub type_alias_properties: std::collections::HashMap<DeclarationId, DataProperties>,
     /// The normalized constituents of each domain alias, including their arguments.
     pub domain_alias_members: std::collections::HashMap<DeclarationId, Vec<crate::DomainApplication>>,

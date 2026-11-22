@@ -265,7 +265,6 @@ impl<'a> Application<'a> {
             multiplicity: template.multiplicity,
             lifetime_count: self.lifetime_count,
             value_indices: vec![],
-            carry: template.carry.clone(),
             requires: vec![],
             fields: fields(&template.fields, &self.shape.fields, &self.field_regions)?,
             cases,

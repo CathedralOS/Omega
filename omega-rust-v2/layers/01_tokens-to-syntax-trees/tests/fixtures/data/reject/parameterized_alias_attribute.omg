@@ -1,0 +1,1 @@
+data Alias [copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)] = u64;

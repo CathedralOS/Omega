@@ -103,7 +103,7 @@ fn describes(
 pub fn moved_formal_fields<'a>(package: &'a LoweredPackage, template: &'a MachineTemplate, formal: usize) -> Option<(Vec<&'a str>, Vec<&'a str>)> {
     let [TypeExpressionStep::Named { declaration, argument_count: 0 }] = template.signature.parameters.get(formal)?.0.as_slice() else { return None };
     let record = package.data.iter().find(|r| r.declaration == *declaration)?;
-    if record.multiplicity != omega_psi::Multiplicity::Affine || record.cleanup_target.is_some() || record.carry.is_some() { return None; }
+    if record.multiplicity != omega_psi::Multiplicity::Affine || record.cleanup_target.is_some() { return None; }
     let mut moved = Vec::new();
     for call in template.body.iter().filter_map(|step| step.call()) {
         for operand in &call.operands {

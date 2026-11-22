@@ -41,12 +41,10 @@ fn an_affine_container_retains_the_linear_carrier_only_where_the_payload_exists(
 }
 
 #[test]
-fn record_and_sum_preserve_declaration_order_and_nested_carry() {
+fn record_and_sum_preserve_declaration_order_and_multiplicity() {
     let lease = (
         "lease.omg",
-        "public data Lease [linear, carry(
-        suspension: forbidden, cpu: same, thread: any, address: stable,
-    )] { key:u64; enabled:bool; }",
+        "public data Lease [linear] { key:u64; enabled:bool; }",
     );
     let message = (
         "message.omg",
@@ -66,12 +64,6 @@ fn record_and_sum_preserve_declaration_order_and_nested_carry() {
     assert!(!message.public);
     assert_eq!(lease.multiplicity, Multiplicity::Linear);
     assert_eq!(message.multiplicity, Multiplicity::Linear);
-    let carry = lease.carry.as_ref().unwrap();
-    assert!(!carry.allows_suspension);
-    assert!(carry.requires_same_cpu);
-    assert!(!carry.requires_same_thread);
-    assert!(carry.requires_stable_address);
-    assert!(message.carry.is_none());
     assert_eq!(package.types.get(lease.carrier), Some(&TypeShape::Nominal(lease.id)));
     assert_eq!(package.types.get(message.carrier), Some(&TypeShape::Nominal(message.id)));
     let [key, enabled] = lease.fields.as_slice() else {
@@ -350,54 +342,12 @@ fn alias_assertion_survives_structural_and_generic_expansion() {
     }])));
 }
 
-/// The original case: `u64` demands nothing, so an alias that forbids suspension
-/// and pins the CPU would change `u64` itself. Typing refuses it before lowering.
 #[test]
-fn alias_carry_cannot_add_a_demand_to_its_expansion() {
-    let source = "// alias\r\ndata Alias [copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)] = u64;";
-    let resolved = sources::resolve(&[("alias.omg", source)]);
-    let error = omega_preparation::prepare_source_package(&resolved).unwrap_err();
-    assert_eq!(error.message, "a transparent alias cannot change its target's carry");
-    assert_eq!(error.file, "alias.omg");
-    let attribute = "carry(suspension:forbidden,cpu:same,thread:any,address:movable,)";
-    assert_eq!(error.span.slice(source.as_bytes()), Some(attribute.as_bytes()));
-    let control = lower(&[("alias.omg", "// alias\r\ndata Alias [copy] = u64;")]).unwrap();
-    let [alias] = control.aliases.as_slice() else { panic!("one alias") };
-    assert_eq!((alias.asserted_multiplicity, &alias.target), (Some(Multiplicity::Copy), &AliasTarget::Builtin("u64".into())));
-}
-
-/// A list equal to `u64`'s derived carry adds no demand. Whether an alias may
-/// author it at all is an open spec question, so lowering still stops there.
-#[test]
-fn alias_with_carry_stops_at_its_attributes() {
-    let source = "// alias\r\ndata Alias [copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)] = u64;";
-    let files = [("alias.omg", source)];
-    let resolved = sources::resolve(&files);
-    let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
-    let typed = prepared.typed();
-    let (id, target) = typed.type_alias_targets.iter().find(|(id, _)| id.path == "Alias").unwrap();
-    assert_eq!(target, &omega_typed::ValueType::Integer { signed: false, width: Some(64) });
-    let properties = &typed.type_alias_properties[id];
-    assert_eq!(properties.multiplicity, Multiplicity::Copy);
-    assert_eq!(properties.carry, Some(omega_typed::Carry {
-        allows_suspension: true, requires_same_cpu: false, requires_same_thread: false, requires_stable_address: false,
-    }));
-    assert!(typed.data_properties.iter().all(|(nominal, _)| nominal != id));
-    sources::refuse_prepared(
-        &prepared,
-        &files,
-        "alias.omg",
-        sources::unique_span(source, "[copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)]"),
-        "transparent alias carry policy requires a checked relation to its expansion",
-    );
-}
-
-#[test]
-fn parked_alias_uses_the_selected_nominal_carriers_carry() {
+fn parked_alias_retains_the_selected_nominal_target() {
     use omega_lowering::{OwnedCustody, Parameter};
-    for (selected, allowed) in [("Mobile", true), ("Fixed", false)] {
-        let source = format!("data Mobile [carry(suspension:allowed,cpu:any,thread:any,address:movable,)] {{key:u64;}}
-            data Fixed [carry(suspension:forbidden,cpu:same,thread:any,address:stable,)] {{key:u64;}}
+    for selected in ["First", "Second"] {
+        let source = format!("data First {{key:u64;}}
+            data Second {{key:u64;}}
             data Alias = {selected};
             data Held {{item:Alias;}}
             machine wait() suspends {{}}
@@ -416,12 +366,10 @@ fn parked_alias_uses_the_selected_nominal_carriers_carry() {
         assert_eq!(body.parameters, [Parameter::Structural(owner.place)]);
         assert_eq!(owner.custody, OwnedCustody::Caller);
         assert!(owner.moved.is_empty());
-        spec_corpus::observe_handoff!(psi "psi-output/parked-alias-target-carry",
+        spec_corpus::observe_handoff!(psi "psi-output/parked-alias-target",
             assert_eq!(
-                (&alias.target, package.types.get(owner.ty), package.types.get(item.carrier), target.carry.as_ref()),
-                (&AliasTarget::Declaration(target.declaration.clone()), Some(&TypeShape::Nominal(held.id)), Some(&TypeShape::Nominal(target.id)),
-                    Some(&omega_typed::Carry { allows_suspension: allowed, requires_same_cpu: !allowed,
-                        requires_same_thread: false, requires_stable_address: !allowed }))
+                (&alias.target, package.types.get(owner.ty), package.types.get(item.carrier)),
+                (&AliasTarget::Declaration(target.declaration.clone()), Some(&TypeShape::Nominal(held.id)), Some(&TypeShape::Nominal(target.id)))
             ),
         );
     }

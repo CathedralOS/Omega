@@ -81,7 +81,7 @@ impl LiveRoot {
                 return false;
             };
             let record = &context.data[id.get() - 1];
-            if record.multiplicity != Multiplicity::Affine || record.cleanup_target.is_some() || record.carry.is_some() {
+            if record.multiplicity != Multiplicity::Affine || record.cleanup_target.is_some() {
                 return false;
             }
             let Some(fields) = self.partial_fields(&mut path, record) else {
@@ -594,10 +594,10 @@ impl CleanupContext<'_> {
                 // A partially moved value with a selected cleanup still lists
                 // its live complement. No action invokes the cleanup on it:
                 // L6 compares the moves with that selection and refuses.
-                if schema.carry.is_some() || schema.multiplicity == Multiplicity::Linear {
+                if schema.multiplicity == Multiplicity::Linear {
                     return Err(LoweringError::new(
                         site,
-                        "partial transfer requires active case, carry or linear disposition evidence",
+                        "partial transfer of a linear value requires disposition evidence",
                     ));
                 }
                 let fields = root
@@ -623,14 +623,14 @@ impl CleanupContext<'_> {
                         return Err(error);
                     };
                     let record = &data[id.get() - 1];
-                    if record.multiplicity == Multiplicity::Linear && record.carry.is_none() {
+                    if record.multiplicity == Multiplicity::Linear {
                         // A dying linear value has no authorized disposition here. Publish
                         // the discard the edge performs so the checker can refuse it against
                         // the declared multiplicity, as it judges an affine discard. Contents
                         // that need their own action still stop here: one discard cannot
                         // stand in for a cleanup call or a loan restoration.
                         ensure_disposable(ty, types, data, site, LinearDebt::Publish)?;
-                    } else if record.multiplicity == Multiplicity::Linear || record.carry.is_some() || !record.cases.is_empty() {
+                    } else if !record.cases.is_empty() {
                         return Err(error);
                     } else {
                         for field in &record.fields {
@@ -668,8 +668,7 @@ enum LinearDebt {
 /// admits no linear claim and no executable cleanup
 /// (`wiki/spec/terminal-psi/structural_access.md#complete-structural-array-construction`):
 /// its copies share one backing, and dropping a copy disposes no element.
-/// Nothing else about an element is judged here. Its carry policy and the
-/// contract of a callable it stores stay on its own rows for the checker.
+/// A callable stored in an element keeps its contract in the callable table.
 /// Call this after every nominal cleanup is selected.
 pub(crate) fn admit_sequence_elements(
     types: &LoweringTypes,
@@ -754,7 +753,7 @@ fn ensure_disposable(
             Some(TypeShape::Nominal(id) | TypeShape::QualifiedNominal { data: id, .. }) => {
                 let schema = &data[id.get() - 1];
                 let linear_refused = schema.multiplicity == Multiplicity::Linear && linear == LinearDebt::Refuse;
-                if linear_refused || schema.carry.is_some() || types.cleanup_target(ty, data).is_some() {
+                if linear_refused || types.cleanup_target(ty, data).is_some() {
                     return Err(LoweringError::new(site, "normal exit needs an authorized disposition for owned storage"));
                 }
                 pending.extend(

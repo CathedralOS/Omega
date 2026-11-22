@@ -128,9 +128,6 @@ pub(super) fn move_value(
             _ => return Err(LoweringError::new(&site, "owned field move requires a concrete original place")),
         };
     }
-    if matches!(expressions.types.get(ty),Some(TypeShape::Nominal(id)) if expressions.data[id.get()-1].carry.is_some()) {
-        return Err(LoweringError::new(&site, "owned transfer requires the carrier's address stability evidence"));
-    }
     if source.path.contains(&PlaceProjection::Referent) {
         return super::loans::move_borrowed(expressions, node, source, carrier, body);
     }
@@ -165,7 +162,6 @@ pub(super) fn decompose(
     if !source.path.is_empty()
         || !matches!(tree.resolved().symbol(*head),Some(omega_resolved::Symbol::Declaration(d)) if Some(d)==ty.nominal_parts().map(|parts|parts.0))
         || !schema.cases.is_empty()
-        || schema.carry.is_some()
     {
         return Err(LoweringError::new(&site, "decomposition requires the complete record and its field partition"));
     }

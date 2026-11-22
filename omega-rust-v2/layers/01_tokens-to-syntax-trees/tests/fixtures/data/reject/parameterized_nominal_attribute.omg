@@ -1,0 +1,1 @@
+data Lease [carry(suspension:forbidden,cpu:same,thread:same,address:stable,)] {}

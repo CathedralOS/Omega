@@ -73,7 +73,7 @@ enum Form<'a> {
     },
 }
 
-/// Zero storage is not a claim, a cleanup debt or carry evidence.
+/// An all-zero representation alone cannot establish custody or select a cleanup.
 fn custody(
     schema: &LoweredData,
     ty: TypeId,
@@ -86,9 +86,6 @@ fn custody(
     }
     if schema.cleanup_target.is_some() {
         return Err(Stop::Blocked("a value with authored cleanup needs custody that zero storage does not supply"));
-    }
-    if schema.carry.is_some() {
-        return Err(Stop::Blocked("a value with a carry policy needs predicate or cleanup evidence"));
     }
     Ok(())
 }
