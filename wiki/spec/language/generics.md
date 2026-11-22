@@ -63,8 +63,7 @@ boundary trait Sorting {
     machine sort<T, const Order: Ordering<T>>(
         items: @mutable [T]
     )
-        reaches none
-        crashes none;
+        reaches none crashes none;
 }
 ```
 
