@@ -108,8 +108,8 @@ pub use references::reference_completion::{
     BorrowedLoanSource, BorrowedLoanSources, ReferenceCompletionError,
     ReferenceCompletionOccurrence, RetainedCallLoan, borrowed_entry_reference_referent,
     borrowed_loan_source, borrowed_loan_sources, cleanup_disposes_reference,
-    incoming_view_occurrence, reference_call_lifetimes, reference_loan_parent,
-    validate_reference_result_completion,
+    disposed_reference_on_return, incoming_view_occurrence, reference_call_lifetimes,
+    reference_loan_parent, validate_reference_result_completion,
 };
 pub use references::reference_origins::{
     BorrowedResultLeaf, BorrowedResultLeafKind, ReferenceCallContract, ReferenceCallOrigin,

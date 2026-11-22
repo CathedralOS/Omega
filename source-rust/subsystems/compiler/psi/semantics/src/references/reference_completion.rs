@@ -1,4 +1,8 @@
-use semantic_vocabulary::{PlaceId, StructuralTypeId};
+use crate::descriptor_lifetimes::{
+    DescriptorFlowStep, DescriptorLifetime, DescriptorPosition, descriptor_path,
+};
+use semantic_vocabulary::{BlockId, PlaceId, StructuralTypeId};
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     StructuralAccess, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalAffineCleanupAction,
@@ -10,6 +14,92 @@ pub struct ReferenceCompletionOccurrence<'a, Identity> {
     pub returned: bool,
     pub in_caller_storage: bool,
     pub disposed: bool,
+}
+
+/// Determine whether every path from this loan's formation to this return
+/// explicitly closes all its remaining carrier names. An edge captures its
+/// arguments before cleanup, so a forwarded name keeps the path open.
+pub fn disposed_reference_on_return(
+    machine: &terminal_psi::TerminalMachine,
+    types: &[StructuralTypeDeclaration],
+    lifetime: &DescriptorLifetime,
+    formed_in: BlockId,
+    at: DescriptorPosition,
+    cleanup: &[TerminalAffineCleanupAction],
+    flow: Option<&BTreeMap<DescriptorPosition, DescriptorFlowStep>>,
+) -> bool {
+    // An empty intersection at a join proves no release: a different arrival
+    // can still owe the loan. A closing cut must name actual authority there
+    // and dispose every spelling that can survive on any arrival.
+    let closes_names = |position, actions: &[TerminalAffineCleanupAction]| {
+        lifetime
+            .authorized
+            .get(&position)
+            .is_some_and(|names| !names.is_empty())
+            && lifetime.surviving.get(&position).is_some_and(|names| {
+                !names.is_empty()
+                    && names.iter().all(|name| {
+                        machine
+                            .structural_place_type(name.root)
+                            .and_then(|root| descriptor_path(types, root, &name.path))
+                            .is_some_and(|path| {
+                                cleanup_disposes_reference(actions, name.root, &path)
+                            })
+                    })
+            })
+    };
+    if lifetime
+        .surviving
+        .get(&at)
+        .is_some_and(|names| !names.is_empty())
+    {
+        return closes_names(at, cleanup);
+    }
+    let Some(flow) = flow else { return false };
+    let mut pending = vec![formed_in];
+    let mut visited = BTreeSet::new();
+    let mut found_cleanup = false;
+    while let Some(id) = pending.pop() {
+        if !visited.insert(id) {
+            continue;
+        }
+        if id == at.0 {
+            return false;
+        }
+        let Some(block) = machine.block(&id) else {
+            return false;
+        };
+        let Ok(end) = u32::try_from(block.operations.len()) else {
+            return false;
+        };
+        let before = (id, end);
+        let Some(step) = flow.get(&before) else {
+            return false;
+        };
+        for (identity, target) in block.terminator.successor_edges() {
+            let Some(edge) = step
+                .successors
+                .iter()
+                .find(|edge| edge.edge == Some(identity) && edge.target.0 == target)
+            else {
+                return false;
+            };
+            let closed = block
+                .terminator
+                .cleanup_rosters()
+                .any(|(id, actions)| id == identity && closes_names(before, actions))
+                && lifetime
+                    .surviving
+                    .get(&before)
+                    .is_some_and(|names| edge.transport_locations(names, false, true).is_empty());
+            if closed {
+                found_cleanup = true;
+            } else {
+                pending.push(target);
+            }
+        }
+    }
+    found_cleanup
 }
 
 pub fn borrowed_entry_reference_referent<'a>(

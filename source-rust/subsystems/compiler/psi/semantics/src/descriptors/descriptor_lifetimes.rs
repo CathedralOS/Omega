@@ -175,7 +175,7 @@ impl DescriptorFlowEdge {
     /// Move the available names across this exact successor. Cleanup
     /// affects names that remain in storage. A block argument instead
     /// keeps the value captured before running the cleanup.
-    fn transport_locations(
+    pub(crate) fn transport_locations(
         &self,
         before: &BTreeSet<DescriptorLocation>,
         invalidate_containers: bool,

@@ -156,6 +156,12 @@ struct CleanupCohort {
 }
 type CleanupCohorts =
     std::collections::BTreeMap<(ObligationId, semantic_vocabulary::EdgeId, u32), CleanupCohort>;
+struct FormedLoans {
+    loans: Vec<Formed>,
+    header_ends: Vec<BorrowedHeaderEnd>,
+    flow: Option<BTreeMap<DescriptorPosition, DescriptorFlowStep>>,
+}
+
 struct BorrowedHeaderEnd {
     edge: EdgeId,
     target: DescriptorPosition,
@@ -2406,27 +2412,35 @@ impl<'a> Storage<'a> {
         module: &terminal_psi::TerminalModule,
         tables: &MachineTables,
         borrow_ends: Option<&[(EdgeId, PlaceId)]>,
-    ) -> Checked<(Vec<Formed>, Vec<BorrowedHeaderEnd>)> {
+    ) -> Checked<FormedLoans> {
         let mut claimed = vec![false; tables.obligations.len()];
         let mut formed = Vec::new();
-        let mut flow = if self.lowered.blocks.iter().any(|block| {
-            block
-                .structural_parameters
+        let returns_reference = self.lowered.result.structural().is_some_and(|result| {
+            terminal_psi::structural_type_contains_reference_by(
+                |id| module.structural_type(id),
+                result.structural_type,
+            )
+        });
+        let mut flow = if returns_reference
+            || self.lowered.blocks.iter().any(|block| {
+                block
+                    .structural_parameters
+                    .iter()
+                    .any(|parameter| parameter.access != StructuralAccess::Owned)
+            })
+            || self
+                .lowered
+                .blocks
                 .iter()
-                .any(|parameter| parameter.access != StructuralAccess::Owned)
-        }) || self
-            .lowered
-            .blocks
-            .iter()
-            .flat_map(|block| &block.operations)
-            .any(|operation| {
-                matches!(
-                    operation.kind,
-                    terminal_psi::OperationKind::EstablishReference { .. }
-                        | terminal_psi::OperationKind::EstablishElementView { .. }
-                        | terminal_psi::OperationKind::EstablishMutableElementView { .. }
-                )
-            }) {
+                .flat_map(|block| &block.operations)
+                .any(|operation| {
+                    matches!(
+                        operation.kind,
+                        terminal_psi::OperationKind::EstablishReference { .. }
+                            | terminal_psi::OperationKind::EstablishElementView { .. }
+                            | terminal_psi::OperationKind::EstablishMutableElementView { .. }
+                    )
+                }) {
             Some(references.flow(self.machine).map_err(|error| {
                 self.unsupported(
                     error
@@ -2668,7 +2682,11 @@ impl<'a> Storage<'a> {
                 }
             }
         }
-        Ok((formed, header_ends))
+        Ok(FormedLoans {
+            loans: formed,
+            header_ends,
+            flow,
+        })
     }
 
     /// The advertised return paths must be the paths the body actually
@@ -2765,9 +2783,10 @@ impl<'a> Storage<'a> {
         references: &mut super::DescriptorAnalysis<'a>,
         module: &terminal_psi::TerminalModule,
         formed: &[Formed],
+        flow: Option<&BTreeMap<DescriptorPosition, DescriptorFlowStep>>,
     ) -> Checked<()> {
         use terminal_semantics::ReferenceCompletionOccurrence;
-        use terminal_semantics::descriptor_lifetimes::{descriptor_location, descriptor_path};
+        use terminal_semantics::descriptor_lifetimes::descriptor_location;
         let result = self.lowered.result.structural().filter(|result| {
             terminal_psi::structural_type_contains_reference_by(
                 |id| module.structural_type(id),
@@ -2869,26 +2888,15 @@ impl<'a> Storage<'a> {
                     let disposed = if is_returned {
                         false
                     } else if let Some(lifetime) = &loan.lifetime {
-                        lifetime
-                            .authorized
-                            .get(&at)
-                            .filter(|names| !names.is_empty())
-                            .is_some_and(|names| {
-                                names.iter().all(|name| {
-                                    self.lowered
-                                        .structural_place_type(name.root)
-                                        .and_then(|root| {
-                                            descriptor_path(self.types, root, &name.path)
-                                        })
-                                        .is_some_and(|path| {
-                                            terminal_semantics::cleanup_disposes_reference(
-                                                cleanup_actions,
-                                                name.root,
-                                                &path,
-                                            )
-                                        })
-                                })
-                            })
+                        terminal_semantics::disposed_reference_on_return(
+                            self.lowered,
+                            self.types,
+                            lifetime,
+                            loan.formed_in,
+                            at,
+                            cleanup_actions,
+                            flow,
+                        )
                     } else {
                         // Its normal call completion closes a duration-only loan.
                         loan.invocation.is_some()
@@ -2919,7 +2927,11 @@ impl<'a> Storage<'a> {
         borrow_ends: Option<&[(EdgeId, PlaceId)]>,
     ) -> Checked<(Vec<(ObligationId, Checked<()>)>, Vec<ConflictingLoan>)> {
         self.reference_results(references, module)?;
-        let (mut formed, header_ends) = self.formed(references, module, tables, borrow_ends)?;
+        let FormedLoans {
+            loans: mut formed,
+            header_ends,
+            flow,
+        } = self.formed(references, module, tables, borrow_ends)?;
         let addresses =
             terminal_semantics::plain_affine::borrowed_address_liveness(self.lowered, self.types)
                 .map_err(|error| match error {
@@ -2979,7 +2991,7 @@ impl<'a> Storage<'a> {
 
         self.parents(references, module, &mut formed)?;
         self.successor_borrows(references, &formed)?;
-        self.reference_completions(references, module, &formed)?;
+        self.reference_completions(references, module, &formed, flow.as_ref())?;
         self.retain_ancestors(&mut formed)?;
         let mut cleanup_flow = std::collections::BTreeMap::new();
         if formed.iter().any(|loan| loan.lifetime.is_some()) {
