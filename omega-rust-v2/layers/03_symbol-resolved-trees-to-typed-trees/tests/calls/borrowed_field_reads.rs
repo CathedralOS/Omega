@@ -116,14 +116,14 @@ fn owned_moves_borrows_and_mut_move_out_read_nothing() {
 
 #[test]
 fn nested_mutable_references_keep_the_access_of_their_outer_loan() {
-    let defs = "data Cell{v:u8;} data Handles{cell:@mutable Cell; bytes:@mutable [u8];}";
+    let defs = "data Cell{v:u8;} data Handles<'a>{cell:@'a mutable Cell; bytes:@'a mutable [u8];}";
     for write in [
         "h.cell.v=1;",
         "_=@mutable (h.cell).v;",
         "h.bytes[0]=1;",
         "let Handles{cell,..} = h; cell.v=1;",
     ] {
-        let example = |outer: &str| format!("{defs} machine run(h:{outer}Handles){{{write}}}");
+        let example = |outer: &str| format!("{defs} machine run<'a>(h:{outer}Handles<'a>){{{write}}}");
         check(&[("loan.omg", &example("@mutable "))]).unwrap();
         check(&[("loan.omg", &example(""))]).unwrap();
         let shared = example("@");
@@ -150,9 +150,9 @@ fn a_declared_index_machine_reads_a_borrowed_field_only_for_a_value_parameter() 
             copied
         );
     }
-    let access = "data B{n:u8;} data H{r:@mutable B;} machine [] at(b:@mutable B,i:u64)->@mutable u8{@mutable b.n} machine f(h:@H){h.r[0]=1;}";
+    let access = "data B{n:u8;} data H<'a>{r:@'a mutable B;} machine [] at(b:@mutable B,i:u64)->@mutable u8{@mutable b.n} machine f<'a>(h:@H<'a>){h.r[0]=1;}";
     assert!(check(&[("index.omg", access)]).is_err());
-    check(&[("index.omg", &access.replace("f(h:@H)", "f(h:H)"))]).unwrap();
+    check(&[("index.omg", &access.replace("(h:@H<'a>)", "(h:H<'a>)"))]).unwrap();
 }
 
 #[test]

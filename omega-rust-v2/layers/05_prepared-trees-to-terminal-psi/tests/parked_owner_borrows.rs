@@ -320,10 +320,10 @@ fn naming_a_field_reborrow_cannot_hide_forbidden_backing() {
     // axis; the records on the path declare no floor of their own.
     let joined = (
         "data Holder{token:Token;}",
-        "flag:bool,left:@Holder,right:@Holder",
+        "(flag:bool,left:@Holder,right:@Holder)",
         "let h=match flag{true->left,false->right,};",
     );
-    let stored = ("data Inner{token:Token;} data Holder{inner:@Inner;}", "h:@Holder", "");
+    let stored = ("data Inner{token:Token;} data Holder<'r>{inner:@'r Inner;}", "<'r>(h:@Holder<'r>)", "");
     let reborrow = |incoming: Vec<usize>, crossings: &[&str], projection: &str| ParkedFieldReborrow {
         incoming,
         crossings: crossings.iter().map(|c| vec![c.to_string()]).collect(),
@@ -337,7 +337,7 @@ fn naming_a_field_reborrow_cannot_hide_forbidden_backing() {
         for (permission, file, expected) in [("forbidden", "forbidden.omg", &forbidden), ("allowed", "allowed.omg", &allowed)] {
             let text = format!(
                 "data Token [carry(suspension:{permission},cpu:same,thread:any,address:stable,)]{{v:u8;}} {records}
-             machine inspect(t:@Token) suspends{{}} machine forward({formals}) suspends{{{join}{binding} suspend inspect({actual});}}"
+             machine inspect(t:@Token) suspends{{}} machine forward{formals} suspends{{{join}{binding} suspend inspect({actual});}}"
             );
             let package = source::lower(&[(file, &text)]).unwrap();
             assert_eq!(parked_field_reborrow(&package, "forward", "inspect").as_ref(), Ok(&path), "{text}");
@@ -407,7 +407,7 @@ fn a_reborrow_through_a_reference_stored_in_an_incoming_record_names_the_stored_
         ("let loan:@Token=@h.inner.token;", "loan"),
     ] {
         let text = format!(
-            "data Token{{v:u8;}} data Inner{{token:Token;}} data Holder{{inner:@Inner;}} machine inspect(t:@Token) suspends{{}} machine forward(h:@Holder) suspends{{{binding} suspend inspect({actual});}}"
+            "data Token{{v:u8;}} data Inner{{token:Token;}} data Holder<'r>{{inner:@'r Inner;}} machine inspect(t:@Token) suspends{{}} machine forward<'r>(h:@Holder<'r>) suspends{{{binding} suspend inspect({actual});}}"
         );
         let mut package = source::lower(&[("unknown.omg", &text)]).unwrap();
         // h lends the storage of Holder::inner; the @Inner stored there is the parent of Inner::token.

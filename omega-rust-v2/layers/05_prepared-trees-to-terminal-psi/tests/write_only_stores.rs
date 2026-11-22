@@ -212,7 +212,7 @@ fn only_op(
     op
 }
 
-const STORED: &str = "data Leaf{v:u8;} data Node{next:@write Leaf;}";
+const STORED: &str = "data Leaf{v:u8;} data Node<'r>{next:@'r write Leaf;}";
 
 /// `x.next.v = 1u8` with `next: @write Leaf` loads the stored descriptor
 /// through `x`, then writes through the stored loan. The reader names that
@@ -220,8 +220,8 @@ const STORED: &str = "data Leaf{v:u8;} data Node{next:@write Leaf;}";
 #[test]
 fn the_reader_names_the_deepest_crossing_of_a_stored_write_only_loan() {
     use PlaceProjection::{Field, Referent};
-    for (parent, crossing) in [("Node", 1), ("@mutable Node", 2)] {
-        let package = lowered(&format!("{STORED} machine f(x:{parent}){{x.next.v = 1u8;}}"));
+    for (parent, crossing) in [("Node<'r>", 1), ("@mutable Node<'r>", 2)] {
+        let package = lowered(&format!("{STORED} machine f<'r>(x:{parent}){{x.next.v = 1u8;}}"));
         let next = Field(declared(&package, "Node::next"));
         let path = if crossing == 1 {
             vec![next, Referent]
@@ -252,7 +252,7 @@ fn the_reader_names_the_deepest_crossing_of_a_stored_write_only_loan() {
 fn the_reader_keeps_case_identity_on_either_side_of_the_loan() {
     use PlaceProjection::{Case, Field, Referent};
     let text = format!(
-        "{STORED} data Ch{{case A(w:@write Leaf); case B(w:@write Leaf);}} data S{{case P(v:u8); case Q(v:u8);}} machine k(c:Ch){{}} machine s(t:@write S){{}} machine f(x:Node){{x.next.v = 1u8;}}"
+        "{STORED} data Ch<'r>{{case A(w:@'r write Leaf); case B(w:@'r write Leaf);}} data S{{case P(v:u8); case Q(v:u8);}} machine k<'r>(c:Ch<'r>){{}} machine s(t:@write S){{}} machine f<'r>(x:Node<'r>){{x.next.v = 1u8;}}"
     );
     let is_store: fn(&OperationKind) -> bool = |kind| matches!(kind, OperationKind::StructuralScalarFieldStore { .. });
     let rewritten = |formal: &str, path: &dyn Fn(&omega_lowering::LoweredPackage) -> Vec<PlaceProjection>, field: &str| {
@@ -308,11 +308,11 @@ fn the_reader_keeps_case_identity_on_either_side_of_the_loan() {
 /// is corrupted from the readable `@mutable Node` parent, which the reader admits.
 #[test]
 fn a_write_only_parent_cannot_supply_a_stored_descriptor() {
-    for stored in ["@mutable", "@write"] {
-        let text = format!("data Leaf{{v:u8;}} data Node{{next:{stored} Leaf;}} machine h(a:@write Node){{}} machine f(x:@mutable Node){{x.next.v = 1u8;}}");
+    for stored in ["@'r mutable", "@'r write"] {
+        let text = format!("data Leaf{{v:u8;}} data Node<'r>{{next:{stored} Leaf;}} machine h<'r>(a:@write Node<'r>){{}} machine f<'r>(x:@mutable Node<'r>){{x.next.v = 1u8;}}");
         let mut package = lowered(&text);
         let control = write_only_stores(&package, "f").map(|stores| stores.iter().map(|s| s.crossing).collect::<Vec<_>>());
-        assert_eq!(control, Ok(if stored == "@mutable" { vec![] } else { vec![2] }), "{stored}");
+        assert_eq!(control, Ok(if stored == "@'r mutable" { vec![] } else { vec![2] }), "{stored}");
         let write_only = formal_type(&package, "h");
         let body = body_mut(&mut package, "f");
         let omega_lowering::Parameter::Structural(x) = body.parameters[0] else {
@@ -332,7 +332,7 @@ fn a_write_only_parent_cannot_supply_a_stored_descriptor() {
 /// carrier and a field the written record does not declare.
 #[test]
 fn the_reader_refuses_reads_and_mistyped_stores_through_a_stored_loan() {
-    let text = format!("{STORED} machine f(x:Node){{x.next.v = 1u8;}}");
+    let text = format!("{STORED} machine f<'r>(x:Node<'r>){{x.next.v = 1u8;}}");
     let is_store: fn(&OperationKind) -> bool = |kind| matches!(kind, OperationKind::StructuralScalarFieldStore { .. });
     let read = |kind: fn(ProjectedPlace) -> OperationKind| {
         let mut package = lowered(&text);
@@ -393,7 +393,7 @@ fn the_reader_refuses_reads_and_mistyped_stores_through_a_stored_loan() {
 #[test]
 fn closed_copy_storage_follows_multiplicity_cleanup_fields_and_custody() {
     let package =
-        lowered("data C [copy] {v:u8;} data A {v:u8;} data S [copy] {case P(c:C); case Q(v:u8);} data W [copy] {a:[C;2]; s:S;} data D [copy] {r:@u8;}");
+        lowered("data C [copy] {v:u8;} data A {v:u8;} data S [copy] {case P(c:C); case Q(v:u8);} data W [copy] {a:[C;2]; s:S;} data D<'r> [copy] {r:@'r u8;}");
     let closed = |name: &str| psi_handoff_consumer::closed_copy_storage(&package, data_type(&package, name));
     assert_eq!(
         ["C", "A", "S", "W", "D"].map(closed),
@@ -445,7 +445,7 @@ fn write_only_authority_follows_claims_and_selected_cleanup() {
     let package = lowered("data Claim [linear]{n:u8;} data Hook dropped by release {n:u8;}
         machine release(x:Hook){let Hook{n as _}=x;}
         data Nested{case Plain(n:u8); case Claimed(c:Claim);}
-        data Hooked{values:[Hook;2];} data Loan{r:@mutable Hook;} data Cells{values:[u8;4];}");
+        data Hooked{values:[Hook;2];} data Loan<'r>{r:@'r mutable Hook;} data Cells{values:[u8;4];}");
     let capability = |name: &str| package.data.iter().find(|schema| schema.declaration.path == name).unwrap().write_only_cleanup;
     assert_eq!(["Claim", "Hook", "Nested", "Hooked", "Loan", "Cells"].map(capability),
                [None, None, None, None, Some(DescriptorCleanup), Some(NoCodeAffine)]);
@@ -455,8 +455,8 @@ fn write_only_authority_follows_claims_and_selected_cleanup() {
 /// the first. Each incoming descriptor has its own original backing parameter.
 #[test]
 fn descriptor_replacements_keep_both_backings_and_the_same_resident_slot() {
-    let pkg = lowered("data C [copy]{r:@u8;} data Box{c:C;}
-        machine f(x:@write Box,a:@u8,b:@u8){x.c=C{r:a};x.c=C{r:b};}");
+    let pkg = lowered("data C<'r> [copy]{r:@'r u8;} data Box<'r>{c:C<'r>;}
+        machine f<'r>(x:@write Box<'r>,a:@'r u8,b:@'r u8){x.c=C{r:a};x.c=C{r:b};}");
     let f = body(&pkg);
     let stores = write_only_stores(&pkg, "f").unwrap();
     assert_eq!(stores.len(), 2);
@@ -481,13 +481,13 @@ fn descriptor_replacements_keep_both_backings_and_the_same_resident_slot() {
 #[test]
 fn the_reader_names_a_structural_replacement_through_a_write_only_loan() {
     use PlaceProjection::{Field, Referent};
-    const COPY: &str = "data C [copy] {v:u8;} data Leaf{c:C; v:u8;} data Node{next:@write Leaf;}";
+    const COPY: &str = "data C [copy] {v:u8;} data Leaf{c:C; v:u8;} data Node<'r>{next:@'r write Leaf;}";
     for (formal, store, crossing) in [
-        ("@write Leaf", "x.c", 0),
-        ("Node", "x.next.c", 1),
-        ("@mutable Node", "x.next.c", 2),
+        ("(x:@write Leaf)", "x.c", 0),
+        ("<'r>(x:Node<'r>)", "x.next.c", 1),
+        ("<'r>(x:@mutable Node<'r>)", "x.next.c", 2),
     ] {
-        let package = lowered(&format!("{COPY} machine f(x:{formal}){{ {store} = C{{v:1u8}}; }}"));
+        let package = lowered(&format!("{COPY} machine f{formal}{{ {store} = C{{v:1u8}}; }}"));
         let next = Field(declared(&package, "Node::next"));
         let path = match crossing {
             0 => vec![Referent],

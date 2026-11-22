@@ -4,7 +4,7 @@ use crate::type_error::SourceTypeError;
 use crate::type_system::substitution::field_components;
 use crate::type_system::type_catalog::TypeCatalog;
 use crate::{TypeError, ValueType};
-use omega_resolved::Symbol;
+use omega_resolved::{DeclarationId, Symbol};
 use omega_syntax::NodeKind;
 use omega_typed::site_at;
 
@@ -18,28 +18,43 @@ impl ResolvedSourceFile<'_> {
         if self.file.nodes[node].children.is_empty()
             && let Some(Symbol::Declaration(id)) = self.name_in_role(node, true)
             && id.kind == NodeKind::Data
+            && let Some(ty) = self.inferred_lifetime_application(node, id, types)?
         {
-            let mut args = Vec::new();
-            for &owner in &types.scopes[id] {
-                for index in 0..types.arity(owner) {
-                    if !types.lifetime_slot(owner, index) {
-                        return self.annotation(node, types);
-                    }
-                    args.push(ValueType::InferredLifetime {
-                        site: Box::new(site_at(self.file, node)),
-                        index: args.len(),
-                    });
-                }
-            }
-            if !args.is_empty() {
-                let applied = ValueType::Applied(Box::new(id.clone()), args);
-                let ty = types
-                    .normalize_at(applied, self, node)
-                    .map_err(|m| TypeError::at(self.file, node, m))?;
-                return Ok(if let Some(value) = value { FieldLifetimes::from_value(ty, value) } else { ty });
-            }
+            return Ok(if let Some(value) = value { FieldLifetimes::from_value(ty, value) } else { ty });
         }
         self.annotation(node, types)
+    }
+
+    /// Apply `data` at `node`, which wrote no arguments, with one inferred
+    /// region for each lifetime argument. A record head and a sum case both
+    /// name their carrier this way. `None` means the data takes no lifetime, or
+    /// also takes a type, const or machine argument that the source must write.
+    pub(crate) fn inferred_lifetime_application(
+        &self,
+        node: usize,
+        data: &DeclarationId,
+        types: &TypeCatalog<'_>,
+    ) -> Result<Option<ValueType>, TypeError> {
+        let mut args = Vec::new();
+        for &owner in &types.scopes[data] {
+            for index in 0..types.arity(owner) {
+                if !types.lifetime_slot(owner, index) {
+                    return Ok(None);
+                }
+                args.push(ValueType::InferredLifetime {
+                    site: Box::new(site_at(self.file, node)),
+                    index: args.len(),
+                });
+            }
+        }
+        if args.is_empty() {
+            return Ok(None);
+        }
+        let applied = ValueType::Applied(Box::new(data.clone()), args);
+        types
+            .normalize_at(applied, self, node)
+            .map(Some)
+            .map_err(|m| TypeError::at(self.file, node, m))
     }
 }
 #[derive(Default)]
@@ -84,7 +99,7 @@ impl FieldLifetimes {
         }
     }
     pub(crate) fn finish(
-        self,
+        &self,
         ty: ValueType,
     ) -> ValueType {
         if self.0.is_empty() {

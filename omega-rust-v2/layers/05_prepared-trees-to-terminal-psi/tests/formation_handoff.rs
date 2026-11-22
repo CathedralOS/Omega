@@ -28,8 +28,6 @@ use omega_lowering::{LoweredPackage, LoweringError, MachineBody, OperationKind, 
 use omega_preparation::{PreparedTrees, prepare_source_package};
 use omega_typed::{ObligationKind, Site, TypingObligation};
 
-use std::ops::Range;
-
 /// Read the obligations and run the requested check on the same prepared trees.
 fn with_prepared<T>(
     file: &str,
@@ -40,10 +38,6 @@ fn with_prepared<T>(
     let prepared = prepare_source_package(&package).unwrap_or_else(|error| panic!("{file}: preparation failed: {error:?}\n{source}"));
     let obligations = prepared.typed().obligations.clone();
     (obligations, read(&prepared))
-}
-
-fn refusal(file: &str, source: &str, span: Range<usize>, message: &str) -> (Vec<TypingObligation>, LoweringError) {
-    with_prepared(file, source, |prepared| sources::refuse_prepared(prepared, &[(file, source)], file, span, message))
 }
 
 fn lower(file: &str, source: &str) -> (Vec<TypingObligation>, Result<LoweredPackage, LoweringError>) {
@@ -257,17 +251,25 @@ fn omitted_payload_preserves_authored_calls_and_selects_only_the_active_case() {
 #[test]
 fn zero_field_cannot_supply_a_reference() {
     let file = "zero_field.omg";
-    let literal = "Options{count:1,..}";
-    let source = "data Options{count:u8;handle:@u8;} machine build(){let options=Options{count:1,..};}";
-    let (obligations, error) = refusal(file, source, sources::unique_span(source, literal),
-        "omitted field `Options::handle` of type `@u8` needs a borrowed reference, which `..` never supplies");
+    let literal = "Options::<'r>{count:1,..}";
+    let source = "data Options<'r>{count:u8;handle:@'r u8;} machine build<'r>(){let options=Options::<'r>{count:1,..};}";
+    let (obligations, error) = with_prepared(file, source, |prepared| {
+        sources::refuse_prepared_with_cli_message(
+            prepared,
+            &[(file, source)],
+            file,
+            sources::unique_span(source, literal),
+            "omitted field `Options::handle` of type `@u8 at app\\build<parameter 0>` needs a borrowed reference, which `..` never supplies",
+            "omitted field `Options::handle` of type `@u8 at root\\build<parameter 0>` needs a borrowed reference, which `..` never supplies",
+        )
+    });
     assert!(obligations.iter().any(|o| matches!(o.kind, ObligationKind::ZeroField {..}) && o.site == error.site));
     assert!(
         obligations
             .iter()
-            .any(|o| matches!(&o.kind, ObligationKind::ZeroField {field, ty: omega_typed::ValueType::Reference(..)} if field.path == "Options::handle"))
+            .any(|o| matches!(&o.kind, ObligationKind::ZeroField {field, ty: omega_typed::ValueType::AtLifetime(reference, _)} if field.path == "Options::handle" && matches!(**reference, omega_typed::ValueType::Reference(..))))
     );
-    let scalar = source.replace("handle:@u8", "handle:u8");
+    let scalar = source.replace("handle:@'r u8", "handle:u8");
     let (_, lowered) = lower(file, &scalar);
     let package = lowered.unwrap_or_else(|error| panic!("the scalar twin lowers: {error:?}"));
     let body = &package
@@ -2093,17 +2095,19 @@ fn same_width_distinct_static_arguments_keep_their_own_requirements() {
 /// obligation. A shared field names its referent without materializing a recursive layout.
 #[test]
 fn recursive_formation_carries_the_next_application_not_an_unfolded_layout() {
-    use omega_psi::{DataArgument, DataFormation, ScalarType, TypeExpression, TypeExpressionStep as Step, TypeShape};
+    use omega_lowering::{AggregateRegionSlot, MachineRegion};
+    use omega_psi::{DataArgument, DataFormation, ScalarType, TemplateBinder, TypeExpression, TypeExpressionStep as Step, TypeShape};
     let file = "recursive.omg";
-    let changing = "data Link<const N:u64>{next:@Link<N+1>;value:u<N>;} machine caller(x:Link<3>){}";
-    let same = changing.replace("@Link<N+1>", "@Link<N>");
+    let changing = "data Link<'r,const N:u64>{next:@'r Link<'r,N+1>;value:u<N>;} machine caller<'r>(x:Link<'r,3>){}";
+    let same = changing.replace("@'r Link<'r,N+1>", "@'r Link<'r,N>");
     let (obligations, psi) = lower(file, changing);
     assert!(
         obligations
             .iter()
             .any(|o| matches!(&o.kind, ObligationKind::FormRecursiveApplication { declaration, active_arguments, arguments }
-                if active_arguments.iter().map(ToString::to_string).eq(["3"]) && declaration.path == "Link" && arguments.iter().map(ToString::to_string).eq(["4"]))
-                && spells(&o.site, file, changing, "Link<3>")),
+                if active_arguments.iter().map(ToString::to_string).eq([r"app\caller<parameter 0>", "3"]) && declaration.path == "Link"
+                    && arguments.iter().map(ToString::to_string).eq([r"app\caller<parameter 0>", "4"]))
+                && spells(&o.site, file, changing, "Link<'r,3>")),
         "{obligations:?}"
     );
     assert!(
@@ -2127,21 +2131,39 @@ fn recursive_formation_carries_the_next_application_not_an_unfolded_layout() {
         assert_eq!(link.declaration, template.declaration);
         assert_eq!(psi.machines[0].parameter_types, [link.carrier]);
         assert_eq!(psi.types.get(link.carrier), Some(&TypeShape::Nominal(link.id)));
+        // The lifetime selects no schema, so the closed argument alone is the
+        // type argument. The region positions stay beside the rows: the
+        // template's binder list, the schema's count and its stored
+        // reference, and the machine's slot for the formal.
         assert_eq!(link.type_arguments, [DataArgument::Integer {carrier,value:3.into()}]);
+        assert_eq!(template.parameters, [TemplateBinder::Lifetime, TemplateBinder::Const(TypeExpression(vec![Step::Scalar(carrier)]))]);
+        assert_eq!(link.lifetime_count, 1);
+        assert_eq!(psi.machines[0].regions, [MachineRegion {
+            aggregate_parameters: vec![AggregateRegionSlot { parameter: 0, binder: 0 }],
+            ..Default::default()
+        }]);
         let [edge, width] = link.fields.as_slice() else {panic!("next, value")};
         assert_eq!((edge.declaration.path.as_str(), width.declaration.path.as_str()), ("Link::next", "Link::value"));
+        assert_eq!((edge.lifetime, edge.aggregate_lifetimes.as_slice()), (Some(0), &[0][..]));
+        assert_eq!((width.lifetime, width.aggregate_lifetimes.as_slice()), (None, &[][..]));
         assert_eq!(psi.types.get(width.carrier), Some(&TypeShape::PrimitiveScalar(ScalarType::Integer {signed:false,width:3})));
         let Some(TypeShape::IndexedSharedReference(id)) = psi.types.get(edge.carrier) else { panic!("shared recursion") };
         assert_eq!(psi.types.indexed_referent(*id), Some((&link.declaration, [DataArgument::Integer { carrier, value: next.into() }].as_slice())));
-        let parameter = Step::GenericParameter { owner: link.declaration.clone(), index:0 };
+        // Binder 0 is the lifetime `'r` and binder 1 the index `N`.
+        let region = Step::GenericParameter { owner: link.declaration.clone(), index:0 };
+        let parameter = Step::GenericParameter { owner: link.declaration.clone(), index:1 };
         let integer = |n: i32| Step::StaticInteger { carrier, value: n.into() };
-        let mut referred = vec![parameter.clone()];
+        // `@'r Link<'r, N+1>`: the referent applied at `'r` and the next
+        // index, behind a shared reference held at `'r`.
+        let mut referred = vec![region.clone(), parameter.clone()];
         if next == 4 {
             referred.extend([integer(1), Step::IndexSum { carrier, operands: 2 }]);
         }
         referred.extend([
-            Step::Named { declaration: link.declaration.clone(), argument_count: 1 },
+            Step::Named { declaration: link.declaration.clone(), argument_count: 2 },
             Step::Reference(omega_psi::TemplateAccess::Shared),
+            region.clone(),
+            Step::AtLifetime,
         ]);
         assert_eq!(template.fields[0].ty.0, referred);
         assert_eq!(template.fields[1].ty.0, [parameter.clone(), Step::IndexedInteger { signed: false }]);
@@ -2165,13 +2187,17 @@ fn recursive_formation_carries_the_next_application_not_an_unfolded_layout() {
                 operands: [TypeExpression(vec![parameter.clone()]), TypeExpression(vec![integer(1)])],
             };
             assert!(template.formation.iter().any(|(site, q)| spelled(site, file, source) == "N+1" && q == &addition));
-            let prior = [TypeExpression(vec![parameter.clone(), integer(1), Step::IndexSum {carrier,operands:2}])];
-            let open = [TypeExpression(vec![parameter, integer(1), integer(1), Step::IndexSum {carrier,operands:3}])];
-            let closed = [TypeExpression(vec![integer(4)])];
-            let actual = [TypeExpression(vec![integer(3)])];
+            // Each application keeps its lifetime argument first: the data
+            // binder `'r` inside the declaration, and `caller`'s own region
+            // binder where its formal applies `Link`.
+            let applied = TypeExpression(vec![Step::GenericParameter { owner: psi.machines[0].declaration.clone(), index: 0 }]);
+            let prior = [TypeExpression(vec![region.clone()]), TypeExpression(vec![parameter.clone(), integer(1), Step::IndexSum {carrier,operands:2}])];
+            let open = [TypeExpression(vec![region]), TypeExpression(vec![parameter, integer(1), integer(1), Step::IndexSum {carrier,operands:3}])];
+            let closed = [applied.clone(), TypeExpression(vec![integer(4)])];
+            let actual = [applied, TypeExpression(vec![integer(3)])];
             spec_corpus::observe_handoff!(psi "psi-output/recursive-index-formation", assert_eq!(recursive, [
-                ("@Link<N+1>", prior.as_slice(), open.as_slice()),
-                ("Link<3>", actual.as_slice(), closed.as_slice()),
+                ("@'r Link<'r,N+1>", prior.as_slice(), open.as_slice()),
+                ("Link<'r,3>", actual.as_slice(), closed.as_slice()),
             ]));
         } else { assert!(recursive.is_empty()); }
     }
@@ -2190,7 +2216,7 @@ fn a_returned_recursive_field_reborrows_through_its_stored_loan() {
     use omega_psi::{DataArgument, PlaceOrigin, PlaceProjection, ReferenceAccess, ReturnEdge, ScalarType, TypeShape};
     use psi_handoff_consumer::{ReturnedStoredLoan, returned_stored_loan};
     let file = "load_next.omg";
-    let source = "data Link<const N:u64>{next:@Link<N+1>;value:u<N>;} machine read(x:Link<3>)->@Link<4>{x.next}";
+    let source = "data Link<'r,const N:u64>{next:@'r Link<'r,N+1>;value:u<N>;} machine read<'r>(x:Link<'r,3>)->@Link<'r,4>{x.next}";
     let (obligations, psi) = lower(file, source);
     let mut psi = psi.unwrap_or_else(|error| panic!("the original program must lower: {error:?}"));
     // The typer's return obligation sits at the field read that forms the loan.
@@ -2227,7 +2253,7 @@ fn a_returned_recursive_field_reborrows_through_its_stored_loan() {
     ));
 
     // The plain record is the same read with a materialized referent schema.
-    let plain = "data Leaf{v:u8;} data Node{next:@Leaf;} machine read(x:Node)->@Leaf{x.next}";
+    let plain = "data Leaf{v:u8;} data Node<'r>{next:@'r Leaf;} machine read<'r>(x:Node<'r>)->@Leaf{x.next}";
     let (_, twin) = lower(file, plain);
     let twin = twin.unwrap_or_else(|error| panic!("the plain twin must lower: {error:?}"));
     assert_eq!(
@@ -2242,6 +2268,78 @@ fn a_returned_recursive_field_reborrows_through_its_stored_loan() {
     assert_eq!(returned_stored_loan(&psi, "read"), Err("the borrow must cross the stored descriptor, not select the record's own field"));
 }
 
+/// A lifetime argument selects no storage. `first`, `second` and `keep` apply
+/// `Link` at four different machine regions and the same closed arguments, so
+/// their formals share one `Link<3>` schema and one `@Link<4>` referent, which
+/// is also the referent the schema's own `next` field names at the data
+/// binder `'r`. `Link<5>` is a second schema. What a row forgets stays beside
+/// it: the schema's lifetime count, the binder its stored reference is held
+/// at and the binder that fills the referent, and each machine's region slots.
+#[test]
+fn machine_regions_at_the_same_const_arguments_share_one_schema_and_keep_their_positions() {
+    use omega_lowering::{AggregateRegionSlot, MachineRegion};
+    use omega_psi::{DataArgument, ScalarType, TemplateBinder, TypeExpression, TypeExpressionStep as Step, TypeShape};
+    let file = "shared_link.omg";
+    let source = "data Link<'r,const N:u64>{next:@'r Link<'r,N+1>;value:u<N>;} \
+        machine first<'a>(x:Link<'a,3>){} \
+        machine second<'p,'q>(w:Link<'p,3>,x:Link<'q,3>){} \
+        machine third<'a>(x:Link<'a,5>){} \
+        machine keep<'a>(x:@Link<'a,4>)->@Link<'a,4>{x}";
+    let (_, psi) = lower(file, source);
+    let psi = psi.unwrap_or_else(|error| panic!("every machine has one body: {error:?}"));
+    assert!(psi.machine_templates.is_empty(), "{:?}", psi.machine_templates);
+    let carrier = ScalarType::Integer { signed: false, width: 64 };
+    let integer = |value: i32| DataArgument::Integer { carrier, value: value.into() };
+
+    // The template keeps the lifetime binder at its position before the index.
+    let [template] = psi.data_templates.as_slice() else { panic!("one Link template") };
+    assert_eq!(
+        template.parameters,
+        [TemplateBinder::Lifetime, TemplateBinder::Const(TypeExpression(vec![Step::Scalar(carrier)]))]
+    );
+
+    // One schema for each closed argument, whatever regions apply it.
+    let [three, five] = psi.data.as_slice() else { panic!("Link<3> and Link<5>: {:?}", psi.data) };
+    assert_eq!((&three.type_arguments, &five.type_arguments), (&vec![integer(3)], &vec![integer(5)]));
+    assert_eq!((&three.declaration, &five.declaration), (&template.declaration, &template.declaration));
+    assert_ne!((three.id, three.carrier), (five.id, five.carrier));
+    for (schema, successor) in [(three, 4), (five, 6)] {
+        assert_eq!(psi.types.get(schema.carrier), Some(&TypeShape::Nominal(schema.id)));
+        // The data region positions: `next` is a reference held at binder 0,
+        // and binder 0 fills the one lifetime binder of the `Link` it refers to.
+        assert_eq!(schema.lifetime_count, 1);
+        let [next, value] = schema.fields.as_slice() else { panic!("next, value") };
+        assert_eq!((next.lifetime, next.aggregate_lifetimes.as_slice()), (Some(0), &[0][..]));
+        assert_eq!((value.lifetime, value.aggregate_lifetimes.as_slice()), (None, &[][..]));
+        let Some(TypeShape::IndexedSharedReference(id)) = psi.types.get(next.carrier) else { panic!("shared recursion") };
+        assert_eq!(psi.types.indexed_referent(*id), Some((&template.declaration, [integer(successor)].as_slice())));
+    }
+
+    // The machine region positions: each binder lists the formal it fills and
+    // the data binder it fills there, and for `keep` the result's as well.
+    let machine = |name: &str| psi.machines.iter().find(|m| m.declaration.path == name).unwrap_or_else(|| panic!("no machine {name}"));
+    let region = |parameter: usize, result: &[usize]| MachineRegion {
+        aggregate_parameters: vec![AggregateRegionSlot { parameter, binder: 0 }],
+        aggregate_result: result.to_vec(),
+        ..Default::default()
+    };
+    let stored_reference = three.fields[0].carrier;
+    for (name, formals, regions) in [
+        ("first", vec![three.carrier], vec![region(0, &[])]),
+        ("second", vec![three.carrier, three.carrier], vec![region(0, &[]), region(1, &[])]),
+        ("third", vec![five.carrier], vec![region(0, &[])]),
+        ("keep", vec![stored_reference], vec![region(0, &[0])]),
+    ] {
+        let lowered = machine(name);
+        assert_eq!(lowered.parameter_types, formals, "{name}");
+        assert_eq!(lowered.regions, regions, "{name}");
+        // A region is not a static argument: no machine here is a specialization.
+        assert!(lowered.arguments.is_empty(), "{name}");
+    }
+    // `keep` at `'a` returns the very row the schema's field stores at `'r`.
+    assert_eq!(machine("keep").result_type, Some(stored_reference));
+}
+
 /// Returning a stored `@mutable Leaf` by value from an owned record transfers the
 /// caller's loan out of the field (language/ownership.md: "A by-value
 /// reference transfers or copies its loan carrier"). The result is that stored
@@ -2252,7 +2350,7 @@ fn reading_a_stored_exclusive_reference_transfers_its_loan() {
     use omega_lowering::{BlockTerminator, CleanupAction, PlaceProjection, ProjectedPlace, ReturnEdge};
     use psi_handoff_consumer::{ExclusiveOrigin, ReturnedExclusive, returned_exclusive};
     let file = "load_next.omg";
-    let source = "data Leaf{v:u8;} data Node{next:@mutable Leaf;} machine read(x:Node)->@mutable Leaf{x.next}";
+    let source = "data Leaf{v:u8;} data Node<'r>{next:@'r mutable Leaf;} machine read<'r>(x:Node<'r>)->@mutable Leaf{x.next}";
     let (obligations, package) = lower(file, source);
     let mut package = package.unwrap();
     // L3 hands the return relation to the checker; L5 keeps it for L6.

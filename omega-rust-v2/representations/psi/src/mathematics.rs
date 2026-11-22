@@ -7,6 +7,13 @@ pub struct MathematicalDeclaration {
     pub declaration: DeclarationId,
     pub public: bool,
     pub site: Site,
+    /// The lifetime binders the telescope declares before its mathematical
+    /// binders. They have no bound. A `GenericParameter` of this declaration
+    /// with an index below this count names one of them, as the lifetime
+    /// argument of `Link<'r, u8, bool>` in a formal's type does.
+    pub lifetime_count: usize,
+    /// The checked bound of each mathematical binder, in order. The binder
+    /// at telescope index `i` has the bound at `i - lifetime_count`.
     pub generic_bounds: Vec<TypeExpression>,
     pub parameter_count: usize,
     pub signature: TypeExpression,

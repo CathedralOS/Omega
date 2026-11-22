@@ -121,11 +121,12 @@ pub(crate) fn apply_regions(
 fn region_arguments(
     call: &omega_typed::TypedCall,
     caller: &TypedSignature,
-    callee: &Callee<'_>,
+    signature: &TypedSignature,
+    region_count: usize,
     callees: &Callees<'_>,
     site: &omega_typed::Site,
 ) -> Result<Vec<crate::CallRegion>, LoweringError> {
-    if call.type_arguments.len() != callee.regions {
+    if call.type_arguments.len() != region_count {
         return Err(LoweringError::new(site, "call lacks one region argument for each region of its callee"));
     }
     let own = callees
@@ -138,7 +139,7 @@ fn region_arguments(
         .enumerate()
         .map(|(binder, argument)| match argument {
             ValueType::Parameter { owner, index } if owner.as_ref() == &caller.machine && *index < own => Ok(crate::CallRegion::Binder(*index)),
-            ValueType::InferredLifetime { .. } if crate::declarations::regions::parameter_carries(callee.signature, binder) => Ok(crate::CallRegion::Operands),
+            ValueType::InferredLifetime { .. } if crate::declarations::regions::parameter_carries(signature, binder) => Ok(crate::CallRegion::Operands),
             ValueType::InferredLifetime { .. } => Err(LoweringError::new(site, "call applies an inferred region that none of its operands carries")),
             _ => Err(LoweringError::new(site, "region argument is not a region binder of the calling machine")),
         })
@@ -205,8 +206,11 @@ fn select_direct_call<'a>(
                     contract,
                     selection,
                 } if obligation.node == file.node_id(node) && obligation.site == site => refinements.push((owner, *slot, contract.as_ref(), selection)),
+                // A reference held at a lifetime is left to the arm below,
+                // which requires the call to apply its regions.
                 ObligationKind::ReturnBorrow { machine }
                     if crate::lowering::types::is_reference_descriptor(expected)
+                        && !matches!(expected, ValueType::AtLifetime(..))
                         && machine == &caller.machine
                         && obligation.node == file.node_id(node)
                         && obligation.site == site => {}
@@ -246,7 +250,7 @@ fn select_direct_call<'a>(
     }
 
     let mut regions = Vec::new();
-    let (target, signature, requirement_count, callbacks, possible) = if let Some(key) = crate::declarations::members::Key::from_call(call) {
+    let (target, signature, requirement_count, callbacks, possible) = if let Some(key) = crate::declarations::members::Key::from_call(call, tree.forest()) {
         let &(index, signature, count, pause) = callees
             .members
             .get(&key)
@@ -256,6 +260,9 @@ fn select_direct_call<'a>(
         }
         if pause != PauseEffects::default() {
             return Err(error("member effect requires its selected suspension contract"));
+        }
+        if key.region_count != 0 {
+            regions = region_arguments(call, caller, signature, key.region_count, callees, &site)?;
         }
         (crate::CallTarget::Member(index), signature, count, &[][..], PauseEffects::default())
     } else {
@@ -275,7 +282,7 @@ fn select_direct_call<'a>(
             })
             .ok_or_else(|| error("selected callee has no local machine identity"))?;
         if callee.regions != 0 {
-            regions = region_arguments(call, caller, callee, callees, &site)?;
+            regions = region_arguments(call, caller, callee.signature, callee.regions, callees, &site)?;
         }
         // The machine ID on the call leads to the ordered static arguments in Psi.
         // Match the obligations to those exact selected pairs, including multiplicity.
@@ -387,13 +394,22 @@ fn select_direct_call<'a>(
         }
         // The operand is lowered at the type typing checked for it. Under
         // applied regions that is the formal at this call's regions, which the
-        // argument's own checked row must state.
+        // argument's own checked row must state. A plain reference that
+        // typing binds to one of those regions has a `BindLifetime` to the
+        // formal there instead, as `second` does in `poke(@mutable h, second)`
+        // for `poke<'r>(h: @mutable Holder<'r>, s: @'r u8)`. The operand then
+        // lands at that destination and `references::call_argument` consumes
+        // the binding.
         let carrier = match at_regions(formal).filter(|at_call| at_call != formal) {
             None => formal,
             Some(at_call) => tree
                 .semantics_at(argument)
                 .find_map(|row| match row {
                     NodeSemantics::Expression(e) if e.static_argument_slot.is_none() && e.ty == at_call => Some(&e.ty),
+                    NodeSemantics::Obligation(o) => match &o.kind {
+                        ObligationKind::BindLifetime { destination, .. } if *destination == at_call => Some(destination),
+                        _ => None,
+                    },
                     _ => None,
                 })
                 .ok_or_else(|| LoweringError::new(&applied.site, "call operand disagrees with its formal at the applied regions"))?,

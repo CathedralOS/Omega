@@ -26,11 +26,19 @@ pub(crate) fn read(
         .map_or(&[][..], Vec::as_slice);
     let own = trees.generic_parameters.get(owner);
     let scopes = || own.into_iter().chain(captured.iter().filter_map(|id| trees.generic_parameters.get(id)));
-    let indexed = scopes().any(|scope| !scope.parameters.is_empty()) && scopes().all(|scope| {
-        scope.equations.is_empty() && scope.witness_count == 0 && scope.parameters.iter().all(|p| {
+    // A const-indexed record can declare lifetimes before its indices, as
+    // `Link<'r, const N: u64>` does. They select no schema: the template keeps
+    // each as a `Lifetime` binder at its position, and a field names it
+    // through `AtLifetime` or as a lifetime argument of the record it refers to.
+    let leading_lifetimes = regions.indexed_lifetimes(owner).map_or(0, |(lifetimes, _)| lifetimes);
+    let const_indices = |scope: &omega_typed::GenericParameters, lifetimes: usize| {
+        scope.equations.is_empty() && scope.witness_count == 0 && scope.parameters[lifetimes..].iter().all(|p| {
             p.kind == NodeKind::ConstParam && matches!(p.carrier.as_deref(), Some(ValueType::Integer { width: Some(1..), .. }))
         })
-    });
+    };
+    let indexed = scopes().any(|scope| !scope.parameters.is_empty())
+        && own.is_none_or(|scope| const_indices(scope, leading_lifetimes))
+        && captured.iter().filter_map(|id| trees.generic_parameters.get(id)).all(|scope| const_indices(scope, 0));
     // A concrete data declaration records a region held by a direct reference
     // field, or passed on to a record `regions` lists. A region in any other
     // carrier belongs in the field's type expression.

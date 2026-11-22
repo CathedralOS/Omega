@@ -1,6 +1,6 @@
 mod support;
 
-use omega_typer::{ObligationKind, TypedStage};
+use omega_typer::{ObligationKind, TypedStage, ValueType};
 
 const BODY: &str = "landing.omg";
 
@@ -91,6 +91,190 @@ fn forwarding_must_preserve_both_the_referent_and_the_borrowed_region() {
         "view",
         r"expected @game\Socket at game\pack<parameter 0>, found @game\File at game\pack<parameter 0>",
     );
+}
+
+/// Whether L3 recorded, at the operand spelled `operand`, that a reference held
+/// at the body machine's first lifetime landed where no lifetime is named.
+fn forgets_region_at(
+    stage: &TypedStage,
+    body: &str,
+    operand: &str,
+) -> bool {
+    let start = body.rfind(operand).unwrap();
+    stage.obligations.iter().any(|o| {
+        o.site.file == BODY
+            && (o.site.span.get_start_offset(), o.site.span.get_end_offset()) == (start, start + operand.len())
+            && matches!(&o.kind, ObligationKind::BindLifetime { reference: ValueType::AtLifetime(held, region), destination }
+                if held.as_ref() == destination && matches!(region.as_ref(), ValueType::Parameter { index: 0, .. }))
+    })
+}
+
+#[test]
+fn a_record_initializer_lands_at_the_lifetime_its_fields_supply() {
+    let schema = "data Held<'a> { r:@'a u8; } data Outer<'a> { inner:Held<'a>; }";
+    let body = "machine f<'a>(value:@'a u8) { let h=Held { r:value }; let o=Outer { inner:move h }; }";
+    let stage = check(schema, body).unwrap();
+    let args = |expression| match published(&stage, body, expression) {
+        ValueType::Applied(_, arguments) => arguments,
+        other => panic!("expected a lifetime-applied record, found {other:?}"),
+    };
+    let held = args("Held { r:value }");
+    assert!(matches!(held.as_slice(), [ValueType::Parameter { index: 0, .. }]));
+    assert_eq!(args("Outer { inner:move h }"), held);
+    assert!(!stage.obligations.iter().any(|row| matches!(row.kind, ObligationKind::BindLifetime { .. })),
+        "the field already has the final lifetime: {:?}", stage.obligations);
+}
+
+// A record stores its references at a named lifetime, while a formal or a
+// result may still elide theirs (lifetimes.md, "Returned views"). Reading the
+// field gives the reference at the record's lifetime. It lands at the elided
+// site, and L3 keeps the region in a `BindLifetime` obligation for the checker.
+#[test]
+fn a_stored_reference_lands_where_the_destination_names_no_lifetime() {
+    let schema = "data Leaf { n:u8; } data Holder<'a> { leaf:@'a mutable Leaf; view:@'a u8; }";
+
+    let call = "machine touch(leaf:@mutable Leaf) {} machine relay<'a>(holder:Holder<'a>) { touch(holder.leaf) }";
+    let stage = check(schema, call).unwrap();
+    assert!(forgets_region_at(&stage, call, "holder.leaf"), "{:?}", stage.obligations);
+
+    let result = "machine read<'a>(holder:Holder<'a>)->@u8 { holder.view }";
+    let stage = check(schema, result).unwrap();
+    assert!(forgets_region_at(&stage, result, "holder.view"), "{:?}", stage.obligations);
+    assert!(
+        stage
+            .obligations
+            .iter()
+            .any(|o| matches!(&o.kind, ObligationKind::ReturnBorrow { machine } if machine.path == "read"))
+    );
+
+    // Each elided input is its own lifetime, so a stored reference and a plain
+    // one both select `same`, and both give the referent to its type binder.
+    let generic = "machine same<T>(a:@T,b:@T)->bool { true } machine run<'a>(holder:Holder<'a>,other:@u8)->bool { same(holder.view, other) }";
+    let stage = check(schema, generic).unwrap();
+    assert!(forgets_region_at(&stage, generic, "holder.view"), "{:?}", stage.obligations);
+    let selected = stage.calls.iter().find(|c| c.machine.path == "same").unwrap();
+    assert_eq!(
+        selected
+            .type_arguments
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>(),
+        ["u8"]
+    );
+
+    // The landing forgets only the lifetime. The access must still agree, and
+    // a type binder that receives the whole reference keeps its region, so a
+    // plain reference is a different type there.
+    refused(
+        schema,
+        "machine read<'a>(holder:Holder<'a>)->@mutable u8 { holder.view }",
+        "holder.view",
+        r"expected @mutable u8, found @u8 at game\read<parameter 0>",
+    );
+    let whole = generic.replace("a:@T,b:@T", "a:T,b:T");
+    let error = check(schema, &whole).unwrap_err();
+    assert_eq!(error.message, r"no matching overload for same(@u8 at game\run<parameter 0>, @u8)");
+    assert_eq!(error.span.slice(whole.as_bytes()), Some(b"same".as_slice()));
+}
+
+// `poke<'r>(h:@mutable Holder<'r>, s:@'r u8)` stores `s` in `h`, so both
+// operands are at one lifetime. The record operand fixes `'r` at the region
+// the caller's record is at. A reference that names no lifetime says nothing
+// about `'r`: it matches `s` by access and referent, and landing binds it to
+// that region as `h.r = second` would. The mutable record keeps its own region.
+#[test]
+fn a_plain_reference_is_bound_to_the_region_another_operand_fixes() {
+    let schema = "data Holder<'r> { r:@'r u8; }";
+    let run = "machine run(first:@u8, second:@u8) { let mutable h = Holder { r: first }; poke(@mutable h, second); }";
+    let body = format!("machine poke<'r>(h:@mutable Holder<'r>, s:@'r u8) {{ h.r = s; }} {run}");
+    let stage = check(schema, &body).unwrap();
+    let ValueType::Applied(_, arguments) = published(&stage, &body, "Holder { r: first }") else {
+        panic!("expected the applied record")
+    };
+    let [region @ ValueType::InferredLifetime { .. }] = arguments.as_slice() else {
+        panic!("expected the record's inferred region, found {arguments:?}")
+    };
+    let selected = stage.calls.iter().find(|c| c.machine.path == "poke").unwrap();
+    assert_eq!(selected.type_arguments.as_slice(), std::slice::from_ref(region));
+    let operand = body.rfind("second").unwrap();
+    assert!(
+        stage.obligations.iter().any(|o| {
+            o.site.file == BODY
+                && (o.site.span.get_start_offset(), o.site.span.get_end_offset()) == (operand, operand + "second".len())
+                && matches!(&o.kind, ObligationKind::BindLifetime { reference, destination: ValueType::AtLifetime(held, required) }
+                    if held.as_ref() == reference && matches!(reference, ValueType::Reference(..)) && required.as_ref() == region)
+        }),
+        "{:?}",
+        stage.obligations
+    );
+
+    // The order of the operands does not matter: the plain reference waits
+    // for the operand that fixes the region.
+    let swapped = body
+        .replace("(h:@mutable Holder<'r>, s:@'r u8)", "(s:@'r u8, h:@mutable Holder<'r>)")
+        .replace("poke(@mutable h, second)", "poke(second, @mutable h)");
+    let stage = check(schema, &swapped).unwrap();
+    let selected = stage.calls.iter().find(|c| c.machine.path == "poke").unwrap();
+    assert!(matches!(selected.type_arguments.as_slice(), [ValueType::InferredLifetime { .. }]));
+
+    // A reference at another named lifetime is not rebound: `h` is at `'x`.
+    let named = body.replace("run(first:@u8, second:@u8)", "run<'x,'y>(first:@'x u8, second:@'y u8)");
+    let error = check(schema, &named).unwrap_err();
+    assert_eq!(
+        error.message,
+        r"no matching overload for poke(@mutable game\Holder<game\run<parameter 0>>, @u8 at game\run<parameter 1>)"
+    );
+    assert_eq!(error.span.slice(named.as_bytes()), Some(b"poke".as_slice()));
+
+    // The access still has to agree.
+    let exclusive = body.replace("second:@u8", "second:@mutable u8");
+    let error = check(schema, &exclusive).unwrap_err();
+    assert!(
+        error.message.starts_with("no matching overload for poke(") && error.message.ends_with(", @mutable u8)"),
+        "{error:?}"
+    );
+
+    // With no operand, result or written argument that fixes the region, the
+    // call does not choose one.
+    let alone = "machine only<'r>(s:@'r u8) {} machine run(x:@u8) { only(x); }";
+    let error = check("", alone).unwrap_err();
+    assert_eq!(error.message, "cannot infer all generic arguments");
+    assert_eq!(error.span.slice(alone.as_bytes()), Some(b"only".as_slice()));
+}
+
+// Each record literal built from a reference that names no lifetime is at a
+// region of its own. Two such regions are not one because both are inferred,
+// so two records do not join unless the source gives them a common lifetime:
+// the inputs' own lifetime for two locals, or the destination's for two arms.
+#[test]
+fn records_at_two_inferred_regions_join_only_at_a_written_common_lifetime() {
+    let schema = "data Holder<'r> { r:@'r u8; }";
+
+    let loans = "machine keep<'r>(h:@mutable Holder<'r>) {} machine run(first:@u8, second:@u8, c:bool) { let mutable h = Holder { r: first }; let mutable g = Holder { r: second }; let m = match c { true -> @mutable h, false -> @mutable g, }; keep(m); }";
+    let error = check(schema, loans).unwrap_err();
+    assert_eq!(error.span.slice(loans.as_bytes()), Some(b"@mutable g".as_slice()));
+    assert!(
+        error
+            .message
+            .starts_with(r"expected @mutable game\Holder<lifetime "),
+        "{error:?}"
+    );
+    let shared_input = loans.replace("run(first:@u8, second:@u8, c:bool)", "run<'r>(first:@'r u8, second:@'r u8, c:bool)");
+    let stage = check(schema, &shared_input).unwrap();
+    assert_eq!(
+        published(&stage, &shared_input, "Holder { r: first }"),
+        published(&stage, &shared_input, "Holder { r: second }")
+    );
+
+    let arms = "machine run(first:@u8, second:@u8, c:bool) { let h = match c { true -> Holder { r: second }, false -> Holder { r: first }, }; }";
+    let error = check(schema, arms).unwrap_err();
+    assert_eq!(error.span.slice(arms.as_bytes()), Some(b"Holder { r: first }".as_slice()));
+    assert!(error.message.starts_with(r"expected game\Holder<lifetime "), "{error:?}");
+    let annotated = arms.replace("let h = match", "let h:Holder = match");
+    let stage = check(schema, &annotated).unwrap();
+    let first = published(&stage, &annotated, "Holder { r: first }");
+    assert!(matches!(&first, ValueType::Applied(_, arguments) if matches!(arguments.as_slice(), [ValueType::InferredLifetime { .. }])));
+    assert_eq!(first, published(&stage, &annotated, "Holder { r: second }"));
 }
 
 #[test]

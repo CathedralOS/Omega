@@ -162,14 +162,14 @@ fn a_parked_aggregate_preserves_its_live_fields_declared_carry_policy() {
 
 #[test]
 fn parking_an_aggregate_cannot_erase_an_embedded_loan() {
-    let text = "data Holder{r:@u8;} machine wait() suspends{} machine forward(h:Holder) suspends{suspend wait()}";
+    let text = "data Holder<'r>{r:@'r u8;} machine wait() suspends{} machine forward<'r>(h:Holder<'r>) suspends{suspend wait()}";
     let package = source::lower(&[("embedded.omg", text)]).unwrap();
     assert_eq!(psi_handoff_consumer::check_incoming_fields(&package, &[&["Holder::r"]]), Ok(()));
 }
 
 #[test]
 fn identical_descriptor_types_keep_their_own_incoming_formal_and_nested_path() {
-    let text = "data Pair{a:@u8;b:@u8;} data Envelope{pair:Pair;} machine wait() suspends{} machine forward(x:Envelope,y:Envelope) suspends{suspend wait()}";
+    let text = "data Pair<'r>{a:@'r u8;b:@'r u8;} data Envelope<'r>{pair:Pair<'r>;} machine wait() suspends{} machine forward<'r>(x:Envelope<'r>,y:Envelope<'r>) suspends{suspend wait()}";
     let resolved = source::resolve(&[("nested.omg", text)]);
     let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
     let pair = prepared
@@ -209,7 +209,7 @@ fn moving_one_record_before_wait_leaves_only_the_sibling_descriptor() {
     use omega_lowering::{BlockTerminator, CleanupAction, EmbeddedLoanOrigin, EmbeddedLoanSource, Parameter, PlaceProjection};
     for (gone, live) in [("left", "right"), ("right", "left")] {
         let text = format!(
-            "data Holder{{r:@u8;}} data Pair{{left:Holder;right:Holder;}} machine take(h:Holder){{}} machine wait() suspends{{}} machine forward(p:Pair) suspends{{take(move p.{gone});suspend wait()}}"
+            "data Holder<'r>{{r:@'r u8;}} data Pair<'a,'b>{{left:Holder<'a>;right:Holder<'b>;}} machine take<'r>(h:Holder<'r>){{}} machine wait() suspends{{}} machine forward<'a,'b>(p:Pair<'a,'b>) suspends{{take(move p.{gone});suspend wait()}}"
         );
         let package = source::lower(&[("siblings.omg", &text)]).unwrap();
         let body = &package

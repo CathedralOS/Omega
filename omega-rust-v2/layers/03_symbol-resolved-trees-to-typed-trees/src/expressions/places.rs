@@ -251,9 +251,15 @@ impl BodyTyper<'_, '_> {
         if matches!(self.catalog.types.open_data(owner), ValueType::Nominal(_)) {
             return Ok(ValueType::Nominal(Box::new(owner.clone())));
         }
-        expected
-            .filter(|ty| ty.nominal_parts().is_some_and(|(id, _)| id == owner))
-            .cloned()
+        if let Some(carrier) = expected.filter(|ty| ty.nominal_parts().is_some_and(|(id, _)| id == owner)) {
+            return Ok(carrier.clone());
+        }
+        // With no destination, a case infers its sum's omitted lifetime
+        // arguments as a record head does, so `Reply::Ready { view: bytes }`
+        // forms like `Holder { view: bytes }`. `record` then binds each
+        // inferred region from the payload initializers.
+        self.unit
+            .inferred_lifetime_application(node_index, owner, &self.catalog.types)?
             .ok_or_else(|| TypeError::at(self.unit.file, node_index, "generic case needs its carrier application"))
     }
     /// Field initializers of a constructed machine result, including a case
@@ -306,6 +312,7 @@ impl BodyTyper<'_, '_> {
             .iter()
             .flat_map(ValueType::components)
             .any(|arg| matches!(arg, ValueType::InferredLifetime { .. }));
+        let mut inferred_field_landings = Vec::new();
         let mut omission = false;
         let mut origins = vec![Origin::Caller; fields.ordered.len()];
         let mut initializers = Vec::with_capacity(inits.len());
@@ -361,8 +368,10 @@ impl BodyTyper<'_, '_> {
             }
             if infer_regions {
                 lifetimes.observe(&target, &value);
+                inferred_field_landings.push((site, value, target.clone()));
+            } else {
+                self.check_destination(site, &value, &target)?;
             }
-            self.check_destination(site, &value, &target)?;
             initializers.push(crate::FieldInitializer { position, expression: site });
             let origin = match self.unit.symbol(init) {
                 Some(Symbol::Binding { span, .. }) if site == init => self.binding_origin(span),
@@ -380,6 +389,12 @@ impl BodyTyper<'_, '_> {
         }
         self.set_origin(node_index, origin);
 
+        // Land fields only after all initializers have supplied their regions.
+        // A moved Holder<'a> fixes the lifetime of a containing Box, and the
+        // obligation at the move must use the same type as the finished Box.
+        for (site, value, target) in inferred_field_landings {
+            self.check_destination(site, &value, &lifetimes.finish(target))?;
+        }
         let ty = lifetimes.finish(ty);
         let (owner, args) = ty.record_parts().unwrap();
         for field in fields.ordered.iter() {

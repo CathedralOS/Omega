@@ -11,6 +11,23 @@ use omega_resolved::Symbol;
 use omega_syntax::{NodeKind, TerminationClause};
 use omega_typed::site_at;
 
+// A callable stored in a field carries a signature. Its parameter and result
+// references describe a later invocation and use signature lifetime rules.
+fn has_unnamed_stored_reference(ty: &ValueType) -> bool {
+    match ty {
+        ValueType::Reference(..) => true,
+        ValueType::AtLifetime(inner, _) => match inner.as_ref() {
+            ValueType::Reference(_, referent) => has_unnamed_stored_reference(referent),
+            other => has_unnamed_stored_reference(other),
+        },
+        ValueType::Array(element, _) | ValueType::IndexedArray(element, _) | ValueType::Slice(element) | ValueType::Qualified(element, _) => {
+            has_unnamed_stored_reference(element)
+        }
+        ValueType::Tuple(items) | ValueType::Applied(_, items) => items.iter().any(has_unnamed_stored_reference),
+        _ => false,
+    }
+}
+
 impl<'a> ResolvedSourceFile<'a> {
     pub(crate) fn universe_level(
         &self,
@@ -121,6 +138,18 @@ impl<'a> ResolvedSourceFile<'a> {
     ) -> Result<ValueType, TypeError> {
         let ty = self.annotation(node, types)?;
         self.check_runtime_type(node, &ty, types)?;
+        Ok(ty)
+    }
+
+    pub(crate) fn stored_field_annotation(
+        &self,
+        node: usize,
+        types: &TypeCatalog<'_>,
+    ) -> Result<ValueType, TypeError> {
+        let ty = self.runtime_annotation(node, types)?;
+        if has_unnamed_stored_reference(&ty) {
+            return Err(TypeError::at(self.file, node, "a stored reference must name its lifetime"));
+        }
         Ok(ty)
     }
 

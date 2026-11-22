@@ -3,6 +3,37 @@ use crate::typing::preparation_dependencies::PreparationDependencies;
 use crate::{StaticDataShape, StaticValueDemand, TypedStage, ValueType};
 
 impl DeclarationCatalog<'_> {
+    /// Whether `ty` applies a record at a region in each of its lifetime
+    /// arguments and at closed type and const arguments everywhere else, as
+    /// `Link<'r, 3>` does in `caller<'r>(x: Link<'r, 3>)`.
+    ///
+    /// A lifetime adds no layout, so such an application has the field shape
+    /// its closed arguments select, whichever region is applied. Lowering
+    /// needs that shape for the formal exactly as it does for `Link<3>`. The
+    /// declaration decides which arguments are lifetimes; an open type or
+    /// const binder in any other position still leaves the application open.
+    /// An application at lifetimes only has no closed argument to select a
+    /// shape with and is not one of these.
+    fn closed_at_regions(
+        &self,
+        ty: &ValueType,
+    ) -> bool {
+        let ValueType::Applied(owner, arguments) = ty else { return false };
+        let mut slots = self.types.specialization_scopes(owner).flat_map(|scope| {
+            let arity = self.types.generics.get(scope).map_or(0, |binders| binders.parameters.len());
+            (0..arity).map(move |index| self.types.lifetime_slot(scope, index))
+        });
+        let (mut regions, mut closed) = (0usize, 0usize);
+        for argument in arguments {
+            match slots.next() {
+                Some(true) if matches!(argument, ValueType::Parameter { .. } | ValueType::InferredLifetime { .. }) => regions += 1,
+                Some(false) if !argument.contains_parameter() => closed += 1,
+                _ => return false,
+            }
+        }
+        slots.next().is_none() && regions != 0 && closed != 0
+    }
+
     pub(crate) fn publish_static_data_shapes(
         &self,
         demands: &[StaticValueDemand],
@@ -31,9 +62,11 @@ impl DeclarationCatalog<'_> {
             .chain(evaluated_carriers)
             // A runtime signature can demand a closed schema without any static
             // initializer or constructor (including an entirely unused formal).
+            // Its region binders close nothing and open nothing: the schema of
+            // `Link<'r, 3>` is the one its closed arguments select.
             .chain(self.local_machines.iter().filter_map(|id| self.signatures.get(id)).flat_map(|signature| {
                 signature.parameters.iter().map(|(_, ty)| ty).chain(std::iter::once(&signature.result))
-                    .filter(|ty| matches!(ty, ValueType::Applied(..)) && !ty.contains_parameter())
+                    .filter(|ty| matches!(ty, ValueType::Applied(..)) && (!ty.contains_parameter() || self.closed_at_regions(ty)))
             }))
             // Local machine arguments and temporaries may use a different
             // aggregate than the value returned to the demanding expression.
@@ -47,7 +80,7 @@ impl DeclarationCatalog<'_> {
             .chain(
                 stage
                     .construction_carriers()
-                    .filter(|carrier| matches!(carrier, ValueType::Applied(..)) && !carrier.contains_parameter()),
+                    .filter(|carrier| matches!(carrier, ValueType::Applied(..)) && (!carrier.contains_parameter() || self.closed_at_regions(carrier))),
             )
             .filter(|ty| matches!(ty, ValueType::Array(..) | ValueType::Nominal(_) | ValueType::Applied(..)))
             .cloned()

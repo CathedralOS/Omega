@@ -53,11 +53,11 @@ fn invokes_anything(package: &LoweredPackage) -> bool {
 #[test]
 fn a_plain_record_with_a_shared_reference_is_discarded_whole() {
     for (prefix, field) in [
-        ("", "@u8"),
-        ("data Token{v:u8;}", "@Token"),
-        (HANDLE, "@Handle"),
+        ("", "@'r u8"),
+        ("data Token{v:u8;}", "@'r Token"),
+        (HANDLE, "@'r Handle"),
     ] {
-        let text = format!("{prefix} data Holder{{r:{field};}} machine finish(h:Holder){{}}");
+        let text = format!("{prefix} data Holder<'r>{{r:{field};}} machine finish<'r>(h:Holder<'r>){{}}");
         let package = source::lower(&[("embedded.omg", &text)]).unwrap();
         let (root, cleanup) = finish(&package);
         assert_eq!(cleanup, [CleanupAction::DiscardRoot(root)], "{field}");
@@ -68,7 +68,7 @@ fn a_plain_record_with_a_shared_reference_is_discarded_whole() {
 
 #[test]
 fn a_shared_reference_beside_a_resource_is_a_separate_residual() {
-    let text = format!("{HANDLE} data Holder{{t:Handle;r:@u8;}} machine finish(h:Holder){{}}");
+    let text = format!("{HANDLE} data Holder<'r>{{t:Handle;r:@'r u8;}} machine finish<'r>(h:Holder<'r>){{}}");
     let package = source::lower(&[("embedded.omg", &text)]).unwrap();
     let (root, cleanup) = finish(&package);
     let release = machine(&package, "release").id;
@@ -101,18 +101,18 @@ fn a_shared_reference_beside_a_resource_is_a_separate_residual() {
 fn an_embedded_exclusive_loan_ends_when_its_record_is_discarded() {
     use omega_lowering::ReferenceAccess::{Mutable, Shared};
     let cases = [
-        ("data Token{v:u8;}", "r:@mutable Token;", vec![("Holder::r", Mutable)]),
-        ("data Token{v:u8;}", "n:u8;r:@mutable Token;", vec![("Holder::r", Mutable)]),
-        ("", "r:@mutable u8;", vec![("Holder::r", Mutable)]),
-        ("", "r:@mutable [u32];", vec![("Holder::r", Mutable)]),
-        (HANDLE, "r:@mutable Handle;", vec![("Holder::r", Mutable)]),
-        ("data Token{v:u8;}", "r:@mutable [Token];", vec![("Holder::r", Mutable)]),
-        ("", "r:@[u8];s:@mutable u8;", vec![("Holder::r", Shared), ("Holder::s", Mutable)]),
+        ("data Token{v:u8;}", "r:@'r mutable Token;", vec![("Holder::r", Mutable)]),
+        ("data Token{v:u8;}", "n:u8;r:@'r mutable Token;", vec![("Holder::r", Mutable)]),
+        ("", "r:@'r mutable u8;", vec![("Holder::r", Mutable)]),
+        ("", "r:@'r mutable [u32];", vec![("Holder::r", Mutable)]),
+        (HANDLE, "r:@'r mutable Handle;", vec![("Holder::r", Mutable)]),
+        ("data Token{v:u8;}", "r:@'r mutable [Token];", vec![("Holder::r", Mutable)]),
+        ("", "r:@'r [u8];s:@'r mutable u8;", vec![("Holder::r", Shared), ("Holder::s", Mutable)]),
     ];
     let observed: Vec<_> = cases
         .iter()
         .map(|(prefix, fields, _)| {
-            let text = format!("{prefix} data Holder{{{fields}}} machine finish(h:Holder){{}}");
+            let text = format!("{prefix} data Holder<'r>{{{fields}}} machine finish<'r>(h:Holder<'r>){{}}");
             let package = source::lower(&[("embedded.omg", &text)]).unwrap_or_else(|error| panic!("{fields}: {error:?}"));
             psi_handoff_consumer::discarded_loan_fields(&package, "finish").map(|loans| {
                 loans
@@ -138,7 +138,7 @@ fn an_embedded_exclusive_loan_ends_when_its_record_is_discarded() {
 /// before the resource's cleanup machine runs, in reverse declaration order.
 #[test]
 fn an_exclusive_reference_beside_a_resource_is_a_separate_residual() {
-    let text = format!("{HANDLE} data Holder{{t:Handle;r:@mutable u8;}} machine finish(h:Holder){{}}");
+    let text = format!("{HANDLE} data Holder<'r>{{t:Handle;r:@'r mutable u8;}} machine finish<'r>(h:Holder<'r>){{}}");
     let package = source::lower(&[("embedded.omg", &text)]).unwrap();
     let (root, cleanup) = finish(&package);
     let release = machine(&package, "release").id;

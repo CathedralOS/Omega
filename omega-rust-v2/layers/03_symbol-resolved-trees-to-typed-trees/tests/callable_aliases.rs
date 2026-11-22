@@ -26,7 +26,7 @@ fn runtime_storage_rejects_the_alias_use_and_names_the_missing_ceiling() {
         ("crashes none", "an explicit reach ceiling"),
     ] {
         let callbacks = format!("public data Predicate<T> = machine(value:T)->bool {clause};");
-        let source = "use callbacks\\Predicate; data Stored { test:@Predicate<u8>; }";
+        let source = "use callbacks\\Predicate; data Stored<'a> { test:@'a Predicate<u8>; }";
         let error = check(&[
             ("callbacks/predicates.omg", &callbacks),
             ("filters.omg", source),

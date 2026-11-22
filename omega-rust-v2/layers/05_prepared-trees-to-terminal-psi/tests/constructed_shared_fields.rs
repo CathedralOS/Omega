@@ -14,7 +14,7 @@ fn parked_local_keeps_the_descriptor_used_to_initialize_its_field() {
     ] {
         let call = if terminal { "transition{_ -> suspend wait(),}" } else { "suspend wait()" };
         let program =
-            format!("data Holder{{r:@u8;}} machine wait() suspends{{}} machine forward(first:@u8,second:@u8) suspends{{let h=Holder{{r:{selected}}};{call}}}");
+            format!("data Holder<'r>{{r:@'r u8;}} machine wait() suspends{{}} machine forward(first:@u8,second:@u8) suspends{{let h=Holder{{r:{selected}}};{call}}}");
         let resolved = source::resolve(&[("constructed.omg", &program)]);
         let prepared = omega_preparation::prepare_source_package(&resolved).unwrap();
         let tree = prepared.typed().trees().next().unwrap();
@@ -58,7 +58,7 @@ fn parked_local_keeps_the_descriptor_used_to_initialize_its_field() {
 #[test]
 fn a_selected_case_stores_its_shared_descriptor_in_the_payload_slot() {
     use omega_lowering::{OperationKind, ValueOperand};
-    let text = "data Reply{case Ready(r:@u8);case Empty;} machine build(x:@u8){let item=Reply::Ready{r:x};}";
+    let text = "data Reply<'r>{case Ready(r:@'r u8);case Empty;} machine build(x:@u8){let item=Reply::Ready{r:x};}";
     let pkg = source::lower(&[("payload.omg", text)]).unwrap();
     let body = &pkg.machines[0].body;
     let Parameter::Structural(input) = body.parameters[0] else {
@@ -80,7 +80,7 @@ fn a_selected_case_stores_its_shared_descriptor_in_the_payload_slot() {
 fn parking_a_reborrow_preserves_its_formation_and_its_incoming_parent() {
     use omega_lowering::{OperationKind, PlaceProjection, ReferenceAccess};
     let text =
-        "data Cell{mark:u8;} data Holder{r:@u8;} machine wait() suspends{} machine forward(cell:@Cell) suspends{let h=Holder{r:@cell.mark};suspend wait()}";
+        "data Cell{mark:u8;} data Holder<'r>{r:@'r u8;} machine wait() suspends{} machine forward(cell:@Cell) suspends{let h=Holder{r:@cell.mark};suspend wait()}";
     let package = source::lower(&[("reborrow.omg", text)]).unwrap();
     let body = &package
         .machines

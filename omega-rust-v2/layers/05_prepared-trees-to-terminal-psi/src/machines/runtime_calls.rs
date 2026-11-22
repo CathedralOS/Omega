@@ -183,6 +183,9 @@ pub(super) fn select_runtime_call<'a>(
                 if o.node == file.node_id(node)
                     && o.site == site
                     && crate::lowering::types::is_reference_descriptor(expected)
+                    // A runtime contract names no region, so a result held
+                    // at one keeps its refusal below.
+                    && !matches!(expected, ValueType::AtLifetime(..))
                     && matches!(&o.kind, ObligationKind::ReturnBorrow { machine } if machine == &caller.machine) => {}
             NodeSemantics::Obligation(o) => {
                 return Err(LoweringError::new(&o.site, format!("unsupported runtime call obligation: {:?}", o.kind)));

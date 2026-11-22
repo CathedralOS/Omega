@@ -7,7 +7,11 @@ use omega_resolved::DeclarationId;
 use omega_syntax::NodeKind;
 use omega_typed::{NodeSemantics, ObligationKind, Site, TypedTree, TypingObligation, ValueType};
 
-type Binder<'a> = (&'a DeclarationId, usize, &'a ValueType);
+/// One binder of the owner's telescope at its argument position: its
+/// declaration, its index there and its carrier. A lifetime binder keeps its
+/// position, since a static operand names its binder by argument slot, and
+/// has no carrier, so no index operand is ever one.
+type Binder<'a> = (&'a DeclarationId, usize, Option<&'a ValueType>);
 
 pub(super) fn read(tree: &TypedTree<'_>, scope: usize, owner: &DeclarationId) -> Result<Vec<(Site, DataFormation)>, LoweringError> {
     let file = tree.resolved().file;
@@ -17,8 +21,12 @@ pub(super) fn read(tree: &TypedTree<'_>, scope: usize, owner: &DeclarationId) ->
     for id in forest.enclosing_data_parameters.get(owner).into_iter().flatten().chain(std::iter::once(owner)) {
         if let Some(scope) = forest.generic_parameters.get(id) {
             for (index, p) in scope.parameters.iter().enumerate() {
-                let ty = p.carrier.as_deref().filter(|_| p.kind == NodeKind::ConstParam)
-                    .ok_or_else(|| LoweringError::new(&owner_site, "static formation requires its declared binder carrier"))?;
+                let ty = if p.kind == NodeKind::LifetimeParam {
+                    None
+                } else {
+                    Some(p.carrier.as_deref().filter(|_| p.kind == NodeKind::ConstParam)
+                        .ok_or_else(|| LoweringError::new(&owner_site, "static formation requires its declared binder carrier"))?)
+                };
                 binders.push((id, index, ty));
             }
         }
@@ -69,7 +77,7 @@ fn operand(
     for row in tree.semantics_at(n) {
         match row {
             NodeSemantics::Expression(e) if &e.ty == ty => {
-                if let Some(&(id, index, bound)) = e.static_argument_slot.and_then(|slot| binders.get(slot)) && bound == ty {
+                if let Some(&(id, index, Some(bound))) = e.static_argument_slot.and_then(|slot| binders.get(slot)) && bound == ty {
                     let owner = crate::identity::declaration(id, &question.site)?;
                     return Ok(TypeExpression(vec![Step::GenericParameter { owner, index }]));
                 }

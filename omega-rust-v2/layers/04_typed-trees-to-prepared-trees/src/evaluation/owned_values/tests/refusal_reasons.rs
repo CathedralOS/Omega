@@ -109,12 +109,14 @@ fn authored_omitted_fields_without_a_supported_zero_are_refused_at_the_construct
 
 #[test]
 fn authored_inactive_payload_outside_the_fragment_refuses_the_constant_type() {
-    let source = "data Choice [copy] {case Empty; case Used(view:u8);}
-                  const VALUE:Choice=Choice::Empty;";
+    // The payload type is the sum's argument: a stored reference names its
+    // lifetime, and a constant has none to name for a `view:@u8` field.
+    let source = "data Choice<T [copy]> [copy] {case Empty; case Used(view:T);}
+                  const VALUE:Choice<u8> = Choice::Empty;";
     assert!(matches!(prepared_constant(source, "VALUE"),
         PreparedValue::Sum { case, fields, .. } if case.path == "Choice::Empty" && fields.is_empty()));
     authored_refusal(
-        &source.replace("view:u8", "view:@u8"),
+        &source.replace("Choice<u8>", "Choice<@u8>"),
         PreparationReason::ConstantTypeOutsideFragment,
         "the complete constant type is outside the prepared value fragment",
         "Choice::Empty",

@@ -48,7 +48,7 @@ fn program(
 ) -> String {
     let (effect, call) = if suspending { (" suspends", "suspend wait()") } else { ("", "wait()") };
     format!(
-        "data Holder{{r:@u8;}} machine wait(){effect}{{}} machine forward(first:@u8,second:@u8){effect}{{let mutable h=Holder{{r:{initial}}};h=Holder{{r:{latest}}};{call}}}"
+        "data Holder<'r>{{r:@'r u8;}} machine wait(){effect}{{}} machine forward(first:@u8,second:@u8){effect}{{let mutable h=Holder{{r:{initial}}};h=Holder{{r:{latest}}};{call}}}"
     )
 }
 
@@ -152,7 +152,7 @@ fn an_ordinary_constructor_copies_the_descriptor_captured_from_a_field_borrow() 
         "let loan:@Token=@h.token;let w=Ref{r:loan};",
         "let w=Ref{r:@h.token};",
     ] {
-        let text = format!("data Token{{v:u8;}} data Holder{{token:Token;}} data Ref{{r:@Token;}} machine forward(h:Holder){{{statements}}}");
+        let text = format!("data Token{{v:u8;}} data Holder{{token:Token;}} data Ref<'r>{{r:@'r Token;}} machine forward(h:Holder){{{statements}}}");
         let package = source::lower(&[("captured.omg", &text)]).unwrap();
         let body = forward(&package);
         assert!(body.suspension_sites.is_empty());

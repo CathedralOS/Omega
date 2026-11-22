@@ -251,6 +251,10 @@ impl<'a> AppliedRecord<'a> {
                         token: token.clone(),
                         operands: operands.iter().map(|p| app.instantiate(p)).collect(),
                     },
+                    ObligationKind::BindLifetime { reference, destination } => ObligationKind::BindLifetime {
+                        reference: app.instantiate(reference),
+                        destination: app.instantiate(destination),
+                    },
                     ObligationKind::ExactCast { source, destination } => ObligationKind::ExactCast {
                         source: app.instantiate(source),
                         destination: app.instantiate(destination),

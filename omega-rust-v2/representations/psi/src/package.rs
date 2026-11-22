@@ -65,9 +65,9 @@ pub struct MachineRegion {
     pub reference_result: bool,
     /// Parameters whose record or sum takes this region as a lifetime
     /// argument, ordered by parameter and then by binder. The parameter holds
-    /// that record or refers to it through one shared reference, as its type
-    /// row says. The row erases the argument, so this slot is the only record
-    /// of it.
+    /// that record or refers to it through one reference, as its type row
+    /// says; the row also states that reference's access. The row erases the
+    /// argument, so this slot is the only record of it.
     pub aggregate_parameters: Vec<AggregateRegionSlot>,
     /// Lifetime binders of the result's record or sum that this region fills,
     /// in ascending order.

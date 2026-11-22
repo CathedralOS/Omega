@@ -8,9 +8,70 @@ use omega_resolved::Symbol;
 use omega_syntax::NodeKind;
 use omega_typed::{NodeSemantics, ObligationKind, ValueType};
 
+/// The lifetime binding typing recorded on one place-reference value.
+#[derive(Clone, Copy)]
+pub(super) struct Binding<'t> {
+    /// The type the value has by itself.
+    pub reference: &'t ValueType,
+    /// The type the binding row names as its destination.
+    pub destination: &'t ValueType,
+}
+
+/// The binding typing recorded at `node` for a value that lands at `landing`.
+///
+/// Typing records `BindLifetime` where a place reference lands at a type that
+/// differs from its own only in the lifetime it is held at. Both types are
+/// one type row (`lowering::types::held_reference`), so the value lowers as
+/// itself, and the operation that consumes it is where the binding happens.
+/// A plain reference stored into a field can acquire the field's lifetime;
+/// a stored reference returned through an elided result keeps the relation
+/// fixed by that signature. Typing supplies the final destination for both.
+pub(super) fn binding_at<'t>(
+    tree: &'t crate::lowering::applied_tree::LoweringTree<'_>,
+    node: usize,
+    landing: &ValueType,
+) -> Option<Binding<'t>> {
+    use crate::lowering::types::{held_reference, place_reference};
+    tree.semantics_at(node).find_map(|row| match row {
+        NodeSemantics::Obligation(o) => match &o.kind {
+            ObligationKind::BindLifetime { reference, destination }
+                if place_reference(reference).is_some()
+                    && held_reference(reference) == held_reference(destination)
+                    && destination == landing =>
+            {
+                Some(Binding { reference, destination })
+            }
+            _ => None,
+        },
+        _ => None,
+    })
+}
+
+/// Whether `kind` is the binding of a value of type `own` whose row names
+/// `destination`, which the caller found with `binding_at` and consumes.
+pub(super) fn is_binding(
+    kind: &ObligationKind,
+    own: &ValueType,
+    destination: Option<&ValueType>,
+) -> bool {
+    matches!(kind, ObligationKind::BindLifetime { reference, destination: named } if reference == own && Some(named) == destination)
+}
+
 /// A descriptor forwarded from an input keeps the original parameter place.
 /// An explicit borrow instead produces a descriptor whose defining operation
 /// records the evaluated source path and any parent reference.
+///
+/// `carrier` may hold the reference at a lifetime, as `@'r u8` does. The
+/// descriptor's type row is the reference's either way. Where typing bound
+/// the value to that lifetime (`binding_at`) and the lifetime is a
+/// region binder of this machine, the descriptor is listed in
+/// `MachineBody::lifetime_bindings` under that binder, and the checker judges
+/// whether its backing lives that long. A lifetime typing inferred inside the
+/// body has no binder and gets no row: the operation that takes the
+/// descriptor, such as the establishment of the record that stores it, is
+/// the binding. A value that already has `carrier`'s type was placed in its
+/// region by what produced it, a formal's slot or the field it was read
+/// from, and gets no row either.
 pub(super) fn descriptor(
     expressions: &Expressions<'_>,
     node: usize,
@@ -21,15 +82,17 @@ pub(super) fn descriptor(
     let resolved = tree.resolved();
     let file = resolved.file;
     let site = site_at(tree, node);
-    let region = crate::declarations::regions::direct(carrier, &expressions.signature.machine);
-    let reference = region.map_or(carrier, |(_, reference)| reference);
+    let machine = &expressions.signature.machine;
+    let binding = binding_at(tree, node, carrier);
+    let own = binding.map_or(carrier, |bound| bound.reference);
+    let landing = binding.map(|bound| bound.destination);
     let id = expressions
         .types
-        .id_for(reference)
+        .id_for(carrier)
         .map_err(|e| LoweringError::new(&site, e.to_string()))?;
-    match file.nodes[node].kind {
+    let value = match file.nodes[node].kind {
         NodeKind::PathExpression => {
-            check_descriptor(tree, node, carrier, &expressions.signature.machine)?;
+            check_descriptor(tree, node, own, machine, landing)?;
             let Some(Symbol::Binding { binder_node, .. }) = resolved.symbol(node) else {
                 return Err(LoweringError::new(&site, "reference value has no bound source"));
             };
@@ -45,55 +108,51 @@ pub(super) fn descriptor(
             if body.places[source.index()].ty != id {
                 return Err(LoweringError::new(&site, "bound reference differs from its declared type"));
             }
-            Ok(value)
+            OperationResult::Structural(source)
         }
         NodeKind::Borrow => {
-            let destination = region.map(|_| carrier);
-            let Some(crate::CallArgument::Borrow { place: source, access }) = references::reference_operand(expressions, node, reference, body, destination)? else {
+            let Some(crate::CallArgument::Borrow { place: source, access }) = references::reference_operand(expressions, node, carrier, body)? else {
                 return Err(LoweringError::new(&site, "borrow has no original place"));
             };
-            let result = body.push_operation(OperationOutput::Structural(id), OperationKind::BorrowPlace { source, access }, site);
-            if let (Some((ordinal, _)), OperationResult::Structural(descriptor)) = (region, result) {
-                body.lifetime_bindings.push((descriptor, ordinal));
-            }
-            Ok(Some(result))
+            body.push_operation(OperationOutput::Structural(id), OperationKind::BorrowPlace { source, access }, site)
         }
         // A by-value use of an exclusive reference, `@mutable` or `@write`,
         // transfers its loan carrier (language/ownership.md#borrows-and-aliases).
         // From owned storage that is an ordinary field move; through a `@mutable`
         // parent it opens the restoration window L3 recorded. An explicit
         // reborrow is a `Borrow` node, and a call operand reborrows in
-        // `references::call_argument`.
-        NodeKind::FieldAccess | NodeKind::Move if region.is_none() && crate::lowering::types::is_exclusive_reference(reference) => {
-            super::ownership::move_value(expressions, node, carrier, body).map(Some)
+        // `references::call_argument`. The moved descriptor names the field
+        // it left, and that field's row says which lifetime binder of its
+        // record it is stored at.
+        NodeKind::FieldAccess | NodeKind::Move if crate::lowering::types::is_exclusive_reference(own) => {
+            super::ownership::move_value(expressions, node, own, landing, body)?
         }
         // Reading a stored shared reference copies no record storage. The value
         // reborrows the referent through the stored descriptor, so that stored
         // loan is the parent and the result points into the original backing,
         // not into the record that holds it. A call operand lends the same place.
         NodeKind::FieldAccess => {
-            match crate::lowering::types::place_reference(reference) {
-                Some((crate::ReferenceAccess::Shared, _)) => {}
-                Some((crate::ReferenceAccess::Mutable | crate::ReferenceAccess::WriteOnly, _)) => {
-                    return Err(LoweringError::new(
-                        &site,
-                        "a stored exclusive reference returned at a declared region needs its binding",
-                    ));
-                }
-                None => return Err(LoweringError::new(&site, "a stored reference read needs its shared field place")),
-            }
-            if region.is_some() {
-                return Err(LoweringError::new(&site, "a stored reference returned at a declared region needs its binding"));
+            if !matches!(crate::lowering::types::place_reference(own), Some((crate::ReferenceAccess::Shared, _))) {
+                return Err(LoweringError::new(&site, "a stored reference read needs its shared field place"));
             }
             let Some(crate::CallArgument::Borrow { place: source, access: crate::ReferenceAccess::Shared }) =
-                references::reference_operand(expressions, node, reference, body, None)?
+                references::reference_operand(expressions, node, carrier, body)?
             else {
                 return Err(LoweringError::new(&site, "a stored reference read needs its shared field place"));
             };
-            Ok(Some(body.push_operation(OperationOutput::Structural(id), OperationKind::BorrowPlace { source, access: crate::ReferenceAccess::Shared }, site)))
+            body.push_operation(OperationOutput::Structural(id), OperationKind::BorrowPlace { source, access: crate::ReferenceAccess::Shared }, site)
         }
-        _ => Ok(None),
+        _ => return Ok(None),
+    };
+    // Only a value that lands at another lifetime is bound here. One that
+    // already has `carrier`'s type keeps the region its own type states.
+    if binding.is_some_and(|bound| bound.destination == carrier)
+        && let Some((ordinal, _)) = crate::declarations::regions::direct(carrier, machine)
+        && let OperationResult::Structural(descriptor) = value
+    {
+        body.lifetime_bindings.push((descriptor, ordinal));
     }
+    Ok(Some(value))
 }
 
 /// A shared view held at a region, as `@'t [u8]`, in the two forms whose
@@ -138,7 +197,7 @@ pub(super) fn view_at_region(
                     .semantics_at(node)
                     .any(|row| matches!(row, NodeSemantics::Field(_))) =>
         {
-            let (source, selected) = references::move_place(expressions, node, body)?;
+            let (source, selected) = references::move_place(expressions, node, body, None)?;
             if selected != carrier {
                 return Err(LoweringError::new(&site, "stored view read disagrees with its checked type"));
             }
@@ -203,16 +262,22 @@ pub(super) fn view_at_region(
     }
 }
 
+/// `carrier` is the type the value at `node` has by itself. `landing` is the
+/// destination its binding row names, when the caller consumes that binding
+/// (`binding_at`); any other lifetime binding at `node` is refused.
 pub(super) fn check_descriptor(
     tree: &crate::lowering::applied_tree::LoweringTree<'_>,
     node: usize,
     carrier: &ValueType,
     machine: &omega_resolved::DeclarationId,
+    landing: Option<&ValueType>,
 ) -> Result<(), LoweringError> {
     let mut typed = false;
+    let mut bound = false;
     for row in tree.semantics_at(node) {
         match row {
             NodeSemantics::Expression(e) if !typed && &e.ty == carrier && e.static_argument_slot.is_none() => typed = true,
+            NodeSemantics::Obligation(o) if !bound && is_binding(&o.kind, carrier, landing) => bound = true,
             NodeSemantics::Obligation(o) if matches!(&o.kind,ObligationKind::ReturnBorrow{machine:owner} if owner==machine) => {}
             _ => return Err(LoweringError::new(&site_at(tree, node), "reference value needs additional lowering evidence")),
         }

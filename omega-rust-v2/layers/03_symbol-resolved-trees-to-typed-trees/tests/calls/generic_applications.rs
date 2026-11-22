@@ -1172,26 +1172,26 @@ fn an_enclosing_application_checks_constraints_reached_through_another_record() 
 
 #[test]
 fn recursive_fields_with_the_same_arguments_check_the_width_once() {
-    let decl = "data Link<const N:u64>{next:@Link<N>; value:u<N>;}";
-    check(&[("link.omg", &format!("{decl} machine ok(x:Link<1>){{}}"))]).unwrap();
-    let error = check(&[("link.omg", &format!("{decl} machine bad(x:Link<0>){{}}"))]).unwrap_err();
+    let decl = "data Link<'a,const N:u64>{next:@'a Link<'a,N>; value:u<N>;}";
+    check(&[("link.omg", &format!("{decl} machine ok<'a>(x:Link<'a,1>){{}}"))]).unwrap();
+    let error = check(&[("link.omg", &format!("{decl} machine bad<'a>(x:Link<'a,0>){{}}"))]).unwrap_err();
     assert_eq!(error.file, "link.omg");
     assert_eq!(error.message, "integer width must be positive");
 }
 
 #[test]
 fn changing_recursive_widths_retain_the_next_application_for_verification() {
-    let code = "data Link<const N:u64>{next:@Link<N+1>;value:u<N>;} machine caller(x:Link<3>){}";
+    let code = "data Link<'a,const N:u64>{next:@'a Link<'a,N+1>;value:u<N>;} machine caller<'a>(x:Link<'a,3>){}";
     let stage = check(&[("recursive.omg", code)]).unwrap();
     assert!(stage.obligations.iter().any(|proof|
-        proof.site.span.slice(code.as_bytes()) == Some(b"Link<3>") &&
-        matches!(&proof.kind, omega_typer::ObligationKind::FormRecursiveApplication{declaration,active_arguments,arguments} if declaration.path=="Link" && active_arguments[0].to_string()=="3" && arguments[0].to_string()=="4")));
-    let zero = "data Link<const N:u64>{next:@Link<N-1>;value:u<N>;} machine caller(x:Link<1>){}";
+        proof.site.span.slice(code.as_bytes()) == Some(b"Link<'a,3>") &&
+        matches!(&proof.kind, omega_typer::ObligationKind::FormRecursiveApplication{declaration,active_arguments,arguments} if declaration.path=="Link" && active_arguments[1].to_string()=="3" && arguments[1].to_string()=="4")));
+    let zero = "data Link<'a,const N:u64>{next:@'a Link<'a,N-1>;value:u<N>;} machine caller<'a>(x:Link<'a,1>){}";
     let error = check(&[("recursive.omg", zero)]).unwrap_err();
     assert_eq!(error.file, "recursive.omg");
     // The next application subtracts from zero in a u64 argument.
     assert_eq!(error.message, "static index -1 exceeds u64");
-    let plain = "data Link<T>{next:@Link<@T>;} machine caller(x:Link<u8>){}";
+    let plain = "data Link<'a,T>{next:@'a Link<'a,@'a T>;} machine caller<'a>(x:Link<'a,u8>){}";
     let stage = check(&[("recursive.omg", plain)]).unwrap();
     assert!(
         !stage

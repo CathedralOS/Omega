@@ -92,14 +92,32 @@ impl BodyTyper<'_, '_> {
             );
             return Ok(());
         }
-        if !value.fits(expected) {
+        // The reverse landing: a reference held at a region arrives where the
+        // destination names no lifetime, as `touch(holder.leaf)` does for
+        // `touch(leaf: @mutable Leaf)` and `holder.view` does for an elided
+        // result. The referent and access must still agree exactly.
+        let elided_reference = value.reference_for_elided_lifetime(expected);
+        let landed = elided_reference.unwrap_or(value);
+        if !landed.fits(expected) {
             let indices = &self.catalog.types.indices;
-            if indices.can_wait_for_equality(value, expected) {
-                indices.retain_demands(value);
+            if indices.can_wait_for_equality(landed, expected) {
+                indices.retain_demands(landed);
                 indices.retain_demands(expected);
                 return Err(indices.wait(self.unit.file, node_index));
             }
             return Err(TypeError::at(self.unit.file, node_index, format!("expected {expected}, found {value}")));
+        }
+        if elided_reference.is_some() {
+            // The site forgets the region, so the obligation keeps it for the
+            // lifetime checker, which judges the relation the signature fixes.
+            self.record_obligation(
+                node_index,
+                ObligationKind::BindLifetime {
+                    reference: value.clone(),
+                    destination: expected.clone(),
+                },
+            );
+            return Ok(());
         }
         if let ValueType::Exact {
             fractional_origin: Some(origin),

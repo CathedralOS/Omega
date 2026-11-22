@@ -1181,6 +1181,18 @@ fn a_logical_hypothesis_cannot_supply_mutable_authority() {
 }
 
 #[test]
+fn a_stored_view_names_its_own_lifetime() {
+    check_source_change(
+        "data Bytes<'b> { view: @'b [u8]; }\ndata Schema<'s> { field: @'s Bytes<'s>; }\n",
+        "@'s Bytes<'s>",
+        "@Bytes<'s>",
+        "@Bytes<'s>",
+        "a stored reference must name its lifetime",
+        "Data and bindings",
+    );
+}
+
+#[test]
 fn a_type_parameter_rejects_a_lifetime_argument() {
     check_source_change(
         "data Box<T> { value: T; }\nmachine check<'a>(loan: @'a u8, boxed: Box<u8>) {}\n",

@@ -215,7 +215,7 @@ fn a_same_spelled_local_declaration_is_not_the_toolchain_declaration() {
 fn a_template_demands_nothing_and_never_needs_no_exit_call() {
     let template = lower(
         "use omega\\language\\core\\reflect; use omega\\language\\core\\access;
-        machine peek<'t>(schema:@mutable TypeSchema<'t>)->u64 { 7 }",
+        machine peek<'t>(schema:@@TypeSchema<'t>)->u64 { 7 }",
     );
     assert!(template.data.is_empty() && template.machines.is_empty());
     let [peek] = template.machine_templates.as_slice() else {

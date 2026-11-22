@@ -179,8 +179,10 @@ fn freezing_checks_the_type_of_inactive_payloads() {
     let error = prepare(cleanup).unwrap_err().message;
     assert!(error.contains("complete constant type has a cleanup obligation"), "{error}");
 
-    let loan = "data Choice [copy] {case Empty; case Used(view:@u8);}
-                const VALUE:Choice=Choice::Empty;";
+    // A constant has no lifetime to name for a stored reference, so the loan
+    // reaches the inactive payload through the sum's type argument.
+    let loan = "data Choice<T [copy]> [copy] {case Empty; case Used(view:T);}
+                const VALUE:Choice<@u8> = Choice::Empty;";
     let error = prepare(loan).unwrap_err().message;
     assert!(error.contains("complete constant type is outside the prepared value fragment"), "{error}");
 }

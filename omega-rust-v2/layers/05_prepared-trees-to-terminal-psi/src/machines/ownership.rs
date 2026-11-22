@@ -17,10 +17,14 @@ fn overlaps_moved_path(
     moved.iter().any(|hole| hole.starts_with(selected) || selected.starts_with(hole))
 }
 
+/// `carrier` is the type the moved value has by itself. `landing` is the
+/// destination its lifetime binding names, when the caller consumes that
+/// binding at `node` (`loans::binding_at`).
 pub(super) fn move_value(
     expressions: &Expressions<'_>,
     node: usize,
     carrier: &ValueType,
+    landing: Option<&ValueType>,
     body: &mut MachineBody,
 ) -> Result<OperationResult, LoweringError> {
     let tree = expressions.tree;
@@ -44,6 +48,9 @@ pub(super) fn move_value(
                 NodeSemantics::Obligation(o)
                     if crate::lowering::types::place_reference(carrier).is_some()
                         && matches!(&o.kind,ObligationKind::ReturnBorrow{machine} if machine==&expressions.signature.machine) => {}
+                // An explicit move lands as a whole, so its binding is on the
+                // `move`, not on the place it moves.
+                NodeSemantics::Obligation(o) if super::loans::is_binding(&o.kind, carrier, landing) => {}
                 _ => return Err(LoweringError::new(&site, "move requires additional typed evidence")),
             }
         }
@@ -54,7 +61,7 @@ pub(super) fn move_value(
     } else {
         node
     };
-    let (source, ty) = super::references::move_place(expressions, operand, body)?;
+    let (source, ty) = super::references::move_place(expressions, operand, body, landing.filter(|_| !explicit))?;
     if ty != carrier {
         return Err(LoweringError::new(&site, "move source and result differ in type"));
     }
