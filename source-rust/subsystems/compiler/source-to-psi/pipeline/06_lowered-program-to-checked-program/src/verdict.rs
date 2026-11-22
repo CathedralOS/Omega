@@ -1703,7 +1703,6 @@ fn conclude(
 /// source identity because no Terminal machine exists at that point.
 #[derive(Debug)]
 pub enum CompilationRefusal {
-    #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
     Elaboration(Refusal),
     #[cfg_attr(not(any(test, feature = "test-support")), allow(dead_code))]
     Binding(crate::checking::CallableFormationDefect),
