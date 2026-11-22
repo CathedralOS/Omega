@@ -33,7 +33,7 @@ machine clear(counter: @mutable Counter) terminates { counter.value = 0; }
 machine value(counter: @Counter) -> u64 terminates { counter.value }
 
 let operations = CounterOps { clear: clear, value: value };
-let current: u64 = (operations.value)(@counter);
+let current: u64 = operations.value(@counter);
 ```
 
 The alias's semicolon closes its complete signature and contract. Its parameter
@@ -92,11 +92,13 @@ callable; no null/default callable or unchecked integer-to-callable cast exists.
 
 ## Invocation, storage and evidence
 
-Calling `f(args)` or `(record.operation)(args)` uses the value's current callable
+Calling `f(args)` or `record.operation(args)` uses the value's current callable
 contract and exact argument/result mapping. It proves current preconditions and
 access obligations, retains permitted effects and progress, and supplies checked
 postconditions and returned-borrow origins. Calls can take zero, one or multiple
-state arguments. They are not method calls on the record containing the field.
+state arguments. Parentheses around the callee are optional:
+`(record.operation)(args)` invokes the same callable. The record supplies the
+field and contributes no implicit receiver argument.
 
 Additional body-derived semantic facts follow the
 [local-summary boundary](state_contracts.md#local-call-summaries). A retained

@@ -34,9 +34,11 @@ requires player.health >= amount
 take_damage(@mutable player, 4);
 ```
 
-There are no methods and no implicit receiver. `player.take_damage(4)` is not
-Omega. Group related machines in a [module](chapter_15_modules_imports_visibility.md)
-when you want a namespace.
+A field call such as `ops.fill(buffer)` requires an actual callable field.
+It passes only the arguments inside the parentheses. For the machine above,
+pass the player explicitly. Group related machines in a
+[file](chapter_15_modules_imports_visibility.md) and call its exports through
+the import alias.
 
 ## The header
 

@@ -1,7 +1,7 @@
 # Chapter 15: Modules, imports, and visibility
 
-A package is a directory with a `build.omg`. Its subdirectories name its
-modules, and `use` brings names into a file.
+A package has a `build.omg`. Use another source file by importing its logical
+filename, then select its declarations through the alias bound in this file.
 
 ## A package
 
@@ -16,55 +16,56 @@ the members of a workspace. Commit `omega.lock`: it pins dependency sources
 and records what you reviewed. [Using source packages](packages.md) covers
 adding and updating dependencies.
 
-## Modules
+## Files and imports
 
-Read the directories from the package root. Both files below belong to
-`combat\ai`, so `score` can call its sibling's `base_score` directly.
-The filenames are yours to choose. Files directly beside the package's
-`build.omg` belong to its root namespace.
+Suppose the current package has a file `math/vector.omg`, and a dependency
+registered as `geometry` also provides `math/vector.omg`. These imports select
+one file from each root. The filename supplies the default alias `vector`.
+An `as` clause lets you name the second file independently.
 
 ```omega
-// combat/ai/weights.omg
-machine base_score() -> i32 { 10 }
-
-// combat/ai/targeting.omg
-public machine score() -> i32 { base_score() }
+use math/vector.omg;
+use {geometry}/math/vector.omg as geom;
+use {omega}/language/core/process_authority.omg as process;
 ```
 
-## Imports
+Write `|geom|::Point` for the type from the dependency and `|vector|::length(v)`
+for a machine from the local file. Import even a sibling by its path from the
+package root. A hyphenated filename needs an alias, for example
+`use math/fast-vector.omg as fast;`. Importing two files as `vector` is an
+error. Import order cannot change the chosen file.
 
-Another directory can expose a public operation of its own and delegate the
-work. If the scoring code moves to a new directory, update the import here.
-Callers keep using `combat\target_score`.
+## One spelling for each owner
 
-```omega
-// combat/api.omg
-use combat\ai\score;
-
-public machine target_score() -> i32 { score() }
-```
-
-An import affects only the file it is in. Two imports that supply the same
-name are an error; import order never picks a winner. A package you import
-from must be a dependency you declared directly. See
-[directory namespaces and imports](../spec/language/modules.md#directory-namespaces).
-
-A module and a supplied player can both be named `audio`. Both calls take
-the same argument. The separator identifies which operation to invoke.
+An imported file and a parameter can both be called `math`. In this example
+both offer the same operation with the same signature. You can see which one
+is selected even when taking the callable for later use.
 
 ```omega
-// audio/play.omg
-public machine play(track_id: u32) {}
+use {geometry}/scalar/math.omg;
 
-// preview.omg
-use audio;
-trait Player { machine play(track_id: u32); }
+data Clamp = machine(x: u32, low: u32, high: u32) -> u32 reaches none crashes none;
+data Policy { clamp: Clamp; }
 
-machine preview<const audio: Player>(track_id: u32) {
-    audio\play(track_id);   // Module machine.
-    audio::play(track_id);  // Operation selected by the supplied player.
+machine agrees(math: Policy, x: u32, low: u32, high: u32) -> bool
+requires low <= high
+{
+    let standard = |math|::clamp(x, low, high);
+    let supplied = math.clamp(x, low, high);
+    standard == supplied
 }
 ```
+
+A data type named `math` could likewise supply a case named `math::Fast`.
+The import prefix applies in patterns as well:
+`|conversion|::Result::Err { error }` selects a case and binds its payload.
+To combine a value with an imported mask, write `flags | |wire|::MASK`.
+
+A public machine may delegate to a helper in another file. Callers keep the
+public machine’s import when you rearrange its implementation. Moving the
+public declaration itself to a different file changes its import address.
+The [file import sample](../../samples/cli/probes/direct_file_imports/README.md)
+uses a private helper, a hyphenated filename and a callable field.
 
 ## Public and private
 
@@ -100,9 +101,11 @@ fields. Code that names a field has chosen to depend on it.
 ## Types from a dependency's dependency
 
 ```omega
-let handle = filesystem\open(path);
-filesystem\read(@handle);
-filesystem\close(handle);
+use {storage}/filesystem.omg;
+
+let handle = |filesystem|::open(path);
+|filesystem|::read(@handle);
+|filesystem|::close(handle);
 ```
 
 If `filesystem` returns a type owned by a package you do not depend on, you
@@ -111,25 +114,12 @@ depend on its owner directly.
 
 ## Build helpers
 
-A build can run code from another package, for example a table generator:
-
-```omega
-use generator;
-
-machine build(builder: @mutable Build)
-suspends
-{
-    Build::application(builder, "generated_tables");
-    let mutable request = dependency\from_source(Source::Path {
-        location: "../table-generator"
-    });
-    dependency\with_alias(@mutable request, "generator");
-    let registered = Build::build_dependency(builder, request);
-
-    suspend Build::prepare_dependency(builder, registered);
-    generator\generate_tables(builder);
-}
-```
+A build dependency registered as `generator` can supply a helper file.
+Import `use {generator}/tables.omg;` in the build source. After the build
+has registered and prepared that dependency, it can call
+`|tables|::generate_tables(builder)`. Importing a file does not acquire its
+source or run the helper. A product dependency of the same name belongs
+to a separate context. [Checked build stages](../spec/build/scoped_execution.md#checked-build-stages)
 
 A build helper runs on the machine doing the build, whatever the target is,
 and gets no network or credential access from the build.
