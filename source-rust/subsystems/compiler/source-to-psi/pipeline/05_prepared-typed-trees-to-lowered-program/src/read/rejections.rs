@@ -147,6 +147,16 @@ impl Program<'_> {
                 ),
             );
         }
+        if let Some((wanted, carried)) = self.different_implementation_arguments(expected, found) {
+            return reject(
+                id,
+                at,
+                format!(
+                    "{} expects `{wanted}` but got `{carried}`; these types select different implementations",
+                    destination.named()
+                ),
+            );
+        }
         let nominal = |value| {
             let ValueType::Record(record, _, _) = value else {
                 return None;
@@ -208,6 +218,89 @@ impl Program<'_> {
             );
         }
         refused
+    }
+
+    /// An implementation argument is part of the type application's identity.
+    /// Two concrete declarations cannot unify, even when their outputs agree.
+    /// An unresolved binder or a different application of one implementation
+    /// may need substitution or proof and does not establish this mismatch.
+    fn different_implementation_arguments(
+        &self,
+        expected: ValueType,
+        found: ValueType,
+    ) -> Option<(String, String)> {
+        use crate::source_state::{data::TypeParameterKind, types::TypeReferenceNode};
+
+        let applied = |value| {
+            let ValueType::Record(row, _, _) = value else {
+                return None;
+            };
+            let source = self.record_sources.get(row)?.application.as_ref()?;
+            let table = &self.typed.type_reference_table;
+            let mut reference = table.unconstrained_type_reference(source.reference);
+            if let TypeReferenceNode::Named { symbol, .. } = table.type_reference(reference) {
+                reference = self
+                    .typed
+                    .unique_data_definition_by_symbol(*symbol)?
+                    .generic_instance?;
+            }
+            let TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } = table.type_reference(reference)
+            else {
+                return None;
+            };
+            Some((
+                reference,
+                *base_symbol,
+                table.type_reference_handles(*arguments),
+                &source.scope,
+            ))
+        };
+        let (wanted, family, wanted_args, wanted_scope) = applied(expected)?;
+        let (carried, other_family, carried_args, carried_scope) = applied(found)?;
+        let definition = self.typed.unique_data_definition_by_symbol(family)?;
+        let parameters = self.typed.data_type_parameters(definition);
+        if family != other_family
+            || wanted_args.len() != parameters.len()
+            || carried_args.len() != parameters.len()
+        {
+            return None;
+        }
+        let implementation = |reference| {
+            let selected = self
+                .typed
+                .static_operand_from_type_reference(reference)
+                .ok()?
+                .symbol;
+            (selected.is_valid()
+                && self.typed.symbols.get(selected).kind == symbols::SymbolKind::Conformance)
+                .then(|| self.typed.normalized_nominal_type_identity(selected))
+                .flatten()
+        };
+        for ((parameter, wanted_arg), carried_arg) in
+            parameters.iter().zip(wanted_args).zip(carried_args)
+        {
+            if parameter.kind == TypeParameterKind::Implementation
+                && let Ok(wanted_arg) =
+                    wanted_scope.supplied_type_reference(self.typed, *wanted_arg)
+                && let Ok(carried_arg) =
+                    carried_scope.supplied_type_reference(self.typed, *carried_arg)
+                && let (Some(left), Some(right)) = (
+                    implementation(wanted_arg.reference),
+                    implementation(carried_arg.reference),
+                )
+                && left != right
+            {
+                return Some((
+                    self.typed.display_type_reference(wanted),
+                    self.typed.display_type_reference(carried),
+                ));
+            }
+        }
+        None
     }
 
     /// Only an exact local-storage ceiling supplies this error. Unknown fixed
