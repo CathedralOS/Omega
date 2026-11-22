@@ -904,6 +904,117 @@ fn named_and_bracket_reads_use_the_same_library_signature_and_copy_bound() {
 }
 
 #[test]
+fn indexed_field_read_selects_the_affine_element_in_place_and_copies_the_field() {
+    use omega_toolchain::CollectionPrimitive::Element;
+    use omega_typer::{Access, ObligationKind, Projection, ValueType};
+
+    let source = "data Cell{value:u8;} data Bag{cells:[Cell;4];} machine f(bag:@Bag,i:u64)->u8 { (bag.cells[i]).value }";
+    let typed = check(source).unwrap();
+    let [index] = typed.collection_accesses.as_slice() else {
+        panic!("expected one collection access");
+    };
+    assert_eq!(spelled(source, &index.site), "bag.cells[i]");
+    assert_eq!(index.primitive, Element);
+    assert_eq!(index.selector_carriers, [ValueType::Integer { signed: false, width: Some(64) }]);
+    assert_eq!(index.result, ValueType::Reference(Access::Shared, Box::new(index.element.clone())));
+    assert_eq!(&index.machine, omega_toolchain::core_interface().collection(Element));
+    assert!(typed.obligations.iter().any(|obligation| {
+        obligation.node == index.node && matches!(&obligation.kind, ObligationKind::CallPrecondition(machine) if machine == &index.machine)
+    }));
+    assert!(typed.obligations.iter().any(|obligation| {
+        obligation.node == index.node
+            && matches!(&obligation.kind, ObligationKind::Borrow { access: Access::Shared, place } if spelled(source, place) == "bag.cells")
+    }));
+    let reads: Vec<_> = typed.obligations.iter().filter(|obligation| matches!(obligation.kind, ObligationKind::CopyRead(_))).collect();
+    let [read] = reads.as_slice() else { panic!("expected one read of the leaf") };
+    assert_eq!(spelled(source, &read.site), "(bag.cells[i]).value");
+    assert_eq!(read.kind, ObligationKind::CopyRead(ValueType::Integer { signed: false, width: Some(8) }));
+    let (root, path) = typed.place_path(read.node);
+    assert_eq!(root.file, index.node.file);
+    let [collection, element, field] = path.as_slice() else { panic!("expected collection, element and field steps") };
+    assert_eq!(collection.base, root);
+    assert_eq!(collection.through, Some(Access::Shared));
+    assert!(matches!(&collection.projection, Some(Projection::Field(declaration)) if declaration.path == "Bag::cells"));
+    assert!(matches!(element.projection, Some(Projection::Index(_))));
+    assert_eq!(field.base, index.node);
+    assert_eq!(field.through, None);
+    assert!(matches!(&field.projection, Some(Projection::Field(declaration)) if declaration.path == "Cell::value"));
+}
+
+#[test]
+fn indexed_field_writes_capture_writable_backing_for_affine_and_copy_elements() {
+    use omega_toolchain::CollectionPrimitive::ElementMut;
+    use omega_typer::{Access, ObligationKind, ValueType};
+
+    for property in ["", " [copy]"] {
+        let source = format!(
+            "data Cell{property}{{value:u8;}} data Bag{{cells:[Cell;4];}} machine f(bag:@mutable Bag,i:u64) {{ (bag.cells[i]).value=7; }}"
+        );
+        let typed = check(&source).unwrap();
+        let [index] = typed.collection_accesses.as_slice() else {
+            panic!("expected one projected element");
+        };
+        assert_eq!(index.primitive, ElementMut);
+        assert_eq!(index.result, ValueType::Reference(Access::Mut, Box::new(index.element.clone())));
+        assert!(typed.obligations.iter().any(|obligation| {
+            obligation.node == index.node && matches!(&obligation.kind, ObligationKind::CallPrecondition(machine) if machine == &index.machine)
+        }));
+        assert!(typed.obligations.iter().any(|obligation| {
+            obligation.node == index.node
+                && matches!(&obligation.kind, ObligationKind::Borrow { access: Access::Mut, place } if spelled(&source, place) == "bag.cells")
+        }));
+        assert!(!typed.obligations.iter().any(|obligation| matches!(obligation.kind, ObligationKind::CopyRead(_) | ObligationKind::RestoreBorrowed { .. })));
+        assert_typing_refusal(
+            &source.replace("@mutable Bag", "@Bag"),
+            "app.omg",
+            "(bag.cells[i]).value",
+            "bag.cells",
+            "collection requires mutable authority",
+        );
+    }
+}
+
+#[test]
+fn indexed_field_borrows_keep_the_original_lifetime_and_nested_write_authority() {
+    use omega_toolchain::CollectionPrimitive::{Element, ElementMut};
+    use omega_typer::{Access, ObligationKind};
+
+    let source = "
+        data Cell{value:u8;}
+        machine borrow<'a>(items:@'a [Cell], i:u64)->@'a u8 { @items[i].value }
+        machine change(items:@mutable [[Cell;2];2], i:u64, j:u64) { (items[i][j]).value = 1; }
+    ";
+    let typed = check(source).unwrap();
+    let accesses: Vec<_> = typed.collection_accesses.iter().map(|access| (spelled(source, &access.site), access.primitive)).collect();
+    assert_eq!(accesses, [("items[i]", Element), ("items[i]", ElementMut), ("items[i][j]", ElementMut)]);
+    assert!(typed.obligations.iter().any(|obligation| {
+        spelled(source, &obligation.site) == "@items[i].value"
+            && matches!(&obligation.kind, ObligationKind::Borrow { access: Access::Shared, place } if spelled(source, place) == "items[i].value")
+    }));
+    assert!(typed.obligations.iter().any(|obligation| {
+        spelled(source, &obligation.site) == "@items[i].value"
+            && matches!(obligation.kind, ObligationKind::ReturnBorrow { .. })
+    }));
+}
+
+#[test]
+fn indexed_field_projection_requires_readable_backing_and_protects_noncopy_values() {
+    for (parameter, result, expression, site, message) in [
+        ("@[Cell]", "Cell", "items[i]", "items[i]", "indexed read requires a copy element"),
+        ("@[Cell]", "Cell", "move items[i]", "items[i]", "indexed read requires a copy element"),
+        ("@[Cell]", "Handle", "items[i].handle", "items[i].handle", "reading app\\Handle out of borrowed storage requires a copy type; borrow it with @ instead"),
+        ("@[Cell]", "Handle", "move items[i].handle", "items[i].handle", "reading app\\Handle out of borrowed storage requires a copy type; borrow it with @ instead"),
+        ("@write [Cell]", "u8", "items[i].value", "items", "cannot read through a write-only collection"),
+        ("@[Cell]", "u8", "items[true].value", "true", "expected u64, found bool"),
+    ] {
+        let source = format!(
+            "data Handle{{}} data Cell{{value:u8;handle:Handle;}} machine f(items:{parameter},i:u64)->{result} {{ {expression} }}"
+        );
+        assert_typing_refusal(&source, "app.omg", expression, site, message);
+    }
+}
+
+#[test]
 fn symbolic_queries_check_the_operand_and_cannot_escape_as_callbacks() {
     for (expression, site, message) in [
         (r"reflect\field(read)", "read", "expected a field declaration"),

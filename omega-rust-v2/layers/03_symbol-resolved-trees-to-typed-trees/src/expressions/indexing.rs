@@ -8,8 +8,16 @@ use omega_typed::site_at;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(super) enum IndexUse {
     Ordinary,
+    Projection(ProjectionUse),
     MovePrefix,
     MoveOperand,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum ProjectionUse {
+    Read,
+    Shared,
+    Exclusive,
 }
 
 impl BodyTyper<'_, '_> {
@@ -18,27 +26,31 @@ impl BodyTyper<'_, '_> {
         node_index: usize,
         requested: Option<Access>,
     ) -> Result<ValueType, TypeError> {
-        self.index_operand(node_index, requested, IndexUse::Ordinary)
+        self.index_operand(node_index, requested, IndexUse::Ordinary).map(|(value, _)| value)
     }
 
     /// A move prefix selects storage for the following projection. Only the final
-    /// operand can extract a value through a loan.
+    /// operand can extract a value through a loan. A projection returns the
+    /// element place's carrier and access instead of the selected loan value.
     pub(super) fn index_operand(
         &mut self,
         node_index: usize,
         requested: Option<Access>,
         use_site: IndexUse,
-    ) -> Result<ValueType, TypeError> {
+    ) -> Result<(ValueType, Option<Access>), TypeError> {
         let source = self.unit.file;
         let [base, selector] = *source.nodes[node_index].children.as_slice() else {
             return Err(TypeError::unsupported(source, node_index));
         };
         // A binding of a borrowed field names that field in place, so the
         // collection is reached with the borrowed storage's access.
-        let (base_ty, borrowed) = if use_site != IndexUse::Ordinary && source.nodes[source.ungroup(base)].kind == omega_syntax::NodeKind::Index {
-            (self.index_move_place(base, IndexUse::MovePrefix)?, None)
-        } else {
-            self.place_operand(base)?
+        let (base_ty, borrowed) = match use_site {
+            IndexUse::MovePrefix | IndexUse::MoveOperand if source.nodes[source.ungroup(base)].kind == omega_syntax::NodeKind::Index => {
+                (self.index_move_place(base, IndexUse::MovePrefix)?, None)
+            }
+            IndexUse::Projection(projection) => self.projection_operand(base, projection)?,
+            _ if requested == Some(Access::Mut) => self.projection_operand(base, ProjectionUse::Exclusive)?,
+            _ => self.place_operand(base)?,
         };
         let reference = base_ty.reference_parts();
         let (access, storage) = match reference {
@@ -99,18 +111,19 @@ impl BodyTyper<'_, '_> {
                 {
                     return Err(TypeError::at(source, node_index, "selected index result lacks the requested storage access"));
                 }
-                return Ok(result);
+                return Ok((result, None));
             }
         };
-        if use_site != IndexUse::Ordinary
+        let copy_element = self.copy_eligible(element);
+        if matches!(use_site, IndexUse::MovePrefix | IndexUse::MoveOperand)
             && requested.is_none()
             && range.is_none()
             && access.is_none()
             && matches!(storage, ValueType::Array(..))
-            && self.catalog.types.multiplicity(element) != crate::Multiplicity::Copy
+            && !copy_element
         {
             let element = element.clone();
-            return self.owned_element(node_index, base, selector, element);
+            return self.owned_element(node_index, base, selector, element).map(|value| (value, None));
         }
         // `move view[k]` through an exclusive element view selects the element
         // exactly as an exclusive element borrow does, then moves the non-copy
@@ -125,8 +138,17 @@ impl BodyTyper<'_, '_> {
             && reference.is_some()
             && access == Some(Access::Mut)
             && matches!(storage, ValueType::Slice(_))
-            && self.catalog.types.multiplicity(element) != crate::Multiplicity::Copy;
-        let requested = if extraction { Some(Access::Mut) } else { requested };
+            && !copy_element;
+        // A selector used as a place selects an element loan. A field value
+        // read may continue to use the by-copy operation for a copy element.
+        // A bare range still forms its ordinary shared view.
+        let projected = match use_site {
+            IndexUse::Projection(ProjectionUse::Exclusive) if range.is_none() => Some(Access::Mut),
+            IndexUse::Projection(ProjectionUse::Shared) if range.is_none() => Some(Access::Shared),
+            IndexUse::Projection(ProjectionUse::Read) if range.is_none() && !copy_element => Some(Access::Shared),
+            _ => None,
+        };
+        let requested = if extraction { Some(Access::Mut) } else { projected.clone().or(requested) };
         let primitive = match (&requested, range.is_some()) {
             (Some(Access::Write), _) => return Err(TypeError::at(source, node_index, "no write-only collection adaptation")),
             (Some(Access::Mut), false) => CollectionPrimitive::ElementMut,
@@ -155,7 +177,7 @@ impl BodyTyper<'_, '_> {
         if signature
             .multiplicity_bounds
             .contains(&(0, crate::Multiplicity::Copy))
-            && self.catalog.types.multiplicity(element) != crate::Multiplicity::Copy
+            && !copy_element
         {
             return Err(TypeError::at(source, node_index, "indexed read requires a copy element"));
         }
@@ -180,7 +202,7 @@ impl BodyTyper<'_, '_> {
         );
         self.set_origin(
             node_index,
-            if !extraction && (requested.is_some() || range.is_some()) {
+            if !extraction && projected.is_none() && (requested.is_some() || range.is_some()) {
                 backing.clone()
             } else {
                 contents
@@ -213,8 +235,11 @@ impl BodyTyper<'_, '_> {
         if extraction {
             let moved = element.clone();
             self.read_borrowed(node_index, &Access::Mut, &moved)?;
-            return Ok(moved);
+            return Ok((moved, None));
         }
-        Ok(result)
+        if projected.is_some() {
+            return Ok((element.clone(), projected));
+        }
+        Ok((result, None))
     }
 }
