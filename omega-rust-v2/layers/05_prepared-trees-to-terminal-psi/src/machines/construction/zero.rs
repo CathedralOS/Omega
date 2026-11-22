@@ -1,4 +1,4 @@
-//! The value `..` supplies for one omitted field.
+//! Zero establishment for omitted fields and local bindings.
 //!
 //! An omitted field receives the zero of its declared type
 //! (`wiki/spec/language/data_and_literals.md#explicit-field-omission`). Nothing
@@ -267,21 +267,16 @@ enum Step<'a> {
 pub(super) fn establish(
     expressions: &Expressions<'_>,
     body: &mut MachineBody,
-    field: &DeclarationId,
+    field: Option<&DeclarationId>,
     carrier: TypeId,
     roster: Roster,
     site: &Site,
 ) -> Result<OperationResult, LoweringError> {
     let (types, data) = (expressions.types, expressions.data);
-    let unadmitted = || LoweringError::new(site, "omitted field zero was not admitted before its establishment");
+    let unadmitted = || LoweringError::new(site, "zero was not admitted before its establishment");
     let exhausted = || {
-        LoweringError::new(
-            site,
-            format!(
-                "the zero of omitted field `{}` needs {} operations, more than this host can allocate",
-                field.path, roster.operations
-            ),
-        )
+        let subject = field.map_or_else(|| "local".to_owned(), |f| format!("omitted field `{}`", f.path));
+        LoweringError::new(site, format!("the zero of {subject} needs {} operations, more than this host can allocate", roster.operations))
     };
     body.operations
         .try_reserve(roster.operations)

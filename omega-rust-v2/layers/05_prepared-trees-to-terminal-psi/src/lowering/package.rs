@@ -423,6 +423,14 @@ fn lower(
                     omega_typed::NodeSemantics::Expression(e) if e.static_argument_slot.is_some() && matches!(e.ty, ValueType::Callable(_)) => continue,
                     omega_typed::NodeSemantics::Expression(e) => (&e.ty, &e.site),
                     omega_typed::NodeSemantics::Landing(e) => (&e.ty, &e.site),
+                    // A zero-initialized local has no initializer expression to register its carrier.
+                    omega_typed::NodeSemantics::Obligation(omega_typed::TypingObligation {
+                        kind: omega_typed::ObligationKind::ZeroValue(carrier), site, ..
+                    }) if file.nodes[node].kind == NodeKind::Let => {
+                        carriers.push((carrier, site.clone()));
+                        body_types.push(carrier);
+                        continue;
+                    }
                     // A combined carrier cast first produces this unqualified numeric value,
                     // then establishes the written domains on its continuation.
                     omega_typed::NodeSemantics::Obligation(omega_typed::TypingObligation {
