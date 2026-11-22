@@ -4,12 +4,28 @@ use omega_resolved::Symbol;
 use omega_syntax::NodeKind;
 use omega_typed::{Access, NodeSemantics, ObligationKind, Projection, ValueType};
 
-pub(super) fn call_argument(
-    expressions: &Expressions<'_>,
+/// A reference argument can be ready now or depend on an expression that must
+/// run at this argument's position. The path stays relative to its whole producer.
+pub(super) struct CallOperand<'a> {
+    pub visit: Option<(usize, &'a ValueType)>,
+    pub passing: ArgumentPassing,
+}
+
+pub(super) enum ArgumentPassing {
+    Ready(CallArgument),
+    Value,
+    LendTemporary {
+        path: Vec<PlaceProjection>,
+        access: crate::ReferenceAccess,
+    },
+}
+
+pub(super) fn call_argument<'a>(
+    expressions: &'a Expressions<'_>,
     node: usize,
-    formal: &ValueType,
+    formal: &'a ValueType,
     body: &MachineBody,
-) -> Result<Option<CallArgument>, LoweringError> {
+) -> Result<CallOperand<'a>, LoweringError> {
     // A call names the regions it applies in its `CallRegions` row, and a
     // borrow operand has no descriptor place to list in
     // `MachineBody::lifetime_bindings`. So an operand that typing bound to a
@@ -24,7 +40,7 @@ pub(super) fn call_argument(
             "a call operand bound to a declared region needs its binding",
         ));
     }
-    reference_operand(expressions, node, formal, body)
+    plan_reference(expressions, node, formal, body, true)
 }
 
 /// The place a reference value at `node` lends, when the node names one: an
@@ -43,8 +59,26 @@ pub(super) fn reference_operand(
     destination: &ValueType,
     body: &MachineBody,
 ) -> Result<Option<CallArgument>, LoweringError> {
+    match plan_reference(expressions, node, destination, body, false)?.passing {
+        ArgumentPassing::Ready(argument) => Ok(Some(argument)),
+        ArgumentPassing::Value => Ok(None),
+        ArgumentPassing::LendTemporary { .. } => unreachable!("only a call requested a producer"),
+    }
+}
+
+fn plan_reference<'a>(
+    expressions: &'a Expressions<'_>,
+    node: usize,
+    destination: &'a ValueType,
+    body: &MachineBody,
+    call_operand: bool,
+) -> Result<CallOperand<'a>, LoweringError> {
+    let value = || CallOperand {
+        visit: Some((node, destination)),
+        passing: ArgumentPassing::Value,
+    };
     let Some((access, wanted)) = crate::lowering::types::place_reference(destination) else {
-        return Ok(None);
+        return Ok(value());
     };
     let tree = expressions.tree;
     let file = tree.resolved().file;
@@ -55,7 +89,7 @@ pub(super) fn reference_operand(
         file.nodes[node].kind,
         NodeKind::Borrow | NodeKind::Dereference | NodeKind::FieldAccess | NodeKind::PathExpression | NodeKind::Index
     ) {
-        return Ok(None);
+        return Ok(value());
     }
     let binding = super::loans::binding_at(tree, node, destination);
     let formal = binding.map_or(destination, |bound| bound.reference);
@@ -91,11 +125,24 @@ pub(super) fn reference_operand(
         if !typed || !borrowed {
             return Err(LoweringError::new(&site_at(tree, node), "shared borrow lacks its type or source obligation"));
         }
-        let (place, ty) = original_place(expressions, operand, body)?;
+        let usage = if call_operand && access == crate::ReferenceAccess::Shared {
+            PlaceUse::CallBorrow
+        } else {
+            PlaceUse::Original
+        };
+        let (root, path, ty) = select_place(expressions, operand, body, usage, None)?;
         if ty != wanted {
             return Err(LoweringError::new(&occurrence, "borrowed field has the wrong referent type"));
         }
-        place
+        match root {
+            PlaceRoot::Bound(root) => ProjectedPlace { root, path },
+            PlaceRoot::Expression(node, carrier) => {
+                return Ok(CallOperand {
+                    visit: Some((node, carrier)),
+                    passing: ArgumentPassing::LendTemporary { path, access },
+                });
+            }
+        }
     } else {
         let (mut place, ty) = project_place(expressions, node, body, PlaceUse::Original, landing)?;
         if ty != formal {
@@ -110,7 +157,93 @@ pub(super) fn reference_operand(
     // descriptor publishes the access and every loan the path crosses, from
     // which the checker judges the lineage
     // (wiki/spec/terminal-psi/loans.md#reborrow-lineage-and-access).
-    Ok(Some(CallArgument::Borrow { place, access }))
+    Ok(CallOperand {
+        visit: None,
+        passing: ArgumentPassing::Ready(CallArgument::Borrow { place, access }),
+    })
+}
+
+/// Inspect result storage for loan descriptors, or input storage for a writable
+/// route that can receive one. A writable scalar field alone cannot export a loan.
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
+enum LoanRoute {
+    Descriptor,
+    WritableDestination,
+}
+
+fn has_loan_route(
+    expressions: &Expressions<'_>,
+    ty: crate::TypeId,
+    route: LoanRoute,
+) -> bool {
+    use crate::{ReferenceAccess, TypeShape, ViewElement};
+    let mut work = vec![(ty, route)];
+    let mut seen = std::collections::HashSet::new();
+    while let Some((ty, route)) = work.pop() {
+        if !seen.insert((ty, route)) {
+            continue;
+        }
+        match expressions.types.get(ty) {
+            Some(TypeShape::PrimitiveScalar(_) | TypeShape::QualifiedScalar { .. } | TypeShape::Callable(_)) => {}
+            Some(TypeShape::Nominal(id) | TypeShape::QualifiedNominal { data: id, .. }) => {
+                let schema = &expressions.data[id.get() - 1];
+                let fields = schema
+                    .fields
+                    .iter()
+                    .chain(schema.cases.iter().flat_map(|case| &case.fields));
+                work.extend(fields.map(|field| (field.carrier, route)));
+            }
+            Some(TypeShape::FixedArray { length: 0, .. }) => {}
+            Some(TypeShape::FixedArray { element, .. } | TypeShape::ElementSequence { element }) => work.push((*element, route)),
+            Some(
+                TypeShape::NominalReference { referent, .. }
+                | TypeShape::MutableElementView {
+                    element: ViewElement::Nominal(referent),
+                },
+            ) if route == LoanRoute::WritableDestination => {
+                let referent = expressions.data[referent.get() - 1].carrier;
+                work.push((referent, route));
+                if !matches!(
+                    expressions.types.get(ty),
+                    Some(TypeShape::NominalReference {
+                        access: ReferenceAccess::Shared,
+                        ..
+                    })
+                ) {
+                    work.push((referent, LoanRoute::Descriptor));
+                }
+            }
+            Some(TypeShape::SharedElementView {
+                element: ViewElement::Nominal(id),
+            }) if route == LoanRoute::WritableDestination => {
+                work.push((expressions.data[id.get() - 1].carrier, route));
+            }
+            Some(TypeShape::IndexedSharedReference(_)) if route == LoanRoute::WritableDestination => return true,
+            Some(_) if route == LoanRoute::Descriptor => return true,
+            Some(_) => {}
+            None => return true,
+        }
+    }
+    false
+}
+
+pub(super) fn may_export_temporary_loan(
+    expressions: &Expressions<'_>,
+    result: super::expressions::OperationOutput,
+    operands: &[(usize, &ValueType)],
+) -> bool {
+    if let super::expressions::OperationOutput::Structural(ty) = result
+        && has_loan_route(expressions, ty, LoanRoute::Descriptor)
+    {
+        return true;
+    }
+    operands.iter().any(|(_, ty)| {
+        let ty = crate::declarations::regions::slot_carrier(ty, &expressions.signature.machine);
+        expressions
+            .types
+            .id_for(ty)
+            .map_or(true, |id| has_loan_route(expressions, id, LoanRoute::WritableDestination))
+    })
 }
 
 /// A direct borrow has no value computation. Walk the typed field selections
@@ -156,6 +289,7 @@ pub(super) enum PlaceRoot<'a> {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum PlaceUse {
     Original,
+    CallBorrow,
     Move,
     ScalarRead,
 }
@@ -181,8 +315,8 @@ fn select_place<'a>(
         let site = site_at(tree, current);
         // A field of a computed record reads the result of that
         // expression. Its calls, selections and bounds checks execute once.
-        if usage == PlaceUse::ScalarRead
-            && !fields.is_empty()
+        if (usage == PlaceUse::CallBorrow || usage == PlaceUse::ScalarRead && !fields.is_empty())
+            && !(usage == PlaceUse::CallBorrow && file.nodes[current].kind == NodeKind::Index)
             && !matches!(
                 file.nodes[current].kind,
                 NodeKind::PathExpression | NodeKind::FieldAccess | NodeKind::Dereference | NodeKind::Paren
@@ -199,7 +333,7 @@ fn select_place<'a>(
                 return Err(LoweringError::new(&site, "computed field receiver requires a record"));
             }
             fields.reverse();
-            return Ok((PlaceRoot::Expression(current, ty), fields, selected_type.expect("field has a selected type")));
+            return Ok((PlaceRoot::Expression(current, ty), fields, selected_type.unwrap_or(ty)));
         }
         let mut field = None;
         let mut ty = None;
@@ -234,7 +368,7 @@ fn select_place<'a>(
                 // exclusive one moves it out; the return edge carries that
                 // descriptor, as for a returned binding.
                 NodeSemantics::Obligation(o)
-                    if matches!(usage, PlaceUse::Original | PlaceUse::Move)
+                    if matches!(usage, PlaceUse::Original | PlaceUse::CallBorrow | PlaceUse::Move)
                         && current == file.ungroup(node)
                         && matches!(&o.kind,ObligationKind::ReturnBorrow{machine} if machine==&expressions.signature.machine) => {}
                 _ => return Err(LoweringError::new(&site, "reference projection requires a typed original place")),
