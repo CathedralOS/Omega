@@ -1202,6 +1202,33 @@ machine entry() reaches Fs invokes Fs {
 }
 
 #[test]
+fn a_forwarded_mutable_view_lends_its_element_to_the_caller() {
+    let source = r#"
+data Cell [copy] { value: u32; }
+data Pair { cells: [Cell; 2]; }
+machine select(pair: @mutable Pair) -> @mutable Cell {
+    let cells: @mutable [Cell] = @mutable pair.cells[..];
+    transition { _ -> first(cells) }
+    machine first(cells: @mutable [Cell]) -> @mutable Cell
+    requires cells.length == 2u64 {
+        transition { _ -> @mutable cells[0u64] }
+    }
+}
+machine entry() {
+    let mutable pair: Pair;
+    let cell: @mutable Cell = select(@mutable pair);
+    cell.value = 42u32;
+}
+"#;
+    assert_eq!(verdict(source), "accepted");
+    let conflict = source.replace(
+        "    cell.value = 42u32;",
+        "    pair.cells[0u64].value = 11u32;\n    cell.value = 42u32;",
+    );
+    assert_eq!(verdict(&conflict), "rejected: 1 conflicts");
+}
+
+#[test]
 fn indexed_view_payloads_keep_their_actual_lender() {
     let source = r#"
 machine see(value: @u8) {}

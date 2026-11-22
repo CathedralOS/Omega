@@ -733,7 +733,7 @@ impl Program<'_> {
                 StorageShape::ElementView {
                     element: actual,
                     qualification: actual_q,
-                    access: Some(StructuralAccess::MutableBorrow),
+                    access: None | Some(StructuralAccess::MutableBorrow),
                 },
                 StorageShape::ElementView {
                     element: wanted,
@@ -817,7 +817,7 @@ impl Program<'_> {
             ..
         }) = &view.kind
         else {
-            return self.sequence_type(machine, view).map(Some);
+            return self.sequence_type(machine, view, formal_access).map(Some);
         };
         let (carrier, identity) = (*carrier, identity.clone());
         // Keep the domains on the actual view type in every placement.
