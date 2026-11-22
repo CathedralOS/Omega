@@ -315,7 +315,7 @@ impl Program<'_> {
         place: &crate::lowering::Expression,
     ) -> Checked<crate::lowering::body::Regions> {
         if let Some(value) = place.result
-            && self.is_borrowed_view(value)
+            && (self.is_borrowed_view(value) || self.direct_element_view_formal(slots, place))
         {
             let outer = *self.region_tuple(value.regions()).first().ok_or_else(|| {
                 refuse(

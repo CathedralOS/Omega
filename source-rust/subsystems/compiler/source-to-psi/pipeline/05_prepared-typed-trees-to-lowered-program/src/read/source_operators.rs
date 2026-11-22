@@ -233,6 +233,14 @@ impl Program<'_> {
                 carrier,
                 &row.identity,
             )?
+        } else if let ValueType::Record(record, _, _) = operand
+            && matches!(
+                self.data_type(machine, record)?.shape,
+                crate::lowering::StorageShape::ElementView { access: None, .. }
+            )
+        {
+            self.view_type_with_formal_access(machine, reference, true)?
+                .is_some_and(|formal| formal.erased() == operand.erased())
         } else {
             false
         };

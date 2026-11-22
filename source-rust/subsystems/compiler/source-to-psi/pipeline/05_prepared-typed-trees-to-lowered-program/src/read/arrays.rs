@@ -136,11 +136,12 @@ impl Program<'_> {
     /// no layout-equal substitute, so a different element row is refused.
     fn typed_array_element(
         &self,
-        actual: Option<ValueType>,
+        slots: &[Slot],
+        base: &Expression,
         element: StructuralTypeId,
         qualification: Qualification,
     ) -> Option<StructuralTypeId> {
-        let Some(ValueType::Record(actual, Qualification::NONE, _)) = actual else {
+        let Some(ValueType::Record(actual, Qualification::NONE, _)) = base.result else {
             return None;
         };
         let actual = self.records.get(actual)?;
@@ -159,6 +160,11 @@ impl Program<'_> {
                         | terminal_psi::StructuralAccess::MutableBorrow,
                     ),
             } => (element, qualification),
+            StorageShape::ElementView {
+                element,
+                qualification,
+                access: None,
+            } if self.direct_element_view_formal(slots, base) => (element, qualification),
             _ => return None,
         };
         (actual.requires.is_empty() && stored == element && stored_qualification == qualification)
@@ -208,8 +214,11 @@ impl Program<'_> {
         // Formation owns a stored descriptor with the written loan. Only the
         // callee's direct formal carries its access separately from its shape.
         if formal_access == Some(ReferenceAccess::Mutable)
-            && self.data_type(machine, view)?.shape
-                == StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access: None })
+            && matches!(
+                self.data_type(machine, view)?.shape,
+                StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access: None })
+                    | StorageShape::ElementView { access: None, .. }
+            )
         {
             let reference = self
                 .typed
@@ -220,11 +229,15 @@ impl Program<'_> {
             else {
                 return Err(unavailable("array view without its retained source type"));
             };
-            if self.data_type(machine, actual)?.shape
-                != StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            if !matches!(
+                self.data_type(machine, actual)?.shape,
+                StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
                     access: Some(StructuralAccess::MutableBorrow),
-                })
-            {
+                }) | StorageShape::ElementView {
+                    access: Some(StructuralAccess::MutableBorrow),
+                    ..
+                }
+            ) {
                 return Err(crate::lowering::reject(
                     machine,
                     source,
@@ -401,7 +414,7 @@ impl Program<'_> {
                 .byte_array_element(base.result)
                 .ok_or_else(|| unavailable("array view without a plain closed u8 array"))?,
             Some((element, qualification)) => self
-                .typed_array_element(base.result, element, qualification)
+                .typed_array_element(slots, &base, element, qualification)
                 .ok_or_else(|| {
                     unavailable("typed array view without a closed array of its exact element")
                 })?,
@@ -437,8 +450,12 @@ impl Program<'_> {
         if typed_element.is_some() {
             // Reborrowing replaces the view's outer loan. Only the element
             // regions survive from its existing descriptor.
-            let elements =
-                self.collection_element_regions(machine, backing, backing_type.regions())?;
+            let elements = self.collection_element_regions(
+                machine,
+                backing,
+                backing_type.regions(),
+                self.direct_element_view_formal(slots, &base),
+            )?;
             let mut tuple = self.region_tuple(regions).to_vec();
             tuple.extend_from_slice(self.region_tuple(elements));
             regions = self.intern_regions(tuple);
@@ -579,7 +596,7 @@ impl Program<'_> {
         let (element, qualification, extent) =
             self.array_element(machine, super::authority::Opened::constructing(array))?;
         // An array value holds its elements' regions (`array_type`).
-        let element_regions = self.collection_element_regions(machine, array, regions)?;
+        let element_regions = self.collection_element_regions(machine, array, regions, false)?;
         let declared = super::places::with_regions(
             self.storage_value_type(machine, element, qualification)?,
             element_regions,
@@ -687,7 +704,12 @@ impl Program<'_> {
         let regions = base
             .result
             .map_or(crate::lowering::body::Regions::NONE, ValueType::regions);
-        let element_regions = self.collection_element_regions(machine, array.record(), regions)?;
+        let element_regions = self.collection_element_regions(
+            machine,
+            array.record(),
+            regions,
+            self.direct_element_view_formal(slots, &base),
+        )?;
         let result = super::places::with_regions(
             self.storage_value_type(machine, element, qualification)?,
             element_regions,
@@ -813,6 +835,7 @@ impl Program<'_> {
         &mut self,
         machine: MachineId,
         view: super::source_views::SourceView,
+        formal_access: bool,
     ) -> Checked<ValueType> {
         let super::source_views::SourceViewKind::Elements(SourceSequenceView { access, identity }) =
             view.kind
@@ -869,6 +892,16 @@ impl Program<'_> {
                     Unserved::Type("sequence loan requires its exact unborrowed slice type"),
                 ));
             };
+            if formal_access && access == Some(terminal_psi::StructuralAccess::MutableBorrow) {
+                // A direct slice parameter borrows elements. Its parameter
+                // supplies the access, while the carrier supplies the element.
+                tuple.extend_from_slice(self.region_tuple(value.regions()));
+                return Ok(ValueType::Record(
+                    record,
+                    Qualification::NONE,
+                    self.intern_regions(tuple),
+                ));
+            }
             (element, qualification, value.regions())
         } else {
             let element = view.slice.element;

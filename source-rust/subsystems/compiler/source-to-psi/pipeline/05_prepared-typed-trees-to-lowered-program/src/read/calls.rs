@@ -3685,12 +3685,26 @@ impl<'t> Program<'t> {
         else {
             return Ok(actual);
         };
-        let actual_access = match self.data_type(machine, actual_row)?.shape {
-            StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }) => access,
-            _ => return Ok(actual),
-        };
-        let expected_access = match self.data_type(machine, expected_row)?.shape {
-            StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }) => access,
+        let (actual_access, expected_access) = match (
+            &self.data_type(machine, actual_row)?.shape,
+            &self.data_type(machine, expected_row)?.shape,
+        ) {
+            (
+                StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access: actual }),
+                StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access: expected }),
+            ) => (*actual, *expected),
+            (
+                StorageShape::ElementView {
+                    element: left,
+                    qualification: left_qualification,
+                    access: actual,
+                },
+                StorageShape::ElementView {
+                    element: right,
+                    qualification: right_qualification,
+                    access: expected,
+                },
+            ) if left == right && left_qualification == right_qualification => (*actual, *expected),
             _ => return Ok(actual),
         };
         let lends_mutable_backing = formal.referent

@@ -796,6 +796,27 @@ impl Program<'_> {
         )
     }
 
+    /// A slice formal keeps its outer lifetime on the binding. Bare slices
+    /// use the same carrier and contribute only their elements' lifetimes.
+    pub(super) fn direct_element_view_formal(
+        &self,
+        slots: &[super::Slot],
+        place: &crate::lowering::Expression,
+    ) -> bool {
+        let (crate::lowering::ExpressionKind::Slot(slot), Some(ValueType::Record(row, _, _))) =
+            (&place.kind, place.result)
+        else {
+            return false;
+        };
+        slots.get(*slot).is_some_and(|slot| slot.borrowed.is_some())
+            && self.records.get(row).is_some_and(|row| {
+                matches!(
+                    row.shape,
+                    crate::lowering::StorageShape::ElementView { access: None, .. }
+                )
+            })
+    }
+
     /// Collection values retain their elements' complete region tuple. A
     /// borrowed element view prefixes its own region; only that one position
     /// is removed when checking an element against the collection's type.
@@ -804,14 +825,16 @@ impl Program<'_> {
         id: MachineId,
         collection: semantic_vocabulary::StructuralTypeId,
         regions: Regions,
+        direct_formal: bool,
     ) -> Checked<Regions> {
-        let borrowed = matches!(
-            self.data_type(id, collection)?.shape,
-            crate::lowering::StorageShape::ElementView {
-                access: Some(_),
-                ..
-            }
-        );
+        let borrowed = direct_formal
+            || matches!(
+                self.data_type(id, collection)?.shape,
+                crate::lowering::StorageShape::ElementView {
+                    access: Some(_),
+                    ..
+                }
+            );
         if !borrowed {
             return Ok(regions);
         }
