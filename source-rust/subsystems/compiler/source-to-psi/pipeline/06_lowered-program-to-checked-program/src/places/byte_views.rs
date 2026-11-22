@@ -457,8 +457,8 @@ impl<'a> Storage<'a> {
         })?;
         // A shared byte view observes the qualified backing without moving
         // its default or granting it to the descriptor. The storage windows
-        // still require that backing's predicates at this read. Keep routed,
-        // projected and mutable qualifications outside this admission.
+        // still require that backing's predicates at this read. A typed
+        // window separately transports the domains below every element.
         let shared_predicate_backing = access == StructuralAccess::SharedBorrow
             && !typed
             && whole.iter().all(|id| {
@@ -479,7 +479,7 @@ impl<'a> Storage<'a> {
         {
             return Err(self.unsupported(
                 concerns,
-                "collection view needs plain backing or an exact pure predicate shared byte backing",
+                "collection view cannot preserve these backing qualifications",
             ));
         }
         if backing.storage == terminal_semantics::CollectionStorage::Borrowed {
@@ -1008,7 +1008,7 @@ impl<'a> Storage<'a> {
         {
             return Err(self.foreign(
                 concerns,
-                "a subslice must produce its exact plain descriptor and ownership",
+                "a subslice must produce its declared descriptor with the requested access and ownership",
             ));
         }
         let selected = self.byte_shape(source.place, &source.path, concerns)?;
