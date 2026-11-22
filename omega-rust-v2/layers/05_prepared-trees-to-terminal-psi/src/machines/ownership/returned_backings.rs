@@ -65,17 +65,50 @@ impl<'a> ReturnBackings<'a> {
         arrivals: &mut Arrivals<'_>,
         origins: impl Iterator<Item = &'b EmbeddedLoanOrigin> + Clone,
     ) -> Option<Vec<PlaceId>> {
+        Some(self.resolve_origins(arrivals, origins, false)?.local)
+    }
+
+    fn resolve_origins<'b>(
+        &mut self,
+        arrivals: &mut Arrivals<'_>,
+        origins: impl Iterator<Item = &'b EmbeddedLoanOrigin> + Clone,
+        returning: bool,
+    ) -> Option<Backings> {
         loop {
             let demand_count = self.formals.len();
             let mut backings = Backings::default();
             for origin in origins.clone() {
-                self.origin(arrivals, origin, &mut backings, false)?;
+                self.origin(arrivals, origin, &mut backings, returning)?;
             }
             if demand_count == self.formals.len() {
-                return Some(backings.local);
+                return Some(backings);
             }
             self.settle();
         }
+    }
+
+    /// Resolve a completed descriptor back to this body's local storage.
+    /// An incoming formal may also supply the result on a different return.
+    pub(in crate::machines) fn completed_descriptor(
+        &mut self,
+        machine: usize,
+        result: PlaceId,
+    ) -> Option<(Vec<PlaceId>, bool)> {
+        let body = &self.machines.get(machine)?.body;
+        let PlaceOrigin::Operation(id) = body.places.get(result.index())?.origin else { return None };
+        let context = CleanupContext {
+            places: &body.places,
+            types: self.types,
+            data: self.data,
+            site: &body.diagnostics.body,
+        };
+        let mut arrivals = Arrivals::new(body, &context);
+        let at = arrivals.point(id.index())?;
+        let origins = arrivals.value(result, Vec::new(), body.places[result.index()].ty, at)?;
+        let mut resolved = self.resolve_origins(&mut arrivals, origins.iter(), true)?;
+        resolved.local.sort_unstable_by_key(|p| p.index());
+        resolved.local.dedup();
+        Some((resolved.local, !resolved.formals.is_empty()))
     }
 
     fn settle(&mut self) {

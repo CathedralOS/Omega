@@ -8,6 +8,9 @@ mod cleanup;
 pub(crate) use cleanup::{OwnedCrossings, admit_sequence_elements};
 pub(super) use cleanup::{ReturnBackings, dispose_temporary, owned, schedule};
 
+mod temporary_loans;
+pub(crate) use temporary_loans::{ReturnedTemporary, finish_returned_loans};
+
 /// An owned transfer needs the entire selected subtree. A parked borrow that
 /// overlaps a hole stays in Psi for the checker to judge.
 fn overlaps_moved_path(
