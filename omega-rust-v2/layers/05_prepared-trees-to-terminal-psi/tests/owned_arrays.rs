@@ -485,3 +485,29 @@ fn a_field_read_uses_the_record_returned_by_one_call() {
         if read.result == OperationResult::Scalar(value))
     );
 }
+
+#[test]
+fn local_array_literal_registers_its_own_affine_storage_and_residual() {
+    let source = format!("{TOKEN} machine pick(a:Token,b:Token)->Token{{let items:[Token;2]=[a,b]; move items[0]}}");
+    let package = sources::lower(&[("local_array.omg", &source)]).unwrap();
+    let body = &package.machines[0].body;
+    let array = body.operations.iter()
+        .find(|operation| matches!(operation.kind, OperationKind::EstablishStructuralArray { .. }))
+        .expect("the local literal establishes array storage");
+    let OperationResult::Structural(home) = array.result else {
+        panic!("expected an owned array place")
+    };
+    let [Parameter::Structural(first), Parameter::Structural(second)] = body.parameters[..] else {
+        panic!("expected the two original token parameters")
+    };
+    let token = body.places[first.index()].ty;
+    assert_eq!(token, body.places[second.index()].ty);
+    assert_eq!(
+        package.types.get(body.places[home.index()].ty),
+        Some(&omega_lowering::TypeShape::FixedArray { element: token, length: 2 })
+    );
+    let BlockTerminator::Return { cleanup, .. } = &body.blocks[0].terminator else {
+        panic!("expected a return")
+    };
+    assert_eq!(residual_ordinals(cleanup, home), [vec![1]]);
+}

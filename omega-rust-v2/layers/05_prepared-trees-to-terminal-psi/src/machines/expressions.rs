@@ -996,6 +996,10 @@ impl Expressions<'_> {
                             .semantics_at(expression)
                             .any(|record| matches!(record, NodeSemantics::Field(_))))
             {
+                if let Some(value) = super::indexed_reads::scalar_field(self, expression, carrier, block, flow)? {
+                    values.push(value);
+                    continue;
+                }
                 let (root, path) = super::references::scalar_read(self, expression, carrier, block, flow)?;
                 let output = OperationOutput::Scalar(lookup_type()?);
                 match root {

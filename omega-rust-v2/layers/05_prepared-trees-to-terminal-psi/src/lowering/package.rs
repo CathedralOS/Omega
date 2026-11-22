@@ -439,7 +439,11 @@ fn lower(
                     _ => continue,
                 };
                 body_types.push(carrier);
-                if types::place_reference(carrier).is_some()
+                // A literal constructs storage even when no signature or field names its array type.
+                let constructs_array = file.nodes[node].kind == NodeKind::ArrayLiteral
+                    && matches!(carrier, ValueType::Array(..) | ValueType::Slice(_));
+                if constructs_array
+                    || types::place_reference(carrier).is_some()
                     || types::supports_value_copy(carrier)
                     || types::local_domain_members(carrier, &domain_schemas).is_some()
                     || matches!(carrier, ValueType::Callable(callable) if callable.closed_runtime)
