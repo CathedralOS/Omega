@@ -47,7 +47,7 @@ fn toolchain() -> (LoweredPackage, DeclarationId) {
     let prepared = omega_preparation::prepare_source_package(&source).unwrap();
     let unit = omega_lowering::lower_package(&prepared).unwrap();
     let id = unit
-        .machine_templates
+        .machines
         .iter()
         .find(|machine| machine.declaration.package == omega_toolchain::TOOLCHAIN_PACKAGE && machine.declaration.path == r"language\core\access\new_plan")
         .unwrap()
@@ -123,50 +123,113 @@ fn zeroed_routes_require_the_selected_case_field_and_its_exact_applied_type() {
 
 #[test]
 fn matching_zeroed_field_types_still_require_a_slice_of_declared_elements() {
-    type TypeMutation = fn(&mut omega_psi::TypeExpression);
-    let mutations: [(TypeMutation, &str); 2] = [
-        (
-            |ty| {
-                assert_eq!(ty.0.pop(), Some(TypeExpressionStep::Slice));
-            },
-            "unsupported issuance payload or incorrect field ownership",
-        ),
-        (
-            |ty| {
-                let [
-                    _,
-                    TypeExpressionStep::Named { declaration, .. },
-                    TypeExpressionStep::Slice,
-                ] = ty.0.as_mut_slice()
-                else {
-                    unreachable!()
-                };
-                std::sync::Arc::make_mut(&mut declaration.name).package = "impostor".into();
-            },
-            "constructor requires one matching data declaration",
-        ),
-    ];
-    for (mutate, expected) in mutations {
-        let (mut unit, id) = toolchain();
-        let mut selection = selected(ZEROED);
-        let TemplateStep::Construct(issuance) = &mut selection.plan.body[0] else {
-            unreachable!()
+    let element = |unit: &LoweredPackage| {
+        unit.data
+            .iter()
+            .position(|data| data.declaration.path == r"language\core\reflect\CallableInfo")
+            .unwrap()
+    };
+    // The caller's zero and the unit's field agree in both cases. First both
+    // name the element itself instead of a sequence of it.
+    let (mut unit, id) = toolchain();
+    let mut selection = selected(ZEROED);
+    let TemplateStep::Construct(issuance) = &mut selection.plan.body[0] else {
+        unreachable!()
+    };
+    let [(field, TemplateOperand::Zero(ty))] = issuance.fields.as_mut_slice() else {
+        unreachable!()
+    };
+    assert_eq!(ty.0.pop(), Some(TypeExpressionStep::Slice));
+    let row = unit.data[element(&unit)].carrier;
+    let declared = unit
+        .data
+        .iter_mut()
+        .flat_map(|data| &mut data.cases)
+        .flat_map(|case| &mut case.fields)
+        .find(|schema| &schema.declaration == field)
+        .unwrap();
+    declared.carrier = row;
+    let constructor = check_record_constructor(&unit, &id).unwrap();
+    assert_eq!(
+        check_selected_policy_call(&selection, &constructor).unwrap_err(),
+        "unsupported issuance payload or incorrect field ownership"
+    );
+
+    // Then the element's declaration also identifies an alias, so the
+    // sequence has no single declared element.
+    let (mut unit, id) = toolchain();
+    let selection = selected(ZEROED);
+    let callable = &unit.data[element(&unit)];
+    let alias = omega_psi::LoweredAlias {
+        declaration: callable.declaration.clone(),
+        target: omega_psi::AliasTarget::Builtin("bool".into()),
+        asserted_multiplicity: None,
+        public: true,
+        site: callable.site.clone(),
+    };
+    unit.aliases.push(alias);
+    let constructor = check_record_constructor(&unit, &id).unwrap();
+    assert_eq!(
+        check_selected_policy_call(&selection, &constructor).unwrap_err(),
+        "constructor data declaration also identifies an alias"
+    );
+}
+
+#[test]
+fn an_open_template_of_the_constructor_is_a_second_proof_subject() {
+    // The unit publishes one closed body. A template under the same
+    // declaration would be another candidate, and the proof reads neither in
+    // place of the other.
+    let (mut unit, id) = toolchain();
+    check_record_constructor(&unit, &id).unwrap();
+    let mut template = selected(OPEN).plan;
+    template.declaration = id.clone();
+    unit.machine_templates.push(template);
+    assert_eq!(check_record_constructor(&unit, &id).unwrap_err(), "ambiguous constructor declaration");
+}
+
+#[test]
+fn the_constructor_proof_holds_for_the_body_a_selecting_package_republishes() {
+    // A package that selects the policy lowers its plan with the toolchain's
+    // constructor body beside it, under the toolchain's identity. The same
+    // judgment reads that body: same declared formals, result and field origins.
+    let (defining, id) = toolchain();
+    let expected = check_record_constructor(&defining, &id).unwrap();
+    let unit = with_prepared(OPEN, |prepared| {
+        let [policy] = prepared.typed().access_policies.as_slice() else {
+            panic!("one selected domain policy")
         };
-        let [(field, TemplateOperand::Zero(ty))] = issuance.fields.as_mut_slice() else {
-            unreachable!()
-        };
-        let declared = unit
-            .data_templates
-            .iter_mut()
-            .flat_map(|data| &mut data.cases)
-            .flat_map(|case| &mut case.fields)
-            .find(|schema| &schema.declaration == field)
-            .unwrap();
-        mutate(ty);
-        mutate(&mut declared.ty);
-        let constructor = check_record_constructor(&unit, &id).unwrap();
-        assert_eq!(check_selected_policy_call(&selection, &constructor).unwrap_err(), expected);
-    }
+        omega_lowering::lower_selected_policy_unit(prepared, policy)
+            .unwrap()
+            .expect("the selected plan has a closed body")
+    });
+    let checked = check_record_constructor(&unit, &id).unwrap();
+    assert!(std::ptr::eq(checked.unit(), unit.package()));
+    assert_eq!(checked.machine().declaration, id);
+    assert_eq!(checked.parameters(), expected.parameters());
+    assert_eq!(checked.result().ty, expected.result().ty);
+    assert_eq!(checked.result().declaration, expected.result().declaration);
+    // The establishing operation is still the toolchain's authored construction.
+    assert_eq!(checked.result().site, expected.result().site);
+    assert_eq!(checked.fields(), expected.fields());
+    // The selecting package's own machines are other declarations.
+    assert!(
+        unit.machines
+            .iter()
+            .any(|machine| machine.declaration.package == "app")
+    );
+    assert!(
+        check_record_constructor(
+            &unit,
+            &unit
+                .machines
+                .iter()
+                .find(|machine| machine.declaration.package == "app")
+                .unwrap()
+                .declaration
+        )
+        .is_err()
+    );
 }
 
 fn call(selection: &mut SelectedPolicyDefinition) -> &mut omega_psi::TemplateCall {

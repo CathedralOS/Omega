@@ -63,6 +63,22 @@ pub struct LoweredField {
     pub declaration: DeclarationId,
     /// Lifetime of a stored reference, indexed in the enclosing data declaration.
     pub lifetime: Option<usize>,
+    /// For a field that stores a record or sum taking lifetime arguments,
+    /// directly or as the element of fixed arrays or of an owned sequence: the lifetime binder of the
+    /// enclosing declaration that fills each of that data's lifetime binders,
+    /// in its binder order. `carrier` erases those arguments, so this list is
+    /// the only record of them. Empty for every other field.
+    ///
+    /// A field may instead refer to such a record through one shared
+    /// reference, as `@'t Bytes<'t>` does. Its `carrier` is then the
+    /// `NominalReference` row of that record, `lifetime` is the binder the
+    /// reference itself is held at, and this list fills the referent's
+    /// binders. The two are separate facts: the first indexes the enclosing
+    /// declaration, and each position of the second indexes the declaration
+    /// the row names. The field stores the reference only. The list states
+    /// the referent's declared type; it lends no authority to read the
+    /// borrows held behind the reference.
+    pub aggregate_lifetimes: Vec<usize>,
     pub carrier: TypeId,
     pub site: Site,
 }

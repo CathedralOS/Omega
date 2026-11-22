@@ -33,7 +33,7 @@ pub fn check_policy_construction(
         return Err("construction belongs to a different selected policy");
     }
     if inputs.constructor != constructor.machine().declaration
-        || inputs.construction_site != result.site
+        || inputs.construction_site != *result.site
         || inputs.result != result.ty
         || inputs.fields.len() != constructor.fields().len()
     {
@@ -58,7 +58,7 @@ pub fn check_policy_construction(
                 if case == call.issuance_case()
                     && *payload == expected_payload
                     && matches!(ty.0.last(), Some(Step::Named { declaration, .. }) if declaration == data) => {}
-            (PolicyConstructionField::Zero(actual), FieldOrigin::Zero(expected)) if actual == *expected => {}
+            (PolicyConstructionField::Zero(actual), FieldOrigin::Zero(expected)) if actual == expected => {}
             _ => return Err("prepared field does not implement the checked constructor transfer"),
         }
     }

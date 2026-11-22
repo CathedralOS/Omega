@@ -663,6 +663,59 @@ enum LinearDebt {
     Publish,
 }
 
+/// Refuse a package whose by-value sequence would hold a linear element or one
+/// with a selected cleanup, anywhere inside the element. The sequence form
+/// admits no linear claim and no executable cleanup
+/// (`wiki/spec/terminal-psi/structural_access.md#complete-structural-array-construction`):
+/// its copies share one backing, and dropping a copy disposes no element.
+/// Nothing else about an element is judged here. Its carry policy and the
+/// contract of a callable it stores stay on its own rows for the checker.
+/// Call this after every nominal cleanup is selected.
+pub(crate) fn admit_sequence_elements(
+    types: &LoweringTypes,
+    data: &[LoweredData],
+) -> Result<(), LoweringError> {
+    let rows = (0..).map_while(|index| TypeId::from_index(index).and_then(|id| types.get(id)));
+    for shape in rows {
+        let TypeShape::ElementSequence { element } = shape else {
+            continue;
+        };
+        // Each pending type keeps the outermost record or sum it sits in: the
+        // refusal names that declaration, the element as its author wrote it.
+        let mut pending: Vec<(TypeId, Option<&LoweredData>)> = vec![(*element, None)];
+        let mut visited = std::collections::BTreeSet::new();
+        while let Some((ty, outermost)) = pending.pop() {
+            if !visited.insert(ty) {
+                continue;
+            }
+            match types.get(ty) {
+                Some(TypeShape::FixedArray { element, .. }) => pending.push((*element, outermost)),
+                Some(TypeShape::Nominal(id) | TypeShape::QualifiedNominal { data: id, .. }) => {
+                    let schema = &data[id.get() - 1];
+                    let outermost = outermost.unwrap_or(schema);
+                    if schema.multiplicity == Multiplicity::Linear || types.cleanup_target(ty, data).is_some() {
+                        return Err(LoweringError::new(
+                            &outermost.site,
+                            "an immutable sequence cannot hold an element that is linear or needs cleanup",
+                        ));
+                    }
+                    pending.extend(
+                        schema
+                            .fields
+                            .iter()
+                            .chain(schema.cases.iter().flat_map(|case| &case.fields))
+                            .map(|field| (field.carrier, Some(outermost))),
+                    );
+                }
+                // A scalar owns nothing. A reference or view owns no referent,
+                // and a nested sequence is judged at its own row.
+                _ => {}
+            }
+        }
+    }
+    Ok(())
+}
+
 fn ensure_disposable(
     ty: TypeId,
     types: &LoweringTypes,
@@ -692,6 +745,11 @@ fn ensure_disposable(
                 | TypeShape::SharedElementView { .. }
                 | TypeShape::SharedByteView,
             ) => {}
+            // A by-value sequence is a descriptor too. Dropping it disposes no
+            // element: they stay in the backing its constructor established,
+            // which holds nothing linear and nothing with a cleanup
+            // (`admit_sequence_elements`).
+            Some(TypeShape::ElementSequence { .. }) => {}
             Some(TypeShape::FixedArray { element, .. }) => pending.push(*element),
             Some(TypeShape::Nominal(id) | TypeShape::QualifiedNominal { data: id, .. }) => {
                 let schema = &data[id.get() - 1];

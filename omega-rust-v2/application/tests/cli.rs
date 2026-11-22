@@ -326,7 +326,5 @@ fn lowering_from_an_explicit_capture_sees_the_requesters_build_owner() {
     assert_eq!(focused.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&focused.stderr).contains("domain access policy needs the package owner for its semantic schema"));
     let captured = invoke(application_directory(), &["source", "lower", "--package-root", root.to_str().unwrap(), "--", "selected.omg"]);
-    assert_eq!(captured.status.code(), Some(1));
-    let error = String::from_utf8_lossy(&captured.stderr);
-    assert!(error.contains("selected.omg:5:20: lowering: domain access policy needs admitted execution of the selected plan for its semantic schema"), "{error}");
+    assert!(captured.status.success(), "{}", String::from_utf8_lossy(&captured.stderr));
 }

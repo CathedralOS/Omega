@@ -254,6 +254,9 @@ pub use returned_view::{recursive_view_backings, returned_view_backing};
 mod element_writes;
 pub use element_writes::{ElementWrite, element_writes};
 
+mod element_sequences;
+pub use element_sequences::{ElementSource, EstablishedSequence, established_sequences, forwarded_sequence, nominal_row, returned_sequence, sequence_element};
+
 mod field_stores;
 pub use field_stores::{StoredDescriptor, parked_field_stores};
 
@@ -288,6 +291,9 @@ pub mod product_witness;
 
 mod dependency_call;
 pub use dependency_call::{ReturnedCall, returned_call};
+
+mod call_regions;
+pub use call_regions::{AppliedRegion, CarriedLoan, RegionAtCall, applied_regions, regions_at_call};
 
 mod theorem_citations;
 pub use theorem_citations::{NestedCitation, byte_subject_addition, nested_theorem_citations};
@@ -324,6 +330,8 @@ mod member_templates;
 pub use member_templates::{
     ReturnedTemplateCall, TemplateCallee, TemplateValue, formal_borrow_interval, member_template, member_template_call, returned_template_call, template_result,
 };
+mod member_bodies;
+pub use member_bodies::{BodyCallee, BodyValue, ReturnedBodyCall, Supply, body_result, member_machine, returned_body_call};
 
 pub mod callable_loans;
 pub mod sum_cleanup;

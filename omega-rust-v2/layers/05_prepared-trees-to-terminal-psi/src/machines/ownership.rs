@@ -5,7 +5,7 @@ use crate::{LoweringError, MachineBody, OperationKind, OperationResult, PlaceId,
 use omega_syntax::NodeKind;
 use omega_typed::{NodeSemantics, ObligationKind, ValueType};
 mod cleanup;
-pub(crate) use cleanup::OwnedCrossings;
+pub(crate) use cleanup::{OwnedCrossings, admit_sequence_elements};
 pub(super) use cleanup::{dispose_temporary, owned, schedule};
 
 /// An owned transfer needs the entire selected subtree. A parked borrow that
@@ -180,7 +180,7 @@ pub(super) fn decompose(
         if node.kind != NodeKind::FieldPattern || !node.children.is_empty() {
             return Err(LoweringError::new(&site, "decomposition needs an irrefutable field partition"));
         }
-        let (_, steps) = expressions.prepared.typed().place_path(file.node_id(member));
+        let (_, steps) = expressions.tree.forest().place_path(file.node_id(member));
         let Some(step) = steps.last() else {
             return Err(LoweringError::new(&site, "decomposition lacks its selected field"));
         };

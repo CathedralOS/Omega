@@ -1,5 +1,8 @@
+use crate::declarations::domains::SelectedPolicies;
+use crate::declarations::policy_answer::PolicyUnit;
 use crate::declarations::{data, domains, machine::machine_header};
 use crate::declarations::regions::{self, slot_carrier};
+use crate::lowering::pending::{PendingPolicyDomain, PendingPolicyPackage, PolicyIntroduction};
 use crate::lowering::types;
 use crate::machines::{body, branches, calls};
 use crate::{DataId, LoweredMachine, LoweredPackage, LoweringError, LoweringTypes, MachineId, ScalarResult, TypeShape, site_at};
@@ -12,7 +15,97 @@ use std::num::NonZeroU64;
 /// Lower each local executable declaration once, preserving the order of its
 /// operands. Declaration identities determine machine order independently of
 /// the order in which the caller supplied the source files.
+///
+/// A domain that selects an access policy is refused here, with the reason its
+/// policy is unanswered. [`lower_pending_policies`] lowers such a package for
+/// the driver that answers its policies.
 pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, LoweringError> {
+    decided(lower(prepared, None, SelectedPolicies::Refuse)?)
+}
+
+/// Lower a package whose access policies are not answered yet, and say which
+/// of its domains wait for one.
+///
+/// Who may issue `domain i32::Locked access Rule` is what an execution of
+/// `Rule::plan` returns. This function runs nothing and reads no answer, so
+/// it decides no issuer. It lowers every body and every other declaration,
+/// leaves the row of each such domain out of the package, and returns that
+/// row with no issuer beside it. Each row lists the casts that add the domain
+/// to a value that lacks it, such as `x as +Locked`, with the machine that
+/// owns the cast. A value that already carries the domain moves through
+/// formals, calls and results, and `x as -Locked` gives it up; none of those
+/// is listed.
+///
+/// The driver completes the package: it authenticates each executed plan,
+/// refuses a cast that adds a domain whose plan admits no issuer, and writes
+/// the rows with their issuers.
+///
+/// An `access` clause on a domain alias or on a carrier-generic domain is
+/// refused. Neither has a row that states issuers, so an answered plan would
+/// be dropped.
+pub fn lower_pending_policies(prepared: &PreparedTrees<'_>) -> Result<PendingPolicyPackage, LoweringError> {
+    lower(prepared, None, SelectedPolicies::Defer)
+}
+
+/// The package of a lowering that deferred nothing.
+fn decided(lowered: PendingPolicyPackage) -> Result<LoweredPackage, LoweringError> {
+    let (package, pending) = lowered.into_parts();
+    // `Refuse` and a policy unit leave no domain waiting. One that does wait has no issuer to publish.
+    match pending.first() {
+        None => Ok(package),
+        Some(domain) => Err(LoweringError::new(&domain.selection, "domain access policy has no issuer decision")),
+    }
+}
+
+/// Lower the closed execution of one selected access policy: the selected
+/// `plan` machine and every body its calls reach, in the package that selects
+/// it. For `domain i32::Locked access Rule` that is `Rule::plan` and the
+/// toolchain's `access\new_plan`, each under the package that declares it,
+/// with the data they store.
+///
+/// This is the ordinary package lowering with two differences. Only the
+/// selected machine is a root, so no other machine of the package is in the
+/// unit unless the plan calls it. A domain that selects an access policy is
+/// left out, because this unit is what such a plan is computed from. The unit
+/// runs nothing, validates no plan and grants no issuance.
+///
+/// The returned [`PolicyUnit`] keeps the package together with the invocation
+/// preparation froze for this selection. Its package cannot be replaced, so
+/// the checker and the interpreter judge and run exactly these bodies, and the
+/// driver can match an execution receipt to them by address.
+///
+/// `None` means the selected machine has no closed body here: it is still an
+/// open template, for example because its body holds a value at its region
+/// that has no region slot. A refusal inside the closure is an error.
+pub fn lower_selected_policy_unit(
+    prepared: &PreparedTrees<'_>,
+    selection: &omega_typed::AccessPolicySelection,
+) -> Result<Option<PolicyUnit>, LoweringError> {
+    if !prepared.typed().access_policies.contains(selection) {
+        return Err(LoweringError::new(&selection.site, "access policy selection is absent from the prepared package"));
+    }
+    let unit = decided(lower(prepared, Some(selection), SelectedPolicies::Refuse)?)?;
+    let plan = crate::identity::declaration(&selection.plan_machine, &selection.site)?;
+    let mut closed = unit
+        .machines
+        .iter()
+        .enumerate()
+        .filter(|(_, machine)| machine.declaration == plan && machine.arguments.is_empty());
+    let Some((position, _)) = closed.next() else {
+        return Ok(None);
+    };
+    // One entry: an answer names the body that ran by its address.
+    if closed.next().is_some() {
+        return Err(LoweringError::new(&selection.site, "selected access policy has more than one closed body"));
+    }
+    PolicyUnit::new(prepared, selection, unit, position).map(Some)
+}
+
+fn lower(
+    prepared: &PreparedTrees<'_>,
+    unit: Option<&omega_typed::AccessPolicySelection>,
+    selected: SelectedPolicies,
+) -> Result<PendingPolicyPackage, LoweringError> {
     let typed = prepared.typed();
     let trees: Vec<_> = typed.trees().collect();
     let signature_by_declaration: HashMap<_, _> = typed
@@ -33,14 +126,21 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
     let mut catalog_declarations = Vec::new();
     let library_trees: Vec<_> = typed
         .library
-        .filter(|_| !typed.external_completions.is_empty())
         .into_iter()
         .flat_map(|library| library.trees())
         .collect();
+    // Each package's own declarations decide which of its records keep a
+    // type row while taking lifetime arguments.
+    let region_data = regions::RegionData::of_package(typed, &trees);
+    let library_regions = typed
+        .library
+        .map_or_else(|| regions::RegionData::of_package(typed, &[]), |library| regions::RegionData::of_package(library, &library_trees));
     let mut data_schemas = Vec::new();
     let mut aliases = Vec::new();
     let mut domain_schemas = Vec::new();
     let mut domain_templates = Vec::new();
+    // The domains that select a policy, in the order their files declare them.
+    let mut pending_domains = Vec::new();
     let mut trait_schemas = Vec::new();
     for tree in &trees {
         let file = tree.resolved().file;
@@ -80,11 +180,11 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
             } else if kind == NodeKind::MathLet {
                 mathematics.push(crate::declarations::mathematics::lower(typed, tree, child, &math_interfaces)?);
             } else if kind == NodeKind::Data {
-                if let Some(template) = crate::declarations::data_templates::read(prepared, tree, child, &mut declarations)? {
+                if let Some(template) = crate::declarations::data_templates::read(prepared, tree, child, &mut declarations, &region_data)? {
                     data_templates.push(template);
                     continue;
                 }
-                match data::read_data(prepared, tree, child, &mut declarations)? {
+                match data::read_data(prepared, tree, child, &mut declarations, &region_data)? {
                     data::DataDeclaration::Schema(schema) => data_schemas.push(schema),
                     data::DataDeclaration::Alias(alias) => aliases.push(alias),
                 }
@@ -93,7 +193,21 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
             } else if kind == NodeKind::Trait {
                 trait_schemas.push(crate::declarations::traits::read_trait(prepared, tree, child, &signature_by_declaration)?);
             } else if kind == NodeKind::Domain {
-                let schema = domains::read_domain(prepared, tree, child)?;
+                // A policy's unit is what a domain's plan is computed from, so
+                // it publishes no domain that selects a policy. A validation
+                // recorded for such a domain does not put it in the unit.
+                if unit.is_some()
+                    && tree
+                        .resolved()
+                        .declaration_at(child)
+                        .is_some_and(|domain| typed.access_policies.iter().any(|policy| &policy.domain == domain))
+                {
+                    continue;
+                }
+                let schema = domains::read_domain(prepared, tree, child, selected)?;
+                if schema.policy.is_some() {
+                    pending_domains.push(schema.declaration);
+                }
                 if matches!(schema.carrier, ValueType::Parameter { .. }) {
                     domain_templates.push(schema.into_template()?);
                 } else {
@@ -104,38 +218,24 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
             }
         }
     }
+    if let Some(selection) = unit {
+        let required = typed.conformance_targets.get(&selection.policy)
+            .ok_or_else(|| LoweringError::new(&selection.site, "selected policy lacks its checked trait application"))?;
+        if !trait_schemas.iter().any(|schema| schema.declaration == &required.declaration) {
+            let (tree, node) = library_trees.iter().find_map(|tree| {
+                tree.resolved().declaration_nodes().find(|(_, declaration)| *declaration == &required.declaration)
+                    .map(|(node, _)| (tree, node))
+            }).ok_or_else(|| LoweringError::new(&selection.site, "policy execution unit lacks the selected trait definition"))?;
+            let signatures = tree.forest().signatures.iter().map(|signature| (&signature.machine, signature.as_ref())).collect();
+            trait_schemas.push(crate::declarations::traits::read_trait(prepared, tree, node, &signatures)?);
+        }
+    }
     for constant in &typed.constants {
         if prepared.open_target_constant(&constant.declaration).is_some() {
             return Err(LoweringError::new(
                 &constant.initializer.expression,
                 "constant requires a closed target before lowering",
             ));
-        }
-    }
-    // A terminal call has no normal successor, but its signature still
-    // publishes an ordinary data type with its defining library predicate.
-    let required: std::collections::BTreeSet<_> = typed
-        .external_completions
-        .iter()
-        .filter_map(|completion| signature_by_declaration.get(&completion.requirement))
-        .filter_map(|sig| match &sig.result {
-            ValueType::Nominal(id) => Some(id.as_ref()),
-            _ => None,
-        })
-        .collect();
-    for tree in &library_trees {
-        for (node, id) in tree.resolved().declaration_nodes() {
-            if id.kind != NodeKind::Data || !required.contains(id) {
-                continue;
-            }
-            let mut nested = Vec::new();
-            let data::DataDeclaration::Schema(schema) = data::read_data(prepared, tree, node, &mut nested)? else {
-                return Err(LoweringError::new(&site_at(tree, node), "imported nominal type has no data declaration"));
-            };
-            if !nested.is_empty() {
-                return Err(LoweringError::new(&schema.site, "imported data requires its nested declarations"));
-            }
-            data_schemas.push(schema);
         }
     }
     theorems.sort_unstable_by(|(_, _, a), (_, _, b)| a.declaration.cmp(&b.declaration));
@@ -151,9 +251,18 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
         (sig, theorem)
     }).unzip();
     signatures.sort_unstable_by(|a, b| a.machine.cmp(&b.machine));
-    let instances = super::applications::plan(prepared, &signatures, &trees, typed)?;
+    // A machine can hold a record of this package and one of its library,
+    // such as the toolchain's `TypeSchema<'t>`. Each package judged its own.
+    let machine_regions = &region_data.with(&library_regions);
+    let only_root = unit.map(|selection| &selection.plan_machine);
+    let instances = super::applications::plan(prepared, &signatures, &trees, &library_trees, typed, machine_regions, only_root)?;
     let members = crate::declarations::members::plan(typed, &trees, &instances, &signature_by_declaration)?;
-    let machine_templates = crate::declarations::machine_templates::plan(prepared, &trees, &signatures, &instances, &trait_schemas)?;
+    // A unit holds closed bodies only. The package's open templates stay with the package.
+    let machine_templates = if unit.is_some() {
+        Vec::new()
+    } else {
+        crate::declarations::machine_templates::plan(prepared, &trees, &signatures, &instances, &trait_schemas)?
+    };
     let effects: HashMap<_, _> = typed
         .machine_effects
         .iter()
@@ -182,21 +291,18 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
     for domain in &domain_schemas {
         carriers.push((domain.carrier, domain.site.clone()));
     }
-    let case_owners: std::collections::HashSet<_> = typed.case_owners.values().collect();
-    for data in &data_schemas {
-        // Normal cleanup can test an intact sum's discriminator even when
-        // the machine has no authored Boolean expression.
-        if case_owners.contains(data.declaration) {
-            carriers.push((&ValueType::Bool, data.site.clone()));
-        }
-        carriers.push((&data.carrier, data.site.clone()));
-        carriers.extend(data.value_indices.iter().map(|ty| (*ty, data.site.clone())));
-        for field in data.fields() {
-            carriers.push((data.field_carrier(field)?.0, field.site.clone()));
-        }
-    }
+    // The data rows keep this position in the type table. They are added once
+    // the machine bodies below have named the library data they store.
+    let data_carriers_at = carriers.len();
+    // A body can hold data that no carrier row mentions, such as a local of a
+    // library sum. Its type still needs that declaration's schema.
+    let mut body_types = Vec::new();
+    let no_rows = std::collections::HashSet::new();
     let retained = instances.iter().flat_map(|i| i.tree.guarded_rows.iter().copied()).collect();
-    for instance in &instances {
+    // Each cast that adds a pending domain: that domain's position in
+    // `pending_domains`, the instance that owns the cast, and the cast.
+    let mut introductions = Vec::new();
+    for (owner, instance) in instances.iter().enumerate() {
         let sig = &instance.signature;
         let tree = &instance.tree;
         for argument in &instance.application.arguments {
@@ -210,7 +316,9 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
             .ok_or_else(|| LoweringError::new(&sig.site, "machine has no normalized effect row"))?;
         let realized_pause = super::callbacks::realized_pause(effect, &instance.callbacks, &signature_by_declaration, &effects, &stored_ceilings);
         headers.push(machine_header(prepared, instance, effect, realized_pause, &domain_schemas)?);
-        crate::declarations::crash_routes::check_invocations(prepared, sig, &retained)?;
+        // The rows of an imported body are its library's, and so are their indices.
+        let own = std::ptr::eq(tree.forest(), typed);
+        crate::declarations::crash_routes::check_invocations(tree.forest(), sig, if own { &retained } else { &no_rows })?;
         let file = tree.resolved().file;
         let mut pending: Vec<_> = if sig.machine.kind == NodeKind::AsmMachine {
             vec![sig.node.node]
@@ -231,6 +339,14 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
                 );
             }
             for record in tree.semantics_at(node) {
+                // Typing records one establishment for each domain a cast adds
+                // to its operand. A value that arrives with the domain has none.
+                if let omega_typed::NodeSemantics::Obligation(row) = record
+                    && let omega_typed::ObligationKind::EstablishDomain(atom) = &row.kind
+                    && let Some(domain) = pending_domains.iter().position(|pending| **pending == atom.declaration)
+                {
+                    introductions.push((domain, owner, row.site.clone()));
+                }
                 // Restoring an indexed hole can branch on two captured selectors
                 // even when the source contains no Boolean expression.
                 if file.nodes[node].kind == NodeKind::Index && matches!(record,
@@ -259,7 +375,7 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
             if matches!(file.nodes[node].kind, NodeKind::Match | NodeKind::Transition)
                 && file.nodes[node].children.len() > 1
                 && branches::has_guards(file, node)
-                || typed.complete_case_patterns.contains_key(&file.node_id(node))
+                || tree.forest().complete_case_patterns.contains_key(&file.node_id(node))
             {
                 carriers.push((&ValueType::Bool, site_at(tree, node)));
             }
@@ -271,6 +387,7 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
                     omega_typed::NodeSemantics::Landing(e) => (&e.ty, &e.site),
                     _ => continue,
                 };
+                body_types.push(carrier);
                 if types::place_reference(carrier).is_some()
                     || types::supports_value_copy(carrier)
                     || types::local_domain_members(carrier, &domain_schemas).is_some()
@@ -294,12 +411,40 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
             carriers.push((slot_carrier(&sig.result, &sig.machine), site));
         }
     }
+    let local_fields = data_schemas.iter().flat_map(|data| {
+        data.fields()
+            .filter_map(|field| Some(data.field_carrier(field).ok()?.0))
+    });
+    let stored = carriers
+        .iter()
+        .map(|(carrier, _)| *carrier)
+        .chain(body_types)
+        .chain(local_fields);
+    let library_data = demanded_library_data(prepared, &library_trees, &library_regions, stored)?;
+    data_schemas.extend(library_data);
+    data_schemas.sort_unstable_by(|a, b| a.declaration.cmp(b.declaration));
+    let case_owners: std::collections::HashSet<_> = typed.case_owners.values().collect();
+    let mut data_carriers = Vec::new();
+    for data in &data_schemas {
+        // Normal cleanup can test an intact sum's discriminator even when
+        // the machine has no authored Boolean expression.
+        if case_owners.contains(data.declaration) {
+            data_carriers.push((&ValueType::Bool, data.site.clone()));
+        }
+        data_carriers.push((&data.carrier, data.site.clone()));
+        data_carriers.extend(data.value_indices.iter().map(|ty| (*ty, data.site.clone())));
+        for field in data.fields() {
+            data_carriers.push((data.field_carrier(field)?.0, field.site.clone()));
+        }
+    }
+    carriers.splice(data_carriers_at..data_carriers_at, data_carriers);
     let mut types = LoweringTypes::from_declarations(
         carriers.iter().map(|(carrier, _)| *carrier),
         data_schemas
             .iter()
             .map(|data| data.declaration.clone())
             .collect(),
+        data_schemas.iter().map(|data| data.lifetime_count).collect(),
         applications.iter().map(|a| a.carrier.clone()).collect(),
         &domain_schemas,
     )
@@ -393,6 +538,19 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
                 restricted_arguments,
                 signature: sig,
                 requirement_count: headers[index].0.requires.len(),
+                // A body with no static argument keeps its region binders. Its
+                // telescope is the defining forest's, which for an imported
+                // body is the library's.
+                regions: instance
+                    .application
+                    .arguments
+                    .is_empty()
+                    .then(|| instance.tree.forest().generic_parameters.get(&sig.machine))
+                    .flatten()
+                    .map_or(0, |telescope| {
+                        let lifetimes = telescope.parameters.iter().filter(|p| p.kind == NodeKind::LifetimeParam);
+                        lifetimes.count()
+                    }),
             },
         );
     }
@@ -436,7 +594,15 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
         }
         schema.cleanup_target = Some(target.machine);
     }
+    // The cast lowerer adds a pending domain only where the roster says so.
+    types.report_policy_introductions(
+        introductions
+            .iter()
+            .map(|(domain, owner, site)| (pending_domains[*domain].clone(), instances[*owner].signature.machine.clone(), site.clone()))
+            .collect(),
+    );
     super::write_only_cleanup::retain(&types, &mut data);
+    crate::machines::ownership::admit_sequence_elements(&types, &data)?;
     for (instance, (contract, operator)) in instances.iter().zip(headers) {
         let sig = &*instance.signature;
         let machine_id = callees.local[&sig.machine][instance.application.arguments.as_slice()].machine;
@@ -469,7 +635,7 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
         )?;
         crossing_owners.push(owners);
         machines.push(LoweredMachine {
-            regions: regions::signature(sig, typed.generic_parameters.get(&sig.machine))?,
+            regions: regions::signature(sig, instance.tree.forest().generic_parameters.get(&sig.machine), machine_regions)?,
             operator,
             arguments: instance
                 .application
@@ -526,12 +692,38 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
     let types = types.finish(&domain_catalog)?;
     let mut domains = Vec::new();
     let mut domain_aliases = Vec::new();
+    let mut pending = Vec::with_capacity(pending_domains.len());
     for declaration in domain_catalog.into_values() {
         match declaration {
-            domains::DomainDeclaration::Named(domain) => domains.push(domain),
+            domains::DomainDeclaration::Named { row, policy: None } => domains.push(domains::unrestricted(row)),
+            // The package publishes no row for this domain until its plan is answered.
+            domains::DomainDeclaration::Named { row, policy: Some(selection) } => {
+                let position = pending_domains.iter().position(|pending| **pending == selection.domain);
+                let position = position.ok_or_else(|| LoweringError::new(&selection.site, "pending access policy has no declared domain"))?;
+                let mut casts: Vec<_> = introductions
+                    .iter()
+                    .filter(|(domain, _, _)| *domain == position)
+                    .map(|(_, owner, site)| PolicyIntroduction {
+                        machine: machines[*owner].id,
+                        declaration: machines[*owner].declaration.clone(),
+                        site: site.clone(),
+                    })
+                    .collect();
+                casts.sort_unstable_by(|left, right| (left.machine.get(), &left.site).cmp(&(right.machine.get(), &right.site)));
+                pending.push((
+                    position,
+                    PendingPolicyDomain {
+                        source: selection.domain.clone(),
+                        selection: selection.site.clone(),
+                        row,
+                        introductions: casts,
+                    },
+                ));
+            }
             domains::DomainDeclaration::Alias(alias) => domain_aliases.push(alias),
         }
     }
+    pending.sort_unstable_by_key(|(position, _)| *position);
     catalog_declarations.sort_unstable();
     let mut package = LoweredPackage {
         catalog_declarations,
@@ -553,5 +745,66 @@ pub fn lower_package(prepared: &PreparedTrees<'_>) -> Result<LoweredPackage, Low
         machines,
     };
     crate::declarations::ranking::bind_component_edges(&mut package)?;
-    Ok(package)
+    Ok(PendingPolicyPackage::new(package, pending.into_iter().map(|(_, domain)| domain).collect()))
+}
+
+/// Read the library data that `stored` types hold, each from the file that
+/// declares it. `machine keep(e: Exposure) -> Exposure { e }` needs the
+/// toolchain's `Exposure`. `FieldAccess` also needs the `Exposure`,
+/// `ExternalRead` and `AtomicOperations` its cases store.
+///
+/// A type demands a declaration by naming it, so a library declaration that
+/// no closed body or local declaration names is not read. An open template
+/// names library types by declaration and contributes no type here, so a
+/// package of templates publishes none. Each schema keeps the package and
+/// path of its defining file, and its `requires` clauses come from that
+/// file's own typed facts.
+fn demanded_library_data<'a: 'input, 'input>(
+    prepared: &'a PreparedTrees<'_>,
+    library_trees: &'a [omega_typed::TypedTree<'a>],
+    library_regions: &'a regions::RegionData<'a>,
+    stored: impl Iterator<Item = &'input ValueType>,
+) -> Result<Vec<data::DataSchema<'a>>, LoweringError> {
+    let named = |carrier: &'input ValueType| {
+        carrier
+            .components()
+            .filter_map(|part| Some(part.nominal_parts()?.0))
+    };
+    // Most bodies name the same few types many times, and most of those are local.
+    let mut pending: Vec<_> = stored.flat_map(named).collect();
+    pending.sort_unstable();
+    pending.dedup();
+    let mut declared: Vec<_> = library_trees
+        .iter()
+        .flat_map(|tree| {
+            let nodes = tree.resolved().declaration_nodes();
+            nodes
+                .filter(|(_, id)| id.kind == NodeKind::Data)
+                .map(move |(node, id)| (id, tree, node))
+        })
+        .collect();
+    declared.sort_unstable_by_key(|&(id, _, _)| id);
+    let mut schemas: Vec<data::DataSchema<'a>> = Vec::new();
+    while let Some(id) = pending.pop() {
+        // Local data and local templates are not declared by the library.
+        let Ok(row) = declared.binary_search_by_key(&id, |&(id, _, _)| id) else {
+            continue;
+        };
+        if schemas.iter().any(|schema| schema.declaration == id) {
+            continue;
+        }
+        let (_, tree, node) = declared[row];
+        let mut nested = Vec::new();
+        let data::DataDeclaration::Schema(schema) = data::read_data(prepared, tree, node, &mut nested, library_regions)? else {
+            return Err(LoweringError::new(&site_at(tree, node), "imported nominal type has no data declaration"));
+        };
+        if !nested.is_empty() {
+            return Err(LoweringError::new(&schema.site, "imported data requires its nested declarations"));
+        }
+        for field in schema.fields() {
+            pending.extend(named(schema.field_carrier(field)?.0));
+        }
+        schemas.push(schema);
+    }
+    Ok(schemas)
 }

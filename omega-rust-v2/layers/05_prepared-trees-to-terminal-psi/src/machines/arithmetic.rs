@@ -296,6 +296,11 @@ pub(crate) fn folded_float(
             }
         }
     }
+    // Preparation lands floats for the package it prepared, keyed by that
+    // package's nodes. A library body's node would select another literal.
+    if !std::ptr::eq(tree.forest(), prepared.typed()) {
+        return Err(unsupported_node(file, node, "float landing has no single prepared value"));
+    }
     match prepared.landed_float(file.node_id(node), format) {
         Some(omega_prepared::PreparedFloat::Binary32(bits)) => Ok(Some(crate::IeeeFloatBits::Binary32(bits))),
         Some(omega_prepared::PreparedFloat::Binary64(bits)) => Ok(Some(crate::IeeeFloatBits::Binary64(bits))),

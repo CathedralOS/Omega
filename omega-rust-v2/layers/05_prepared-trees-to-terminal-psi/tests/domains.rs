@@ -342,10 +342,14 @@ fn inherited_subject_cast_reads_the_parent_qualified_value_in_the_child_predicat
 }
 
 #[test]
-fn domain_access_refusal_identifies_the_authored_policy() {
+fn the_returned_empty_issuer_list_is_published_on_its_domain() {
     let source = include_str!("fixtures/domain_access/empty-issuers/policy.omg");
-    sources::refuse_built_fixture("domain_access/empty-issuers", "policy.omg", source,
-        sources::unique_span(source, "access Rule"), "domain access policy needs admitted execution of the selected plan for its semantic schema");
+    let (_, lowered) = sources::lower_built_fixture("domain_access/empty-issuers", "policy.omg", source);
+    let [domain] = lowered.domains.as_slice() else { panic!("one policy domain") };
+    assert_eq!(domain.declaration.path, "i32::Locked");
+    spec_corpus::observe_handoff!(psi "psi-output/executed-empty-domain",
+        assert_eq!((domain.declaration.path.as_str(), domain.issuers), ("i32::Locked", omega_psi::DomainIssuers::Nobody)),
+    );
 }
 
 #[test]

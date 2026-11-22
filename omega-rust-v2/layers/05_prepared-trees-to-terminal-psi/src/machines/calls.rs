@@ -44,6 +44,9 @@ pub(crate) struct Callee<'a> {
     pub callbacks: &'a [crate::lowering::callbacks::Callback<'a>],
     pub restricted_arguments: Vec<(omega_typed::RequirementSlot, DeclarationId)>,
     pub requirement_count: usize,
+    /// How many region binders this body has (`LoweredMachine::regions`).
+    /// Nonzero only for the one body of a machine whose binders are all regions.
+    pub regions: usize,
 }
 
 pub(crate) fn record_acknowledgement(
@@ -84,6 +87,64 @@ pub(crate) fn owe(
     crate::declarations::contracts::call_requirements(call, owed.count)
 }
 
+/// Publish the regions a call applies, at its final site. A call of a machine
+/// without region binders applies none and gets no row.
+pub(crate) fn apply_regions(
+    body: &mut crate::MachineBody,
+    call: crate::CallSite,
+    arguments: Vec<crate::CallRegion>,
+) {
+    if !arguments.is_empty() {
+        body.call_regions.push(crate::CallRegions { call, arguments });
+    }
+}
+
+/// The region each lifetime argument of `call` applies, in the callee's
+/// binder order. Typing records the argument on every such call, written or
+/// elided, as in `first::<'u>(cell)` inside `relay<'u>`.
+///
+/// An argument that names the calling machine's region binder becomes that
+/// binder's ordinal. The binder has one only when the caller is itself the
+/// one body of a region-only machine.
+///
+/// An argument typing inferred inside the caller's body names no binder, as
+/// for `size(held)` after `let held = Schema { storage: bytes };`. Psi gets no
+/// region name for it. The row says the call's operands carry the region, so
+/// the callee must have a parameter that names this binder. `select_direct_call`
+/// then requires each such operand's checked type to be the formal at exactly
+/// these arguments, and the operand's defining operation names its backing.
+/// An inferred region that reaches only the callee's result has no operand to
+/// read it from and is refused.
+///
+/// The planner admits no other argument, so a disagreement here is a refusal,
+/// never a guess.
+fn region_arguments(
+    call: &omega_typed::TypedCall,
+    caller: &TypedSignature,
+    callee: &Callee<'_>,
+    callees: &Callees<'_>,
+    site: &omega_typed::Site,
+) -> Result<Vec<crate::CallRegion>, LoweringError> {
+    if call.type_arguments.len() != callee.regions {
+        return Err(LoweringError::new(site, "call lacks one region argument for each region of its callee"));
+    }
+    let own = callees
+        .local
+        .get(&caller.machine)
+        .and_then(|bodies| bodies.get(&[][..]))
+        .map_or(0, |body| body.regions);
+    call.type_arguments
+        .iter()
+        .enumerate()
+        .map(|(binder, argument)| match argument {
+            ValueType::Parameter { owner, index } if owner.as_ref() == &caller.machine && *index < own => Ok(crate::CallRegion::Binder(*index)),
+            ValueType::InferredLifetime { .. } if crate::declarations::regions::parameter_carries(callee.signature, binder) => Ok(crate::CallRegion::Operands),
+            ValueType::InferredLifetime { .. } => Err(LoweringError::new(site, "call applies an inferred region that none of its operands carries")),
+            _ => Err(LoweringError::new(site, "region argument is not a region binder of the calling machine")),
+        })
+        .collect()
+}
+
 /// Once selection is complete, ordinary and terminal calls use the same
 /// operand lowering for static targets and runtime descriptors.
 pub(super) struct SelectedCall<'a> {
@@ -91,6 +152,8 @@ pub(super) struct SelectedCall<'a> {
     pub callee: crate::CallTarget,
     pub operands: Vec<(usize, &'a ValueType)>,
     pub owed: OwedClauses,
+    /// The regions this call applies to a callee with region binders.
+    pub regions: Vec<crate::CallRegion>,
 }
 
 pub(super) fn select_call<'a>(
@@ -122,6 +185,7 @@ fn select_direct_call<'a>(
     let mut refinements = Vec::new();
     let mut evidence = Vec::new();
     let mut crash_coverage = Vec::new();
+    let mut returned_at_region = None;
     for record in tree.semantics_at(node) {
         match record {
             NodeSemantics::Call(call) if call.use_site == CallUse::Execution => {
@@ -146,6 +210,14 @@ fn select_direct_call<'a>(
                         && machine == &caller.machine
                         && obligation.node == file.node_id(node)
                         && obligation.site == site => {}
+                // A result at one of the caller's regions can carry a loan out
+                // of the caller. Whether this call applies regions is known
+                // only once its callee is selected, below.
+                ObligationKind::ReturnBorrow { machine }
+                    if returned_at_region.is_none() && machine == &caller.machine && obligation.node == file.node_id(node) && obligation.site == site =>
+                {
+                    returned_at_region = Some(obligation);
+                }
                 ObligationKind::CrashCoverage { machine, cause }
                     if machine == &caller.machine && obligation.node == file.node_id(node) && obligation.site == site =>
                 {
@@ -173,6 +245,7 @@ fn select_direct_call<'a>(
         return Err(error("selected layout query requires target lowering"));
     }
 
+    let mut regions = Vec::new();
     let (target, signature, requirement_count, callbacks, possible) = if let Some(key) = crate::declarations::members::Key::from_call(call) {
         let &(index, signature, count, pause) = callees
             .members
@@ -189,11 +262,21 @@ fn select_direct_call<'a>(
         if call.evidence.is_some() || !call.enclosing_arguments.is_empty() {
             return Err(error("call lacks an exact applied requirement owner"));
         }
+        // A machine whose binders are all regions has one body, keyed by no
+        // static argument. Every call selects that body and names its regions
+        // beside the call instead of in the machine identity.
         let callee = callees
             .local
             .get(&call.machine)
-            .and_then(|entries| entries.get(call.type_arguments.as_slice()))
+            .and_then(|bodies| {
+                bodies
+                    .get(call.type_arguments.as_slice())
+                    .or_else(|| bodies.get(&[][..]).filter(|body| body.regions != 0))
+            })
             .ok_or_else(|| error("selected callee has no local machine identity"))?;
+        if callee.regions != 0 {
+            regions = region_arguments(call, caller, callee, callees, &site)?;
+        }
         // The machine ID on the call leads to the ordered static arguments in Psi.
         // Match the obligations to those exact selected pairs, including multiplicity.
         for (bound, selected) in &callee.restricted_arguments {
@@ -249,13 +332,31 @@ fn select_direct_call<'a>(
         .find(|(invocation, _)| invocation.node == call.node)
         .map_or(signature.crash_ceiling.as_deref(), |(invocation, _)| invocation.contract.crash_ceiling.as_deref());
     crate::declarations::crash_routes::check_call_coverage(&site, declared, &crash_coverage)?;
-    if signature.machine != call.machine || signature.result != call.result || !typed_result || &call.result != expected {
+    if let Some(obligation) = returned_at_region
+        && regions.is_empty()
+    {
+        return Err(LoweringError::new(
+            &obligation.site,
+            format!("unsupported call obligation: {:?}", obligation.kind),
+        ));
+    }
+    // The callee's signature names its own region binders. This call's types
+    // name the regions it applies, so compare the signature at those regions.
+    let application = (!regions.is_empty()).then(|| omega_typed::MachineApplication {
+        machine: Box::new(call.machine.clone()),
+        arguments: call.type_arguments.clone(),
+        enclosing_arguments: vec![],
+    });
+    let at_regions = |declared: &ValueType| application.as_ref().map(|application| application.instantiate(declared));
+    let result_agrees = at_regions(&signature.result).map_or(signature.result == call.result, |result| result == call.result);
+    if signature.machine != call.machine || !result_agrees || !typed_result || &call.result != expected {
         return Err(error("selected call result disagrees with its normal continuation"));
     }
+    let declared_result = crate::declarations::regions::slot_carrier(&signature.result, &signature.machine);
     if signature.result != ValueType::NoResult
-        && !(types.can_forward_value(&signature.result)
-            || crate::lowering::types::contains_nominal_value(&signature.result)
-            || (matches!(target, crate::CallTarget::Machine(_)) && crate::lowering::types::place_reference(&signature.result).is_some()))
+        && !(types.can_forward_value(declared_result)
+            || crate::lowering::types::contains_nominal_value(declared_result)
+            || (matches!(target, crate::CallTarget::Machine(_)) && crate::lowering::types::place_reference(declared_result).is_some()))
     {
         return Err(error("call result requires unsupported carrier lowering"));
     }
@@ -276,14 +377,28 @@ fn select_direct_call<'a>(
         {
             return Err(error("selected operand disagrees with its argument occurrence or formal"));
         }
+        let stored = crate::declarations::regions::slot_carrier(formal, &signature.machine);
         if matches!(formal, ValueType::Callable(_)) && types.id_for(formal).is_ok() {
             super::runtime_calls::check_callable_operand(tree, caller, applied)?;
         } else if applied.callable.is_some()
-            || !(types.can_forward_value(formal) || crate::lowering::types::contains_nominal_value(formal) || crate::lowering::types::place_reference(formal).is_some())
+            || !(types.can_forward_value(stored) || crate::lowering::types::contains_nominal_value(stored) || crate::lowering::types::place_reference(stored).is_some())
         {
             return Err(LoweringError::new(&applied.site, "call operand requires unsupported carrier lowering"));
         }
-        operands.push((argument, formal));
+        // The operand is lowered at the type typing checked for it. Under
+        // applied regions that is the formal at this call's regions, which the
+        // argument's own checked row must state.
+        let carrier = match at_regions(formal).filter(|at_call| at_call != formal) {
+            None => formal,
+            Some(at_call) => tree
+                .semantics_at(argument)
+                .find_map(|row| match row {
+                    NodeSemantics::Expression(e) if e.static_argument_slot.is_none() && e.ty == at_call => Some(&e.ty),
+                    _ => None,
+                })
+                .ok_or_else(|| LoweringError::new(&applied.site, "call operand disagrees with its formal at the applied regions"))?,
+        };
+        operands.push((argument, carrier));
     }
 
     if (possible.block && !call.acknowledgements.block) || (possible.suspend && !call.acknowledgements.suspend) {
@@ -297,5 +412,6 @@ fn select_direct_call<'a>(
         callee: target,
         operands,
         owed,
+        regions,
     })
 }

@@ -148,3 +148,5 @@ affine replacement through a write-only loan	checker-input	psi-output/write-only
 descriptor cleanup for write-only replacement	checker-input	psi-output/write-only-descriptor-replacement
 float arithmetic in a contract predicate	product	psi-output/float-arithmetic-predicate
 restoration through an unproved selector	checker-input	psi-output/guarded-selector-disposal
+reconstruct a record from its stored view	checker-input	psi-output/rebuilt-stored-view
+call with an inferred body-local region	checker-input	psi-output/operand-carried-call-region

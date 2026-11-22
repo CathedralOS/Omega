@@ -4,6 +4,7 @@ use omega_syntax::NodeKind;
 use omega_typed::{DataProperties, Site, TypedField, TypedTree, TypedTrees, ValueType};
 
 use crate::declarations::contracts::{ClauseOwner, lower_clause};
+use crate::declarations::regions::{RegionData, Stored};
 use crate::{ContractClause, LoweringError, LoweringTypes, site_at};
 
 use crate::{AliasExpansion, AliasTarget, DataId, LoweredAlias, LoweredCase, LoweredData, LoweredField};
@@ -53,14 +54,24 @@ impl PendingAlias<'_> {
     }
 }
 
+/// Where one field keeps the lifetime binders of its declaration: the binder
+/// of a stored reference, and the binders that fill those of the record the
+/// field stores or refers to through that reference.
+#[derive(Default)]
+pub(crate) struct FieldRegions {
+    pub lifetime: Option<usize>,
+    pub aggregate_lifetimes: Vec<usize>,
+}
+
 pub(crate) struct DataSchema<'a> {
     forest: &'a TypedTrees<'a>,
+    regions: &'a RegionData<'a>,
     pub carrier: ValueType,
     pub declaration: &'a DeclarationId,
     pub site: Site,
     public: bool,
     properties: DataProperties,
-    lifetime_count: usize,
+    pub lifetime_count: usize,
     pub value_indices: Vec<&'a ValueType>,
     requires: Vec<ContractClause>,
     fields: &'a [TypedField],
@@ -77,8 +88,8 @@ impl<'a> DataSchema<'a> {
     pub(crate) fn field_carrier(
         &self,
         field: &'a TypedField,
-    ) -> Result<(&'a ValueType, Option<usize>), LoweringError> {
-        stored_field(self.declaration, self.lifetime_count, field)
+    ) -> Result<(&'a ValueType, FieldRegions), LoweringError> {
+        stored_field(self.declaration, self.lifetime_count, field, self.regions)
     }
 
     pub(crate) fn lower(
@@ -91,12 +102,13 @@ impl<'a> DataSchema<'a> {
             fields
                 .iter()
                 .map(|field| {
-                    let (storage, lifetime) = stored_field(self.declaration, self.lifetime_count, field)?;
+                    let (storage, FieldRegions { lifetime, aggregate_lifetimes }) = stored_field(self.declaration, self.lifetime_count, field, self.regions)?;
                     let carrier = types
                         .id_for(storage)
                         .map_err(|error| LoweringError::new(&field.site, error.to_string()))?;
                     Ok(LoweredField {
                         lifetime,
+                        aggregate_lifetimes,
                         declaration: crate::identity::declaration(&field.declaration, &field.site)?,
                         carrier,
                         site: field.site.clone(),
@@ -152,6 +164,7 @@ pub(crate) fn read_data<'a>(
     tree: &'a TypedTree<'_>,
     node: usize,
     nested: &mut Vec<usize>,
+    regions: &'a RegionData<'a>,
 ) -> Result<DataDeclaration<'a>, LoweringError> {
     let typed = tree.forest();
     let resolved = tree.resolved();
@@ -264,6 +277,7 @@ pub(crate) fn read_data<'a>(
     }
     Ok(DataDeclaration::Schema(DataSchema {
         forest:typed,
+        regions,
         carrier,
         declaration,
         site: site_at(tree, node),
@@ -444,20 +458,22 @@ pub(super) fn checked_fields<'a>(
     Ok(fields)
 }
 
+/// The type a field's row stores and the lifetime binders of `declaration`
+/// it keeps. The row erases a lifetime argument, so a field that names a
+/// binder anywhere the schema cannot record it has no concrete row.
 pub(super) fn stored_field<'a>(
     declaration: &DeclarationId,
     lifetime_count: usize,
     field: &'a TypedField,
-) -> Result<(&'a ValueType, Option<usize>), LoweringError> {
-    match &field.ty {
-        ValueType::AtLifetime(reference, region) => match region.as_ref() {
-            ValueType::Parameter { owner, index }
-                if owner.as_ref() == declaration && *index < lifetime_count && matches!(reference.as_ref(), ValueType::Reference(..)) =>
-            {
-                Ok((reference, Some(*index)))
-            }
-            _ => Err(LoweringError::new(&field.site, "stored reference lifetime requires its owning region binder")),
-        },
-        ty => Ok((ty, None)),
+    regions: &RegionData<'_>,
+) -> Result<(&'a ValueType, FieldRegions), LoweringError> {
+    match super::regions::stored(&field.ty, declaration, lifetime_count, regions) {
+        Some(Stored::Plain) => Ok((&field.ty, FieldRegions::default())),
+        Some(Stored::Reference { storage, binder, referent }) => Ok((storage, FieldRegions { lifetime: Some(binder), aggregate_lifetimes: referent })),
+        Some(Stored::Record(aggregate_lifetimes)) => Ok((&field.ty, FieldRegions { lifetime: None, aggregate_lifetimes })),
+        None if matches!(field.ty, ValueType::AtLifetime(..)) => {
+            Err(LoweringError::new(&field.site, "stored reference lifetime requires its owning region binder"))
+        }
+        None => Err(LoweringError::new(&field.site, "stored lifetime requires a reference or a record this package lowers at its binders")),
     }
 }

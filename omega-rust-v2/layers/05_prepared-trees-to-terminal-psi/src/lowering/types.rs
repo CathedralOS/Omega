@@ -68,26 +68,40 @@ pub(crate) struct DomainEstablishment {
     pub predicate: bool,
     /// The domain's subject carries a parent domain, so membership needs that parent.
     pub requires_parent: bool,
+    /// The domain selects an access policy, so who may add it to a value is
+    /// undecided here. A cast that adds it must be one the package reports.
+    pub selects_policy: bool,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct LoweringTypes {
     rows: Vec<TypeShape>,
     data_declarations: Vec<DeclarationId>,
+    /// How many lifetime binders each of `data_declarations` takes, when all
+    /// of its binders are lifetimes. Empty when no declaration registered any.
+    data_lifetimes: Vec<usize>,
     applied_data: std::collections::HashMap<ValueType, DataId>,
     domain_sets: Vec<Vec<AtomKey>>,
     domain_cleanups: std::collections::BTreeMap<DeclarationId, crate::MachineId>,
     indexed_referents: Vec<IndexedReferent>,
     /// What adding each local domain declaration must establish at a cast.
     domain_establishments: std::collections::BTreeMap<DeclarationId, DomainEstablishment>,
+    /// Each cast the package reports as adding a domain whose access policy is
+    /// unanswered: the domain, the machine that owns the cast, and the cast.
+    policy_introductions: Vec<(DeclarationId, DeclarationId, omega_typed::Site)>,
     /// Runtime callable contracts in declaration-site order; see `crate::declarations::callables`.
     callables: Vec<omega_typed::CallableType>,
 }
 
 impl LoweringTypes {
+    /// `data_lifetimes` pairs with `data_declarations`: the lifetime binder
+    /// count of each concrete declaration whose binders are all lifetimes,
+    /// and zero for any other. Such a declaration has one row, and each of its
+    /// applications at lifetimes shares it (`array_dimensions`).
     pub(crate) fn from_declarations<'a>(
         carriers: impl Iterator<Item = &'a ValueType> + Clone,
         data_declarations: Vec<DeclarationId>,
+        data_lifetimes: Vec<usize>,
         applications: Vec<ValueType>,
         domains: &[DomainSchema<'_>],
     ) -> Result<Self, (usize, TypeError)> {
@@ -123,10 +137,13 @@ impl LoweringTypes {
                 .map(|d| (d.declaration.clone(), DomainEstablishment {
                     predicate: d.has_predicates(),
                     requires_parent: !d.carrier.domains().is_empty(),
+                    selects_policy: d.policy.is_some(),
                 }))
                 .collect(),
+            policy_introductions: Vec::new(),
             rows: Vec::new(),
             data_declarations,
+            data_lifetimes,
             callables,
         }
         .intern_carriers(carriers)
@@ -136,17 +153,20 @@ impl LoweringTypes {
         mut self,
         carriers: impl IntoIterator<Item = &'a ValueType>,
     ) -> Result<Self, (usize, TypeError)> {
+        let carriers: Vec<&ValueType> = carriers.into_iter().collect();
         let mut leaves = Vec::new();
-        let mut frontiers: Vec<Vec<(usize, u64)>> = Vec::new();
-        let mut lengths = Vec::new();
-        for (index, carrier) in carriers.into_iter().enumerate() {
+        // One frontier per depth: the layer each carrier has at that distance
+        // from its leaf. An array and a sequence at the same depth share one.
+        let mut frontiers: Vec<Vec<(usize, Layer)>> = Vec::new();
+        let mut layers = Vec::new();
+        for (index, carrier) in carriers.iter().enumerate() {
             let leaf = self
-                .array_dimensions(carrier, &mut lengths)
+                .layers(carrier, &mut layers)
                 .map_err(|error| (index, error))?;
             leaves.push((leaf, index));
-            frontiers.resize_with(frontiers.len().max(lengths.len()), Vec::new);
-            for (frontier, length) in frontiers.iter_mut().zip(lengths.drain(..).rev()) {
-                frontier.push((index, length));
+            frontiers.resize_with(frontiers.len().max(layers.len()), Vec::new);
+            for (frontier, layer) in frontiers.iter_mut().zip(layers.drain(..).rev()) {
+                frontier.push((index, layer));
             }
         }
 
@@ -154,10 +174,13 @@ impl LoweringTypes {
         self.intern_frontier(&mut leaves, &mut resolved)?;
         for frontier in frontiers {
             leaves.clear();
-            leaves.extend(frontier.into_iter().map(|(index, length)| {
-                let element = resolved[index].expect("array element has already been interned");
-                (TypeShape::FixedArray { element, length }, index)
-            }));
+            for (index, layer) in frontier {
+                let element = resolved[index].expect("the element of a layer has already been interned");
+                let row = self
+                    .layer_row(layer, element, carriers[index])
+                    .map_err(|error| (index, error))?;
+                leaves.push((row, index));
+            }
             self.intern_frontier(&mut leaves, &mut resolved)?;
         }
         Ok(self)
@@ -167,13 +190,81 @@ impl LoweringTypes {
         &self,
         carrier: &ValueType,
     ) -> Result<TypeId, TypeError> {
-        let mut lengths = Vec::new();
-        let leaf = self.array_dimensions(carrier, &mut lengths)?;
+        let mut layers = Vec::new();
+        let leaf = self.layers(carrier, &mut layers)?;
         let mut id = self.id_for_shape(leaf)?;
-        for length in lengths.into_iter().rev() {
-            id = self.id_for_shape(TypeShape::FixedArray { element: id, length })?;
+        for layer in layers.into_iter().rev() {
+            id = self.id_for_shape(self.layer_row(layer, id, carrier)?)?;
         }
         Ok(id)
+    }
+
+    /// The leaf row of `carrier` and the layers around it, outermost first.
+    /// A layer is a fixed array or a by-value sequence `[T]`; the two nest in
+    /// any order. `array_dimensions` judges the leaf together with the arrays
+    /// directly above it, as it does for a carrier with no sequence.
+    fn layers(
+        &self,
+        mut carrier: &ValueType,
+        layers: &mut Vec<Layer>,
+    ) -> Result<TypeShape, TypeError> {
+        loop {
+            let mut below_arrays = carrier;
+            while let ValueType::Array(element, _) = below_arrays {
+                below_arrays = element;
+            }
+            let ValueType::Slice(element) = below_arrays else {
+                let mut lengths = Vec::new();
+                let leaf = self.array_dimensions(carrier, &mut lengths)?;
+                layers.extend(lengths.into_iter().map(Layer::Array));
+                return Ok(leaf);
+            };
+            while let ValueType::Array(inner, length) = carrier {
+                layers.push(Layer::Array(*length));
+                carrier = inner;
+            }
+            layers.push(Layer::Sequence);
+            carrier = element;
+        }
+    }
+
+    /// The row of one layer over the interned `element`. A sequence takes the
+    /// exact row of its element. The element may be anything whose completed
+    /// value the constructor can take as one place and that the sequence can
+    /// share between its copies: a scalar (in its own home), a record or sum,
+    /// a shared reference or view, a fixed array or another sequence. A
+    /// domain-qualified value, a bare callable and an exclusive loan carrier
+    /// have no such form here, so a sequence of one has no row.
+    fn layer_row(
+        &self,
+        layer: Layer,
+        element: TypeId,
+        carrier: &ValueType,
+    ) -> Result<TypeShape, TypeError> {
+        match layer {
+            Layer::Array(length) => Ok(TypeShape::FixedArray { element, length }),
+            Layer::Sequence => match self.get(element) {
+                Some(
+                    TypeShape::PrimitiveScalar(_)
+                    | TypeShape::Nominal(_)
+                    | TypeShape::SharedByteView
+                    | TypeShape::SharedElementView { .. }
+                    | TypeShape::ScalarReference {
+                        access: crate::ReferenceAccess::Shared,
+                        ..
+                    }
+                    | TypeShape::SharedQualifiedScalarReference { .. }
+                    | TypeShape::NominalReference {
+                        access: crate::ReferenceAccess::Shared,
+                        ..
+                    }
+                    | TypeShape::IndexedSharedReference(_)
+                    | TypeShape::ElementSequence { .. }
+                    | TypeShape::FixedArray { .. },
+                ) => Ok(TypeShape::ElementSequence { element }),
+                _ => Err(TypeError::UnsupportedCarrier(carrier.to_string())),
+            },
+        }
     }
 
     pub(crate) fn parameter_type(
@@ -196,7 +287,7 @@ impl LoweringTypes {
     }
     pub(crate) fn finish(
         self,
-        declarations: &std::collections::BTreeMap<&DeclarationId, DomainDeclaration>,
+        declarations: &std::collections::BTreeMap<&DeclarationId, DomainDeclaration<'_>>,
     ) -> Result<omega_psi::TypeTable, crate::LoweringError> {
         let mut sets = Vec::with_capacity(self.domain_sets.len());
         for set in self.domain_sets {
@@ -204,7 +295,7 @@ impl LoweringTypes {
             for (id, arguments) in set {
                 // local_domain_members has already checked every identity against this catalog.
                 let domain = match &declarations[&id] {
-                    DomainDeclaration::Named(d) => d,
+                    DomainDeclaration::Named { row, .. } => row,
                     DomainDeclaration::Alias(a) => return Err(crate::LoweringError::new(&a.site, "a scalar qualification requires expanded named domains")),
                 };
                 // Each atom supplies one closed argument per head index. Entry and result
@@ -233,9 +324,10 @@ impl LoweringTypes {
         frontier: &mut [(TypeShape, usize)],
         resolved: &mut [Option<TypeId>],
     ) -> Result<(), (usize, TypeError)> {
-        // Every deeper array refers to an element with a greater ID than any
-        // shallower array uses. Sorting each depth therefore keeps all rows sorted.
-        frontier.sort_unstable();
+        // Every deeper layer refers to an element with a greater ID than any
+        // shallower layer uses. Sorting each depth by `row_order` therefore
+        // keeps all rows sorted for `id_for_shape`.
+        frontier.sort_unstable_by(|(left, at), (right, other)| row_order(left, right).then(at.cmp(other)));
         for &(shape, input_index) in frontier.iter() {
             let already_interned = self.rows.last() == Some(&shape);
             let row_index = if already_interned { self.rows.len() - 1 } else { self.rows.len() };
@@ -257,8 +349,12 @@ impl LoweringTypes {
         // Copying preserves every membership of the existing value. Copying a
         // descriptor preserves its selected application and contract.
         let leaf = array_leaf(carrier);
+        // Copying a by-value sequence copies its descriptor; the immutable
+        // elements stay in the backing its construction established.
         supports_value_copy(carrier)
-            || (matches!(leaf, ValueType::Qualified(base, _) if stored_scalar(base).is_ok()) || matches!(leaf, ValueType::Callable(_)))
+            || (matches!(leaf, ValueType::Qualified(base, _) if stored_scalar(base).is_ok())
+                || matches!(leaf, ValueType::Callable(_))
+                || is_element_sequence(carrier))
                 && self.id_for(carrier).is_ok()
     }
 
@@ -297,6 +393,19 @@ impl LoweringTypes {
         self.domain_establishments.get(declaration).copied()
     }
 
+    /// Record the casts the package will hand to its driver as introductions
+    /// of pending domains. The cast lowerer admits no other such cast.
+    pub(crate) fn report_policy_introductions(&mut self, introductions: Vec<(DeclarationId, DeclarationId, omega_typed::Site)>) {
+        self.policy_introductions = introductions;
+    }
+
+    /// Whether the package reports the cast at `site` in `machine` as adding `domain`.
+    pub(crate) fn reports_policy_introduction(&self, domain: &DeclarationId, machine: &DeclarationId, site: &omega_typed::Site) -> bool {
+        self.policy_introductions
+            .iter()
+            .any(|(reported, owner, cast)| reported == domain && owner == machine && cast == site)
+    }
+
     /// The Psi atom of one scalar domain application, with the same closed arguments
     /// the interned qualification set stores for it (`finish` checks their count).
     pub(crate) fn domain_atom(
@@ -324,7 +433,7 @@ impl LoweringTypes {
     ) -> Result<TypeId, TypeError> {
         let index = self
             .rows
-            .binary_search(&shape)
+            .binary_search_by(|row| row_order(row, &shape))
             .map_err(|_| TypeError::MissingCarrier(shape))?;
         TypeId::from_index(index).ok_or(TypeError::TooManyTypes)
     }
@@ -347,6 +456,13 @@ impl LoweringTypes {
                 .data_declarations
                 .binary_search(referent)
                 .map_err(|_| TypeError::UnsupportedCarrier(carrier.to_string()))?;
+            // A referent applied at lifetimes is its declaration's one row, as
+            // an owned value of it is below. The row forgets the arguments.
+            if let Some((_, ValueType::Applied(_, arguments))) = place_reference(carrier)
+                && self.data_lifetimes.get(index) != Some(&arguments.len())
+            {
+                return Err(TypeError::UnsupportedCarrier(carrier.to_string()));
+            }
             return Ok(TypeShape::NominalReference {
                 access,
                 referent: DataId::from_index(index),
@@ -403,6 +519,17 @@ impl LoweringTypes {
         if let Some(&id) = self.applied_data.get(carrier) {
             return Ok(TypeShape::Nominal(id));
         }
+        // A lifetime argument adds no layout, so every application of a
+        // lifetime-only record is that record's one row. The row forgets which
+        // region was applied. A machine signature keeps it in its
+        // `MachineRegion` slots, and a stored reference in the operation that
+        // supplied its field.
+        if let ValueType::Applied(declaration, arguments) = carrier
+            && let Ok(index) = self.data_declarations.binary_search(declaration)
+            && self.data_lifetimes.get(index).is_some_and(|&lifetimes| lifetimes != 0 && lifetimes == arguments.len())
+        {
+            return Ok(TypeShape::Nominal(DataId::from_index(index)));
+        }
         if let ValueType::Nominal(declaration) = carrier {
             let index = self
                 .data_declarations
@@ -413,6 +540,29 @@ impl LoweringTypes {
             stored_scalar(carrier).map(TypeShape::PrimitiveScalar)
         }
     }
+}
+
+/// One layer around a stored leaf: a fixed array of this length, or a
+/// by-value sequence.
+#[derive(Clone, Copy)]
+enum Layer {
+    Array(u64),
+    Sequence,
+}
+
+/// The order `LoweringTypes::rows` is kept in. Leaves come first in their
+/// derived order. A sequence or array row comes after the row of its element,
+/// so those order by element first: a deeper layer always sorts after a
+/// shallower one, whichever kind each is.
+fn row_order(
+    left: &TypeShape,
+    right: &TypeShape,
+) -> std::cmp::Ordering {
+    let element = |shape: &TypeShape| match shape {
+        TypeShape::ElementSequence { element } | TypeShape::FixedArray { element, .. } => Some(*element),
+        _ => None,
+    };
+    element(left).cmp(&element(right)).then_with(|| left.cmp(right))
 }
 
 pub(crate) fn local_domain_members<'a>(
@@ -494,8 +644,22 @@ fn array_leaf(mut carrier: &ValueType) -> &ValueType {
 
 pub(crate) fn nominal_reference(carrier: &ValueType) -> Option<(crate::ReferenceAccess, &DeclarationId)> {
     let (access, inner) = place_reference(carrier)?;
-    let ValueType::Nominal(id) = inner else { return None };
-    Some((access, id))
+    match inner {
+        ValueType::Nominal(id) => Some((access, id)),
+        other => lifetime_application(other).map(|id| (access, id)),
+    }
+}
+
+/// A record applied at lifetimes only, as far as the type shows: a region
+/// binder or a region typing inferred. The type table decides whether the
+/// declaration takes exactly that many lifetimes.
+fn lifetime_application(ty: &ValueType) -> Option<&DeclarationId> {
+    let ValueType::Applied(declaration, arguments) = ty else { return None };
+    let lifetimes = !arguments.is_empty()
+        && arguments
+            .iter()
+            .all(|argument| matches!(argument, ValueType::Parameter { .. } | ValueType::InferredLifetime { .. }));
+    lifetimes.then_some(declaration.as_ref())
 }
 
 pub(crate) fn place_reference(carrier: &ValueType) -> Option<(crate::ReferenceAccess, &ValueType)> {
@@ -505,7 +669,10 @@ pub(crate) fn place_reference(carrier: &ValueType) -> Option<(crate::ReferenceAc
     // and reborrows like any shared place reference; only a step that needs
     // the referent's schema refuses it.
     let shared_qualified = *access == omega_typed::Access::Shared && matches!(inner.as_ref(), ValueType::Qualified(base, _) if stored_scalar(base).is_ok());
-    if !matches!(inner.as_ref(), ValueType::Nominal(_)) && stored_scalar(inner).is_err() && !shared_qualified && shared_indexed_target(carrier).is_none() {
+    // A shared reference to a record applied at lifetimes refers to that
+    // record's one row, so it reads and forwards like a reference to a bare record.
+    let shared_record = *access == omega_typed::Access::Shared && lifetime_application(inner).is_some();
+    if !matches!(inner.as_ref(), ValueType::Nominal(_)) && stored_scalar(inner).is_err() && !shared_qualified && !shared_record && shared_indexed_target(carrier).is_none() {
         return None;
     }
     let access = match access {
@@ -590,6 +757,14 @@ pub(crate) fn uses_structural_place(carrier: &ValueType) -> bool {
     matches!(carrier.carrier(), ValueType::Array(..) | ValueType::Nominal(_) | ValueType::Applied(..))
         || is_reference_descriptor(carrier)
         || is_exclusive_element_view(carrier)
+        || is_element_sequence(carrier)
+}
+
+/// `[T]` held by value: an immutable sequence, not a borrowed `@[T]` view and
+/// not a fixed `[T; N]`. Whether its element has a type-table row is decided
+/// by `LoweringTypes::id_for`.
+pub(crate) fn is_element_sequence(carrier: &ValueType) -> bool {
+    matches!(carrier, ValueType::Slice(_))
 }
 
 pub(crate) fn supports_value_copy(carrier: &ValueType) -> bool {

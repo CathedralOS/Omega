@@ -80,7 +80,7 @@ impl Keys {
         use OperationKind::*;
         let mut reads = Vec::new();
         match op {
-            Constant(_) | ConstructCallableDescriptor { .. } | EstablishZeroedStructural => {}
+            Constant(_) | ConstructCallableDescriptor { .. } | DescribeMachine(_) | EstablishZeroedStructural => {}
             // An erased citation names its subjects without demanding them at runtime.
             ApplyTheorem(_) => {}
             Boolean { operands, .. } | Integer { operands, .. } | Float { operands, .. } | EstablishScalarArray { elements: operands } => {

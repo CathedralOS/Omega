@@ -25,7 +25,8 @@ pub(crate) fn lower_routes(
     contract: &Site,
     ceiling: Option<&[CrashCause]>,
 ) -> Result<Vec<CrashRoute>, LoweringError> {
-    let typed = prepared.typed();
+    // A contract's routes are published by the forest that declares it.
+    let typed = tree.forest();
     let file = tree.resolved().file;
     let mut published: Vec<_> = typed
         .crash_routes
@@ -143,11 +144,11 @@ pub(crate) fn check_call_coverage(
 /// name every published route of its callee exactly once, in route order. A
 /// closed callback row is retained only by its matching instance dependency.
 pub(crate) fn check_invocations(
-    prepared: &PreparedTrees<'_>,
+    forest: &TypedStage,
     caller: &TypedSignature,
     retained: &std::collections::HashSet<usize>,
 ) -> Result<(), LoweringError> {
-    check_routed_invocations(prepared.typed(), caller, false, retained)
+    check_routed_invocations(forest, caller, false, retained)
 }
 
 /// A template call keeps its exact callee declaration or binder and its

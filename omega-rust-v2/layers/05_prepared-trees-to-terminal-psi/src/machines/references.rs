@@ -22,7 +22,11 @@ pub(super) fn reference_operand(
     body: &MachineBody,
     result_binding: Option<&ValueType>,
 ) -> Result<Option<CallArgument>, LoweringError> {
-    let Some((access, wanted)) = crate::lowering::types::place_reference(formal) else {
+    // A formal at one of the calling machine's regions, as in
+    // `first::<'u>(cell)`, lends the same place as its plain reference. The
+    // region is the call's `CallRegions` argument, not part of the place.
+    let stored = crate::declarations::regions::slot_carrier(formal, &expressions.signature.machine);
+    let Some((access, wanted)) = crate::lowering::types::place_reference(stored) else {
         return Ok(None);
     };
     let tree = expressions.tree;
@@ -204,7 +208,7 @@ fn select_place<'a>(
         match (file.nodes[current].kind, file.nodes[current].children.as_slice(), field) {
             (NodeKind::Paren, [inner], None) => current = *inner,
             (NodeKind::FieldAccess, [base], Some(id)) => {
-                let (_, steps) = expressions.prepared.typed().place_path(file.node_id(current));
+                let (_, steps) = expressions.tree.forest().place_path(file.node_id(current));
                 let Some(step) = steps
                     .last()
                     .filter(|step| step.base == file.node_id(file.ungroup(*base)) && matches!(&step.projection,Some(Projection::Field(f)) if f.as_ref()==id))
@@ -245,7 +249,7 @@ fn select_place<'a>(
                 current = *base;
             }
             (NodeKind::Dereference, [base], None) => {
-                let (_, steps) = expressions.prepared.typed().place_path(file.node_id(current));
+                let (_, steps) = expressions.tree.forest().place_path(file.node_id(current));
                 let receiver = tree.semantics_at(*base).find_map(|row| match row {
                     NodeSemantics::Expression(expression) => expression.ty.reference_parts(),
                     _ => None,
@@ -363,8 +367,8 @@ pub(super) fn dispatch_cases(
         };
         super::body::check_container(tree, arm)?;
         let selected = expressions
-            .prepared
-            .typed()
+            .tree
+            .forest()
             .complete_case_patterns
             .get(&file.node_id(pattern));
         if selected.is_none() && file.nodes[pattern].kind != NodeKind::WildcardPattern {
@@ -477,7 +481,7 @@ pub(super) fn dispatch_cases(
 /// cleanup evidence. A `requires` clause does not change the cleanup, so it does
 /// not stop provisioning: the schema keeps the clause and the checker judges the
 /// binding's `ZeroValue` obligation against the all-zero value.
-fn zero_discardable_record(
+pub(super) fn zero_discardable_record(
     types: &crate::LoweringTypes,
     data: &[crate::LoweredData],
     root: crate::DataId,
@@ -552,8 +556,8 @@ pub(super) fn provision_local(
     let value = body.push_operation(OperationOutput::Structural(ty), crate::OperationKind::EstablishZeroedStructural, site);
     let OperationResult::Structural(home) = value else { unreachable!() };
     if expressions
-        .prepared
-        .typed()
+        .tree
+        .forest()
         .mutable_bindings
         .contains(&file.node_id(binder))
     {

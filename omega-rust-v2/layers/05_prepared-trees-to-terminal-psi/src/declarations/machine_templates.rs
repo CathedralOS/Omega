@@ -14,6 +14,18 @@ use omega_resolved::Symbol;
 use omega_syntax::NodeKind;
 use omega_typed::{CallUse, CallableType, InvocationTarget, NodeSemantics, ObligationKind, Site, TypedSignature, TypedTree, ValueType};
 
+/// The selection Psi publishes for `application`: its declaration, its
+/// operands and the checked operands of each enclosing generic machine. An
+/// open template's `Describe` step and a closed body's `DescribeMachine`
+/// carry this one record.
+pub(crate) fn selection(
+    typed: &omega_typed::TypedStage,
+    application: &omega_typed::MachineApplication,
+    site: &Site,
+) -> Result<crate::TemplateSelection, LoweringError> {
+    lexical::selection(typed, application, site)
+}
+
 fn result_type(
     ty: &ValueType,
     site: &Site,
@@ -441,9 +453,10 @@ fn lower(
     // A template needs some binder a caller supplies: a callable bound, a
     // static value, an operation record, or (for a nested declaration) the
     // enclosing machine's arguments. A telescope of lifetimes alone reaches
-    // this planner only when a lifetime sits inside another type, such as
-    // `TypeSchema<'t>`. Such a lifetime has no region on a concrete body
-    // (`regions::single_body`), so the template is its only Psi form.
+    // this planner only when one concrete body cannot name a lifetime as a
+    // region (`regions::single_body`): it sits in a type with no region slot,
+    // such as the toolchain's `TypeSchema<'t>`, or the body applies it at a
+    // call. The template is then the machine's only Psi form.
     let lifetimes_only = !parameters.is_empty()
         && parameters
             .iter()

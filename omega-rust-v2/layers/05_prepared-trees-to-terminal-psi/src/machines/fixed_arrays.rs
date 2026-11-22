@@ -42,7 +42,7 @@ pub(super) fn element_step(
     if inner.as_ref() != element || *length == 0 {
         return Err(LoweringError::new(&site, "owned element transfer disagrees with its nonempty receiver"));
     }
-    let (_, steps) = expressions.prepared.typed().place_path(file.node_id(node));
+    let (_, steps) = expressions.tree.forest().place_path(file.node_id(node));
     let expected = Projection::Index(file.node_id(selector));
     if steps
         .last()

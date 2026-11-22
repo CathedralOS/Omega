@@ -6,10 +6,54 @@ use omega_typed::{Site, TypedTree, ValueType};
 use crate::declarations::contracts::{ClauseOwner, lower_clause};
 use crate::{ContractClause, LoweringError, LoweringTypes, site_at};
 
+use crate::lowering::pending::IssuersPending;
 use crate::{LoweredDomain, LoweredDomainAlias};
-pub(crate) enum DomainDeclaration {
-    Named(LoweredDomain),
+pub(crate) enum DomainDeclaration<'a> {
+    /// Lowering decides no issuer, so the row states none. `policy` is the
+    /// selection whose executed plan decides it. Without one the domain has no
+    /// access plan and anyone may issue it.
+    Named {
+        row: LoweredDomain<crate::TypeId, IssuersPending>,
+        policy: Option<&'a omega_typed::AccessPolicySelection>,
+    },
     Alias(LoweredDomainAlias),
+}
+
+/// The published row of a domain that selects no access policy: it has no
+/// plan, so nothing restricts who may issue it.
+pub(crate) fn unrestricted(row: LoweredDomain<crate::TypeId, IssuersPending>) -> LoweredDomain {
+    // Every field but the issuer is the row as lowered.
+    let LoweredDomain {
+        parameters,
+        index_binders,
+        declaration,
+        carrier,
+        cleanup_target,
+        public,
+        requires,
+        issuers: IssuersPending,
+        site,
+    } = row;
+    LoweredDomain {
+        parameters,
+        index_binders,
+        declaration,
+        carrier,
+        cleanup_target,
+        public,
+        requires,
+        issuers: omega_psi::DomainIssuers::Unrestricted,
+        site,
+    }
+}
+
+/// What lowering does with a domain that selects an access policy.
+#[derive(Clone, Copy)]
+pub(crate) enum SelectedPolicies {
+    /// Refuse the package, with the reason the policy is unanswered.
+    Refuse,
+    /// Lower the row without an issuer and leave the decision to the driver.
+    Defer,
 }
 
 enum DomainDefinition {
@@ -22,12 +66,15 @@ pub(crate) struct DomainSchema<'a> {
     pub carrier: &'a ValueType,
     pub site: Site,
     public: bool,
+    /// The access policy this domain selects. Its executed plan says who may
+    /// introduce the qualification, and lowering does not have that plan.
+    pub(crate) policy: Option<&'a omega_typed::AccessPolicySelection>,
     parameters: Vec<crate::TemplateBinder>,
     index_binders: Vec<usize>,
     definition: DomainDefinition,
 }
 
-impl DomainSchema<'_> {
+impl<'a> DomainSchema<'a> {
     pub(crate) fn predicates(&self) -> Option<&[ContractClause]> {
         match &self.definition {
             DomainDefinition::Named(clauses) if self.parameters.is_empty() => Some(clauses),
@@ -48,6 +95,8 @@ impl DomainSchema<'_> {
             cleanup_target: None,
             public: self.public,
             requires,
+            // `read_domain` refuses a carrier-generic domain that selects a policy.
+            issuers: omega_psi::DomainIssuers::Unrestricted,
             site: self.site,
         })
     }
@@ -110,7 +159,7 @@ impl DomainSchema<'_> {
     pub(crate) fn lower(
         self,
         types: &LoweringTypes,
-    ) -> Result<DomainDeclaration, LoweringError> {
+    ) -> Result<DomainDeclaration<'a>, LoweringError> {
         let carrier = types
             .id_for(self.carrier)
             .map_err(|error| LoweringError::new(&self.site, error.to_string()))?;
@@ -118,16 +167,20 @@ impl DomainSchema<'_> {
         let public = self.public;
         let site = self.site;
         Ok(match self.definition {
-            DomainDefinition::Named(requires) => DomainDeclaration::Named(LoweredDomain {
-                parameters: self.parameters,
-                index_binders: self.index_binders,
-                cleanup_target: types.domain_cleanup(self.declaration),
-                declaration,
-                carrier,
-                public,
-                requires,
-                site,
-            }),
+            DomainDefinition::Named(requires) => DomainDeclaration::Named {
+                row: LoweredDomain {
+                    parameters: self.parameters,
+                    index_binders: self.index_binders,
+                    cleanup_target: types.domain_cleanup(self.declaration),
+                    declaration,
+                    carrier,
+                    public,
+                    requires,
+                    issuers: IssuersPending,
+                    site,
+                },
+                policy: self.policy,
+            },
             DomainDefinition::Alias(members) => DomainDeclaration::Alias(LoweredDomainAlias {
                 declaration,
                 carrier,
@@ -178,10 +231,39 @@ pub fn lower_selected_policy_definition(
     })
 }
 
+/// Why the domain of `selection` cannot be published while its policy has no
+/// admitted answer. The reason is how far that policy has come in `prepared`.
+/// [`crate::lower_package`] refuses the domain with this error, and a driver
+/// that defers the decision reports the same one for a domain it cannot answer.
+pub fn unanswered_policy_refusal(
+    prepared: &PreparedTrees<'_>,
+    selection: &omega_typed::AccessPolicySelection,
+) -> LoweringError {
+    let refuse = |reason: &str| LoweringError::new(&selection.site, reason);
+    let executed = "domain access policy needs admitted execution of the selected plan for its semantic schema";
+    let Some(demand) = prepared.pending_access_plan(&selection.domain) else {
+        return refuse("selected domain access policy lacks its prepared invocation demand");
+    };
+    match (demand.schema, demand.pending_construction) {
+        (omega_prepared::PolicySchemaInput::NeedsPackageOwner, _) => refuse("domain access policy needs the package owner for its semantic schema"),
+        (omega_prepared::PolicySchemaInput::UnsupportedSubject, _) => refuse("domain access policy needs a semantic schema for this carrier"),
+        (omega_prepared::PolicySchemaInput::Ready { .. }, Some(_)) if demand.construction_checked() => refuse(executed),
+        (omega_prepared::PolicySchemaInput::Ready { .. }, Some(construction)) => match construction.carrier.nominal_parts() {
+            Some((data, _)) => refuse(&format!(
+                "domain access policy needs checked establishment of `{}` in `{}`",
+                data.path, construction.machine.machine.path
+            )),
+            None => refuse("domain access policy construction lacks its data carrier"),
+        },
+        (omega_prepared::PolicySchemaInput::Ready { .. }, None) => refuse("domain access policy needs its evaluated plan for the selected semantic schema"),
+    }
+}
+
 pub(crate) fn read_domain<'a>(
     prepared: &'a PreparedTrees<'_>,
     tree: &'a TypedTree<'_>,
     node: usize,
+    selected: SelectedPolicies,
 ) -> Result<DomainSchema<'a>, LoweringError> {
     let resolved = tree.resolved();
     let file = resolved.file;
@@ -199,25 +281,36 @@ pub(crate) fn read_domain<'a>(
         .domain_carriers
         .get(declaration)
         .ok_or_else(|| LoweringError::new(&site, "domain has no typed carrier"))?;
-    if let Some(demand) = prepared.pending_access_plan(declaration) {
-        let reason = match (demand.schema, demand.pending_construction) {
-            (omega_prepared::PolicySchemaInput::NeedsPackageOwner, _) => "domain access policy needs the package owner for its semantic schema",
-            (omega_prepared::PolicySchemaInput::UnsupportedSubject, _) => "domain access policy needs a semantic schema for this carrier",
-            (omega_prepared::PolicySchemaInput::Ready { .. }, Some(_)) if demand.construction_checked() => {
-                "domain access policy needs admitted execution of the selected plan for its semantic schema"
-            }
-            (omega_prepared::PolicySchemaInput::Ready { .. }, Some(construction)) => {
-                let (data, _) = construction.carrier.nominal_parts().ok_or_else(|| LoweringError::new(
-                    &demand.selection.site, "domain access policy construction lacks its data carrier"
-                ))?;
-                return Err(LoweringError::new(&demand.selection.site, format!(
-                    "domain access policy needs checked establishment of `{}` in `{}`",
-                    data.path, construction.machine.machine.path
-                )));
-            }
-            (omega_prepared::PolicySchemaInput::Ready { .. }, None) => "domain access policy needs its evaluated plan for the selected semantic schema",
+    // Who may issue a domain that selects a policy is what an execution of that
+    // policy returns. Lowering runs nothing, so it either refuses the domain or
+    // lowers its row with no issuer.
+    let policy = prepared
+        .typed()
+        .access_policies
+        .iter()
+        .find(|policy| &policy.domain == declaration);
+    let alias = prepared.typed().domain_alias_members.get(declaration);
+    if let Some(selection) = policy {
+        if matches!(selected, SelectedPolicies::Refuse) {
+            return Err(unanswered_policy_refusal(prepared, selection));
+        }
+        // Only a named domain on a closed carrier has a row that states
+        // issuers. An alias row has no such field, and a cast never consults a
+        // carrier-generic family, so a plan answered for either would be dropped.
+        let unpublished = if alias.is_some() {
+            Some("domain alias cannot publish an access policy: its qualification belongs to the domains it names")
+        } else if matches!(carrier, ValueType::Parameter { .. }) {
+            Some("carrier-generic domain cannot publish an access policy: no closed carrier takes its plan")
+        } else {
+            None
         };
-        return Err(LoweringError::new(&demand.selection.site, reason));
+        if let Some(reason) = unpublished {
+            // Without a frozen invocation no plan can be answered, and that is the earlier fault.
+            return Err(match prepared.policy_invocation(declaration) {
+                Some(_) => LoweringError::new(&selection.site, reason),
+                None => unanswered_policy_refusal(prepared, selection),
+            });
+        }
     }
     let head = file
         .child(node, NodeKind::PathType)
@@ -239,7 +332,7 @@ pub(crate) fn read_domain<'a>(
             slot.ok_or_else(|| LoweringError::new(&site_at(tree, arg), "domain index has no declaration binder"))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    if let Some(members) = prepared.typed().domain_alias_members.get(declaration) {
+    if let Some(members) = alias {
         let atoms = members
             .iter()
             .map(|member| {
@@ -258,6 +351,7 @@ pub(crate) fn read_domain<'a>(
             carrier,
             site,
             public,
+            policy,
             parameters,
             index_binders,
             definition: DomainDefinition::Alias(atoms),
@@ -275,6 +369,8 @@ pub(crate) fn read_domain<'a>(
         }
         match file.nodes[member].kind {
             NodeKind::GenericParams => {}
+            // The clause selects the policy. The row carries that selection and no issuer.
+            NodeKind::Access if policy.is_some() => {}
             NodeKind::Requires => requires.push(lower_clause(
                 prepared,
                 &crate::lowering::applied_tree::LoweringTree::plain(tree),
@@ -305,6 +401,7 @@ pub(crate) fn read_domain<'a>(
         declaration,
         carrier,
         public,
+        policy,
         parameters,
         index_binders,
         definition: DomainDefinition::Named(requires),

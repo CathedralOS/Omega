@@ -76,6 +76,7 @@ fn emit_body(
     let body_site = site_at(file, body);
     let mut block = MachineBody {
         lifetime_bindings: Vec::new(),
+        call_regions: Vec::new(),
         call_acknowledgements: Vec::new(),
         suspension_sites: Vec::new(),
         callback_invocations: Vec::new(),
@@ -197,8 +198,8 @@ fn emit_body(
                 // A record home, or a primitive home established just now for a borrow.
                 if let OperationResult::Structural(home) = homed
                     && (crate::lowering::types::contains_nominal_value(carrier) || homed != value)
-                    && prepared
-                        .typed()
+                    && tree
+                        .forest()
                         .mutable_bindings
                         .contains(&file.node_id(*binder))
                 {

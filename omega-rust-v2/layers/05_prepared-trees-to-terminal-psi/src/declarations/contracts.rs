@@ -548,7 +548,9 @@ pub(super) fn field_segment(
     let site = site_at(tree, node);
     let refuse = |message: &str| LoweringError::new(&site, message);
     let typed = prepared.typed();
-    let (_, path) = typed.place_path(file.node_id(node));
+    // The clause can belong to a library file, such as the toolchain's
+    // `BoundaryReach`. Its place steps are that forest's, keyed by its nodes.
+    let (_, path) = tree.forest().place_path(file.node_id(node));
     let projection = Projection::Field(Box::new(field.clone()));
     if path
         .last()
@@ -678,7 +680,7 @@ fn index_terms<'a>(
     let Some(selected) = access.filter(|s| typed && borrow && obligation == guarantee.is_some() && precondition == Some(&s.machine)) else {
         return Err(refuse("contract index has no complete typed read and access obligation"));
     };
-    let (_, path) = prepared.typed().place_path(file.node_id(node));
+    let (_, path) = tree.forest().place_path(file.node_id(node));
     let projection = Projection::Index(file.node_id(selector));
     if path
         .last()

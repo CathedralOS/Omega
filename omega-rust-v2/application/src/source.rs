@@ -158,8 +158,8 @@ pub(crate) fn check_files(
                 stage_error(stage, &e.package, &e.file, e.span, e.message)
             })?;
             if matches!(stage, Stage::Lower) {
-                omega::check_pending_policy_constructions(&mut prepared).map_err(|e| stage_error("policy preparation", &e.site.package, &e.site.file, e.site.span, e.message))?;
-                omega_lowering::lower_package(&prepared).map_err(|e| stage_error("lowering", &e.site.package, &e.site.file, e.site.span, e.message))?;
+                let answers = omega::prepare_policy_answers(&mut prepared, omega_interpreter::Ceilings::default()).map_err(|e| stage_error("policy preparation", &e.site.package, &e.site.file, e.site.span, e.message))?;
+                omega::lower_package_with_policy_answers(&prepared, &answers).map_err(|e| stage_error("lowering", &e.site.package, &e.site.file, e.site.span, e.message))?;
             }
         }
     }

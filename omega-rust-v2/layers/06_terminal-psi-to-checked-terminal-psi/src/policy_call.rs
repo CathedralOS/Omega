@@ -147,8 +147,10 @@ pub fn check_selected_policy_call<'a>(
     let Some((TemplateStep::Construct(issuance), payload)) = inputs.split_last() else {
         return Err("policy needs a constructed issuance argument");
     };
+    // The callee is a closed body. Its declared formals and result are the
+    // ones its proof read from that body at the constructor's region.
     let callee = constructor.machine();
-    let ([schema], [borrowed, moved], Some(result)) = (sig.parameters.as_slice(), callee.signature.parameters.as_slice(), sig.result.as_ref()) else {
+    let ([schema], [borrowed, moved], Some(result)) = (sig.parameters.as_slice(), constructor.parameters(), sig.result.as_ref()) else {
         return Err("policy constructor requires one borrowed and one moved input");
     };
     let Some((Step::Reference(TemplateAccess::Shared), referent)) = borrowed.0.split_last() else {

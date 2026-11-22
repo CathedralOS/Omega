@@ -45,7 +45,7 @@ The unchecked Psi body must already identify its executable operations and clean
 
 | Original readiness case | Decision boundary | Discriminating evidence |
 | --- | --- | --- |
-| `handoff/access plan evaluation at its domain`<br>`handoff/domain access policy` | Evaluated plan in L4 → governed domain in L5 | Both fixtures request the same plan and domain schema. L3 identifies the policy machine. L5 still needs the admitted computation’s result for that schema, including issuance. |
+| `handoff/access plan evaluation at its domain`<br>`handoff/domain access policy` | Evaluated plan in L4 → governed domain in L5 | Both fixtures request the same plan and domain schema. L3 identifies the policy machine. L5 still needs the admitted computation’s result for that schema, including issuance. L5 consumes a validated plan when preparation holds one ([issuance tests](tests/domain_issuance.rs)) and still stops here without one. |
 | `handoff/unselected access policy template constructor` | L5 package assembly → template callee | Remove the domain’s access selection. The policy template remains and still calls the imported library constructor, which must have a packaged declaration. |
 | `handoff/carry policy on a transparent data alias` | Alias semantics → normalized type | An alias can inherit its target’s policy. L3 now refuses a list that adds a demand the expansion lacks, including the original `u64` case. The outstanding language question is whether an alias may author a list that adds no demand. |
 | `handoff/add a tag and a predicate domain in one cast` | L5 qualification edge → domain checker | One arrival establishes two memberships with different reasons. Each added domain must retain its own origin on the same value. |

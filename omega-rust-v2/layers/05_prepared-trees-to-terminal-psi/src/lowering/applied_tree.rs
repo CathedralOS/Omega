@@ -18,6 +18,8 @@ pub(crate) struct LoweringTree<'a> {
     pub(crate) guarded_rows: Vec<usize>,
     /// Call node, invoked binder and the number of clauses its bound owes.
     callback_invocations: Vec<(usize, usize, usize)>,
+    /// The static arguments of this instance, when the body has any.
+    application: Option<MachineApplication>,
 }
 
 impl<'a> LoweringTree<'a> {
@@ -30,6 +32,19 @@ impl<'a> LoweringTree<'a> {
             callback_routes: Vec::new(),
             guarded_rows: Vec::new(),
             callback_invocations: Vec::new(),
+            application: None,
+        }
+    }
+
+    /// `selected` as this body names it. A declaration query keeps its
+    /// selection beside the tree, outside the typed rows an application
+    /// substitutes, so its operands still name the formals of the enclosing
+    /// machine. In the body of `outer::<3>`, `reflect\callable(pick::<N>)`
+    /// selects `pick::<3>`.
+    pub(crate) fn applied_selection(&self, selected: &MachineApplication) -> MachineApplication {
+        match &self.application {
+            Some(application) => selected.with_substitutions(|operand| application.instantiate(operand)),
+            None => selected.clone(),
         }
     }
 
@@ -147,6 +162,7 @@ impl<'a> LoweringTree<'a> {
             callback_routes,
             guarded_rows,
             callback_invocations,
+            application: Some(application.clone()),
         })
     }
 

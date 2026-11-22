@@ -25,7 +25,7 @@ fn diagnostic(
 }
 
 #[test]
-fn issuance_and_forwarding_wait_for_execution_only_after_checking_the_selected_construction() {
+fn executing_the_selected_policy_distinguishes_issuance_from_forwarding() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../target")
         .join(format!("policy-handoff-{}", std::process::id()));
@@ -45,18 +45,17 @@ fn issuance_and_forwarding_wait_for_execution_only_after_checking_the_selected_c
     for policy in [POLICY, &empty] {
         for consumer in [issue, forward] {
             assert_eq!(diagnostic(&root, "prepare", policy, consumer, true), (true, String::new()));
-            assert_eq!(
-                diagnostic(&root, "lower", policy, consumer, true),
-                (
-                    false,
-                    expect(
-                        policy,
-                        "domain access policy needs admitted execution of the selected plan for its semantic schema"
-                    )
-                )
-            );
         }
+        assert_eq!(diagnostic(&root, "lower", policy, forward, true), (true, String::new()));
     }
+    assert_eq!(diagnostic(&root, "lower", POLICY, issue, true), (true, String::new()));
+    let cast = "x as +Locked";
+    let at = issue.find(cast).unwrap();
+    let denied = format!(
+        "consumer.omg:1:{}: lowering: machine `issue` cannot introduce domain `i32::Locked`: its access plan admits no issuer (bytes {at}..{})",
+        at + 1, at + cast.len()
+    );
+    assert_eq!(diagnostic(&root, "lower", &empty, issue, true), (false, denied));
 
     // Removing the Build owner still stops before construction can be checked.
     assert_eq!(

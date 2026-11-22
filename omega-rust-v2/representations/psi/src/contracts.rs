@@ -36,6 +36,44 @@ pub struct CallbackInvocation {
     pub binder: usize,
 }
 
+/// The regions one call applies to its callee. The callee is a machine with
+/// one body for every region, so the call's `MachineId` alone says nothing
+/// about which regions this invocation relates. `arguments` has one entry per
+/// region binder of the callee, in the order of the callee's
+/// `LoweredMachine::regions`.
+///
+/// For `relay<'u>(cell: @'u Cell) -> @'u u8 { first::<'u>(cell) }` the call
+/// carries `[Binder(0)]`: `first`'s only region is `relay`'s `'u`. Together
+/// with `first`'s slots, that says the result lives in the region of `cell`.
+/// The row states the relation the source wrote. It is no evidence that any
+/// operand's backing lives that long; the checker judges that.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CallRegions {
+    pub call: CallSite,
+    pub arguments: Vec<CallRegion>,
+}
+
+/// The region one call applies to one region binder of its callee.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CallRegion {
+    /// A region binder of the calling machine, by its ordinal in the caller's
+    /// `LoweredMachine::regions`.
+    Binder(usize),
+    /// A region inferred at the call from its operand slots. In
+    /// `start(bytes: @[u8]) -> u64 { let held = Schema { storage: bytes }; size(held) }`
+    /// the call uses the backing that `held.storage` received from `bytes`.
+    /// This call-site substitution is independent of the signature's elided input binder.
+    ///
+    /// The callee's binder is then filled by whatever this call's operands
+    /// carry in the callee's parameter slots for that binder
+    /// (`MachineRegion::reference_parameters` and `aggregate_parameters`). The
+    /// callee has at least one such slot. The row names no region and states
+    /// no bound: each operand's defining operation, such as the
+    /// `EstablishRecord` that copied `bytes` into `storage`, names the actual
+    /// backing, and the checker reconstructs the region from those.
+    Operands,
+}
+
 /// The producing call and the zero-based position of a requirement in its
 /// selected callee. Both coordinates are needed when two predicates are equal.
 /// A call listed in `MachineBody::callback_invocations` invokes a closed static

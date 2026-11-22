@@ -1,0 +1,52 @@
+// `Schema` passes its lifetime on to `Bytes` instead of storing a view at it,
+// as the toolchain's `AccessPlan<'t>` does with `TypeSchema<'t>`. `Ledger`
+// passes its two lifetimes on in another order, twice over, and through a
+// fixed array, as `AccessPlan<'t>` does with its `[AccessFieldSlot<'t>; 32]`.
+public data Bytes<'t> [copy] {
+    view: @'t [u8];
+}
+
+public data Schema<'t> [copy] {
+    storage: Bytes<'t>;
+}
+
+public data Span<'a, 'b> [copy] {
+    head: @'a [u8];
+    tail: @'b [u8];
+}
+
+public data Ledger<'x, 'y> [copy] {
+    swapped: Span<'y, 'x>;
+    twice: Span<'x, 'x>;
+    rows: [Schema<'y>; 2];
+    count: u64;
+}
+
+public machine forward<'t>(schema: Schema<'t>) -> Schema<'t> {
+    schema
+}
+
+public machine audit<'p, 'q>(ledger: Ledger<'q, 'p>) -> Ledger<'q, 'p> {
+    ledger
+}
+
+// `Plan` has the shape of the toolchain's `AccessPlan`: a schema held by
+// value, fixed slots whose zero is a case without a payload, and a counted
+// predicate. `build` has the shape of its constructor `new_plan`: it copies the
+// schema out of a shared reference and leaves the rest to `..`.
+public data Slot<'t> {
+    case Empty;
+    case Full(schema: Schema<'t>);
+}
+
+public data Plan<'t>
+    requires self.count <= 2
+{
+    schema: Schema<'t>;
+    slots: [Slot<'t>; 2];
+    count: u64;
+}
+
+public machine build<'t>(schema: @Schema<'t>) -> Plan<'t> {
+    Plan::<'t> { schema: $schema, .. }
+}

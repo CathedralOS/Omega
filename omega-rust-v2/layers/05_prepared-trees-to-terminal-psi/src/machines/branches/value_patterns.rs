@@ -55,7 +55,7 @@ impl PayloadPlace {
     ) -> Result<ValueId, LoweringError> {
         let tree = expressions.tree;
         let file = tree.resolved().file;
-        let typed = expressions.prepared.typed();
+        let typed = expressions.tree.forest();
         if typed.place_path(file.node_id(node)) != typed.place_path(file.node_id(binder)) {
             return Err(unsupported_node(file, node, "payload binding use disagrees with its borrowed backing"));
         }
@@ -165,7 +165,7 @@ fn payload_test<'a>(
         if file.nodes[field].kind != NodeKind::FieldPattern {
             return Err(unsupported_node(file, field, "expected an explicit payload field"));
         }
-        let typed = expressions.prepared.typed();
+        let typed = expressions.tree.forest();
         let backing = typed.place_path(file.node_id(field));
         let step = backing
             .1

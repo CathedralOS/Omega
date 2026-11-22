@@ -473,7 +473,7 @@ fn selected_view(
     if selection.is_none() || precondition != selection || !borrowed || restored != moving {
         return Err(refuse("element place lacks its exclusive element selection, bound or loan"));
     }
-    let (capture, steps) = expressions.prepared.typed().place_path(file.node_id(index));
+    let (capture, steps) = expressions.tree.forest().place_path(file.node_id(index));
     let base_id = file.node_id(file.ungroup(base));
     if capture != base_id
         || !matches!(steps.as_slice(), [step] if step.base == base_id

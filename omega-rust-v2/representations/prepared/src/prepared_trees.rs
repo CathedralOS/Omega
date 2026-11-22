@@ -44,6 +44,11 @@ impl PolicyConstructionOccurrence {
     pub fn domain(&self) -> &DeclarationId {
         &self.domain
     }
+
+    /// Compare the originating preparation even when another package froze equal inputs.
+    pub fn matches(&self, invocation: &PolicyInvocation<'_>) -> bool {
+        invocation.selection.domain == self.domain && std::ptr::eq(invocation.construction, self.construction.as_ref())
+    }
 }
 
 /// Frozen arguments and the outstanding construction of one selected invocation.
@@ -243,7 +248,7 @@ impl<'text> PreparedTrees<'text> {
         let invocation = self.policy_invocation(&occurrence.domain).ok_or("policy construction is not pending")?;
         let PreparedValue::Record { fields, .. } = invocation.schema else { return Err("policy schema has no record") };
         let [PreparedValue::SharedBytes(bytes)] = fields.as_ref() else { return Err("policy schema has no byte view") };
-        if !std::ptr::eq(invocation.construction, occurrence.construction.as_ref())
+        if !occurrence.matches(&invocation)
             || invocation.package_key != package_key || invocation.subject_revision != subject_revision || bytes.as_ref() != image
             || &invocation.selection.site != selection_site || &invocation.construction.site != construction_site
         {

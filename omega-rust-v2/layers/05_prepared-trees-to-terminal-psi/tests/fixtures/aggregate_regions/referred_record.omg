@@ -1,0 +1,42 @@
+// `Schema` refers to `Bytes` through a stored shared reference where
+// `nested_record.omg` holds it by value. The reference names the lifetime it
+// is held at and passes a lifetime on to the record it refers to. In `Schema`
+// both are `'t`. In `Pair` the reference is held at `'r` and the record it
+// refers to is at `'v`, so the two are separate facts of one field.
+public data Bytes<'t> [copy] {
+    view: @'t [u8];
+}
+
+public data Schema<'t> [copy] {
+    storage: @'t Bytes<'t>;
+}
+
+public data Pair<'r, 'v> [copy] {
+    first: @'r Bytes<'v>;
+    count: u64;
+}
+
+public machine forward<'t>(schema: Schema<'t>) -> Schema<'t> {
+    schema
+}
+
+public machine keep<'p, 'q>(pair: Pair<'q, 'p>) -> Pair<'q, 'p> {
+    pair
+}
+
+// `Plan` and `build` have the shape of the toolchain's `AccessPlan` and its
+// constructor `new_plan`: the constructor copies the schema, and with it the
+// stored reference, out of a shared formal and promises a zero count.
+public data Plan<'t>
+    requires self.count <= 2
+{
+    schema: Schema<'t>;
+    count: u64;
+}
+
+public machine build<'t>(schema: @Schema<'t>) -> Plan<'t>
+    reaches none crashes none terminates
+    ensures result.count == 0
+{
+    Plan::<'t> { schema: $schema, .. }
+}

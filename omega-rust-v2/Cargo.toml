@@ -12,6 +12,7 @@ members = [
     "layers/05_prepared-trees-to-terminal-psi/tests/psi-consumer",
     "layers/05_prepared-trees-to-terminal-psi/tests/tree-consumer",
     "application",
+    "interpreter",
     "toolchain",
     "layers/00_bytes-to-tokens",
     "layers/01_tokens-to-syntax-trees",
