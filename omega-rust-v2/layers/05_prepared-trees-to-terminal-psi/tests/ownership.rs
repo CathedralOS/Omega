@@ -820,3 +820,60 @@ fn a_grouped_call_argument_transfers_the_selected_field_to_the_callee() {
         }
     });
 }
+
+#[test]
+fn consuming_a_moved_record_partitions_the_move_result_and_keeps_the_other_owner() {
+    for (selected, other) in [(0, 1), (1, 0)] {
+        let name = ["first", "second"][selected];
+        let source = format!(
+            "data C dropped by finish {{ v:u8; }} machine finish(value:C){{let C{{v as _}}=move value;}}
+             machine take(first:C, second:C)->u8{{let C{{v}}=(move {name}); v}}"
+        );
+        let product = sources::lower(&[("move.omg", &source)]).unwrap();
+        let take = product.machines.iter().find(|m| m.declaration.path == "take").unwrap();
+        let finish = product.machines.iter().find(|m| m.declaration.path == "finish").unwrap();
+        let [transfer, partition] = take.body.operations.as_slice() else { panic!("one transfer and one partition") };
+        let Parameter::Structural(chosen) = take.body.parameters[selected] else { panic!("owned record") };
+        let Parameter::Structural(survivor) = take.body.parameters[other] else { panic!("owned sibling") };
+        assert!(matches!(&transfer.kind, OperationKind::MoveStructural { source } if source.root == chosen && source.path.is_empty()));
+        assert!(matches!(&partition.kind, OperationKind::DecomposeRecord { source, fields, .. }
+            if source.path.is_empty() && OperationResult::Structural(source.root) == transfer.result
+                && fields.len() == 1 && fields[0].field.path == "C::v"));
+        assert!(matches!(&take.body.blocks[0].terminator, BlockTerminator::Return { cleanup, .. }
+            if matches!(&cleanup[..], [CleanupAction::Invoke { place, target, .. }]
+                if place.root == survivor && place.path.is_empty() && *target == finish.id)));
+        assert!(matches!(&finish.body.blocks[0].terminator, BlockTerminator::Return { cleanup, .. } if cleanup.is_empty()));
+    }
+}
+
+#[test]
+fn consuming_a_call_result_evaluates_the_record_producer_once() {
+    let source = "data C { v:u8; } machine make(v:u8)->C{C{v:v}}
+                  machine take(v:u8)->u8{let C{v as result_value}=make(v);result_value}";
+    let product = sources::lower(&[("call.omg", source)]).unwrap();
+    let take = product.machines.iter().find(|m| m.declaration.path == "take").unwrap();
+    let [call, partition] = take.body.operations.as_slice() else { panic!("one call and one partition") };
+    assert!(matches!(call.kind, OperationKind::Call { .. }));
+    assert!(matches!(&partition.kind, OperationKind::DecomposeRecord { source, .. }
+        if source.path.is_empty() && OperationResult::Structural(source.root) == call.result));
+}
+
+#[test]
+fn a_consuming_pattern_retains_a_borrowed_move_and_its_exact_backing() {
+    let text = "data C dropped by finish { v:u8; } machine finish(x:C){let C{v as _}=move x;}
+                data Holder{item:C;} machine get(h:@mutable Holder)->u8{let C{v}=move h.item;v}";
+    let product = sources::lower(&[("loan.omg", text)]).unwrap();
+    let get = product.machines.iter().find(|m| m.declaration.path == "get").unwrap();
+    let [transfer, partition] = get.body.operations.as_slice() else { panic!("one borrowed move and one partition") };
+    let Parameter::Structural(holder) = get.body.parameters[0] else { panic!("holder reference") };
+    assert!(matches!(&transfer.kind, OperationKind::BorrowedMove { source }
+        if source.root == holder && matches!(&source.path[..], [PlaceProjection::Referent, PlaceProjection::Field(f)] if f.path == "Holder::item")));
+    assert!(matches!(&partition.kind, OperationKind::DecomposeRecord { source, .. }
+        if source.path.is_empty() && OperationResult::Structural(source.root) == transfer.result));
+
+    let shared = text.replace("@mutable Holder", "@Holder");
+    let package = sources::resolve(&[("loan.omg", &shared)]);
+    let error = omega_preparation::prepare_source_package(&package).unwrap_err();
+    assert!(error.message.contains("borrowed storage requires a copy type"));
+    assert_eq!(error.span.slice(shared.as_bytes()), Some(b"h.item".as_slice()));
+}

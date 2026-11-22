@@ -146,7 +146,22 @@ pub(super) fn decompose(
     let tree = expressions.tree;
     let file = tree.resolved().file;
     let site = site_at(tree, pattern);
-    let (source, ty) = super::references::original_place(expressions, initializer, body)?;
+    let subject = file.ungroup(initializer);
+    let (source, ty) = if file.nodes[subject].kind == NodeKind::PathExpression {
+        super::references::original_place(expressions, initializer, body)?
+    } else {
+        // Evaluate the initializer once. An explicit move, field selection or call
+        // produces the place the partition consumes. Its source keeps its own
+        // transfer, loan and invocation obligations.
+        let ty = tree.semantics_at(subject).find_map(|row| match row {
+            NodeSemantics::Expression(e) if e.static_argument_slot.is_none() => Some(&e.ty),
+            _ => None,
+        }).ok_or_else(|| LoweringError::new(&site, "record pattern needs a typed initializer"))?;
+        let OperationResult::Structural(root) = expressions.lower(initializer, ty, body, flow)? else {
+            return Err(LoweringError::new(&site, "record pattern needs an owned record value"));
+        };
+        (crate::ProjectedPlace { root, path: Vec::new() }, ty)
+    };
     let tyid = expressions
         .types
         .id_for(ty)
