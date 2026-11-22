@@ -1,0 +1,2 @@
+a positional pattern decomposes a record into its fields, and `outer.tag` is not a record
+main.omg:4:10

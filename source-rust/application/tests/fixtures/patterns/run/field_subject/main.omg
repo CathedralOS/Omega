@@ -1,0 +1,16 @@
+data Inner [copy] { low: i32; high: i32; }
+data Outer { inner: Inner; tag: i32; }
+machine high_of(outer: @Outer) -> i32 {
+    let (_, high) = outer.inner;
+    high
+}
+machine low_of(outer: @Outer) -> i32 {
+    let { low, high as _ } = outer.inner;
+    low
+}
+machine main() crashes Trap {
+    let outer: Outer = Outer { inner: Inner { low: 3, high: 7 }, tag: 1 };
+    transition high_of(@outer) == 7 && low_of(@outer) == 3 { true -> done(), false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}
