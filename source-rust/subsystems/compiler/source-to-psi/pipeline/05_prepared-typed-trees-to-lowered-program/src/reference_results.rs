@@ -648,6 +648,9 @@ fn publish_parents(
                 }
             }
         }
+        // Reborrowing an existing descriptor needs its immediate parent even
+        // when the machine only observes the new view locally.
+        let mut view_reborrows = std::collections::BTreeSet::new();
         let mut publish_call_payloads = |arguments, formals, before| {
             publish_payload_children(
                 module,
@@ -662,6 +665,22 @@ fn publish_parents(
         for block in &machine.blocks {
             let mut before = ProgramPoint::BlockEntry(block.id);
             for operation in &block.operations {
+                if let terminal_psi::OperationKind::EstablishElementView { source, .. }
+                | terminal_psi::OperationKind::EstablishMutableElementView { source, .. } =
+                    &operation.kind
+                    && let Some(root) = machine.structural_place_type(source.place)
+                    && let Some(tip) = terminal_semantics::runtime_structural_path_tip(
+                        module.types.structural_types.iter(),
+                        root,
+                        &source.path,
+                    )
+                    && terminal_semantics::descriptor_results::is_descriptor(
+                        module.types.structural_types.iter(),
+                        tip.id,
+                    )
+                {
+                    view_reborrows.insert(operation.id);
+                }
                 if let Some(call) = operation.declared_invocation() {
                     publish_call_payloads(
                         call.structural_arguments,
@@ -732,7 +751,7 @@ fn publish_parents(
                 })? = Some((row.created_at, descriptor));
             }
         }
-        if children.iter().all(|(_, child)| child.is_none()) {
+        if view_reborrows.is_empty() && children.iter().all(|(_, child)| child.is_none()) {
             continue;
         }
         let graph = terminal_borrowed_storage_graph_from(module, [machine.id], &[])
@@ -797,21 +816,7 @@ fn publish_parents(
                             "reference formation has no unique exact Loan row",
                         ));
                     };
-                    if matches!(
-                        operation.kind,
-                        terminal_psi::OperationKind::EstablishElementView { .. }
-                            | terminal_psi::OperationKind::EstablishMutableElementView { .. }
-                    ) && terminal_semantics::runtime_structural_path_tip(
-                        module.types.structural_types.iter(),
-                        ty,
-                        &source.path,
-                    )
-                    .is_some_and(|source_type| {
-                        terminal_semantics::descriptor_results::is_descriptor(
-                            module.types.structural_types.iter(),
-                            source_type.id,
-                        )
-                    }) {
+                    if view_reborrows.contains(&operation.id) {
                         let source_location = DescriptorLocation::captured(
                             source.place,
                             &source_path,
