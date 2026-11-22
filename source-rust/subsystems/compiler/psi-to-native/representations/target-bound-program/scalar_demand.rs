@@ -90,10 +90,7 @@ mod storage {
             // descriptor. Neither requires inline storage for the formal.
             let parameter_storage = |formal: &terminal_psi::StructuralParameterDeclaration| {
                 let fixed_transport = declarations.get(&formal.structural_type).is_some_and(|ty| {
-                    calling_conventions::terminal_layout::borrowed_element_descriptor(
-                        &ty.shape,
-                        formal.access,
-                    ) || calling_conventions::terminal_layout::opaque_borrow_transport(
+                    calling_conventions::terminal_layout::borrowed_slice_element(
                         &ty.shape,
                         formal.access,
                     )
@@ -129,10 +126,11 @@ mod storage {
                     .chain(machine.block_structural_parameters())
                     .filter(|formal| {
                         declarations.get(&formal.structural_type).is_some_and(|ty| {
-                            calling_conventions::terminal_layout::borrowed_element_descriptor(
+                            calling_conventions::terminal_layout::borrowed_slice_element(
                                 &ty.shape,
                                 formal.access,
                             )
+                            .is_some()
                         })
                     })
                     .map(|formal| formal.place)

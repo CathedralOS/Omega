@@ -296,17 +296,7 @@ pub mod structural_reference_input {
     ) -> Option<StructuralTypeId> {
         let formal = formal.filter(|formal| formal.structural_type == root)?;
         let shape = &find_structural_type(declarations, root)?.shape;
-        match shape {
-            StructuralTypeShape::ElementView { element, .. }
-                if calling_conventions::terminal_layout::borrowed_element_descriptor(
-                    shape,
-                    formal.access,
-                ) =>
-            {
-                Some(*element)
-            }
-            _ => None,
-        }
+        calling_conventions::terminal_layout::borrowed_slice_element(shape, formal.access)
     }
 
     pub fn reference_formation_geometry<'types>(

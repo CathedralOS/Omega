@@ -1108,11 +1108,10 @@ pub(crate) fn reference_formation_indices(
     if let Some(formal) = formal
         && formal.structural_type == structural_type
         && let Some(declaration) = declarations.get(structural_type)
-        && calling_conventions::terminal_layout::borrowed_element_descriptor(
+        && let Some(element) = calling_conventions::terminal_layout::borrowed_slice_element(
             &declaration.shape,
             formal.access,
         )
-        && let StructuralTypeShape::ElementView { element, .. } = declaration.shape
     {
         if path.is_empty() {
             return Ok(Vec::new());

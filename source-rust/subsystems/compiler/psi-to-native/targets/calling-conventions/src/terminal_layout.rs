@@ -421,7 +421,9 @@ impl<'a> StructuralLayouts<'a> {
         let declaration = self
             .get(root)
             .ok_or(TerminalLayoutError::UnknownStructuralType(root))?;
-        if borrowed_element_descriptor(&declaration.shape, access) {
+        if let Some(element) = borrowed_slice_element(&declaration.shape, access) {
+            self.get(element)
+                .ok_or(TerminalLayoutError::UnknownStructuralType(element))?;
             Ok(ValueShape::integer(16, 8))
         } else {
             self.shape(root)
@@ -512,12 +514,17 @@ pub struct OwnedSequenceLayout {
 /// The declaration of `[T]` can occur both as owned inline storage and as a
 /// borrowed formal transporting a pointer and a count. Only the occurrence
 /// supplies the permission that distinguishes their native representations.
-pub fn borrowed_element_descriptor(
+pub fn borrowed_slice_element(
     shape: &StructuralTypeShape,
     access: terminal_psi::StructuralAccess,
-) -> bool {
-    matches!(shape, StructuralTypeShape::ElementView { access: None, .. })
-        && access != terminal_psi::StructuralAccess::Owned
+) -> Option<StructuralTypeId> {
+    match shape {
+        StructuralTypeShape::ElementView {
+            element,
+            access: None,
+        } if access != terminal_psi::StructuralAccess::Owned => Some(*element),
+        _ => None,
+    }
 }
 
 /// The first subscript of a borrowed typed slice is relative to the pointer
@@ -563,7 +570,10 @@ pub fn element_view_length_at(
     shape: &StructuralTypeShape,
     formal_access: Option<terminal_psi::StructuralAccess>,
 ) -> Option<u32> {
-    if formal_access.is_some_and(|access| borrowed_element_descriptor(shape, access)) {
+    if formal_access
+        .and_then(|access| borrowed_slice_element(shape, access))
+        .is_some()
+    {
         return Some(8);
     }
     match shape {
