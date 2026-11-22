@@ -144,6 +144,11 @@ fn accept_compilation(
                 diagnostic.source_span = refused.source_span;
                 diagnostics.push(diagnostic);
             }
+            Err(CompilationRefusal::Elaboration(refused)) if refused.source_span.is_some() => {
+                let mut diagnostic = route_defect(&refused.detail);
+                diagnostic.source_span = refused.source_span;
+                diagnostics.push(diagnostic);
+            }
             Err(defect) => diagnostics.push(route_defect(&format!("{defect:?}"))),
         }
     }
@@ -170,6 +175,33 @@ mod tests {
     use super::*;
     use crate::lowering::Compilation;
     use std::sync::Arc;
+
+    #[test]
+    fn checker_defect_retains_its_authored_location() {
+        use terminal_check_tables::{Refusal, RefusalReason, RefusalSite};
+
+        let span =
+            source_text::SourceSpan::new(source_text::SourceId(3), source_text::Span::new(12, 19));
+        let refusal = Refusal::at(
+            RefusalReason::ForeignIdentity,
+            RefusalSite::Program,
+            "a structural result lost its declared domain",
+        )
+        .with_source_span(Some(span));
+
+        let diagnostics =
+            accept_compilation(vec![Err(CompilationRefusal::Elaboration(refusal))]).unwrap_err();
+        let [diagnostic] = diagnostics.as_slice() else {
+            panic!("expected one checker defect")
+        };
+        assert_eq!(diagnostic.source_span, Some(span));
+        assert!(
+            diagnostic
+                .message
+                .contains("a structural result lost its declared domain")
+        );
+        assert!(diagnostic.message.contains("defect of the checker"));
+    }
 
     fn elaboration(
         publication: terminal_codec::TerminalPublication,
