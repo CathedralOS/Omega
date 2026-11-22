@@ -784,6 +784,7 @@ fn describe(
                 ScalarTerm::value(*argument, parameter.scalar_type),
             )
         });
+    let acyclic = !graph.in_cycle(join.id)?;
     for binding in scalar_bindings.chain(snapshot_bindings) {
         // A dominating argument keeps its exact identity even if substituting
         // definitions would expand the arithmetic. Later proofs can cite its
@@ -793,6 +794,12 @@ fn describe(
             && defined != binding
         {
             parts.push(defined);
+            // A cyclic parameter is rebound. Its expanded arrival describes
+            // that iteration; the incoming identity must not shadow it when
+            // checking arithmetic on the next visit to a ranked head.
+            if !acyclic {
+                continue;
+            }
         }
         parts.push(binding);
     }
