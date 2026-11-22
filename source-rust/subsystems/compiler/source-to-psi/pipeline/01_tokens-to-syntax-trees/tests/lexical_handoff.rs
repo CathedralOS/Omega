@@ -173,8 +173,7 @@ fn comments_and_whitespace_between_tokens_move_spans_and_change_nothing_else() {
         &mut moved,
         "tree",
     );
-    // The declarations and their bodies both contribute source-backed names.
-    assert!(moved.names >= 77);
+    assert_eq!(moved.names, 81);
     assert!(moved.offsets >= 2 * moved.names, "{}", moved.offsets);
 }
 
