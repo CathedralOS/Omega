@@ -114,7 +114,9 @@ machine entry() -> u64 {
         other => panic!("missing parent cleanup reached another verdict: {other:?}"),
     };
     assert!(
-        refusal.detail.contains("cleanup") || refusal.detail.contains("intermediate parent"),
+        refusal
+            .detail
+            .contains("normal edge affine disposal differs from its canonical schedule"),
         "{refusal:?}"
     );
 }
