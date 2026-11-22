@@ -1,0 +1,1 @@
+data Box<T [carry(suspension:allowed,cpu:any,thread:any,address:movable,)]> {value:T;}

@@ -154,9 +154,6 @@ pub(super) fn schema<'a>(
     if schema.requires.is_empty() == establish_data {
         return Err(error("construction obligation disagrees with its data predicates"));
     }
-    if schema.carry.is_some() {
-        return Err(error("constructor local requires predicate or cleanup evidence"));
-    }
     Ok(schema)
 }
 

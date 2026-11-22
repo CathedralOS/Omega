@@ -722,7 +722,7 @@ fn arrays_and_sequences_nest_with_exact_element_rows() {
 }
 
 #[test]
-fn an_element_keeps_its_callable_contract_and_its_carry_policy() {
+fn an_element_keeps_its_callable_contract() {
     // A record that stores a callable: the sequence names the record's row, and
     // that row still names the callable's contract.
     let hooks = lower(
@@ -753,28 +753,4 @@ fn an_element_keeps_its_callable_contract_and_its_carry_policy() {
         })
         .collect();
     assert_eq!((listed.ty, moved.as_slice()), (sequence, &[two, one][..]));
-
-    // A record with a carry policy: the element row publishes the same policy
-    // the record has outside any sequence. Nothing here judges it.
-    let mut published = Vec::new();
-    for policy in [
-        "suspension:allowed,cpu:any,thread:any,address:movable,",
-        "suspension:forbidden,cpu:same,thread:any,address:stable,",
-    ] {
-        let declaration = format!("data Pass [carry({policy})] {{ id:u32; }}");
-        let alone = lower(&format!("{declaration} machine unused()->u32{{ 0 }}"));
-        let held = lower(&format!("{declaration} machine keep(given:[Pass])->[Pass]{{ given }}"));
-        let carry = &alone
-            .data
-            .iter()
-            .find(|data| data.declaration.path == "Pass")
-            .unwrap()
-            .carry;
-        assert!(carry.is_some());
-        let sequence = forwarded_sequence(&held, "keep").unwrap();
-        let element = nominal_row(&held, sequence_element(&held, sequence).unwrap()).unwrap();
-        assert_eq!((element.declaration.path.as_str(), &element.carry), ("Pass", carry));
-        published.push(carry.clone());
-    }
-    assert_ne!(published[0], published[1]);
 }

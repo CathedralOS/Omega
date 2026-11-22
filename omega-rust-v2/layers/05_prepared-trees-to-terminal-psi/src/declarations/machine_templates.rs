@@ -1562,13 +1562,12 @@ fn projected_operand(prepared: &PreparedTrees<'_>, tree: &TypedTree<'_>, sig: &T
     Some(crate::TemplateOperand::RecordField { formal, carrier: path, field, argument })
 }
 
-/// An owner with independent nominal cleanup, a type-wide carry restriction,
-/// or a linear claim cannot use this plain residual disposal.
+/// Plain residual disposal requires an affine record with no independent nominal cleanup.
 fn plain_affine_record(typed: &omega_typed::TypedTrees<'_>, ty: &ValueType) -> bool {
     let ValueType::Nominal(id) = ty else { return false };
     typed.record_fields.contains_key(id.as_ref()) && !typed.case_owners.values().any(|owner| owner == id.as_ref()) && !typed.cleanups.iter().any(|row| &row.owner == id.as_ref())
         && typed.data_properties.iter().find(|(data, _)| data == id.as_ref())
-            .is_none_or(|(_, p)| p.multiplicity == omega_typed::Multiplicity::Affine && p.carry.is_none())
+            .is_none_or(|(_, p)| p.multiplicity == omega_typed::Multiplicity::Affine)
 }
 
 /// The direct-field complement of all unconditional transfers, in reverse
@@ -1623,7 +1622,7 @@ fn discardable_residual<'a>(typed: &'a omega_typed::TypedTrees<'_>, ty: &'a Valu
             let id = id.as_ref();
             if open.contains(&id) || typed.case_owners.values().any(|owner| owner == id)
                 || typed.cleanups.iter().any(|row| &row.owner == id)
-                || typed.data_properties.iter().any(|(data, p)| data == id && (p.multiplicity == omega_typed::Multiplicity::Linear || p.carry.is_some())) {
+                || typed.data_properties.iter().any(|(data, p)| data == id && p.multiplicity == omega_typed::Multiplicity::Linear) {
                 return false;
             }
             let Some(fields) = typed.record_fields.get(id) else { return false };

@@ -165,7 +165,7 @@ pub(crate) fn read(
         .find(|(id, _)| id == owner)
         .map(|(_, p)| p.clone());
     if properties.is_none() && file.child(node, NodeKind::Attributes).is_some() {
-        return Err(LoweringError::new(&site, "data has no typed multiplicity and carry attributes"));
+        return Err(LoweringError::new(&site, "data has no typed multiplicity"));
     }
     let properties = properties.unwrap_or_default();
     Ok(Some(DataTemplate {
@@ -183,7 +183,6 @@ pub(crate) fn read(
         requires,
         numbering: trees.schema_numbering.get(owner).cloned(),
         multiplicity: properties.multiplicity,
-        carry: properties.carry,
         site,
     }))
 }

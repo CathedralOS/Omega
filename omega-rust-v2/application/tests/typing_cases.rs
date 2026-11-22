@@ -646,10 +646,10 @@ machine selected(x:u8)->u8 satisfies Step::run {x}";
 }
 
 #[test]
-fn a_carry_declaration_cannot_repeat_an_axis() {
-    let source = "data Item [linear,carry(suspension:allowed,cpu:same,thread:any,address:movable,)] {}";
-    check_source_change(source, "thread:any", "cpu:any",
-        "carry(suspension:allowed,cpu:same,cpu:any,address:movable,)", "repeated carry axis", "Data and bindings");
+fn a_data_declaration_cannot_be_both_copy_and_linear() {
+    let source = "data Item [copy] { value:u8; }";
+    check_source_change(source, "[copy]", "[copy,linear]",
+        "linear", "invalid or conflicting data attribute", "Data and bindings");
 }
 
 #[test]
@@ -780,13 +780,6 @@ fn a_logical_hypothesis_cannot_suspend() {
     let source = "machine theorem<machine Step>(x:u8) requires machine Step(y:u8) requires y != 0 ensures y > 0; ensures Step::ensures(x) {} machine lemma(y:u8) requires y != 0 ensures y > 0 {} machine use_theorem(x:u8){theorem::<lemma>(x)}";
     check_hypothesis_change(source, "Step(y:u8) requires", "Step(y:u8) suspends requires",
         "suspends", "logical hypothesis cannot promise executable effects", omega_typer::LogicalHypothesisError::ExecutableEffect);
-}
-
-#[test]
-fn a_carry_declaration_needs_all_four_axes() {
-    let source = "data Item [linear,carry(suspension:allowed,cpu:same,thread:any,address:movable,)] {}";
-    check_source_change(source, "address:movable,", "",
-        "carry(suspension:allowed,cpu:same,thread:any,)", "carry requires exactly four axes", "Data and bindings");
 }
 
 #[test]

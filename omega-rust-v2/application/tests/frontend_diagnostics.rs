@@ -314,25 +314,13 @@ fn a_transparent_alias_cannot_change_its_targets_multiplicity() {
 }
 
 #[test]
-fn a_transparent_alias_cannot_change_its_targets_carry() {
+fn a_parameterized_alias_attribute_stops_in_the_parser() {
     check(Case {
-        stage: "L3",
-        producer: "typer",
-        good: b"// alias\r\ndata Alias [copy] = u64;",
-        bad: b"// alias\r\ndata Alias [copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)] = u64;",
-        occurrence: b"carry(suspension:forbidden,cpu:same,thread:any,address:movable,)",
-        reason: "a transparent alias cannot change its target's carry",
-    });
-}
-
-#[test]
-fn a_carry_annotated_alias_stops_at_its_attributes() {
-    check(Case {
-        stage: "L5",
-        producer: "lowering",
+        stage: "L1",
+        producer: "parser",
         good: b"// alias\r\ndata Alias [copy] = u64;",
         bad: b"// alias\r\ndata Alias [copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)] = u64;",
-        occurrence: b"[copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)]",
-        reason: "transparent alias carry policy requires a checked relation to its expansion",
+        occurrence: b"(",
+        reason: "expected `,` or `]`",
     });
 }

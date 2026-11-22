@@ -16,8 +16,7 @@ pub(super) enum Phase {
 }
 
 /// A child that selects a cleanup machine requires an executable disposition
-/// for the case that actually contains it. A rejection for another reason
-/// (for example a carry policy) is not evidence for this transformation.
+/// for the case that actually contains it.
 fn contains_cleanup_call(
     schema: &LoweredData,
     context: &CleanupContext<'_>,
@@ -65,7 +64,6 @@ pub(super) fn return_plan(
         let schema = &context.data[id.get() - 1];
         (root.moved.is_empty()
             && schema.multiplicity == Multiplicity::Affine
-            && schema.carry.is_none()
             && context.types.cleanup_target(ty, context.data).is_none()
             && !schema.cases.is_empty()
             && contains_cleanup_call(schema, context))

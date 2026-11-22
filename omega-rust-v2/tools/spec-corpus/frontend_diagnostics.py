@@ -23,9 +23,8 @@ CLI_CASES = {
     "a_domain_alias_with_no_matching_evaluated_width_identifies_its_target": ("L3", "typer (after static evaluation)"),
     "failed_precondition_during_static_evaluation": ("L4", "preparation"),
     "unavailable_target_for_a_required_extent": ("L4", "preparation (target input)"),
-    "a_carry_annotated_alias_stops_at_its_attributes": ("L5", "lowering"),
+    "a_parameterized_alias_attribute_stops_in_the_parser": ("L1", "parser"),
     "a_transparent_alias_cannot_change_its_targets_multiplicity": ("L3", "typer"),
-    "a_transparent_alias_cannot_change_its_targets_carry": ("L3", "typer"),
     "a_crashing_helper_cannot_supply_a_total_predicate_application": ("L5", "lowering"),
 }
 # Each stop must carry the controls that separate it from its neighbouring layer.
@@ -36,7 +35,6 @@ CONTROLS = {
 # L5 CLI refusals must agree with the layer test that pins the same message and span.
 LAYER_WITNESSES = {
     "a_crashing_helper_cannot_supply_a_total_predicate_application": ("predicate_call_handoff", "a_published_crash_route_prevents_a_total_predicate_application"),
-    "a_carry_annotated_alias_stops_at_its_attributes": ("declarations", "alias_with_carry_stops_at_its_attributes"),
 }
 
 

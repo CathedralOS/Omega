@@ -43,7 +43,6 @@ pub use typed_tree::proofs::typed_membership::TypedMembership;
 pub use typed_tree::proofs::typing_obligation::TypingObligation;
 pub use typed_tree::site::{Site, site_at};
 pub use typed_tree::storage::access_policy_selection::AccessPolicySelection;
-pub use typed_tree::storage::carry::Carry;
 pub use typed_tree::storage::cleanup_selection::CleanupSelection;
 pub use typed_tree::storage::collection_access::CollectionAccess;
 pub use typed_tree::storage::data_properties::DataProperties;

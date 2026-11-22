@@ -117,7 +117,7 @@ impl ScalarRoot {
         ] {
             set_word(&mut declaration, slot, value);
         }
-        // Owner, name, closed application, supply, multiplicity, carry, members,
+        // Owner, name, closed application, supply, multiplicity, reserved span, members,
         // retired members, type parameters and lifetime parameters.
         for (slot, text) in [
             (8, owner),
@@ -164,7 +164,7 @@ impl ScalarRoot {
         counted_text(&mut fields, &self.atom);
         counted_text(&mut fields, "");
         counted_text(&mut fields, "Copy");
-        fields.push(0); // no explicit carry
+        fields.push(0); // reserved absence byte in the schema v2 identity
         fields.extend_from_slice(&[0; 16]); // type and lifetime parameter counts
         fields.push(1);
         counted_text(&mut fields, application);

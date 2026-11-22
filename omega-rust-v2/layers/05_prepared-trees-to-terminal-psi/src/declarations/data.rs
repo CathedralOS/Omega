@@ -139,7 +139,6 @@ impl<'a> DataSchema<'a> {
                         .map_err(|e| LoweringError::new(&self.site, e.to_string()))
                 })
                 .collect::<Result<_, _>>()?,
-            carry: self.properties.carry,
             requires: self.requires,
             fields: lower_fields(self.fields)?,
             cases: self
@@ -269,7 +268,7 @@ pub(crate) fn read_data<'a>(
         .find(|(id, _)| id == declaration)
         .map(|(_, properties)| properties.clone());
     if has_attributes && properties.is_none() {
-        return Err(refuse(node, "data has no typed multiplicity and carry attributes"));
+        return Err(refuse(node, "data has no typed multiplicity"));
     }
     let fields = checked_fields(typed, tree, node, declaration, &field_nodes)?;
     if !fields.is_empty() && !cases.is_empty() {
@@ -320,14 +319,10 @@ fn read_alias<'a>(
     let Some((&target, others)) = rest.split_last() else {
         return Err(refuse(node, "data alias has no target type"));
     };
-    // Only an equality with the expansion's checked multiplicity is supported,
-    // not a new ownership or carry policy on the alias.
+    // Typing has checked the assertion against the alias expansion.
     let asserted_multiplicity = match (others, typed.type_alias_properties.get(declaration)) {
         ([], None) => None,
         ([attr], Some(properties)) if file.nodes[*attr].kind == NodeKind::Attributes => {
-            if properties.carry.is_some() {
-                return Err(refuse(*attr, "transparent alias carry policy requires a checked relation to its expansion"));
-            }
             match properties.multiplicity {
                 omega_typed::Multiplicity::Copy | omega_typed::Multiplicity::Linear => Some(properties.multiplicity),
                 _ => return Err(refuse(*attr, "data alias lacks a checked multiplicity assertion")),

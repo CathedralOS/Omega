@@ -342,8 +342,8 @@ fn explicit_discard_publishes_the_same_discard_for_an_affine_and_a_linear_tempor
         };
         let data = &package.data[id.get() - 1];
         assert_eq!(
-            (data.declaration.path.as_str(), data.cleanup_target, data.carry.is_none()),
-            ("Handle", None, true)
+            (data.declaration.path.as_str(), data.cleanup_target),
+            ("Handle", None)
         );
         if multiplicity == omega_lowering::Multiplicity::Linear {
             spec_corpus::observe_handoff!(

@@ -1107,7 +1107,7 @@ fn a_child_preserves_the_exact_parent_application() {
 
 #[test]
 fn aliases_share_their_targets_ownership_properties_across_files() {
-    let owner = "data Item [linear,carry(suspension:allowed,cpu:same,thread:any,address:movable,)] {}";
+    let owner = "data Item [linear] {}";
     let alias = "data Resource [linear]=Item; data Again=Resource;";
     let stage = check(&[("alias.omg", alias), ("owner.omg", owner)]).unwrap();
     let [(id, properties)] = stage.data_properties.as_slice() else {
@@ -1115,58 +1115,20 @@ fn aliases_share_their_targets_ownership_properties_across_files() {
     };
     assert_eq!(id.path, "Item");
     assert_eq!(properties.multiplicity, omega_typer::Multiplicity::Linear);
-    let carry = properties.carry.as_ref().unwrap();
-    assert!(carry.allows_suspension && carry.requires_same_cpu && !carry.requires_same_thread && !carry.requires_stable_address);
+    assert_eq!(stage.type_alias_properties.len(), 1, "only Resource declares an assertion");
+    let (resource, assertion) = stage.type_alias_properties.iter().next().unwrap();
+    assert_eq!(resource.path, "Resource");
+    assert_eq!(assertion.multiplicity, omega_typer::Multiplicity::Linear);
+    for name in ["Resource", "Again"] {
+        let (_, target) = stage.type_alias_targets.iter().find(|(alias, _)| alias.path == name).unwrap();
+        assert_eq!(target, &ValueType::Nominal(Box::new(id.clone())));
+    }
     let wrong = alias.replace("[linear]", "[copy]");
     let error = check(&[("alias.omg", &wrong), ("owner.omg", owner)]).unwrap_err();
     assert_eq!(error.file, "alias.omg");
     assert_eq!(error.message, "a transparent alias cannot change its target's multiplicity", "{error:?}");
     assert_span_within(&wrong, error.span.get_start_offset(), error.span.get_end_offset(), "data Resource [copy]=Item;");
 }
-/// An alias is the same type as its expansion, so its carry list cannot add a
-/// demand the expansion's declarations leave out. Lists that add none, and
-/// targets whose policy depends on a binder, still publish their axes.
-#[test]
-fn a_transparent_alias_cannot_add_a_carry_demand_to_its_expansion() {
-    let mobile = "data Mobile [carry(suspension:allowed,cpu:any,thread:any,address:movable,)] {key:u64;}";
-    let fixed = "data Fixed [carry(suspension:forbidden,cpu:same,thread:any,address:stable,)] {key:u64;}";
-    let held = "data Held {case Idle; case Busy(item:Fixed);}";
-    for (source, owner, attribute) in [
-        (
-            "// alias\r\ndata Alias [copy,carry(suspension:forbidden,cpu:same,thread:any,address:movable,)] = u64;",
-            "",
-            "carry(suspension:forbidden,cpu:same,thread:any,address:movable,)",
-        ),
-        ("data Alias [carry(suspension:forbidden,cpu:any,thread:any,address:movable,)] = Mobile;", mobile, "carry(suspension:forbidden,cpu:any,thread:any,address:movable,)"),
-        ("data Alias [carry(suspension:forbidden,cpu:same,thread:same,address:stable,)] = Fixed;", fixed, "carry(suspension:forbidden,cpu:same,thread:same,address:stable,)"),
-        ("data Alias [carry(suspension:forbidden,cpu:same,thread:any,address:stable,)] = [Mobile;2];", mobile, "carry(suspension:forbidden,cpu:same,thread:any,address:stable,)"),
-    ] {
-        let files = [("alias.omg", source), ("owner.omg", owner)];
-        let error = check(&files).unwrap_err();
-        assert_eq!(error.file, "alias.omg");
-        assert_eq!(error.message, "a transparent alias cannot change its target's carry", "{error:?}");
-        let start = source.find(attribute).unwrap();
-        assert_eq!(error.span.slice(source.as_bytes()), Some(attribute.as_bytes()));
-        assert_eq!(error.span.get_start_offset(), start);
-    }
-    // No added demand, or a target whose policy this check cannot decide: L3
-    // publishes the authored axes beside the normalized target.
-    for (source, owner, expected) in [
-        ("data Alias [copy,carry(suspension:allowed,cpu:any,thread:any,address:movable,)] = u64;", "", (true, false, false)),
-        ("data Alias [carry(suspension:forbidden,cpu:same,thread:any,address:stable,)] = Fixed;", fixed, (false, true, true)),
-        ("data Alias [carry(suspension:allowed,cpu:any,thread:any,address:movable,)] = Fixed;", fixed, (true, false, false)),
-        ("data Alias [carry(suspension:forbidden,cpu:same,thread:any,address:stable,)] = Held;", &format!("{fixed} {held}"), (false, true, true)),
-        ("data Alias<T> [carry(suspension:forbidden,cpu:any,thread:any,address:movable,)] = T;", "", (false, false, false)),
-    ] {
-        let stage = check(&[("alias.omg", source), ("owner.omg", owner)]).unwrap_or_else(|e| panic!("{source}: {e:?}"));
-        let (id, properties) = stage.type_alias_properties.iter().find(|(id, _)| id.path == "Alias").unwrap();
-        assert!(stage.type_alias_targets.contains_key(id));
-        assert!(stage.data_properties.iter().all(|(nominal, _)| nominal != id));
-        let carry = properties.carry.as_ref().unwrap();
-        assert_eq!((carry.allows_suspension, carry.requires_same_cpu, carry.requires_stable_address), expected, "{source}");
-    }
-}
-
 #[test]
 fn case_discriminators_distinguish_complete_arms_from_payload_tests() {
     let src = "data Choice {case Value(n:u8);case Empty;}

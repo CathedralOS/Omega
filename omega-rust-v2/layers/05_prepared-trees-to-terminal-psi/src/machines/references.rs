@@ -517,7 +517,7 @@ pub(super) fn dispatch_cases(
 }
 
 /// Whole-root discard suffices for a plain affine record of scalar leaves.
-/// References, sums, carry policies and nested affine children require their own
+/// References, sums and nested affine children require their own
 /// cleanup evidence. A `requires` clause does not change the cleanup, so it does
 /// not stop provisioning: the schema keeps the clause and the checker judges the
 /// binding's `ZeroValue` obligation against the all-zero value.
@@ -548,7 +548,6 @@ pub(super) fn zero_discardable_record(
             Some(crate::TypeShape::Nominal(id)) => {
                 let schema = &data[id.get() - 1];
                 if !schema.cases.is_empty()
-                    || schema.carry.is_some()
                     || !(schema.multiplicity == crate::Multiplicity::Copy || *id == root && schema.multiplicity == crate::Multiplicity::Affine)
                 {
                     return false;
@@ -641,10 +640,10 @@ pub(super) fn store_place(
             }
             (PlaceProjection::Field(field), Some(crate::TypeShape::Nominal(id))) => {
                 let owner = &data[id.get() - 1];
-                if !owner.requires.is_empty() || owner.carry.is_some() {
+                if !owner.requires.is_empty() {
                     return Err(LoweringError::new(
                         &site,
-                        "field replacement requires the enclosing invariant or carry evidence",
+                        "field replacement requires evidence for the enclosing invariant",
                     ));
                 }
                 owner

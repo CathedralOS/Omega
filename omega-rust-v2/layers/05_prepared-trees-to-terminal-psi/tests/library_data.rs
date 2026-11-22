@@ -67,7 +67,6 @@ fn assert_same_schema(
             data.public,
             data.multiplicity,
             data.lifetime_count,
-            data.carry.clone(),
             data.numbering.clone(),
             data.requires.clone(),
             data.site.clone(),

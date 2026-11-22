@@ -1,6 +1,6 @@
 //! Owned Psi product consumed independently of the source compiler.
 #![forbid(unsafe_code)]
-pub use omega_program_contracts::{Carry, CrashCause, DeclaredPauseBounds, Multiplicity, NumberedMember, PauseEffects, SchemaNumbering, Site, SourceSpan};
+pub use omega_program_contracts::{CrashCause, DeclaredPauseBounds, Multiplicity, NumberedMember, PauseEffects, SchemaNumbering, Site, SourceSpan};
 pub use omega_target_contract::{
     AddressSpaceIdentity, Endianness, EntryProfileIdentity, EntryStackGuarantee, FloatFormat, FloatOperation, FloatRealization, FloatSemantics, LayoutExtent,
     LayoutGeometry, LayoutQuery, TargetIdentity,
