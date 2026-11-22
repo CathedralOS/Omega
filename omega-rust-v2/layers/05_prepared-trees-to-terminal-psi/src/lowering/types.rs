@@ -342,21 +342,22 @@ impl LoweringTypes {
             let mut atoms = Vec::with_capacity(set.len());
             for (id, arguments) in set {
                 // local_domain_members has already checked every identity against this catalog.
-                let domain = match &declarations[&id] {
-                    DomainDeclaration::Named { row, .. } => row,
+                let (declaration, arity, site) = match &declarations[&id] {
+                    DomainDeclaration::Named { row, .. } => (&row.declaration, row.index_binders.len(), &row.site),
+                    DomainDeclaration::Template(row) => (&row.declaration, row.index_binders.len(), &row.site),
                     DomainDeclaration::Alias(a) => return Err(crate::LoweringError::new(&a.site, "a scalar qualification requires expanded named domains")),
                 };
                 // Each atom supplies one closed argument per head index. Entry and result
                 // contracts bind the specialized predicate (`append_domain_predicates`), so
                 // the catalog's `requires` and `index_binders` describe each application.
-                if !arguments.is_empty() && arguments.len() != domain.index_binders.len() {
+                if arguments.len() != arity {
                     return Err(crate::LoweringError::new(
-                        &domain.site,
+                        site,
                         "applied scalar qualification requires a closed argument for each domain index",
                     ));
                 }
                 atoms.push(omega_psi::DomainAtom {
-                    declaration: domain.declaration.clone(),
+                    declaration: declaration.clone(),
                     arguments: arguments.into_iter().map(Into::into).collect(),
                 });
             }
@@ -431,6 +432,8 @@ impl LoweringTypes {
     pub(crate) fn cleanup_target(&self, subject: TypeId, data: &[crate::LoweredData]) -> Option<crate::MachineId> {
         match self.get(subject)? {
             TypeShape::Nominal(id) => data[id.get() - 1].cleanup_target,
+            TypeShape::QualifiedScalar { domains, .. } => self.domain_sets[domains.0.get() - 1].iter()
+                .find_map(|(decl, _)| self.domain_cleanup(decl)),
             TypeShape::QualifiedNominal { data: id, domains } => self.domain_sets[domains.0.get() - 1].iter()
                 .find_map(|(decl, _)| self.domain_cleanup(decl)).or(data[id.get() - 1].cleanup_target),
             _ => None,
@@ -637,15 +640,15 @@ pub(crate) fn local_domain_members<'a>(
             if matches!(ty, ValueType::Array(..)) {
                 // The element TypeId refers to the named scalar's complete theory.
                 // Selecting an existing element is transport, not a domain cast.
-                return m.arguments.is_empty() && domain.carrier == base.as_ref() && domain.predicates().is_some();
+                return m.arguments.is_empty() && domain.matches_carrier(base) && (domain.predicates().is_some() || domain.width_binder().is_some());
             }
-            domain.carrier.carrier() == base.as_ref()
+            domain.matches_carrier(base)
                 && domain
                     .carrier
                     .domains()
                     .iter()
                     .all(|parent| members.contains(parent))
-                && (domain.predicates().is_some() || !m.arguments.is_empty() && m.arguments.iter().all(|arg| scalar_argument(arg).is_some()))
+                && (domain.predicates().is_some() || (domain.width_binder().is_some() || !m.arguments.is_empty()) && m.arguments.iter().all(|arg| scalar_argument(arg).is_some()))
         }))
     .then_some(members)
 }

@@ -604,7 +604,8 @@ impl Catalog<'_> {
                         _ => None,
                     };
                     let (type_binder, carrier_deferred) = match (qualifier, carrier, named) {
-                        (None, _, _) => (None, false),
+                        // An unqualified cast entry gets its carrier from typing the operand or destination.
+                        (None, _, _) => (None, parent.is_some_and(|node| node.kind == NodeKind::CastEntry)),
                         (_, _, Some(parent)) => (parent.type_binder, parent.carrier_deferred),
                         (Some(_), DomainCarrier::Builtin(name), _)
                             if root.is_some_and(|(family, used_arguments)| {

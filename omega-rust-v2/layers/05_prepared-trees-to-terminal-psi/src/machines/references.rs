@@ -720,7 +720,14 @@ pub(super) fn store_place(
         );
         return Ok(());
     }
-    if !matches!(expressions.types.get(projected), Some(crate::TypeShape::PrimitiveScalar(_))) {
+    let scalar_store = match expressions.types.get(projected) {
+        Some(crate::TypeShape::PrimitiveScalar(_)) => true,
+        // Replacement transports a value of the same qualified type. Any cleanup
+        // of the displaced value would need its own operation.
+        Some(crate::TypeShape::QualifiedScalar { .. }) => expressions.types.cleanup_target(projected, data).is_none(),
+        _ => false,
+    };
+    if !scalar_store {
         return Err(LoweringError::new(
             &site,
             "field replacement requires qualification, ownership, or structural store evidence",
@@ -729,6 +736,9 @@ pub(super) fn store_place(
     let OperationResult::Scalar(value) = expressions.lower(rhs, carrier, body, flow)? else {
         return Err(LoweringError::new(&site, "scalar store needs a scalar value"));
     };
+    if body.values[value.index()].ty != projected {
+        return Err(LoweringError::new(&site, "stored scalar disagrees with its destination"));
+    }
     let operation = if place.path.last() == Some(&PlaceProjection::Referent) {
         crate::OperationKind::ProjectedScalarStore { destination: place, value }
     } else {

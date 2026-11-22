@@ -8,6 +8,9 @@ pub struct MachineTemplate {
     pub public: bool,
     pub parameters: Vec<MachineTemplateBinder>,
     pub signature: TemplateCallable,
+    pub operator: Option<crate::LoweredOperator>,
+    /// Each symbolic width must be positive at its source occurrence. Its expression names its binder owners.
+    pub positive_widths: Vec<(Site, TypeExpression)>,
     pub declared_pause: DeclaredPauseBounds,
     pub fixed_pause: PauseEffects,
     pub callback_pause: Vec<(usize, PauseEffects)>,
@@ -94,6 +97,11 @@ pub enum TemplateStep {
     /// resulting value and the source no longer owns that occurrence.
     MoveFormal { formal: usize, ty: TypeExpression, site: Site },
     Integer(TemplateInteger),
+    /// Trap is a crash exit at this step when the primitive cannot return a value.
+    TrappingInteger { primitive: crate::TrappingIntegerPrimitive, operands: Vec<TemplateOperand>, result_type: TypeExpression, site: Site },
+    /// Same-carrier membership change. Every newly established atom owes its
+    /// declaration's predicate and issuance checks at this occurrence.
+    Qualify { operand: TemplateOperand, source: TypeExpression, result: TypeExpression, establishes: Vec<crate::DomainAtom>, site: Site },
     Construct(TemplateConstruct),
     Array(TemplateArray),
     Describe(TemplateDescriptor),

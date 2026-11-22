@@ -207,7 +207,8 @@ impl<'a> Reader<'_, 'a> {
                 };
                 *value.clone()
             }
-            TemplateStep::Integer(_) => {
+            TemplateStep::Qualify { .. } => return Err(format!("{path}: step {index} changes domain membership")),
+            TemplateStep::Integer(_) | TemplateStep::TrappingInteger { .. } => {
                 return Err(format!(
                     "{path}: step {index} is an integer operation, which this value reader does not evaluate"
                 ));

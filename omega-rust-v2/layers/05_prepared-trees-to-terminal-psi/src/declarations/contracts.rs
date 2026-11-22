@@ -187,6 +187,8 @@ pub(crate) fn lower_predicate(
             ) => file
                 .generic_parameters(scope)
                 .position(|(_, binder, _)| binder == *binder_node),
+            (ClauseOwner::Machine(sig), Some(Symbol::Binding { kind: NodeKind::ConstParam, binder_node, .. })) =>
+                file.generic_parameters(sig.node.node).position(|(_, binder, _)| binder == *binder_node),
             _ => closed_integer.map(|(slot, _)| slot),
         };
         let semantic = records(
@@ -395,6 +397,11 @@ pub(crate) fn lower_predicate(
                     Some(Symbol::Binding { kind: NodeKind::ConstParam, .. }) if semantic.constant.is_none()
                         && let Some((_, ValueType::StaticInteger { carrier, value })) = closed_integer && carrier.as_ref() == ty => {
                         PredicateStep::Integer(value.clone())
+                    }
+                    Some(Symbol::Binding { kind: NodeKind::ConstParam, .. }) if semantic.constant.is_none()
+                        && let ClauseOwner::Machine(sig) = owner && let Some(position) = static_slot
+                        && tree.forest().generic_parameters.get(&sig.machine).and_then(|g| g.parameters.get(position)).and_then(|p| p.carrier.as_deref()) == Some(ty) => {
+                        PredicateStep::ValueIndex(position)
                     }
                     Some(Symbol::Binding { kind: NodeKind::Param, .. }) if semantic.constant.is_none() && matches!(owner, ClauseOwner::Theorem(..)) => {
                         super::hypotheses::parameter(owner, tree, node, ty).ok_or_else(|| unsupported("contract binding is not a formal of this theorem or hypothesis"))?

@@ -339,7 +339,9 @@ fn plan_fields<'a, 'z, T>(
             }
         };
         match expressions.types.get(field.carrier) {
-            Some(TypeShape::PrimitiveScalar(_) | TypeShape::Nominal(_) | TypeShape::FixedArray { .. }) => {}
+            // A written initializer already has the field's complete type. Its
+            // defining expression establishes any new scalar qualifications.
+            Some(TypeShape::PrimitiveScalar(_) | TypeShape::QualifiedScalar { .. } | TypeShape::Nominal(_) | TypeShape::FixedArray { .. }) => {}
             // A by-value sequence is complete and immutable; the field copies it whole.
             Some(TypeShape::ElementSequence { .. }) => {}
             // The operand copies the initialized descriptor. Its defining operation

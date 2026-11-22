@@ -4,6 +4,15 @@ use omega_prepared::PreparedTrees;
 use omega_syntax::NodeKind;
 use omega_typed::MachineEffects;
 
+pub(super) fn lower_operator(binding: &omega_typed::TypedOperatorDeclaration) -> Result<crate::LoweredOperator, LoweringError> {
+    Ok(crate::LoweredOperator {
+        token: binding.token.clone(),
+        home: binding.home.as_ref().map(|id| crate::identity::declaration(id, &binding.site)).transpose()?,
+        public: binding.public,
+        site: binding.site.clone(),
+    })
+}
+
 pub(crate) fn machine_header(
     prepared: &PreparedTrees<'_>,
     instance: &crate::lowering::applications::MachineInstance<'_>,
@@ -44,16 +53,7 @@ pub(crate) fn machine_header(
                     .as_ref()
                     .filter(|op| op.node == file.node_id(child))
                     .ok_or_else(|| LoweringError::new(&site_at(tree, child), "operator token has no matching typed declaration"))?;
-                operator = Some(crate::LoweredOperator {
-                    token: binding.token.clone(),
-                    home: binding
-                        .home
-                        .as_ref()
-                        .map(|id| crate::identity::declaration(id, &binding.site))
-                        .transpose()?,
-                    public: binding.public,
-                    site: binding.site.clone(),
-                });
+                operator = Some(lower_operator(binding)?);
             }
             NodeKind::Requires => requires.push(contracts::lower_clause(prepared, tree, contracts::ClauseOwner::Machine(sig), child)?),
             NodeKind::Ensures => ensures.push(contracts::lower_clause(prepared, tree, contracts::ClauseOwner::Machine(sig), child)?),
@@ -125,7 +125,7 @@ pub(super) fn append_domain_predicates(
             // A qualified formal or result without its specialized clause would
             // let a caller skip the predicate, so an unclosed application refuses.
             let applied = domain
-                .applied_predicates(&member.arguments)
+                .applied_predicates(&member.arguments, ty.carrier())
                 .ok_or_else(|| LoweringError::new(&domain.site, "applied scalar qualification requires a closed argument for each predicate index"))?;
             for mut clause in applied {
                 for step in &mut clause.predicate {

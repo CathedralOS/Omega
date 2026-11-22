@@ -299,3 +299,20 @@ fn a_genuine_width_domain_alias_cycle_is_still_refused() {
         }
     }
 }
+
+#[test]
+fn integer_width_in_the_domain_head_is_bound_by_the_subject() {
+    let domains = "domain<const N:u64> u<N>::Tagged; domain<const N:u64> i<N>::Tagged;";
+    let source = "machine a(x:u13 in u13::Tagged)->u13 in Tagged{x}
+        machine b(x:i7 in i<7>::Tagged)->i7 in Tagged{x}
+        machine c<const K:u64>(x:u<K> in Tagged)->u<K> in Tagged requires K>0 {x}";
+    let stage = check(&[("domains.omg", domains), ("use.omg", source)]).unwrap();
+    assert_eq!(width_domain_atoms(&stage, "a"), ["u::Tagged"]);
+    assert_eq!(width_domain_atoms(&stage, "b"), ["i::Tagged"]);
+    assert_eq!(width_domain_atoms(&stage, "c"), ["u::Tagged"]);
+    let unsigned = "domain<const N:u64> u<N>::Tagged;";
+    for subject in ["i8", "bool", "u"] {
+        let source = format!("machine f(x:{subject} in u<13>::Tagged){{}}");
+        assert!(check(&[("domains.omg", unsigned), ("use.omg", &source)]).is_err(), "{subject}");
+    }
+}

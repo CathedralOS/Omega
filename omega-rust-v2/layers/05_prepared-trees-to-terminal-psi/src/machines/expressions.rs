@@ -930,21 +930,9 @@ impl Expressions<'_> {
                 work.extend(visits.into_iter().rev());
                 continue;
             }
-            // A forwarded tag belongs to the already-qualified value. Producing a
-            // new member requires a separate establishment operation and obligation.
-            if matches!(carrier, ValueType::Qualified(..))
-                && !(matches!(node.kind, NodeKind::Paren | NodeKind::Match | NodeKind::Cast | NodeKind::Index)
-                    || node.kind == NodeKind::PathExpression && matches!(resolved.symbol(expression), Some(Symbol::Binding { .. })))
-            {
-                return Err(unsupported_node(
-                    file,
-                    expression,
-                    "qualified scalar requires membership establishment lowering",
-                ));
-            }
             // Reading through a loan or a field copies stored bits, so a float
             // reads like any other stored scalar.
-            if crate::lowering::types::stored_scalar(carrier).is_ok()
+            if crate::lowering::types::stored_scalar(carrier.carrier()).is_ok()
                 && (node.kind == NodeKind::Dereference
                     || node.kind == NodeKind::FieldAccess
                         && tree
@@ -976,6 +964,18 @@ impl Expressions<'_> {
                     }
                 }
                 continue;
+            }
+            // A forwarded tag belongs to the already-qualified value. Producing a
+            // new member requires a separate establishment operation and obligation.
+            if matches!(carrier, ValueType::Qualified(..))
+                && !(matches!(node.kind, NodeKind::Paren | NodeKind::Match | NodeKind::Cast | NodeKind::Index)
+                    || node.kind == NodeKind::PathExpression && matches!(resolved.symbol(expression), Some(Symbol::Binding { .. })))
+            {
+                return Err(unsupported_node(
+                    file,
+                    expression,
+                    "qualified scalar requires membership establishment lowering",
+                ));
             }
             if node.kind == NodeKind::FieldAccess {
                 let mut selected = None;

@@ -147,7 +147,7 @@ impl BodyTyper<'_, '_> {
                 result.push(atom);
             }
         }
-        let target = omega_typed::qualified(carrier, result);
+        let target = self.catalog.types.qualified(carrier, result).map_err(|message| TypeError::at(source_file, node_index, message))?;
         let after = target.domains();
         if let Some(missing) = source.domains().iter().find(|d| !mentioned.contains(*d) && !after.contains(*d)) {
             return Err(TypeError::at(

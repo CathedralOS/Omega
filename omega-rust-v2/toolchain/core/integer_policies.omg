@@ -1,0 +1,6 @@
+public domain<const N:u64> u<N>::Wrapping;
+public domain<const N:u64> u<N>::Saturating;
+public domain<const N:u64> u<N>::Trapping;
+public domain<const N:u64> i<N>::Wrapping;
+public domain<const N:u64> i<N>::Saturating;
+public domain<const N:u64> i<N>::Trapping;

@@ -31,6 +31,7 @@ pub(crate) fn policy_unit_exclusions(typed: &omega_typed::TypedStage) -> std::co
 }
 
 pub(crate) enum DomainDeclaration<'a> {
+    Template(LoweredDomain<crate::TypeExpression>),
     /// Lowering decides no issuer, so the row states none. `policy` is the
     /// selection whose executed plan decides it. Without one the domain has no
     /// access plan and anyone may issue it.
@@ -97,6 +98,21 @@ pub(crate) struct DomainSchema<'a> {
 }
 
 impl<'a> DomainSchema<'a> {
+    pub(crate) fn width_binder(&self) -> Option<(usize, bool)> {
+        match self.carrier {
+            ValueType::IndexedInteger { signed, width } => match width.as_ref() {
+                ValueType::Parameter { owner, index } if owner.as_ref() == self.declaration => Some((*index, *signed)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    pub(crate) fn matches_carrier(&self, actual: &ValueType) -> bool {
+        self.carrier.carrier() == actual
+            || matches!((self.width_binder(), actual), (Some((_, sign)), ValueType::Integer { signed, width: Some(_) }) if sign == *signed)
+    }
+
     pub(crate) fn predicates(&self) -> Option<&[ContractClause]> {
         match &self.definition {
             DomainDefinition::Named(clauses) if self.parameters.is_empty() => Some(clauses),
@@ -111,7 +127,7 @@ impl<'a> DomainSchema<'a> {
         };
         Ok(LoweredDomain {
             declaration: crate::identity::declaration(self.declaration, &self.site)?,
-            carrier: super::type_expression::type_expression(self.carrier, &self.site)?,
+            carrier: super::type_expression::indexed_expression(self.carrier, &self.site)?,
             parameters: self.parameters,
             index_binders: self.index_binders,
             cleanup_target: None,
@@ -136,17 +152,25 @@ impl<'a> DomainSchema<'a> {
     pub(crate) fn applied_predicates(
         &self,
         arguments: &[ValueType],
+        subject: &ValueType,
     ) -> Option<Vec<ContractClause>> {
         let DomainDefinition::Named(clauses) = &self.definition else {
             return None;
         };
-        if arguments.is_empty() {
+        if arguments.is_empty() && self.width_binder().is_none() {
             return self.predicates().map(<[_]>::to_vec);
         }
         if arguments.len() != self.index_binders.len() {
             return None;
         }
         let closed = |slot: usize| {
+            if let Some((width_slot, sign)) = self.width_binder()
+                && width_slot == slot
+                && let ValueType::Integer { signed, width: Some(n) } = subject
+                && *signed == sign
+            {
+                return Some(crate::PredicateStep::Integer((*n).into()));
+            }
             let position = self.index_binders.iter().position(|&binder| binder == slot)?;
             match &arguments[position] {
                 ValueType::StaticInteger { value, .. } => Some(crate::PredicateStep::Integer(value.clone())),
@@ -182,6 +206,9 @@ impl<'a> DomainSchema<'a> {
         self,
         types: &LoweringTypes,
     ) -> Result<DomainDeclaration<'a>, LoweringError> {
+        if self.width_binder().is_some() {
+            return Ok(DomainDeclaration::Template(self.into_template()?));
+        }
         let carrier = types
             .id_for(self.carrier)
             .map_err(|error| LoweringError::new(&self.site, error.to_string()))?;
@@ -293,25 +320,23 @@ pub(crate) fn read_domain<'a>(
     let declaration = resolved
         .declaration_at(node)
         .ok_or_else(|| LoweringError::new(&site, "domain has no resolved identity"))?;
-    let binders = prepared.typed().generic_parameters.get(declaration);
+    let binders = tree.forest().generic_parameters.get(declaration);
     let (parameters, witness_count) = super::type_expression::template_binders(binders, &site)?;
     if witness_count != 0 || binders.is_some_and(|p| !p.equations.is_empty()) || file.generic_parameters(node).count() != parameters.len() {
         return Err(LoweringError::new(&site, "domain requires its complete checked generic binders"));
     }
-    let carrier = prepared
-        .typed()
+    let carrier = tree.forest()
         .domain_carriers
         .get(declaration)
         .ok_or_else(|| LoweringError::new(&site, "domain has no typed carrier"))?;
     // Who may issue a domain that selects a policy is what an execution of that
     // policy returns. Lowering runs nothing, so it either refuses the domain or
     // lowers its row with no issuer.
-    let policy = prepared
-        .typed()
+    let policy = tree.forest()
         .access_policies
         .iter()
         .find(|policy| &policy.domain == declaration);
-    let alias = prepared.typed().domain_alias_members.get(declaration);
+    let alias = tree.forest().domain_alias_members.get(declaration);
     if let Some(selection) = policy {
         if matches!(selected, SelectedPolicies::Refuse) {
             return Err(unanswered_policy_refusal(prepared, selection));
@@ -321,7 +346,7 @@ pub(crate) fn read_domain<'a>(
         // carrier-generic family, so a plan answered for either would be dropped.
         let unpublished = if alias.is_some() {
             Some("domain alias cannot publish an access policy: its qualification belongs to the domains it names")
-        } else if matches!(carrier, ValueType::Parameter { .. }) {
+        } else if matches!(carrier, ValueType::Parameter { .. } | ValueType::IndexedInteger { .. }) {
             Some("carrier-generic domain cannot publish an access policy: no closed carrier takes its plan")
         } else {
             None
@@ -405,7 +430,7 @@ pub(crate) fn read_domain<'a>(
             )?),
             NodeKind::DroppedBy if parameters.is_empty() && matches!(carrier, ValueType::Nominal(_)) => {
                 let site = site_at(tree, member);
-                let selection = prepared.typed().cleanups.iter().find(|s| s.owner == *declaration && s.site == site)
+                let selection = tree.forest().cleanups.iter().find(|s| s.owner == *declaration && s.site == site)
                     .ok_or_else(|| LoweringError::new(&site, "domain cleanup lacks its selected machine"))?;
                 let mut rows = tree.semantics_at(member);
                 if !matches!(rows.next(), Some(omega_typed::NodeSemantics::Obligation(o))

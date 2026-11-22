@@ -257,3 +257,15 @@ fn width_domain_candidates_respect_package_visibility_and_public_signatures() {
     assert_eq!(error.kind, NameErrorKind::PrivateDeclarationInPublicSignature, "{error:?}");
     assert_eq!(error.message, "public signature exposes private declaration u::Ready");
 }
+
+#[test]
+fn a_bare_cast_keeps_both_integer_families_until_the_operand_is_typed() {
+    let text = "domain<const N:u64> u<N>::Tag; domain<const N:u64> i<N>::Tag;
+                machine f(x:u13)->u13 in Tag { x as +Tag }";
+    let resolved = resolve(&[("app", "main.omg", text)], &[]).unwrap();
+    let site = text.rfind("Tag").unwrap();
+    let usage = resolved.uses().find(|name| name.span.get_start_offset() == site).unwrap();
+    let Symbol::DomainCandidates { candidates, .. } = &usage.target else { panic!("cast needs its operand type") };
+    assert_eq!(candidates.len(), 2);
+    assert!(candidates.iter().all(|candidate| candidate.carrier_deferred));
+}

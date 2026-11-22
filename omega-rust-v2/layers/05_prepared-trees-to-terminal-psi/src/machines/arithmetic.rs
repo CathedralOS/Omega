@@ -136,14 +136,14 @@ pub(crate) fn lower_integer(
     let [first, rest @ ..] = operation.operands.as_slice() else {
         return Err(error("integer operator has no operands"));
     };
-    let is_fixed_integer = |carrier: &ValueType| matches!(carrier, ValueType::Integer { width: Some(width), .. } if *width > 0);
+    let is_fixed_integer = |carrier: &ValueType| matches!(carrier, ValueType::Integer { width: Some(width), .. } if *width > 0) || matches!(carrier, ValueType::IndexedInteger { .. });
     if !operation.operands.iter().all(is_fixed_integer)
         || if comparison {
             operation.result != ValueType::Bool
         } else {
             &operation.result != first
                 || (!shift && rest.iter().any(|operand| operand != first))
-                || (primitive == Negate && !matches!(first, ValueType::Integer { signed: true, .. }))
+                || (primitive == Negate && !matches!(first, ValueType::Integer { signed: true, .. } | ValueType::IndexedInteger { signed: true, .. }))
         }
     {
         return Err(error("typed integer operator has incompatible carriers"));
@@ -191,7 +191,7 @@ pub(crate) fn lower_integer(
         };
         return Ok(LoweredInteger::Trapping(primitive));
     };
-    let signed = matches!(first, ValueType::Integer { signed: true, .. });
+    let signed = matches!(first, ValueType::Integer { signed: true, .. } | ValueType::IndexedInteger { signed: true, .. });
     let questions = IntegerOperation::required_obligations(primitive, policy, signed)
         .ok_or_else(|| error("integer primitive has no formation contract under the selected policy"))?;
     Ok(LoweredInteger::Ordinary(IntegerOperation {
