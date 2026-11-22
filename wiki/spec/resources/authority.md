@@ -16,7 +16,7 @@ provenance. Qualification adds no runtime tag.
 Multiplicity belongs to the carrier. An owned linear resource must be consumed
 or transferred; casting away its visible qualification cannot discharge the
 claim. A fabricated or dequalified `Extent` has no legal resource consumer.
-Representation, minting, qualification, content, permissions, carry, and root
+Representation, minting, qualification, content, permissions and root
 lineage are independent: a layout says how bits move, not who may establish or
 discard authority. See [opaque representations](../build/opaque_representations.md).
 
@@ -312,7 +312,7 @@ does not authenticate the underlying subjects. Exact authored schema numbers,
 compiler graph coordinates, and runtime lifecycle tokens instead derive their
 uniqueness from their issuing namespace and replay rules; they are not hashes.
 
-Static selected `accepts`/`returns` rows describe qualification and carry, not a
+Static selected `accepts`/`returns` rows describe qualification and authority flow, not a
 runtime fact. Establishment still requires the exact invocation, semantic
 subject, ABI placement, and authorized receipt. Representation-only demand
 remains reported even without service reach or accepted qualification; opacity

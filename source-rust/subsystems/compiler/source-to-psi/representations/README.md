@@ -35,7 +35,7 @@ The shared Psi representation has companion packages for [canonical encoding](..
 | [Conformances](../../../../../wiki/spec/language/conformances.md) | The exact closed selected-row map and complete application; satisfying those rows never creates whole-trait evidence. |
 | [Termination](../../../../../wiki/spec/language/termination.md) | Public guarantee and premises, apart from the checked local summary and private ranking witness. |
 | [Ownership](../../../../../wiki/spec/language/ownership.md) | Exact places, establishment, access, multiplicity, loans, provenance, outstanding payload obligations and ordered edge actions. |
-| [Carry](../../../../../wiki/spec/resources/carry.md) | Suspension, CPU, host-thread and address demands, combined separately, each with the origin that explains it. |
+| [Resources across suspension](../../../../../wiki/spec/resources/suspension.md) | Live places, loan origins and backing across a possibly suspending call. The compiler still encodes the retired carry policy. |
 | [Effects](../../../../../wiki/spec/language/effects.md) | Service identity, synchronous invocation, suspension, blocking, crash routes and positive progress, separate even when inference computes them in one graph walk. |
 
 The [resolved domain](symbol-resolved-trees/nodes/declarations_and_machines.rs)

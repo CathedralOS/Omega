@@ -168,7 +168,7 @@ declaration and static application, never an address, generated code, a body
 comparison or behavioral equivalence. It has no runtime representation: a
 consumer taking the record as a static parameter calls the selected declaration
 under its exact published contract, with reach, suspension, blocking, crash,
-termination, carry and result relations projected per selected field.
+termination and result relations projected per selected field.
 
 The same record schema may be materialized at runtime, where each callable field
 is the descriptor described above and ordinary fields retain their ordinary

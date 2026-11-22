@@ -45,7 +45,13 @@ restore retain one compatible representation, provider provenance, scope and
 CPU/activation-context relationship. Restoration consumes the matching guard
 and restores the exact prior state, including initially masked and nested use;
 it must not unconditionally enable interrupts or restore unrelated state after
-migration. Carry and context-preservation rules remain independently checked.
+migration. For a CPU-local mask, the provider must establish execution on
+the originating CPU for restoration. Where protection must span the interval,
+placement must hold throughout it, including preemption. A matching guard or
+a call that cannot suspend alone establishes no scheduler guarantee. If parking
+would expose incomplete state, keep the guard private to a scoped operation
+with a `suspends false` callback. Exposing raw save and restore to ordinary callers
+requires independently establishing the same guarantees for the whole interval.
 
 Package/default selection grants no machine-control authority. A configuration
 without the demanded realization rejects explicitly, never as a successful
@@ -80,7 +86,7 @@ and double completion violate linearity; active entries pin root retirement.
 requirement. Target roots inherit it and refine the physical plan/ABI and bounded
 installation reach. Installation introduces the exact qualified parameter;
 ordinary calls require that qualification as a precondition. The joined evidence
-binds requirement, semantic and ABI positions, domain, carry, plan, and admitted
+binds requirement, semantic and ABI positions, domain, plan, and admitted
 occurrence; no authored entry marker or parameter selector substitutes for it.
 
 ## Completion reach and lifetime
@@ -102,6 +108,6 @@ conservative ceiling.
 
 A deferred acknowledgement leases the installed root and controller configuration
 until completion. Reconfiguration, shutdown, CPU removal, relevant power
-transitions, and retirement drain outstanding acknowledgements first. Carry
-policy separately controls transfer to a bottom half. There is no breakable pin
+transitions, and retirement drain outstanding acknowledgements first. Transfer to a bottom half must preserve exclusive custody and satisfy
+the controller’s completion-context requirement. There is no breakable pin
 or asynchronous revocation of that debt.

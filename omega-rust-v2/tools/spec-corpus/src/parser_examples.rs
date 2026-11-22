@@ -3,7 +3,7 @@
 use omega_parser::FragmentKind;
 
 pub const EXAMPLE_SHAPES: &[(&str, FragmentKind)] = &[
-    ("language/generics.md:310", FragmentKind::Clauses),
+    ("language/generics.md:312", FragmentKind::Clauses),
     ("language/termination.md:35", FragmentKind::Clauses),
     ("resources/content_custody.md:129", FragmentKind::Clauses),
 ];

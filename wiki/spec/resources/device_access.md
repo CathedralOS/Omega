@@ -29,8 +29,9 @@ custody only after proving borrower release and every ordering/coherence
 obligation. Device status is independent: failure may accompany proven release;
 success without release does not restore Stable access. Failed start returns
 the borrow; failed completion/acquisition returns the still-live pending token
-and completion candidate for recovery. The token may cross suspension when its
-carry contract permits it. Result-container multiplicity does not erase its
+and completion candidate for recovery. A parked request must retain the exact backing, address and access restrictions
+through the provider's completion and acquisition protocol. A cancellation
+request alone gives the owner no permission to release or reuse the range. Result-container multiplicity does not erase its
 active payload's linear debt.
 
 ## Ordering roles

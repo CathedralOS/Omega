@@ -99,7 +99,7 @@ The compiler monomorphizes the machine argument and derives an activation
 description retaining exact machine contract/entry, argument/outcome layouts,
 target calling plan, the selected storage plan with its whole-call-graph WCSU
 `StackPlan<M>`, canonical suspension
-crossings with live carry demands, activation-wide CPU/thread preservation,
+crossings with their live loans and backing,
 and cancellation/operational behavior required by the selected start operation.
 Planning is a generated artifact, not an implicit representation-identical cast.
 
@@ -120,8 +120,8 @@ A plan provides three things and proves they suffice:
 | Execution backing | Call frames and temporaries of a running segment that do not survive a park | One execution lease |
 | Transition storage | Entry, saving, restoring and switching overlap | The transition |
 
-The plan also establishes every address, CPU, thread and lifetime preservation
-the activation requires. Its capacity is covered by provisioned resources
+The plan also establishes the backing lifetime and address stability required by
+the activation. Its capacity is covered by provisioned resources
 before execution can need it, so ordinary calls and suspension acquire no
 storage-exhaustion outcome under any plan. An object whose address must survive
 a park is given its retained home before that address is exposed; relocating it
@@ -238,9 +238,8 @@ the provider's declared containment policy.
 Target/provider selection and physical plans remain in the
 [build-owned companion](../terminal-psi/product.md#build-owned-companion), not
 Psi checked semantics. `05_task_activations.json` reports activation/stack plans,
-canonical crossing identities, and preservation obligations.
-`05_carry_manifest.json` reports the checked typed live-value/storage frontier;
-tools consume it rather than re-reading source. Report emission does not establish
+canonical crossing identities, preservation obligations and the live values and storage
+at each crossing. Report emission does not establish
 provider custody, a complete WCSU producer theorem, or executable task support.
 
 Static binding retains the exact selected runtime plan and authored start or
@@ -333,7 +332,7 @@ segment ending at the next safe point, but WCSU proves space, not response or
 wall time. Bounded-response/termination profiles need accepted finite-wait
 evidence for any otherwise unbounded wait.
 
-## Carry and loans
+## Loans across suspension
 
 Starting with a retained exclusive reference excludes conflicting parent access.
 Move independent work, split provably disjoint places, or use synchronized
@@ -342,14 +341,9 @@ park: its exact crossing needs storage lifetime/pinning, aliasing, cancellation-
 outcome, and address-stability evidence. Implementation may conservatively reject
 unsupported loans, but blanket loan death is not the language rule.
 
-[Carry](../resources/carry.md) remains demand-driven. Local possible-suspension
-checks cannot be weakened by runtime selection. A runtime establishes each
-required CPU/thread preservation axis by checked construction or exact admitted
-receipt; portable activations demand neither. A host able to migrate outside
-semantic points must establish activation-wide preservation when possible live
-values need it. Address stability follows from the selected plan's retained
-homes, which under `Fixed` is the nonmoving lease, not a freely
-asserted runtime property. Provider identity and evidence travel with the task.
+The selected storage plan provides retained homes for address-exposed storage.
+A provider with CPU- or thread-local operations must establish their placement
+requirements under [execution-context rules](../resources/suspension.md#operations-tied-to-an-execution-context).
 
 Cancellation conformance, inline completion, and stack reservation are separate
 operation/resource facts, not fields of a universal runtime behavior lattice.
@@ -412,7 +406,7 @@ never discarded; a protocol without a stop reply is drained or its obligation
 transferred, and closing may itself suspend. `Task<T>` remains the separate
 observation and settlement claim and grants no execution custody.
 
-The foundation above preserves existing loans, borrowed inputs and carry demands
+The foundation above preserves existing loans, borrowed inputs and their backing
 across suspension and supports owned or copied items. Two extensions follow
 independently. A suspension lease hands a reference into paused local storage to
 the consumer, exposing only the published payload and blocking acknowledgment

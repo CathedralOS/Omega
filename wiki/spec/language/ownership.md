@@ -1,7 +1,7 @@
 # Ownership and multiplicity
 
 Multiplicity controls use of established values, independently of representation,
-borrowing, qualification, dependent facts, and carry. It is a type property,
+borrowing, qualification and dependent facts. It is a type property,
 not a trait or a qualifier repeated on each use.
 
 | Multiplicity | Source property | Permitted use |
@@ -21,7 +21,7 @@ Shared reference and borrowed-view fields may occur in `[copy]` data when
 every field satisfies the ordinary copy rules. Copying the record duplicates
 its shared loan carriers, not its referents; it preserves their exact backing,
 qualification, provenance, and lifetime obligations. It grants neither a longer
-lifetime nor additional carry or cross-activation sharing permission. Exclusive
+lifetime nor additional cross-activation sharing permission. Exclusive
 `@mutable` and `@write` fields do not qualify. A record still requires an explicit
 `[copy]` declaration; copyable fields do not change the affine default.
 
@@ -35,8 +35,7 @@ retain the package witness association and exact borrowed places. See
 
 Lowercase bracket properties attach to the data declaration or type parameter,
 as in `data Box<T [copy]> [copy]`. They are distinct from domain qualifications
-and generate no callable behavior. `sized` and structural carry are derived
-judgments, not authored requests. Explicit `copy` and `linear` requests are
+and generate no callable behavior. The compiler derives `sized`. Explicit `copy` and `linear` requests are
 checked at the declaration; failure rejects rather than weakening the request.
 Fields and locals do not redeclare the multiplicity of their type: every use of
 `T` receives the property fixed by `T`'s declaration and concrete generic
@@ -47,9 +46,8 @@ cannot append structural properties to foreign types or grant themselves opaque
 claims. Apart from specified derived judgments, omitted properties are not
 inferred, and there is no negative property syntax. Colon bounds such as
 `T: copy` and detached attribute-prefix forms do not declare these properties.
-The core property set beyond the specified multiplicity and
-[carry](../resources/carry.md) rules remains open, not an extensible attribute
-namespace. Binding-local `[erased]` has its separate
+The data and type-parameter property list admits `copy` and `linear`.
+Resource protocols follow [the operation and storage rules](../resources/suspension.md). Binding-local `[erased]` has its separate
 [relevance contract](../proofs/contracts.md#explicit-erased-bindings).
 
 ## Establishment and erasure
@@ -213,7 +211,7 @@ structural carried-loan transport through values and terminal transfers.
 Suspension does not end a loan, restore its parent's access or transfer ownership
 of its referent. Borrowed arguments and other retained loans remain valid for the
 whole incomplete call, including parked intervals, under
-[carry and runtime preservation](../resources/carry.md#borrows-across-suspension).
+[loan and backing preservation](../resources/suspension.md#borrows-across-suspension).
 Return, cancellation and replacement may release them only through their ordinary
 checked closure/disposition paths. A final call in a transition arm supplies no
 exception and does not allow reclaiming backing still needed by its callee.
@@ -254,7 +252,7 @@ restoration obligations; one repaired branch does not repair another.
 
 Suspension must retain the exclusive loan, exact hole, removed-value custody,
 and restoration obligation without exposing the incomplete owner. Its resume
-and cancellation paths must satisfy their ordinary carry and cleanup contracts;
+and cancellation paths must satisfy their ordinary loan and cleanup contracts;
 otherwise suspension with the window open rejects. Recoverable failure does not
 cancel restoration debt. Crash and process exit follow their existing abandonment
 and survivor contracts, not an invented cleanup successor or rollback; abandoning
@@ -375,7 +373,7 @@ every remaining component's disposal. An explicit consumer such as
 `into_parts` is not bound by them and has its ordinary contract.
 
 **In place.** The transfer and the partition are of ownership, not of bytes.
-A subject whose carry forbids relocation stays in its storage through the
+A subject whose storage must retain its address under an outstanding loan stays in its storage through the
 transfer, the pattern, the use of its components and their disposal, and that
 storage is retired only when nothing depends on it. Returning a component is
 legal only when the result preserves the backing and address stability that
@@ -449,7 +447,7 @@ cleanup successor. [Calls and outcomes](../terminal-psi/calls_and_outcomes.md)
 separately governs successful completion and budget suspension without replaying
 an already committed transfer.
 
-## Content and carry
+## Content and ownership
 
 Whole-claim conservation does not require dependent types or imply divisibility.
 Only an exact qualification's owner-unique `Content<Owner, A>` projection adds
@@ -464,9 +462,8 @@ restore discarded permissions; authority that must return is a separate loan
 or claim. A counted pool of `n` units is not a protocol requiring delivery to
 `n` distinct destinations.
 
-[Carry](../resources/carry.md) independently checks suspension, CPU, thread, and
-address transitions. Copyability is not concurrent shareability. Erasure or
-qualification forgetting cannot drop carry obligations or grant migration.
+Copyability alone grants no concurrent sharing permission. Erasure and
+qualification forgetting preserve outstanding loans and claims.
 Multiplicity may leave executable representation only after complete ownership
 and cleanup checking; artifacts retain the required conservation evidence.
 Every published permission event needs exact realization or a checked no-code

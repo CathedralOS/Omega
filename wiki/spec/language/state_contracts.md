@@ -468,7 +468,7 @@ terminal position, even when lowering later implements the call with a jump.
 Markers do not redirect name resolution. Missing or partial acknowledgements
 reject; redundant markers remain permitted under
 [effects](effects.md#call-site-acknowledgements). The same
-[borrow/carry requirements](../resources/carry.md#borrows-across-suspension)
+[loan preservation requirements](../resources/suspension.md#borrows-across-suspension)
 apply in a terminal arm as at any other suspending call.
 
 ## Mutation and subject identity

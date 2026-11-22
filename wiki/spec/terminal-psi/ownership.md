@@ -115,7 +115,7 @@ unbounded scan. No-code disposal emits no target instruction or runtime bitmap.
 [Typed runs](../resources/typed_runs.md) retain an opaque ordered-cell custody
 summary, distinct from the literal structural path roster above. Terminal Psi
 retains the element type and qualifications, policy and validated placement,
-backing occurrence, explicit count, carry anchor, contained-loan obligations and
+backing occurrence, explicit count, contained-loan obligations and
 checked cell transformations. Dynamic selection transfers the selected cell's
 actual custody, not fresh authority inferred from its type or index.
 
@@ -203,7 +203,7 @@ Replay checks reads, calls, joins, loan restoration, and exits against the exact
 frontier. Reject missing repair on a returning path, duplicate extraction,
 overlapping observation, wrong-place repair, whole-owner cleanup while incomplete,
 and loss of restoration debt at a join. Suspension retains the window and its
-exclusive custody under the carry contract; it cannot publish a complete owner
+exclusive custody; it cannot publish a complete owner
 or repeat the move on resume. Crash and process-exit abandonment retain their
 separate outcome rules. Lowering preserves these relationships without replacing
 the caller's storage by a staged copy.
@@ -328,9 +328,9 @@ teardown. The [normal cleanup contract](calls_and_outcomes.md#normal-cleanup)
 owns sequential execution and suspension.
 
 A nominal invocation is an ordinary owned-call transfer of its exact subject
-to the target, with the same argument correspondence, claim rebasing, carry
-and outcome accounting as a source call, and it does not relocate a subject
-whose carry forbids relocation. The subject keeps its nominal disposition
+to the target, with the same argument correspondence, claim rebasing and
+outcome accounting as a source call, and it does not relocate a subject
+whose backing must stay in place for an outstanding loan. The subject keeps its nominal disposition
 inside the target until an authorized consuming decomposition retires it and
 partitions the subject into component claims. A verifier re-establishes that
 authorization from the retained declaration-package identity or the exact

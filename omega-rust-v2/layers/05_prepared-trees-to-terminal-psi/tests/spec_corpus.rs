@@ -463,7 +463,7 @@ fn inspect_example(example: &spec_corpus::SpecExample) -> FragmentOutcome {
                     && package.mathematics.is_empty(),
                 "{label}"
             );
-            if label == "language/generics.md:510" {
+            if label == "language/generics.md:512" {
                 let scan = &package.traits[0].requirements[0];
                 let widths = [16u32, 32, 64].map(|n| vec![ScalarLiteral::Integer(n.into())]);
                 assert_eq!(scan.family.as_deref(), Some(widths.as_slice()));
@@ -533,7 +533,7 @@ fn inspect_example(example: &spec_corpus::SpecExample) -> FragmentOutcome {
                 "build/provider_selection.md:305" => Some(check_nanosecond_units),
                 "language/domains.md:572" => Some(check_previous_distance),
                 "proofs/contracts.md:826" => Some(check_required_discharge_inputs),
-                "language/effects.md:646" => Some(check_closed_callback),
+                "language/effects.md:643" => Some(check_closed_callback),
                 "language/machines.md:33" => Some(check_explicit_mutable_argument),
                 "language/patterns.md:50" => Some(check_held_sum_dispatch),
                 "language/machine_values.md:44" => Some(check_byte_reader_factory),
@@ -993,7 +993,7 @@ fn check_machine_templates(
     assert_eq!(first.invokes, [callback(first)]);
     assert_eq!(first.result.is_some(), first.signature.result.is_some());
     match label {
-        "language/effects.md:581" => {
+        "language/effects.md:579" => {
             assert_eq!(first.body[0].call().unwrap().operands, [omega_psi::TemplateOperand::Formal(0)]);
             assert_eq!(first.result, Some(omega_lowering::TemplateResult::Operand(omega_psi::TemplateOperand::Step(0))));
             assert!(requirement.is_none());
@@ -1021,7 +1021,7 @@ fn check_machine_templates(
             assert_eq!(first.signature.crash_ceiling, Some(vec![omega_typed::CrashCause::Trap]));
             assert_eq!(bound.crash_ceiling, None);
         }
-        "language/generics.md:767" => {
+        "language/generics.md:769" => {
             let member = &package.traits[0].dependent_requirements[0];
             assert_eq!(package.traits[0].parameters.len(), 1);
             assert_eq!(member.declaration.path, "ElementStep::apply");

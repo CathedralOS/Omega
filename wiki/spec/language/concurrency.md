@@ -4,7 +4,7 @@ Concurrency activates [ordinary machines](machines.md) through an admitted
 [task runtime](../build/task_runtime.md). It does not create an async machine
 species or transform results into futures. Ownership prevents ordinary shared
 mutation; a shared reference crosses activations only under a sanctioned
-concurrent-access contract and compatible [carry](../resources/carry.md).
+concurrent-access contract and preservation of [the loan and its backing](../resources/suspension.md).
 Copyability, exclusive transfer, and shared mutation are separate permissions.
 
 Pools, supervisors, bounded mailboxes, and multiplexed case-bearing events are
@@ -184,7 +184,7 @@ substitute and preserve it. The retained relationships account for:
 | Premises | Exact selected provider, scheduling, placement and external-event assumptions and their provenance. |
 
 This is semantic contract information, not a new source keyword or a graph-shaped
-`reaches` row. `blocks`, `suspends`, carry and synchronous `invokes` relationships
+`reaches` row. `blocks`, `suspends` and synchronous `invokes` relationships
 keep their meanings; none substitutes for the protocol relationships. Existing
 ownership, loan and installed-context identities supply their subjects rather
 than a second name-based resource analysis.

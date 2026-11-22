@@ -130,7 +130,7 @@ public spellings.
   [extents and mappings](../../wiki/spec/resources/extents.md),
   [access policies](../../wiki/spec/resources/access.md),
   [device custody and ordering](../../wiki/spec/resources/device_access.md),
-  [carry demands](../../wiki/spec/resources/carry.md),
+  [resources across suspension](../../wiki/spec/resources/suspension.md),
   [runtime-sized activation storage](../../wiki/spec/resources/activation_storage.md),
   [allocation strategies](../../wiki/spec/resources/allocation.md),
   [bounded byte input](../../wiki/spec/resources/bounded_input.md), and

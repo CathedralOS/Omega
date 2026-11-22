@@ -37,8 +37,8 @@ language/data_and_literals.md:317  unresolved name Operation::GetUser
 language/data_and_literals.md:370  accepted
 language/data_and_literals.md:395  unresolved name Never
 language/data_and_literals.md:435  accepted
-language/dependent_values.md:319  unresolved name Entry
-language/dependent_values.md:383  unresolved name Entry
+language/dependent_values.md:318  unresolved name Entry
+language/dependent_values.md:382  unresolved name Entry
 language/domains.md:35  unresolved name Player
 language/domains.md:116  accepted
 language/domains.md:131  unresolved name Reservation
@@ -48,23 +48,23 @@ language/domains.md:443  unresolved name release_guard
 language/domains.md:495  accepted
 language/domains.md:572  accepted
 language/domains.md:623  unresolved name Km
-language/domains.md:666  unresolved name i32::Positive
-language/domains.md:701  accepted
-language/domains.md:736  unresolved name Km
-language/domains.md:759  unresolved name Km
-language/domains.md:805  unresolved name Km
-language/domains.md:897  unresolved machine owner Km
-language/domains.md:910  unresolved machine owner Small
-language/domains.md:995  unresolved name Socket
-language/domains.md:1020  unresolved name Unit
+language/domains.md:665  unresolved name i32::Positive
+language/domains.md:700  accepted
+language/domains.md:735  unresolved name Km
+language/domains.md:758  unresolved name Km
+language/domains.md:804  unresolved name Km
+language/domains.md:896  unresolved machine owner Km
+language/domains.md:909  unresolved machine owner Small
+language/domains.md:994  unresolved name Socket
+language/domains.md:1019  unresolved name Unit
 language/effects.md:51  unresolved trait ClockOps
 language/effects.md:101  accepted
 language/effects.md:203  unresolved name Counter
 language/effects.md:236  accepted
-language/effects.md:581  accepted
-language/effects.md:646  accepted
-language/effects.md:755  unresolved name Handler::read
-language/effects.md:883  unresolved name ordinary_call
+language/effects.md:579  accepted
+language/effects.md:643  accepted
+language/effects.md:705  unresolved name Handler::read
+language/effects.md:833  unresolved name ordinary_call
 language/expressions.md:157  unresolved name Vec2
 language/expressions.md:343  unavailable import units
 language/expressions.md:411  accepted
@@ -72,15 +72,15 @@ language/expressions.md:505  unresolved name view
 language/expressions.md:532  accepted
 language/generics.md:61  unresolved name Ordering
 language/generics.md:138  unresolved name LayoutStorage
-language/generics.md:227  unresolved name embed
-language/generics.md:246  accepted
-language/generics.md:310  unresolved name T
-language/generics.md:367  accepted
-language/generics.md:410  unresolved name u64::AtMost
-language/generics.md:510  accepted
-language/generics.md:640  unresolved name Ranked
-language/generics.md:767  accepted
-language/generics.md:867  unresolved name Nat
+language/generics.md:229  unresolved name embed
+language/generics.md:248  accepted
+language/generics.md:312  unresolved name T
+language/generics.md:369  accepted
+language/generics.md:412  unresolved name u64::AtMost
+language/generics.md:512  accepted
+language/generics.md:642  unresolved name Ranked
+language/generics.md:769  accepted
+language/generics.md:861  unresolved name Nat
 language/lifetimes.md:20  accepted
 language/lifetimes.md:96  unresolved name Value
 language/machine_values.md:22  unresolved name counter
@@ -91,8 +91,8 @@ language/modules.md:203  builtin type u7 cannot be redeclared
 language/modules.md:227  accepted
 language/numeric_values.md:498  accepted
 language/numeric_values.md:643  unresolved name cursor
-language/ownership.md:201  unresolved name items
-language/ownership.md:313  unresolved name PoolHandle
+language/ownership.md:199  unresolved name items
+language/ownership.md:311  unresolved name PoolHandle
 language/patterns.md:26  unresolved name header
 language/patterns.md:50  accepted
 language/patterns.md:86  unresolved name command
@@ -128,7 +128,6 @@ resources/access.md:20  unresolved name Controller
 resources/access.md:54  unresolved name reflect\CallableInfo
 resources/access.md:83  unresolved name Folder
 resources/bounded_input.md:38  accepted
-resources/carry.md:6  accepted
 resources/content_custody.md:129  unresolved name core\Identity
 resources/content_custody.md:235  unresolved machine owner Installed
-resources/typed_runs.md:114  unresolved name RunParts
+resources/typed_runs.md:112  unresolved name RunParts

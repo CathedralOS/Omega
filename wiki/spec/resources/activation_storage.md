@@ -49,8 +49,8 @@ materialized addresses follow the frame's stable-address roster for the whole
 claim life. A claim live at a suspension crossing joins the suspension plan's
 live-claim roster with its exact storage role; its region belongs to the
 [storage plan's](../build/task_runtime.md#storage-plans) retained backing, so
-the region and its contents survive suspension without duplication. A suspension-forbidden value held through the claim
-rejects the crossing as usual.
+the region and its contents survive suspension without duplication. Every loan held through the claim must retain its backing
+and remain valid through resumption or cancellation.
 
 Borrows over the claimed extent are ordinary loans. Splitting the claim obeys
 extent conservation — children cover the parent exactly and merge requires

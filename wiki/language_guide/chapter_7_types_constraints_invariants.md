@@ -150,10 +150,8 @@ data Certified<T> {
 ```
 
 [Chapter 10](chapter_10_compile_time_proofs.md#keep-evidence-without-runtime-storage)
-shows what erased fields are for. A third property, `carry(...)`, says whether
-a value may be held across a wait or moved between threads; it matters for
-locks and per-CPU data and is covered in
-[Chapter 18](chapter_18_concurrency.md).
+shows what erased fields are for. [Chapter 18](chapter_18_concurrency.md)
+explains how a callback contract can protect a critical section.
 
 ## Where next
 

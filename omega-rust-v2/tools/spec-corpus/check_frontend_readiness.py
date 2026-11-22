@@ -17,19 +17,19 @@ from test_inventory import target_header, TEST_RESULT
 WORKSPACE = Path(__file__).absolute().parents[2]
 STAGE_TARGETS = {"L2": "tests/stage.rs", "L3": "tests/contextual_examples.rs"}
 STAGE_TESTS = {
-    "language/domains.md:1020": (
+    "language/domains.md:1019": (
         ("L3", "published_quantity_keeps_its_carrier_and_unit_index"),
         ("L3", "explicit_quantity_carrier_matches_the_subject_in_every_domain_position"),
     ),
     "language/effects.md:51": (("L3", "published_inherited_call_contributes_its_declared_reach"),),
     "language/effects.md:203": (("L3", "published_counter_fields_retain_their_callable_contracts"),),
-    "language/effects.md:883": (("L3", "published_pause_markers_cover_each_required_effect"),),
+    "language/effects.md:833": (("L3", "published_pause_markers_cover_each_required_effect"),),
     "language/generics.md:61": (("L3", "published_sort_requirement_binds_each_calls_element_and_ordering"),),
-    "language/generics.md:310": (
+    "language/generics.md:312": (
         ("L2", "published_equality_binds_a_shadowing_parameter"),
         ("L3", "published_static_type_disjunction_reaches_typing"),
     ),
-    "language/generics.md:640": (("L3", "published_static_parameters_require_the_declared_argument_role"),),
+    "language/generics.md:642": (("L3", "published_static_parameters_require_the_declared_argument_role"),),
     "language/machine_values.md:22": (("L3", "published_record_call_selects_the_shared_counter_field"),),
     "language/machine_values.md:44": (("L2", "published_reader_and_factory_bind_their_own_preconditions"),),
     "language/modules.md:117": (("L2", "published_import_exposes_the_exact_remote_domain"),),
