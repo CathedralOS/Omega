@@ -954,7 +954,15 @@ impl Program<'_> {
         use crate::source_state::constant_recipes::DeclaredArrayExtent;
 
         let unserved = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
-        let length = if let FixedArrayLength::ConstParameter { symbol, .. } = extent {
+        // `[T; N]` names either a const parameter the enclosing declaration
+        // binds, or a constant (`const N: u64 = measure();`). Only a constant
+        // has a declaration to read a value from.
+        let named_constant = matches!(extent, FixedArrayLength::ConstParameter { symbol, .. }
+            if self.typed.symbols.symbols().nodes().is_valid(*symbol)
+                && self.typed.symbols.get(*symbol).kind == symbols::SymbolKind::Const);
+        let length = if let FixedArrayLength::ConstParameter { symbol, .. } = extent
+            && !named_constant
+        {
             let key = (symbol.arena_index(), symbol.generation());
             let position = self
                 .const_scope
@@ -1001,6 +1009,14 @@ impl Program<'_> {
                         )?
                         .0,
                     )
+                }
+                // The source driver evaluates a constant the request reaches
+                // before stage 04 freezes the trees. One still without a
+                // value waits on a deployment, or holds no array length.
+                None if named_constant => {
+                    return Err(unserved(
+                        "array extent that names a constant with no evaluated array length",
+                    ));
                 }
                 None => return Err(unserved("unresolved array extent")),
             }

@@ -1510,7 +1510,9 @@ pub mod constant_recipes {
                 FixedArrayLength::Literal(length) => u64::try_from(*length)
                     .ok()
                     .map(DeclaredArrayExtent::Literal),
-                FixedArrayLength::ConstParameter { .. } => None,
+                FixedArrayLength::ConstParameter { symbol, .. } => self
+                    .named_constant_extent(*symbol)
+                    .map(DeclaredArrayExtent::Literal),
                 FixedArrayLength::Expression(argument) => self.declared_constant_extent(*argument),
                 FixedArrayLength::ConstCall { .. } => {
                     let recipe = self.constant_recipe_for_array_length(type_reference);
@@ -1518,6 +1520,42 @@ pub mod constant_recipes {
                         .is_valid()
                         .then_some(DeclaredArrayExtent::Recipe(recipe))
                 }
+            }
+        }
+
+        /// The length of `[u8; WIDTH]` when `WIDTH` is a constant whose
+        /// initializer had to run, such as `const WIDTH: u64 = measure();`.
+        ///
+        /// Typing writes the length itself when resolution already recorded
+        /// the constant's value (`const WIDTH: u64 = 4;`). A constant computed
+        /// by a call has no value until the source driver evaluates it, which
+        /// happens after typing, so typing leaves the extent naming the
+        /// constant. The value then exists in one place, on the constant's
+        /// declaration, and this reads it from there.
+        ///
+        /// `None` when `symbol` is not a constant (a const parameter of a
+        /// generic declaration is bound by its application instead), when the
+        /// constant has no evaluated value, or when that value is not an
+        /// integer an array length can hold.
+        fn named_constant_extent(&self, symbol: SymbolHandle) -> Option<u64> {
+            if !self.symbols.symbols().nodes().is_valid(symbol)
+                || self.symbols.get(symbol).kind != symbols::SymbolKind::Const
+            {
+                return None;
+            }
+            let encoding = self
+                .const_declaration_by_symbol(symbol)?
+                .evaluated_value
+                .as_ref()?
+                .encoding()?;
+            match application_identity::const_value::decode_declaration_value(encoding)? {
+                application_identity::const_value::DecodedCanonicalConstValue::Integer {
+                    value,
+                    ..
+                } => value
+                    .to_u64()
+                    .filter(|value| usize::try_from(*value).is_ok()),
+                _ => None,
             }
         }
 
@@ -1606,7 +1644,9 @@ pub mod constant_recipes {
             };
             match length {
                 FixedArrayLength::Literal(length) => Some(*length),
-                FixedArrayLength::ConstParameter { .. } => None,
+                FixedArrayLength::ConstParameter { symbol, .. } => self
+                    .named_constant_extent(*symbol)
+                    .and_then(|value| usize::try_from(value).ok()),
                 FixedArrayLength::Expression(argument) => self
                     .declared_constant_extent(*argument)
                     .and_then(|extent| extent.closed(self))

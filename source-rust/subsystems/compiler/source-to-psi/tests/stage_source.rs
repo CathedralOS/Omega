@@ -622,6 +622,86 @@ fn publication_checks_the_same_grammar_in_root_and_imported_files() {
     }
 }
 
+/// A constant computed by a call gives an array its length, and the public
+/// compiler checks that length where another machine requires a different
+/// one. `east\N` and `west\N` share a last name, so each case also fails if
+/// an extent took the other module's value.
+///
+/// `wiki/spec/language/constants.md`, "Evaluation": "A constant position
+/// requests semantic evaluation." The handoffs this program crosses are
+/// tested one stage at a time in
+/// `pipeline/04_typed-trees-to-prepared-typed-trees/tests/computed_array_extents.rs`
+/// and `pipeline/05_prepared-typed-trees-to-lowered-program/tests/prepared_array_extents.rs`.
+#[test]
+fn a_computed_array_extent_is_refused_where_another_length_is_required() {
+    let main = r"machine pair(values: @[u8; 2]) -> u8 { values[0u64] }
+machine triple(values: @[u8; 3]) -> u8 { values[0u64] }
+machine choose(values: @[u8; east\N]) -> u8 { pair(values) }
+machine other(values: @[u8; west\N]) -> u8 { triple(values) }";
+    let package = PackageKeyIdentity::from_digest([0x58; 32]).unwrap();
+    let publish = |east: u64, west: u64| {
+        let (mut files, root) = captured(package, main);
+        let mut modules = Vec::new();
+        for (path, value) in [
+            ("product/east/value.omg", east),
+            ("product/west/value.omg", west),
+        ] {
+            let text = format!(
+                "public const N: u64 = extent();
+                machine extent() -> u64 crashes none {{ {value}u64 }}"
+            );
+            modules.push(
+                files
+                    .add_checked_instance(
+                        path.into(),
+                        text.as_str(),
+                        "product".into(),
+                        Some(package),
+                        SourceOrigin::User,
+                        SourceResolutionStratum::Base,
+                        DependencyScope::Product,
+                    )
+                    .source_id,
+            );
+        }
+        let mut stage = product(files, root, package, &[]).unwrap();
+        stage.parsed.roots.extend(modules);
+        (root, compile(stage, None))
+    };
+
+    // `choose` passes `east\N` bytes where two are required, and `other`
+    // passes `west\N` bytes where three are required.
+    assert!(!publish(2, 3).1.unwrap().to_bytes().is_empty());
+    for (east, west, machine, wanted, supplied) in [(3, 3, "choose", 2, 3), (2, 2, "other", 3, 2)] {
+        let (root, published) = publish(east, west);
+        let diagnostics = published.unwrap_err();
+        let [refusal] = diagnostics.as_slice() else {
+            panic!("expected one refusal, found {diagnostics:?}")
+        };
+        assert_eq!(
+            refusal.message,
+            format!(
+                "the parameter it is passed for expects an array with {wanted} elements \
+                 but the supplied array has {supplied} while reading the body of `{machine}`"
+            )
+        );
+        // The refusal points at the argument: the `values` passed on.
+        let declaration = main.find(&format!("machine {machine}(")).unwrap();
+        let argument = declaration + main[declaration..].find("(values) }").unwrap() + 1;
+        assert_eq!(
+            refusal.source_span,
+            Some(SourceSpan {
+                source_id: root,
+                span: Span {
+                    start: argument,
+                    end: argument + "values".len(),
+                },
+            }),
+            "{refusal:?}"
+        );
+    }
+}
+
 #[test]
 fn parser_output_must_cover_the_exact_captured_files() {
     let package = PackageKeyIdentity::from_digest([0x73; 32]).unwrap();
