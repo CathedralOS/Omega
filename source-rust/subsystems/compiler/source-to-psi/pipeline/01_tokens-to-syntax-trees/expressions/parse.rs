@@ -20,9 +20,9 @@ use crate::errors::parse_error::ParseError;
 use crate::expressions::context::ExpressionContext;
 use crate::expressions::membership::extend_membership;
 use crate::expressions::operators::{
-    ARITHMETIC_OPERATORS, LOGICAL_OPERATORS, UnaryPrefix, apply_unary_prefix,
-    insert_binary_expression, punctuation_label, punctuation_policy, take_right_shift_policy,
-    take_unary_prefix,
+    ARITHMETIC_OPERATORS, LOGICAL_OPERATORS, RIGHT_SHIFT_PRECEDENCE, UnaryPrefix,
+    apply_unary_prefix, insert_binary_expression, punctuation_label, punctuation_policy,
+    take_right_shift_policy, take_unary_prefix,
 };
 use crate::expressions::postfix::{
     build_call_expression_handle, finish_argument_lanes, parse_cast_suffix, parse_member_suffix,
@@ -207,6 +207,10 @@ enum ChainKind {
     Logical,
     /// Bitwise, shift, additive and multiplicative operators over unary operands.
     Arithmetic,
+    /// The arithmetic chain of a static argument, written between `<` and
+    /// `>`. There a `>` closes the list, so two touching `>` close two lists
+    /// and a right shift is written in parentheses.
+    StaticArgument,
 }
 
 /// An operator whose right operand is still being parsed, kept on the
@@ -370,10 +374,9 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                     depth,
                     constant_position: Some(constant_position),
                 });
-                Ok(Step::Descend(
-                    Descent::Arithmetic(ExpressionContext::NoStructLiteral),
-                    input,
-                ))
+                let context = ExpressionContext::NoStructLiteral;
+                self.push_chain(ChainKind::StaticArgument, context);
+                Ok(Step::Descend(Descent::Unary(context), input))
             }
             Descent::Membership(context) => {
                 self.frames.push(Frame::Membership { context });
@@ -588,15 +591,41 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         mut expression: ExpressionHandle,
         input: Input<'tokens, 'source>,
     ) -> StepResult<'tokens, 'source> {
-        let operators = match kind {
-            ChainKind::Logical => LOGICAL_OPERATORS,
-            ChainKind::Arithmetic => ARITHMETIC_OPERATORS,
+        // The lexer has no `>>` token. Two `>` that touch are a right shift
+        // wherever an arithmetic operator may follow an operand.
+        let right_shift = match kind {
+            ChainKind::Arithmetic => input.take_right_shift(),
+            ChainKind::Logical | ChainKind::StaticArgument => None,
         };
-        let Some((punctuation, operator, precedence)) = operators
-            .iter()
-            .find(|(punctuation, _, _)| input.at_punctuation(*punctuation))
-            .copied()
-        else {
+        let next = if let Some((span, rest)) = right_shift {
+            let (policy, rest) = take_right_shift_policy(span, rest)?;
+            Some((
+                BinaryOperator::ShiftRight,
+                RIGHT_SHIFT_PRECEDENCE,
+                span,
+                policy,
+                rest,
+            ))
+        } else {
+            let operators = match kind {
+                ChainKind::Logical => LOGICAL_OPERATORS,
+                ChainKind::Arithmetic | ChainKind::StaticArgument => ARITHMETIC_OPERATORS,
+            };
+            match operators
+                .iter()
+                .find(|(punctuation, _, _)| input.at_punctuation(*punctuation))
+            {
+                Some(&(punctuation, operator, precedence)) => Some((
+                    operator,
+                    precedence,
+                    input.current_source_span(),
+                    punctuation_policy(punctuation),
+                    input.take_punctuation(punctuation, punctuation_label(punctuation))?,
+                )),
+                None => None,
+            }
+        };
+        let Some((operator, precedence, operator_span, policy, after_operator)) = next else {
             while self.operators.len() > base {
                 let pending = self.operators.pop().expect("operator above its base");
                 expression = insert_binary_expression(
@@ -619,9 +648,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         {
             let message = if pending.operator == BinaryOperator::Less
                 && operator == BinaryOperator::Greater
-                && input
-                    .take_punctuation(punctuation, ">")?
-                    .at_punctuation(PunctuationKind::LeftParen)
+                && after_operator.at_punctuation(PunctuationKind::LeftParen)
             {
                 "comparison operators cannot be chained without parentheses; use `name::<T>(...)` for a generic call"
             } else {
@@ -643,12 +670,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 pending.span,
             );
         }
-        let operator_span = input.current_source_span();
-        let mut input = input.take_punctuation(punctuation, punctuation_label(punctuation))?;
-        let mut policy = punctuation_policy(punctuation);
-        if punctuation == PunctuationKind::GreaterGreater {
-            (policy, input) = take_right_shift_policy(operator_span, input)?;
-        }
+        let input = after_operator;
         // A constant position is folded before any operand is typed, and
         // folding a suffixed operator as the bare Exact one would drop its
         // policy without a word. Reject it at the operator, however deeply
@@ -677,7 +699,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         });
         let lower = match kind {
             ChainKind::Logical => Descent::Membership(context),
-            ChainKind::Arithmetic => Descent::Unary(context),
+            ChainKind::Arithmetic | ChainKind::StaticArgument => Descent::Unary(context),
         };
         Ok(Step::Descend(lower, input))
     }

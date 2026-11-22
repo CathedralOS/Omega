@@ -1,0 +1,23 @@
+// Expected exit: 0. A right shift is two `>` that touch, and the same two
+// `>` close two nested generic argument lists.
+data Outcome<T> { case Missing; case Present(item: T); }
+machine wrap<T>(value: T) -> Outcome<T> { Outcome::Present { item: move value } }
+machine halve(value: u32) -> u32 requires value <= 4096u32 crashes none { value > > 1u32 }
+machine main() crashes Trap {
+    let nested: Outcome<Outcome<u32>> = wrap::<Outcome<u32>>(wrap::<u32>(halve(64u32)));
+    transition nested {
+        Outcome::Present { item } -> inner(move item),
+        Outcome::Missing -> failed()
+    }
+    machine inner(value: Outcome<u32>) crashes Trap {
+        transition value {
+            Outcome::Present { item } -> check(item),
+            Outcome::Missing -> failed()
+        }
+    }
+    machine check(value: u32) crashes Trap {
+        transition value == 32u32 && (value >>% 3u32) == 4u32 { true -> done(), false -> failed() }
+    }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

@@ -40,11 +40,6 @@ pub(crate) const ARITHMETIC_OPERATORS: &[(PunctuationKind, BinaryOperator, u8)] 
     (PunctuationKind::Caret, BinaryOperator::BitwiseXor, 1),
     (PunctuationKind::Ampersand, BinaryOperator::BitwiseAnd, 2),
     (PunctuationKind::LessLess, BinaryOperator::ShiftLeft, 3),
-    (
-        PunctuationKind::GreaterGreater,
-        BinaryOperator::ShiftRight,
-        3,
-    ),
     (PunctuationKind::Plus, BinaryOperator::Add, 4),
     (PunctuationKind::Minus, BinaryOperator::Subtract, 4),
     (PunctuationKind::Asterisk, BinaryOperator::Multiply, 5),
@@ -129,10 +124,14 @@ pub(crate) fn punctuation_policy(punctuation: PunctuationKind) -> ArithmeticDoma
     }
 }
 
-/// Right shift has no suffixed token: `>>` stays one token so a nested
-/// static argument list can close one `>` at a time. Its policy suffix is
-/// the `%`, `|` or `!` written immediately after it, with no space, so
-/// `a >>! b` traps while `a >> !b` shifts by a negation.
+/// Right shift binds as tightly as left shift. It has no token, so the
+/// arithmetic chain reads it from two touching `>` rather than this table.
+pub(crate) const RIGHT_SHIFT_PRECEDENCE: u8 = 3;
+
+/// Right shift has no token, so that a nested static argument list can
+/// close one `>` at a time. Its policy suffix is the `%`, `|` or `!`
+/// written immediately after the second `>`, with no space, so `a >>! b`
+/// traps while `a >> !b` shifts by a negation.
 pub(crate) fn take_right_shift_policy<'tokens, 'source>(
     shift: source_text::SourceSpan,
     input: Input<'tokens, 'source>,
@@ -374,7 +373,6 @@ pub(crate) fn punctuation_label(punctuation: PunctuationKind) -> &'static str {
         PunctuationKind::Less => "<",
         PunctuationKind::Greater => ">",
         PunctuationKind::LessLess => "<<",
-        PunctuationKind::GreaterGreater => ">>",
         PunctuationKind::Plus => "+",
         PunctuationKind::Minus => "-",
         PunctuationKind::Asterisk => "*",

@@ -338,7 +338,7 @@ fn boolean_type_operands_do_not_turn_qualified_type_arguments_into_indices() {
 #[test]
 fn explicit_arguments_belong_to_their_expression_path_component() {
     let source = r#"
-        const PLAIN: T = library::select::<Outer<Inner<T>>, N >> 1,>(value);
+        const PLAIN: T = library::select::<Outer<Inner<T>>, (N >> 1),>(value);
         const MEMBER: T = receiver.select::<N + 1>(value);
         const PATH: T = library::Trait::<T>::Group::<U>::method::<V>(value);
         const SYMBOL: T = library::Trait::<T>::Group::<U>::member;

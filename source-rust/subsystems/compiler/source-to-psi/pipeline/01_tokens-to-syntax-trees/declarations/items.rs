@@ -98,9 +98,6 @@ pub(crate) fn named_implementation_prefix<'tokens, 'source>(
             _ if operand_depth != 0 => continue,
             Some(PunctuationKind::Less) => angle_depth += 1,
             Some(PunctuationKind::Greater) => angle_depth = angle_depth.checked_sub(1)?,
-            Some(PunctuationKind::GreaterGreater) => {
-                angle_depth = angle_depth.checked_sub(2)?;
-            }
             Some(
                 PunctuationKind::Semicolon
                 | PunctuationKind::LeftBrace
