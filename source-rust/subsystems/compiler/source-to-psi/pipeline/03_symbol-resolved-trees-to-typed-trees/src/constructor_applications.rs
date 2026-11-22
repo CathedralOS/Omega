@@ -483,7 +483,8 @@ fn select_call(
 ) -> Result<(), Diagnostic> {
     // Token operators are already selected by their operand types. A later
     // walk sees their lowered call form, but its result keeps that selection.
-    if call.selection
+    if call
+        .selection
         .and_then(|id| program.authored_declaration_selections().get(id))
         .is_some_and(|selection| {
             selection.kind() == AuthoredDeclarationSelectionKind::Operator
@@ -636,16 +637,15 @@ fn infer_call(
     let mut arguments = supplied.to_vec();
     let mut inferred = vec![None; omitted.len()];
     for (formal, argument) in formals.iter().zip(call.arguments.iter().copied()) {
-        if let Some(actual) = infer(program, argument, &mut Vec::new())? {
-            unify(
-                program,
-                formal.type_reference,
-                actual,
-                omitted,
-                &mut inferred,
-            )
-            .map_err(|error| error.with_source_span(call.source_span))?;
-        }
+        infer_operand_bindings(
+            program,
+            formal.type_reference,
+            argument,
+            omitted,
+            &mut inferred,
+            &mut Vec::new(),
+        )
+        .map_err(|error| error.with_source_span(call.source_span))?;
     }
     let Some(inferred) = inferred.into_iter().collect::<Option<Vec<_>>>() else {
         return Ok(None);
@@ -918,9 +918,15 @@ fn infer(
                             field.field_symbol,
                         )
                         .map(|field| field.type_reference)
-                            && let Some(actual) = infer(program, field.value, active)?
                         {
-                            unify(program, declared, actual, &parameters, &mut inferred)?;
+                            infer_operand_bindings(
+                                program,
+                                declared,
+                                field.value,
+                                &parameters,
+                                &mut inferred,
+                                active,
+                            )?;
                         }
                     }
                     // Only the canonical locator vocabulary defines inactive
@@ -985,16 +991,6 @@ fn infer(
         ExpressionNode::Borrow(borrow) => infer(program, borrow.target, active)?
             .map(|referee| reference_formation_type(program, referee, borrow.access)),
         ExpressionNode::ArrayLiteral(_) => infer_array(program, value, None, active)?,
-        ExpressionNode::String(bytes) => {
-            builtin(program, BuiltinTypeAtom::U8).map(|element_type| {
-                program
-                    .type_reference_table
-                    .insert(TypeReferenceNode::FixedArray {
-                        element_type,
-                        length: FixedArrayLength::Literal(bytes.len()),
-                    })
-            })
-        }
         ExpressionNode::Integer(literal) => literal.landing().and_then(|landing| {
             let reference = builtin(
                 program,
@@ -1099,10 +1095,6 @@ fn infer_at_destination(
             active.pop();
             result
         }
-        // This older inference query reads quoted bytes as owned constructor
-        // payloads. It cannot choose an ordinary overload from that answer:
-        // the written byte view and contextual owned copy have distinct types.
-        ExpressionNode::String(_) => Ok(None),
         _ => infer(program, value, active),
     }
 }
@@ -1173,6 +1165,48 @@ fn integer_argument(program: &mut TypedTrees, value: usize) -> TypeReferenceHand
             symbol: SymbolHandle::invalid(),
             name: Identifier::generated(value.to_string()),
         })
+}
+
+/// A fixed-array field or parameter receives the literal's owned bytes.
+/// Use their element type and exact width to infer the receiving declaration's
+/// arguments. The same literal in an unconstrained expression is a shared view.
+fn infer_operand_bindings(
+    program: &mut TypedTrees,
+    formal: TypeReferenceHandle,
+    value: ExpressionHandle,
+    parameters: &[crate::source_state::data::TypeParameter],
+    inferred: &mut [Option<TypeReferenceHandle>],
+    active: &mut Vec<ExpressionHandle>,
+) -> Result<(), Diagnostic> {
+    if !program.expression_table.expression_is_valid(value)
+        || !program.type_reference_table.contains_type_reference(formal)
+    {
+        return Ok(());
+    }
+    let carrier = program
+        .type_reference_table
+        .unconstrained_type_reference(formal);
+    let actual = match (
+        program.expression_table.expression(value),
+        program.type_reference_table.type_reference(carrier),
+    ) {
+        (ExpressionNode::String(bytes), TypeReferenceNode::FixedArray { .. }) => {
+            let length = FixedArrayLength::Literal(bytes.len());
+            builtin(program, BuiltinTypeAtom::U8).map(|element_type| {
+                program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::FixedArray {
+                        element_type,
+                        length,
+                    })
+            })
+        }
+        _ => infer(program, value, active)?,
+    };
+    if let Some(actual) = actual {
+        unify(program, formal, actual, parameters, inferred)?;
+    }
+    Ok(())
 }
 
 fn unify(
@@ -1721,6 +1755,48 @@ mod tests {
         assert_eq!(literal.value_bignum().unwrap().to_string(), "3");
         let conflicting = source.replace("right: @[u8; 3]", "right: @[u8; 4]");
         let refusal = checked(&[("main.omg", &conflicting)]).unwrap_err();
+        assert!(
+            format!("{refusal:?}").contains("conflicting generic arguments"),
+            "{refusal:?}"
+        );
+    }
+
+    #[test]
+    fn quoted_fields_infer_the_same_owned_extent_from_their_encoded_bytes() {
+        let source = r#"
+            data Pair<const N: u64> { left: [u8; N]; right: [u8; N]; }
+            machine width<const N: u64>(value: Pair<N>) -> u64 { N }
+            machine measure() -> u64 { width(Pair { left: "é", right: "ab" }) }
+        "#;
+        let program = checked(&[("main.omg", source)]).expect("both payloads contain two bytes");
+        let application = program
+            .expression_table
+            .expression_entries()
+            .find_map(|(_, node)| {
+                let ExpressionNode::Call(call) = node else {
+                    return None;
+                };
+                (call.target.as_str() == "width").then_some(call.authored_machine_application)
+            })
+            .unwrap();
+        let [argument] = program
+            .expression_table
+            .static_machine_application_arguments(application)
+        else {
+            panic!("the result needs one inferred byte count");
+        };
+        let ExpressionNode::Integer(length) = program
+            .prepare_callable_scalar_argument(
+                crate::source_state::types::PrimitiveType::U64,
+                argument,
+            )
+            .unwrap()
+        else {
+            panic!("the count must be an integer")
+        };
+        assert_eq!(length.value_bignum().unwrap().to_string(), "2");
+        let unequal = source.replace(r#""ab""#, r#""a""#);
+        let refusal = checked(&[("main.omg", &unequal)]).unwrap_err();
         assert!(
             format!("{refusal:?}").contains("conflicting generic arguments"),
             "{refusal:?}"
