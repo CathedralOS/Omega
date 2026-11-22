@@ -70,6 +70,11 @@ fn a_forwarded_borrowed_slice_and_an_owned_sequence_keep_their_own_layouts() {
 }
 
 #[test]
+fn recursive_transitions_forward_the_slice_and_return_the_matched_element() {
+    assert_both("recursive_typed_slice");
+}
+
+#[test]
 fn an_insufficient_live_length_guard_still_refuses_the_second_element() {
     let project = fixture("fail", "runtime_sequence_values");
     let expected = std::fs::read_to_string(project.join("expected.txt")).unwrap();
