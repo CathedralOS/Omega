@@ -785,25 +785,16 @@ fn describe(
             )
         });
     for binding in scalar_bindings.chain(snapshot_bindings) {
-        // Reuse the kernel's bounded definition traversal. Expanding an
-        // arithmetic DAG by recursive cloning here can grow exponentially.
-        // A failed or exhausted transport leaves the original binding for
-        // the ordinary scope filter to weaken, never an assumed relation.
-        let defined =
-            check_value_equality_substitution(context, &binding, equations.iter().copied());
-        // A dominating integer is still the exact incoming value. Retain its
-        // name so later proofs can cite its operation equation, even when
-        // expanding the arithmetic would lose that witness.
-        if let Ok(defined) = defined
+        // A dominating argument keeps its exact identity even if substituting
+        // definitions would expand the arithmetic. Later proofs can cite its
+        // operation equation. An out-of-scope identity is filtered below.
+        if let Ok(defined) =
+            check_value_equality_substitution(context, &binding, equations.iter().copied())
             && defined != binding
         {
-            if in_scope(&binding) {
-                parts.push(binding);
-            }
             parts.push(defined);
-        } else {
-            parts.push(binding);
         }
+        parts.push(binding);
     }
     for (justification, proposition, path) in &available {
         // A dominating fact about an argument is not yet a fact about the
