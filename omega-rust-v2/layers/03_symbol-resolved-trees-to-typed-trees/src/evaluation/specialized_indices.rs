@@ -99,18 +99,28 @@ impl IndexSpecializations {
         mut rest: &[ValueType],
     ) -> Result<(), TypeError> {
         let types = &catalog.types;
-        let mut scopes = Vec::new();
+        let mut scopes: Vec<(&DeclarationId, &[ValueType])> = Vec::new();
         for scope in types.specialization_scopes(owner) {
             let (arguments, remaining) = rest
                 .split_at_checked(types.arity(scope))
                 .ok_or_else(|| TypeError::for_site(&request.expression, "specialized type argument has the wrong number of arguments"))?;
             rest = remaining;
-            scopes.push((scope, arguments));
             if !types.generics[scope].equations.is_empty() {
-                types
-                    .solve_arguments(scope, arguments.to_vec())
-                    .map_err(|reason| TypeError::for_site(&request.expression, reason))?;
+                if scope.kind == NodeKind::Data {
+                    types.solve_arguments(scope, arguments.to_vec()).map_err(|reason| TypeError::for_site(&request.expression, reason))?;
+                } else {
+                    let enclosing: Vec<_> = scopes.iter().map(|&(declaration, args)| (declaration.clone(), args.to_vec())).collect();
+                    let mut slots: Vec<_> = arguments.iter().cloned().map(Some).collect();
+                    // Check unused receipts too. Pending equation operands
+                    // can run this round. Consumers of a specialized machine
+                    // signature separately wait in validate_call_bindings,
+                    // and the final typing pass checks every receipt again.
+                    types
+                        .check_machine_equations(scope, &enclosing, &mut slots)
+                        .map_err(|reason| TypeError::for_site(&request.expression, reason))?;
+                }
             }
+            scopes.push((scope, arguments));
             for (index, argument) in arguments.iter().enumerate() {
                 argument.validate_closed_indices().map_err(|reason| {
                     TypeError::for_site(

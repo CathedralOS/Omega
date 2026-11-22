@@ -620,6 +620,9 @@ impl BodyTyper<'_, '_> {
         if let Some(expected) = expected {
             capture(&signature.result).infer(expected, id, &mut bindings);
         }
+        if bindings.iter().any(Option::is_none) {
+            self.check_selected_machine_equations(callee, id, &enclosing_arguments, &mut bindings)?;
+        }
         let bindings = bindings
             .into_iter()
             .collect::<Option<Vec<_>>>()

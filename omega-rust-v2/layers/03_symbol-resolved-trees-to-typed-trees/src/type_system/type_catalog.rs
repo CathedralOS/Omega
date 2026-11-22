@@ -162,6 +162,70 @@ impl TypeCatalog<'_> {
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| format!("{} expects {arity} arguments, found {supplied} with incomplete inference", owner.path))
     }
+
+    /// Recover omitted machine arguments from the selected declaration's
+    /// unconditional type equations. A still-open equation remains a call
+    /// precondition. When both sides close, their canonical types must agree.
+    pub(crate) fn check_machine_equations(
+        &self,
+        owner: &DeclarationId,
+        enclosing: &[(DeclarationId, Vec<ValueType>)],
+        slots: &mut [Option<ValueType>],
+    ) -> Result<bool, String> {
+        let equations = &self.generics[owner].equations;
+        if equations.is_empty() {
+            return Ok(false);
+        }
+        let formals = self.formals(owner);
+        let open = |ty: &ValueType| {
+            ty.depends_on_call_input() || ty.components().any(|part| matches!(part, ValueType::BoundSubject(_)))
+        };
+        let open_leaf = |ty: &ValueType| {
+            matches!(
+                ty,
+                ValueType::Parameter { .. } | ValueType::Subject { .. } | ValueType::BoundSubject(_) | ValueType::StaticFormula { .. } | ValueType::OpenStatic { .. }
+            )
+        };
+        loop {
+            let missing = slots.iter().filter(|slot| slot.is_none()).count();
+            let mut waiting = false;
+            for (index, pattern) in equations {
+                let pattern = pattern.in_enclosing_scopes(enclosing);
+                if slots[*index].is_none()
+                    && let ValueType::Parameter { owner: parameter_owner, index: other } = &pattern
+                    && parameter_owner.as_ref() == owner
+                {
+                    slots[*index] = slots[*other].clone();
+                }
+                let Some(actual) = slots[*index].clone() else { continue };
+                let mut inferred = slots.to_vec();
+                if pattern.infer_with(&actual, owner, &mut inferred, &mut |left, right| {
+                    self.indices.can_wait_for_equality(left, right)
+                }) {
+                    slots.clone_from_slice(&inferred);
+                }
+                let arguments: Vec<_> = slots.iter().zip(&formals).map(|(bound, formal)| bound.as_ref().unwrap_or(formal).clone()).collect();
+                let selected = pattern.substitute(owner, &arguments);
+                if selected != actual {
+                    let compatible = |left: &ValueType, right: &ValueType| {
+                        left.infer_with(right, owner, &mut slots.to_vec(), &mut |a, b| {
+                            open_leaf(a) || open_leaf(b) || self.indices.can_wait_for_equality(a, b)
+                        })
+                    };
+                    // Open inputs can explain a leaf mismatch. They cannot
+                    // make distinct known constructors or accesses equal.
+                    if !(open(&selected) || open(&actual)) || !(compatible(&selected, &actual) || compatible(&actual, &selected)) {
+                        return Err(format!("conflicting type equation for {}", owner.path));
+                    }
+                    waiting |= self.indices.retain_demands(&selected) | self.indices.retain_demands(&actual);
+                }
+            }
+            if missing == slots.iter().filter(|slot| slot.is_none()).count() {
+                return Ok(waiting);
+            }
+        }
+    }
+
     pub fn formals(
         &self,
         id: &DeclarationId,
