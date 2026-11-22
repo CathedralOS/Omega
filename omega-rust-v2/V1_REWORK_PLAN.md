@@ -1,0 +1,48 @@
+# V1 compiler rework plan
+
+## Decision and scope
+
+Harden V1 incrementally, starting with authored Build. Use the existing V1 pipeline and one canonical language specification. Use V2's handoff tests and adversarial examples wherever they expose an observable distinction. Keep V2 available as a comparison while the pilot runs. The pilot decides where the next compiler investment goes. A full rewrite, a folder migration and a formal correctness claim each need separate justification.
+
+V1 already has eight source-to-Psi stages, a driver for deferred resolution and typing, and separate Psi consumers. Its current-source continuation suite passed 16 direct checker tests. An earlier reference executable ran a staged Build and executed its emitted product on native and Psi. That executable reports an unrecorded revision, so reproduce public behavior using a revision-matched compiler and Omega library before treating it as a baseline. [V1 pipeline map](https://github.com/CathedralOS/Omega/blob/e1c9fb0255e4f5d1c53af74b37773aca6b09f5a9/source-rust/subsystems/compiler/source-to-psi/pipeline/README.md) · [Direct tests](https://github.com/CathedralOS/Omega/blob/e1c9fb0255e4f5d1c53af74b37773aca6b09f5a9/source-rust/subsystems/compiler/psi-semantics/tests/checked_continuation.rs) · [Prior measurements](.agents/worktree/bool-pattern-comparison-1795364432775/README.md)
+
+## First PR — make a completed byte read survive Build preparation
+
+1. Start with the existing repair report. On a recorded revision, invoke the public V1 compiler with the matching standard library. Run twin Builds whose helper reads byte 1 of the three-byte value "kit". Move only the helper call from after dependency preparation to before it. Both builds should complete and observe 105. Record the first point where outcomes diverge. If both already pass, identify the regression test that protects the case or add the missing control.
+2. In the existing continuation suite, construct previously executed and successor Psi products directly. An identical completed byte read must be accepted. Change only its already-executed index from 1 to 0 and require rejection. Include an allowed change after the wait so blanket rejection cannot pass. Follow the source range and its length and bounds evidence when comparing these operations.
+3. If the public failure reproduces and the direct test isolates it to the continuation checker, repair that comparison there. If the producer publishes the wrong operation or evidence, repair the producer and assert its emitted product first. Keep the refusal for unsupported comparisons until their semantics are covered.
+4. Merge when the direct controls distinguish the mutations, the public twins agree, the existing 16 cases still pass, and a one-fact mutation of the implementation makes the new test fail. Record the revision, commands, case outcomes and time to run the focused group. No production edit is needed if existing behavior already satisfies all controls.
+
+The report reproduced the failure on an earlier revision. The current tree has explicit byte-length comparison code. Those facts make a byte read worth testing and leave its current outcome open. [Reported byte-read case](https://github.com/CathedralOS/Omega/blob/e1c9fb0255e4f5d1c53af74b37773aca6b09f5a9/OWNER_CODE_CONCERNS.md#a-byte-read-can-run-in-a-build-but-prevent-it-from-resuming) · [Continuation comparison](https://github.com/CathedralOS/Omega/blob/e1c9fb0255e4f5d1c53af74b37773aca6b09f5a9/source-rust/subsystems/compiler/psi-semantics/src/continuation/coordinates.rs) · [Build execution contract](https://github.com/CathedralOS/Omega/blob/e1c9fb0255e4f5d1c53af74b37773aca6b09f5a9/wiki/spec/build/execution.md)
+
+## Second PR — check who owns the wait site
+
+Use the reported dependency-preparing helper in two equivalent forms. Bind the helper result and branch on it in one program. Use the same suspended call directly as the transition subject in the other. Make the helper read an export available only after preparation. A literal return alone masks the reported failure.
+
+Trace the resolved subject, the selected emitted call, and the activation that resumes. Inspect both the producer's selected call and the consumer's decision. Run one ill-typed export as a negative control and observe that the suffix effect never executes and the prefix effect occurs once. If the driver lost a selection already established by resolution, carry that exact selection through the handoff. If the emitted product already identifies the wait unambiguously, change only its consumer. Keep the public regression if the issue was already fixed. [Reported wait-site case](https://github.com/CathedralOS/Omega/blob/e1c9fb0255e4f5d1c53af74b37773aca6b09f5a9/OWNER_CODE_CONCERNS.md#build-preparation-misses-a-suspended-helper-used-as-a-transition-subject) · [Source-to-checked-call binding](https://github.com/CathedralOS/Omega/blob/e1c9fb0255e4f5d1c53af74b37773aca6b09f5a9/source-rust/subsystems/compiler/source-to-psi/driver/compile_build/continuation.rs)
+
+| Decision in the Build pilot | Owner and observable output |
+| --- | --- |
+| Which authored call requested the dependency? | Source compilation supplies the selected declaration and call origin. The Build driver binds that origin to the emitted suspension site. |
+| What is available after preparation? | The coordinator obtains the exact dependency. Resolution and typing judge the dependent source against that scope. |
+| May this activation resume with this successor? | Psi semantics checks the executed prefix and parked call stack. The driver binds the result to the admitted source products. |
+| Did earlier effects execute twice? | The executor resumes the parked activation. An observable effect before the wait and another after it distinguish replay, early execution and a correct resume. |
+
+## Then apply the method across the compiler
+
+| Order | Work and first discriminating example | Evidence to retain |
+| --- | --- | --- |
+| 1. Resolution, typing and preparation (02–04) | Try extending a resolved program with a declaration from generated source. Determine exactly which information the extension still needs from parser trees. Then vary a computed extent from 2 to 3 in an otherwise identical program requiring length 2. | Identify the selected declaration and the prepared value. Show where the incompatible extent is refused. Preserve legitimate deferred typing and identify the driver that schedules it. |
+| 2. Lowering and checking (05–06) | Use two qualified Boolean constants with the same leaf name and opposite values. Inspect the selected constant, actual branch target and returned value. Next take a case where a projected variant keeps its parent identity despite an unrelated type reusing a local case number. | Drive the consumer directly with an altered product. Demand the right branch or the right refusal. Trace any failure to the first product that lost the distinction. |
+| 3. Publication and execution (07 onward) | Emit an admitted product. In a directory containing only that artifact, run it with its producer identity. Change the supplied identity as a refusal control. | Record the admitted artifact identity and each engine's observable result. Keep source provenance, artifact authorization and execution as individually testable decisions. |
+| 4. Lexing and parsing (00–01) | Inventory existing fixtures. Pick one source pair where trivia or grouping changes spans or syntax in a specified way. Check token byte coverage and the resulting syntax through the normal APIs. | Close each scoped contract as soon as current tests demonstrate it. Reopen earlier if a downstream witness localizes a loss there. |
+
+Use the [existing repair queue](https://github.com/CathedralOS/Omega/blob/e1c9fb0255e4f5d1c53af74b37773aca6b09f5a9/OWNER_CODE_CONCERNS.md) to select each next case. Work on independent reproductions in parallel. Give each production contract one integration owner. If two cases require the same owner change, propose the shared API with both failing inputs before migrating callers. Retain an isolated local fix when only one consumer mishandled adequate input.
+
+## What earns a lock and when to switch investment
+
+For each claimed rule, name the producer, the product it emits, the decision the consumer owns and the shared-spec clause. Keep one producer assertion, one direct consumer test that changes a meaningful fact, and one public program that reaches the path. Record which distinction each example detects. Reuse an existing fixture when it already detects that distinction. Run the large historical corpus in batches to discover missing distinctions, then reduce failures to small permanent cases. Keep an explicit list of unexercised paths.
+
+A scoped lock records the revision, passing commands, covered rules and known gaps. When a handoff changes, rerun each consumer that relied on the changed fact. Reopen just those claims. Passing a fixture count alone cannot lock a stage.
+
+After the two Build PRs, compare on the same cases: public behavior, defects caught by isolated tests, how many owners had to change, focused test time, and the effort from reproduction to verified repair. Record gaps in the comparison, including V2's missing public authored Build path. Continue V1 if the hard cases become independently verifiable with localized changes. If a settled rule repeatedly forces consumers to reconstruct the same information, redesign that V1 boundary and rerun both cases. Move that work to V2 only when it demonstrates a material advantage on the same requirement and the remaining integration cost is understood.

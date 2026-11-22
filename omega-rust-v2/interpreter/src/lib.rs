@@ -23,8 +23,20 @@ mod values;
 
 #[cfg(test)]
 use admission::Reason;
+pub use admission::{AdmittedEntry, Refusal};
 use admission::{CheckedBody, admit};
 pub use execution::{Completed, Location, Stop};
 pub use meter::{CELL_SCHEDULE, Ceilings, ChargeSite, MeterStop, SiteUsage, Usage, WORK_SCHEDULE};
 pub use policy::{PolicyReceipt, execute_policy};
 pub use values::{Argument, Value};
+
+/// Admit a checked scalar entry to the ordinary metered execution entry point.
+pub fn admit_scalar_return<'unit>(checked: &omega_checker::CheckedScalarReturn<'unit>) -> Result<AdmittedEntry<'unit>, Refusal> {
+    let unit = checked.unit();
+    let machine = checked.machine();
+    let closure: Vec<_> = checked
+        .bodies()
+        .map(|body| CheckedBody::new(unit, body))
+        .collect();
+    admit(unit, &machine.declaration, &closure)
+}

@@ -76,6 +76,12 @@ fn capture_survives_relocation_and_reads_only_retained_bytes() {
             .to_string()
             .contains("authored build.omg")
     );
+    let sources = PackageSources::capture(&b).unwrap();
+    let original = sources.authored_entry().unwrap().unwrap();
+    fs::write(b.join("build.omg"), "machine replaced() {}").unwrap();
+    assert_eq!(&*original, b"machine build() {}");
+    assert!(Arc::ptr_eq(&original, &sources.authored_entry().unwrap().unwrap()));
+    assert!(DefaultBuild::from_sources(sources).is_err());
     fs::remove_dir_all(path).unwrap();
 }
 

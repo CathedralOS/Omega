@@ -7,7 +7,8 @@ no new work: finish or close a V2 pull request that is already open, and start
 no new layer, driver or back-end work here. The layer table and milestones
 below record where V2 stopped; they are not a work queue. V1 takes over V2's
 handoff tests and its rule that a stage links only the products it reads. See
-the [decision log](#decision-log).
+the [decision log](#decision-log), the [comparison](V1_V2_COMPARISON.md) and
+the [V1 rework plan](V1_REWORK_PLAN.md).
 
 For the same content as pictures, open [ARCHITECTURE.html](ARCHITECTURE.html):
 ten diagrams and no prose beyond captions.
@@ -439,13 +440,14 @@ The rule:
 > **A stage starts with its inputs and its service backings settled. Anything
 > it discovers or selects goes into the plan for a later compile.**
 
+For an authored Build that prepares a dependency, the stage boundary is internal. Registration fixes a request. Only after the checked wait prepares that registration may the driver give its declarations to the dependent continuation. The driver supplies the extended compilation scope. The interpreter retains the original activation, call stack, mutable Build, storage, and outstanding loans. The continuation must pass checking and admission before its first effect. A later type error leaves earlier effects observable exactly once. Live storage stays with the interpreter throughout and never enters the inert plan. The later stage in decision 1 below can therefore be the rest of the same authored machine. The implementation must demonstrate this on the public Build path. [Build declarations](../wiki/spec/build/declarations.md) · [Checked stages and joins](../wiki/spec/build/scoped_execution.md#checked-build-stages)
+
 The proposed driver starts a new source stage when its plan selects another source universe. Within a stage, resumed typing keeps its original resolved package.
 
 1. **Every program is a stage, and `build.omg` is not special.** It is an
    ordinary Omega program in its own universe: it resolves its own imports,
    may pull source files into that universe, runs build-time code and
-   generates files. It is compiled and run to completion like any other
-   program.
+   generates files. It runs to completion as one logical activation. An explicit preparation wait divides its checking and execution into admitted stages.
 2. **A stage can use only the services it was given backings for.** The first
    stage in a chain is given none. It can still compute and return a plan.
 3. **A stage's result is a plan, and a plan is inert data.** It holds
@@ -815,4 +817,4 @@ files waits for. Full figures and method are in
 | 2026-11-18 | L2 resolver signed off. L3 begins with typed operands and named machine calls. | Jarod |
 | 2026-11-18 | A binding shows its numeric type in its declaration: `let count: u8 = 5;` or `let count = 5u8;`. `let count = 5; send(count)` is refused; a later use never chooses the type. | Jarod |
 | 2026-11-19 | V1 and V2 share one specification. Changes to language and build rules go in `wiki/spec/`. | Jarod |
-| 2026-11-22 | Compiler work continues in V1. V2 takes no new work: V1 runs authored Builds and native programs, and V2 has no publication layer, driver or back end. V1 takes over the handoff tests from [What solid means](#what-solid-means) and the rule that a stage links only the products it reads, which `mbx xtask check-boundary` now enforces for the V1 source stages. Revisit if V1 repairs keep needing changes in several stages for one decision. | Jarod |
+| 2026-11-22 | Compiler work continues in V1. V2 takes no new work: V1 runs authored Builds and native programs, and V2 has no publication layer, driver or back end. V1 takes over the handoff tests from [What solid means](#what-solid-means) and the rule that a stage links only the products it reads, which `mbx xtask check-boundary` now enforces for the V1 source stages. Revisit if V1 repairs keep needing changes in several stages for one decision. [Comparison](V1_V2_COMPARISON.md) · [V1 rework plan](V1_REWORK_PLAN.md) | Jarod |

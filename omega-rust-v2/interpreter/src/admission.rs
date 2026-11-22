@@ -452,6 +452,25 @@ impl<'unit> Admission<'unit, '_> {
                     return Err(Reason::Malformed("a constant lies outside its carrier"));
                 }
             }
+            OperationKind::Integer { operation, operands } if operation.is_total_comparison() => {
+                let [left, right] = operands.as_slice() else {
+                    return Err(Reason::Malformed("integer comparison arity"));
+                };
+                let left = unit.types.get(value_type(*left)?);
+                let OperationResult::Scalar(value) = result else {
+                    return Err(Reason::Malformed("expected Boolean comparison result"));
+                };
+                if !matches!(left, Some(TypeShape::PrimitiveScalar(omega_psi::ScalarType::Integer { .. })))
+                    || unit.types.get(value_type(*right)?) != left
+                    || body
+                        .values
+                        .get(value.index())
+                        .and_then(|row| unit.types.get(row.ty))
+                        != Some(&TypeShape::PrimitiveScalar(omega_psi::ScalarType::Boolean))
+                {
+                    return Err(Reason::Malformed("integer comparison carrier mismatch"));
+                }
+            }
             OperationKind::CopyStructural { source } => {
                 place_type(source.root)?;
                 let selected = projected_type(unit, body, source).ok_or(Reason::Unsupported("a copy through this projection"))?;

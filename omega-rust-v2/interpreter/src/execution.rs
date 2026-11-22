@@ -564,6 +564,20 @@ impl<'unit> Execution<'_, 'unit> {
                 self.take_cells(1)?;
                 literal_value(literal)
             }
+            OperationKind::Integer { operation, operands } => {
+                let [left, right] = operands.as_slice() else {
+                    return Err(missing());
+                };
+                let (Value::Integer(left), Value::Integer(right)) = (frame.scalar(*left)?, frame.scalar(*right)?) else {
+                    return Err(missing());
+                };
+                let result = operation
+                    .primitive
+                    .compare(left.cmp(right))
+                    .ok_or_else(missing)?;
+                self.take_cells(1)?;
+                Value::Boolean(result)
+            }
             OperationKind::CopyStructural { source } => {
                 // Count the selected value where it stands, pay, then copy it.
                 let root = Arc::clone(frame.place(source.root)?);

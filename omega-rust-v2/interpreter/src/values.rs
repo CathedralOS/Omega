@@ -102,17 +102,7 @@ pub(crate) fn scalar_conforms(
 ) -> bool {
     match (value, scalar) {
         (Value::Boolean(_), ScalarType::Boolean) => true,
-        (Value::Integer(value), ScalarType::Integer { signed, width }) => {
-            use num_bigint::Sign;
-            match (value.sign(), signed) {
-                (Sign::NoSign, _) => width > 0,
-                (Sign::Plus, false) => value.bits() <= width,
-                (Sign::Plus, true) => value.bits() < width,
-                (Sign::Minus, false) => false,
-                // The least value of a signed carrier has one more magnitude bit than its greatest.
-                (Sign::Minus, true) => (-value - 1u8).bits() < width,
-            }
-        }
+        (Value::Integer(value), scalar) => scalar.contains_integer(value),
         (Value::Float(bits), ScalarType::IeeeFloat(format)) => bits.format() == format,
         _ => false,
     }

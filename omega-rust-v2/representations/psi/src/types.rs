@@ -31,6 +31,20 @@ pub enum ScalarType {
     IeeeFloat(IeeeFloatFormat),
 }
 
+impl ScalarType {
+    /// Whether the mathematical integer is representable in this carrier.
+    pub fn contains_integer(self, value: &num_bigint::BigInt) -> bool {
+        let Self::Integer { signed, width } = self else { return false };
+        if width == 0 { return false; }
+        match value.sign() {
+            num_bigint::Sign::NoSign => true,
+            num_bigint::Sign::Plus if signed => value.bits() < width,
+            num_bigint::Sign::Plus => value.bits() <= width,
+            num_bigint::Sign::Minus => signed && (-value - 1u8).bits() < width,
+        }
+    }
+}
+
 /// Variant order follows the Terminal Psi format tags: 1 binary32, 2 binary64.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum IeeeFloatFormat {

@@ -1167,7 +1167,7 @@ impl Expressions<'_> {
                     work.push(ExpressionStep::MatchArms { targets, carrier, ty });
                     continue;
                 }
-                let (subject, arms) = crate::machines::branches::boolean_dispatch(tree, expression)?;
+                let (subject, arms) = crate::machines::branches::boolean_dispatch(tree, self.prepared, expression)?;
                 work.push(ExpressionStep::SplitMatch { subject, arms, carrier, ty });
                 work.push(ExpressionStep::Visit {
                     node: subject,
@@ -1488,6 +1488,18 @@ pub(super) fn ungroup_place_value(
         node = *inner;
     }
     Ok(node)
+}
+
+pub(super) fn frozen_boolean_constant(
+    tree: &LoweringTree<'_>,
+    prepared: &PreparedTrees<'_>,
+    operand: usize,
+) -> Result<bool, LoweringError> {
+    let semantics = return_semantics(tree, operand, &ValueType::Bool)?;
+    match semantics.constant.and_then(|id| prepared.constant(id)) {
+        Some(PreparedValue::Bool(value)) => Ok(*value),
+        _ => Err(unsupported_node(tree.resolved().file, operand, "Boolean pattern requires a frozen Boolean constant")),
+    }
 }
 
 fn return_semantics<'a>(
