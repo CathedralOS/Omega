@@ -70,13 +70,20 @@ pub(crate) fn install(
                 let position = u32::try_from(position).map_err(|_| {
                     unavailable("default restoration position exceeds the descriptor graph")
                 })?;
-                let clauses = required
-                    .operation(operation, (block.id, position), &mut references)
-                    .map_err(|error| unavailable(error.detail))?;
                 let origin = *source
                     .operations
                     .get(operation.id)
                     .ok_or_else(|| unavailable("default restoration lost its operation source"))?;
+                let clauses = required
+                    .operation(operation, (block.id, position), &mut references)
+                    .map_err(|error| {
+                        refuse(
+                            machine.id,
+                            Construct::Operation(operation.id),
+                            Unserved::Machine(error.detail),
+                        )
+                        .with_source_span(origin.authored_span())
+                    })?;
                 for clause in 0..clauses.len() {
                     let clause = u32::try_from(clause)
                         .map_err(|_| unavailable("default restoration has too many clauses"))?;
