@@ -143,12 +143,19 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         SourceSpan::new(self.source_id, Span::new(first.span.start, last.span.end))
     }
 
+    /// Where a source ends. An error about a token the source never
+    /// supplied points here instead of at the first byte of the file.
+    pub(crate) fn end_of_source_span(&self) -> SourceSpan {
+        let end = self.stream.source_text().len();
+        SourceSpan::new(self.source_id, Span::new(end, end))
+    }
+
     pub(crate) fn error_here(&self, message: impl Into<String>) -> ParseError {
         let source_span = self
             .tokens
             .first()
             .map(|token| self.source_span(token))
-            .unwrap_or_default();
+            .unwrap_or_else(|| self.end_of_source_span());
         ParseError::at_source_span(message, source_span)
     }
 

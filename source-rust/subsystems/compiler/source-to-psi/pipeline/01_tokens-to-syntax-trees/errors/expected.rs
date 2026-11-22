@@ -14,7 +14,9 @@ fn expected_at(input: Input<'_, '_>, token: Option<&Token>, expected: &[&str]) -
             format!("{expected}, found {}", describe_token(input, token)),
             input.source_span(token),
         ),
-        None => ParseError::at_source_span(format!("{expected}, found EOF"), Default::default()),
+        None => {
+            ParseError::at_source_span(format!("{expected}, found EOF"), input.end_of_source_span())
+        }
     }
 }
 

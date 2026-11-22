@@ -100,8 +100,15 @@ fn parse_source_pages_with_count(
             .and_then(|count| first_page_identity.checked_add(count - 1))
             .is_none()
     {
-        return Err(ParseError::new(
+        // Page identities run from `first_page_identity` to `u32::MAX`; zero
+        // names no page. The first source past the last identity has no page.
+        let placed_pages = match first_page_identity {
+            0 => 0,
+            first => (u32::MAX - first) as usize + 1,
+        };
+        return Err(unplaced_source_error(
             "parser exhausted its source-page directory",
+            lexed_sources.get(placed_pages.saturating_mul(chunk_size)),
         ));
     }
     let arena = ConcurrentPagedArena::<SyntaxTrees>::new_with_first_page(
@@ -110,10 +117,13 @@ fn parse_source_pages_with_count(
         first_page_identity,
     );
     let page_reservations = (0..page_count)
-        .map(|_| {
-            arena
-                .reserve_page()
-                .ok_or_else(|| ParseError::new("parser exhausted its source-page directory"))
+        .map(|page| {
+            arena.reserve_page().ok_or_else(|| {
+                unplaced_source_error(
+                    "parser exhausted its source-page directory",
+                    lexed_sources.get(page * chunk_size),
+                )
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
 
@@ -145,16 +155,50 @@ fn parse_source_pages_with_count(
         );
     }
 
+    // The arena does not say which page is missing, so this reports the
+    // batch: the first token of its first source.
     let pages = arena.seal().map_err(|error| {
-        ParseError::new(format!(
-            "parser page publication incomplete: {} of {} pages published",
-            error.published_pages, error.reserved_pages
-        ))
+        unplaced_source_error(
+            format!(
+                "parser page publication incomplete: {} of {} pages published",
+                error.published_pages, error.reserved_pages
+            ),
+            lexed_sources.first(),
+        )
     })?;
     Ok(ParsedSyntaxPages {
         pages,
         sources: parsed_sources,
     })
+}
+
+/// A page-directory fault is a limit of this parse, not a mistake in a
+/// file, so no token is wrong. The error points at where parsing stopped:
+/// the first token of the first source that got no page, or the end of that
+/// source when it holds no token. An empty batch has no source to point at,
+/// and its error carries only the message.
+fn unplaced_source_error(
+    message: impl Into<String>,
+    unplaced: Option<&tokens::LexedSource>,
+) -> ParseError {
+    let Some(source) = unplaced else {
+        return ParseError::at_source_span(message, source_text::SourceSpan::default());
+    };
+    let text = source.tokens.source_text();
+    let span = source
+        .tokens
+        .as_slice()
+        .iter()
+        .find(|token| !token.is_trivia())
+        .map_or(source_text::Span::new(text.len(), text.len()), |token| {
+            token.span
+        });
+    let mut error = ParseError::at_source_span(
+        message,
+        source_text::SourceSpan::new(source.source_id, span),
+    );
+    error.location = Some((source.path.clone(), SourcePosition::of(text, span.start)));
+    error
 }
 
 fn parse_source_page(

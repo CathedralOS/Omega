@@ -110,7 +110,12 @@ fn classify_call_target_handle(
     let path = if call.receiver.is_valid() {
         let receiver = syntax_trees
             .copy_expression_to_statement_identifier_path(call.receiver)
-            .ok_or_else(|| ParseError::new("call target must be a path or member access"))?;
+            .ok_or_else(|| {
+                ParseError::at_source_span(
+                    "call target must be a path or member access",
+                    call.target.source_span(),
+                )
+            })?;
         syntax_trees.append_identifier_path_member_to_statement_table(receiver, call.target.clone())
     } else {
         let handle = syntax_trees

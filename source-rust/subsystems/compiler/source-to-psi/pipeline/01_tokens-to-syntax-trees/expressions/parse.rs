@@ -783,12 +783,11 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         end_inclusive: bool,
         input: Input<'tokens, 'source>,
     ) -> StepResult<'tokens, 'source> {
+        let separator = input.error_here("inclusive range `..=` requires an end expression");
         let input = take_range_separator(input, end_inclusive)?;
         if input.at_punctuation(PunctuationKind::RightBracket) {
             if end_inclusive {
-                return Err(ParseError::new(
-                    "inclusive range `..=` requires an end expression",
-                ));
+                return Err(separator);
             }
             let range =
                 syntax_trees
