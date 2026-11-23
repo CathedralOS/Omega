@@ -21,3 +21,5 @@ pub(crate) mod zeroed_structural;
 
 #[cfg(test)]
 mod call_claim_transfer_tests;
+#[cfg(test)]
+mod nominal_cleanup_tests;
