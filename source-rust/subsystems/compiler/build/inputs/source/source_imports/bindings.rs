@@ -210,8 +210,9 @@ pub(crate) fn retain_module_import_bindings(
     Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>,
     Vec<Diagnostic>,
 > {
+    let mut bindings = super::files::build_product_file_imports(storage)?;
     if storage.resolved_imports.is_empty() {
-        return Ok(Vec::new());
+        return Ok(bindings);
     }
     let mut sources = storage
         .source_roots
@@ -239,7 +240,7 @@ pub(crate) fn retain_module_import_bindings(
         .filter(|import| storage.sources.source_is_selected(import.occurrence.source))
         .collect::<Vec<_>>();
     imports.sort_by_key(|import| (import.occurrence.source.0, import.occurrence.ordinal));
-    let mut bindings = Vec::with_capacity(imports.len());
+    bindings.reserve(imports.len());
     let mut previous: Option<(&ImportOccurrence, &source_admission::SourceFile)> = None;
     for import in imports {
         let occurrence = &import.occurrence;

@@ -12,7 +12,7 @@
 // its package's authored declarations.
 
 use diagnostics::Diagnostic;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -62,37 +62,24 @@ pub fn admit_generated_extension(
                 .expect("validated generated source paths retain UTF-8 components")
         })
         .collect::<Vec<_>>();
-    let collisions = match logical_paths.as_slice() {
-        [] => Vec::new(),
-        [logical_path] => vec![
-            base_sources
-                .selected_files()
-                .any(|existing| existing.path == *logical_path),
-        ],
-        _ => {
-            let mut generated_positions = HashMap::with_capacity(logical_paths.len());
-            let mut collisions = vec![false; logical_paths.len()];
-            for (position, logical_path) in logical_paths.iter().enumerate() {
-                match generated_positions.entry(logical_path.as_path()) {
-                    std::collections::hash_map::Entry::Vacant(entry) => {
-                        entry.insert(position);
-                    }
-                    std::collections::hash_map::Entry::Occupied(_) => {
-                        collisions[position] = true;
-                    }
-                }
-            }
-            for existing in base_sources.selected_files() {
-                if let Some(&position) = generated_positions.get(existing.path.as_path()) {
-                    collisions[position] = true;
-                }
-            }
-            collisions
-        }
-    };
-    for ((generated, logical_path), collides) in
-        generated_sources.iter().zip(logical_paths).zip(collisions)
-    {
+    let mut occupied = HashSet::with_capacity(generated_sources.len());
+    for file in base_sources.selected_files().filter(|file| {
+        file.package_root == package_root
+            && file.package_identity == package_identity
+            && file.dependency_scope == source_provenance::DependencyScope::Product
+    }) {
+        occupied.insert(
+            file.logical_filename()
+                .map_err(|reason| vec![Diagnostic::error(reason)])?,
+        );
+    }
+    for (generated, logical_path) in generated_sources.iter().zip(logical_paths) {
+        let filename = std::str::from_utf8(generated.relative_path()).map_err(|_| {
+            vec![Diagnostic::error(
+                "generated source has no UTF-8 logical filename",
+            )]
+        })?;
+        let collides = !occupied.insert(filename.to_owned());
         let source = std::str::from_utf8(generated.bytes()).map_err(|_| {
             vec![Diagnostic::error(format!(
                 "included generated source `{}` is not UTF-8 Omega source",
