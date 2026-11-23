@@ -51,9 +51,24 @@ pub(crate) struct CompletedSource {
 
 #[derive(Clone)]
 pub struct SourceExtensionRequest {
-    pub syntax: crate::SourceSyntax,
+    syntax: Arc<syntax_trees::SyntaxTrees>,
     pub sources: Arc<crate::source_inputs::SourceMap>,
-    pub top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
+    top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
+}
+
+impl SourceExtensionRequest {
+    pub fn new(
+        mut syntax: crate::SourceSyntax,
+        sources: Arc<crate::source_inputs::SourceMap>,
+        top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
+    ) -> Self {
+        syntax.share_pages();
+        Self {
+            syntax: Arc::new(syntax.trees),
+            sources,
+            top_level_bindings,
+        }
+    }
 }
 
 pub(crate) struct CompletedTypedSource {
@@ -439,7 +454,7 @@ impl CompletedSource {
             )]
         })?;
         let pre_check = PreCheckEvaluation::new(Some(scope));
-        let mut syntax = extension.syntax.trees;
+        let mut syntax = Arc::unwrap_or_clone(extension.syntax);
         let generation = u32::try_from(syntax.page_count())
             .ok()
             .and_then(|count| count.checked_add(1))
