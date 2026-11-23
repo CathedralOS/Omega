@@ -86,6 +86,7 @@ struct ProductScope<'path> {
     occurrence: SourceSpan,
     path: &'path str,
     qualified: bool,
+    file: Option<(Option<source_text::SourceId>, &'path str)>,
     dependency: Option<semantic_vocabulary::PackageKeyIdentity>,
 }
 
@@ -101,11 +102,21 @@ impl<'path> ProductScope<'path> {
                 _ => name,
             },
             qualified: qualified.is_some(),
+            file: program.symbols.product_file_selection(name, occurrence),
             dependency,
         }
     }
 
     fn contains(&self, program: &TypedTrees, symbol: SymbolHandle, is_public: bool) -> bool {
+        if let Some((source, member)) = self.file {
+            return program.symbols.product_file_contains(
+                source,
+                member,
+                self.occurrence,
+                symbol,
+                is_public,
+            );
+        }
         let matches_path = if self.qualified {
             program.symbols.display_path(symbol, "::") == self.path
         } else {
