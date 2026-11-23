@@ -29,6 +29,7 @@ mod bindings;
 mod build_prelude;
 mod entry_contract_seed;
 mod files;
+pub(crate) use files::generated_file_imports;
 mod source_targets;
 pub use source_targets::{source_target, source_targets};
 mod frontier;

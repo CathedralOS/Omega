@@ -361,6 +361,12 @@ fn invalid_file_paths_and_aliases_are_refused_at_the_import() {
         let tokens = Lexer::new(text).tokenize().unwrap();
         parse(&mut SyntaxTrees::new(SourceId(1)), SourceId(1), &tokens).unwrap_err()
     };
+    for text in ["use missing/u8.omg;", "use missing/value.omg as u8;"] {
+        assert_eq!(
+            parse_error(text).message,
+            "file alias `u8` names a builtin type"
+        );
+    }
     let duplicate = parse_error("use audio/text.omg;\nuse {dep}/text.omg;");
     assert!(
         duplicate

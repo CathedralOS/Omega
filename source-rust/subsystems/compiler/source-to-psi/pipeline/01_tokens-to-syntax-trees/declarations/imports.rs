@@ -64,6 +64,12 @@ pub(crate) fn parse_use_item<'tokens, 'source>(
     } else {
         stem.ok_or_else(|| rest.error_here("this filename needs an explicit file alias (as name)"))?
     };
+    if symbols::BuiltinTypeAtom::is_builtin_type_spelling(alias.as_str(trees)) {
+        return Err(ParseError::at_source_span(
+            format!("file alias `{}` names a builtin type", alias.as_str(trees)),
+            alias.source_span(),
+        ));
+    }
     Ok((
         UseItem::File {
             root,

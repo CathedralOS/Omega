@@ -48,6 +48,82 @@ impl ProductQueryInputs {
                     "Product query author lost its admitted source correspondence",
                 )]
             })?;
+        if let Some(alias) = lookup
+            .alias
+            .strip_prefix('|')
+            .and_then(|name| name.strip_suffix('|'))
+        {
+            use super::super::bindings::{ImportOccurrence, PendingPackageImport};
+            use super::super::files::{captured_file, core_relative_path};
+            use super::super::package_selection::ReconciledPackageImportRequest;
+            use source_compiler::SourceImportTarget;
+
+            let import = storage.source_roots.iter().find(|(_, roots)| roots.source_id == author)
+                .and_then(|(_, roots)| roots.build_imports.iter().find(|import| matches!(&import.target, SourceImportTarget::File { alias: name, .. } if name == alias)));
+            let Some(import) = import else {
+                return Ok(Vec::new());
+            };
+            let SourceImportTarget::File { root, path, .. } = &import.target else {
+                unreachable!()
+            };
+            let capture = |root: &std::path::Path, logical: &str| {
+                captured_file(root, std::path::Path::new(logical), &storage.filesystem)?
+                    .map(|file| vec![file])
+                    .ok_or_else(|| {
+                        vec![
+                            Diagnostic::error(format!("no admitted logical file `{logical}`"))
+                                .with_source_span(SourceSpan::new(author, import.span)),
+                        ]
+                    })
+            };
+            if root.as_deref() == Some("omega") {
+                return capture(
+                    &super::super::bundled_core_root()?,
+                    core_relative_path(path).map_err(|reason| vec![Diagnostic::error(reason)])?,
+                );
+            }
+            let requester = storage
+                .sources
+                .get(author)
+                .expect("the Build author was just rejoined");
+            let package = match root.as_deref() {
+                None => requester.package_identity,
+                Some(alias) => storage
+                    .sources
+                    .product_dependency_at(SourceSpan::new(author, lookup.span), alias),
+            };
+            let selected = package.and_then(|owner| {
+                self.graphs()
+                    .chain(self.named_source.iter())
+                    .find_map(|graph| graph.package_root(owner).map(|root| (owner, root, graph)))
+            });
+            if let Some((owner, source_root, graph)) = selected {
+                let request = PendingPackageImport {
+                    occurrence: ImportOccurrence::file(
+                        author,
+                        import.ordinal,
+                        import.target.to_string(),
+                        alias,
+                    ),
+                    scope: source_provenance::DependencyScope::Product,
+                    request: ReconciledPackageImportRequest::file(
+                        owner,
+                        source_root,
+                        path,
+                        &requester.path,
+                        root.is_some(),
+                    ),
+                };
+                return request
+                    .resolve_for_exact_target(graph, &mut storage.package_roots)
+                    .map(|resolved| resolved.into_iter().map(|file| file.path).collect());
+            }
+            return if root.is_none() {
+                capture(&requester.package_root, path)
+            } else {
+                Ok(Vec::new())
+            };
+        }
         let Some(package) = storage
             .sources
             .product_dependency_at(SourceSpan::new(author, lookup.span), &lookup.alias)
