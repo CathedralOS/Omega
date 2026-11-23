@@ -12,6 +12,7 @@ use super::{
 use crate::git::resolution::materialization::materialize_whole_git_source;
 use crate::git::resolution::selection::GitRevisionSelection;
 use crate::git::workspace::GitWorkspaceProjectionError;
+use crate::test_support::create_private_dir_all;
 
 #[test]
 fn git_fetch_omits_a_blob_above_the_source_byte_ceiling_and_rejects() {
@@ -31,7 +32,7 @@ fn git_fetch_omits_a_blob_above_the_source_byte_ceiling_and_rejects() {
         ..LocalSourceLimits::default()
     }
     .compiler_bounded();
-    std::fs::create_dir_all(&cache).expect("create resolver cache");
+    create_private_dir_all(&cache).expect("create resolver cache");
     let canonical_cache = cache.canonicalize().expect("canonical resolver cache");
     verify_git_cache_root_custody(&canonical_cache).expect("verify resolver cache custody");
     let execution_transport = request.execution_transport();

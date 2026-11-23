@@ -3,8 +3,8 @@
 // unselected repository payloads or following submodule gitlinks.
 
 use super::{
-    create_git_source, fixture_storage, local_git_request, make_tree_owner_writable, run_test_git,
-    run_test_git_with_input, temp_root,
+    create_git_source, create_private_dir_all, fixture_storage, local_git_request,
+    make_tree_owner_writable, run_test_git, run_test_git_with_input, temp_root,
 };
 use crate::git::resolution::GitWorkspaceSession;
 use crate::{
@@ -163,7 +163,7 @@ impl WorkspaceFixture {
         run_test_git(&repository, ["add", "."]);
         run_test_git(&repository, ["commit", "--quiet", "-m", "workspace"]);
         let storage_root = temp_root("staged-workspace-storage");
-        std::fs::create_dir_all(&storage_root).unwrap();
+        create_private_dir_all(&storage_root).unwrap();
         let request = local_git_request(&repository, "HEAD");
         let storage = fixture_storage(&storage_root, &request);
         Self {

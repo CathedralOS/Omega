@@ -80,7 +80,12 @@ impl ResolverExecutionBackend {
         require_outside_roots(&self.executable, &[working_root], "resolver executable")?;
         let mut command = Command::new(&self.executable);
         command.current_dir(working_root);
-        ResolverPreparedExecution::new(command, resolver_process_limits(), "resolver")
+        let mut prepared =
+            ResolverPreparedExecution::new(command, resolver_process_limits(), "resolver")?;
+        // Git creates the cache's repository files with the inherited umask,
+        // and cache custody refuses group-writable entries.
+        prepared.create_private_files();
+        Ok(prepared)
     }
 }
 

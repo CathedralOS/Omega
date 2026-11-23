@@ -65,6 +65,23 @@ fn transfers_input_and_drains_both_output_streams() {
 }
 
 #[test]
+fn a_child_asked_for_private_files_creates_them_whatever_umask_the_parent_has() {
+    // The child reports the mask it runs with; without `create_private_files`
+    // it would inherit the test runner's, commonly 022 or 002.
+    let mut prepared = shell("umask");
+    prepared.create_private_files();
+    let output = run_bounded_process(
+        prepared,
+        BoundedProcessInput::Null,
+        capture_limits(16, 16, Duration::from_secs(5)),
+        BoundedCaptureBudget::new(32),
+    )
+    .expect("bounded umask report succeeds");
+    assert!(output.status.success());
+    assert_eq!(output.stdout, b"0077\n");
+}
+
+#[test]
 fn rejects_each_output_ceiling_and_the_shared_budget() {
     for (stream, redirect) in [
         (BoundedProcessStream::Stdout, ""),

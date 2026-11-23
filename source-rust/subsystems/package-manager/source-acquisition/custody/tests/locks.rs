@@ -2,8 +2,9 @@
 // contention, lock wait deadlines, and namespace/invalidation error precedence.
 
 use super::{
-    CacheCustodyKind, CacheEntryLock, SourceResolveError, open_absolute_directory_nofollow,
-    temp_root, verify_cache_lock_path_identity, verify_cache_lock_path_identity_for_test,
+    CacheCustodyKind, CacheEntryLock, SourceResolveError, create_private_dir,
+    create_private_dir_all, open_absolute_directory_nofollow, temp_root,
+    verify_cache_lock_path_identity, verify_cache_lock_path_identity_for_test,
 };
 #[cfg(unix)]
 use super::{GitExecutor, cache_invalid, reconcile_git_cache_operation_result};
@@ -15,7 +16,7 @@ use std::time::{Duration, Instant};
 #[test]
 fn git_cache_rejects_a_replaced_locked_path() {
     let cache = temp_root("git-lock-replaced");
-    std::fs::create_dir_all(&cache).expect("create cache");
+    create_private_dir_all(&cache).expect("create cache");
     let lock_path = cache.join("entry.lock");
     let displaced_path = cache.join("entry.lock.displaced");
     let file = CacheEntryLock::open_git(&lock_path).expect("open cache lock");
@@ -45,14 +46,14 @@ fn cache_lock_identity_rejects_a_replaced_parent_path() {
         let root = temp_root(&format!("cache-lock-parent-replaced-{name}"));
         let cache = root.join("cache");
         let retained = root.join("retained");
-        std::fs::create_dir_all(&cache).expect("create cache lock parent");
+        create_private_dir_all(&cache).expect("create cache lock parent");
         let lock_path = cache.join("entry.lock");
         let (file, parent, lock_name) = CacheEntryLock::open_retained(kind, &lock_path)
             .expect("open lock through retained parent");
         file.lock().expect("lock retained cache entry");
 
         std::fs::rename(&cache, &retained).expect("replace cache lock parent path");
-        std::fs::create_dir(&cache).expect("create replacement cache lock parent");
+        create_private_dir(&cache).expect("create replacement cache lock parent");
         std::fs::write(cache.join("entry.lock"), []).expect("create replacement lock leaf");
         let error = verify_cache_lock_path_identity(kind, &lock_path, &parent, &lock_name, &file)
             .expect_err("replaced cache lock parent must reject");
@@ -77,7 +78,7 @@ fn contended_cold_cache_lock_creation_admits_every_acquirer() {
     const CONTENDERS: usize = 8;
     const COLD_KEYS: usize = 32;
     let root = temp_root("cache-lock-creation-race");
-    std::fs::create_dir_all(&root).expect("create cache lock parent");
+    create_private_dir_all(&root).expect("create cache lock parent");
     let parent = open_absolute_directory_nofollow(&root).expect("retain cache lock parent");
 
     let mut failures = Vec::new();
@@ -121,7 +122,7 @@ fn contended_cold_cache_lock_creation_admits_every_acquirer() {
 #[test]
 fn local_cache_lock_wait_has_a_fail_closed_deadline() {
     let root = temp_root("local-lock-budget");
-    std::fs::create_dir_all(&root).expect("create lock budget root");
+    create_private_dir_all(&root).expect("create lock budget root");
     let lock_path = root.join("entry.lock");
     let held = CacheEntryLock::acquire_local(&lock_path, Duration::from_secs(1))
         .expect("hold local cache lock");
@@ -151,7 +152,7 @@ fn git_cache_lock_wait_obeys_the_whole_resolution_budget() {
     use std::os::unix::fs::PermissionsExt;
 
     let root = temp_root("git-lock-budget");
-    std::fs::create_dir_all(&root).expect("create lock budget root");
+    create_private_dir_all(&root).expect("create lock budget root");
     let lock_path = root.join("entry.lock");
     let held = CacheEntryLock::acquire(&lock_path).expect("hold cache lock");
     let fake_git = root.join("git");

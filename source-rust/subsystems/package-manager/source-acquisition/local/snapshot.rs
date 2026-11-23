@@ -52,9 +52,11 @@ pub(crate) fn publish_local_snapshot(
 ) -> Result<ResolvedLocalSnapshot, SourceResolveError> {
     let canonical_cache_dir =
         validate_local_snapshot_topology(&captured.normalized.root, cache_dir)?;
-    std::fs::create_dir_all(&canonical_cache_dir).at(&canonical_cache_dir)?;
+    // Custody refuses a group-writable cache, so the cache must not take its
+    // mode from the test host's umask.
+    crate::test_support::create_private_dir_all(&canonical_cache_dir).at(&canonical_cache_dir)?;
     let snapshots = canonical_cache_dir.join(LOCAL_CACHE_SNAPSHOTS);
-    std::fs::create_dir_all(&snapshots).at(&snapshots)?;
+    crate::test_support::create_private_dir_all(&snapshots).at(&snapshots)?;
     verify_local_cache_root_custody(&canonical_cache_dir)?;
     verify_local_cache_root_custody(&snapshots)?;
 
