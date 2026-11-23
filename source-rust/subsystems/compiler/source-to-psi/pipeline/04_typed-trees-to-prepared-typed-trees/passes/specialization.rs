@@ -50,6 +50,7 @@
 //! implementation selected for `apply`, and records which requirement it was
 //! written against ([`Selection`]).
 
+use crate::source_state::CopiedCallableBody;
 use crate::source_state::data::TypeParameterKind;
 use crate::source_state::deferred_refusals::DeferredRequest;
 use crate::source_state::domain::ProofFact;
@@ -365,11 +366,7 @@ fn call_sites(program: &TypedTrees, position: usize) -> Vec<Site> {
         // A statement call inside a block value is a site of its own. The
         // subtree walk below reaches a block's expressions from the
         // statement that holds it.
-        let handles = program
-            .body_statement_spans(state.statement_nodes)
-            .into_iter()
-            .flat_map(|span| span.handles());
-        for handle in handles {
+        for handle in program.body_statement_handles(state.statement_nodes) {
             if program
                 .statement_table
                 .statement(handle)
@@ -1788,7 +1785,14 @@ fn copy_declarations(
             program.push_state_contract(&mut state, contract);
         }
         let expression_count = program.expression_table.expression_count() + 1 - first_expression;
-        copied.push((machine, state, first_expression, expression_count));
+        let body = CopiedCallableBody {
+            first_expression,
+            expression_count,
+            statements: program
+                .body_statement_handles(state.statement_nodes)
+                .collect(),
+        };
+        copied.push((machine, state, body));
     }
     let substitutions = operands
         .iter()
@@ -1801,39 +1805,21 @@ fn copy_declarations(
         .collect::<Vec<_>>();
     let record_receivers = copied
         .iter()
-        .flat_map(|(_, state, first, count)| {
-            copied_record_receivers(program, *first, *count, state.statement_nodes, operands)
-        })
+        .flat_map(|(_, _, body)| copied_record_receivers(program, body, operands))
         .collect::<Vec<_>>();
-    let entries =
-        copied
-            .iter_mut()
-            .zip(&parts)
-            .map(|((machine, state, first, count), (source, _))| {
-                (source.symbol, machine, state, *first, *count)
-            });
+    let entries = copied
+        .iter_mut()
+        .zip(&parts)
+        .map(|((machine, state, body), (source, _))| (source.symbol, machine, state, &*body));
     program
         .apply_copied_callable_interface(entries, symbols, &substitutions)
         .map_err(Stop::Defect)?;
     substitute_record_receivers(program, &record_receivers)?;
     substitute_widths(program, type_start, operands)?;
     substitute_values(program, expression_start, operands);
-    for (mut machine, state, first_expression, expression_count) in copied {
-        select_requirements(
-            program,
-            first_expression,
-            expression_count,
-            state.statement_nodes,
-            &selections,
-        );
-        substitute_arguments(
-            program,
-            first_expression,
-            expression_count,
-            state.statement_nodes,
-            machine.symbol,
-            operands,
-        )?;
+    for (mut machine, state, body) in copied {
+        select_requirements(program, &body, &selections);
+        substitute_arguments(program, &body, machine.symbol, operands)?;
         program.push_machine_state(&mut machine, state);
         program.push_machine(machine);
     }
@@ -2085,9 +2071,7 @@ fn substitute_values(program: &mut TypedTrees, expression_start: usize, operands
 /// generated machine has no parameter to qualify by.
 fn select_requirements(
     program: &mut TypedTrees,
-    expression_start: usize,
-    expression_count: usize,
-    statements: HandleSpan<StatementNode>,
+    body: &CopiedCallableBody,
     selections: &[Selection],
 ) {
     if selections.is_empty() {
@@ -2101,8 +2085,8 @@ fn select_requirements(
     };
     let calls = program
         .expression_table
-        .iter_expressions_from(expression_start)
-        .take(expression_count)
+        .iter_expressions_from(body.first_expression)
+        .take(body.expression_count)
         .filter_map(|(handle, node)| match node {
             ExpressionNode::Call(call) => selected(call.target_symbol).map(|found| (handle, found)),
             _ => None,
@@ -2115,7 +2099,7 @@ fn select_requirements(
             call.static_requirement_dispatch = Some(dispatch);
         }
     }
-    for handle in statements.handles() {
+    for &handle in &body.statements {
         if let StatementNode::Call(call) = program.statement_table.statement_mut(handle)
             && let Some(dispatch) = selected(call.target_symbol)
         {
@@ -2135,9 +2119,7 @@ fn select_requirements(
 /// apply the enclosing arguments to the call's complete target metadata.
 fn copied_record_receivers(
     program: &TypedTrees,
-    expression_start: usize,
-    expression_count: usize,
-    statements: HandleSpan<StatementNode>,
+    body: &CopiedCallableBody,
     operands: &[Operand],
 ) -> Vec<(Site, SymbolHandle, SymbolHandle, TypeReferenceHandle)> {
     let mut records = operands
@@ -2169,8 +2151,8 @@ fn copied_record_receivers(
     };
     let mut receivers = program
         .expression_table
-        .iter_expressions_from(expression_start)
-        .take(expression_count)
+        .iter_expressions_from(body.first_expression)
+        .take(body.expression_count)
         .filter_map(|(handle, node)| match node {
             ExpressionNode::Call(call) if !call.build_selection.is_valid() => program
                 .expression_table
@@ -2182,7 +2164,7 @@ fn copied_record_receivers(
             _ => None,
         })
         .collect::<Vec<_>>();
-    for handle in statements.handles() {
+    for &handle in &body.statements {
         let record = program
             .statement_table
             .statement(handle)
@@ -2289,9 +2271,7 @@ fn substitute_record_receivers(
 /// read by `crate::source_state::product_operand::capture_static_environment`).
 fn substitute_arguments(
     program: &mut TypedTrees,
-    expression_start: usize,
-    expression_count: usize,
-    statements: HandleSpan<StatementNode>,
+    body: &CopiedCallableBody,
     holder: SymbolHandle,
     operands: &[Operand],
 ) -> Served<()> {
@@ -2325,8 +2305,8 @@ fn substitute_arguments(
     let mut applications = Vec::new();
     let calls = program
         .expression_table
-        .iter_expressions_from(expression_start)
-        .take(expression_count)
+        .iter_expressions_from(body.first_expression)
+        .take(body.expression_count)
         .filter(|(_, node)| matches!(node, ExpressionNode::Call(_)))
         .map(|(handle, _)| handle)
         .collect::<Vec<_>>();
@@ -2342,7 +2322,7 @@ fn substitute_arguments(
             applications.push(call.authored_machine_application);
         }
     }
-    for handle in statements.handles() {
+    for &handle in &body.statements {
         let statement = program.statement_table.statement_mut(handle);
         match statement {
             StatementNode::Call(call) => {

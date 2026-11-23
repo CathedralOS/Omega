@@ -170,10 +170,9 @@ pub(crate) mod source_occurrences {
                     .iter()
                     .flat_map(|machine| {
                         self.machine_states(machine).iter().flat_map(|state| {
-                            self.statement_table
-                                .iter_statements(state.statement_nodes)
-                                .filter_map(|(handle, statement)| {
-                                    let call = statement.as_call()?;
+                            self.body_statement_handles(state.statement_nodes)
+                                .filter_map(|handle| {
+                                    let call = self.statement_table.statement(handle).as_call()?;
                                     (call.authored_machine_application.is_valid()
                                         || !call.machine_arguments.is_empty()
                                         || has_region_telescope(self, call.target_symbol)

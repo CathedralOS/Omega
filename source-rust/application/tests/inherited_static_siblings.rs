@@ -47,6 +47,11 @@ fn selected_trait_defaults_keep_their_lexical_helpers() {
     assert_runs_in_both_engines("trait_default_helpers");
 }
 
+#[test]
+fn selected_maps_pass_their_own_private_callback() {
+    assert_runs_in_both_engines("private_map_callback");
+}
+
 fn assert_runs_in_both_engines(fixture: &str) {
     let (output, report) = invoke("run", fixture);
     assert!(output.status.success(), "{report}");
@@ -73,6 +78,16 @@ fn default_helpers_cannot_capture_an_enclosing_value() {
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("cannot capture enclosing runtime binding `value`"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_private_map_callback_must_accept_every_input_its_binder_allows() {
+    let (output, report) = invoke("fail", "private_map_callback");
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("cannot prove requires contract for call local from invoke: false"),
         "{report}"
     );
 }

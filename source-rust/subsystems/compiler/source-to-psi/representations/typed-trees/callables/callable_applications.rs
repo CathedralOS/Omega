@@ -3281,14 +3281,12 @@ pub(crate) mod payloads {
                         for argument in call.request_static_arguments_mut() {
                             self.static_arguments(program, std::slice::from_mut(argument))?;
                         }
-                        for application in
+                        self.apply_call_application(
+                            program,
                             crate::source_state::references::StaticArgumentCall::Expression(
                                 handle, &call,
-                            )
-                            .applications()
-                        {
-                            self.apply_static_machine_application(program, application)?;
-                        }
+                            ),
+                        )?;
                         if let Some(target) = call_target {
                             self.apply_call_target(program, &mut call, target)?;
                         }
@@ -3327,6 +3325,34 @@ pub(crate) mod payloads {
 
         /// Copied statements, expressions and stored selections retain the same
         /// complete invocation, including runtime-value expression payloads.
+        pub(crate) fn apply_call_application(
+            &mut self,
+            program: &mut TypedTrees,
+            call: crate::source_state::references::StaticArgumentCall<'_>,
+        ) -> Result<(), &'static str> {
+            let handle = call.application();
+            if !handle.is_valid() {
+                return Ok(());
+            }
+            // Build selections and reflection describe authored declarations.
+            // Executable operands enter the lexical declarations copied here.
+            let arguments = program.static_machine_application(handle).arguments;
+            let symbols = self.declaration_symbols.rebinding();
+            if !arguments.is_empty()
+                && !symbols.is_empty()
+                && !matches!(call, crate::source_state::references::StaticArgumentCall::Expression(_, call)
+                    if call.build_selection.is_valid())
+                && crate::source_state::reflection::construction::declaration_query_argument_role(
+                    program, call,
+                ) == crate::source_state::references::StaticArgumentRole::ValueDependency
+            {
+                program
+                    .expression_table
+                    .remap_static_arguments(arguments, symbols);
+            }
+            self.apply_static_machine_application(program, handle)
+        }
+
         pub(crate) fn apply_static_machine_application(
             &mut self,
             program: &mut TypedTrees,
@@ -8327,6 +8353,14 @@ pub struct AppliedMachineCallable<'a> {
     pub caller_lifetimes: arena::RootRows<'a, StaticMachineLifetimeBinding>,
 }
 
+/// All expressions newly allocated for a copied machine and the statements
+/// it owns, including statements inside block values.
+pub struct CopiedCallableBody {
+    pub first_expression: usize,
+    pub expression_count: usize,
+    pub statements: Vec<crate::source_state::statement::StatementHandle>,
+}
+
 #[derive(Default)]
 /// Substitutes the bindings of one declaration while copying typed records.
 /// Reuse the same application for types, facts and static arguments that share a scope.
@@ -9103,8 +9137,7 @@ impl TypedTrees {
                 SymbolHandle,
                 &'state mut crate::source_state::machine::Machine,
                 &'state mut crate::source_state::state::State,
-                usize,
-                usize,
+                &'state CopiedCallableBody,
             ),
         >,
         symbols: crate::source_state::SymbolRebinding<'_>,
@@ -9119,7 +9152,7 @@ impl TypedTrees {
                 .declaration_symbols
                 .insert_execution(source, target);
         }
-        for (declaration, machine, state, first_expression, expression_count) in entries {
+        for (declaration, machine, state, body) in entries {
             application.region_scope = declaration;
             machine.service_reach_row = application.applied_reach_row(self, machine.service_reach_row)?;
             application.copy_authored_reach(self, declaration, machine.symbol)?;
@@ -9143,8 +9176,8 @@ impl TypedTrees {
             }
             let rows = self
                 .expression_table
-                .iter_expressions_from(first_expression)
-                .take(expression_count)
+                .iter_expressions_from(body.first_expression)
+                .take(body.expression_count)
                 .map(|(handle, _)| handle)
                 .collect::<Vec<_>>();
             state.return_type = application.type_reference(self, state.return_type)?;
@@ -9153,7 +9186,7 @@ impl TypedTrees {
                 let applied = application.type_reference(self, original)?;
                 self.state_parameters.get_mut(parameter).type_reference = applied;
             }
-            for handle in state.statement_nodes.handles() {
+            for &handle in &body.statements {
                 match self.statement_table.statement(handle).clone() {
                     crate::source_state::statement::StatementNode::LocalData(mut local) => {
                         local.type_reference =
@@ -9170,12 +9203,10 @@ impl TypedTrees {
                             request.invalidate_preparation();
                         }
                         application.static_arguments(self, &mut call.machine_arguments)?;
-                        for invocation in
-                            crate::source_state::references::StaticArgumentCall::Statement(&call)
-                                .applications()
-                        {
-                            application.apply_static_machine_application(self, invocation)?;
-                        }
+                        application.apply_call_application(
+                            self,
+                            crate::source_state::references::StaticArgumentCall::Statement(&call),
+                        )?;
                         *self.statement_table.statement_mut(handle) =
                             crate::source_state::statement::StatementNode::Call(call);
                     }

@@ -1116,26 +1116,30 @@ pub mod expression {
         }
 
         impl ExpressionTable {
+            pub fn remap_static_arguments(
+                &mut self,
+                arguments: arena::HandleSpan<StaticMachineArgument>,
+                symbols: crate::source_state::SymbolRebinding<'_>,
+            ) {
+                for handle in arguments.handles() {
+                    let mut argument =
+                        std::mem::take(self.static_machine_arguments.get_mut(handle));
+                    self.remap_static_argument_symbols(&mut argument, symbols);
+                    *self.static_machine_arguments.get_mut(handle) = argument;
+                }
+            }
+
             pub fn remap_static_application_operands<'scope>(
                 &mut self,
                 handle: crate::source_state::static_applications::StaticMachineApplicationHandle,
                 symbols: impl Into<crate::source_state::SymbolRebinding<'scope>>,
             ) {
                 let symbols = symbols.into();
-                let mut arguments = self.static_machine_application_arguments(handle).to_vec();
-                for argument in &mut arguments {
-                    self.remap_static_argument_symbols(argument, symbols.authored());
-                }
-                self.static_machine_application_arguments_mut(handle)
-                    .clone_from_slice(&arguments);
-                let mut selected = self
-                    .static_machine_application_selected_machines(handle)
-                    .to_vec();
-                for argument in &mut selected {
-                    self.remap_static_argument_symbols(argument, symbols.execution());
-                }
-                self.static_machine_application_selected_machines_mut(handle)
-                    .clone_from_slice(&selected);
+                let application = self.static_machine_application(handle);
+                let arguments = application.arguments;
+                let selected = application.selected_machine_arguments;
+                self.remap_static_arguments(arguments, symbols.authored());
+                self.remap_static_arguments(selected, symbols.execution());
             }
 
             pub fn remap_static_binding_symbols<'scope>(
@@ -6302,6 +6306,15 @@ pub mod subtrees {
                 position += 1;
             }
             spans
+        }
+
+        pub fn body_statement_handles(
+            &self,
+            statements: arena::HandleSpan<crate::source_state::statement::StatementNode>,
+        ) -> impl Iterator<Item = crate::source_state::statement::StatementHandle> + use<> {
+            self.body_statement_spans(statements)
+                .into_iter()
+                .flat_map(|span| span.handles())
         }
 
         /// The block values a statement evaluates directly, outermost first:
