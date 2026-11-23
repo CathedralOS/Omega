@@ -208,3 +208,7 @@ Eighteen claims, chosen among "unused", "same job", "open" fail-open, and crate-
 18. `unit_063`: `ESCAPE`, `dispatch_edges_mut`, `payload_loan_mut` are unused in stage 05 and suspected used by stage 06. Grep: used at `06/tests/block_values.rs:92` and `06/tests/variant_parent_identity.rs:41`, `:139`, `:174`, `:302`. **Matched.**
 
 Totals: 13 matched, 2 partly right, 3 wrong.
+
+### Follow-up on numeric guarantee operands
+
+At `47cbc4d4cec`, an ordinary source call to `F64::from_u32` refused at the nested `FloatSemantics::from_integer(FloatFormat::BINARY64, value)` in its authored guarantee. The overload selector used the path's head symbol to look up a value constant. For a qualified constant the leaf owns its declared type. The numeric guarantee reader used the same head lookup. Both now read the selected constant through `TypedTrees::named_const_declaration`. A source regression checks the chosen declaration and its recorded occurrence for a matching carrier, and keeps a mismatched carrier unresolved. Finding 17 about comparing complete guarantees with the catalog remains open.

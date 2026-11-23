@@ -632,9 +632,8 @@ impl Program<'_> {
                 }
                 // A named constant supplies its declared type, not a scalar
                 // interpretation of an opaque Format/Meaning value.
-                Ok(path
-                    .resolved_symbol()
-                    .and_then(|symbol| typed.const_declaration_by_symbol(symbol))
+                Ok(typed
+                    .named_const_declaration(path)
                     .map(|constant| constant.declared_type))
             }
             ExpressionNode::Boolean(_) => {
