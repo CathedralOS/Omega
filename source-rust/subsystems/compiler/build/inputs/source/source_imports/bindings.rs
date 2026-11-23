@@ -463,7 +463,7 @@ mod tests {
             SourceScopedTopLevelBinding::file_import(author, build_target, "chosen");
         assert_eq!(
             retain_module_import_bindings(&storage).unwrap(),
-            [build_binding.clone()]
+            std::slice::from_ref(&build_binding)
         );
         storage
             .sources
