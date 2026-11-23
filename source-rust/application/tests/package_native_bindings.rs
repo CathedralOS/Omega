@@ -6,10 +6,19 @@ use std::{fs, process::Command};
 
 #[test]
 fn updating_a_consumer_keeps_each_native_binding_in_its_supplying_package() {
+    check_lock("reader", Some(r#"bytes "getppid""#));
+}
+
+#[test]
+fn updating_a_consumer_keeps_an_unused_native_binding_in_its_supplying_package() {
+    check_lock("empty", None);
+}
+
+fn check_lock(consumer_name: &str, local_locator: Option<&str>) {
     let scratch = TemporaryDirectory::create("native-binding-ownership", false).unwrap();
     let fixture = support::repository_root()
         .join("source-rust/application/tests/fixtures/packages/pass/native_binding_ownership");
-    for package in ["reader", "reading"] {
+    for package in [consumer_name, "reading"] {
         let directory = scratch.path().join(package);
         fs::create_dir(&directory).unwrap();
         for file in ["build.omg", "main.omg"] {
@@ -17,7 +26,7 @@ fn updating_a_consumer_keeps_each_native_binding_in_its_supplying_package() {
         }
     }
 
-    let consumer = scratch.path().join("reader");
+    let consumer = scratch.path().join(consumer_name);
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .current_dir(&consumer)
         .env(
@@ -60,25 +69,28 @@ fn updating_a_consumer_keeps_each_native_binding_in_its_supplying_package() {
             .parse()
             .unwrap();
         let locator = match packages[index] {
-            "reading" => r#"bytes "getpid""#,
-            "reader" => r#"bytes "getppid""#,
+            "reading" => Some(r#"bytes "getpid""#),
+            name if name == consumer_name => local_locator,
             other => panic!("unexpected package {other}"),
         };
         let policy = occurrence.split_once("\nend_acceptance\n").unwrap().0;
-        assert!(policy.lines().any(|line| line.trim() == locator));
+        if let Some(locator) = locator {
+            assert!(policy.lines().any(|line| line.trim() == locator));
+        }
+        let expected_count = usize::from(locator.is_some());
         assert_eq!(
             policy
                 .lines()
                 .filter(|line| *line == "row native_binding")
                 .count(),
-            1
+            expected_count
         );
         assert_eq!(
             occurrence
                 .lines()
                 .filter(|line| line.starts_with("native_bindings_v1 "))
                 .count(),
-            1
+            expected_count
         );
     }
 }
