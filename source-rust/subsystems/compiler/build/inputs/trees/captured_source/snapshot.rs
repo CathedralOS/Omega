@@ -21,6 +21,7 @@ pub enum SourceSnapshotError {
     InvalidPath,
     NotFound,
     NotDirectory,
+    SymlinkTraversal,
     NotFile,
     NotSymlink,
     InvalidRange,
@@ -43,7 +44,12 @@ impl CapturedBuildSourceInput {
             if *byte == b'/' {
                 match self.retained_entry(&path[..index]).map(snapshot_entry) {
                     Some(SourceSnapshotEntry::Directory) => {}
-                    Some(_) => return Err(SourceSnapshotError::NotDirectory),
+                    Some(SourceSnapshotEntry::Symlink(_)) => {
+                        return Err(SourceSnapshotError::SymlinkTraversal);
+                    }
+                    Some(SourceSnapshotEntry::File(_)) => {
+                        return Err(SourceSnapshotError::NotDirectory);
+                    }
                     None => return Err(SourceSnapshotError::NotFound),
                 }
             }
@@ -68,10 +74,16 @@ impl CapturedBuildSourceInput {
         })
     }
 
+    pub fn open_file(&self, path: &[u8]) -> Result<&[u8], SourceSnapshotError> {
+        match self.lookup(path)? {
+            SourceSnapshotEntry::File(bytes) => Ok(bytes),
+            SourceSnapshotEntry::Directory => Err(SourceSnapshotError::NotFile),
+            SourceSnapshotEntry::Symlink(_) => Err(SourceSnapshotError::SymlinkTraversal),
+        }
+    }
+
     pub fn read(&self, path: &[u8], offset: u64, count: u64) -> Result<&[u8], SourceSnapshotError> {
-        let SourceSnapshotEntry::File(bytes) = self.lookup(path)? else {
-            return Err(SourceSnapshotError::NotFile);
-        };
+        let bytes = self.open_file(path)?;
         offset
             .checked_add(count)
             .ok_or(SourceSnapshotError::InvalidRange)?;
