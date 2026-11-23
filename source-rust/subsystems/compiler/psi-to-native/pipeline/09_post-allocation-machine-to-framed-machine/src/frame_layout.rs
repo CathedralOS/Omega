@@ -841,12 +841,17 @@ mod tests {
                 Vec::new(),
             )
             .unwrap();
-            let first = &layout.local_storage_slots[0];
-            let second = &layout.local_storage_slots[1];
+            let [first, second] = layout.local_storage_slots.as_slice() else {
+                panic!("expected a frame slot for each of the two spilled registers");
+            };
             assert!(first.frame_offset_bytes >= layout.outgoing_abi_area.byte_size);
             assert_eq!(second.frame_offset_bytes, first.frame_offset_bytes + 8);
             assert!(second.frame_offset_bytes + 8 <= layout.frame_size_bytes);
-            assert_eq!(first.id, slots[0].id);
+            assert_eq!(
+                [first.id, second.id],
+                [slots[0].id, slots[1].id],
+                "each spill offset belongs to the register whose value it holds"
+            );
             assert!(
                 function_layout(
                     &environment,
