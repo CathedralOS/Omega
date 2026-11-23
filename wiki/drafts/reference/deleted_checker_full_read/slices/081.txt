@@ -1,0 +1,3 @@
+# slice 081: 7431 lines in 2 file range(s)
+omega-rust/psi/compilation/representations/checked-trees/src/contract_and_obligation_facts.rs	1	3802
+omega-rust/psi/compilation/representations/checked-trees/src/facts.rs	1	3629

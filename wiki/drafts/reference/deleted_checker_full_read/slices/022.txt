@@ -1,0 +1,2 @@
+# slice 022: 5603 lines in 1 file range(s)
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_borrows.rs	1	5603

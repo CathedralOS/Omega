@@ -1,0 +1,2 @@
+# slice 050: 6926 lines in 1 file range(s)
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution_terminal_unit_control.rs	1	6926

@@ -1,0 +1,2 @@
+# slice 097: 7049 lines in 1 file range(s)
+omega-rust/psi/compilation/validation/src/completed_storage_and_conservation.rs	1	7049

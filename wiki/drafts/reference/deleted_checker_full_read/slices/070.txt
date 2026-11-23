@@ -1,0 +1,3 @@
+# slice 070: 8222 lines in 2 file range(s)
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published_facts_boolean_predicates.rs	1	2594
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published_facts_crash_calls.rs	1	5628

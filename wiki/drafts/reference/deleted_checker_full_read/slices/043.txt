@@ -1,0 +1,2 @@
+# slice 043: 8450 lines in 1 file range(s)
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_termination.rs	1	8450

@@ -1,0 +1,2 @@
+# slice 132: 6806 lines in 1 file range(s)
+omega-rust/psi/compilation/validation/src/type_references_and_wire.rs	1	6806

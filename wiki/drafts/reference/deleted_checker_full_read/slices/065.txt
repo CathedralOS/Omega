@@ -1,0 +1,5 @@
+# slice 065: 6463 lines in 4 file range(s)
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow_transfers.rs	1	4833
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/immutable_checking_input.rs	1	130
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/lib.rs	1	86
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/products.rs	1	1414

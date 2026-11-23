@@ -1,0 +1,2 @@
+# slice 111: 8315 lines in 1 file range(s)
+omega-rust/psi/compilation/validation/src/domains_and_predicates.rs	1	8315

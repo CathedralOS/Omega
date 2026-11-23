@@ -1,0 +1,2 @@
+# slice 131: 8336 lines in 1 file range(s)
+omega-rust/psi/compilation/validation/src/traits.rs	1	8336

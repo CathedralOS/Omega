@@ -1,0 +1,5 @@
+# slice 015: 8156 lines in 4 file range(s)
+omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/lib.rs	1	341
+omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization.rs	1	5188
+omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/policy_operators.rs	1	445
+omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/preparation.rs	1	2182

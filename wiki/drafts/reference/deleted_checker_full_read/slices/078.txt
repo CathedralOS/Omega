@@ -1,0 +1,2 @@
+# slice 078: 6360 lines in 1 file range(s)
+omega-rust/psi/compilation/proof/src/mathematical_declarations.rs	6358	12717
