@@ -618,7 +618,7 @@ data Rejection<'reason> { reason: @'reason [u8] in Text; }
     // the other record. State their common referent lifetime for the copy.
     assert_eq!(
         verdict(&copied),
-        "typing assigned value type while reading the body of `copy`"
+        "this view is of the region of another lifetime of the machine than the place it is assigned to names: nothing relates two lifetimes of one machine while reading the body of `copy`"
     );
     let copied = copied.replacen(
         "copy(from: @Rejection, into: @mutable Rejection)",
