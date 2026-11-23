@@ -1,0 +1,10 @@
+use input_reader.omg;
+use input.omg as packet;
+use build_sources.omg;
+use {omega}/language/core/process_exit.omg;
+use {omega}/language/core/process_authority.omg;
+machine start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput crashes Trap blocks {
+    let mutable input: |packet|::ConstructionInput;
+    block |input_reader|::read_input(@mutable input);
+    |build_sources|::check_build_input(@input);
+}

@@ -155,7 +155,6 @@ pub(super) struct NativeImport<'host> {
     adapter: NativeAdapterId,
     parameters: Vec<Parameter>,
     storage_arguments: Vec<usize>,
-    layouts: Vec<NativeBorrowedStorageLayout>,
     result: ResultCodec,
     references: reference_outputs::ReferenceOutputs,
     filesystem: Option<super::filesystem::FilesystemCall>,
@@ -439,7 +438,6 @@ impl<'host> NativeImport<'host> {
             adapter,
             parameters,
             storage_arguments: (0..declaration.structural_parameters.len()).collect(),
-            layouts: layouts.to_vec(),
             result,
             references,
             filesystem,
@@ -669,7 +667,7 @@ impl TerminalEffectHandler for NativeImport<'_> {
         }
         let backings = self
             .native
-            .prepare(requests, &self.layouts, &self.references.codecs)?;
+            .prepare(requests, &self.references.codecs)?;
         self.references.capture(requests);
         Ok(backings)
     }

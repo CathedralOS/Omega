@@ -120,9 +120,10 @@ when adding Build files to a given Product capture.
 The caller must supply a complete inventory and establish the trusted core
 identity. The two tables carry source provenance for subsequent checking.
 They do not establish a returned Build configuration, a physical process
-domain or stream handles. The Omega application exits 253 on malformed Build
-ownership and 246 on a valid inventory pending Build replay. Both paths write
-zero tape bytes. The public OCREQ protocol has its own acquisition and
+domain or stream handles. The Omega application exits 253 when a package selects a Build
+file it does not own, except for the trusted core default described above. A
+valid inventory exits 246 because the application cannot yet execute the
+selected Build files. Both paths write zero tape bytes. The public OCREQ protocol has its own acquisition and
 admission requirements. [Compiler request](../../../wiki/spec/build/compiler_request.md)
 
 The current limits are 64 packages, 256 direct dependencies, 512 Product
