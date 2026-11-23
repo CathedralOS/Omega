@@ -353,9 +353,9 @@ fn one_applied_record_is_one_structural_type_wherever_it_is_written() {
 
 /// `..` gives a sum field the first case and no payload. When only a later
 /// case holds a reference, the zero is still fine; a reference in a record
-/// field below `..` has no zero, and the literal is refused.
+/// field below `..` has no zero, and the literal is rejected.
 #[test]
-fn an_omitted_sum_takes_its_first_case_and_an_omitted_reference_is_refused() {
+fn an_omitted_sum_takes_its_first_case_and_an_omitted_reference_is_rejected() {
     let program = Program::of(
         "data Slot { case Empty; case Entry(value: u8); } data Plan { id: u8; first: Slot; } \
          machine build(id: u8) -> Plan { Plan { id: id, .. } }",
@@ -382,14 +382,19 @@ fn an_omitted_sum_takes_its_first_case_and_an_omitted_reference_is_refused() {
         "data Reach<'r> { at: @'r u8; n: u64; } data Plan<'r> { id: u8; reach: Reach<'r>; } \
          machine build<'r>(id: u8) { let plan: Plan<'r> = Plan { id: id, .. }; }",
     );
+    // data_and_literals.md, "Explicit field omission": "The marker supplies
+    // no authority, borrowed reference, callable or proof witness merely
+    // because storage can be zeroed." The literal is the program's error.
     assert_eq!(
         (reference.stage, reference.at.as_str()),
-        ("lowering", "plan")
+        ("lowering", "Plan { id: id, .. }")
     );
     assert!(
-        reference
-            .message
-            .starts_with("Unsupported: statement zero-established reference without backing"),
+        reference.message.starts_with(
+            "Violation: `..` cannot supply the field `reach`: its value holds a borrowed \
+             reference, and zeroed storage supplies no borrowed reference; write the field's \
+             value"
+        ),
         "{reference:?}"
     );
 }
