@@ -1,14 +1,33 @@
 //! Check the grant and callback contract a Build selects for a private service.
 use super::{fixture_repository, run_project_build};
+use review_evidence::record::{
+    PackagePolicyBaseline, PackagePolicySelectedProviders, PackageReviewProviderGrantSelectorKind,
+};
 use target::TargetProfile;
+
+fn check_selected_plan_target(mut policy: PackagePolicyBaseline, index: usize) {
+    assert_eq!(
+        policy.selected_providers.plans[index].target,
+        policy.target.target_name()
+    );
+    for target in [TargetProfile::WindowsX64.target_name(), ""] {
+        target.clone_into(&mut policy.selected_providers.plans[index].target);
+        let component = policy.selected_providers.canonical_bytes().unwrap();
+        assert!(
+            PackagePolicySelectedProviders::recover_canonical(&component, Default::default())
+                .is_err(),
+            "recovered selected provider with target {target:?}"
+        );
+        let baseline = policy.canonical_bytes().unwrap();
+        assert!(
+            PackagePolicyBaseline::recover_canonical(&baseline, Default::default()).is_err(),
+            "recovered package baseline with selected provider target {target:?}"
+        );
+    }
+}
 
 #[test]
 fn package_review_retains_the_build_grant_for_a_private_provider() {
-    use review_evidence::record::{
-        PackagePolicyBaseline, PackagePolicySelectedProviders,
-        PackageReviewProviderGrantSelectorKind,
-    };
-
     let temporary =
         platform_custody::temporary_directory::TemporaryDirectory::create("private-service", false)
             .unwrap();
@@ -29,13 +48,12 @@ fn package_review_retains_the_build_grant_for_a_private_provider() {
         .unwrap();
     assert!(reviewed.policy.public_api.traits.is_empty());
     assert!(reviewed.policy.public_api.data.is_empty());
-    let plan = reviewed
-        .policy
-        .selected_providers
-        .plans
+    let plans = &reviewed.policy.selected_providers.plans;
+    let index = plans
         .iter()
-        .find(|plan| plan.schema_declaration.path == "main.omg::SelectedCombine")
+        .position(|plan| plan.schema_declaration.path == "main.omg::SelectedCombine")
         .expect("the Build selected a provider for the private service");
+    let plan = &plans[index];
     assert_eq!(
         plan.provider_type_declaration.as_ref().unwrap().path,
         "main.omg::HostedCombine"
@@ -55,6 +73,7 @@ fn package_review_retains_the_build_grant_for_a_private_provider() {
     );
     let policy = reviewed.policy;
     let binary = policy.canonical_bytes().unwrap();
+    check_selected_plan_target(policy, index);
     let mut recovered =
         PackagePolicyBaseline::recover_canonical(&binary, Default::default()).unwrap();
     assert_eq!(recovered.canonical_bytes().unwrap(), binary);
@@ -81,11 +100,6 @@ fn package_review_retains_the_build_grant_for_a_private_provider() {
     // Old locks name the slot or plan. They must still round-trip after a Build
     // can also name a particular application of a provider.
     let mut providers = recovered.selected_providers;
-    let index = providers
-        .plans
-        .iter()
-        .position(|p| p.schema_declaration.path == "main.omg::SelectedCombine")
-        .unwrap();
     for grant in [
         PackageReviewProviderGrantSelectorKind::ProviderSlot,
         PackageReviewProviderGrantSelectorKind::PlanName,
