@@ -54,7 +54,15 @@ Delete it when that task closes or its plan carries these findings.
    one test per placement. The corpus also gives the full list of forms
    programs write in a clause, which is what the single reader must serve.
    See [the deleted corpus](#the-deleted-corpus).
-7. **Do first.** Build toward the core library, not the samples. It needs no
+7. **Every deleted line has been read, and the deletion holds up.** 137
+   readers covered all 875,311 lines of the deletion's slices, and their
+   reports were merged and checked against today's compiler. The kernel
+   judged nothing outside the proof crate. The read restates the three
+   properties, names twelve patterns the earlier readings missed, lists 1,366
+   old rules with what today's compiler does about each, and finds ten of the
+   old faults still present today in small form. See
+   [what the line-by-line read found](#what-the-line-by-line-read-found).
+8. **Do first.** Build toward the core library, not the samples. It needs no
    level binder, no `core\Squash` and no value-indexed family, but every law
    in `core/nat.omg` is an induction over the recursive `data Nat`. Give
    stage 05 one term reader and the term forms `Proposition` lacks
@@ -232,8 +240,10 @@ pushed an error, and each check was the old compiler's own yes or no.
 `validation/src/lib.rs:6-7` said so: "Successful validation is a source
 judgment, not a portable proof certificate."
 
-Three properties hold in every part that was read. Together they are the
-case for the deletion, and the list of things the rebuild must not repeat.
+Three properties hold in every part. Together they are the case for the
+deletion, and the list of things the rebuild must not repeat. They are
+stated here as the first pass found them;
+[the line-by-line read](#what-the-line-by-line-read-found) restates them.
 
 1. **The verdict was the code's own judgment.** The two crates have about 640
    functions that return `bool`. The contract prover returned
@@ -258,10 +268,11 @@ case for the deletion, and the list of things the rebuild must not repeat.
 
 ### By part
 
-"Read" is the share read in full; every module of every part was at least
-outlined (name, signatures, leading comment) and counted by search.
+"First pass" is the share the first pass read in full, when every module was
+at least outlined (name, signatures, leading comment) and counted by search.
+Every line has been read since.
 
-| Part | Lines | What it did | How it decided | Read |
+| Part | Lines | What it did | How it decided | First pass |
 | --- | --- | --- | --- | --- |
 | `validation/src/contract_entailment.rs` | 92,926 | An integer prover over polynomials (`Engine`), a judge over structural terms (`StructuralJudge`), and about forty client modules that each put one kind of question to them: call requirements, citations, induction, law conformance, rank descent, content conservation | `Proven` / `Refuted` / `Unknown`; no kernel | about 60% |
 | Old stage: contract checks (`checks_contracts*.rs`) | 37,588 | Each call's `requires` and each exit's `ensures` | A clause passed when any one of an ordered list of routines returned true: 24 route call sites for a call's `requires` and about 40 leaf procedures beneath them. Many compared rendered text; `checks_contracts_calls.rs:2005` says "Contract comparison is currently label-based" | 36% |
@@ -273,9 +284,10 @@ outlined (name, signatures, leading comment) and counted by search.
 | `proof/src` | 24,187 | The mathematical elaborator and range checker [above](#the-deleted-elaborator-by-capability) | The only part that called the kernel | read |
 | Build-time evaluation, `checked-trees`, stage 04, review evidence, provider planning, stages 07 and 08 | about 145,000 | Compile-time evaluation, the old checker's output format, preparation, package review records | Consumers of the old checker's output | outline and samples |
 
-In all about 130,000 lines were read in full, 15% of the deletion. The
-low-coverage rows are ownership, borrowing, layout and lowering, which this
-task does not rebuild.
+The first pass read about 130,000 lines in full, 15% of the deletion. Its
+low-coverage rows were ownership, borrowing, layout and lowering.
+[The line-by-line read](#what-the-line-by-line-read-found) covered all of
+it.
 
 ### What the old proof code could do
 
@@ -313,8 +325,12 @@ their successors. Laws over plain `data`, such as every law in
 
 ### What accepted without proof
 
-The readers recorded more than a hundred sites; these are the kinds, with
+The first pass recorded more than a hundred sites; these are the kinds, with
 one example each. None was traced to a wrong acceptance of a real program.
+The 17 syntheses of the line-by-line read list about 1,150 suspected defects
+in the old code. About 520 of those rows name a possible wrong acceptance,
+and the synthesis authors mark about 140 rows as checked in the source.
+These are counts of table rows, and no program was run against any of them.
 
 | Kind | Example |
 | --- | --- |
@@ -324,6 +340,129 @@ one example each. None was traced to a wrong acceptance of a real program.
 | A failed lookup that skips the check | `validate_loan_handbacks`, `contract_entailment.rs:21657-21750` |
 | A narrowing store reported only when both interval bounds are known | `arithmetic_domains.rs:795` |
 | An unknown goal that yields neither a proof nor a diagnostic | `contract_entailment.rs:92819-92833` |
+
+### What the line-by-line read found
+
+Every deleted line has now been read, and the read supports the deletion.
+137 readers took the 875,311 lines of the deleted files and of the diff of
+the files #2823 changed in part. A script compared each reader's logged
+ranges with its slice. The reports were merged into 17 group syntheses, and
+a second pass looked up each group's rules in today's compiler. All of it is
+in [the full read](../reference/deleted_checker_full_read/README.md).
+
+The plan's steps stand. The read changes this audit in four ways: the three
+properties need restating, it shows twelve patterns no earlier reading
+named, it gives a list of what today's compiler no longer does, and it finds
+several of the old faults in today's compiler in small form.
+
+#### The three properties, restated
+
+| Property | What the full read found |
+| --- | --- |
+| The verdict was the code's own judgment | Holds in all 17 groups. The kernel judged something in two places: the proof crate, and one call from package review into the proof crate's elaborator (`contracts/mathematical_calls.rs:24-45`). The contract prover's 92,926 lines contain no kernel call. Inside the proof crate the range checker did call `verify_obligation`, but on a fresh atom under assumptions the checker chose itself, with 5 of the kernel's 28 rule variants, and it accepted on its own interval when it built no certificate (`checker.rs:884-965, 5595-5605`). Only the elaborator compared the assumptions of what it proved with an audited list (`mathematical_declarations.rs:5314-5396`). |
+| Text identified values | There were three kinds of identity. Text decided wherever a proof-like judgment was needed: range facts, contract labels, write frames, every arithmetic atom, callback refinement, proposition entailment, quotient facts. Handles identified ownership claims, places, loans and effects. The third kind was not named before and did as much harm as text: **source position**. A fact belonged to a (state, statement index, call ordinal) triple or to the expression that produced it, and a memory address stood for identity at more than forty sites. Facts therefore had to be copied when a value moved and found again at each use. |
+| One rule was written once per placement | Holds, on a different axis. About a fifth of the lines are second or later copies: about 60,000 of the 304,000 lines in the six groups whose readers gave totals. Copies per local, field, parameter and return are the minority (ownership events, 12 copies; the domain-on-entry rule, 10; the scalar roles). Most copies follow the question asked, the form of the call (statement, expression, transition), where the value came from, or the kind of owner (machine, declaration, specification, proof). The corpus matrix measured placement because placement is what a test author can vary. |
+
+#### Patterns the earlier readings missed
+
+The left column is the pattern, the middle column is the evidence, and the
+right column is what the rebuilt proof layer takes from it. Counts are the
+readers' and are lower bounds. File names are the deleted files'; the
+syntheses give the full paths.
+
+| Pattern | Evidence | For the rebuild |
+| --- | --- | --- |
+| **One question had several engines, and they disagreed.** | The integer range of an expression was derived by five engines in the proof crate alone, and by seven interval comparers in the contract checks. A `requires` predicate had eight evaluators using `i64`, `i128`, big integers and big rationals. Sixteen functions read "a comparison in a contract or guard", each for a different set of operators; `or` was a union in two and ignored in two. "May this write touch this place" was written at least 16 times, path overlap 5 times, the type of an expression 9 times. The syntheses name more than thirty pairs of copies that give different answers. Which copy ran depended on the placement or on which check asked, so one fact was proved in one place and unknown in another. | L1 has to end with one reader, not one more. Step 5 deletes the others, and a ratchet in `tools/ratchets/` should count stage 05's clause readers so the number only falls. |
+| **"Proved" meant something that is not a proof.** | "Running the check again added no diagnostic" stood for proved at 13 or more sites. So did "a row exists", "a flag was set by an assignment", "the stored diagnostic string is empty" and a test on the wording of a message. Missing evidence gave the permissive answer: a missing operator record meant builtin, zero rows meant accepted, a missing call record meant the call completes normally. Twenty verdicts were stored as a bare flag or site list that no consumer could check again. | A verdict is a certificate or a refusal. [Old faults that remain](#old-faults-that-remain-in-todays-compiler) lists where today's compiler still answers from an absence. |
+| **A contradiction was trusted like a proof.** | Seven places turned the judge's own "these hypotheses contradict" flag into acceptance of everything on that path. The flag came from the judge's own comparison of constructors, integers and type-atom names. No reader found a diagnostic for a `requires` that can never hold. | A dead path is closed by a kernel proof of falsehood from the hypotheses, the same as any other goal. |
+| **A callee's body decided the caller's proof.** | About twenty mechanisms read a callee's body where its contract was silent: a body that returns one Boolean constant, returned-field templates, unfolding, return-range inference, mutation summaries, a variant tag taken from the callee's returns, crash summaries, rank inference for private helpers. Other code inferred clauses nobody wrote: cleanup entry requirements, blocking and suspension interfaces, capability verbs. | The spec licenses one form, [local call summaries](../../spec/language/state_contracts.md#local-call-summaries). Today's compiler serves it for private scalar results only. Programs that leaned on the other forms are now refused; see open question 6. |
+| **Assume and guarantee were split and trusted in a circle.** | A caller took a callee's declared `ensures` as a hypothesis because "exits check it". The exit check trusted declared return types because "stores check them". The store check lived in another crate. Law conformance read declared `ensures` ("compiling means proven"), and a citation relied on the lemma being checked "in this same validation batch". Nothing recorded what had been proved. | L3 is what closes the circle: a cited law is a signature entry that carries its proof term, and a use depends on the entry. |
+| **Stages checked themselves by running again.** | More than sixty sites rebuilt a result with the same code and compared, and reported a difference to the user as "drifted" or "lost its ...". "Receipt", "commitment" and "replay" named a hash of the record's own fields. Such a check catches a corrupted record and never a wrong rule. In one group, 35 to 40 of about 320 rule rows were of this kind. | The kernel is the independent check. The proof layer should add no replay of its own producer. |
+| **Most refusals were silent.** | About 33,000 lines in one group contain no diagnostic. The flow-facts code issued about ten user diagnostics from 57,000 lines. The judge wrote its reasons to about 80 trace prints. A refusal was often a `None` returned by a lowering planner, and dozens of budgets (depth 32 at twenty sites, 64 monomials, 32 worlds) ended in "unknown" with no message. | Each budget in the proof producer needs its own diagnostic, distinct from "no proof exists". The spec already asks for this ([check on the lowered form](check_on_lowered_form.md#one-meaning-per-obligation)). |
+| **Rules lived in planners and rewrites.** | Linear overwrite, double move-out, guard exhaustiveness and borrow admission were decided by whether a lowering plan could be built. Three "validation" passes rewrote the program. Later code recognized earlier rewrites by name prefix (`__hoist_`, `__transition_subject#`). | Stage 05 reads and stage 06 judges. A proof term is built once and passed forward, never rebuilt from a rewritten tree. |
+| **Build speed shaped the rules.** | Parallel record and replay, caches filled by whichever caller asked first, widening thresholds taken from the program's own literals, about forty fixed points with no bound beside budgets chosen per function. Answers depended on unrelated content: whether `u64` was named anywhere, a sort order, a type annotation elsewhere. | A proof search result must depend only on the goal and its hypotheses. Any cache key is the goal, not an address. |
+| **The tests pinned plumbing.** | The contract prover's second half has 57 unit tests: 22 on a query cache, none on a rule. Six of the eight slices of declarations and domains have no tests. No test in the proof crate ran a program through `check_proof_plan`. The corpus tested rules from outside, one program per placement. | Each general rule gets its positive and negative twin beside the code, as the plan's customers column already requires. |
+| **The proof crate held two proof systems that shared nothing.** | The range checker never mentioned the elaborator's integer theory, and the elaborator never mentioned a range proof. A range the checker accepted was not a fact an induction could cite, and a theorem never bounded a value. | Step 2's producer must be able to use an integer fact inside an equality proof. L5 (typed identities in `ProofTerm`) and L3 (one signature) are what join them. |
+| **The lowered design was already inside the old code.** | The contract checks had a value-and-epoch core (captured operands, read epochs, storage-graph anchors) beside the text routes. Ownership tracked a claim apart from the place holding it. Build-time evaluation of array lengths and calls ran on Terminal Psi. The old contract prover called the lowered prover and fell back when it declined (`contract_entailment.rs:15415-15431`), and the lowered-form checker gated compilation before #2823. | #2823 removed the fallbacks. It did not swap one design for an untried one, which is the strongest support for it. |
+
+Two readers' claims about the old code were checked again by hand for this
+section. `seed_index_proofs_from_expression`
+(`checks_ranges.rs:3426-3490`) records every `a[i]` it finds anywhere in a
+clause as a proved index, keyed by two display names, including under `||`.
+The mathematical elaborator's kernel use is as the first row says. Each
+synthesis lists the further claims its author checked in the source.
+
+The old judge's authors wrote down rules that the new proof producer must
+keep. Forming an `Id` proves nothing, and executable equality is not `Id`:
+IEEE equality of signed zeros gave the judge no rule
+(`contract_entailment.rs:49781-49782, 52623-52625`). A clause may use a call
+as a value only when the call is total and pure (`:84121-84124`). An
+inductive hypothesis is registered only after the recursive call's
+`requires` and its decrease are checked (`:57183-57187`). The elaborator's
+authors left two cautions for step 2. All integer widths shared one kernel
+carrier and stayed distinct through alias definitions that conversion did
+not unfold, because unfolding a `Wrapping` computation "would silently
+replace its denotation with unbounded arithmetic"
+(`mathematical_declarations.rs:423-425, 4263-4303`). And "nested or mutual
+source-family recursion has no checked encoding yet" (`:11271`).
+
+#### What today's compiler does with the old rules
+
+The second pass looked up 1,366 language rules from the 17 inventories in
+today's compiler. The readers searched and read code; they compiled nothing,
+so each entry is a reading, not a test.
+
+| Class | Rules | Meaning |
+| --- | --- | --- |
+| Enforced | 839 | A check exists, in most cases an obligation that stage 06 accepts only with a certificate. Ownership, loans and domains are judged by one structural walk each, with no certificate. |
+| Refused wholesale | 253 | The construct is refused by stage 05 or the parser, so the rule cannot be broken. The rule has to be rebuilt when the construct is served. |
+| Unclear | 154 | Related code was found and the reader could not decide. |
+| Not found | 78 | Neither a check nor a refusal was found. |
+| Not looked up | 42 | |
+
+Of the 78 rules not found, about 32 are ways the old checker accepted more
+programs: ring rearrangement, facts read from a callee's body, float
+ranges, loans in different cases of one sum, array indexes proved different,
+coinductive guarantees over recursion. Their absence refuses programs and
+accepts nothing new. About 20 are retired surfaces or constructs with no
+route from source today. The rest are below, with what was done to check
+each.
+
+| Rule | What the reader found | Checked for this audit |
+| --- | --- | --- |
+| Two declarations of one name in one scope (two `data`, two `trait`, a `data` and a `trait`), two parameters of one machine with one name, two machines with one callable identity | No refusal at the declaration; a later use is refused as ambiguous. The surviving duplicate check covers `const` only (`02_.../constants/uses.rs:15-35`). | Probe programs written; not yet run |
+| The number of arguments in a type application matches the declaration | A mismatch is skipped with `continue` in const-argument admission (`03_.../src/type_reference.rs:908-932`); no other count check was found | That code confirmed. A probe program is written; not yet run |
+| An `AccessCustody` implementation agrees with its schema | Nothing | Confirmed: no Rust file names it. Reach is limited, because stage 05 refuses data with an erased field |
+| A value stored into a narrowed integer field fits its stored width (four cross-checks) | No fit obligation | Unreachable today; see [old faults that remain](#old-faults-that-remain-in-todays-compiler) |
+| Content conservation: a content-bearing result descends from a consumed owned claim (four cross-checks) | Stage 05 has no reader for it and the prover refuses the goal form. No reader found the site that refuses the source form. | Not checked further. It needs a direct negative test |
+| While an owned value is moved out of borrowed storage, boundary, service and blocking calls are fenced | Only a call that may suspend is refused (`psi/semantics/src/plain_affine.rs:2450-2477`). [Ownership](../../spec/language/ownership.md) says the other fences "remain in force". | The suspension check and the spec text confirmed; the absence of the other fences is the reader's finding |
+| An Omega-written provider of process exit never returns and passes its status on | Only native leaves are compared with the requirement's completion class | Not checked |
+| A provider body selected by Build has no `crashes`, matches its requirement and is not generic | Crash freedom is checked only for the root of a build-time evaluation | Not checked |
+| A public `const` type, conformance header or domain alias does not name a private declaration | Machine signatures are checked. `02_.../names/public_interfaces.rs:16-18` says a domain written as a constraint "is not judged here yet". | That comment confirmed |
+| A write through a mutable view retires what is known about the rest of the collection | Could not confirm | Not checked |
+| A clause does not read through a stored reference | The clause reader follows a shared stored reference (`05_.../src/read/contracts.rs:2476-2489`); the old rule was that nothing does | Not checked |
+| A value live across a suspension has a carry policy that allows it | A comment says it "is checked row by row" (`06_.../src/operational.rs:347-348`); no code was found | Not checked |
+| Smaller ones: accessor privacy, destructive-read views, the five properties of a progress-profile domain, at most one `via`, wire schemas with no `encoding` | Not found | Not checked |
+| A Boolean expression written as a statement is proved | Today it is evaluated and discarded | Not a gap. [Contracts](../../spec/proofs/contracts.md) says there is "no new assertion primitive", and the corpus's assertion fixtures use a guarded transition |
+
+#### Old faults that remain in today's compiler
+
+Each of these was confirmed in today's source for this audit, except the
+last row, which five cross-checks report. None is shown to accept a wrong
+program.
+
+| Fault | Where | Old pattern it repeats |
+| --- | --- | --- |
+| An operator expression with no recorded selection is completed with no check | `complete_operator` returns `Ok(())` when the loop over `authored_selection_occurrences` finds no `Operator` selection (`05_.../src/read/source_operators.rs:447-484`). Two cross-checks found it independently. | A missing record means builtin |
+| The validator of scalar domains on stores lists the storing operations by hand and ends in `_ => {}` | `psi/semantics/src/scalar_qualifications.rs:376-409`. A field read now carries its declared domain, so soundness rests on every store being in this list. | A hand-listed match with an accepting default arm |
+| A certificate the mathematical kernel declined is accepted with a marker nobody reads | `MathematicalCoreDecision::Refused` is read only by tests (`bounded/proof.rs:238-262`). This is L4. | A verdict stored as an unread flag |
+| The foundation class of each proof rule (constructive, trusted, classical) has no consumer | `AcceptedProofRule::foundation` is called only by tests in its own file (`bounded/classicality.rs`). The tests pin the table; no certificate is checked against it. | Audit described, not connected |
+| A const argument is written into the type table as a name with no symbol and parsed back from its digits | `typed-trees/type_records/data_applications.rs:99-108`, `typed-trees/expressions/values.rs:73-77` | A value carried as text |
+| The stored-field `range_obligation` slot has no producer | Stage 05 writes `None` at all six sites (`05_.../src/lower/places.rs:3611-4964`). It is unreachable today because stage 05 reads only whole-field placements (`AuthoredFieldStorage::Direct`, `read/source_records/layouts.rs:443-448`). The fit proof that [layout plans](../../spec/layouts/plans.md) require must arrive with narrowed integer fields. | A slot with readers and no writer |
+| The spec and the library say the compiler checks an `AccessCustody` implementation against its schema; no Rust file names `AccessCustody` | `wiki/spec/resources/access.md:342`, `source/library/core/layout.omg:511-514` | A check described and not built |
+| `ProofOnlyClassification::classify` is called by nothing | `typed-trees/proofs/evidence_and_inspection.rs:463` | Dead code that reads as a check |
+| A program that breaks a rule is told "not supported yet" | For example `[copy]` data with an owned field (`05_.../src/read/places.rs:485`) | A refusal that does not say what is wrong |
+| The stage 05 README lists references, slices, floats and domains as refused; the code serves them | Five cross-checks classified from the code for this reason | A document behind its code |
 
 ### What this changes in the plan
 
@@ -340,6 +479,18 @@ one example each. None was traced to a wrong acceptance of a real program.
   8,192 work units) answered `Unknown` when exhausted, never yes. Keep that.
 - **Rearranging by algebra laws is its own later step.** `core/nat.omg`
   cites its lemmas one by one and does not need it.
+- **The full read adds guards to the steps, not steps.** L1 ends with a
+  ratchet on the number of clause readers in stage 05. The proof producer of
+  step 2 closes a dead path with a kernel proof of falsehood, reports an
+  exhausted budget separately from a missing proof, and keys nothing by
+  source position or address. A cited law is used through its signature
+  entry (L3), never because it was checked earlier in the same run.
+- **The faults that remain are small repairs for the parallel row.** Refuse
+  in `complete_operator` when an operator expression has no recorded
+  selection; replace the `_ => {}` arm of the scalar store validator with
+  an explicit list; refuse or check an `AccessCustody` implementation; add
+  one direct negative test for each family that is refused only indirectly
+  (named evidence bindings, content conservation).
 
 ## How a clause becomes a proof term today
 
@@ -778,6 +929,17 @@ Recorded, not answered:
 5. **Float ranges.** The floor is integer-only. Confirm that no page requires
    automatic interval propagation through float arithmetic, which the old
    checker did without certificates.
+6. **Facts from a callee's body.** The old checker gave a caller about twenty
+   kinds of fact that the callee's contract did not state
+   ([patterns](#patterns-the-earlier-readings-missed)). The spec licenses
+   [local call summaries](../../spec/language/state_contracts.md#local-call-summaries),
+   and stage 06 serves them for private scalar results. Are the fields of a
+   returned record, the case of a returned value and the equality of two
+   calls with equal arguments meant to be local call summaries too, or must
+   the callee write an `ensures`?
+7. **A `requires` that can never hold.** The old judge accepted every goal
+   on a path whose hypotheses it found contradictory and reported nothing.
+   Should a machine whose `requires` is provably false be a warning?
 
 ## Validation
 
@@ -819,6 +981,22 @@ Recorded, not answered:
   claims about the deleted code and the ledger row counts were checked
   directly against the files. Counts by group are from name and keyword
   patterns and are approximate. Nothing was built or run.
+- Fifth reading (2026-11-23), line by line. The deletion was cut into 137
+  slices holding 875,311 lines; one reader per slice read its ranges in
+  order and logged each read, and `verify.py` in
+  [the full read](../reference/deleted_checker_full_read/README.md) found
+  every range logged. Seventeen readers merged the reports by group and
+  seventeen more looked up each group's rules in the current tree at
+  `b8213143d790`. Readers ran on two model tiers; the proof crate and the
+  contract prover went to the stronger one. The author of this audit read
+  every cross-check's summary, "not found" and "unclear" sections and every
+  synthesis's mechanisms, properties and patterns sections, and did not
+  read the 17 rule inventories row by row. The counts of rules (1,366 and
+  its classes) are sums of the cross-checks' own summaries. The rows marked
+  confirmed in [old faults that remain](#old-faults-that-remain-in-todays-compiler)
+  were read in the current source for this audit; nothing was compiled or
+  run. The counts in the patterns table are the readers' and were not
+  recounted.
 - Not determined: whether a full core library check with `no_wrap` passes
   end to end (no sample reaches it); `erased_array_evidence`'s signal 9;
   whether old level constraints were ever published; the two samples bound to
