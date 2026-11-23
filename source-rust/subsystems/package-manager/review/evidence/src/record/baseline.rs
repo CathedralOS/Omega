@@ -84,10 +84,11 @@ impl PackagePolicyBaseline {
         )],
     ) {
         for (service, class) in classes {
-            if self
-                .dangerous_capabilities
-                .iter()
-                .any(|authority| &authority.service == service)
+            let authority = PackageReviewDangerousAuthority {
+                class: *class,
+                service: service.clone(),
+            };
+            if self.dangerous_capabilities.contains(&authority)
                 || !self
                     .callables
                     .callables
@@ -96,11 +97,7 @@ impl PackagePolicyBaseline {
             {
                 continue;
             }
-            self.dangerous_capabilities
-                .push(PackageReviewDangerousAuthority {
-                    class: *class,
-                    service: service.clone(),
-                });
+            self.dangerous_capabilities.push(authority);
             for callable in &self.callables.callables {
                 if callable
                     .declared_service_reach()

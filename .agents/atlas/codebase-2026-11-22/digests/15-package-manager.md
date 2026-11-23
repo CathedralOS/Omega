@@ -229,7 +229,7 @@ source-acquisition and source-capture:
 ## 6. Silent drops
 
 Places where something produces no row and no diagnostic.
-- `E/record/baseline.rs:86-98`: a second dangerous-authority class for the same service, or a class for an unexposed service, is dropped (open).
+- `E/record/baseline.rs:86-98`: a second dangerous-authority class for the same service, or a class for an unexposed service, is dropped (open). **Follow-up (2026-11-23).** Auditing a package that registered the core `StandardOutput` service showed the registration but only the built-in `Process` finding. Review now retains a finding and any matching ceiling slack for each distinct class of the exposed service. An unexposed registration remains visible as policy without generating a callable finding.
 - `PM/review/candidate/passes_occurrences.rs:339`: a target-entry candidate is added only when exactly one remains; with zero or several, nothing is added. The record does not say whether a diagnostic follows (not traced). The function that maps `SemanticBindingProjectionError::Ambiguous` to a review error, `projection_error` (`candidate/semantic_bindings.rs:193`), has no caller (checked §10).
 - `PM/review/candidate/semantic_bindings.rs:147`: roles other than the two host services get no settled permission rows at the root.
 - `PM/lockfile/publication/checked.rs:125-127`: Git and workspace custodies are skipped by the pre-publication re-check.
