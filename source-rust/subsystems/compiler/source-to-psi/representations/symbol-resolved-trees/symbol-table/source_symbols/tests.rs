@@ -359,7 +359,7 @@ mod hierarchy {
     }
 
     #[test]
-    fn current_activation_extension_is_invisible_to_base_but_sees_the_complete_extension() {
+    fn generated_files_import_other_generated_files_and_base_cannot_see_them() {
         let package_identity =
             PackageKeyIdentity::from_digest([9; 32]).expect("nonzero package identity");
         let mut sources = SourceMap::default();
@@ -392,7 +392,12 @@ mod hierarchy {
                 SourceResolutionStratum::CurrentActivationExtension,
             )
             .source_id;
-        let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+            Some(Arc::new(sources)),
+            vec![crate::source_symbols::SourceScopedTopLevelBinding::file_import(
+                second_extension, first_extension, "first",
+            )],
+        );
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
             root,
@@ -436,8 +441,7 @@ mod hierarchy {
                 &[SymbolKind::Data],
                 reference(second_extension),
             ),
-            Some(declarations[1]),
-            "an extension unit must prefer its shared extension stratum over Base",
+            None,
         );
         assert_eq!(
             symbols.find_top_level_by_name_and_kinds_from_source(
@@ -445,7 +449,7 @@ mod hierarchy {
                 &[SymbolKind::Data],
                 reference(second_extension),
             ),
-            Some(declarations[2]),
+            None,
         );
         assert_eq!(
             symbols.find_top_level_by_name_and_kinds_from_source(
@@ -472,7 +476,7 @@ mod hierarchy {
         ] {
             assert_eq!(
                 symbols.find_top_level_by_name_and_kinds_from_source(
-                    name,
+                    &format!("|first|::{name}"),
                     &[SymbolKind::Data],
                     reference(second_extension),
                 ),
@@ -571,7 +575,7 @@ mod module_namespaces {
     }
 
     #[test]
-    fn siblings_share_candidates_but_a_files_own_declaration_wins() {
+    fn bare_names_select_only_declarations_in_the_authored_file() {
         let (mut symbols, declarations, _) = namespace_table([1, 1, 1], Vec::new());
         for source in 0..3 {
             register_module(&mut symbols, source, &["combat", "ai"]);
@@ -580,7 +584,7 @@ mod module_namespaces {
             assert_eq!(symbols.top_level_candidates_from_source("Item", &[SymbolKind::Data], reference(source)), [declarations[source]]);
         }
         let siblings = symbols.top_level_candidates_from_source("Item", &[SymbolKind::Data], reference(0));
-        assert_eq!(siblings, [declarations[1], declarations[2]]);
+        assert!(siblings.is_empty());
     }
 
     fn register_module(symbols: &mut SymbolTable, source_ordinal: usize, path: &[&str]) {
@@ -888,7 +892,7 @@ mod module_namespaces {
             data_reference(&symbols, 0, "dependency::Item"),
             Some(declarations[1])
         );
-        assert_eq!(data_reference(&symbols, 0, "Item"), Some(declarations[2]));
+        assert_eq!(data_reference(&symbols, 0, "Item"), None);
         assert_eq!(data_reference(&symbols, 2, "dependency::Item"), None);
     }
 
@@ -1302,7 +1306,7 @@ mod module_namespaces {
 
     #[test]
     fn unmoduled_package_discovery_keeps_checked_occurrences_separate() {
-        let (ambiguous, _, _) = namespace_table(
+        let (unimported, _, _) = namespace_table(
             [1, 1, 1],
             vec![SourceScopedTopLevelBinding::module_import(
                 SourceId(0),
@@ -1312,13 +1316,13 @@ mod module_namespaces {
             )],
         );
         assert!(matches!(
-            ambiguous.lookup_top_level_by_name_and_kinds_from_source_matching(
+            unimported.lookup_top_level_by_name_and_kinds_from_source_matching(
                 "Item",
                 &[SymbolKind::Data],
                 reference(0),
                 |_| true,
             ),
-            crate::source_symbols::SymbolLookup::Ambiguous { .. }
+            crate::source_symbols::SymbolLookup::NotFound
         ));
         let (_, _, sources) = namespace_table([1, 1, 1], Vec::new());
         let mut files = sources.files().cloned().collect::<Vec<_>>();
@@ -1332,11 +1336,10 @@ mod module_namespaces {
         }
         let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
             Some(Arc::new(SourceMap::from_files(files))),
-            vec![SourceScopedTopLevelBinding::module_import(
+            vec![SourceScopedTopLevelBinding::file_import(
                 SourceId(0),
-                SourceId(0),
-                "other",
-                0,
+                SourceId(1),
+                "api",
             )],
         );
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
@@ -1354,7 +1357,8 @@ mod module_namespaces {
         ))
         .collect::<Vec<_>>();
         let symbols = builder.finish();
-        assert_eq!(data_reference(&symbols, 0, "Item"), Some(declarations[0]));
+        assert_eq!(data_reference(&symbols, 0, "|api|::Item"), Some(declarations[0]));
+        assert_eq!(data_reference(&symbols, 0, "Item"), None);
     }
 
     #[test]
@@ -1456,10 +1460,10 @@ mod module_namespaces {
                 reference(1),
                 |candidate| candidate != declarations[1]
             ),
-            Some(declarations[0])
+            None
         );
-        let (symbols, _) = attached_table(["Sizes::SIZE"; 3], Vec::new());
-        assert_eq!(lookup(&symbols, 1), None);
+        let (symbols, same_names) = attached_table(["Sizes::SIZE"; 3], Vec::new());
+        assert_eq!(lookup(&symbols, 1), Some(same_names[1]));
     }
 
     fn domain_reference(
@@ -1523,7 +1527,10 @@ mod module_namespaces {
         for name in ["main.omg", "local.omg", "bounds.omg"] {
             sources.add(PathBuf::from(name), "Below".to_owned());
         }
-        let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
+        let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+            Some(Arc::new(sources)),
+            vec![SourceScopedTopLevelBinding::file_import(SourceId(1), SourceId(2), "bounds")],
+        );
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let mut declarations = SymbolTableBuilder::child_handles(builder.insert_children(
             root,
@@ -1560,9 +1567,10 @@ mod module_namespaces {
             if module_local {
                 register_module(&mut symbols, 1, &["local"]);
             }
-            assert!(symbols.domain_name_reaches(foreign, "bounds::Below", reference(1)));
+            assert!(!symbols.domain_name_reaches(foreign, "bounds::Below", reference(1)));
+            assert!(symbols.domain_name_reaches(foreign, "|bounds|::Below", reference(1)));
             assert!(
-                !symbols.domain_name_reaches(local, "bounds::Below", reference(1)),
+                !symbols.domain_name_reaches(local, "|bounds|::Below", reference(1)),
                 "the foreign module qualifier must not reach a same-leaf generic family"
             );
             assert!(
@@ -1571,7 +1579,7 @@ mod module_namespaces {
             );
             assert!(symbols.domain_name_reaches(local, "Below", reference(1)));
             assert_eq!(
-                domain_reference(&symbols, 1, "bounds::Below"),
+                domain_reference(&symbols, 1, "|bounds|::Below"),
                 Some(foreign)
             );
         }
@@ -1614,12 +1622,13 @@ mod module_namespaces {
         declarations.next().expect("run data");
         let live = declarations.next().expect("run live family");
         let symbols = builder.finish();
+        assert!(!symbols.domain_name_reaches(live, "Run::Live", reference(0)));
         assert!(
             !symbols.domain_name_reaches(live, "Lease::Live", reference(0)),
             "a sum case must not compete with another source's generic family"
         );
         assert!(
-            symbols.domain_name_reaches(live, "Run::Live", reference(0)),
+            symbols.domain_name_reaches(live, "Run::Live", reference(1)),
             "the carrier declared beside the family still abbreviates it"
         );
     }
@@ -2553,13 +2562,13 @@ mod closed_contract_scope {
     }
 
     #[test]
-    fn closed_contract_cohort_is_local_and_never_an_ambient_std_dependency() {
+    fn closed_contract_files_do_not_expose_each_others_declarations() {
         let (symbols, declarations) = fixture(false, DependencyScope::Product);
         assert_eq!(
-            resolve(&symbols, 1, "Console", SymbolKind::Data),
+            resolve(&symbols, 2, "Console", SymbolKind::Data),
             Some(declarations[2])
         );
-        for id in [0, 3, 4] {
+        for id in [0, 1, 3, 4] {
             assert_eq!(resolve(&symbols, id, "Console", SymbolKind::Data), None);
             assert!(!symbols.source_domain_is_exposed(occurrence(id), declarations[5]));
             assert_eq!(
@@ -2567,7 +2576,7 @@ mod closed_contract_scope {
                 None
             );
         }
-        assert!(symbols.source_domain_is_exposed(occurrence(1), declarations[5]));
+        assert!(symbols.source_domain_is_exposed(occurrence(2), declarations[5]));
         assert_eq!(resolve(&symbols, 1, "Foreign", SymbolKind::Data), None);
         assert_eq!(resolve(&symbols, 1, "Application", SymbolKind::Data), None);
         for id in [0, 1, 3] {
