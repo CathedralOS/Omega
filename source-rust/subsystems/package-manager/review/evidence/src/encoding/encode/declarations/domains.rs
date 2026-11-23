@@ -1,29 +1,19 @@
-// Canonical encoding for semantic domain alias atoms, establishment routes, and carry permissions.
+// Canonical encoding for domain alias declarations and establishment routes.
 
 use super::super::PackageReviewEncodingError;
 use super::super::encoder::Encoder;
 use super::super::values::identity::encode_nominal;
 use crate::record::{
-    PackageReviewDomainAliasAtom, PackageReviewDomainEstablishmentKind,
-    PackageReviewDomainEstablishmentRoute,
+    PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
+    PackageReviewNominalIdentity,
 };
-use language_core::CarryPermission;
 
 pub(crate) fn encode_domain_alias_atom(
     encoder: &mut Encoder,
-    atom: &PackageReviewDomainAliasAtom,
+    identity: &PackageReviewNominalIdentity,
 ) -> Result<(), PackageReviewEncodingError> {
-    match atom {
-        PackageReviewDomainAliasAtom::Declared(identity) => {
-            encoder.tag("declared", 0);
-            encoder.field("identity", |encoder| encode_nominal(encoder, identity))
-        }
-        PackageReviewDomainAliasAtom::Carry(permission) => {
-            encoder.tag("carry", 1);
-            encoder.field_by("permission", *permission, encode_carry_permission)?;
-            Ok(())
-        }
-    }
+    encoder.tag("declared", 0);
+    encoder.field("identity", |encoder| encode_nominal(encoder, identity))
 }
 
 pub(crate) fn encode_domain_establishment_route(
@@ -59,13 +49,4 @@ pub(crate) fn encode_domain_establishment_route(
                 encode_nominal(encoder, machine_identity)
             }),
     }
-}
-
-pub(crate) fn encode_carry_permission(encoder: &mut Encoder, permission: CarryPermission) {
-    match permission {
-        CarryPermission::AcrossSuspend => encoder.tag("across_suspend", 0),
-        CarryPermission::AnyCpu => encoder.tag("any_cpu", 1),
-        CarryPermission::AnyThread => encoder.tag("any_thread", 2),
-        CarryPermission::MovableAddress => encoder.tag("movable_address", 3),
-    };
 }

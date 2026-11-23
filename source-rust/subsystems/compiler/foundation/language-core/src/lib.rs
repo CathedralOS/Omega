@@ -27,8 +27,8 @@ pub use source_semantics::place_root::{
 pub use source_semantics::receiver_binding::{self, SELF_RECEIVER, is_self_receiver};
 pub use source_semantics::{
     BindingRelevance, CallOperationalAcknowledgement, CallOperationalAcknowledgementOrigin,
-    CarryAddress, CarryCpu, CarryHostThread, CarryPermission, CarryPolicy, CarrySuspension,
-    DataSupplyMode, DomainClassification, DomainPredicatePresence, LocalBindingRole, Multiplicity,
+    CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, DataSupplyMode,
+    DomainClassification, DomainPredicatePresence, LocalBindingRole, Multiplicity,
     PatternComponent, PatternSelector, ReferenceAccess,
 };
 

@@ -359,34 +359,22 @@ fn apply_in_domain_suffix<'tokens, 'source>(
     loop {
         let (domain_name, rest) = parse_static_name(cursor)?;
         let (arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
-        if domain_name.as_str(syntax_trees) == "Carry::Portable" {
-            if !arguments.is_empty() {
-                return Err(rest.error_here("compiler carry domains do not take index arguments"));
-            }
-            constraints.extend(language_core::CarryPermission::ALL.map(|permission| {
-                TypeConstraintNode::Domain(DomainConstraint {
-                    name: Identifier::generated(permission.name()),
-                    arguments: HandleSpan::empty(),
-                })
-            }));
-        } else {
-            constraints.push(
-                match ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)) {
-                    Some(domain) if arguments.is_empty() => {
-                        TypeConstraintNode::ArithmeticDomain(domain)
-                    }
-                    Some(_) => {
-                        return Err(rest.error_here(
-                            "compiler arithmetic domains do not take index arguments",
-                        ));
-                    }
-                    None => TypeConstraintNode::Domain(DomainConstraint {
-                        name: domain_name,
-                        arguments,
-                    }),
-                },
-            );
-        }
+        constraints.push(
+            match ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)) {
+                Some(domain) if arguments.is_empty() => {
+                    TypeConstraintNode::ArithmeticDomain(domain)
+                }
+                Some(_) => {
+                    return Err(
+                        rest.error_here("compiler arithmetic domains do not take index arguments")
+                    );
+                }
+                None => TypeConstraintNode::Domain(DomainConstraint {
+                    name: domain_name,
+                    arguments,
+                }),
+            },
+        );
 
         if !rest.at_punctuation(PunctuationKind::Ampersand) {
             cursor = rest;

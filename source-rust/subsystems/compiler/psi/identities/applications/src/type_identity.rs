@@ -894,7 +894,6 @@ mod grammar {
         let family = DomainFamily::parse(&family).ok_or(Error::MalformedIdentity)?;
         reader.expect(b',')?;
         match family {
-            DomainFamily::Carry => reader.opaque(Label::Permission, visitor),
             DomainFamily::Value => reader.opaque(Label::Domain, visitor),
             DomainFamily::OmegaLayout => {
                 reader.opaque(Label::Grammar, visitor)?;
@@ -1451,7 +1450,6 @@ pub mod vocabulary {
         }
 
         DomainFamily {
-            Carry = "carry",
             Value = "value",
             OmegaLayout = "omega-layout",
         }
@@ -1548,7 +1546,6 @@ pub mod vocabulary {
             Type = "type",
             Encoding = "encoding",
             Family = "family",
-            Permission = "permission",
             Domain = "domain",
             Grammar = "grammar",
             Schema = "schema",

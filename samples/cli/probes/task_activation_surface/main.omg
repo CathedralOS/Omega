@@ -1,8 +1,7 @@
 // Task-runtime surface (declaration probe): `suspend
 // Sleeper::park(7)` inside a `suspends;` machine,
 // `suspend block TaskLifecycle::finish<T>(task)` block-suspend on the
-// public requirement, and `Token in Carry::AcrossSuspend`
-// domain-qualified task payloads.
+// public requirement, and a local token used after the suspended call returns.
 //
 //   * `TaskLifecycle::finish<T>` in `public boundary trait TaskLifecycle` — the sole
 //     public task-disposition requirement.
@@ -23,7 +22,7 @@ public data Token {
     id: u64;
 }
 
-machine Worker::run(token: Token in Carry::AcrossSuspend) -> Token suspends {
+machine Worker::run(token: Token) -> Token suspends {
     let carried: Token = token;
     suspend Sleeper::park(7);
     carried

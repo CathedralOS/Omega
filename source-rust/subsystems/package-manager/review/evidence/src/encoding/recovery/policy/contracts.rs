@@ -48,10 +48,6 @@ pub(in crate::encoding::recovery) fn contract_fact(
             domain: nominal(reader)?,
             application: reader.string()?,
         },
-        4 => PackageReviewContractFact::CarryMembership {
-            value: expression(reader)?,
-            permission: super::declarations::domains::carry_permission(reader)?,
-        },
         2 => PackageReviewContractFact::Proposition(proposition_application(reader)?),
         3 => PackageReviewContractFact::PropositionParameter(
             PackageReviewPropositionParameterApplication {
@@ -59,6 +55,7 @@ pub(in crate::encoding::recovery) fn contract_fact(
                 arguments: reader.sequence(1, expression)?,
             },
         ),
+        4 => return Err(Error::RetiredVocabulary),
     }))
 }
 
@@ -179,25 +176,11 @@ mod codec_tests {
     }
 
     #[test]
-    fn closed_carry_fact_recovers_without_a_nominal_domain() {
-        for (tag, permission) in language_core::CarryPermission::ALL
-            .into_iter()
-            .enumerate()
-        {
-            let bytes = [4, 3, tag as u8];
+    fn a_saved_contract_cannot_assert_a_retired_carry_permission() {
+        for tag in 0..4 {
+            let bytes = [4, 3, tag];
             let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
-            assert_eq!(
-                contract_fact(&mut reader).unwrap(),
-                PackageReviewContractFact::CarryMembership {
-                    value: PackageReviewContractExpression::Result,
-                    permission,
-                }
-            );
-            reader.finish().unwrap();
-        }
-        for bytes in [[4, 3, 4], [4, 3, 255], [5, 3, 0]] {
-            let mut reader = Reader::new(&bytes, PackagePolicyRecoveryLimits::default()).unwrap();
-            assert!(contract_fact(&mut reader).is_err());
+            assert_eq!(contract_fact(&mut reader), Err(Error::RetiredVocabulary));
         }
     }
 }

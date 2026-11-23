@@ -1634,21 +1634,27 @@ fn proof_fact_pipe_alternative_rejects_indexed_domain_application() {
 }
 
 #[test]
-fn proof_fact_carry_permission_rejects_index_arguments() {
-    let tokens = Lexer::new(
+fn a_qualified_domain_in_a_proof_fact_keeps_its_index_argument() {
+    let (parsed, facts) = parse_domain_facts(
         r#"
         domain Extent::Access
         requires
             self in Carry::AnyCpu<SlotPlacement>
         "#,
-    )
-    .tokenize()
-    .expect("tokenize should succeed");
-    let error = parse_syntax_trees(&tokens).expect_err("carry permissions have no index");
-    crate::tests::expect_error(
-        &error,
-        "compiler carry permissions do not take index arguments",
     );
+    let [ProofFact::Membership(membership)] = facts.as_slice() else {
+        panic!("expected one domain membership, got {facts:?}");
+    };
+    let arguments = parsed
+        .type_references
+        .type_reference_handles(membership.domain_arguments);
+    let [argument] = arguments else {
+        panic!("expected one index argument, got {arguments:?}");
+    };
+    let TypeReferenceNode::Named(name) = parsed.type_references.type_reference(*argument) else {
+        panic!("expected a named index argument");
+    };
+    assert_eq!(name.as_str(&parsed), "SlotPlacement");
 }
 
 #[test]

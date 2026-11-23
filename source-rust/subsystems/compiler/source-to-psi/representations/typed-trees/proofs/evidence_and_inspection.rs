@@ -5241,7 +5241,6 @@ pub mod inspection {
             #[serde(tag = "kind", rename_all = "snake_case")]
             pub enum DomainConstraintSubjectSnapshot {
                 Declared,
-                Carry { permission: &'static str },
                 Value { domain: &'static str },
                 OmegaLayout { grammar: &'static str },
             }
@@ -5393,11 +5392,6 @@ pub mod inspection {
                         subject: match domain.subject {
                             DomainConstraintSubject::Declared => {
                                 DomainConstraintSubjectSnapshot::Declared
-                            }
-                            DomainConstraintSubject::Carry(permission) => {
-                                DomainConstraintSubjectSnapshot::Carry {
-                                    permission: permission.name(),
-                                }
                             }
                             DomainConstraintSubject::Value(value_domain) => {
                                 DomainConstraintSubjectSnapshot::Value {
@@ -5606,9 +5600,6 @@ pub mod inspection {
                 Intrinsic::BuiltinOperator => ("builtin_operator", None),
                 Intrinsic::CoreIntegerOperator(application) => {
                     ("core_integer_operator", Some(format!("{application:?}")))
-                }
-                Intrinsic::CarryPermission(permission) => {
-                    ("carry_permission", Some(format!("{permission:?}")))
                 }
                 Intrinsic::CollectionLength => ("collection_length", None),
                 Intrinsic::CollectionCapacity => ("collection_capacity", None),

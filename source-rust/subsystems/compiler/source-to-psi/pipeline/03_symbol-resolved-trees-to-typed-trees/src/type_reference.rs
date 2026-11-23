@@ -6,7 +6,6 @@ generic origin validation.
 
 pub(crate) mod domain_aliases {
     use crate::source_resolved as resolved;
-    use crate::source_symbols::JoinedPath;
     use diagnostics::Diagnostic;
 
     #[derive(Debug, Clone)]
@@ -26,27 +25,6 @@ pub(crate) mod domain_aliases {
             path: Vec<resolved::name::DiagnosticName>,
             stack: &mut Vec<symbols::SymbolHandle>,
         ) -> Result<Vec<ExpandedDomainReference>, Diagnostic> {
-            let name = path.joined_path();
-            if name == "Carry::Portable" {
-                return Ok(language_core::CarryPermission::ALL
-                    .into_iter()
-                    .map(|permission| {
-                        let [namespace, member] = permission
-                            .name()
-                            .split("::")
-                            .collect::<Vec<_>>()
-                            .try_into()
-                            .expect("compiler carry permission has two path members");
-                        ExpandedDomainReference {
-                            symbol: symbols::SymbolHandle::invalid(),
-                            path: vec![
-                                resolved::name::DiagnosticName::generated_static(namespace),
-                                resolved::name::DiagnosticName::generated_static(member),
-                            ],
-                        }
-                    })
-                    .collect());
-            }
             let Some(domain) = program.domain_definition_by_symbol(symbol) else {
                 return Ok(vec![ExpandedDomainReference { symbol, path }]);
             };
@@ -299,17 +277,10 @@ pub(crate) mod domain_constraints {
                     Identifier::generated(atom.path.joined_path())
                 };
                 let declaration = domain_by_symbol(program, atom.symbol);
-                let subject = if atom.symbol.is_valid() {
-                    DomainConstraintSubject::Declared
-                } else {
-                    language_core::CarryPermission::from_name(name.as_str())
-                        .map(DomainConstraintSubject::Carry)
-                        .unwrap_or_default()
-                };
                 normalized.push(TypeConstraintNode::Domain(DomainConstraint {
                     name,
                     arguments: Vec::new(),
-                    subject,
+                    subject: DomainConstraintSubject::Declared,
                     symbol: atom.symbol,
                     semantic_id: declaration
                         .map(|domain| domain.semantic_id)
@@ -2282,13 +2253,10 @@ pub(crate) mod constraints {
     ) -> typed::types::DomainConstraintSubject {
         use typed::types::{DomainConstraintSubject, OmegaLayoutGrammar, ValueDomain};
 
-        if argument_count == 0 {
-            if let Some(permission) = language_core::CarryPermission::from_name(name) {
-                return DomainConstraintSubject::Carry(permission);
-            }
-            if let Some(domain) = ValueDomain::from_name(name) {
-                return DomainConstraintSubject::Value(domain);
-            }
+        if argument_count == 0
+            && let Some(domain) = ValueDomain::from_name(name)
+        {
+            return DomainConstraintSubject::Value(domain);
         }
         if name == "OmegaLayout" && argument_count == 1 {
             return DomainConstraintSubject::OmegaLayout {

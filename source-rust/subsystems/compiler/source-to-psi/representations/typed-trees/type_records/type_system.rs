@@ -3342,7 +3342,6 @@ pub mod types {
     pub enum DomainConstraintSubject {
         #[default]
         Declared,
-        Carry(language_core::CarryPermission),
         Value(ValueDomain),
         OmegaLayout {
             grammar: OmegaLayoutGrammar,

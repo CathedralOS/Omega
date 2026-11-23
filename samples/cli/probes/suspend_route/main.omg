@@ -10,8 +10,8 @@
 //     bodyless suspending boundary decl.
 //   * `machine Worker::run(...) -> Token suspends` — declared
 //     suspending machine; `suspend Sleeper::park(7)` inside.
-//   * `token: Token in Carry::AcrossSuspend` — domain member on a
-//     param: suspend-crossing carry qualification.
+//   * The `AcrossSuspend` domain requires a positive token ID. The
+//     machine returns that same token after the provider resumes it.
 //   * `suspend block TaskLifecycle::finish<T>(task)` shape is a boundary
 //     trait requirement in core\task — kept to the plain-call form here.
 //   * `hits` records the reached arm.

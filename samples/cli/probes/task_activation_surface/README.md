@@ -1,9 +1,6 @@
 # task_activation_surface
 
-First sample on the task-runtime surface: `suspend
-Sleeper::park(7)` inside a `suspends;` machine, `suspend
-block TaskLifecycle::finish<T>(task)` on the public requirement, and
-`Token in Carry::AcrossSuspend` domain-qualified payloads.
+The sample keeps a local token across a call to `Sleeper::park` and finishes a task through the public `TaskLifecycle::finish` requirement.
 
 ## Gaps found while authoring (filed)
 
