@@ -125,6 +125,23 @@ fn symbol(
     Ok(context.name(program, selected, ""))
 }
 
+/// A signature without `->`, such as `data Step = machine();` or
+/// `machine tick() {}`, returns Unit; it has no result type reference. It is
+/// spelled as the Unit type is, so `machine()` names the same callable type
+/// in an alias and in a selected machine. A result that names a type the
+/// table does not hold is still unresolved.
+fn result_text(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    context: &TypeIdentityContext<'_>,
+) -> IdentityResult<String> {
+    use application_identity::type_identity::vocabulary::Spelled;
+    if !reference.is_valid() {
+        return Ok(TypeForm::Unit.spelling().to_owned());
+    }
+    type_text(program, reference, context)
+}
+
 fn type_text(
     program: &TypedTrees,
     reference: TypeReferenceHandle,
@@ -391,7 +408,7 @@ pub(crate) fn normalize_signature(
         let mut parts = vec![
             record("static-binders", static_binders),
             record("parameters", parameter_shapes),
-            typed("result", type_text(program, signature.return_type, nested)?),
+            typed("result", result_text(program, signature.return_type, nested)?),
         ];
         if !nested.callable_operand_shape {
             parts.push(scalar(
@@ -594,9 +611,11 @@ fn clauses(
 ) -> IdentityResult<String> {
     let mut projection = ContractIdentityContext {
         type_identity: |reference, _: &[(SymbolHandle, String)]| {
-            Ok(program
-                .type_identities
-                .intern(&type_text(program, reference, context)?))
+            Ok::<_, RuntimeCallableIdentityError>(
+                program
+                    .type_identities
+                    .intern(&type_text(program, reference, context)?),
+            )
         },
         fact_identity: |source: &ProofFact, _: &[(SymbolHandle, String)]| {
             fact(program, source, context)
@@ -613,17 +632,18 @@ fn clauses(
             }
         },
     };
-    let projected = contract_structure::declared_callable_with(
+    // Only the clauses are read here; the signature's parameter and result
+    // identities are its own parts (`normalize_signature`). Projecting the
+    // whole callable would also spell the result, which a signature without
+    // `->` does not have.
+    let projected = contract_structure::declared_contracts_with(
         program,
-        program.state_signature_parameters(signature),
-        signature.return_type,
         program.state_signature_contracts(signature),
         context.binders,
         true,
         &mut projection,
     )?;
     let mut clauses = projected
-        .clauses
         .into_iter()
         .map(|clause| {
             let mut parts = Vec::new();
