@@ -33,6 +33,17 @@ fn run_project_build(
     project_build::ReturnedPlanningStage,
     package_compilation::PackageCompilationInputs,
 ) {
+    run_project_build_with_sources(path, targets, &["main.omg", "build.omg"])
+}
+
+fn run_project_build_with_sources(
+    path: &Path,
+    targets: &[TargetProfile],
+    files: &[&str],
+) -> (
+    project_build::ReturnedPlanningStage,
+    package_compilation::PackageCompilationInputs,
+) {
     static LIBRARY: OnceLock<()> = OnceLock::new();
     LIBRARY.get_or_init(|| {
         package_compilation::toolchain_library::configure(
@@ -41,7 +52,7 @@ fn run_project_build(
         .unwrap()
     });
     let project = begin_local_project_preparation(path, targets, true).unwrap();
-    let selected = BuildSourceCaptureRequest::new(["main.omg", "build.omg"].map(|name| {
+    let selected = BuildSourceCaptureRequest::new(files.iter().map(|name| {
         (
             name.as_bytes().to_vec(),
             BuildSourceCaptureObligation::Required,
@@ -935,8 +946,11 @@ fn fresh_review_records_the_build_that_declared_the_package() {
         .filter(|callable| callable.role == PackagePolicyCallableRole::Build);
     let build = builds.next().expect("the executed Build is part of the review");
     assert!(builds.next().is_none());
-    assert_eq!(build.identity.owner, PackageReviewNominalOwner::Package(owner));
-    assert_eq!(build.identity.path, "build");
+    assert_eq!(
+        build.identity.owner,
+        PackageReviewNominalOwner::Package(owner)
+    );
+    assert_eq!(build.identity.path, "build.omg::build");
 }
 
 #[test]
@@ -972,11 +986,18 @@ fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant()
             .callables
             .callables
             .iter()
-            .find(|row| row.identity.path == "inspect_value")
+            .find(|row| row.identity.path == "main.omg::inspect_value")
             .unwrap();
         let reach = callable.declared_service_reach.as_deref().unwrap();
         assert_eq!(reach.len(), 1);
-        assert_eq!(reach[0].path(), name);
+        assert_eq!(
+            reach[0].path(),
+            if critical {
+                name
+            } else {
+                "main.omg::StandardOutput"
+            }
+        );
         assert_eq!(
             checked.policy.dangerous_capabilities.len(),
             usize::from(critical)
@@ -985,6 +1006,84 @@ fn public_service_ceilings_are_reviewed_without_an_installed_provider_or_grant()
         assert!(checked.policy.selected_providers.plans.is_empty());
         assert!(checked.policy.terminal_permissions.services.is_empty());
         assert!(checked.semantic_binding_candidates.is_empty());
+    }
+}
+
+#[test]
+fn review_nominates_the_referenced_host_declaration() {
+    use provider_acceptance::AcceptedSemanticBindingRole;
+
+    let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-host-by-file",
+        false,
+    )
+    .unwrap();
+    let root = temp.path();
+    std::fs::write(
+        root.join("build.omg"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "host_by_file"); }"#,
+    )
+    .unwrap();
+    std::fs::create_dir(root.join("other")).unwrap();
+    std::fs::write(
+        root.join("other/host.omg"),
+        "public boundary trait TimeHost {}",
+    )
+    .unwrap();
+    let target = TargetProfile::LinuxX64;
+    for (reference, expected_file, nominates_host) in [
+        ("TimeHost", "main.omg::TimeHost", true),
+        ("|other|::TimeHost", "other/host.omg::TimeHost", false),
+    ] {
+        std::fs::write(
+            root.join("main.omg"),
+            format!(
+                "use other/host.omg as other; public boundary trait TimeHost {{}} \
+                public machine probe() reaches {reference} crashes none {{}}"
+            ),
+        )
+        .unwrap();
+        let (returned, inputs) = run_project_build_with_sources(
+            &root.join("build.omg"),
+            &[target],
+            &["build.omg", "main.omg", "other/host.omg"],
+        );
+        let owner = inputs.root();
+        let product = returned
+            .settle_dependency(inputs.clone())
+            .unwrap()
+            .open_product(inputs)
+            .unwrap();
+        let checked = product
+            .product_stage(&[target])
+            .unwrap()
+            .review_policy(target)
+            .unwrap();
+        let probe = checked
+            .policy
+            .callables
+            .callables()
+            .iter()
+            .find(|row| row.identity.path == "main.omg::probe")
+            .unwrap();
+        let [reached] = probe.declared_service_reach.as_deref().unwrap() else {
+            panic!("probe names one service")
+        };
+        assert_eq!(reached.path(), expected_file);
+        let candidates = &checked.semantic_binding_candidates;
+        if nominates_host {
+            let [host] = candidates.as_slice() else {
+                panic!("expected one host nomination")
+            };
+            assert_eq!(
+                host.binding().role(),
+                AcceptedSemanticBindingRole::TimeHostService
+            );
+            assert_eq!(host.binding().package(), owner);
+            assert_eq!(host.binding().declaration_path(), "TimeHost");
+        } else {
+            assert!(candidates.is_empty());
+        }
     }
 }
 
@@ -1212,6 +1311,7 @@ fn review_retains_public_alias_names_with_their_normalized_expansions() {
     std::fs::write(
         root.join("main.omg"),
         r#"
+use other.omg;
 public data KeyHash<K> = machine(key: @K) -> u64;
 public data Renamed<T> = machine(key: @T) -> u64;
 public data Word = u32;
@@ -1221,8 +1321,13 @@ data LocalAlias = i64;
 "#,
     )
     .unwrap();
+    std::fs::write(root.join("other.omg"), "public data Word = u32;").unwrap();
     let target = TargetProfile::LinuxX64;
-    let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
+    let (returned, inputs) = run_project_build_with_sources(
+        &root.join("build.omg"),
+        &[target],
+        &["build.omg", "main.omg", "other.omg"],
+    );
     let settled = returned.settle_dependency(inputs.clone()).unwrap();
     let product = settled.open_product(inputs).unwrap();
     let policy = product
@@ -1232,8 +1337,8 @@ data LocalAlias = i64;
         .unwrap()
         .policy;
     let aliases = policy.public_api.type_aliases.as_deref().unwrap();
-    let [hash, renamed, same, word, pair] = aliases else {
-        panic!("expected all five public aliases")
+    let [hash, renamed, same, word, pair, sibling] = aliases else {
+        panic!("expected all six public aliases")
     };
     assert_eq!(
         (
@@ -1241,10 +1346,12 @@ data LocalAlias = i64;
             &*word.identity.path,
             &*pair.identity.path
         ),
-        ("SameWord", "Word", "WordPair")
+        ("main.omg::SameWord", "main.omg::Word", "main.omg::WordPair")
     );
-    assert_eq!(hash.identity.path, "KeyHash");
-    assert_eq!(renamed.identity.path, "Renamed");
+    assert_eq!(sibling.identity.path, "other.omg::Word");
+    assert_eq!(sibling.expansion, word.expansion);
+    assert_eq!(hash.identity.path, "main.omg::KeyHash");
+    assert_eq!(renamed.identity.path, "main.omg::Renamed");
     assert_eq!(hash.type_parameters.len(), 1);
     assert_eq!(hash.expansion, renamed.expansion);
     assert_eq!(same.expansion, word.expansion);
@@ -1282,14 +1389,14 @@ fn selected_provider_review_preserves_declared_crash_and_suspend_ceilings() {
         .expect("elided reference regions must belong to the reviewed requirement");
     for (service, causes, suspends) in [
         (
-            "Lending",
+            "main.omg::Lending",
             vec![PackagePolicyCrashRoute {
                 cause: PackageReviewCrashCause::Trap,
                 alternative_guards: vec![PackagePolicyCrashGuard::Truth],
             }],
             true,
         ),
-        ("Observation", vec![], false),
+        ("main.omg::Observation", vec![], false),
     ] {
         let declared = policy
             .public_api
@@ -1329,7 +1436,7 @@ fn selected_provider_review_preserves_declared_crash_and_suspend_ceilings() {
         .public_api
         .traits
         .iter_mut()
-        .find(|service| service.identity.path == "Lending")
+        .find(|service| service.identity.path == "main.omg::Lending")
         .unwrap();
     lending.requirements[0].lifetime_parameter_count = 0;
     assert_eq!(

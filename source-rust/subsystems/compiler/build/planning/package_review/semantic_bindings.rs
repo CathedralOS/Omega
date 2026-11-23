@@ -139,22 +139,36 @@ fn host_services(
         // The discovery name belongs to the role. Only a reference to the
         // exact package and declaring file nominates a Product declaration.
         let source = input.typed();
-        let mut nominated = None;
-        for slot in product_boundaries(input)
-            .filter(|slot| source.symbols.display_path(slot.symbol, "::") == path)
-        {
+        let mut referenced = None;
+        let mut product = None;
+        for slot in source.traits().iter().filter(|slot| {
+            slot.is_boundary && source.symbols.display_path(slot.symbol, "::") == path
+        }) {
             let Some(owner) = source.symbols.symbol_package_identity(slot.symbol) else {
                 continue;
             };
-            if services.contains(&input.nominal(slot.symbol)?.into())
-                && nominated.replace((owner, slot)).is_some()
+            let Some(service) = services.get(&input.nominal(slot.symbol)?.into()) else {
+                continue;
+            };
+            if referenced
+                .replace(service)
+                .is_some_and(|prior| prior != service)
             {
                 return Err(unavailable("an ambiguous consumer service role"));
             }
+            if source.symbols.symbol_is_in_dependency_scope(
+                slot.symbol,
+                source_provenance::DependencyScope::Product,
+            ) && product.replace((owner, slot)).is_some()
+            {
+                return Err(unavailable("the consumer's referenced service declaration"));
+            }
         }
-        let Some((owner, slot)) = nominated else {
+        if referenced.is_none() {
             continue;
-        };
+        }
+        let (owner, slot) =
+            product.ok_or_else(|| unavailable("the consumer's referenced service declaration"))?;
         let schema = ServiceSchema::from_declaration(
             input
                 .accepted()

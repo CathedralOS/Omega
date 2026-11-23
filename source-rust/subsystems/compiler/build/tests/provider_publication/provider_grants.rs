@@ -34,11 +34,11 @@ fn package_review_retains_the_build_grant_for_a_private_provider() {
         .selected_providers
         .plans
         .iter()
-        .find(|plan| plan.schema_declaration.path == "SelectedCombine")
+        .find(|plan| plan.schema_declaration.path == "main.omg::SelectedCombine")
         .expect("the Build selected a provider for the private service");
     assert_eq!(
         plan.provider_type_declaration.as_ref().unwrap().path,
-        "HostedCombine"
+        "main.omg::HostedCombine"
     );
     assert_eq!(
         plan.grants,
@@ -66,7 +66,7 @@ fn package_review_retains_the_build_grant_for_a_private_provider() {
         .callables
         .callables
         .iter_mut()
-        .find(|callable| callable.identity.path == "SelectedCombine::probe")
+        .find(|callable| callable.identity.path == "main.omg::SelectedCombine::probe")
         .unwrap();
     assert_eq!(callback.lifetime_parameter_count, 1);
     callback.lifetime_parameter_count = 0;
@@ -84,7 +84,7 @@ fn package_review_retains_the_build_grant_for_a_private_provider() {
     let index = providers
         .plans
         .iter()
-        .position(|p| p.schema_declaration.path == "SelectedCombine")
+        .position(|p| p.schema_declaration.path == "main.omg::SelectedCombine")
         .unwrap();
     for grant in [
         PackageReviewProviderGrantSelectorKind::ProviderSlot,
