@@ -12,8 +12,8 @@ use super::{
 };
 use semantic_vocabulary::{IeeeFloatFormat, StructuralPlaceKind};
 use terminal_psi::{
-    BindingRelevance, ByteSequenceCarrier, EntryClaim, StructuralAccess, StructuralArgument,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    BindingRelevance, ByteSequenceCarrier, ClaimTransfer, EntryClaim, StructuralAccess,
+    StructuralArgument, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape,
 };
@@ -182,6 +182,20 @@ pub fn encode_entry_claim(bytes: &mut Vec<u8>, claim: &EntryClaim) {
     crate::codec_bytes::push_encoded(bytes, claim.claim.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, claim.input.get().to_le_bytes());
     encode_structural_path(bytes, &claim.path);
+}
+
+pub fn encode_claim_transfers(bytes: &mut Vec<u8>, transfers: &[ClaimTransfer]) {
+    encode_len(bytes, transfers.len());
+    for ClaimTransfer {
+        claim,
+        argument_index,
+        path,
+    } in transfers
+    {
+        crate::codec_bytes::push_encoded(bytes, claim.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, argument_index.to_le_bytes());
+        encode_structural_path(bytes, path);
+    }
 }
 
 pub fn encode_structural_path(bytes: &mut Vec<u8>, path: &[StructuralPathSegment]) {

@@ -241,6 +241,7 @@ Every fail-open place the records report. Class as the record gives it.
 - `PreparedExecutionPlan::seal` does not check scalar functions against ABI rows (`LO/lib.rs:118-148`). Not found in this crate.
 - `TargetUnitOperation::structural_result_home` returns `None` for unlisted variants (`TO/operations.rs:734`). Open.
 - `encode_call` writes claim and argument index of a `ClaimTransfer` but not its `path` (`TV/identity/calling.rs:236-240`). Open.
+  - Resolved on 2026-11-23. Changing only the transferred field left the legalized plan identity unchanged. Two selected plans also kept the same identity after each round-tripped with its distinct field intact. Ordinary calls and owned cleanup now share one native writer for each claim, argument index and structural path. The legalized plan and selected function identities distinguish the paths. Recovery envelope 119 rejects version 118 at the header because the earlier selected identity omitted the path. The regression tests are `call_aware_unit_identity_binds_semantic_and_target_custody` and `projected_claim_transfers_round_trip_with_distinct_selected_identities`.
 - `operand_value` returns `None` for non-plain operands (`TV/values.rs:612`). Open, low risk.
 - First-byte instruction tag collisions in the legalized identity despite a header that says every variant has a distinct tag: 24, 92, 40-44, 46, 88-94 (`LO/identity/scalar_graph.rs:4-5`, `:555`, `:1290`, `:574-577`, `:846`, `:999-1097`, `:618-649`, `:1762-1775`). Fields after the tag differ; no identical string was constructed (032; tag 24 checked, §10).
 
@@ -301,6 +302,7 @@ Places where something that cannot be planned, resolved or lowered produces no r
 - Unmatched completion sources (`MC/boundary.rs:64-76`).
 - Codec round trips that lose fields: `decode_result` always yields empty `qualification_establishments` (`RH/recovery/structural_calls.rs:1544-1577`); `decode_type` always yields empty `requires` (`RH/recovery/structural_declarations.rs:66-190`, `:318`); `decode_target_parameter` leaves `projected_qualifications` empty (`:555`); the effect plan's `cleanup` is never serialized beyond one zero byte and always decodes `NoneV1` (`EFF/program/encoding.rs:335`, `EFF/program/identity.rs:96-98`; traced: `NoneV1` is the only value today).
 - Identity encoders that leave a field out (no row lost, but the field does not bind the identity): `ClaimTransfer.path` (`TV/identity/calling.rs:236-240`), normalized foreign-call fixup in the layout identity (`MC/layout.rs:400-424`), callback materializations in the text-section identity (`MC/layout/text_section.rs:283-308`), loop-motion roster contents (`OU/rewrite.rs:1079-1129`).
+  - The claim-transfer path is resolved in §5.
 - An ignored parameter: `let _ = architecture;` in `dynamic::encoded_effects` (`SI/calls.rs:1716`).
 
 ## 7. Unused or unwired
