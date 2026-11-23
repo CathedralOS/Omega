@@ -194,6 +194,111 @@ fn a_discard_drops_one_call_result_and_cannot_drop_a_linear_one() {
     );
 }
 
+/// A `match` statement whose arms call Unit machines runs only the selected
+/// arm's call, and every arm continues at one join that takes no value,
+/// where `after` is called (`patterns.md`, "Coverage and domain tests": "An
+/// intentional Unit completion is explicit, for example `_ -> {}`"). This
+/// holds with a subject and without one, and for a `{}` arm.
+#[test]
+fn a_match_of_unit_calls_rejoins_before_the_next_call() {
+    for (body, arm_calls) in [
+        (
+            "match flag { true -> act(1u8), false -> act(2u8), }; after();",
+            2,
+        ),
+        ("match { flag -> act(1u8), _ -> act(2u8), }; after();", 2),
+        ("match { flag -> act(1u8), _ -> {} }; after();", 1),
+    ] {
+        let program = Program::of(&format!(
+            "machine act(x: u8) {{}} machine after() {{}} \
+             machine choose(flag: bool) {{ {body} }}"
+        ));
+        let lowered = program.lower();
+        let machine = lowered.machine("choose");
+        let (act, after) = (lowered.machine_id("act"), lowered.machine_id("after"));
+        let calls = lowered.operations("choose");
+        let arms: Vec<_> = calls
+            .iter()
+            .filter(|(_, call)| matches!(&call.kind, OperationKind::CallUnit { callee, .. } if *callee == act))
+            .map(|(_, call)| block_of(machine, call))
+            .collect();
+        assert_eq!(arms.len(), arm_calls, "{body}");
+        if let [first, second] = arms[..] {
+            assert_ne!(first, second, "{body}");
+        }
+        let [(_, last)] = calls
+            .iter()
+            .filter(|(_, call)| matches!(&call.kind, OperationKind::CallUnit { callee, .. } if *callee == after))
+            .copied()
+            .collect::<Vec<_>>()[..]
+        else {
+            panic!("one call of `after`: {body}")
+        };
+        let join = block_of(machine, last);
+        let joined = machine
+            .blocks
+            .iter()
+            .find(|block| block.id == join)
+            .unwrap();
+        assert!(joined.parameters.is_empty() && joined.structural_parameters.is_empty());
+        // Each arm's block jumps to the join with no argument, and the arm
+        // calls run before it on separate paths.
+        let arrivals: Vec<_> = machine
+            .blocks
+            .iter()
+            .filter(|block| matches!(&block.terminator, Terminator::Jump { target, .. } if *target == join))
+            .map(|block| {
+                let Terminator::Jump { arguments, .. } = &block.terminator else {
+                    unreachable!()
+                };
+                assert!(arguments.is_empty(), "{body}");
+                block.id
+            })
+            .collect();
+        assert_eq!(arrivals.len(), 2, "{body}: {machine:?}");
+        for arm in &arms {
+            assert!(arrivals.contains(arm), "{body}: {machine:?}");
+        }
+        program.judged(|_| {}).accepted();
+    }
+}
+
+/// The negative twins: an arm that produces a value cannot join an arm that
+/// completes with Unit, in either order, and a Unit arm does not supply a
+/// value the context receives ("A result-producing context still requires a
+/// compatible result").
+#[test]
+fn a_unit_arm_and_a_value_arm_do_not_join() {
+    for (body, message) in [
+        (
+            "match flag { true -> act(1u8), false -> 2u8, };",
+            "this match arm produces a value, but an earlier arm completes with Unit",
+        ),
+        (
+            "match flag { true -> 2u8, false -> act(1u8), };",
+            "this match arm completes with Unit, but the match produces a value",
+        ),
+        (
+            "let x: u8 = match flag { true -> act(1u8), false -> act(2u8), };",
+            "this match arm completes with Unit, but the match produces a value",
+        ),
+    ] {
+        let refusal = Program::try_of(&[(
+            "product/main.omg",
+            &format!("machine act(x: u8) {{}} machine choose(flag: bool) {{ {body} }}"),
+        )])
+        .err()
+        .unwrap_or_else(|| panic!("refused: {body}"));
+        assert_eq!(refusal.stage, "lowering", "{refusal:?}");
+        assert!(
+            refusal
+                .message
+                .starts_with(&format!("Violation: {message}")),
+            "{body}: {refusal:?}"
+        );
+    }
+}
+
 /// `pair(left +% 1u8, (match flag { ... }) +% 4u8)` computes the first
 /// argument before the `match` branches. Each arm computes its own sum only
 /// on its own edge and hands it to the join, and the join adds 4 and then

@@ -1100,7 +1100,8 @@ fn expression_homes<'b>(
         | ExpressionKind::Zero
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
-        ExpressionKind::Borrow { place, home, .. } | ExpressionKind::StorageLocation { place, home, .. } => {
+        ExpressionKind::Borrow { place, home, .. }
+        | ExpressionKind::StorageLocation { place, home, .. } => {
             if let (Some(home), Some(value_type @ ValueType::Scalar(..))) = (home, place.result) {
                 let slot = match place.kind {
                     ExpressionKind::Slot(slot) => Some(slot),
@@ -2847,7 +2848,7 @@ impl<'a> Lowering<'a> {
                     subject,
                     arms,
                     default.as_deref(),
-                    result_type,
+                    Some(result_type),
                     expression.source,
                     *capture,
                 )) else {
@@ -4553,8 +4554,12 @@ impl<'a> Lowering<'a> {
             operation,
             Some(result),
             match query {
-                terminal_psi::StorageLocationQuery::Address => OperationKind::StorageAddress { source: argument },
-                terminal_psi::StorageLocationQuery::Alignment => OperationKind::StorageAlignment { source: argument },
+                terminal_psi::StorageLocationQuery::Address => {
+                    OperationKind::StorageAddress { source: argument }
+                }
+                terminal_psi::StorageLocationQuery::Alignment => {
+                    OperationKind::StorageAlignment { source: argument }
+                }
             },
         )
         .map(Reached::Value)
@@ -5060,12 +5065,7 @@ impl<'a> Lowering<'a> {
                 projected_qualifications,
                 additional_input_qualifications: Vec::new(),
             });
-        self.jump_with_structural(
-            block,
-            Vec::new(),
-            vec![argument],
-            source,
-        )?;
+        self.jump_with_structural(block, Vec::new(), vec![argument], source)?;
         self.enter(block);
         self.borrowed_roots.push(captured);
         if access == StructuralAccess::MutableBorrow {

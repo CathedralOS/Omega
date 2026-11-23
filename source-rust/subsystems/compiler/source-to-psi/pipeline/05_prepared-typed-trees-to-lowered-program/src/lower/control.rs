@@ -655,12 +655,14 @@ impl Lowering<'_> {
     /// Structural values use its ordinary ownership transfer; scalar values
     /// use its scalar lane. An arm that ends at a nonreturning call supplies
     /// no arrival, so it creates neither a result nor a cleanup successor.
+    /// A `result_type` of `None` is a Unit match, whose arms all complete
+    /// with Unit.
     pub(super) fn match_value(
         &mut self,
         subject: &Expression,
         arms: &[(Selector, Expression)],
         default: Option<&Expression>,
-        result_type: ValueType,
+        result_type: Option<ValueType>,
         source: SourceOrigin,
         capture: Option<arena::Handle<crate::source_state::expression::CompletedValueCapture>>,
     ) -> Evaluation<Value> {
@@ -1033,11 +1035,12 @@ impl Lowering<'_> {
     /// whose every path ends at a call that never returns ends there and does
     /// not arrive. The join is made once the arms are lowered, so a `match`
     /// none of whose arms arrives has no join: its every path ended, at the
-    /// last arm's call.
+    /// last arm's call. A Unit match (`result_type` `None`) joins at a block
+    /// with no parameter.
     fn join(
         &mut self,
         arrivals: Arrivals,
-        result_type: ValueType,
+        result_type: Option<ValueType>,
         source: SourceOrigin,
     ) -> Evaluation<Value> {
         if arrivals.values.is_empty() {
@@ -1048,7 +1051,8 @@ impl Lowering<'_> {
         }
         let join = self.block(source);
         let result = match result_type {
-            ValueType::Scalar(scalar_type, _) => {
+            None => Value::Unit,
+            Some(ValueType::Scalar(scalar_type, _)) => {
                 let result = self.value(
                     scalar_type,
                     ValueOrigin::BlockParameter {
@@ -1059,7 +1063,7 @@ impl Lowering<'_> {
                 self.parameter(join, result, scalar_type)?;
                 Value::Scalar(result)
             }
-            ValueType::Record(record, qualification, _) => {
+            Some(ValueType::Record(record, qualification, _)) => {
                 let (place, _) = self.root(
                     semantic_vocabulary::StructuralPlaceKind::BlockParameter {
                         block: join,
@@ -1097,7 +1101,7 @@ impl Lowering<'_> {
                     .push(parameter);
                 Value::Record(place)
             }
-            ValueType::Rigid(_) => {
+            Some(ValueType::Rigid(_)) => {
                 return Err(self.internal("a rigid match result has no established join"));
             }
         };
@@ -1105,9 +1109,10 @@ impl Lowering<'_> {
             self.current = Some(block);
             self.point = Some(point);
             let (scalars, structures) = match (&result, value) {
+                (Value::Unit, Value::Unit) => (Vec::new(), Vec::new()),
                 (Value::Scalar(_), Value::Scalar(value)) => (vec![value], Vec::new()),
                 (Value::Record(_), Value::Record(place)) => {
-                    let ValueType::Record(record, qualification, _) = result_type else {
+                    let Some(ValueType::Record(record, qualification, _)) = result_type else {
                         return Err(self.internal("a record join without a record type"));
                     };
                     let multiplicity = self.records.multiplicity(record, self.id)?;
