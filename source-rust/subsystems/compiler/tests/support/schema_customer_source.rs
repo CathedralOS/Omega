@@ -104,10 +104,10 @@ fn resolved_library_source(
         crate::test_support::frontend_fixture::parse(&mut syntax, id, &tokens)
             .map_err(|errors| format!("parse source {id:?}: {errors:?}"))?;
         for root in &syntax.root_item_handles()[previous..] {
-            let syntax_trees::item::Item::Use(import) = syntax.root_item(*root) else {
+            let syntax_trees::item::Item::Use(syntax_trees::item::UseItem::Namespace { path: import }) = syntax.root_item(*root) else {
                 continue;
             };
-            let members = syntax.items.identifier_path_members(import.path);
+            let members = syntax.items.identifier_path_members(*import);
             if members.len() >= 3
                 && members[0].as_str(&syntax) == "omega"
                 && members[1].as_str(&syntax) == "language"
