@@ -35,21 +35,27 @@ fn an_alias_records_the_multiplicity_it_asserts() {
     assert_eq!(asserted("data Count = u64;"), None);
 }
 
+/// A carry list is refused wherever it is written, before the alias rule is
+/// read (`properties_and_requirements.rs`); a cleanup is refused by the alias
+/// rule.
 #[test]
 fn an_alias_with_a_carry_list_or_a_cleanup_is_refused() {
-    for source in [
-        "data Held [carry(suspension: forbidden, cpu: same, thread: any, address: stable)] = u8;",
-        "data Held [linear, carry(suspension: forbidden, cpu: same, thread: any, address: stable)] = u8;",
-        "data Held dropped by finish = Lease;",
+    for (source, rule) in [
+        (
+            "data Held [carry(suspension: forbidden, cpu: same, thread: any, address: stable)] = u8;",
+            "`carry(...)` is not a type property",
+        ),
+        (
+            "data Held [linear, carry(suspension: forbidden, cpu: same, thread: any, address: stable)] = u8;",
+            "`carry(...)` is not a type property",
+        ),
+        (
+            "data Held dropped by finish = Lease;",
+            "it may assert only `copy` or `linear`",
+        ),
     ] {
         let tokens = Lexer::new(source).tokenize().expect("the source lexes");
         let error = crate::parse_syntax_trees(&tokens).expect_err("the alias is refused");
-        assert!(
-            error
-                .message
-                .contains("it may assert only `copy` or `linear`"),
-            "{source}: {}",
-            error.message
-        );
+        assert!(error.message.contains(rule), "{source}: {}", error.message);
     }
 }

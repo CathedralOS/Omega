@@ -75,6 +75,14 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### Source data and binders still carry a `carry` policy field that no source can set
+
+- Category: Zombie machinery
+- Where: [`DataProperties`](source-rust/subsystems/compiler/source-to-psi/representations/syntax-trees), [stage 01's refusal](source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/types/properties.rs), and its readers in [stage 01's alias and quotient checks](source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/declarations/data.rs#L77), [stage 02's data lowering](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/lowering/data.rs#L245), [const evaluation facts](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/declarations/generic_data/const_evaluation/facts.rs#L883), [target machine families](source-rust/subsystems/compiler/source-to-psi/pipeline/02_syntax-trees-to-symbol-resolved-trees/names/target_machine_families.rs#L125), [typing](source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/declarations.rs#L196), [specialization](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/passes/specialization/callable_binder.rs#L248), [lowering](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/read/source_records.rs#L110) and [layout reflection](source-rust/subsystems/compiler/source-to-psi/driver/compile_time_invocations/fixed_layouts/reflection.rs#L14).
+- Saw: `wiki/spec/resources/suspension.md` makes `carry(...)` invalid on data, aliases and binders, and the parser now refuses it. The `carry: Option<CarryPolicy>` field on data properties and binder bounds is still copied from stage to stage, and the readers linked above, in stages 01 to 05 and the layout evaluator, still branch on it, though it is always `None` from source.
+- Cost: Each reader looks like a live rule (a carry-bound specialization check, a refused layout for carried data) and reads as coverage nobody can reach. Delete the field from the syntax, resolved and typed representations and every branch on it. The effective carry policy of service surfaces and suspensions in `language_core` is a different value and stays.
+- Reported: 2026-11-22, Claude Code, while making the parser refuse `carry(...)`
+
 ### A pattern's field reads get their fields in typing and its roster gets them again in preparation
 
 - Category: One idea, several implementations

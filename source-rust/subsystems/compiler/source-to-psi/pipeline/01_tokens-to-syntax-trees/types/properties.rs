@@ -45,17 +45,18 @@ pub(crate) fn parse_property_brackets<'tokens, 'source>(
                     "type property `[zero_init]` is retired; whether zeroed storage establishes this type is derived from its default domain and zero-case payload",
                 ));
             }
+            // `wiki/spec/resources/suspension.md`: "Omega has no data property
+            // or generic bound for suspension, CPU affinity, host-thread
+            // affinity or address stability. `carry(...)` is invalid on
+            // nominal data, transparent aliases and binders".
             "carry" => {
-                if properties.carry.is_some() {
-                    return Err(next.error_here("duplicate type property `carry`"));
-                }
-                let (policy, rest) = parse_carry_policy(next)?;
-                properties.carry = Some(policy);
-                input = rest;
+                return Err(input.error_here(
+                    "`carry(...)` is not a type property: Omega has no data property or generic bound for suspension, CPU affinity, host-thread affinity or address stability",
+                ));
             }
             "send" => {
                 return Err(next.error_here(
-                    "type property `[send]` is retired; declare the required four-axis `[carry(...)]` policy",
+                    "type property `[send]` is retired: Omega has no data property or generic bound for suspension or thread affinity",
                 ));
             }
             "sized" => {
@@ -65,7 +66,7 @@ pub(crate) fn parse_property_brackets<'tokens, 'source>(
             }
             other => {
                 return Err(next.error_here(format!(
-                    "unknown type property `{other}`; declared properties are `copy`, `linear`, `carry(...)`"
+                    "unknown type property `{other}`; declared properties are `copy` and `linear`"
                 )));
             }
         }
@@ -79,117 +80,4 @@ pub(crate) fn parse_property_brackets<'tokens, 'source>(
 
     let input = input.take_punctuation(PunctuationKind::RightBracket, "]")?;
     Ok((properties, input))
-}
-
-fn parse_carry_policy<'tokens, 'source>(
-    input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, language_core::CarryPolicy> {
-    use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
-
-    let mut input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-    let mut suspension = None;
-    let mut cpu = None;
-    let mut host_thread = None;
-    let mut address = None;
-
-    while !input.at_punctuation(PunctuationKind::RightParen) {
-        let (axis, next) = input.take_identifier()?;
-        let next = next.take_punctuation(PunctuationKind::Colon, ":")?;
-        let (value, rest) = next.take_identifier()?;
-        match axis.as_str(&input) {
-            "suspension" => {
-                if suspension.is_some() {
-                    return Err(rest.error_here("duplicate carry axis `suspension`"));
-                }
-                suspension = Some(match value.as_str(&input) {
-                    "forbidden" => CarrySuspension::Forbidden,
-                    "allowed" => CarrySuspension::Allowed,
-                    other => {
-                        return Err(rest.error_here(format!(
-                            "unknown carry suspension `{other}`; expected `forbidden` or `allowed`"
-                        )));
-                    }
-                });
-            }
-            "cpu" => {
-                if cpu.is_some() {
-                    return Err(rest.error_here("duplicate carry axis `cpu`"));
-                }
-                cpu = Some(match value.as_str(&input) {
-                    "same" => CarryCpu::Origin,
-                    "any" => CarryCpu::Any,
-                    other => {
-                        return Err(rest.error_here(format!(
-                            "unknown carry CPU affinity `{other}`; expected `same` or `any`"
-                        )));
-                    }
-                });
-            }
-            "thread" => {
-                if host_thread.is_some() {
-                    return Err(rest.error_here("duplicate carry axis `thread`"));
-                }
-                host_thread = Some(match value.as_str(&input) {
-                    "same" => CarryHostThread::Origin,
-                    "any" => CarryHostThread::Any,
-                    other => {
-                        return Err(rest.error_here(format!(
-                            "unknown carry host-thread affinity `{other}`; expected `same` or `any`"
-                        )));
-                    }
-                });
-            }
-            "address" => {
-                if address.is_some() {
-                    return Err(rest.error_here("duplicate carry axis `address`"));
-                }
-                address = Some(match value.as_str(&input) {
-                    "stable" => CarryAddress::Stable,
-                    "movable" => CarryAddress::Movable,
-                    other => {
-                        return Err(rest.error_here(format!(
-                            "unknown carry address policy `{other}`; expected `stable` or `movable`"
-                        )));
-                    }
-                });
-            }
-            other => {
-                return Err(rest.error_here(format!(
-                    "unknown carry axis `{other}`; expected `suspension`, `cpu`, `thread`, or `address`"
-                )));
-            }
-        }
-        input = rest;
-        let Some(next) = input.take_comma()? else {
-            break;
-        };
-        input = next;
-    }
-
-    let missing = [
-        ("suspension", suspension.is_none()),
-        ("cpu", cpu.is_none()),
-        ("thread", host_thread.is_none()),
-        ("address", address.is_none()),
-    ]
-    .into_iter()
-    .filter_map(|(axis, absent)| absent.then_some(axis))
-    .collect::<Vec<_>>();
-    if !missing.is_empty() {
-        return Err(input.error_here(format!(
-            "carry policy must state all four axes; missing {}",
-            missing.join(", ")
-        )));
-    }
-
-    let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-    Ok((
-        CarryPolicy {
-            suspension: suspension.expect("checked above"),
-            cpu: cpu.expect("checked above"),
-            host_thread: host_thread.expect("checked above"),
-            address: address.expect("checked above"),
-        },
-        input,
-    ))
 }
