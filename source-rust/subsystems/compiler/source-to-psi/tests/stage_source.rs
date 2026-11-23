@@ -828,3 +828,36 @@ fn file_imports_neither_bind_bare_names_nor_reexport_imports() {
         );
     }
 }
+
+#[test]
+fn file_qualifiers_respect_foreign_declaration_visibility() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    let dependency = PackageKeyIdentity::from_digest([0x64; 32]).unwrap();
+    for (source, visible) in [
+        ("public machine read() -> u8 { 7u8 }", true),
+        ("machine read() -> u8 { 7u8 }", false),
+    ] {
+        let (mut files, root) = captured(package, "machine value() -> u8 { |leaf|::read() }");
+        let helper = capture_file(&mut files, "dependency", dependency, "helper.omg", source);
+        let mut stage = product(files, root, package, &[]).unwrap();
+        stage.parsed.roots.push(helper);
+        stage
+            .parsed
+            .imports
+            .push(SourceScopedTopLevelBinding::file_import(
+                root, helper, "leaf",
+            ));
+        let actual = compile(stage, None);
+        if visible {
+            actual.expect("the imported public machine is callable");
+        } else {
+            let errors = actual.expect_err("a package-private machine stays private");
+            assert!(
+                errors
+                    .iter()
+                    .any(|d| d.message.contains("private") || d.message.contains("inaccessible")),
+                "{errors:?}"
+            );
+        }
+    }
+}
