@@ -1,0 +1,6 @@
+source-rust/subsystems/compiler/psi/semantics/proofs/bounded/proof.rs	4123	5117	995
+source-rust/subsystems/compiler/psi/semantics/proofs/bounded/tests/exact_multiply_result_bound.rs	1	688	688
+source-rust/subsystems/compiler/psi/semantics/proofs/bounded/tests/indexed_derivation.rs	1	991	991
+source-rust/subsystems/compiler/psi/semantics/proofs/bounded/tests/indexed_levels.rs	1	513	513
+source-rust/subsystems/compiler/psi/semantics/proofs/bounded/tests/indexed_mutual.rs	1	544	544
+source-rust/subsystems/compiler/psi/semantics/proofs/bounded/tests/indexed_nested.rs	1	418	418

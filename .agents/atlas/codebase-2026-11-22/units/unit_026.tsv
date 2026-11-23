@@ -1,0 +1,6 @@
+source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/src/current_ownership.rs	1	11455	11455
+source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/src/current_value_ranges.rs	1	177	177
+source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/src/descriptor_results.rs	1	3609	3609
+source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/src/error.rs	1	391	391
+source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/src/lib.rs	1	267	267
+source-rust/subsystems/compiler/psi-to-native/representations/abstract-operations/optimization-unit-semantics/src/operation_metadata.rs	1	683	683
