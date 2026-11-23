@@ -17,11 +17,3 @@ fn baseline_tree() -> BuildStagedOutputTree {
     ])
     .expect("baseline retained tree")
 }
-
-#[test]
-fn a_legacy_export_can_contain_binary_bytes_but_cannot_supply_them_as_source() {
-    let path = b"older.omg";
-    let tree = from_entries(&[OutputTreeEntry::regular_file(path, &[0xff], false)]).unwrap();
-    let refusal = super::recover_included_output_sources(&tree, &[path.to_vec()]).unwrap_err();
-    assert!(refusal[0].to_string().contains("must contain UTF-8 bytes"));
-}

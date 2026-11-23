@@ -194,7 +194,6 @@ impl AcquiredWorkspaceBuild {
                     root_request: PackageRootSourceRequest::Git(self.request.clone()),
                     navigation: PackageSourceNavigation::Member(source_relative_path(path)),
                     selection: PackageSourceSelectionEvidence::Root,
-                    cache_directories: self.root.cache_directories.clone(),
                 },
             ));
         }
@@ -272,7 +271,6 @@ impl BuildSourceAcquisitions<'_> {
             root_request: PackageRootSourceRequest::Git(request.clone()),
             navigation: PackageSourceNavigation::Root,
             selection: PackageSourceSelectionEvidence::Root,
-            cache_directories: None,
         })?;
         Ok(AcquiredSourceSelection::Workspace(AcquiredWorkspaceBuild {
             source,

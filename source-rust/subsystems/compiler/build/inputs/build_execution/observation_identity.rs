@@ -88,14 +88,10 @@ impl BuildObservationSummary {
             );
         }
         digest.u64(self.generated_sources.len() as u64);
-        for (index, source) in self.generated_sources.iter().enumerate() {
+        for source in &self.generated_sources {
             digest.bytes(source.relative_path());
-            if let Some(ordinals) = &self.staged_source_ordinals {
-                digest.u64(ordinals[index]);
-            } else {
-                digest.u64(source.bytes().len() as u64);
-                digest.raw(&source.digest());
-            }
+            digest.u64(source.bytes().len() as u64);
+            digest.raw(&source.digest());
         }
         digest.u64(
             u64::try_from(self.required_output_settlements().len())
