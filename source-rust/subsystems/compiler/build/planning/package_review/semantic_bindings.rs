@@ -11,9 +11,7 @@ use std::path::Path;
 
 use super::declarations::unavailable;
 use provider_acceptance::AcceptedSemanticBindingRole as Role;
-use review_evidence::record::{
-    PackagePolicyBaseline, PackagePolicyCallableRole, PackageReviewNominalOwner,
-};
+use review_evidence::record::{PackagePolicyBaseline, PackagePolicyCallableRole};
 use std::collections::BTreeSet;
 
 /// A Build may import the same boundary to select its provider. Only the
@@ -138,27 +136,24 @@ fn host_services(
         ("FilesystemHost", Role::FilesystemHostService),
         ("TimeHost", Role::TimeHostService),
     ] {
-        let mut matches = services.iter().filter_map(|service| match service.owner() {
-            PackageReviewNominalOwner::Package(owner)
-                if service.application.is_none() && service.path() == path =>
-            {
-                Some(owner)
-            }
-            _ => None,
-        });
-        let Some(owner) = matches.next() else {
-            continue;
-        };
-        if matches.next().is_some() {
-            return Err(unavailable("an ambiguous consumer service role"));
-        }
+        // The discovery name belongs to the role. Only a reference to the
+        // exact package and declaring file nominates a Product declaration.
         let source = input.typed();
-        let mut declarations = product_boundaries(input).filter(|slot| {
-            source.symbols.symbol_package_identity(slot.symbol) == Some(owner)
-                && source.symbols.display_path(slot.symbol, "::") == path
-        });
-        let (Some(slot), None) = (declarations.next(), declarations.next()) else {
-            return Err(unavailable("the consumer's referenced service declaration"));
+        let mut nominated = None;
+        for slot in product_boundaries(input)
+            .filter(|slot| source.symbols.display_path(slot.symbol, "::") == path)
+        {
+            let Some(owner) = source.symbols.symbol_package_identity(slot.symbol) else {
+                continue;
+            };
+            if services.contains(&input.nominal(slot.symbol)?.into())
+                && nominated.replace((owner, slot)).is_some()
+            {
+                return Err(unavailable("an ambiguous consumer service role"));
+            }
+        }
+        let Some((owner, slot)) = nominated else {
+            continue;
         };
         let schema = ServiceSchema::from_declaration(
             input
