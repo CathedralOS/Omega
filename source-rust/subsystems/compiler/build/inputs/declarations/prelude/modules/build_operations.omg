@@ -35,6 +35,11 @@ machine request_selected_git(builder: @Build, build_scope: bool, explicit_alias:
     BuildRequestOperations::register_git_dependency(builder, build_scope, explicit_alias, alias, repository, revision, named_package, package)
 }
 
+// Publish a snapshot of these bytes under a package-relative source filename.
+public machine include_source(builder: @mutable Build, name: @[u8], source: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
+    BuildRequestOperations::publish_source(builder, name, source);
+}
+
 public machine package(builder: @mutable Build, name: @[u8]) reaches BuildRequestOperations invokes BuildRequestOperations {
     BuildRequestOperations::package(builder, name);
 }

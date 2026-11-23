@@ -410,8 +410,10 @@ impl PreparedBuildExecution {
         if let Some(filesystem) = completed.filesystem {
             observations.retain_filesystem_effects(filesystem)?;
         }
+        observations.retain_source_publications(completed.output.sources, &self.account)?;
         observations.retain_build_log(
             completed
+                .output
                 .log
                 .publish(&self.account)
                 .map_err(|reason| self.refuse(&reason))?,
