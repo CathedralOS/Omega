@@ -1,3 +1,4 @@
+use targets/windows_x86_64/filesystem/errors.omg as errors;
 use filesystem_host.omg as paths;
 use filesystem.omg as filesystem;
 use ExistsResult;
@@ -44,7 +45,7 @@ machine windows_filesystem_kind(attributes: u32, reparse_tag: u32) -> FileKind {
 
 machine windows_filesystem_metadata_result(outcome: WindowsMetadataResult) -> MetadataResult {
     transition outcome {
-        WindowsMetadataResult::Error { code } -> (MetadataResult::Error { kind: windows_filesystem_error(code) }),
+        WindowsMetadataResult::Error { code } -> (MetadataResult::Error { kind: |errors|::windows_filesystem_error(code) }),
         WindowsMetadataResult::Value { metadata } -> value(metadata)
     }
     machine value(metadata: WindowsFileMetadata) -> MetadataResult {
@@ -164,7 +165,7 @@ reaches FilesystemMetadataMutation
     }
     machine update(file: File, accessed: u64, modified: u64) -> UnitResult {
         let status: i32 = block WindowsFilesystemHost::set_file_time(file.handle, accessed, modified);
-        windows_filesystem_unit(status)
+        |errors|::windows_filesystem_unit(status)
     }
 }
 
@@ -180,7 +181,7 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation
     }
     machine update(path: @[u8] in |paths|::Path, readonly: bool) -> UnitResult {
         let status: i32 = block WindowsFilesystemHost::set_path_readonly(path, readonly);
-        windows_filesystem_unit(status)
+        |errors|::windows_filesystem_unit(status)
     }
 }
 
@@ -200,6 +201,6 @@ reaches FilesystemMetadataQuery + FilesystemMetadataMutation
     }
     machine update(file: File, readonly: bool) -> UnitResult {
         let status: i32 = block WindowsFilesystemHost::set_handle_readonly(file.handle, readonly);
-        windows_filesystem_unit(status)
+        |errors|::windows_filesystem_unit(status)
     }
 }

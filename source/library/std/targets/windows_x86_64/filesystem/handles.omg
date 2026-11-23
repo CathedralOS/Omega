@@ -1,3 +1,4 @@
+use targets/windows_x86_64/filesystem/errors.omg as errors;
 use filesystem_host.omg as paths;
 use ErrorKind;
 use File;
@@ -28,7 +29,7 @@ machine windows_filesystem_opened(handle: u64) -> OpenResult
     }
     machine failed() -> OpenResult {
         let code: u32 = WindowsFilesystemHost::last_error();
-        OpenResult::Error { kind: windows_filesystem_error(code) }
+        OpenResult::Error { kind: |errors|::windows_filesystem_error(code) }
     }
 }
 
@@ -133,7 +134,7 @@ reaches FilesystemContentRead
     machine transfer(file: File, buffer: @mutable [u8], count: u64) -> IoResult {
         let limit: u64 = windows_filesystem_transfer_size(count);
         let result: i64 = block WindowsFilesystemHost::read_file(file.handle, buffer, limit);
-        windows_filesystem_transferred(result, limit)
+        |errors|::windows_filesystem_transferred(result, limit)
     }
     machine invalid(file: File) -> IoResult {
         transition file.handle == 0 {
@@ -153,7 +154,7 @@ reaches FilesystemContentWrite
     machine transfer(file: File, bytes: @[u8]) -> IoResult {
         let limit: u64 = windows_filesystem_transfer_size(bytes.length);
         let result: i64 = block WindowsFilesystemHost::write_file(file.handle, @bytes[0..limit]);
-        windows_filesystem_transferred(result, limit)
+        |errors|::windows_filesystem_transferred(result, limit)
     }
 }
 
@@ -176,7 +177,7 @@ reaches FilesystemContentRead
     machine transfer(file: File, buffer: @mutable [u8], count: u64, offset: i64) -> IoResult {
         let limit: u64 = windows_filesystem_transfer_size(count);
         let result: i64 = block WindowsFilesystemHost::read_at(file.handle, buffer, limit, offset);
-        windows_filesystem_transferred(result, limit)
+        |errors|::windows_filesystem_transferred(result, limit)
     }
 }
 
@@ -196,7 +197,7 @@ reaches FilesystemContentWrite
     machine transfer(file: File, bytes: @[u8], offset: i64) -> IoResult {
         let limit: u64 = windows_filesystem_transfer_size(bytes.length);
         let result: i64 = block WindowsFilesystemHost::write_at(file.handle, @bytes[0..limit], offset);
-        windows_filesystem_transferred(result, limit)
+        |errors|::windows_filesystem_transferred(result, limit)
     }
 }
 
@@ -208,7 +209,7 @@ machine windows_filesystem_close(file: File) -> UnitResult
     }
     machine release(file: File) -> UnitResult {
         let status: i32 = block WindowsFilesystemHost::close_handle(file.handle);
-        windows_filesystem_unit(status)
+        |errors|::windows_filesystem_unit(status)
     }
 }
 
@@ -220,7 +221,7 @@ machine windows_filesystem_sync(file: File) -> UnitResult
     }
     machine flush(file: File) -> UnitResult {
         let status: i32 = block WindowsFilesystemHost::flush_file_buffers(file.handle);
-        windows_filesystem_unit(status)
+        |errors|::windows_filesystem_unit(status)
     }
 }
 
@@ -251,6 +252,6 @@ reaches FilesystemContentWrite + FilesystemMetadataMutation
     }
     machine update(file: File, length: i64) -> UnitResult {
         let status: i32 = block WindowsFilesystemHost::set_file_length(file.handle, length);
-        windows_filesystem_unit(status)
+        |errors|::windows_filesystem_unit(status)
     }
 }

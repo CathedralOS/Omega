@@ -1,3 +1,6 @@
+use targets/windows_x86_64/filesystem_removal/acquisition.omg as removal;
+use targets/windows_x86_64/filesystem_removal/completion.omg as removal_completion;
+use targets/windows_x86_64/filesystem_removal/traversal.omg as removal_traversal;
 use filesystem_host.omg as paths;
 use targets/windows_x86_64/filesystem_removal/attributes.omg as attrs;
 use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
@@ -17,14 +20,14 @@ use omega\language\core\FilesystemNamespaceMutation;
 
 machine windows_remove_tree(path: @[u8] in |paths|::Path) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + DirectoryEnumeration {
-    let root: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_removal_open_root(path);
+    let root: i64 in WindowsPrivateNonalertFileOrAbsent = block |removal|::windows_removal_open_root(path);
     transition (root as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block inspect(root), false -> failed() }
     machine failed() -> i32 {
-        windows_removal_status(windows_removal_error(|win_io|::WindowsFilesystemIo::c_get_last_error()))
+        |removal_completion|::windows_removal_status(|removal_completion|::windows_removal_error(|win_io|::WindowsFilesystemIo::c_get_last_error()))
     }
     machine inspect(root: i64 in WindowsPrivateNonalertFileOrAbsent) -> i32
     requires (root as -WindowsPrivateNonalertFileOrAbsent) != 0 {
-        let information: |attrs|::WindowsRemovalAttributes = block windows_removal_attributes(root);
+        let information: |attrs|::WindowsRemovalAttributes = block |attrs|::windows_removal_attributes(root);
         transition information {
             |attrs|::WindowsRemovalAttributes::Error { code } -> block refuse(root, code),
             |attrs|::WindowsRemovalAttributes::Value { attributes } -> block kind(root, attributes)
@@ -39,12 +42,12 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     }
     machine refuse(root: i64 in WindowsPrivateNonalertFileOrAbsent, code: u32) -> i32
     requires (root as -WindowsPrivateNonalertFileOrAbsent) != 0 {
-        let failure: u32 = block windows_removal_close(root, windows_removal_error(code));
-        windows_removal_status(failure)
+        let failure: u32 = block |removal_completion|::windows_removal_close(root, |removal_completion|::windows_removal_error(code));
+        |removal_completion|::windows_removal_status(failure)
     }
     machine walk(root: i64 in WindowsPrivateNonalertFileOrAbsent) -> i32
     requires (root as -WindowsPrivateNonalertFileOrAbsent) != 0 {
-        let code: u32 = block windows_removal_walk(root);
-        windows_removal_status(code)
+        let code: u32 = block |removal_traversal|::windows_removal_walk(root);
+        |removal_completion|::windows_removal_status(code)
     }
 }

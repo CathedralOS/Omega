@@ -1,3 +1,5 @@
+use targets/windows_x86_64/filesystem/errors.omg as errors;
+use targets/windows_x86_64/filesystem/metadata.omg as metadata;
 use filesystem_host.omg as paths;
 use ErrorKind;
 use FileKind;
@@ -22,14 +24,14 @@ machine windows_filesystem_remove_dir_all(path: @[u8] in |paths|::Path) -> UnitR
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 {
     let status: i32 = block WindowsFilesystemHost::remove_tree(path);
-    windows_filesystem_unit(status)
+    |errors|::windows_filesystem_unit(status)
 }
 
 machine windows_filesystem_read_link(path: @[u8] in |paths|::Path, output: @mutable [u8], count: u64) -> IoResult
 reaches FilesystemMetadataQuery
 {
     let transferred: i64 = block WindowsFilesystemHost::read_link(path, output, count);
-    windows_filesystem_transferred(transferred, count)
+    |errors|::windows_filesystem_transferred(transferred, count)
 }
 
 machine windows_filesystem_extended_path(path: @[u8]) -> bool {
@@ -130,34 +132,34 @@ machine windows_filesystem_create_dir(path: @[u8] in |paths|::Path) -> UnitResul
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let status: i32 = block WindowsFilesystemHost::create_directory(path);
-    windows_filesystem_unit(status)
+    |errors|::windows_filesystem_unit(status)
 }
 
 machine windows_filesystem_remove_dir(path: @[u8] in |paths|::Path) -> UnitResult
 reaches FilesystemNamespaceMutation
 {
     let status: i32 = block WindowsFilesystemHost::remove_directory(path);
-    windows_filesystem_unit(status)
+    |errors|::windows_filesystem_unit(status)
 }
 
 machine windows_filesystem_remove(path: @[u8] in |paths|::Path) -> UnitResult
 reaches FilesystemNamespaceMutation
 {
     let status: i32 = block WindowsFilesystemHost::delete_file(path);
-    windows_filesystem_unit(status)
+    |errors|::windows_filesystem_unit(status)
 }
 
 machine windows_filesystem_rename(from: @[u8] in |paths|::Path, to: @[u8] in |paths|::Path) -> UnitResult
 reaches FilesystemNamespaceMutation
 {
     let status: i32 = block WindowsFilesystemHost::rename_file(from, to);
-    windows_filesystem_unit(status)
+    |errors|::windows_filesystem_unit(status)
 }
 
 machine windows_filesystem_existing_directory(path: @[u8] in |paths|::Path, original: ErrorKind) -> UnitResult
 reaches FilesystemMetadataQuery
 {
-    let result: MetadataResult = block windows_filesystem_metadata_path(path, false);
+    let result: MetadataResult = block |metadata|::windows_filesystem_metadata_path(path, false);
     transition result {
         MetadataResult::Ok { meta } -> kind(meta, original),
         MetadataResult::Error { kind } -> (UnitResult::Error { kind: original })
@@ -174,14 +176,14 @@ machine windows_filesystem_hard_link(original: @[u8] in |paths|::Path, link: @[u
 reaches FilesystemNamespaceMutation
 {
     let status: i32 = block WindowsFilesystemHost::hard_link(original, link);
-    windows_filesystem_unit(status)
+    |errors|::windows_filesystem_unit(status)
 }
 
 machine windows_filesystem_canonicalize(path: @[u8] in |paths|::Path, output: @mutable [u8]) -> UnitResult
 reaches FilesystemMetadataQuery
 {
     let status: i32 = block WindowsFilesystemHost::canonicalize(path, output);
-    windows_filesystem_unit(status)
+    |errors|::windows_filesystem_unit(status)
 }
 
 machine windows_filesystem_create_dir_existing(path: @[u8] in |paths|::Path) -> UnitResult
@@ -209,7 +211,7 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMet
         false -> block check_root(path)
     }
     machine check_root(path: @[u8] in |paths|::Path) -> UnitResult {
-        let result: MetadataResult = block windows_filesystem_metadata_path(path, false);
+        let result: MetadataResult = block |metadata|::windows_filesystem_metadata_path(path, false);
         transition result {
             MetadataResult::Error { kind } -> (UnitResult::Error { kind: kind }),
             MetadataResult::Ok { meta } -> root_kind(meta)
