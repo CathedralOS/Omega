@@ -1,0 +1,112 @@
+use super::*;
+use crate::{BuildDeclarationKind, PackageDependencyBinding, PackageSourceBinding};
+use source_capture::{CapturedSourceNode, CapturedSourceTree};
+use source_compiler::{CompileTimings, SourceInput, SourceSyntax};
+use std::sync::Arc;
+
+#[test]
+fn local_and_dependency_file_roots_select_only_their_exact_admitted_source() {
+    let app = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+    let dependency = PackageKeyIdentity::from_digest([2; 32]).unwrap();
+    let package = |key, name, paths: &[&str]| {
+        PackageSourceBinding::new(key, name, Path::new(env!("CARGO_MANIFEST_DIR")).join(name))
+            .with_captured_source(Arc::new(
+                CapturedSourceTree::new(paths.iter().map(|path| {
+                    (
+                        PathBuf::from(path),
+                        if Path::new(path).extension().is_none() {
+                            CapturedSourceNode::Directory
+                        } else {
+                            CapturedSourceNode::File {
+                                bytes: Arc::from(b"machine f() {}".as_slice()),
+                                executable: false,
+                            }
+                        },
+                    )
+                }))
+                .unwrap(),
+            ))
+            .unwrap()
+    };
+    let graph = PackageCompilationInputs::new(
+        app,
+        BuildDeclarationKind::Package,
+        vec![
+            package(
+                app,
+                "app",
+                &[
+                    "sub",
+                    "sub/main.omg",
+                    "kit",
+                    "kit/math",
+                    "kit/math/v.omg",
+                    "kit/math/other.omg",
+                ],
+            ),
+            package(
+                dependency,
+                "lib",
+                &["math", "math/v.omg", "math/other.omg"],
+            ),
+        ],
+        vec![PackageDependencyBinding::new(app, "kit", dependency)],
+    )
+    .unwrap();
+    let root = graph.package_root(app).unwrap();
+    let imports = "use kit/math/v.omg as local; use {kit}/math/v.omg as dep; use {kit}/other/v.omg as absent; use {lib}/math/v.omg as indirect;";
+    let parsed = SourceInput(
+        [source_admission::LoadedSource {
+            source_id: source_text::SourceId(1),
+            path: root.join("sub/main.omg"),
+            source: Arc::from(imports),
+            origin: None,
+            scope: DependencyScope::Product,
+        }]
+        .into_iter()
+        .collect(),
+    )
+    .append(&mut SourceSyntax::default(), &mut CompileTimings::default())
+    .unwrap();
+    let unit = &parsed.sources.span_or_empty(parsed.batch)[0];
+    let resolve = |index: usize| -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
+        let file = FileImport::from(unit, &unit.imports[index]).unwrap();
+        let selected = file.reconciled(
+            &graph,
+            Some(app),
+            DependencyPurpose::Product,
+            None,
+            graph.source_filesystem(),
+        )?;
+        let FileSelection::Package(request) = selected else {
+            panic!("a selected package file must come from its owner")
+        };
+        request.resolve_for_exact_target(&graph, &mut Vec::new())
+    };
+    assert_eq!(
+        resolve(0)
+            .unwrap()
+            .into_iter()
+            .map(|file| file.path)
+            .collect::<Vec<_>>(),
+        [root.join("kit/math/v.omg")]
+    );
+    assert_eq!(
+        resolve(1)
+            .unwrap()
+            .into_iter()
+            .map(|file| file.path)
+            .collect::<Vec<_>>(),
+        [graph.package_root(dependency).unwrap().join("math/v.omg")]
+    );
+    assert!(
+        resolve(2).unwrap_err()[0]
+            .message
+            .contains("no admitted logical file `{kit}/other/v.omg`")
+    );
+    assert!(
+        resolve(3).unwrap_err()[0]
+            .message
+            .contains("no direct product dependency named `lib`")
+    );
+}
