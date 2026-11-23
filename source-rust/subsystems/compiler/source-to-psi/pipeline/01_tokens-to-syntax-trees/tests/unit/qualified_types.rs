@@ -100,3 +100,25 @@ fn value_casts_require_explicit_domain_entries() {
         crate::parse_syntax_trees(&tokens).expect("distinct type, cast, and recast grammar");
     }
 }
+
+#[test]
+fn file_qualifiers_can_start_types_and_operands_after_an_operator() {
+    let text = "machine read(input: @|wire|::Packet) -> u8 { input.flags | |wire|::MASK }";
+    let tokens = Lexer::new(text).tokenize().unwrap();
+    let syntax = crate::parse_syntax_trees(&tokens).unwrap();
+    let contains_mask = syntax.expressions.iter_expressions().any(|(_, node)| {
+        let syntax_trees::expression::ExpressionNode::Name { members, .. } = node else {
+            return false;
+        };
+        syntax
+            .expressions
+            .identifier_path_members(*members)
+            .iter()
+            .any(|name| name.as_str(&syntax) == "|wire|::MASK")
+    });
+    assert!(contains_mask);
+
+    let invalid = text.replace("flags | |wire|", "flags||wire|");
+    let tokens = Lexer::new(&invalid).tokenize().unwrap();
+    crate::parse_syntax_trees(&tokens).expect_err("logical OR cannot open a file qualifier");
+}
