@@ -231,9 +231,11 @@ fn invocation_ceiling_follows_callable_parameter_aliases() {
     };
     let alias = "let alias: Callback = selected; alias()";
     let forwarded = "let first: Callback = selected; let second: Callback = first; forward(second)";
+    let arm = "let saved: Callback = selected; transition true { true -> saved(), _ -> 7u64 }";
+    check("invokes selected", arm).unwrap();
     check("invokes selected", alias).unwrap();
     let rebound = "let mutable slot: Callback = other; slot = selected; forward(slot)";
-    for body in ["selected()", alias, forwarded, rebound] {
+    for body in ["selected()", alias, forwarded, rebound, arm] {
         let artifact = check("", body).unwrap();
         let module = artifact.semantic_module();
         let probe = module
@@ -258,7 +260,7 @@ fn invocation_ceiling_follows_callable_parameter_aliases() {
     )
     .unwrap();
     check("invokes other", "let alias: Callback = selected; 7u64").unwrap();
-    for body in [alias, forwarded] {
+    for body in [alias, forwarded, arm] {
         let errors = check("invokes other", body).unwrap_err();
         assert!(
             errors

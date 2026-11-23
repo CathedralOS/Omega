@@ -602,11 +602,7 @@ mod statement_nodes {
                 evidence_arguments,
                 source_span,
             } => {
-                let callee = callee
-                    .is_valid()
-                    .then(|| lower_statement_expression(lowerer, syntax_trees, *callee))
-                    .transpose()?
-                    .unwrap_or_else(ExpressionHandle::invalid);
+                let callee = lower_statement_expression(lowerer, syntax_trees, *callee)?;
                 let arguments = lower_statement_expressions(
                     lowerer,
                     syntax_trees,
