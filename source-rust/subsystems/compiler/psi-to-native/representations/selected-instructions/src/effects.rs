@@ -4,6 +4,7 @@
 */
 
 pub mod catalog;
+mod memory;
 pub mod program;
 
 pub use catalog::{
