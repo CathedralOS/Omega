@@ -272,6 +272,16 @@ name = "lowering_calls_and_joins"
 path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/calls_and_joins.rs"
 required-features = ["test-support"]
 
+[[test]]
+name = "lowering_built_values"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/built_values.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_field_reads"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/field_reads.rs"
+required-features = ["test-support"]
+
 [[example]]
 name = "checking_machine_checks"
 path = "pipeline/06_lowered-program-to-checked-program/examples/machine_checks.rs"

@@ -431,6 +431,27 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Float(value), ScalarType::IeeeFloat(format))
             }
             ExpressionNode::Integer(literal) => {
+                // A literal landed in another carrier than its context
+                // receives, as `1u16` in a `u8` pattern or argument, is the
+                // program's error at the literal: no implicit scalar
+                // conversion happens at a receiving type.
+                if literal.landing().is_some()
+                    && let Some(expected @ ScalarType::Integer(_)) = expected_scalar
+                {
+                    let (_, landed) = self.literal(id, literal, None)?;
+                    if ScalarType::Integer(landed) != expected {
+                        return Err(reject(
+                            id,
+                            source,
+                            format!(
+                                "this literal has scalar carrier `{}` but its context requires \
+                                 `{}`: there is no implicit scalar conversion at a receiving type",
+                                super::rejections::scalar_named(ScalarType::Integer(landed)),
+                                super::rejections::scalar_named(expected),
+                            ),
+                        ));
+                    }
+                }
                 let (value, integer) = self.literal(id, literal, expected_scalar)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
             }
@@ -935,14 +956,14 @@ impl<'t> Program<'t> {
             .flatten()
             .any(|value| !value.qualification().is_none())
         {
-            return Err(crate::lowering::reject(
+            return Err(reject(
                 id,
                 source,
                 "builtin equality requires unqualified operands",
             ));
         }
         if left.result != right.result {
-            return Err(crate::lowering::reject(
+            return Err(reject(
                 id,
                 source,
                 "equality operand types differ",
@@ -1822,7 +1843,7 @@ pub(super) fn binary_selection(
     if suffix.is_some() {
         let operation = crate::lowering::policy::suffixed(operator).map_err(unserved)?;
         if anonymous == (true, true) {
-            return Err(crate::lowering::reject(
+            return Err(reject(
                 id,
                 source,
                 crate::lowering::policy::WHOLLY_ANONYMOUS,
@@ -1832,7 +1853,7 @@ pub(super) fn binary_selection(
             match operand {
                 Some(ValueType::Scalar(ScalarType::Integer(_), Qualification::NONE)) => {}
                 Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
-                    return Err(crate::lowering::reject(
+                    return Err(reject(
                         id,
                         source,
                         crate::lowering::policy::QUALIFIED_OPERAND,
@@ -1848,7 +1869,7 @@ pub(super) fn binary_selection(
         if !crate::lowering::policy::shifts(operation)
             && left.and_then(ValueType::scalar) != right.and_then(ValueType::scalar)
         {
-            return Err(crate::lowering::reject(
+            return Err(reject(
                 id,
                 right_source,
                 "policy operator operand types differ",
