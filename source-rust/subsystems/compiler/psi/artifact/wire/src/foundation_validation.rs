@@ -6238,6 +6238,7 @@ pub(crate) mod scalar_qualifications {
         use terminal_semantics::scalar_qualifications::ScalarQualificationError as Error;
         terminal_semantics::scalar_qualifications::validate(module).map_err(|error| match error {
             Error::MalformedStructuralFoundation(detail)
+            | Error::MalformedMachine { detail, .. }
             | Error::NormalResultMembership { detail, .. } => {
                 crate::CodecError::MalformedStructuralFoundation(detail)
             }

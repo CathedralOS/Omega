@@ -195,9 +195,10 @@ fn a_policy_result_uses_an_explicit_membership_edge() {
                 }
                 assert!(matches!(
                     validate(module),
-                    Err(ScalarQualificationError::MalformedStructuralFoundation(
-                        "ordinary scalar operation cannot establish a declared domain"
-                    ))
+                    Err(ScalarQualificationError::MalformedMachine {
+                        detail: "ordinary scalar operation cannot establish a declared domain",
+                        ..
+                    })
                 ));
             }
         }

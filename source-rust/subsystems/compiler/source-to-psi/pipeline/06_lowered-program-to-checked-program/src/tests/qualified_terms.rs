@@ -342,7 +342,7 @@ fn a_boundary_call_rejects_an_unqualified_actual_with_the_same_carrier() {
         terminal_semantics::scalar_qualifications::validate(&elaboration.module).unwrap_err();
     assert!(
         matches!(&refused,
-        terminal_semantics::scalar_qualifications::ScalarQualificationError::MalformedStructuralFoundation(detail)
+        terminal_semantics::scalar_qualifications::ScalarQualificationError::MalformedMachine { detail, .. }
         if *detail == expected),
         "{refused:?}"
     );
