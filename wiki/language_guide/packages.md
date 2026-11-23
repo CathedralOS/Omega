@@ -31,6 +31,15 @@ Product dependencies and build helpers are declared separately. In
 dependency and `vec` names one file inside the importing source. [Chapter 15](chapter_15_modules_imports_visibility.md#build-helpers)
 shows the two dependency kinds.
 
+## Packaging several products
+
+An ordinary release program can run `omega build` for each producer and pass
+the finished artifacts to a packer. For example, a release can place two
+separately built executables in an installer. A release tool that links the
+project-build library can request the same builds directly. Each producer's
+own `build.omg` still describes that one project.
+[Releases with independent products](../spec/build/declarations.md#releases-with-independent-products)
+
 ## Install and update
 
 ```text

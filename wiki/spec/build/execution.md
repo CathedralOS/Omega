@@ -29,8 +29,8 @@ The order is:
 5. When the Build entry returns, join every outstanding dependency job, reject
   any failed, cyclic, unresolved, or unadmitted edge, resolve inert product
   selections, and freeze the normalized Build output.
-6. Incorporate generated source and finish all requested product checks,
-  including behavior exclusions.
+6. Freeze the filesystem view the plan supplies to the next compilation.
+  Check the Product from that view, including the requested behavior exclusions.
 7. Discover registered test roots, admit their execution authority, and run all
   enabled [test groups](testing.md).
 8. Check required-output completion and commit one immutable result set only
@@ -45,8 +45,8 @@ into product compilation or publication.
 
 [Scoped execution](scoped_execution.md) defines the execution-profile/product-target
 distinction, deterministic snapshot and staging protocol, and linear output
-lifecycle. No current activation can inspect its own final component or select
-its generated entries; those customers require separately staged compilation.
+lifecycle. The running Build cannot inspect its unfinished component or execute
+source it has just written for the next stage.
 
 [Behavior exclusions](behavior_exclusions.md) are checked against the product's
 complete selected execution scope before its successful publication. They do not
@@ -138,66 +138,56 @@ backing. Runtime permissions and a child package's lock are not build-test grant
 
 ## Generated-source boundary
 
-Path lookup, filesystem writing and compiler publication are distinct
-operations. `Build::include_source` accepts an authorized logical generated name
-and exact retained UTF-8 bytes under the current activation's resources; it does
-not reopen a mutable host pathname or execute those bytes. Filesystem helpers
-produce the bytes through their ordinary capability contracts. The compiler
-captures the published snapshot and exact generating context; subsequent writes
-to a file or overlay cannot change it. Source consumption retains the matching
-compiler-owned generated-source namespace and product purpose. This replaces
-the BuildOutput filesystem-specific source-publication route.
+A generator writes ordinary files through the filesystem view its caller gives
+it. The Build plan supplies the next compilation's source view, which can
+contain both handwritten files and files the generator wrote. A generator
+needs write access to its destination. It can run as a Build helper or as an
+ordinary program with the same backing.
 
-The complete authorized logical filename determines the unit's
-[file identity](../language/modules.md#file-identity) within the owning package.
-A permitted consumer of `audio/tables.omg` imports that exact logical file.
+For example, a generator writes `parser.omg` into the next stage's package
+root. A handwritten Product file imports it in the ordinary way:
 
-Own generated source is a later resolution stratum:
+```omega
+use parser.omg as parser;
+```
 
-- It may refer to admitted authored declarations, and generated units may
-  resolve together.
-- Authored occurrences, including every transitive build helper, cannot select
-  generated declarations. Later overloads, conformances, and providers cannot
-  alter the already-admitted build meaning.
-- Final checking extends the retained checkpoint. It does not rediscover
-  dependencies, rerun build execution, or rebuild the authored frontend.
+At handoff, freeze the selected view with its exact logical paths and bytes,
+whether the backing is in memory or on disk. Later writes cannot change the
+inputs to that compilation. A write outside the supplied view, including a
+file exported to the host, contributes no source to it. Writes inside the
+view supply files. Ordinary roots and imports select code. The rules for
+[validation subjects](validation_subjects.md) and
+[registered test discovery](testing.md#registration-and-discovery) also apply
+to the selected package.
 
-Each generated unit uses ordinary pre-resolution evaluation and its matching
-one-shot post-typing continuation. Target filtering validates the complete
-base-plus-extension declaration roster while modifying only the extension.
-Duplicate selected declarations and missing selected-target members reject;
-unselected generated siblings remain inert.
+The compiler checks handwritten and generated Product files together under
+the same [file identity and visibility rules](../language/modules.md#file-identity).
+Either can import the other by its logical filename. A file has one identity
+within its package and source context. Producing it grants no extra access
+to other packages or runtime services. The Build activation keeps its own
+admitted code and inputs throughout. Its dependency-preparation continuations
+still follow the [checked Build stage rules](scoped_execution.md#checked-build-stages).
 
-The completed candidate must preserve the admitted base exactly: root graphs,
-symbols, names, paths, authored selections, semantic tables, evidence, proof and
-ranking records, and layout/placement/wire/specialization data remain prefixes.
-An unsupported extension rejects without replacing the owned base.
-
-Final package-declaration admission covers both strata before package-subject
-derivation. Every generated selection retains its requesting package and obeys
-public visibility and direct-dependency rules. Possessing transitive dependency
-source does not authorize importing its declarations. The earlier verdict
-continues to identify the frozen base admitted for build execution.
-
-Generated code receives no authority from its generator. Ordinary runtime reach,
-crash, work, conservation, and trust checking applies to it independently.
+The `product-source-view` decision (2026-11-22) retires `Build::include_source`,
+per-file source registration, and the requirement to append generated units
+to an earlier compiler checkpoint. Product checking can reuse valid prior
+work as long as checking the same frozen inputs gives the same result.
 
 ## Dependency handoff
 
-Review compiles dependency-first. A consumer requires one compiler-issued
-generated-source bundle for every transitive package, including an explicit
-empty bundle when the producer included no source. A bundle binds:
+Review compiles dependencies first. For each dependency in the reviewed
+closure the consumer checks the compiler-issued record of the producer's
+frozen source view under its package identity and logical paths. Its
+source-consumption record commits to the exact paths and contents, producing
+package and dependency closure, Build or Product purpose, execution profile
+and selected target. It retains enough evidence to validate that handoff,
+including when the producer generated no files.
 
-- Producer package, dependency purpose, execution profile, and selected product target.
-- Producer dependency closure and source-consumption commitment.
-- Canonical generated paths, retained bytes, and their digests.
-
-The consumer loads these bytes in its initial frontend under the producer's
-identity and logical paths, without rerunning the producer build or reading its
-output tree. Its own source-consumption commitment includes the injected bytes.
-Missing, duplicate, foreign, root-self, purpose/profile/target/closure, or same-review custody
-mismatches reject. The handoff is opaque compiler-issued state, not a package
-instance or canonical admission evidence; it has no public constructor or decoder.
-
-Implementation entry points and bounded continuation support are documented
-[beside the typing stage](../../../omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/README.md).
+The consumer checks that the view belongs to the expected dependency and
+review. Missing required inputs, duplicate file identities, a foreign or
+root-self substitution, or a mismatch in purpose, profile, target or closure
+reject. Direct dependency and visibility rules apply to every import.
+Consumption uses the retained snapshot without rerunning the generator or
+reopening a mutable output directory. A package cannot construct this review
+record by supplying its own bytes. The view itself grants no package admission
+or host authority.

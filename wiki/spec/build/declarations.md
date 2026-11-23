@@ -345,6 +345,28 @@ and dependency handoff.
 [Configuration and target selection](configuration.md) defines exact-target
 admissibility, activation-local state, and identity-preserving staged fan-out.
 
+## Releases with independent products
+
+An ordinary release program coordinates independent project builds. For example,
+to package a kernel and a bootloader, it requests each product and passes the
+two successfully published artifacts to an image packer. The packer can be an
+ordinary machine. A separate image project can also consume those artifacts
+as explicit inputs. Each producer's own Build describes its project.
+
+The release program can launch `omega build` as a subprocess if its execution
+environment grants process access, or call the same project-build operation
+through a library. Both routes apply ordinary package resolution and review,
+Build admission, target selection and artifact publication to each request.
+For example, an interpreted release tool with process access can call a native
+compiler executable. A native release tool can instead link the project-build
+library. The release tool supplies each consumer with the producer's committed
+artifact, so a failed producer cannot supply a successful result.
+
+This decision (`independent-product-orchestration`, 2026-11-22) puts coordination
+in the caller. Build has no operation for launching independent product builds
+and joining their outputs. Package dependency registration still prepares a
+dependency's own Build for its registered purpose.
+
 ## Workspaces
 
 A workspace is a path-declared catalog of locatable members, not a combined
