@@ -410,20 +410,6 @@ fn crossings_are_stated(
                     "a suspension site does not commit to the live frontier of its call",
                 ));
             }
-            // carry.md: "A suspension-forbidden live value rejects an
-            // explicit semantic suspension point."
-            if plan
-                .live_values
-                .iter()
-                .any(|live| live.effective.suspension != language_core::CarrySuspension::Allowed)
-            {
-                return Err(refusal(
-                    RefusalReason::Violation,
-                    machine.id,
-                    site,
-                    "a value live across this call forbids suspension",
-                ));
-            }
         }
     }
     if stated != module.execution.suspension_call_plans.len()

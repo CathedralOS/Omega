@@ -13,7 +13,6 @@ path = "src/lib.rs"
 psi-callable-encoding = { path = "../callable-encoding" }
 psi-declaration-encoding = { path = "../declaration-encoding" }
 service-surface = { path = "../../interfaces/service-surface" }
-psi-effect-contracts = { path = "../../machines/effect-contracts" }
 proof-applications = { path = "../../proofs/applications" }
 application-identity = { path = "../../identities/applications" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }

@@ -428,7 +428,6 @@ pub(crate) fn declare(
                     .is_some_and(|application| {
                         !application.suspension_dependency.parameters.is_empty()
                             || !application.blocking_dependency.parameters.is_empty()
-                            || !application.conditional_carry.is_empty()
                             // A closed direct callback already contributes its
                             // admitted reach and its callee above. Schema
                             // dispatch still needs its proof correspondence.

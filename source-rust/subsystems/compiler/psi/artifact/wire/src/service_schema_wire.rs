@@ -2,14 +2,16 @@
 //! Identity-table order and every contract field survive a round trip.
 
 use crate::codec_error::CodecError;
-use crate::module_wire::carry_and_suspension_wire::Carry;
 use crate::semantic_module::structural_signature_wire::Completion;
 use crate::wire_fields::wire::{Reader, Writer, decode_counted};
 use crate::wire_fields::{
     BoundaryPackage, Custody, Digest, Field, Flag, Id, Index, List, Optional, Text, wire_enum,
     wire_record,
 };
-use language_core::DomainPredicatePresence;
+use language_core::sealed_intrinsics::{FixedImageOperation, HostedOperation};
+use language_core::{
+    CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension, DomainPredicatePresence,
+};
 use semantic_vocabulary::source_selections::CompositionMode;
 use service_surface::ServiceEntryAuthorityFlow;
 use service_surface::ServiceEntryClaim;
@@ -22,16 +24,29 @@ use service_surface::ServiceReceiverApplication;
 use service_surface::ServiceResultClaim;
 use service_surface::identities::ProviderIdentityId;
 use service_surface::identities::ProviderIdentityTable;
-use service_surface::{
-    ServiceNormalResultMembership, ServiceResultProjection,
-};
+use service_surface::{ServiceNormalResultMembership, ServiceResultProjection};
 use service_surface::{ServiceSurface, ServiceSynchronousInvocation};
-use language_core::sealed_intrinsics::{FixedImageOperation, HostedOperation};
 use std::sync::Arc;
 use terminal_psi::{
     TerminalProgramEntryContract, TerminalProviderSelection, TerminalSealedNativeIntrinsic,
     TerminalServiceSchema,
 };
+
+wire_record! {
+    Carry: CarryPolicy {
+        suspension: Suspension,
+        cpu: Cpu,
+        host_thread: HostThread,
+        address: Address,
+    }
+}
+
+wire_enum! {
+    Suspension: CarrySuspension, "CarrySuspension" { 1 => Forbidden, 2 => Allowed }
+    Cpu: CarryCpu, "CarryCpu" { 1 => Origin, 2 => Any }
+    HostThread: CarryHostThread, "CarryHostThread" { 1 => Origin, 2 => Any }
+    Address: CarryAddress, "CarryAddress" { 1 => Stable, 2 => Movable }
+}
 
 struct ProviderIdentity;
 impl Field<ProviderIdentityId> for ProviderIdentity {
@@ -222,7 +237,6 @@ wire_record! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use language_core::CarryPolicy;
     use terminal_psi::{TerminalIdentityTableBuilder, TerminalModule};
 
     #[test]

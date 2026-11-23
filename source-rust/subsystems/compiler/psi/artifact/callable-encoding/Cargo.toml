@@ -7,6 +7,5 @@ version.workspace = true
 [dependencies]
 application-identity = { path = "../../identities/applications" }
 psi-declaration-encoding = { path = "../declaration-encoding" }
-psi-effect-contracts = { path = "../../machines/effect-contracts" }
 semantic-vocabulary = { path = "../../../foundation/semantic-records" }
 terminal-psi = { path = "../.." }

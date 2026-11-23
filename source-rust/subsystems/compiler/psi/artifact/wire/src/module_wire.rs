@@ -647,7 +647,7 @@ pub(crate) mod calling_signature_wire {
         Requirement: CallbackRequirementId, "zero callback requirement identity";
     }
 }
-pub(crate) mod carry_and_suspension_wire {
+pub(crate) mod suspension_wire {
 
     use crate::sections::semantic_module::CodecError;
     use crate::sections::semantic_module::structural_place_wire::{
@@ -658,11 +658,6 @@ pub(crate) mod carry_and_suspension_wire {
         Access, Argument, Digest, Field, Flag, Id, Ids, List, Scalar, U32, wire_enum, wire_record,
     };
     use arena::{Handle, HandleSpan};
-    use language_core::CarryAddress;
-    use language_core::CarryCpu;
-    use language_core::CarryHostThread;
-    use language_core::CarryPolicy;
-    use language_core::CarrySuspension;
     use terminal_psi::{
         TerminalSuspensionCallPlan, TerminalSuspensionCallSite, TerminalSuspensionCallTarget,
         TerminalSuspensionLiveValue, TerminalSuspensionLoan, TerminalSuspensionLoanBacking,
@@ -672,29 +667,12 @@ pub(crate) mod carry_and_suspension_wire {
     };
 
     wire_record! {
-        Carry: CarryPolicy {
-            suspension: Suspension,
-            cpu: Cpu,
-            host_thread: HostThread,
-            address: Address,
-        }
-    }
-
-    wire_enum! {
-        Suspension: CarrySuspension, "CarrySuspension" { 1 => Forbidden, 2 => Allowed }
-        Cpu: CarryCpu, "CarryCpu" { 1 => Origin, 2 => Any }
-        HostThread: CarryHostThread, "CarryHostThread" { 1 => Origin, 2 => Any }
-        Address: CarryAddress, "CarryAddress" { 1 => Stable, 2 => Movable }
-    }
-
-    wire_record! {
         LiveValue: TerminalSuspensionLiveValue {
             place: Place,
             value_type: ValueType,
             storage: Storage,
             claim_count: U32,
             claims: Ids,
-            effective: Carry,
             loans: ValueLoans,
         }
         CallSite: TerminalSuspensionCallSite {
@@ -815,7 +793,6 @@ pub(crate) mod carry_and_suspension_wire {
         writer.id(plan.operation);
         writer.id(plan.crossing);
         CallTarget::write(writer, &plan.target)?;
-        Carry::write(writer, &plan.effective)?;
         writer.u32(plan.live_value_count);
         List::<LiveValue>::write(writer, &plan.live_values)?;
         encode_loans(writer, &plan.loans)
@@ -827,7 +804,6 @@ pub(crate) mod carry_and_suspension_wire {
         let operation = reader.id("OperationId")?;
         let crossing = reader.id("SuspensionCrossingId")?;
         let target = CallTarget::read(reader)?;
-        let effective = Carry::read(reader)?;
         let live_value_count = reader.u32()?;
         let live_values = List::<LiveValue>::read(reader)?;
         let loans = decode_loans(reader)?;
@@ -836,7 +812,6 @@ pub(crate) mod carry_and_suspension_wire {
             operation,
             crossing,
             target,
-            effective,
             live_value_count,
             live_values,
             loans,
@@ -1066,7 +1041,6 @@ pub(crate) mod carry_and_suspension_wire {
         use super::{CallTarget, Field, decode_suspension_call_plan, encode_suspension_call_plan};
         use crate::codec_error::CodecError;
         use crate::sections::semantic_module::wire::{Reader, Writer};
-        use language_core::CarryPolicy;
         use semantic_vocabulary::{
             MachineId, ObligationId, OperationId, PlaceId, StructuralCaseId, StructuralTypeId,
             SuspensionCrossingId, ValueId,
@@ -1111,6 +1085,47 @@ pub(crate) mod carry_and_suspension_wire {
         }
 
         #[test]
+        fn a_suspension_plan_records_the_live_value_and_its_loans() {
+            let plan = TerminalSuspensionCallPlan {
+                operation: OperationId::new(1).unwrap(),
+                crossing: SuspensionCrossingId::new(2).unwrap(),
+                target: TerminalSuspensionCallTarget::Machine(MachineId::new(3).unwrap()),
+                live_value_count: 1,
+                live_values: vec![TerminalSuspensionLiveValue {
+                    place: TerminalSuspensionPlace::Scalar(ValueId::new(4).unwrap()),
+                    value_type: TerminalSuspensionValueType::Scalar(
+                        semantic_vocabulary::ScalarType::Boolean,
+                    ),
+                    storage: TerminalSuspensionStorage::Local,
+                    claim_count: 0,
+                    claims: Vec::new(),
+                    loans: terminal_psi::TerminalSuspensionValueLoans::ViewFree,
+                }],
+                loans: Default::default(),
+            };
+            let mut expected = Vec::new();
+            expected.extend(1u64.to_le_bytes());
+            expected.extend(2u64.to_le_bytes());
+            expected.push(1); // Machine call target
+            expected.extend(3u64.to_le_bytes());
+            expected.extend(1u32.to_le_bytes()); // Live value count
+            expected.extend(1u32.to_le_bytes()); // One value follows
+            expected.push(1); // Scalar place
+            expected.extend(4u64.to_le_bytes());
+            expected.extend([1, 1, 3]); // Scalar value type, Boolean, local storage
+            expected.extend([0; 8]); // Declared claim count and empty claim list
+            expected.push(1); // View-free value
+            expected.extend([0; 20]); // Five empty loan tables
+
+            let mut writer = Writer::default();
+            encode_suspension_call_plan(&mut writer, &plan).unwrap();
+            assert_eq!(writer.finish(), expected);
+            let mut reader = Reader::new(&expected);
+            assert_eq!(decode_suspension_call_plan(&mut reader).unwrap(), plan);
+            assert_eq!(reader.remaining(), 0);
+        }
+
+        #[test]
         fn suspension_storage_access_survives_wire_and_changes_identity() {
             let table = terminal_psi::TerminalIdentityTable::from(
                 (0..64).map(|i| format!("identity-{i}")).collect::<Vec<_>>(),
@@ -1130,7 +1145,6 @@ pub(crate) mod carry_and_suspension_wire {
                     target: TerminalSuspensionCallTarget::Machine(
                         MachineId::new(3).expect("nonzero machine"),
                     ),
-                    effective: CarryPolicy::STRICT,
                     live_value_count: 1,
                     live_values: vec![TerminalSuspensionLiveValue {
                         place: TerminalSuspensionPlace::Structural(StructuralArgument {
@@ -1158,7 +1172,6 @@ pub(crate) mod carry_and_suspension_wire {
                         storage: TerminalSuspensionStorage::Local,
                         claim_count: 0,
                         claims: Vec::new(),
-                        effective: CarryPolicy::STRICT,
                         loans: terminal_psi::TerminalSuspensionValueLoans::Unresolved,
                     }],
                     loans: terminal_psi::TerminalSuspensionLoans::default(),
@@ -1270,7 +1283,6 @@ pub(crate) mod carry_and_suspension_wire {
                 operation: OperationId::new(1).expect("call"),
                 crossing: SuspensionCrossingId::new(2).expect("crossing"),
                 target: TerminalSuspensionCallTarget::Machine(MachineId::new(3).expect("machine")),
-                effective: CarryPolicy::STRICT,
                 live_value_count: 1,
                 live_values: vec![TerminalSuspensionLiveValue {
                     place: TerminalSuspensionPlace::Structural(StructuralArgument {
@@ -1284,7 +1296,6 @@ pub(crate) mod carry_and_suspension_wire {
                     storage: TerminalSuspensionStorage::Local,
                     claim_count: 0,
                     claims: vec![],
-                    effective: CarryPolicy::STRICT,
                     loans: TerminalSuspensionValueLoans::Retained { links },
                 }],
                 loans,
@@ -3693,15 +3704,14 @@ pub(crate) mod task_activation_wire {
         Digest, Field, Flag, Id, Index, List, Referent, Scalar, StructuralType, TaskPackage, Text,
         U32, U64, wire_enum, wire_record,
     };
-    use super::carry_and_suspension_wire::Carry;
     use semantic_vocabulary::AuthoredRecordStorage;
     use terminal_psi::{
         LayoutApplicationId, TerminalTaskActivationDemand, TerminalTaskActivationDemands,
-        TerminalTaskCarryObligations, TerminalTaskCarryStorage, TerminalTaskFrame,
-        TerminalTaskFrameCall, TerminalTaskFrameState, TerminalTaskLayoutRealization,
-        TerminalTaskLiveCarry, TerminalTaskResidentValue, TerminalTaskSignatureValue,
-        TerminalTaskStartOperation, TerminalTaskSuspensionCrossing, TerminalTaskTargetLayout,
-        TerminalTaskUnresolvedCall, TerminalTaskUnresolvedCallKind, TerminalTaskValueType,
+        TerminalTaskCarryStorage, TerminalTaskFrame, TerminalTaskFrameCall, TerminalTaskFrameState,
+        TerminalTaskLayoutRealization, TerminalTaskLiveCarry, TerminalTaskResidentValue,
+        TerminalTaskSignatureValue, TerminalTaskStartOperation, TerminalTaskSuspensionCrossing,
+        TerminalTaskTargetLayout, TerminalTaskUnresolvedCall, TerminalTaskUnresolvedCallKind,
+        TerminalTaskValueType,
     };
 
     wire_record! {
@@ -3733,7 +3743,6 @@ pub(crate) mod task_activation_wire {
             root_frame: U64,
             frames: List<Frame>,
             crossings: List<Crossing>,
-            carry_obligations: CarryObligations,
         }
         SignatureValue: TerminalTaskSignatureValue {
             value_type: ValueType,
@@ -3746,13 +3755,9 @@ pub(crate) mod task_activation_wire {
             value_type: U64,
             storage: CarryStorage,
             claims: List<U64>,
-            effective: Carry,
         }
         Crossing: TerminalTaskSuspensionCrossing {
             identity: U64,
-            suspension_allowed: Flag,
-            preserve_cpu: Flag,
-            preserve_host_thread: Flag,
             live_carry: List<LiveCarry>,
         }
         Frame: TerminalTaskFrame {
@@ -3775,7 +3780,6 @@ pub(crate) mod task_activation_wire {
             call_ordinal: U32,
             kind: UnresolvedCallKind,
         }
-        CarryObligations: TerminalTaskCarryObligations { preserve_cpu: Flag, preserve_host_thread: Flag }
         TargetLayout: TerminalTaskTargetLayout {
             id: ApplicationId,
             record: Id,
@@ -3848,8 +3852,8 @@ delegated_fields! {
         => super::provider_candidate_wire::encode_provider_candidate,
            super::provider_candidate_wire::decode_provider_candidate;
     SuspensionPlan: terminal_psi::TerminalSuspensionCallPlan
-        => carry_and_suspension_wire::encode_suspension_call_plan,
-           carry_and_suspension_wire::decode_suspension_call_plan;
+        => suspension_wire::encode_suspension_call_plan,
+           suspension_wire::decode_suspension_call_plan;
     Machine: terminal_psi::TerminalMachine
         => super::machine_wire::encode_machine, super::machine_wire::decode_machine;
     BoundaryDemand: terminal_psi::TerminalBoundaryApplicationDemand
@@ -4000,7 +4004,7 @@ module_wire_record! {
     proof_recursive_components: List<recursive_component_wire::Component>,
     closed_conformance_applications: List<closed_conformance_wire::Application>,
     suspension_call_plan_count: U32,
-    suspension_call_sites: List<carry_and_suspension_wire::CallSite>,
+    suspension_call_sites: List<suspension_wire::CallSite>,
     suspension_call_plans: List<SuspensionPlan>,
     scalar_block_invariants: List<scalar_block_invariant_wire::Invariant>,
     operation_crash_contracts: List<operation_crash_contract_wire::Contract>,

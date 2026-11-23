@@ -140,8 +140,7 @@ pub use language_core::inline_assembly::{
     AsmTargetApplicability as RegisterTargetApplicability,
 };
 pub use psi_effect_contracts::{
-    ConditionalCarryRequirement, ContractDependency, template_contract_commitment,
-    validate_published_dependency,
+    ContractDependency, template_contract_commitment, validate_published_dependency,
 };
 pub use semantic_vocabulary::byte_predicates::ByteSequencePredicate;
 pub use semantic_vocabulary::byte_predicates::ByteSequencePredicateSet;

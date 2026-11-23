@@ -105,9 +105,6 @@ impl CheckedPrefix<'_> {
         let first = plan(self.old, old).ok_or("previous call lost its checked suspension plan")?;
         let second =
             plan(self.new, new).ok_or("successor call lost its checked suspension plan")?;
-        if first.effective != second.effective {
-            return Err("successor changed the carry policy of a reached call");
-        }
         for target in &second.live_values {
             let same_parameter = match &target.place {
                 Place::Structural(arg) if arg.path.is_empty() => left
@@ -147,9 +144,8 @@ impl CheckedPrefix<'_> {
             if !ty
                 || source.claims != target.claims
                 || source.claim_count != target.claim_count
-                || source.effective != target.effective
             {
-                return Err("successor changed the type, claims or carry policy of a live value");
+                return Err("successor changed the type or claims of a live value");
             }
             if !same_parameter
                 && matches!(
@@ -362,7 +358,6 @@ mod tests {
             operation: cut.operation,
             crossing: SuspensionCrossingId::new(1).unwrap(),
             target: Target::Machine(cut.machine),
-            effective: language_core::CarryPolicy::PERMISSIVE,
             live_value_count: 2,
             live_values: Vec::new(),
             loans: Default::default(),
@@ -378,7 +373,6 @@ mod tests {
                 storage: Storage::Local,
                 claim_count: 0,
                 claims: Vec::new(),
-                effective: language_core::CarryPolicy::PERMISSIVE,
                 loans: Loans::ViewFree,
             });
         }

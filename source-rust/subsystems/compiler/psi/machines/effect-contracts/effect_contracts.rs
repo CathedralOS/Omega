@@ -1,13 +1,7 @@
 //! Effects that a Psi program retains over explicit parameter positions.
 #![forbid(unsafe_code)]
-mod carry;
 mod commitment;
 
-pub use carry::{
-    PermissionArrival, PermissionClaimIdentity as ScopedPermissionClaimIdentity,
-    PermissionEventSource as ScopedPermissionEventSource,
-    PermissionProvenance as ScopedPermissionProvenance, SuspensionValueOrigin,
-};
 pub use commitment::{template_contract_commitment, validate_published_dependency};
 
 /// A capability use retained in a callable behavior policy.
@@ -43,20 +37,6 @@ impl CapabilityFlowKind {
 pub struct ContractDependency<Contribution, Parameters> {
     pub concrete: Contribution,
     pub parameters: Parameters,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, record_storage::Record)]
-// Keep the same live subject and acquisition when a helper is selected.
-// Each row requires suspension permission under its condition; the row
-// grants no permission and changes none of the other carry obligations.
-pub struct ConditionalCarryRequirement {
-    pub state: u32,
-    pub statement_index: u64,
-    pub call_ordinal: u64,
-    pub subject: crate::SuspensionValueOrigin<String>,
-    pub value_type: String,
-    pub claims: Vec<crate::PermissionArrival<String>>,
-    pub condition: ContractDependency<bool, Vec<u32>>,
 }
 
 impl<Parameters: Default> From<bool> for ContractDependency<bool, Parameters> {

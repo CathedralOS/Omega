@@ -92,7 +92,6 @@ fn program() -> (TerminalModule, (MachineId, OperationId)) {
             operation: cut,
             crossing: SuspensionCrossingId::new(1).unwrap(),
             target: terminal_psi::TerminalSuspensionCallTarget::Machine(callee),
-            effective: language_core::CarryPolicy::PERMISSIVE,
             live_value_count: 0,
             live_values: Vec::new(),
             loans: Default::default(),
@@ -504,7 +503,6 @@ fn program_with_live_byte_literal() -> (
         storage: TerminalSuspensionStorage::Local,
         claim_count: 0,
         claims: vec![],
-        effective: language_core::CarryPolicy::PERMISSIVE,
         loans: TerminalSuspensionValueLoans::Unresolved,
     });
     (old, cut, place)

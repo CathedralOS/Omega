@@ -84,7 +84,6 @@ fn validate_operational_contract<'identity>(
     parameters: &[&ClosedReachParameter],
     suspension: &terminal_psi::ContractDependency<bool, Vec<u32>>,
     blocking: &terminal_psi::ContractDependency<bool, Vec<u32>>,
-    carry: &[terminal_psi::ConditionalCarryRequirement],
     service_identity: impl Fn(semantic_vocabulary::ServiceId) -> Option<&'identity str>,
 ) -> Result<(bool, bool), &'static str> {
     if base == [0; 32]
@@ -93,12 +92,11 @@ fn validate_operational_contract<'identity>(
             parameters.iter().copied(),
             suspension,
             blocking,
-            carry,
             service_identity,
         )? != commitment
     {
         return Err(
-            "closed callback contract differs from its committed bounds, dependencies, or conditional carry",
+            "closed callback contract differs from its committed bounds or dependencies",
         );
     }
     let evaluate = |term: &terminal_psi::ContractDependency<bool, Vec<u32>>,
@@ -121,12 +119,6 @@ fn validate_operational_contract<'identity>(
         }
         Ok(possible)
     };
-    for requirement in carry {
-        // Only the suspension permission is guarded. A true guard leaves
-        // the ordinary closed-call carry plan responsible for the crossing;
-        // this metadata cannot grant ownership or acquisition permission.
-        evaluate(&requirement.condition, true)?;
-    }
     Ok((evaluate(suspension, true)?, evaluate(blocking, false)?))
 }
 
@@ -274,7 +266,6 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
             &parameters,
             &application.suspension_dependency,
             &application.blocking_dependency,
-            &application.conditional_carry,
             service_identity,
         )?;
         let published = machine
@@ -297,7 +288,6 @@ pub fn validate_closed_reach_applications(module: &TerminalModule) -> Result<(),
                 &parameters,
                 &capture.suspension_dependency,
                 &capture.blocking_dependency,
-                &capture.conditional_carry,
                 service_identity,
             )?;
         }

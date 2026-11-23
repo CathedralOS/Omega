@@ -171,8 +171,9 @@ fn page_markers() -> Vec<&'static str> {
 fn tag_tables() -> Vec<TagTable> {
     use crate::block_wire;
     use crate::module_wire::{
-        borrow_wire, carry_and_suspension_wire as carry, closed_conformance_wire, declaration_wire,
-        evidence_wire, float_meaning_wire as float, recursive_component_wire as recursive,
+        borrow_wire, closed_conformance_wire, declaration_wire, evidence_wire,
+        float_meaning_wire as float, recursive_component_wire as recursive,
+        suspension_wire as suspension,
     };
     use crate::semantic_module::{machine_wire, reach_application_wire};
     use crate::structural_wire::{
@@ -537,38 +538,22 @@ fn tag_tables() -> Vec<TagTable> {
         table(
             "suspension-target-tags",
             &["TerminalSuspensionCallTarget"],
-            read::<_, carry::CallTarget>,
-        ),
-        table(
-            "carry-suspension-tags",
-            &["CarrySuspension"],
-            read::<_, carry::Suspension>,
-        ),
-        table("carry-cpu-tags", &["CarryCpu"], read::<_, carry::Cpu>),
-        table(
-            "carry-host-thread-tags",
-            &["CarryHostThread"],
-            read::<_, carry::HostThread>,
-        ),
-        table(
-            "carry-address-tags",
-            &["CarryAddress"],
-            read::<_, carry::Address>,
+            read::<_, suspension::CallTarget>,
         ),
         table(
             "suspension-place-tags",
             &["TerminalSuspensionPlace"],
-            read::<_, carry::Place>,
+            read::<_, suspension::Place>,
         ),
         table(
             "suspension-value-type-tags",
             &["TerminalSuspensionValueType"],
-            read::<_, carry::ValueType>,
+            read::<_, suspension::ValueType>,
         ),
         table(
             "suspension-storage-tags",
             &["TerminalSuspensionStorage"],
-            read::<_, carry::Storage>,
+            read::<_, suspension::Storage>,
         ),
         table(
             "crash-cause-tags",

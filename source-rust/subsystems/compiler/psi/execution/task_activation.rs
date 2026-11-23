@@ -1,7 +1,6 @@
 use crate::{
     LayoutApplicationId, StructuralTypeDeclaration, TerminalIdentityIndex,
 };
-use language_core::CarryPolicy;
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -38,22 +37,12 @@ pub struct TerminalTaskLiveCarry {
     pub value_type: u64,
     pub storage: TerminalTaskCarryStorage,
     pub claims: Vec<u64>,
-    pub effective: CarryPolicy,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalTaskSuspensionCrossing {
     pub identity: u64,
-    pub suspension_allowed: bool,
-    pub preserve_cpu: bool,
-    pub preserve_host_thread: bool,
     pub live_carry: Vec<TerminalTaskLiveCarry>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct TerminalTaskCarryObligations {
-    pub preserve_cpu: bool,
-    pub preserve_host_thread: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,7 +110,6 @@ pub struct TerminalTaskActivationDemand {
     pub root_frame: u64,
     pub frames: Vec<TerminalTaskFrame>,
     pub crossings: Vec<TerminalTaskSuspensionCrossing>,
-    pub carry_obligations: TerminalTaskCarryObligations,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

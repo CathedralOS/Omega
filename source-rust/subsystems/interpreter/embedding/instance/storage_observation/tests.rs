@@ -293,7 +293,6 @@ fn continuation_fixture(
             operation: cut,
             crossing,
             target: terminal_psi::TerminalSuspensionCallTarget::Machine(callee),
-            effective: language_core::CarryPolicy::PERMISSIVE,
             live_value_count: 0,
             live_values: Vec::new(),
             loans: Default::default(),
