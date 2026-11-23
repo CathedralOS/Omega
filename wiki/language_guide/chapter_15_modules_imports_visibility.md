@@ -35,6 +35,12 @@ package root. A hyphenated filename needs an alias, for example
 `use math/fast-vector.omg as fast;`. Importing two files as `vector` is an
 error. Import order cannot change the chosen file.
 
+A generator can write `parser.omg` into the source tree the Build plan hands
+to the next compilation. A handwritten Product file can then say `use parser.omg;`
+and call `|parser|::parse` like any other imported machine. Writing the file
+does not put `parse` in scope or make it callable by the running generator.
+[Generated files and the Product source view](../spec/build/execution.md#generated-source-boundary)
+
 ## One spelling for each owner
 
 An imported file and a parameter can both be called `math`. In this example

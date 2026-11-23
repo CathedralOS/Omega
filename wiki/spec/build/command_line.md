@@ -102,8 +102,9 @@ indirectly, forms a cycle and is refused.
 The compiler checks the whole source file with the inputs available to each
 stage before running its selected entry. If `build` generates a type named
 `Schema` and a same-file `main` uses it, checking the build stage fails at the
-use of `Schema`. A build can instead put that `main` and the generated type
-together in the product stage's inputs.
+use of `Schema`. A handwritten Product entry in a separate source file can
+import the generated type normally once both files belong to the
+[Product source view](execution.md#generated-source-boundary).
 
 ## Public Psi naming
 

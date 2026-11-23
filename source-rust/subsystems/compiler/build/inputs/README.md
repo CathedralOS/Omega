@@ -105,9 +105,12 @@ identities for receiving-policy services.
 
 [Build execution](build_execution.rs) prepares immutable input roots, records
 filesystem observations and settles required files after the Build returns.
-`Build::include_source` records the supplied filename and UTF-8 bytes when
-the call runs. A dependency wait preserves those bytes. Product imports use
+Today `Build::include_source` records the supplied filename and UTF-8 bytes
+when the call runs. A dependency wait preserves those bytes. Product imports use
 the recorded filename and never reopen an output file to obtain the source.
+[Product source views](../../../../../wiki/spec/build/execution.md#generated-source-boundary)
+replace this implementation. The migration is tracked in
+[STAGED-BUILD-CAPABILITIES](../../../../../TASKS.md#immediate-product-closure).
 The filesystem scope checks physical output roots for overlap.
 The [completed output module](build_execution/completed_outputs.rs)
 selects only settled required files, commits their manifest, and publishes or
