@@ -653,3 +653,27 @@ fn standalone_scalar_and_array_roots_join_the_same_exact_codec_paths() {
         .is_err()
     );
 }
+
+#[test]
+fn reference_codecs_reuse_the_checked_layout_and_reject_ambiguous_layouts() {
+    use super::super::values::ReferenceCodecs;
+
+    let scalar_record = |id| record(id, vec![field(1, StructuralFieldType::Scalar(scalar()))]);
+    let layout = |id| {
+        NativeBorrowedStorageLayout::new(
+            type_id(id),
+            8,
+            8,
+            [(vec![member(1)], vec![], 0, scalar(), scalar())],
+            [],
+            [],
+        )
+    };
+    let declarations = [scalar_record(1), scalar_record(2)];
+    let codecs = ReferenceCodecs::new(declarations.iter(), &[layout(1), layout(2), layout(2)]);
+    let first = codecs.get(&type_id(1)).unwrap();
+    assert_eq!(first.fields[0].path, [member(1)]);
+    assert!(std::ptr::eq(first, codecs.get(&type_id(1)).unwrap()));
+    assert!(codecs.get(&type_id(2)).is_none());
+    assert!(codecs.get(&type_id(3)).is_none());
+}

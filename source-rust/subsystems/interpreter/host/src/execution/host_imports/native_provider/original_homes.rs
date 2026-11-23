@@ -326,8 +326,7 @@ impl NativeContext {
     pub(super) fn prepare(
         &self,
         requests: &[TerminalOriginalStorageRequest],
-        layouts: &[NativeBorrowedStorageLayout],
-        codecs: &BTreeMap<StructuralTypeId, super::values::StorageCodec>,
+        codecs: &super::values::ReferenceCodecs,
     ) -> Result<TerminalOriginalScalarBackings, TerminalEffectRejection> {
         let mut result = Vec::with_capacity(requests.len());
         let mut homes = self.homes.borrow_mut();
@@ -336,7 +335,7 @@ impl NativeContext {
             let layout = if request.byte_extent().is_some() {
                 None
             } else {
-                Some(exact_layout(layouts, request.structural_type())?)
+                Some(exact_layout(&codecs.layouts, request.structural_type())?)
             };
             let (extent, alignment) = match (request.byte_extent(), layout) {
                 (Some(extent), None) if request.references().is_empty() => (extent, 1),

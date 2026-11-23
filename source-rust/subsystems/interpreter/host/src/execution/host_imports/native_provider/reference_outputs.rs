@@ -3,11 +3,10 @@
 // authenticates capture identity, lifetime anchors, access permissions, and
 // transactional descriptor restoration.
 
-use super::values::ReferenceField;
+use super::values::{ReferenceCodecs, ReferenceField};
 use super::{NativeContext, StorageCodec, rejection};
 use native_provider_runtime::NativePointerTarget;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, StructuralTypeId};
-use std::collections::BTreeMap;
 use terminal_interpreter::{
     TerminalBoundaryStorageBuffer, TerminalEffectRejection, TerminalOriginalStorageLoan,
     TerminalOriginalStorageRequest, TerminalProgram,
@@ -37,7 +36,7 @@ pub(super) struct ReferenceOutputs {
     parameters: Vec<StructuralTypeId>,
     outputs: Vec<BoundaryReferenceOutput>,
     result_regions: Vec<terminal_psi::TerminalDynamicReferenceRegion>,
-    pub codecs: BTreeMap<StructuralTypeId, StorageCodec>,
+    pub codecs: ReferenceCodecs,
     captures: Vec<Capture>,
 }
 
@@ -47,8 +46,9 @@ impl ReferenceOutputs {
         declaration: &BoundaryMachineDeclaration,
         layouts: &[runtime_abi::NativeBorrowedStorageLayout],
     ) -> Self {
+        let types = &program.module().types.structural_types;
         Self {
-            types: program.module().types.structural_types.clone(),
+            types: types.clone(),
             parameters: declaration
                 .structural_parameters
                 .iter()
@@ -56,14 +56,12 @@ impl ReferenceOutputs {
                 .collect(),
             outputs: declaration.reference_outputs.clone(),
             result_regions: declaration.result_reference_regions.clone(),
-            codecs: layouts
-                .iter()
-                .filter_map(|layout| {
-                    StorageCodec::admit(program, layouts, layout.structural_type)
-                        .ok()
-                        .map(|codec| (layout.structural_type, codec))
-                })
-                .collect(),
+            codecs: ReferenceCodecs::new(
+                types
+                    .iter()
+                    .filter_map(|row| program.structural_type(row.id)),
+                layouts,
+            ),
             captures: Vec::new(),
         }
     }
