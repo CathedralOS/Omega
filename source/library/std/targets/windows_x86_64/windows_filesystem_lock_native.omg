@@ -1,3 +1,4 @@
+use targets/windows_x86_64/windows_filesystem_transfer_native.omg as transfer_io;
 // Win32 locking borrows OVERLAPPED only on a classified synchronous object.
 // LockFileEx then completes before returning, including blocking acquisition;
 // an asynchronous request followed by a separate wait would not justify this
@@ -17,17 +18,17 @@ data WindowsNativeLockRequest {
 }
 
 boundary trait WindowsFilesystemLockIo {
-    machine acquire(handle: i64 in WindowsSynchronousFileOrAbsent, flags: u32, reserved: u32, length_low: u32, length_high: u32, request: @mutable WindowsNativeLockRequest) -> i32
+    machine acquire(handle: i64 in |transfer_io|::WindowsSynchronousFileOrAbsent, flags: u32, reserved: u32, length_low: u32, length_high: u32, request: @mutable WindowsNativeLockRequest) -> i32
     reaches none
-    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && flags <= 3 && reserved == 0
+    requires (handle as - |transfer_io|::WindowsSynchronousFileOrAbsent) != 0 && flags <= 3 && reserved == 0
         && length_low == 4294967295 && length_high == 4294967295
         && request.internal == 0 && request.transferred == 0
         && request.offset_low == 0 && request.offset_high == 0 && request.event == 0
     blocks
     crashes none;
-    machine release(handle: i64 in WindowsSynchronousFileOrAbsent, offset_low: u32, offset_high: u32, length_low: u32, length_high: u32) -> i32
+    machine release(handle: i64 in |transfer_io|::WindowsSynchronousFileOrAbsent, offset_low: u32, offset_high: u32, length_low: u32, length_high: u32) -> i32
     reaches none
-    requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && offset_low == 0 && offset_high == 0
+    requires (handle as - |transfer_io|::WindowsSynchronousFileOrAbsent) != 0 && offset_low == 0 && offset_high == 0
         && length_low == 4294967295 && length_high == 4294967295
     blocks
     crashes none;
