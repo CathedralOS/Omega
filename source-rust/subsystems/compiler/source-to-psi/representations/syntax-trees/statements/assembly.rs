@@ -42,7 +42,8 @@ impl AuthoredAssembly {
                         }
                     }
                     AssemblyOperands::Transition(target) => {
-                        if let Some(value) = trees.statements.transition_target(*target).expression() {
+                        if let Some(value) = trees.statements.transition_target(*target).expression()
+                        {
                             visit(value);
                         }
                     }

@@ -518,7 +518,9 @@ impl SyntaxCopy<'_> {
         }
 
         let target = match other.statements.transition_target(handle) {
-            TransitionTargetNode::Named(call) => TransitionTargetNode::Named(self.copy_expression_handle(other, *call)),
+            TransitionTargetNode::Named(call) => {
+                TransitionTargetNode::Named(self.copy_expression_handle(other, *call))
+            }
             TransitionTargetNode::Value(value) => {
                 TransitionTargetNode::Value(self.copy_expression_handle(other, *value))
             }

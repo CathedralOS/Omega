@@ -557,7 +557,8 @@ pub enum TransitionGuardNode {
     syntax_trees_derive::SyntaxRelocate,
     record_storage::Record,
 )]
-pub enum TransitionTargetNode {    Named(ExpressionHandle),
+pub enum TransitionTargetNode {
+    Named(ExpressionHandle),
     Value(ExpressionHandle),
     #[default]
     Terminal,

@@ -1253,7 +1253,8 @@ mod expressions {
                     collect_expression_handles(syntax, guard, handles);
                 }
                 for target in transition.targets() {
-                    if let Some(value) = syntax.tables.statements.transition_target(target).expression() {
+                    if let Some(value) = syntax.statements.transition_target(target).expression()
+                    {
                         collect_expression_handles(syntax, value, handles);
                     }
                 }

@@ -250,7 +250,8 @@ mod static_operands {
                             .map(|selector| selector.binding.as_str(syntax).to_owned()),
                     );
                     for target in transition.targets() {
-                        if let Some(value) = syntax.statements.transition_target(target).expression() {
+                        if let Some(value) = syntax.statements.transition_target(target).expression()
+                        {
                             collect_expression_handles(syntax, value, &mut target_expressions);
                         }
                     }
