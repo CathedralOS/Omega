@@ -730,6 +730,13 @@ impl<'a> DescriptorAnalysis<'a> {
         self.replay.storage_writes(identity, position)
     }
 
+    /// Completed call summaries still describe this graph. Release the
+    /// operation-by-operation states when the current machine no longer needs them.
+    pub(crate) fn release_storage_snapshots(&mut self) {
+        self.replay.snapshots.clear();
+        self.storage_queries = StorageQueries::default();
+    }
+
     /// The frame names entry storage that this body may write, including
     /// delegated writes. It says nothing about the final values or about
     /// permission to invoke the body. Unknown calls and unresolved origins
