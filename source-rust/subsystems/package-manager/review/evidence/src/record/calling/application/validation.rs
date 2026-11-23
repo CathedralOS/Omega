@@ -13,6 +13,17 @@ use application_identity::type_identity::encoding::atom;
 use application_identity::type_identity::encoding::compound;
 
 impl PackagePolicyCallingPlan {
+    pub(crate) fn lifetime_scope(&self) -> Result<(u32, u32), &'static str> {
+        let application_scope = self
+            .boundary_lifetime_parameter_count
+            .checked_add(self.application_lifetime_parameter_count)
+            .ok_or("calling lifetime telescope overflows")?;
+        let lifetime_count = application_scope
+            .checked_add(self.requirement_lifetime_parameter_count)
+            .ok_or("calling lifetime telescope overflows")?;
+        Ok((application_scope, lifetime_count))
+    }
+
     pub(crate) fn validate_canonical_structure(&self) -> Result<(), &'static str> {
         if self.abi.requirement_identity != self.requirement.path {
             return Err("calling ABI key changes its source-qualified requirement");
@@ -54,7 +65,8 @@ impl PackagePolicyCallingPlan {
             || !self.requirement_lifetime_arguments.is_empty()
             || self.boundary_lifetime_parameter_count != 0
             || self.application_lifetime_parameter_count != 0
-            || self.requirement_lifetime_parameter_count != 0
+            || self.requirement_lifetime_parameter_count
+                != method.signature.requirement_lifetime_parameter_count
             || !self
                 .boundary_trait
                 .matches_unapplied_trait_declaration(&self.abi.declaring_application)
@@ -98,13 +110,7 @@ impl PackagePolicyCallingPlan {
     fn validate_structure(&self) -> Result<(), &'static str> {
         self.abi.validate()?;
         target::validate(self.target)?;
-        let application_scope = self
-            .boundary_lifetime_parameter_count
-            .checked_add(self.application_lifetime_parameter_count)
-            .ok_or("calling lifetime telescope overflows")?;
-        let lifetime_count = application_scope
-            .checked_add(self.requirement_lifetime_parameter_count)
-            .ok_or("calling lifetime telescope overflows")?;
+        let (application_scope, lifetime_count) = self.lifetime_scope()?;
         let scope = scope(&self.static_parameters, lifetime_count as usize);
         crate::record::public_policy::validation::signatures::parameters(&scope, 0)?;
         self.boundary_trait.validate_resolved()?;
@@ -209,11 +215,7 @@ fn validate_application_lifetimes(
     policy: &PackagePolicyCallingPlan,
     application: &crate::record::PackagePolicyClosedConformanceApplication,
 ) -> Result<(), &'static str> {
-    let count = policy
-        .boundary_lifetime_parameter_count
-        .checked_add(policy.application_lifetime_parameter_count)
-        .and_then(|count| count.checked_add(policy.requirement_lifetime_parameter_count))
-        .ok_or("calling lifetime telescope overflows")?;
+    let (_, count) = policy.lifetime_scope()?;
     if application
         .lifetime_arguments
         .iter()

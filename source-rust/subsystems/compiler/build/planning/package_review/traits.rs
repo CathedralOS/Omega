@@ -210,6 +210,38 @@ impl PolicySource<'_> {
         })
     }
 
+    pub(super) fn scoped_requirement_parameters(
+        &self,
+        signature: &source_compiler::representations::source_state::signature::StateSignature,
+        parameter_types: &[String],
+        exposure: PackageReviewSemanticDependencyExposure,
+    ) -> Result<Vec<PackageReviewSignatureParameter>, Vec<Diagnostic>> {
+        let formals = self.typed().state_signature_parameters(signature);
+        if formals.len() != parameter_types.len() {
+            return Err(unavailable(
+                "the public requirement's exact checked formal namespace",
+            ));
+        }
+        for formal in &formals {
+            self.require_type_dependencies(signature.symbol, formal.type_reference, exposure)?;
+        }
+        if signature.return_type.is_valid() {
+            self.require_type_dependencies(signature.symbol, signature.return_type, exposure)?;
+        }
+        Ok(formals
+            .iter()
+            .zip(parameter_types)
+            .map(|(formal, canonical)| PackageReviewSignatureParameter {
+                name: formal.name.as_str().to_owned(),
+                type_identity: PackageReviewTypeIdentity {
+                    canonical: canonical.clone(),
+                },
+                is_const: formal.is_const,
+                is_mutable: formal.is_mutable,
+            })
+            .collect())
+    }
+
     pub(super) fn requirement(
         &self,
         declaration: &source_compiler::representations::source_state::trait_definition::TraitDefinition,
@@ -230,35 +262,14 @@ impl PolicySource<'_> {
                 "the requirement's complete static/default/callback contract",
             ));
         }
-        let formals = typed.state_signature_parameters(signature);
-        if formals.len() != metadata.parameter_types.len() {
-            return Err(unavailable(
-                "the public requirement's exact checked formal namespace",
-            ));
-        }
         let exposure = if declaration.is_public {
             PackageReviewSemanticDependencyExposure::PublicInterface
         } else {
             PackageReviewSemanticDependencyExposure::PrivateImplementation
         };
-        for formal in &formals {
-            self.require_type_dependencies(signature.symbol, formal.type_reference, exposure)?;
-        }
-        if signature.return_type.is_valid() {
-            self.require_type_dependencies(signature.symbol, signature.return_type, exposure)?;
-        }
-        let parameters = formals
-            .iter()
-            .zip(&metadata.parameter_types)
-            .map(|(formal, canonical)| PackageReviewSignatureParameter {
-                name: formal.name.as_str().to_owned(),
-                type_identity: PackageReviewTypeIdentity {
-                    canonical: canonical.clone(),
-                },
-                is_const: formal.is_const,
-                is_mutable: formal.is_mutable,
-            })
-            .collect();
+        let parameters =
+            self.scoped_requirement_parameters(signature, &metadata.parameter_types, exposure)?;
+        let formals = typed.state_signature_parameters(signature);
         let contracts = self.signature_contracts(
             typed.state_signature_contracts(signature),
             ContractScope {

@@ -27,22 +27,50 @@ pub(super) fn result_lifetimes(
         .structural()
         .ok_or("selected reference has no original structural result")?
         .structural_type;
+    signature_result_lifetimes(
+        module,
+        lifetimes,
+        &parameters,
+        result,
+        result_type,
+        contract.structural_parameters.iter().map(|formal| {
+            (
+                formal.position as usize,
+                formal.structural_type,
+                formal.access,
+            )
+        }),
+    )
+}
+
+/// Recover the declared groups from signature binder ordinals and the lowered storage
+/// of each formal. The input positions refer to the signature before scalar and
+/// structural formals were separated into their respective lanes.
+pub(super) fn signature_result_lifetimes(
+    module: &TerminalModule,
+    lifetimes: u32,
+    parameters: &[impl AsRef<str>],
+    result: &str,
+    result_type: StructuralTypeId,
+    structural_formals: impl Iterator<Item = (usize, StructuralTypeId, StructuralAccess)>,
+) -> Result<Vec<DeclaredResultLifetime>, &'static str> {
     let results = occurrences(module, result_type, result, lifetimes, false)?;
     let mut inputs = Vec::new();
-    for (lane, parameter) in contract.structural_parameters.iter().enumerate() {
+    for (lane, (position, formal_type, formal_access)) in structural_formals.enumerate() {
         let declared = parameters
-            .get(parameter.position as usize)
+            .get(position)
+            .map(AsRef::as_ref)
             .ok_or("public structural formal has no original declared type")?;
         let lane = u32::try_from(lane).map_err(|_| "public structural input roster exceeds u32")?;
         for (lifetime, path, access, referent) in occurrences(
             module,
-            parameter.structural_type,
+            formal_type,
             declared,
             lifetimes,
-            parameter.access != StructuralAccess::Owned,
+            formal_access != StructuralAccess::Owned,
         )? {
             let input = if referent {
-                if access != parameter.access {
+                if access != formal_access {
                     return Err("public borrowed formal differs from its declared access");
                 }
                 BoundaryLifetimeDependency::Referent {
@@ -426,6 +454,43 @@ mod tests {
             occurrences(&module, id(2), &nested, 1, false),
             Err("public reference path or access differs from its original declared type"),
             "flattening a nested result cannot retain its original paths",
+        );
+    }
+
+    #[test]
+    fn result_binder_distinguishes_borrowed_input_from_caller_choice() {
+        let module = module();
+        let scalar = "compiler-type(atom(bool))";
+        let input = "ref-mut(compiler-type(atom(bool)),region(owner(schema),ordinal(0)))";
+        let independent = input.replace("ordinal(0)", "ordinal(1)");
+        let groups = |result: &str| {
+            signature_result_lifetimes(
+                &module,
+                2,
+                &[scalar, input],
+                result,
+                id(2),
+                [(1, id(1), StructuralAccess::MutableBorrow)].into_iter(),
+            )
+            .unwrap()
+        };
+
+        assert_eq!(
+            groups(input),
+            [DeclaredResultLifetime {
+                inputs: vec![BoundaryLifetimeDependency::Referent {
+                    argument_index: 0,
+                    access: StructuralAccess::MutableBorrow
+                }],
+                results: vec![Vec::new()],
+            }]
+        );
+        assert_eq!(
+            groups(&independent),
+            [DeclaredResultLifetime {
+                inputs: Vec::new(),
+                results: vec![Vec::new()],
+            }]
         );
     }
 
