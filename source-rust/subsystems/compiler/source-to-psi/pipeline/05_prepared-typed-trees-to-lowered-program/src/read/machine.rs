@@ -981,11 +981,25 @@ impl<'t> Program<'t> {
                 !owner.type_parameters.is_empty() || !owner.lifetime_parameters.is_empty()
             })
         {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Machine("witness needs its exact closed trait application"),
-            ));
+            // A body a reference row selects (`Render::paint = red;`) owns
+            // no map, so the requirement it refines is the one the selecting
+            // conformance applies: `Red satisfies Render<u8>` applies
+            // `Render<u8>`. The selected call retains exactly that header.
+            // Without a call there is no application to read it at.
+            declared = expected
+                .filter(|applied| {
+                    self.typed
+                        .closed_requirement_application(applied.symbol)
+                        .map_or(applied.symbol, |closed| closed.template)
+                        == requirement
+                })
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Machine("witness needs its exact closed trait application"),
+                    )
+                })?;
         }
         if expected.is_some_and(|signature| {
             signature.symbol != requirement && self.typed

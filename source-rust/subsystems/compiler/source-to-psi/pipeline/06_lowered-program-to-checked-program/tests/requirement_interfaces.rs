@@ -219,3 +219,46 @@ machine call(x: u8) -> u8 {{ Selected::id(x) }}"
         program.judged(|_| {}).accepted();
     }
 }
+
+/// `Red` selects the plain machine `red` for `Render::paint`, over a
+/// `Render` with no parameters and over `Render<u8>`.
+fn applied_render(applied: bool, red_requires: &str) -> String {
+    let (declared, applied, carrier) = if applied {
+        ("Render<T>", "Render<u8>", "T")
+    } else {
+        ("Render", "Render", "u8")
+    };
+    format!(
+        "trait {declared} {{ machine paint(x: {carrier}, n: u8) -> {carrier}; }}
+Red satisfies {applied} {{ Render::paint = red; }}
+machine red(x: u8, n: u8) -> u8 {red_requires} {{ x }}
+machine call(x: u8) -> u8 {{ Red::paint(x, 0u8) }}"
+    )
+}
+
+/// `Red satisfies Render<u8>` selects the plain machine `red` for
+/// `Render::paint`, and `Red::paint(x, 0)` calls `red`. `red` must refine
+/// `paint` as `Render<u8>` applies it, exactly as it refines a `Render`
+/// with no parameters: one that asks for nothing more is accepted, and the
+/// twin whose `red` also requires `n != 0`, which the requirement does not
+/// promise, is refused for that precondition.
+#[test]
+fn a_member_of_an_applied_trait_refines_the_application_its_conformance_names() {
+    for applied in [false, true] {
+        let program = Program::of(&applied_render(applied, ""));
+        let call = program::the_operation(program.machine("call"), |kind| {
+            matches!(kind, OperationKind::Call { .. })
+        });
+        let OperationKind::Call { callee, .. } = call.kind else {
+            unreachable!()
+        };
+        assert_eq!(program.machine_named(callee), "red");
+        program.judged(|_| {}).accepted();
+
+        let twin = format!("{:?}", verdict(&applied_render(applied, "requires n != 0")));
+        assert!(
+            twin.contains("cannot prove the input precondition of `red`"),
+            "{applied}: {twin}"
+        );
+    }
+}
