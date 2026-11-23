@@ -8178,12 +8178,40 @@ impl Held<'_, '_> {
     }
 }
 
+/// A data clause may name an input of the machine that checks it. A record
+/// read under that machine's rigid `const` or value binder (`Index<Limit>`
+/// in `machine first<Limit: u32>`) states `value < Limit` over the input
+/// standing for `Limit` (generics.md, "Value binders and const
+/// requirements"). Stage 05 keys such a record by its checking machine, and
+/// an input keeps its value for the whole invocation, so the clause means
+/// the same at every point. Any other value refuses.
+pub(super) fn clause_input(
+    tables: &MachineTables,
+    value: ValueId,
+    scalar_type: ScalarType,
+) -> Result<ScalarTerm, crate::checking::Unbound> {
+    match tables.values.get(value) {
+        Some(row)
+            if matches!(row.origin, ValueOrigin::MachineParameter { .. })
+                && row.rigid.is_none()
+                && row.scalar_type == scalar_type =>
+        {
+            Ok(ScalarTerm::value(value, scalar_type))
+        }
+        _ => Err(crate::checking::Unbound::Unsupported(
+            "a data clause names a value that is no field of its own value",
+        )),
+    }
+}
+
 impl crate::checking::Bindings for Held<'_, '_> {
     type Error = crate::checking::Unbound;
-    fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, crate::checking::Unbound> {
-        Err(crate::checking::Unbound::Unsupported(
-            "a data clause names a value that is no field of its own value",
-        ))
+    fn value(
+        &mut self,
+        value: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+        clause_input(self.tables, value, scalar_type)
     }
 
     fn field(
@@ -8285,10 +8313,15 @@ impl Named<'_> {
 
 impl crate::checking::Bindings for Named<'_> {
     type Error = crate::checking::Unbound;
-    fn value(&mut self, _: ValueId, _: ScalarType) -> Result<ScalarTerm, crate::checking::Unbound> {
-        Err(crate::checking::Unbound::Unsupported(
-            "a data clause names a value that is no field of its own value",
-        ))
+    /// An input the clause names is no storage beneath the value; the
+    /// reading that binds the clause decides whether it may name it
+    /// (`clause_input`).
+    fn value(
+        &mut self,
+        value: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, crate::checking::Unbound> {
+        Ok(ScalarTerm::value(value, scalar_type))
     }
 
     fn field(

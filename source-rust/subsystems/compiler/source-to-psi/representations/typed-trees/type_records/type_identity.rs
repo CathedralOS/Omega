@@ -8483,6 +8483,7 @@ pub(crate) mod substitution {
         let declared = program.data_type_parameter_by_symbol(operand.symbol);
         if let Some(parameter) = declared
             && !matches!(parameter.kind, TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference }
                 if matches!(program.type_reference_node(type_reference), TypeReferenceNode::Named { .. })
                     && program.primitive_type_reference(type_reference) == Some(expected))
         {
@@ -10138,7 +10139,8 @@ impl TypedTrees {
                     crate::source_state::data::TypeParameterKind::Type => {
                         IndexIdentityArgument::TypeArgument(*argument)
                     }
-                    crate::source_state::data::TypeParameterKind::Const { .. } => {
+                    crate::source_state::data::TypeParameterKind::Const { .. }
+                    | crate::source_state::data::TypeParameterKind::Value { .. } => {
                         IndexIdentityArgument::TypeReference(*argument)
                     }
                     _ => {

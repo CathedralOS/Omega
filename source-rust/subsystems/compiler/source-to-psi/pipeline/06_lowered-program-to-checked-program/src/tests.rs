@@ -97,6 +97,7 @@ mod successor_loans;
 mod termination;
 mod type_parameters;
 mod uninhabited_results;
+mod value_indexed_data;
 mod value_parameters;
 mod width_parameters;
 mod window_handoffs;

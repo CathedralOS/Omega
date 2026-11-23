@@ -295,6 +295,10 @@ pub(crate) struct Program<'t> {
     nominal_calls: Vec<nominal_applications::NominalCallSource>,
     const_scope: Vec<ConstBinding>,
     const_scopes: IdTable<MachineId, Vec<ConstBinding>>,
+    /// While a generic data declaration's template is read
+    /// (`subjects::generic_data`), the next input identity for a type
+    /// equation its rigid binders leave open. `None` everywhere else.
+    open_equation_inputs: Option<u64>,
     /// The generic machines a generic check form's entry calls at its own
     /// type parameters, each read once per tuple with its actual body. These
     /// applications also retain their independent template checks.
@@ -554,6 +558,7 @@ impl<'t> Program<'t> {
             nominal_calls: Vec::new(),
             const_scope: Vec::new(),
             const_scopes: IdTable::default(),
+            open_equation_inputs: None,
             applications: Vec::new(),
             applied: Vec::new(),
             alternative: None,

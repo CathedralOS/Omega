@@ -247,6 +247,7 @@ impl Program<'_> {
                 matches!(
                     parameter.kind,
                     crate::source_state::data::TypeParameterKind::Const { .. }
+                        | crate::source_state::data::TypeParameterKind::Value { .. }
                 ) && self.record_parameter(parameter.symbol).is_none()
             })
             .collect::<Vec<_>>();

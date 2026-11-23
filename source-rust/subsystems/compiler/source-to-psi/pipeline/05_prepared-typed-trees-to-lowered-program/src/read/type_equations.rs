@@ -183,7 +183,8 @@ impl Program<'_> {
                 let right = argument(*right_arg, &right);
                 match parameter.kind {
                     TypeParameterKind::Type => pending.push((left, right)),
-                    TypeParameterKind::Const { type_reference } => {
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference } => {
                         let scalar = self.scalar_type(machine, type_reference)?;
                         let left = self.equation_const_argument(machine, clause, left, scalar)?;
                         let right = self.equation_const_argument(machine, clause, right, scalar)?;

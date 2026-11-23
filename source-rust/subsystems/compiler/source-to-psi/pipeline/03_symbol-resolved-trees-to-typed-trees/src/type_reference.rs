@@ -951,7 +951,12 @@ pub(crate) mod const_arguments {
                     if argument.arena_index() as usize <= frontier {
                         continue;
                     }
-                    let TypeParameterKind::Const { type_reference } = parameter.kind else {
+                    // A value binder (`Limit: u32`) also admits a static
+                    // argument (generics.md, "Value binders and const
+                    // requirements"), typed in its carrier like a `const` one.
+                    let (TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference }) = parameter.kind
+                    else {
                         continue;
                     };
                     if let Some(spelling) = named_argument_in_carrier(

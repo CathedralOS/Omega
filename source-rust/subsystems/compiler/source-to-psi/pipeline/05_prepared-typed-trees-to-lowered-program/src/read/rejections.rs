@@ -325,7 +325,8 @@ impl Program<'_> {
                         ));
                     }
                 }
-                TypeParameterKind::Const { type_reference } => {
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference } => {
                     if let Some((expected, actual)) =
                         self.different_const_values(type_reference, left.reference, right.reference)
                     {

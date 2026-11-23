@@ -306,6 +306,7 @@ impl<'t> Program<'t> {
                         parameter.kind,
                         crate::source_state::data::TypeParameterKind::Implementation
                             | crate::source_state::data::TypeParameterKind::Const { .. }
+                            | crate::source_state::data::TypeParameterKind::Value { .. }
                             | crate::source_state::data::TypeParameterKind::Type
                             | crate::source_state::data::TypeParameterKind::Machine {
                                 contract: crate::source_state::data::MachineParameterContract::Structural(
@@ -2046,7 +2047,9 @@ impl<'t> Program<'t> {
                     .any(|parameter| {
                         !matches!(
                             parameter.kind,
-                            TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                            TypeParameterKind::Type
+                                | TypeParameterKind::Const { .. }
+                                | TypeParameterKind::Value { .. }
                         )
                     })
             {
@@ -2070,6 +2073,7 @@ impl<'t> Program<'t> {
                         parameter.kind,
                         TypeParameterKind::Type
                             | TypeParameterKind::Const { .. }
+                            | TypeParameterKind::Value { .. }
                             | TypeParameterKind::Machine { .. }
                     )
                 })

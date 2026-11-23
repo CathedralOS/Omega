@@ -511,6 +511,27 @@ impl Program<'_> {
             self.complete_type_equation(id, owner, expression)?;
             return Ok(equation);
         }
+        // `T == i32` in `data Value<T> requires ...` is decided by each
+        // application. The template is formed for every `T`, so there the
+        // equation is a Boolean input whose value nothing states.
+        if operator == BinaryOperator::Equal
+            && let (ExpressionNode::TypeExpression(_), ExpressionNode::TypeExpression(_)) = (
+                typed.expression_table.expression(binary.left),
+                typed.expression_table.expression(binary.right),
+            )
+            && let Some(next) = self.open_equation_inputs
+            && !matches!(self.clause_truth(expression), Some(TypeTruth::Known(_)))
+        {
+            let input = semantic_vocabulary::ValueId::new(next).ok_or_else(|| {
+                refuse(id, Construct::Machine, Unserved::Contract("input identity"))
+            })?;
+            self.open_equation_inputs = Some(next + 1);
+            return canonical::equal(
+                ScalarTerm::value(input, ScalarType::Boolean),
+                ScalarTerm::Boolean(true),
+                id,
+            );
+        }
         if matches!(operator, BinaryOperator::And | BinaryOperator::Or) {
             *operands = [self.operator_operand_reference(ValueType::plain(ScalarType::Boolean)); 2];
         }
@@ -1343,9 +1364,8 @@ impl Program<'_> {
                     ResultTerm::Absent(why) => unserved(why),
                 }
             }
-            ExpressionNode::Name(_) if scope.subject.is_some() => {
-                self.field_term(id, scope, expression)
-            }
+            // A value parameter bound to its argument, including one of an
+            // applied data declaration whose `requires` also names its fields.
             ExpressionNode::Name(path)
                 if path.symbol.is_valid()
                     && scope.bound.iter().any(|(symbol, _)| *symbol == path.symbol) =>
@@ -1369,6 +1389,9 @@ impl Program<'_> {
                 self.use_unfolded_argument(id, scope.owner, position)?;
                 let scalar_type = literal.scalar_type();
                 Ok((literal, ValueType::plain(scalar_type)))
+            }
+            ExpressionNode::Name(_) if scope.subject.is_some() => {
+                self.field_term(id, scope, expression)
             }
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, scope.slots, path)?;
@@ -2597,6 +2620,7 @@ impl Program<'_> {
                         parameter.kind,
                         crate::source_state::data::TypeParameterKind::Type
                             | crate::source_state::data::TypeParameterKind::Const { .. }
+                            | crate::source_state::data::TypeParameterKind::Value { .. }
                             | crate::source_state::data::TypeParameterKind::Machine { .. }
                     )
             })
