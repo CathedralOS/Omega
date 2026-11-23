@@ -4004,6 +4004,7 @@ impl Touches<'_> {
                 }
                 Ok(false)
             }
+            ExpressionKind::Block { .. } => Ok(!self.lent.is_empty()),
             ExpressionKind::Match {
                 capture,
                 subject,

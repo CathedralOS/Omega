@@ -400,6 +400,16 @@ pub(crate) struct Program<'t> {
     /// later call of one is refused at once as depending on it, instead of
     /// reading and refusing the same signature again for every caller.
     refused_signatures: Vec<SymbolHandle>,
+    /// The locals of block values in the body statement being read, after
+    /// the body's own slots, with their names. A block reads its statements
+    /// while the enclosing statement is still being read, so its slots are
+    /// numbered here and join the body's slots once that statement is read.
+    block_slots: Vec<(Slot, String)>,
+    /// How many body slots precede `block_slots`.
+    block_slot_base: usize,
+    /// While a block value's statements are read, the first slot that block
+    /// binds: a slot below it is the enclosing scope's.
+    block_floor: Option<usize>,
 }
 
 /// One slot of a body: formals first, then locals in binding order.
@@ -577,6 +587,9 @@ impl<'t> Program<'t> {
             supplied: Vec::new(),
             collected: None,
             refused_signatures: Vec::new(),
+            block_slots: Vec::new(),
+            block_slot_base: 0,
+            block_floor: None,
         }
     }
 

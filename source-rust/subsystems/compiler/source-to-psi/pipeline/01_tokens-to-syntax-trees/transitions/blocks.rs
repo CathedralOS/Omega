@@ -40,7 +40,11 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
             .expect("recognized transition arrow has a source token");
         input = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
 
-        let (target, rest) = if input.at_punctuation(PunctuationKind::LeftBrace) {
+        let (target, rest) = if input.at_punctuation(PunctuationKind::LeftBrace)
+            && input
+                .take_punctuation(PunctuationKind::LeftBrace, "{")?
+                .at_punctuation(PunctuationKind::RightBrace)
+        {
             let input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
             let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
             (
@@ -48,6 +52,30 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
                     .statements
                     .insert_transition_target(TransitionTargetNode::Terminal),
                 input,
+            )
+        } else if input.at_punctuation(PunctuationKind::LeftBrace) {
+            // A block arm runs its statements, then completes the machine
+            // with its final value or terminal call, as `{}` completes it
+            // with Unit.
+            let (block, rest) =
+                crate::statements::sequence::parse_block_value(syntax_trees, input)?;
+            let block = condition.bindings.iter().fold(block, |block, bindings| {
+                if bindings.fields.is_empty() {
+                    block
+                } else {
+                    crate::patterns::bindings::rewrite_destructure_guard_expression(
+                        syntax_trees,
+                        block,
+                        bindings.subject,
+                        &bindings.fields,
+                    )
+                }
+            });
+            (
+                syntax_trees
+                    .statements
+                    .insert_transition_target(TransitionTargetNode::Value(block)),
+                rest,
             )
         } else {
             parse_transition_block_target_with_bindings(syntax_trees, input, &condition.bindings)?

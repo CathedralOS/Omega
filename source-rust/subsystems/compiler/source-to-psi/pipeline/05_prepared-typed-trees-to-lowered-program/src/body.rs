@@ -1236,6 +1236,16 @@ pub enum ExpressionKind {    /// Operand indices refer to the event's source eva
         arms: Vec<(Selector, Expression)>,
         default: Option<Box<Expression>>,
     },
+    /// A block-valued dispatch arm: its statements in order, then `value`,
+    /// whose result is the block's; `None` is the Unit value. The slots the
+    /// statements bind leave scope with the arm, which ends their storage on
+    /// its edge out of the dispatch
+    /// (`wiki/spec/language/expressions.md`: "A block introduces local scope
+    /// and cleanup edges, not a new machine declaration").
+    Block {
+        statements: Vec<Statement>,
+        value: Option<Box<Expression>>,
+    },
     /// Both operands, left then right, then the operation under its selected
     /// policy. A suffix selects a policy even when the result is bare.
     Strict {

@@ -346,6 +346,19 @@ impl Lowering<'_> {
                     *capture,
                 )
             }
+            // A block is always an arm's value. The arm's dispatch restores
+            // the slots its statements bind, and the join's ownership plan
+            // ends the storage they hold where the arm leaves, so a block
+            // local ends with its block.
+            ExpressionKind::Block { statements, value } => {
+                for statement in statements {
+                    continuing!(self.statement(statement));
+                }
+                match value {
+                    Some(value) => self.expression(value),
+                    None => Ok(Reached::Value(Value::Unit)),
+                }
+            }
             ExpressionKind::SavedSubject(capture) => {
                 let value = self
                     .scalar_subjects

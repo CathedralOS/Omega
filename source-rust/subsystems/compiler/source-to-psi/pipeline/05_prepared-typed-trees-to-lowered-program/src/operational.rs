@@ -86,13 +86,17 @@ pub(crate) fn retain_callee_spans(
 }
 
 pub(crate) fn positions(machine: MachineId, body: &Body) -> Checked<()> {
+    statements(machine, &body.statements)
+}
+
+fn statements(machine: MachineId, statements: &[Statement]) -> Checked<()> {
     fn target(machine: MachineId, target: &Target) -> Checked<()> {
         if let Target::Value(value) = target {
             expression(machine, value)?;
         }
         Ok(())
     }
-    for statement in &body.statements {
+    for statement in statements {
         match statement {
             Statement::Bind { value, .. }
             | Statement::Decompose { subject: value }
@@ -210,6 +214,16 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
             for (_, field) in fields {
                 expression(machine, field)?;
+            }
+        }
+        ExpressionKind::Block {
+            statements: inner,
+            value,
+            ..
+        } => {
+            statements(machine, inner)?;
+            if let Some(value) = value {
+                expression(machine, value)?;
             }
         }
         ExpressionKind::Match {

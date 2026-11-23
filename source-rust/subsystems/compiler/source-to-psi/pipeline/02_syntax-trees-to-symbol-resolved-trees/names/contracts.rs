@@ -404,6 +404,8 @@ fn assign_contract_call_symbols(
     }
 
     match expression_table.expression(expression).clone() {
+        // Typing refuses a block value in a contract.
+        ExpressionNode::Block(_) => {}
         ExpressionNode::Match(dispatch) => {
             assign_calls!(dispatch.subject);
             for arm in expression_table.match_arms(dispatch.arms).to_vec() {

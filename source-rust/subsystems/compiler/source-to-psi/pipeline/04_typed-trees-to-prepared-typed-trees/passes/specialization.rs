@@ -362,11 +362,25 @@ fn call_sites(program: &TypedTrees, position: usize) -> Vec<Site> {
     let machine = &program.machines()[position];
     let mut sites = Vec::new();
     for state in program.machine_states(machine) {
-        for handle in state.statement_nodes.handles() {
-            let statement = program.statement_table.statement(handle);
-            if statement.as_call().is_some() {
+        // A statement call inside a block value is a site of its own. The
+        // subtree walk below reaches a block's expressions from the
+        // statement that holds it.
+        let handles = program
+            .body_statement_spans(state.statement_nodes)
+            .into_iter()
+            .flat_map(|span| span.handles());
+        for handle in handles {
+            if program
+                .statement_table
+                .statement(handle)
+                .as_call()
+                .is_some()
+            {
                 sites.push(Site::Statement(handle));
             }
+        }
+        for handle in state.statement_nodes.handles() {
+            let statement = program.statement_table.statement(handle);
             for (_, root) in program.tables.expression_roots(statement) {
                 if !root.is_valid() {
                     continue;
@@ -1658,9 +1672,9 @@ fn copy_declarations(
         }
         let parameters = program.state_parameters(source_state).to_vec();
         let locals = program
-            .statement_table
-            .statements(source_state.statement_nodes)
-            .iter()
+            .body_statement_spans(source_state.statement_nodes)
+            .into_iter()
+            .flat_map(|span| program.statement_table.statements(span))
             .filter_map(|statement| statement.as_local_data())
             .map(|local| (local.symbol, local.name.clone()))
             .filter(|(symbol, _)| symbol.is_valid())

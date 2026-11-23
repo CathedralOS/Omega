@@ -3528,6 +3528,12 @@ pub fn visit_expression(
         ExpressionNode::MachineValue(value) => {
             retained.machine_value_dependencies(program, value);
         }
+        ExpressionNode::Block(block) => {
+            for statement in program.statement_table.statements(block.statements) {
+                visit_statement(program, retained, statement);
+            }
+            visit_expression(program, retained, block.tail);
+        }
         ExpressionNode::Match(match_expression) => {
             visit_expression(program, retained, match_expression.subject);
             for arm in program.expression_table.match_arms(match_expression.arms) {

@@ -448,6 +448,9 @@ fn lower_nonbinary_expression_node_into_table(
         syntax::expression::ExpressionNode::Match(dispatch) => {
             match_dispatch::lower_match(lowerer, syntax_trees, *dispatch)
         }
+        syntax::expression::ExpressionNode::Block(block) => {
+            crate::resolution::lowering::statement::lower_block_value(lowerer, syntax_trees, *block)
+        }
         syntax::expression::ExpressionNode::SavedSubject(saved) => {
             match_dispatch::lower_saved_subject(lowerer, syntax_trees, *saved)
         }

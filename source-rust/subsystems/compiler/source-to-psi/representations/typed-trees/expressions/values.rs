@@ -540,6 +540,18 @@ pub mod expression {
             fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
                 use std::fmt::Write as _;
                 match self {
+                    Self::Block(block) => {
+                        out.push_str(if block.statements.is_empty() {
+                            "{ "
+                        } else {
+                            "{ ...; "
+                        });
+                        if block.tail.is_valid() {
+                            table.write_display_name(block.tail, out);
+                            out.push(' ');
+                        }
+                        out.push('}');
+                    }
                     Self::Match(dispatch) => {
                         out.push_str("match ");
                         table.write_display_name(dispatch.subject, out);
@@ -1668,6 +1680,10 @@ pub mod expression {
 
                 let node = self.expression(root).clone();
                 match node {
+                    // `remap_statement_symbols` remaps the block's statements.
+                    ExpressionNode::Block(block) => {
+                        self.remap_symbols_in_inner(block.tail, symbols, visited)
+                    }
                     ExpressionNode::Match(dispatch) => {
                         self.remap_symbols_in_inner(dispatch.subject, symbols, visited);
                         let arms = self.match_arms(dispatch.arms).to_vec();
@@ -1936,6 +1952,17 @@ pub mod expression {
                     .expect("copied expression keeps its exact Build input association")
                     .cloned();
                 let copied = match origin.expression(expression).clone() {
+                    // The statements live in the statement table; a statement
+                    // copy (`copy_statement_nodes_with_type_expressions`) gives
+                    // each copied block statements of its own.
+                    ExpressionNode::Block(block) => {
+                        let tail =
+                            self.copy_subtree_with_occurrences(source, block.tail, retain, copies);
+                        self.insert(ExpressionNode::Block(super::TableBlockExpression {
+                            statements: block.statements,
+                            tail,
+                        }))
+                    }
                     ExpressionNode::Match(dispatch) => {
                         let subject = self.copy_subtree_with_occurrences(
                             source,
@@ -4824,6 +4851,7 @@ pub mod expression {
         MachineValue(crate::source_state::callable_values::MachineValue),
         TypeExpression(crate::source_state::types::TypeReferenceHandle),
         Match(TableMatchExpression),
+        Block(TableBlockExpression),
         SavedSubject(TableSavedSubject),
         ArrayLiteral(HandleSpan<ExpressionHandle>),
         Atomic(TableAtomicExpression),
@@ -5658,6 +5686,16 @@ pub mod expression {
         pub arms: HandleSpan<TableMatchArm>,
     }
 
+    /// A block-valued dispatch arm: its statements run in order in the
+    /// block's own scope, then `tail` supplies the arm's value, whose type is
+    /// the block's. A block without a tail has the Unit value. The statements
+    /// are ordinary typed body statements in the body statement table.
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    pub struct TableBlockExpression {
+        pub statements: HandleSpan<crate::source_state::statement::StatementNode>,
+        pub tail: ExpressionHandle,
+    }
+
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
     pub struct CompletedValueCapture {
         pub subject: ExpressionHandle,
@@ -6095,15 +6133,41 @@ pub mod subtrees {
             edges: SubtreeEdges,
             mut child: impl FnMut(ExpressionHandle) -> bool,
         ) {
+            if let ExpressionNode::SavedSubject(saved) = node {
+                if edges.saved_sources
+                    && let Some(source) = self.saved_value_source(saved)
+                {
+                    child(source);
+                }
+                return;
+            }
+            self.tables.operand_children(node, edges, child);
+        }
+    }
+
+    impl crate::source_state::TypedTreeTables {
+        /// The operands `subtree_children` visits, except a saved subject's
+        /// source, which needs the whole program's captures.
+        pub fn operand_children(
+            &self,
+            node: &ExpressionNode,
+            edges: SubtreeEdges,
+            mut child: impl FnMut(ExpressionHandle) -> bool,
+        ) {
             let table = &self.expression_table;
             match node {
-                ExpressionNode::SavedSubject(saved) => {
-                    if edges.saved_sources
-                        && let Some(source) = self.saved_value_source(saved)
-                    {
-                        child(source);
+                // Evaluating a block evaluates its statements, then its value.
+                ExpressionNode::Block(block) => {
+                    for statement in self.statement_table.statements(block.statements) {
+                        for (_, root) in self.expression_roots(statement) {
+                            if child(root) {
+                                return;
+                            }
+                        }
                     }
+                    child(block.tail);
                 }
+                ExpressionNode::SavedSubject(_) => {}
                 ExpressionNode::Match(dispatch) => {
                     if child(dispatch.subject) {
                         return;
@@ -6172,6 +6236,82 @@ pub mod subtrees {
                 | ExpressionNode::TypeExpression(_)
                 | crate::source_state::literal_expression_pattern!() => {}
             }
+        }
+
+        /// Append the block values `expression` evaluates without entering
+        /// another block: each found block is reported once and not entered.
+        pub fn direct_blocks(
+            &self,
+            expression: ExpressionHandle,
+            blocks: &mut Vec<ExpressionHandle>,
+        ) {
+            let edges = SubtreeEdges {
+                saved_sources: false,
+                atomic_results: true,
+                pattern_dependencies: true,
+            };
+            let mut pending = vec![expression];
+            while let Some(expression) = pending.pop() {
+                if !expression.is_valid() {
+                    continue;
+                }
+                match self.expression_table.expression(expression) {
+                    ExpressionNode::Block(_) => {
+                        if !blocks.contains(&expression) {
+                            blocks.push(expression);
+                        }
+                    }
+                    node => self.operand_children(node, edges, |child| {
+                        pending.push(child);
+                        false
+                    }),
+                }
+            }
+        }
+
+        /// `statements` and the statements of every block value beneath them,
+        /// at any depth, each span once: a body's whole local roster.
+        pub fn body_statement_spans(
+            &self,
+            statements: arena::HandleSpan<crate::source_state::statement::StatementNode>,
+        ) -> Vec<arena::HandleSpan<crate::source_state::statement::StatementNode>> {
+            let mut spans = vec![statements];
+            let mut position = 0;
+            while let Some(&span) = spans.get(position) {
+                for statement in self.statement_table.statements(span) {
+                    for block in self.statement_blocks(statement) {
+                        if let ExpressionNode::Block(found) =
+                            self.expression_table.expression(block)
+                        {
+                            spans.push(found.statements);
+                        }
+                    }
+                }
+                position += 1;
+            }
+            spans
+        }
+
+        /// The block values a statement evaluates directly, outermost first:
+        /// blocks in its operands and in those blocks' final values. Statements
+        /// inside a block belong to that block and are not entered.
+        pub fn statement_blocks(
+            &self,
+            statement: &crate::source_state::statement::StatementNode,
+        ) -> Vec<ExpressionHandle> {
+            let mut blocks = Vec::new();
+            for (_, root) in self.expression_roots(statement) {
+                self.direct_blocks(root, &mut blocks);
+            }
+            let mut position = 0;
+            while let Some(&block) = blocks.get(position) {
+                if let ExpressionNode::Block(found) = self.expression_table.expression(block) {
+                    let tail = found.tail;
+                    self.direct_blocks(tail, &mut blocks);
+                }
+                position += 1;
+            }
+            blocks
         }
     }
 }

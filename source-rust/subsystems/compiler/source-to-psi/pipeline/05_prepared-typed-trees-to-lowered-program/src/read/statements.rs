@@ -170,6 +170,13 @@ impl Program<'_> {
                 let stored = slots[slot].homed
                     || slots[slot].borrowed.is_some()
                     || matches!(value_type, ValueType::Record(..));
+                // A new SSA binding made inside a block would not reach the
+                // code after the block's arm joins its siblings.
+                if !stored && self.block_floor.is_some_and(|floor| slot < floor) {
+                    return Err(unserved(
+                        "assignment inside a block value to a scalar local declared outside it",
+                    ));
+                }
                 Ok(if stored {
                     Statement::Store {
                         destination: crate::lowering::Expression {
@@ -282,6 +289,7 @@ impl Program<'_> {
             ExpressionNode::MachineValue(_)
             | ExpressionNode::TypeExpression(_)
             | ExpressionNode::Match(_)
+            | ExpressionNode::Block(_)
             | ExpressionNode::SavedSubject(_)
             | ExpressionNode::ArrayLiteral(_)
             | ExpressionNode::Atomic(_)
@@ -405,7 +413,7 @@ impl Program<'_> {
                     borrowed_regions: slots[original].borrowed_regions,
                 },
                 Statement::CaptureReference {
-                    slot: slots.len(),
+                    slot: self.next_slot(slots),
                     original,
                 },
             ));
@@ -465,7 +473,7 @@ impl Program<'_> {
             return Ok((
                 slot,
                 Statement::Declare {
-                    slot: slots.len(),
+                    slot: self.next_slot(slots),
                     home,
                     source,
                 },
@@ -538,10 +546,140 @@ impl Program<'_> {
         Ok((
             slot,
             Statement::Bind {
-                slot: slots.len(),
+                slot: self.next_slot(slots),
                 value,
             },
         ))
+    }
+
+    /// The slot a new binding takes. Inside a body statement that holds
+    /// block values, slots after the body's are numbered in reading order,
+    /// so a block local and the statement's own binding never share one.
+    pub(super) fn next_slot(&self, slots: &[Slot]) -> usize {
+        if self.block_slots.is_empty() {
+            slots.len()
+        } else {
+            self.block_slot_base + self.block_slots.len()
+        }
+    }
+
+    /// Extend `scope`, the slots of a block being read, with the slots block
+    /// values inside it have bound since: they are not visible, by symbol,
+    /// but they occupy their numbers.
+    fn adopt_block_slots(&self, scope: &mut Vec<Slot>) {
+        let start = scope.len().saturating_sub(self.block_slot_base);
+        scope.extend(
+            self.block_slots
+                .iter()
+                .skip(start)
+                .map(|(slot, _)| slot.clone()),
+        );
+    }
+
+    /// A block value, `0 -> { let port: u32 = 1; port }`: its statements are
+    /// read as a body's are, in a scope that adds each block local after its
+    /// own initializer, and then its final value with the expected type of
+    /// the arm (`wiki/spec/language/patterns.md`: "a comma separates each arm
+    /// from the next, including after a block-valued arm"). The locals end
+    /// with the block: no slot list outside it names them, and the arm's
+    /// edge out of its dispatch ends their storage.
+    pub(super) fn block_value(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        block: &crate::source_state::expression::TableBlockExpression,
+        expected: Option<ValueType>,
+        source: SourceOrigin,
+    ) -> Checked<crate::lowering::Expression> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Statement(what));
+        if slots.len() < self.block_slot_base
+            || slots.len() - self.block_slot_base > self.block_slots.len()
+        {
+            return Err(unserved("a block value outside a body statement"));
+        }
+        let mut scope = slots.to_vec();
+        self.adopt_block_slots(&mut scope);
+        let floor = self.block_floor.replace(scope.len());
+        let read = self.block_statements(id, &mut scope, block, expected, source);
+        self.block_floor = floor;
+        read
+    }
+
+    fn block_statements(
+        &mut self,
+        id: MachineId,
+        scope: &mut Vec<Slot>,
+        block: &crate::source_state::expression::TableBlockExpression,
+        expected: Option<ValueType>,
+        source: SourceOrigin,
+    ) -> Checked<crate::lowering::Expression> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Statement(what));
+        let typed = self.typed;
+        let mut statements = Vec::new();
+        for (handle, statement) in block
+            .statements
+            .handles()
+            .zip(typed.statement_table.statements(block.statements))
+        {
+            let read = match statement {
+                StatementNode::Assignment(assignment) => self.assignment(id, scope, assignment)?,
+                StatementNode::Call(call) => Statement::Evaluate {
+                    expression: self.call_statement_at(id, scope, handle)?,
+                    discards_result: call.discards_result,
+                },
+                StatementNode::Expression(expression) => {
+                    let mut expression = self.expression(id, scope, *expression, None)?;
+                    crate::lowering::operational::boundary(&mut expression);
+                    Statement::Evaluate {
+                        expression,
+                        discards_result: false,
+                    }
+                }
+                StatementNode::LocalData(local)
+                    if local.role == language_core::LocalBindingRole::RecordPattern =>
+                {
+                    match self.record_pattern(id, scope, local)? {
+                        Some(statement) => statement,
+                        None => continue,
+                    }
+                }
+                StatementNode::LocalData(local)
+                    if local.role == language_core::LocalBindingRole::AtomicObservedResult =>
+                {
+                    return Err(unserved("an atomic observed result inside a block value"));
+                }
+                StatementNode::LocalData(local) => {
+                    let (slot, statement) = self.local(id, scope, local).map_err(|refusal| {
+                        self.read_failure_at(refusal, local.symbol, "the local binding")
+                    })?;
+                    self.adopt_block_slots(scope);
+                    scope.push(slot.clone());
+                    self.block_slots
+                        .push((slot, local.name.as_str().to_owned()));
+                    statement
+                }
+                StatementNode::Transition(_)
+                | StatementNode::Assembly(_)
+                | StatementNode::AssemblyFact(_) => {
+                    return Err(unserved(
+                        "a transition or assembly statement inside a block value",
+                    ));
+                }
+            };
+            self.adopt_block_slots(scope);
+            statements.push(read);
+        }
+        let value = if self.typed.expression_table.expression_is_valid(block.tail) {
+            Some(Box::new(self.expression(id, scope, block.tail, expected)?))
+        } else {
+            None
+        };
+        Ok(crate::lowering::Expression {
+            call_context: None,
+            result: value.as_ref().and_then(|value| value.result),
+            kind: ExpressionKind::Block { statements, value },
+            source,
+        })
     }
 
     /// `let x [erased]: T = term;`. The initializer is the term the binding
@@ -593,7 +731,7 @@ impl Program<'_> {
         Ok((
             slot,
             Statement::Witness {
-                slot: slots.len(),
+                slot: self.next_slot(slots),
                 term,
             },
         ))

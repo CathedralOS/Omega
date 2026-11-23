@@ -175,6 +175,12 @@ pub(crate) mod equality {
         let expressions = &program.tables.bodies.expressions;
         match expressions.expression(expression) {
             ExpressionNode::SavedSubject(_) => Ok(()),
+            ExpressionNode::Block(block) => {
+                for statement in resolved_statements(program).statements(block.statement_nodes) {
+                    scan_statement(program, statement)?;
+                }
+                scan_expression(program, block.tail)
+            }
             ExpressionNode::Match(dispatch) => {
                 scan_expression(program, dispatch.subject)?;
                 for arm in expressions.match_arms(dispatch.arms) {
@@ -1006,7 +1012,10 @@ pub(crate) mod exhaustiveness {
         let mut pending = vec![root];
         while let Some(expression) = pending.pop() {
             match expressions.expression(expression) {
-                ExpressionNode::Call(_) | ExpressionNode::Atomic(_) | ExpressionNode::Match(_) => {
+                ExpressionNode::Call(_)
+                | ExpressionNode::Atomic(_)
+                | ExpressionNode::Match(_)
+                | ExpressionNode::Block(_) => {
                     return true;
                 }
                 ExpressionNode::ArrayLiteral(elements) => {

@@ -3396,6 +3396,8 @@ pub(crate) mod identity_context {
                     .iter()
                     .map(|element| normalize_index_expression(program, *element, context)),
             ),
+            // A block value is no index term.
+            ExpressionNode::Block(_) => substitution::rejected(context),
             ExpressionNode::Match(dispatch) => {
                 match_dispatch::normalize_match(program, expression, dispatch, context)
             }
@@ -5225,6 +5227,7 @@ pub(crate) mod package_policy_reading_tests {
             MachineValue => ExpressionNode::MachineValue(_),
             TypeExpression => ExpressionNode::TypeExpression(_),
             Match => ExpressionNode::Match(_),
+            Block => ExpressionNode::Block(_),
             SavedSubject => ExpressionNode::SavedSubject(_),
             ArrayLiteral => ExpressionNode::ArrayLiteral(_),
             Atomic => ExpressionNode::Atomic(_),
@@ -6202,7 +6205,16 @@ pub(crate) mod package_policy_reading_tests {
                 _ => {}
             }
         }
-        assert_eq!(expressions, ExpressionKind::ALL.iter().copied().collect());
+        // A block value is an arm of an executable body and never an index
+        // term: normalization refuses it, so no witness names one.
+        assert_eq!(
+            expressions,
+            ExpressionKind::ALL
+                .iter()
+                .copied()
+                .filter(|kind| *kind != ExpressionKind::Block)
+                .collect()
+        );
         assert_eq!(operators, OperatorKind::ALL.iter().copied().collect());
         assert_eq!(patterns, PatternKind::ALL.iter().copied().collect());
         assert_eq!(actions, ActionKind::ALL.iter().copied().collect());

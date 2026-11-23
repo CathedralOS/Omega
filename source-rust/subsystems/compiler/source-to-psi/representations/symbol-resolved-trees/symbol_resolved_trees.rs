@@ -45,6 +45,12 @@ pub use nodes::{
     type_system, values,
 };
 pub use roots::SymbolResolvedRoots;
+/// The statement spans of block values inside resolved statements.
+pub mod block_values {
+    pub use crate::nodes::state_bodies::{
+        nested_block_statement_spans, statement_block_spans, statement_blocks,
+    };
+}
 pub use selections::{
     AuthoredSelectionExtensionFrontier, AuthoredSelectionExtensionRebaseError,
     AuthoredSelectionOccurrenceStore,

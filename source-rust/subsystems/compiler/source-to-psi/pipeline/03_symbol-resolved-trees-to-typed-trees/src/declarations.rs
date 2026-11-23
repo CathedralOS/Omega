@@ -1398,6 +1398,8 @@ pub(crate) mod machine {
                 source_owner: SymbolHandle::invalid(),
                 type_reference_exposure: None,
                 admits_contract_policy_operators: false,
+                pending_blocks: Vec::new(),
+                block_captures: Vec::new(),
             };
             complete_machine_body(&mut lowerer, &machine, &mut typed_machine).unwrap();
             assert!(std::ptr::eq(
@@ -1997,6 +1999,12 @@ pub(crate) mod state {
             )?);
         }
 
+        // Every block value is typed by the statement that holds it.
+        if !lowerer.pending_blocks.is_empty() {
+            return Err(Diagnostic::error(
+                "a block value was lowered outside the body statement that holds it",
+            ));
+        }
         typed_state.statement_nodes =
             statement_table_mut(&mut lowerer.typed_trees).insert_statements(pending);
         Ok(())

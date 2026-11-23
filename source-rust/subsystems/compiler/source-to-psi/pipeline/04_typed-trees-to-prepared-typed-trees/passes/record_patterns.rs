@@ -20,7 +20,11 @@ pub(crate) fn prepare(program: &mut TypedTrees) {
     let mut resolutions = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
-            for handle in state.statement_nodes.handles() {
+            let handles = program
+                .body_statement_spans(state.statement_nodes)
+                .into_iter()
+                .flat_map(|span| span.handles());
+            for handle in handles {
                 let Some(local) = program.statement_table.statement(handle).as_local_data() else {
                     continue;
                 };

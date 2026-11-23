@@ -41,6 +41,18 @@ pub mod expression {
                             table.display_name(dispatch.subject)
                         )
                     }
+                    Self::Block(block) => {
+                        let tail = if block.tail.is_valid() {
+                            table.display_name(block.tail)
+                        } else {
+                            String::new()
+                        };
+                        if block.statements.is_empty() {
+                            format!("{{ {tail} }}")
+                        } else {
+                            format!("{{ ...; {tail} }}")
+                        }
+                    }
                     Self::SavedSubject(saved) => {
                         format!("<saved subject #{}>", saved.capture.arena_index())
                     }
@@ -1990,6 +2002,29 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
             self.nodes.expressions.get_mut(handle)
         }
 
+        /// Append the block values `expression` evaluates without entering
+        /// another block: each found block is reported once and not entered.
+        pub fn direct_blocks(
+            &self,
+            expression: ExpressionHandle,
+            blocks: &mut Vec<ExpressionHandle>,
+        ) {
+            let mut pending = vec![expression];
+            while let Some(expression) = pending.pop() {
+                if !expression.is_valid() {
+                    continue;
+                }
+                match self.expression(expression) {
+                    ExpressionNode::Block(_) => {
+                        if !blocks.contains(&expression) {
+                            blocks.push(expression);
+                        }
+                    }
+                    node => self.visit_children(node, |child| pending.push(child)),
+                }
+            }
+        }
+
         /// Visit the immediate value operands of a resolved expression in their stored order.
         pub fn visit_children(
             &self,
@@ -2042,6 +2077,9 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
                         visit(arm.value);
                     }
                 }
+                // The statements are visited by whoever walks the body's
+                // statements; the final value is an operand here.
+                ExpressionNode::Block(block) => visit(block.tail),
                 ExpressionNode::SavedSubject(saved) => {
                     visit(self.match_subject(saved.capture).subject);
                     visit(saved.pattern_head);
@@ -2120,6 +2158,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub enum ExpressionNode {
         Match(TableMatchExpression),
+        Block(TableBlockExpression),
         SavedSubject(TableSavedSubject),
         ArrayLiteral(HandleSpan<ExpressionHandle>),
         Atomic(TableAtomicExpression),
@@ -2433,6 +2472,19 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub subject: ExpressionHandle,
         pub capture: Handle<MatchSubjectCapture>,
         pub arms: HandleSpan<TableMatchArm>,
+    }
+
+    /// A block-valued dispatch arm: its statements run in the block's own
+    /// scope, then `tail` supplies the arm's value (Unit without a tail).
+    /// Resolution lowers the statements into the declaration statement
+    /// arena (`statements`) as it does an assembly block's instructions;
+    /// table publication then normalizes them into the body statement
+    /// table (`statement_nodes`) for typing.
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    pub struct TableBlockExpression {
+        pub statements: HandleSpan<crate::source_resolved::statement::Statement>,
+        pub statement_nodes: HandleSpan<crate::source_resolved::statement::StatementNode>,
+        pub tail: ExpressionHandle,
     }
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]

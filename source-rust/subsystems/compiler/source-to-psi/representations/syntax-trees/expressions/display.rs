@@ -31,6 +31,18 @@ impl ExpressionNode {
                     table.display_expression_name(dispatch.subject)
                 )
             }
+            Self::Block(block) => {
+                let tail = if block.tail.is_valid() {
+                    table.display_expression_name(block.tail)
+                } else {
+                    String::new()
+                };
+                if block.statements.is_empty() {
+                    format!("{{ {tail} }}")
+                } else {
+                    format!("{{ ...; {tail} }}")
+                }
+            }
             Self::SavedSubject(saved) => {
                 format!("<saved subject #{}>", saved.capture.arena_index())
             }

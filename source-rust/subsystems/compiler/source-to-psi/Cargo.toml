@@ -108,6 +108,11 @@ path = "pipeline/03_symbol-resolved-trees-to-typed-trees/tests/positional_patter
 required-features = ["test-support"]
 
 [[test]]
+name = "typing_block_values"
+path = "pipeline/03_symbol-resolved-trees-to-typed-trees/tests/block_values.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "preparation_qualified_constant_patterns"
 path = "pipeline/04_typed-trees-to-prepared-typed-trees/tests/qualified_constant_patterns.rs"
 required-features = ["test-support"]
@@ -140,6 +145,11 @@ required-features = ["test-support"]
 [[test]]
 name = "lowering_prepared_array_extents"
 path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/prepared_array_extents.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_block_values"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/block_values.rs"
 required-features = ["test-support"]
 
 [[test]]
@@ -205,6 +215,11 @@ required-features = ["test-support"]
 [[test]]
 name = "checking_dominance"
 path = "pipeline/06_lowered-program-to-checked-program/tests/dominance.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_block_values"
+path = "pipeline/06_lowered-program-to-checked-program/tests/block_values.rs"
 required-features = ["test-support"]
 
 [[test]]

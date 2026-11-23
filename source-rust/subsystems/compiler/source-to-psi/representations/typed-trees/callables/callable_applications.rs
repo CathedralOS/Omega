@@ -3952,6 +3952,8 @@ pub(crate) mod payloads {
                             self.type_reference(program, literal.application_type)?;
                         Some(expression::ExpressionNode::StructLiteral(literal))
                     }
+                    // The block's statements are applied with the body's.
+                    expression::ExpressionNode::Block(_) => None,
                     expression::ExpressionNode::Match(mut dispatch) => {
                         let mut arms = program.expression_table.match_arms(dispatch.arms).to_vec();
                         for arm in &mut arms {

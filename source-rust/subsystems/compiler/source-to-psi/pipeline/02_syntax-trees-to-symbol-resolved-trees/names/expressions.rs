@@ -1042,6 +1042,10 @@ mod traversal {
             }
 
             match self.expression_table.expression(expression).clone() {
+                // A block has its own scope: `statements::blocks` assigns its
+                // statements and final value once the enclosing body has
+                // its symbols.
+                ExpressionNode::Block(_) => {}
                 ExpressionNode::Match(mut dispatch) => {
                     self.assign_expression_table_symbols(dispatch.subject);
                     for offset in 0..dispatch.arms.count() {

@@ -711,6 +711,8 @@ impl ProofExpressionContext<'_> {
     fn assign(&mut self, expression: ExpressionHandle) {
         let expression_node = self.expression_table.expression(expression).clone();
         match expression_node {
+            // Typing refuses a block value in a fact.
+            ExpressionNode::Block(_) => {}
             ExpressionNode::Match(dispatch) => {
                 self.assign(dispatch.subject);
                 for arm in self.expression_table.match_arms(dispatch.arms).to_vec() {

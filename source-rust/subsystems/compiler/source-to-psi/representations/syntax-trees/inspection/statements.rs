@@ -320,7 +320,10 @@ pub(crate) fn snapshot_state_parameters(
         .collect()
 }
 
-fn snapshot_statement(syntax_trees: &SyntaxTrees, statement: &StatementNode) -> StatementSnapshot {
+pub(crate) fn snapshot_statement(
+    syntax_trees: &SyntaxTrees,
+    statement: &StatementNode,
+) -> StatementSnapshot {
     match statement {
         StatementNode::AuthoredAssembly(handle) => {
             let graph = syntax_trees.statements.authored_assembly(*handle);

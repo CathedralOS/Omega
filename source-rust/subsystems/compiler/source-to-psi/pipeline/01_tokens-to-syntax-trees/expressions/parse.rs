@@ -1385,12 +1385,18 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                             ));
                         }
                         return self.match_after_pattern(
+                            syntax_trees,
                             state,
                             MatchPattern::Destructure(pattern),
                             input,
                         );
                     }
-                    return self.match_after_pattern(state, MatchPattern::Value(head), input);
+                    return self.match_after_pattern(
+                        syntax_trees,
+                        state,
+                        MatchPattern::Value(head),
+                        input,
+                    );
                 }
                 state.phase = MatchPhase::PatternFields { head };
                 self.frames.push(Frame::Match(state));
@@ -1398,7 +1404,12 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             }
             MatchPhase::Guard { mut pattern } => {
                 pattern.guard = value;
-                self.match_after_pattern(state, MatchPattern::Destructure(pattern), input)
+                self.match_after_pattern(
+                    syntax_trees,
+                    state,
+                    MatchPattern::Destructure(pattern),
+                    input,
+                )
             }
             MatchPhase::Value { pattern } => {
                 self.match_arm(syntax_trees, state, pattern, value, input)
@@ -1420,7 +1431,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             state.arm_start = input;
             if input.at_contextual("_") {
                 let rest = input.take_contextual("_")?;
-                return self.match_after_pattern(state, MatchPattern::Wildcard, rest);
+                return self.match_after_pattern(syntax_trees, state, MatchPattern::Wildcard, rest);
             }
             if crate::patterns::positional::starts_positional_arm(input) {
                 let (positional, rest) =
@@ -1506,16 +1517,28 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                 rest,
             ));
         }
-        self.match_after_pattern(state, MatchPattern::Destructure(pattern), rest)
+        self.match_after_pattern(
+            syntax_trees,
+            state,
+            MatchPattern::Destructure(pattern),
+            rest,
+        )
     }
 
     fn match_after_pattern(
         &mut self,
+        syntax_trees: &mut SyntaxTrees,
         mut state: Box<MatchFrame<'tokens, 'source>>,
         pattern: MatchPattern,
         rest: Input<'tokens, 'source>,
     ) -> StepResult<'tokens, 'source> {
         let rest = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
+        // A `{` after the arrow opens a block value; no expression starts
+        // with `{`, since a record literal starts with its type's name.
+        if rest.at_punctuation(PunctuationKind::LeftBrace) {
+            let (block, rest) = crate::statements::sequence::parse_block_value(syntax_trees, rest)?;
+            return self.match_arm(syntax_trees, state, pattern, block, rest);
+        }
         state.phase = MatchPhase::Value { pattern };
         self.frames.push(Frame::Match(state));
         Ok(Step::Descend(

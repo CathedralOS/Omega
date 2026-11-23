@@ -705,6 +705,16 @@ fn expression<'body>(value: &'body Expression, terminal: bool, sites: &mut BodyW
                 expression(operand, false, sites);
             }
         }
+        ExpressionKind::Block {
+            statements: inner,
+            value,
+            ..
+        } => {
+            statements(inner, sites);
+            if let Some(value) = value {
+                expression(value, terminal, sites);
+            }
+        }
         ExpressionKind::Match {
             subject,
             arms,

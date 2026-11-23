@@ -339,6 +339,9 @@ impl<'t> Program<'t> {
         };
         let (kind, result) = match node {
             ExpressionNode::MachineValue(value) => return self.machine_value(id, value, source),
+            ExpressionNode::Block(block) => {
+                return self.block_value(id, slots, block, expected, source);
+            }
             // At a parameter width no literal is a value of the carrier
             // until the checker proves it lands: the literal is formed in
             // the closed carrier of its sign and converted exactly, which
@@ -1246,7 +1249,7 @@ impl<'t> Program<'t> {
         }) {
             return Err(self.mistyped(
                 id,
-                value.source,
+                delivered_at(&value),
                 super::rejections::Destination::MatchArm,
                 *result,
                 value.result,
@@ -1412,6 +1415,16 @@ impl<'t> Program<'t> {
             result: Some(result),
             source,
         })
+    }
+}
+
+/// Where an arm delivers its value: a block's final value, at any depth.
+fn delivered_at(value: &Expression) -> SourceOrigin {
+    match &value.kind {
+        ExpressionKind::Block {
+            value: Some(inner), ..
+        } => delivered_at(inner),
+        _ => value.source,
     }
 }
 
@@ -1856,6 +1869,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
     let both = |a: &Expression, b: &Expression| same_computation(a, b);
     left.result == right.result
         && match (&left.kind, &right.kind) {
+            (ExpressionKind::Block { .. }, _) => false,
             (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
             (ExpressionKind::Float(a), ExpressionKind::Float(b)) => a == b,
             (

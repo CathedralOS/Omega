@@ -52,6 +52,7 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::Case { .. }
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::Match { .. }
+            | ExpressionKind::Block { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)

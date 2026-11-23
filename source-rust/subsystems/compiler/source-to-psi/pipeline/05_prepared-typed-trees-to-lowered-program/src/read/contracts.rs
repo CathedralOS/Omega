@@ -2414,6 +2414,7 @@ impl Program<'_> {
             }
             ExpressionNode::TypeExpression(_)
             | ExpressionNode::Match(_)
+            | ExpressionNode::Block(_)
             | ExpressionNode::SavedSubject(_)
             | ExpressionNode::ArrayLiteral(_)
             | ExpressionNode::Atomic(_)

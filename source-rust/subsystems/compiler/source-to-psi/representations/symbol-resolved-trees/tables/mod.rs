@@ -136,6 +136,34 @@ impl SymbolResolvedTreeTables {
             assembly_blocks.get_mut(handle).statement_nodes = nodes;
         }
 
+        // A block value's statements publish beside the body's, at the same
+        // ordinals as their declarations, as an assembly block's do. A block
+        // published by an earlier append already holds its nodes.
+        let blocks: Vec<_> = tables
+            .bodies
+            .expressions
+            .iter_expressions()
+            .filter_map(|(handle, node)| match node {
+                crate::source_resolved::expression::ExpressionNode::Block(block)
+                    if block.statement_nodes.is_empty() && !block.statements.is_empty() =>
+                {
+                    Some((handle, block.statements))
+                }
+                _ => None,
+            })
+            .collect();
+        for (handle, statements) in blocks {
+            let nodes = tables.normalize_statements(
+                &transplant,
+                transplant.state_statements.span_or_empty(statements),
+            );
+            if let crate::source_resolved::expression::ExpressionNode::Block(block) =
+                tables.bodies.expressions.expression_mut(handle)
+            {
+                block.statement_nodes = nodes;
+            }
+        }
+
         for data_definition in roots
             .data_definitions
             .iter()

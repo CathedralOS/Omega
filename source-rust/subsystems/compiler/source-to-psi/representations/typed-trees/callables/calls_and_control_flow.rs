@@ -1695,6 +1695,28 @@ pub mod control_flow {
                             handles[position],
                         );
                     }
+                    // A copied block value still names the source's
+                    // statements; give it a copy of its own.
+                    for handle in handles {
+                        let statement = self.statement_table.statement(handle).clone();
+                        for block in self.statement_blocks(&statement) {
+                            let crate::source_state::expression::ExpressionNode::Block(found) =
+                                *self.expression_table.expression(block)
+                            else {
+                                continue;
+                            };
+                            let statements = self.copy_statement_nodes_with_type_expressions(
+                                source_tables,
+                                found.statements,
+                                expressions,
+                            );
+                            if let crate::source_state::expression::ExpressionNode::Block(current) =
+                                self.expression_table.expression_mut(block)
+                            {
+                                current.statements = statements;
+                            }
+                        }
+                    }
                     copied
                 }
                 pub fn remap_statement_symbols<'scope>(
@@ -1885,6 +1907,14 @@ pub mod control_flow {
                                 if let TransitionGuardNode::When(guard) = transition.guard {
                                     self.expression_table.remap_symbols_in(guard, symbols);
                                 }
+                            }
+                        }
+                        let statement = self.statement_table.statement(handle).clone();
+                        for block in self.statement_blocks(&statement) {
+                            if let crate::source_state::expression::ExpressionNode::Block(found) =
+                                *self.expression_table.expression(block)
+                            {
+                                self.remap_statement_symbols(found.statements, symbols);
                             }
                         }
                     }

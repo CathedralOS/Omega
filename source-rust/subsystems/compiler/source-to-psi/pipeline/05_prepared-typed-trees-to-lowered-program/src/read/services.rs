@@ -1141,6 +1141,16 @@ fn collect_target<'a>(target: &'a Target, calls: &mut CallCollector<'a>) {
 }
 fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<'a>) {
     match &expression.kind {
+        E::Block {
+            statements, value, ..
+        } => {
+            for statement in statements {
+                collect_statement(statement, calls);
+            }
+            if let Some(value) = value {
+                collect_expression(value, calls);
+            }
+        }
         E::Call {
             callee,
             required_contract,
