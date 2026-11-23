@@ -3,13 +3,17 @@
 This package is the target-neutral Psi half of the Omega-written product
 compiler. The Omega application consumes it as the `psi` package.
 
-Directory names are part of the public Omega API. Source files in
-`representations/` own the tables passed between stages, including
+Files in `representations/` own the tables passed between stages, including
 [`ScalarProgram`](representations/lowered_program/scalar.omg) and its
 [layouts](representations/lowered_program/layouts.omg). Each directory in
-`pipeline/` owns the transformation between the representations named in its
-path. For example, a consumer imports `psi::representations::tokens::Token`
-and `psi::pipeline::source_files_to_tokens::tokenize` from their respective owners.
+`pipeline/` implements the transformation named in its path. A consumer
+imports the file that declares the type or operation it needs. For example,
+these imports make `|tokens|::Token` and `|lexer|::tokenize` available.
+
+```omega
+use {psi}/representations/tokens/tokens.omg;
+use {psi}/pipeline/source_files_to_tokens/lexer.omg;
+```
 
 The description below covers today's implementation, including data-owned
 machine declarations, retired target prefixes and `via` binding clauses: syntax
@@ -799,10 +803,12 @@ strings. Both maintained lexers reject all retired XID, `\u{...}`, raw-string,
 Unicode-whitespace, and raw quoted-newline spellings through the same profile
 diagnostic; no compiler source may depend on them.
 
-The parser entrance is [`pipeline/tokens_to_syntax_trees/parser.omg`](pipeline/tokens_to_syntax_trees/parser.omg): it owns `Parser`,
-initialization, and whole-file root dispatch. [`pipeline/tokens_to_syntax_trees/input.omg`](pipeline/tokens_to_syntax_trees/input.omg)
-owns bounded token selection and trivia traversal;
-[`pipeline/tokens_to_syntax_trees/data.omg`](pipeline/tokens_to_syntax_trees/data.omg) owns data-declaration grammar.
+The [parser](pipeline/tokens_to_syntax_trees/parser.omg) owns `Parser`, initializes it,
+and dispatches top-level declarations. Its [input operations](pipeline/tokens_to_syntax_trees/input.omg)
+read the token stream. The [data parser](pipeline/tokens_to_syntax_trees/data.omg)
+parses data declarations. The [expression parser](pipeline/tokens_to_syntax_trees/expression.omg)
+uses [expression frames](pipeline/tokens_to_syntax_trees/expression_frames.omg) to remember
+where to resume a group, call, index, construction, or match.
 
 ## Retention inventory
 
