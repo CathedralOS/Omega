@@ -2345,7 +2345,7 @@ impl<'a> Storage<'a> {
         &self,
         element: StructuralTypeId,
         concerns: Construct,
-        known: &mut BTreeMap<StructuralTypeId, bool>,
+        known: &mut Vec<Option<bool>>,
     ) -> Checked<bool> {
         let declaration = self.declaration(element, concerns)?;
         if !declaration.is_copyable()
@@ -2358,12 +2358,16 @@ impl<'a> Storage<'a> {
         if matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_)) {
             return Ok(true);
         }
-        if let Some(&inline) = known.get(&element) {
+        let slot = index(element.get());
+        if slot >= known.len() {
+            known.resize(slot + 1, None);
+        }
+        if let Some(inline) = known[slot] {
             return Ok(inline);
         }
         // An inline cycle cannot supply a finite element. Shared subtypes
         // reuse the completed answer when another field names them.
-        known.insert(element, false);
+        known[slot] = Some(false);
         let inline = match &declaration.shape {
             StructuralTypeShape::Record {
                 storage: terminal_psi::StructuralRecordStorage::Packed,
@@ -2387,7 +2391,7 @@ impl<'a> Storage<'a> {
             } => self.inline_array_element(*nested, concerns, known)?,
             _ => false,
         };
-        known.insert(element, inline);
+        known[slot] = Some(inline);
         Ok(inline)
     }
 
@@ -2428,7 +2432,7 @@ impl<'a> Storage<'a> {
                 // A whole supply covers every inline field and tag. Reading
                 // a selected payload still requires the case at that use.
                 if *length > 1
-                    && self.inline_array_element(*element, concerns, &mut BTreeMap::new())?
+                    && self.inline_array_element(*element, concerns, &mut Vec::new())?
                     && established_array(at)
                 {
                     return Ok(());
