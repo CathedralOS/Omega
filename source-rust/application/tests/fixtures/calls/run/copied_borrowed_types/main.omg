@@ -3,14 +3,17 @@ data Counter { value: u64; }
 data Loan<'lender> [linear] { counter: @'lender mutable Counter; }
 
 machine forward<T>(value: T) -> T { move value }
-machine finish(value: Loan) {
+machine relay<'lender>(loan: Loan<'lender>) -> Loan<'lender> {
+    forward::<Loan<'lender>>(move loan)
+}
+machine finish<'lender>(value: Loan<'lender>) {
     let { counter } = move value;
     counter.value = 41;
 }
 machine main() crashes Trap {
     let mutable target: Counter = Counter { value: 17 };
     let mutable neighbor: Counter = Counter { value: 23 };
-    let loan = forward::<Loan>(Loan { counter: @mutable target });
+    let loan = relay(Loan { counter: @mutable target });
     neighbor.value = 29;
     finish(move loan);
     transition target.value == 41 && neighbor.value == 29 {

@@ -585,6 +585,9 @@ pub fn named_type(
                     "a static type operand changes its declared type binder",
                 ));
             }
+            TypeReferenceNode::Named { symbol, .. } => {
+                require_written_lifetime_arity(program, argument, *symbol)?;
+            }
             _ => {}
         }
         program
@@ -607,6 +610,7 @@ pub fn named_type(
             "a static type operand has no exact declaration name",
         ));
     }
+    require_written_lifetime_arity(program, argument, symbol)?;
     let plain = match program.symbols.get(symbol).kind {
         SymbolKind::BuiltinType | SymbolKind::TypeParameter => true,
         SymbolKind::Data => program
@@ -631,6 +635,47 @@ pub fn named_type(
         .require_declared_application_operands(&[reference], supplying_owner)
         .map_err(unserved)?;
     Ok(reference)
+}
+
+/// Refuses a written type argument that names borrow-carrying data without its
+/// lifetime arguments, such as `forward::<Loan>` for `data Loan<'lender>`.
+/// lifetimes.md, "Binders and source applications": named data applications
+/// "must match the declaration's lifetime arity and use binders declared in
+/// the lexical owner". No rule supplies a fresh lifetime for a data type
+/// argument (the per-invocation lifetimes in generics.md belong to static
+/// callable requirements), so the bare name is an error in the program, not
+/// a form the compiler has yet to serve.
+fn require_written_lifetime_arity(
+    program: &TypedTrees,
+    argument: &StaticMachineArgument,
+    symbol: SymbolHandle,
+) -> Served<()> {
+    let Some(written) = argument.path.last() else {
+        return Ok(());
+    };
+    let Some(definition) = program.unique_data_definition_by_symbol(symbol) else {
+        return Ok(());
+    };
+    let count = definition.lifetime_parameters.len();
+    if count == 0 {
+        return Ok(());
+    }
+    let binders = definition
+        .lifetime_parameters
+        .iter()
+        .map(|lifetime| format!("'{}", lifetime.as_str()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let (arguments, binder) = if count == 1 {
+        ("argument", "binder")
+    } else {
+        ("arguments", "binders")
+    };
+    Err(Stop::Rejected(format!(
+        "type argument `{written}` supplies no lifetime arguments, but `{written}` takes \
+         {count} lifetime {arguments}; write `{written}<{binders}>` with a lifetime {binder} \
+         declared by the enclosing machine"
+    )))
 }
 
 /// Records, on the application, which parameter each argument is for.
