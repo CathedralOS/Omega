@@ -61,7 +61,7 @@ pub(super) fn load_source_frontiers(
             _ => frontier,
         };
         for (path, scope) in &frontier {
-            imports.enqueue(source_storage.logical_siblings(path, *scope)?)?;
+            imports.enqueue(source_storage.operator_family_sources(path, *scope)?)?;
         }
         let loaded = crate::source::source_loading::load_source_files(
             frontier,
