@@ -5,14 +5,13 @@
 // captured-input or live-source reads and sponsored append-and-seal `Output` writes,
 // charges every operation attempt and byte reservation against the caller's
 // `EvaluationInvocationAccount`, and records `BuildFilesystemOperationAttempt`,
-// `BuildOutputObligation`, `BuildOutputReceipt`, and `BuildIncludedSourceHandoff`
+// `BuildOutputObligation` and `BuildOutputReceipt`
 // observations into `BuildFilesystemEffects`.
 
 use super::{BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildMachineFilesystemScope};
 use crate::build_execution::message;
 use crate::build_execution::observations::{
     BuildFilesystemAuthorizedPath, BuildFilesystemOperationAttempt, BuildFilesystemRoot,
-    BuildIncludedSourceHandoff,
 };
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
 use filesystem_authority::{
@@ -28,7 +27,6 @@ use std::io::{Read, Write};
 pub struct BuildFilesystemEffects {
     pub(crate) scope: BuildMachineFilesystemScope, // Admitted scope that issued this runtime.
     pub(crate) attempts: Vec<BuildFilesystemOperationAttempt>, // Ordered filesystem operation attempts.
-    pub(crate) included: Vec<BuildIncludedSourceHandoff>,      // Ordered `include_source` handoffs.
     pub(crate) obligations: Vec<BuildOutputObligation>, // Issued required-output obligations.
     pub(crate) receipts: Vec<BuildOutputReceipt>,       // Completed required-output receipts.
     pub(crate) storage: Vec<EvaluationStorageLease>, // Metered memory leases held for the activation.
@@ -85,7 +83,6 @@ impl BuildMachineFilesystemScope {
             effects: BuildFilesystemEffects {
                 scope: self.clone(),
                 attempts: Vec::new(),
-                included: Vec::new(),
                 obligations: Vec::new(),
                 receipts: Vec::new(),
                 storage: Vec::new(),
@@ -702,27 +699,6 @@ impl BuildFilesystemRuntime {
         Err(self.refused.clone().unwrap_or_default())
     }
 
-    pub fn include_source(&mut self, path: &[u8]) -> Result<(), String> {
-        if !self.sealed.iter().any(|(sealed, _)| sealed == path) {
-            return Err("staging entry is not sealed: generated source still has a live writer or was never created".into());
-        }
-        let storage = message(self.account.reserve_site(0, 1, path.len() as u64))?;
-        self.effects
-            .included
-            .try_reserve(1)
-            .map_err(|_| "cannot retain generated-source handoff")?;
-        self.effects
-            .storage
-            .try_reserve(1)
-            .map_err(|_| "cannot retain generated-source reservation")?;
-        self.effects.included.push(BuildIncludedSourceHandoff {
-            relative_path: copy_bytes(path)?,
-            filesystem_attempt_ordinal: self.effects.attempts.len() as u64,
-        });
-        self.effects.storage.push(storage);
-        Ok(())
-    }
-
     pub fn finish(self) -> Result<BuildFilesystemEffects, String> {
         if let Some(reason) = self.refused {
             return Err(reason);
@@ -744,15 +720,9 @@ impl BuildFilesystemRuntime {
         }
         for path in self
             .effects
-            .included
+            .obligations
             .iter()
             .map(|row| row.relative_path.as_slice())
-            .chain(
-                self.effects
-                    .obligations
-                    .iter()
-                    .map(|row| row.relative_path.as_slice()),
-            )
             .chain(
                 self.effects
                     .receipts
@@ -865,7 +835,8 @@ mod tests {
         )
         .unwrap();
         let scope = scope(temporary.path(), "staging");
-        let mut runtime = scope.begin_filesystem_runtime(account()).unwrap();
+        let invocation = account();
+        let mut runtime = scope.begin_filesystem_runtime(invocation.clone()).unwrap();
         let reader = runtime
             .open(BUILD_SOURCE_ROOT_IDENTITY, b"asset", 0)
             .unwrap();
@@ -893,16 +864,53 @@ mod tests {
                 .complete_output(obligation, b"generated.omg")
                 .is_err()
         );
-        runtime.include_source(b"generated.omg").unwrap();
+        let mut publications = crate::BuildSourcePublications::default();
+        publications
+            .publish(&invocation, b"generated.omg", b"published source")
+            .unwrap();
         let effects = runtime.finish().unwrap();
         let mut observations = crate::CapturedBuildObservations::new(&scope);
         observations.retain_filesystem_effects(effects).unwrap();
+        observations
+            .retain_source_publications(publications, &invocation)
+            .unwrap();
         let summary = observations.settle(true, "build").unwrap();
         assert_eq!(summary.required_output_settlements().len(), 1);
-        assert_eq!(
-            summary.select_generated_sources("build").unwrap()[0].bytes(),
-            b"hello"
-        );
+        assert_eq!(summary.generated_sources()[0].bytes(), b"published source");
+        let path = b"generated.omg".to_vec();
+        let tree = summary.staged_output_tree().unwrap();
+        assert!(matches!(
+            tree.sealed_entry(&path).unwrap().kind(),
+            build_output::BuildStagedOutputEntryKind::File {
+                bytes: b"hello",
+                ..
+            }
+        ));
+
+        // An older review named its closed output, so it must still recover the exported bytes.
+        let mut legacy = summary.clone();
+        legacy.generated_sources =
+            build_output::recover_included_output_sources(tree, &[path]).unwrap();
+        legacy.staged_source_ordinals =
+            Some(vec![legacy.filesystem_operation_attempts().len() as u64]);
+        let mut wire = Vec::new();
+        crate::build_record_codec::encode_observation_summary(&legacy, &mut wire);
+        let recover = |bytes: &[u8]| {
+            crate::build_record_codec::recover_observation_summary(
+                &mut filesystem_authority::observation_codec::ObservationCursor::new(bytes),
+            )
+        };
+        let reopened = recover(&wire).unwrap();
+        assert_eq!(reopened.generated_sources()[0].bytes(), b"hello");
+        assert_eq!(reopened.identity(), legacy.identity());
+        let mut roundtrip = Vec::new();
+        crate::build_record_codec::encode_observation_summary(&reopened, &mut roundtrip);
+        assert_eq!(roundtrip, wire);
+
+        legacy.staged_source_ordinals = Some(vec![0]);
+        wire.clear();
+        crate::build_record_codec::encode_observation_summary(&legacy, &mut wire);
+        assert!(recover(&wire).is_none());
     }
 
     #[test]

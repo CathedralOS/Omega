@@ -22,10 +22,10 @@ use semantic_vocabulary::WorkScheduleIdentity;
 const EVALUATION_USAGE_MAGIC: &[u8; 4] = b"BEU\x02";
 
 use super::observations::{
-    BuildActivation, BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory,
-    BuildFilesystemAuthorizedPath, BuildFilesystemOperationAttempt, BuildFilesystemRoot,
-    BuildIncludedSourceHandoff, BuildNamedInputInventory, BuildObservationSummary,
-    BuildRequiredOutputSettlement,
+    BUILD_OBSERVATION_SCHEMA_VERSION, BuildActivation, BuildCanonicalSourceMetadataIdentity,
+    BuildCapturedSourceInventory, BuildFilesystemAuthorizedPath, BuildFilesystemOperationAttempt,
+    BuildFilesystemRoot, BuildNamedInputInventory, BuildObservationSummary,
+    BuildRequiredOutputSettlement, STAGED_SOURCE_SCHEMA_VERSION,
 };
 use super::restricted_requests::{
     RestrictedBuildBounds, RestrictedBuildGrant, RestrictedBuildGrantRoot,
@@ -373,11 +373,15 @@ pub fn encode_observation_summary(summary: &BuildObservationSummary, out: &mut V
         crate::codec_bytes::push_encoded(out, inventory.root_identity().to_le_bytes());
         inventory.inventory().encode(out);
     }
-    let handoffs = summary.included_source_handoffs();
-    crate::codec_bytes::push_encoded(out, (handoffs.len() as u64).to_le_bytes());
-    for handoff in handoffs {
-        push_framed(out, handoff.relative_path());
-        crate::codec_bytes::push_encoded(out, handoff.filesystem_attempt_ordinal().to_le_bytes());
+    let sources = summary.generated_sources();
+    crate::codec_bytes::push_encoded(out, (sources.len() as u64).to_le_bytes());
+    for (index, source) in sources.iter().enumerate() {
+        push_framed(out, source.relative_path());
+        if let Some(ordinals) = &summary.staged_source_ordinals {
+            crate::codec_bytes::push_encoded(out, ordinals[index].to_le_bytes());
+        } else {
+            push_framed(out, source.bytes());
+        }
     }
     let settlements = summary.required_output_settlements();
     crate::codec_bytes::push_encoded(out, (settlements.len() as u64).to_le_bytes());
@@ -396,7 +400,11 @@ pub fn encode_observation_summary(summary: &BuildObservationSummary, out: &mut V
 }
 
 pub fn recover_observation_summary(cursor: &mut Cursor) -> Option<BuildObservationSummary> {
-    let schema_version = cursor.u32()?;
+    let mut staged_source_ordinals = match cursor.u32()? {
+        STAGED_SOURCE_SCHEMA_VERSION => Some(Vec::new()),
+        BUILD_OBSERVATION_SCHEMA_VERSION => None,
+        _ => return None,
+    };
     let filesystem_host_observed = match cursor.u8()? {
         0 => false,
         1 => true,
@@ -446,18 +454,37 @@ pub fn recover_observation_summary(cursor: &mut Cursor) -> Option<BuildObservati
             inventory,
         });
     }
-    let handoff_count = cursor_count(cursor)?;
-    let mut included_source_handoffs = Vec::with_capacity(handoff_count);
-    for _ in 0..handoff_count {
-        let relative_path = cursor.framed()?.to_vec();
-        if !canonical_filesystem_metadata_path_is_canonical(&relative_path, false) {
-            return None;
+    let source_count = cursor_count(cursor)?;
+    let mut generated_sources: Vec<build_output::PackageGeneratedSource> = Vec::new();
+    let mut staged_paths = Vec::new();
+    for _ in 0..source_count {
+        let path = cursor.framed()?;
+        if let Some(ordinals) = &mut staged_source_ordinals {
+            if !canonical_filesystem_metadata_path_is_canonical(path, false) {
+                return None;
+            }
+            let ordinal = cursor.u64()?;
+            if ordinals.last().is_some_and(|previous| *previous > ordinal)
+                || ordinal > attempt_count as u64
+            {
+                return None;
+            }
+            ordinals.push(ordinal);
+            staged_paths.push(path.to_vec());
+        } else {
+            let bytes = cursor.framed()?;
+            build_output::PackageGeneratedSource::validate_publication(path, bytes).ok()?;
+            if generated_sources
+                .last()
+                .is_some_and(|previous| previous.relative_path() >= path)
+            {
+                return None;
+            }
+            generated_sources.push(build_output::PackageGeneratedSource::from_retained_parts(
+                path.to_vec(),
+                bytes.into(),
+            ));
         }
-        let filesystem_attempt_ordinal = cursor.u64()?;
-        included_source_handoffs.push(BuildIncludedSourceHandoff {
-            relative_path,
-            filesystem_attempt_ordinal,
-        });
     }
     let settlement_count = cursor_count(cursor)?;
     let mut required_output_settlements = Vec::with_capacity(settlement_count);
@@ -478,8 +505,45 @@ pub fn recover_observation_summary(cursor: &mut Cursor) -> Option<BuildObservati
         _ => return None,
     };
     let build_log = cursor.framed()?.to_vec();
+    if !cursor.exhausted() {
+        return None;
+    }
+    if let Some(ordinals) = &staged_source_ordinals {
+        let mut observed = 0;
+        let mut closed = std::collections::BTreeSet::new();
+        let mut selected = std::collections::BTreeSet::new();
+        for (path, ordinal) in staged_paths.iter().zip(ordinals) {
+            let ordinal = usize::try_from(*ordinal).ok()?;
+            for attempt in &filesystem_operation_attempts[observed..ordinal] {
+                if attempt.operation_tag()
+                    == filesystem_authority::FilesystemHostOperation::Close.operation_tag()
+                    && attempt.result()
+                        == filesystem_authority::FilesystemOperationResult::Scalar(0)
+                    && !attempt.retired_logical_handles().is_empty()
+                {
+                    for access in attempt
+                        .authorized_paths()
+                        .iter()
+                        .filter(|access| access.root() == BuildFilesystemRoot::Output)
+                    {
+                        closed.insert(access.relative_path());
+                    }
+                }
+            }
+            observed = ordinal;
+            if !closed.contains(path.as_slice()) || !selected.insert(path) {
+                return None;
+            }
+        }
+        generated_sources = match &staged_output_tree {
+            Some(tree) => {
+                build_output::recover_included_output_sources(tree, &staged_paths).ok()?
+            }
+            None if staged_paths.is_empty() => Vec::new(),
+            None => return None,
+        };
+    }
     Some(BuildObservationSummary {
-        schema_version,
         filesystem_host_observed,
         filesystem_operation_schema_version,
         filesystem_operation_attempts,
@@ -491,7 +555,8 @@ pub fn recover_observation_summary(cursor: &mut Cursor) -> Option<BuildObservati
         },
         captured_source_inventory,
         named_input_inventories,
-        included_source_handoffs,
+        generated_sources,
+        staged_source_ordinals,
         required_output_settlements,
         staged_output_tree,
         build_log,

@@ -1,7 +1,7 @@
 // Durable build observation records (`BuildObservationSummary`,
 // `BuildActivation`, `BuildFilesystemOperationAttempt`,
 // `BuildCapturedSourceInventory`, `BuildNamedInputInventory`,
-// `BuildRequiredOutputSettlement`, `BuildIncludedSourceHandoff`) produced when
+// `BuildRequiredOutputSettlement`) produced when
 // a build evaluation settles its filesystem and output obligations.
 
 use build_output::BuildStagedOutputTree;
@@ -22,7 +22,8 @@ pub use filesystem_authority::{
     FilesystemOperationResult as BuildFilesystemOperationResult,
 };
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 82;
+pub(crate) const STAGED_SOURCE_SCHEMA_VERSION: u32 = 82;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 83;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct BuildActivation {
@@ -150,7 +151,6 @@ impl BuildNamedInputInventory {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BuildObservationSummary {
-    pub(crate) schema_version: u32,
     pub(crate) filesystem_host_observed: bool,
     pub(crate) filesystem_operation_schema_version: u32,
     pub(crate) filesystem_operation_attempts: Vec<BuildFilesystemOperationAttempt>,
@@ -158,7 +158,9 @@ pub struct BuildObservationSummary {
     pub(crate) activation: BuildActivation,
     pub(crate) captured_source_inventory: Option<BuildCapturedSourceInventory>,
     pub(crate) named_input_inventories: Vec<BuildNamedInputInventory>,
-    pub(crate) included_source_handoffs: Vec<BuildIncludedSourceHandoff>,
+    pub(super) generated_sources: Vec<build_output::PackageGeneratedSource>,
+    // Older reviews referenced a closed output at each ordinal. Keep their original encoding and identity.
+    pub(super) staged_source_ordinals: Option<Vec<u64>>,
     pub(crate) required_output_settlements: Vec<BuildRequiredOutputSettlement>, // Completed `BuildOutput::require` obligations in issue order.
     pub(crate) staged_output_tree: Option<BuildStagedOutputTree>,
     pub(crate) build_log: Vec<u8>,
@@ -180,25 +182,12 @@ impl BuildRequiredOutputSettlement {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildIncludedSourceHandoff {
-    pub(crate) relative_path: Vec<u8>,
-    pub(crate) filesystem_attempt_ordinal: u64,
-}
-
-impl BuildIncludedSourceHandoff {
-    pub fn relative_path(&self) -> &[u8] {
-        &self.relative_path
-    }
-
-    pub const fn filesystem_attempt_ordinal(&self) -> u64 {
-        self.filesystem_attempt_ordinal
-    }
-}
-
 impl BuildObservationSummary {
     pub const fn schema_version(&self) -> u32 {
-        self.schema_version
+        match self.staged_source_ordinals {
+            Some(_) => STAGED_SOURCE_SCHEMA_VERSION,
+            None => BUILD_OBSERVATION_SCHEMA_VERSION,
+        }
     }
 
     pub const fn filesystem_host_observed(&self) -> bool {
@@ -235,8 +224,8 @@ impl BuildObservationSummary {
         &self.build_log
     }
 
-    pub fn included_source_handoffs(&self) -> &[BuildIncludedSourceHandoff] {
-        &self.included_source_handoffs
+    pub fn generated_sources(&self) -> &[build_output::PackageGeneratedSource] {
+        &self.generated_sources
     }
 
     pub fn required_output_settlements(&self) -> &[BuildRequiredOutputSettlement] {

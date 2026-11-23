@@ -55,12 +55,20 @@ accounting alongside the tree commitment.
 
 Materialization consumes retained complete content into an existing empty
 destination and re-inspects exact paths, kinds, modes, targets, and bytes.
-Generated source is only the explicitly selected handoff subset, never whatever
-happens to have a source filename. Each handoff binds its completed attempt
-ordinal; ordinals are nondecreasing, a path occurs once, and the corresponding
-file is closed first. Equal ordinals are legal and handoff order need not match
-output creation order. Source extension, reserved-name, regular/non-executable
-file, and final frontend checks still apply.
+A Build publishes generated source by passing its logical filename and exact
+UTF-8 bytes to [`Build::include_source`](execution.md#generated-source-boundary).
+The activation accounts for both the name and the contents. Each logical name
+can be published once. Retain the publication with its generating context so
+the compiler consumes those bytes even if an exported file has the same name
+and different contents. Exporting a file with an `.omg` suffix is independent
+of publishing source.
+
+Older stored observations name a closed output file and the completed
+filesystem attempt at which the Build selected it. Recover those bytes from the
+retained tree under the rules of that format. Paths must be unique, their
+ordinals nondecreasing, and each file closed before selection. Equal ordinals
+are legal. The original source-extension, reserved-name and non-executable
+regular-file checks apply to those observations.
 
 Scoped grants and deterministic resource accounts alone do not exclude hostile
 same-user processes racing disk-backed storage. Enforce the input/output isolation
