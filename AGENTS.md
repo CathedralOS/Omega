@@ -324,13 +324,21 @@ mbx clippy -p <crate> --all-targets -- -D warnings
 mbx xtask check-boundary
 ```
 
-The required `admission` job compiles and tests no Rust code. It runs
-`python3 -B tools/ci/check_recycling.py` on the checkout. Park retired implementations and code awaiting piecemeal migration in
+<a id="heavy-checks-run-on-the-lan-vms"></a>
+**Heavy checks run on the LAN VMs, never on a GitHub runner.** Run
+full-workspace tests and Clippy on a LAN VM under
+`~/omega-agent/bin/vm-heavy` (`omega-linux` for the Linux gate). The required
+`admission` job stays light: it compiles and tests no Rust code, checks that
+the shared specification exists and runs
+`python3 -B tools/ci/check_recycling.py` on the checkout.
+
+Park retired implementations and code awaiting piecemeal migration in
 the [repository-root archive](_recycling/README.md). Mirror the former owner's
 repository-relative path beneath `_recycling/`. Restore each piece in its active
 owner and wire callers there. Active Rust source and Cargo manifests must keep
-implementation paths outside the archive. Root workspace builds and automatic
-warm builds are paused.
+implementation paths outside the archive. The cloud sessions' warm build is
+published by hand from `omega-linux`
+([warm build](wiki/development/testing.md#warm-build-for-cloud-sessions)).
 
 When changing a shared Rust API or helper, search the whole repository for its
 consumers, including tests, examples and forwarding helpers. Run the affected

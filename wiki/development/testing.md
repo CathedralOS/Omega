@@ -1,13 +1,13 @@
 # Local testing
 
 Run focused checks that show the changed behavior works, then land through
-[admission and a squash merge](landing.md). Admission compiles and tests no
-Rust code; automatic root compiler checks are paused.
+[admission and a squash merge](landing.md). Admission stays light and
+compiles and tests no Rust code; heavy checks run on the LAN VMs, never on a
+GitHub runner ([AGENTS.md](../../AGENTS.md#heavy-checks-run-on-the-lan-vms)).
 
 [AGENTS.md](../../AGENTS.md) holds the common workflow; this guide covers test
-choice, run records and platforms. The
-[CI rebuild plan](../drafts/designs/ci_rebuild_plan.md) records planned CI
-work; [.github/workflows/](../../.github/workflows/) is what actually runs.
+choice, run records and platforms.
+[.github/workflows/](../../.github/workflows/) is what actually runs.
 The older qualification procedures below do not bring back retired checks.
 
 `xtask` commands that need a repository use the nearest Omega workspace that
@@ -27,7 +27,7 @@ Prove the thing you built with tests on the changed code, then a very small
 area around it. If that is fine, land. If it is not, investigate that failure.
 There is no fixture corpus to run and no ledger: everything that ran or
 recorded the corpus under `tests/omega/` (`corpus_runner`, `cargo xtask corpus`,
-`cargo xtask corpus-gate`, the post-merge row measurement and the published
+`cargo xtask corpus-gate`, the corpus row measurement and the published
 ledger) was removed on the owner's ruling of 2026-11-13, and the fixtures
 themselves were deleted with it.
 [tests/README.md](../../_recycling/tests/README.md) says how to read a deleted fixture from
@@ -270,10 +270,10 @@ when the author edits source, resolves a conflict or finds a changed semantic
 assumption. These checks are part of the author's focused testing, not
 rerun each time `main` moves. New failures in affected code
 still need fixing, and the authority, custody, digest and golden-file rules
-still apply. Post-merge runtime checks and release qualification are separate
-from the deliberately small admission check. After landing, verification looks
-at the merged source, published commit and CI results; it does not rebuild the
-compiler or rerun local qualification.
+still apply. Release qualification is separate from the deliberately small
+admission check. After landing, verification looks at the merged source,
+published commit and admission result; it does not rebuild the compiler or
+rerun local qualification.
 
 ### Independent semantic review
 
@@ -472,7 +472,6 @@ have their historical judgments under `_recycling/source-rust/`. Changes to a
 maintained signature still require review. [Dependency rules](../../tools/xtask/src/boundary.rs)
 · [Transitive graph checks](../../tools/xtask/src/boundary/linear_pipeline.rs)
 · [Reviewed inventory](../../tools/xtask/pipeline-contracts.json)
-· [Post-merge workflow](../../.github/workflows/post-merge-check.yml)
 
 `mbx nextest run --workspace --lib --no-fail-fast` is the platform-portable
 subset: all library tests, no target-specific executable/runtime legs.
@@ -502,8 +501,8 @@ appears. When it reports a new row, read the call in both adapter families,
 then fix the divergence or record the row with its reason. `--list` prints
 every current row.
 
-The post-merge check runs it with `--observe`, which reports what it would
-block and exits 0. Admission does not run it yet.
+`--observe` reports what it would block and exits 0. Admission does not run
+it.
 
 ## Requirements and commands
 
@@ -556,7 +555,7 @@ crate. `cargo clean` fixes it.
 
 A Claude Code cloud session starts in a fresh container with nothing built, and
 `mbx build -p omega` there takes about 11 minutes (688 s measured on a 4-CPU
-container, 2026-11-11). The `Warm build` workflow builds main's compiler in a
+container, 2026-11-11). The omega-linux VM builds main's compiler in a
 container set up like a session and publishes the build directory, about
 270 MB compressed, to the GitHub Container Registry as
 `ghcr.io/cathedralos/omega-warm-build:<slot>` (`primary` and `worker`), not as a
@@ -573,7 +572,7 @@ The archive includes the generated files that mbx stores outside `target/`.
 Cargo records their absolute paths, so reuse requires the same checkout path,
 mbx cache path and Rust toolchain. Restore keeps any existing generated files
 in the cache. Measured on the same container with the
-archives CI published for commit `fd5aef2f7`: 14 s to restore both, then
+archives published for commit `fd5aef2f7`: 14 s to restore both, then
 `mbx build -p omega` took 30 s in the primary checkout, where it reran the
 `compiler` build script and recompiled 4 crates, and 5 s in the worker slot.
 
@@ -587,6 +586,24 @@ that commit as its base. Integrate newer source only for an actual conflict or
 needed prerequisite, then follow [squash-merge landing](landing.md). A slot that
 has been released or moved resets to `origin/main` as before.
 
+Nothing publishes the build automatically. The coordinator, or an agent the
+coordinator asks, publishes it on `omega-linux` when cloud sessions start too
+many commits behind `main`, for example after a wave of merges. From any
+checkout on that VM:
+
+```sh
+GH_TOKEN="$(gh auth token)" ~/omega-agent/bin/vm-heavy warm-build \
+  bash tools/warm_build.sh publish-from-vm [commit]
+```
+
+It builds main's tip, or the named commit, for both slots, each in a fresh
+`ubuntu:24.04` container as root at `/workspace/Omega`, then packs and pushes
+each tag. The VM's `gh` login can write packages, and the token reaches the
+container only through the command's environment. On 2026-11-23 it published
+commit `4854044f9603` in about 10 minutes, each slot's compiler build taking
+about 2 minutes. A fresh session container then restored both slots in 11 s
+and 19 s, and its first `mbx build -p omega` in each compiled nothing.
+
 ### Checksum-capable mbx setup
 
 Cargo content fingerprints remain enabled in `.cargo/config.toml`. Cargo passes
@@ -597,7 +614,7 @@ but bypass the shared Rust cache. A newer version number alone does not prove
 support for this workflow.
 
 `tools/mbx-version` pins the currently qualified adapter build. Both
-`tools/agent_setup.sh` and CI use `tools/xtask/bootstrap-mbx.sh`: it verifies the
+`tools/agent_setup.sh` and the warm-build container use `tools/xtask/bootstrap-mbx.sh`: it verifies the
 official bootstrap release's SHA-256, checks out upstream commit
 `7fa83b28d239bd39d1079127ffd2f8b0f92df00a`, and applies the immutable repository
 patch `tools/xtask/mbx-checksum.patch`. The patch retains the flag in command
@@ -620,8 +637,8 @@ files. A stale reservation after an interrupted process must be investigated
 before removing it. Source changes during installation abort publication or
 installation instead of recording mismatched inputs.
 
-CI caches the small completed artifacts, not the whole tool build workspace,
-using the same recipe identity across admission, post-merge and warm builds.
+The warm-build publication keeps the small completed artifacts between runs,
+not the whole tool build workspace, under the installer's recipe identity.
 The unmodified official tool bootstraps the patched tool with content
 fingerprints enabled and collection disabled for that command. The known
 `build_script_execution = false` policy also applies to the tool bootstrap;

@@ -128,9 +128,10 @@ Never make a kept test program pass by changing its fact, bound or operation
 
 ## Step 5: Publish and Land
 
-CI compiles and tests no Rust code before merge, so run the affected tests and
-Clippy yourself. See [landing](../../../wiki/development/landing.md) for the
-checks that currently run after merge.
+CI compiles and tests no Rust code, before or after merge, so run the affected
+tests and Clippy yourself; heavy runs go to a LAN VM
+([AGENTS.md](../../../AGENTS.md#heavy-checks-run-on-the-lan-vms)). See
+[landing](../../../wiki/development/landing.md) for the merge procedure.
 
 1. **Push HEAD to a remote `work/` branch and open the PR as ready for review:**
    ```bash

@@ -1,8 +1,9 @@
 # Compiler integration CI
 
-A pull request merges by squash once its `admission` check passes, and main is
-checked after the merge. [Landing](../../wiki/development/landing.md) is the author procedure;
-there is no merge queue.
+A pull request merges by squash once its `admission` check passes.
+[Landing](../../wiki/development/landing.md) is the author procedure; there is
+no merge queue. No workflow builds, tests or lints the compiler: heavy checks run on
+the LAN VMs ([AGENTS.md](../../AGENTS.md#heavy-checks-run-on-the-lan-vms)).
 
 ## Admission
 
@@ -19,32 +20,7 @@ frontmatter of single-file Cargo scripts are outside its scope.
 Run `python3 -B tools/ci/check_recycling.py` from a checkout with Python 3.11 or
 newer. `python3 -B tools/ci/test_check_recycling.py` runs its regression checks.
 Admission also requires the shared specification under `wiki/spec/`. It
-compiles and tests no Rust code while root workspace builds are paused.
-
-## Post-merge check
-
-`.github/workflows/post-merge-check.yml` runs on every push
-to main, one run at a time. It judges the batch of commits main gained since
-the last run that reached a verdict. A push that arrives during a run waits,
-and a newer push replaces a waiting one, so a burst of merges is judged once.
-
-- `post-merge-check` checks dependency boundaries, lints the workspace and
-  runs the lowered-route tests.
-- `sample` runs one sample natively and in the interpreter, building `omega`
-  from main's restored warm build.
-- `report` writes the verdict to the run summary: each failed part and the
-  batch's commits. A batch of several commits is named as a whole; the run
-  does not bisect it.
-
-A run started by hand with the input `full` set (Actions, Post-merge check,
-Run workflow) also runs every Rust test in the workspace, in the `tests` job,
-on Linux only. Use it after many merges; push-started runs skip that job.
-
-There is no fixture corpus, no corpus gate and no ledger. The jobs that build the compiler restore
-main's warm build with `tools/ci/session_host.sh`.
-
-A failed run does not revert any commit; automatic reverts are a later step of
-`wiki/drafts/designs/ci_rebuild_plan.md`.
+compiles and tests no Rust code.
 
 ## Branch cleanup
 
