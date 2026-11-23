@@ -2099,38 +2099,32 @@ mod source_queries {
             let mut selected_exact = false;
             let mut ambiguous = false;
             for (symbol, is_public) in candidates {
-                if !symbol.is_valid()
-                    || !self.symbol_source_is_selected(symbol)
-                    || !if let Some((source, member)) = file {
-                        self.product_file_contains(source, member, occurrence, symbol, is_public)
-                    } else { match dependency {
-                        Some(package) => {
-                            is_public
-                                && self.symbol_product_package_identity(symbol) == Some(package)
-                        }
-                        None => {
-                            self.symbol_provenance_source_span(symbol)
-                                .is_some_and(|declaration| {
-                                    self.same_product_package_instance(occurrence, declaration)
-                                })
-                                || (admit_toolchain
-                                    && is_public
-                                    && self
-                                        .symbol_provenance_source_span(symbol)
-                                        .and_then(|span| self.source_file(span))
-                                        .is_some_and(|file| {
+                if !symbol.is_valid() || !self.symbol_source_is_selected(symbol) {
+                    continue;
+                }
+                let authorized = match (file, dependency) {
+                    (Some(file), _) => file.matches(self, occurrence, symbol, is_public),
+                    (None, Some(package)) => {
+                        is_public && self.symbol_product_package_identity(symbol) == Some(package)
+                    }
+                    (None, None) => {
+                        self.symbol_provenance_source_span(symbol)
+                            .is_some_and(|declaration| {
+                                self.same_product_package_instance(occurrence, declaration)
+                                    || (admit_toolchain
+                                        && is_public
+                                        && self.source_file(declaration).is_some_and(|file| {
                                             file.origin == SourceOrigin::Toolchain
                                                 && file.dependency_scope
                                                     == source_provenance::DependencyScope::Product
                                         }))
-                                || !self.has_source_metadata()
-                        }
+                            })
+                            || !self.has_source_metadata()
                     }
-                    }
+                };
+                if !authorized
+                    || !self.source_reference_can_describe_product_symbol(occurrence, symbol)
                 {
-                    continue;
-                }
-                if !self.source_reference_can_describe_product_symbol(occurrence, symbol) {
                     continue;
                 }
                 let exact = file.is_some() || self.display_path(symbol, "::") == declaration_path;
@@ -2610,6 +2604,51 @@ impl SourceScopedTopLevelBinding {
     /* The source whose top-level references this binding scopes. */
     pub const fn reference_source(&self) -> SourceId {
         self.reference_source
+    }
+}
+
+/// A file-qualified declaration reference at a designated product operand.
+#[derive(Clone, Copy)]
+pub struct ImportedProductMember<'a> {
+    source: Option<SourceId>,
+    member: &'a str,
+}
+
+impl ImportedProductMember<'_> {
+    pub fn matches(
+        self,
+        symbols: &SymbolTable,
+        reference: SourceSpan,
+        symbol: SymbolHandle,
+        is_public: bool,
+    ) -> bool {
+        let Some(declaration) = symbols.symbol_provenance_source_span(symbol) else {
+            return false;
+        };
+        let Some(file) = symbols.source_file(declaration) else {
+            return false;
+        };
+        if self.source != Some(declaration.source_id)
+            || file.dependency_scope != source_provenance::DependencyScope::Product
+            || !symbols.symbol_source_is_selected(symbol)
+            || !symbols.source_reference_can_describe_product_symbol(reference, symbol)
+        {
+            return false;
+        }
+        let visible = symbols.same_product_package_instance(reference, declaration)
+            || (is_public
+                && (file.origin.is_toolchain()
+                    || file.package_identity.is_some_and(|owner| {
+                        symbols
+                            .sources
+                            .as_deref()
+                            .and_then(|sources| sources.product_dependencies_at(reference))
+                            .is_some_and(|dependencies| {
+                                dependencies.values().any(|target| *target == owner)
+                            })
+                    })));
+        visible
+            && symbols.file_member_path(symbol, &symbols.display_path(symbol, "::")) == self.member
     }
 }
 
@@ -3643,45 +3682,25 @@ impl SymbolTable {
         &self,
         path: &'a str,
         occurrence: SourceSpan,
-    ) -> Option<(Option<SourceId>, &'a str)> {
+    ) -> Option<ImportedProductMember<'a>> {
         let (alias, member) = path.strip_prefix('|')?.split_once("|::")?;
         let is_build = self
             .source_file(occurrence)
             .is_some_and(|file| file.dependency_scope == source_provenance::DependencyScope::Build);
-        Some((
-            self.file_alias_source(occurrence.source_id, alias, is_build),
+        Some(ImportedProductMember {
+            source: self.file_alias_source(occurrence.source_id, alias, is_build),
             member,
-        ))
+        })
     }
 
-    pub fn product_file_contains(
-        &self,
-        source: Option<SourceId>,
-        path: &str,
-        reference: SourceSpan,
-        symbol: SymbolHandle,
-        is_public: bool,
-    ) -> bool {
-        let Some(declaration) = self.symbol_provenance_source_span(symbol) else {
-            return false;
-        };
-        if Some(declaration.source_id) != source
-            || !self.symbol_source_is_selected(symbol)
-            || !self
-                .symbol_is_in_dependency_scope(symbol, source_provenance::DependencyScope::Product)
-            || !(is_public || self.same_product_package_instance(reference, declaration))
-            || !self.source_reference_can_describe_product_symbol(reference, symbol)
-        {
-            return false;
-        }
+    /// Return a declaration's path within its owning file.
+    pub fn file_member_path<'a>(&self, symbol: SymbolHandle, displayed: &'a str) -> &'a str {
         let module = self.symbol_module(symbol);
-        let displayed = self.display_path(symbol, "::");
         let namespace = self.display_path(module, "::");
         displayed
             .strip_prefix(&namespace)
             .and_then(|name| name.strip_prefix("::"))
-            .unwrap_or(&displayed)
-            == path
+            .unwrap_or(displayed)
     }
 
     fn lookup_top_level_candidates(

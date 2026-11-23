@@ -13,8 +13,9 @@ pub use retained_declaration::{SourceSpanCandidates, rejoin_declaration, retain_
 pub use storage::{SymbolHierarchy, SymbolRows};
 use symbols::*;
 pub use table::{
-    JoinedPath, SourceScopedTopLevelBinding, SymbolLookup, SymbolTable, SymbolTableAppender,
-    SymbolTableBuilder, SymbolTableExtension, UnresolvedName, same_semantic_name,
+    ImportedProductMember, JoinedPath, SourceScopedTopLevelBinding, SymbolLookup, SymbolTable,
+    SymbolTableAppender, SymbolTableBuilder, SymbolTableExtension, UnresolvedName,
+    same_semantic_name,
 };
 /*
     The custody gate in front of the sealed intrinsic catalog: only a file the
