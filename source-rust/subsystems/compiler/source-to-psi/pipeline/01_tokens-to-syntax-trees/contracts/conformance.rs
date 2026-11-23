@@ -90,7 +90,7 @@ pub(crate) fn parse_conformance_trait_application<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, (Identifier, Vec<Identifier>, HandleSpan<TypeReferenceHandle>)> {
-    let (trait_name, mut rest) = input.take_identifier()?;
+    let (trait_name, mut rest) = input.take_path_head()?;
     let mut lifetime_arguments = Vec::new();
     let trait_arguments = if rest.at_punctuation(PunctuationKind::Less) {
         rest = rest.take_punctuation(PunctuationKind::Less, "<")?;

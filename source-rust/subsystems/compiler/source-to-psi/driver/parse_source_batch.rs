@@ -105,12 +105,6 @@ impl SourceInput {
     }
 }
 
-impl RetainedSourceParse {
-    pub(crate) fn into_tree(self) -> SyntaxTrees {
-        self.unit.syntax
-    }
-}
-
 #[cfg(test)]
 mod reused_sources;
 #[cfg(test)]
