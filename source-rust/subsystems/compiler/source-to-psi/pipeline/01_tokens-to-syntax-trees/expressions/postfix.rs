@@ -488,7 +488,7 @@ pub(crate) fn parse_name_selection<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     position: SelectionPosition,
 ) -> Result<Option<(StaticMachineArgument, Input<'tokens, 'source>)>, ParseError> {
-    let Ok((first, mut input)) = input.take_identifier() else {
+    let Ok((first, mut input)) = input.take_path_head() else {
         return Ok(None);
     };
     if position != SelectionPosition::Expression && input.at_punctuation(PunctuationKind::Dot) {

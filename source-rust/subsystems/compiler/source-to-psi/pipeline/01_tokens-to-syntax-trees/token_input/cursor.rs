@@ -436,6 +436,25 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         None
     }
 
+    /// A file qualifier can only begin a name. The lexer keeps `||` and
+    /// `+|` as compound tokens before the parser sees this prefix.
+    pub(crate) fn at_path_head(&self) -> bool {
+        self.at_name_like() || self.at_punctuation(PunctuationKind::Pipe)
+    }
+
+    pub(crate) fn take_path_head(self) -> Result<(Identifier, Self), ParseError> {
+        if !self.at_punctuation(PunctuationKind::Pipe) {
+            return self.take_identifier();
+        }
+        let after_bar = self.take_punctuation(PunctuationKind::Pipe, "|")?;
+        let (alias, rest) = after_bar.take_identifier()?;
+        let rest = rest.take_punctuation(PunctuationKind::Pipe, "|")?;
+        let rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
+        let (declaration, rest) = rest.take_identifier()?;
+        let name = format!("|{}|::{}", alias.as_str(&self), declaration.as_str(&self));
+        Ok((Identifier::new(name, self.source_span_until(rest)), rest))
+    }
+
     pub(crate) fn at_path_member(&self) -> bool {
         self.at_punctuation(PunctuationKind::Backslash)
             || (self.at_punctuation(PunctuationKind::ColonColon) && !self.at_expression_arguments())
@@ -638,7 +657,7 @@ pub(crate) fn parse_path_handle_span<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     mut append_member: impl FnMut(Identifier) -> Handle<Identifier>,
 ) -> ParseResult<'tokens, 'source, HandleSpan<Identifier>> {
-    let (first, mut rest) = input.take_identifier()?;
+    let (first, mut rest) = input.take_path_head()?;
     let mut path = arena::HandleSpan::empty();
     path.push_contiguous(append_member(first));
 
