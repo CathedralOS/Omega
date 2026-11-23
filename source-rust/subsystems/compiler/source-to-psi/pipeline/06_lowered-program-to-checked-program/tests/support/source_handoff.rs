@@ -4,10 +4,11 @@
 //!
 //! `Program::of` runs the files through the lexer, parser, resolver, typer
 //! and stage 04 as the source driver does, with every machine of the package
-//! as an entry. `Program::lowered` is stage 05's output. `Program::judged`
-//! clones that output, applies the caller's change and returns stage 06's
-//! verdict; `|_| {}` is the control, the verdict on the program as stage 05
-//! lowered it.
+//! as an entry except a generic one, which a call instantiates instead.
+//! `Program::lowered` is stage 05's output. `Program::judged` clones that
+//! output, applies the caller's change and returns stage 06's verdict;
+//! `|_| {}` is the control, the verdict on the program as stage 05 lowered
+//! it.
 //!
 //! Stage 05's own tests read the same product: `Program::prepared_with`
 //! changes one fact of stage 04's output, and `Program::lower_prepared`
@@ -142,7 +143,7 @@ impl Program {
         let entries: Vec<_> = typed
             .machines()
             .iter()
-            .filter(|machine| machine.target.is_none())
+            .filter(|machine| machine.target.is_none() && !machine.has_specialization_parameters())
             .map(|machine| machine.symbol)
             .collect();
         let subjects = [Some(package)];
@@ -265,44 +266,20 @@ impl Program {
     }
 
     /// Stage 06's verdict on stage 05's output after `change`.
+    /// The checker judges the program first, then each generic machine's own
+    /// form; the program is accepted only when every one of them is.
     pub fn judged(&self, change: impl FnOnce(&mut Elaboration)) -> Verdict {
         let mut altered = self.lowered.clone();
         change(altered.closure.as_mut().unwrap());
-        let mut verdicts = judge_compilation(TerminalCompilation::Prepared(altered)).into_iter();
-        let verdict = verdicts.next().expect("one module, one verdict");
-        assert!(verdicts.next().is_none(), "the program is one module");
-        match verdict {
-            Ok(RouteVerdict::Accepted(_)) => Verdict::Accepted,
-            Ok(RouteVerdict::Rejected {
-                violations,
-                unproved,
-                unestablished,
-                conflicts,
-                exceeded,
-                formations,
-            }) => Verdict::Rejected(Rejection {
-                violations: violations
-                    .iter()
-                    .map(|violation| violation.statement.clone())
-                    .collect(),
-                unproved: unproved
-                    .iter()
-                    .map(|owed| format!("{:?}", owed.kind))
-                    .collect(),
-                unestablished: unestablished
-                    .iter()
-                    .map(|used| used.detail.clone())
-                    .collect(),
-                conflicts: conflicts
-                    .iter()
-                    .map(|loan| loan.statement.clone())
-                    .collect(),
-                exceeded: exceeded.iter().map(|call| call.statement.clone()).collect(),
-                formations: formations.len(),
-            }),
-            Ok(RouteVerdict::FallBack(refusal)) => Verdict::Unserved(refusal),
-            Err(CompilationRefusal::Elaboration(refusal)) => Verdict::Refused(refusal),
-            other => panic!("{other:?}"),
+        let mut verdicts = judge_compilation(TerminalCompilation::Prepared(altered))
+            .into_iter()
+            .map(verdict);
+        let program = verdicts.next().expect("the program has a verdict");
+        match program {
+            Verdict::Accepted => verdicts
+                .find(|form| !matches!(form, Verdict::Accepted))
+                .unwrap_or(Verdict::Accepted),
+            other => other,
         }
     }
 
@@ -310,6 +287,42 @@ impl Program {
     pub fn judged_in(&self, path: &str, change: impl FnOnce(&mut TerminalMachine)) -> Verdict {
         let position = self.position(path);
         self.judged(|lowered| change(&mut lowered.module.machines[position]))
+    }
+}
+
+fn verdict(verdict: Result<RouteVerdict, CompilationRefusal>) -> Verdict {
+    match verdict {
+        Ok(RouteVerdict::Accepted(_)) => Verdict::Accepted,
+        Ok(RouteVerdict::Rejected {
+            violations,
+            unproved,
+            unestablished,
+            conflicts,
+            exceeded,
+            formations,
+        }) => Verdict::Rejected(Rejection {
+            violations: violations
+                .iter()
+                .map(|violation| violation.statement.clone())
+                .collect(),
+            unproved: unproved
+                .iter()
+                .map(|owed| format!("{:?}", owed.kind))
+                .collect(),
+            unestablished: unestablished
+                .iter()
+                .map(|used| used.detail.clone())
+                .collect(),
+            conflicts: conflicts
+                .iter()
+                .map(|loan| loan.statement.clone())
+                .collect(),
+            exceeded: exceeded.iter().map(|call| call.statement.clone()).collect(),
+            formations: formations.len(),
+        }),
+        Ok(RouteVerdict::FallBack(refusal)) => Verdict::Unserved(refusal),
+        Err(CompilationRefusal::Elaboration(refusal)) => Verdict::Refused(refusal),
+        other => panic!("{other:?}"),
     }
 }
 
@@ -422,7 +435,7 @@ impl Program {
             .trees()
             .machines()
             .iter()
-            .filter(|machine| machine.target.is_none())
+            .filter(|machine| machine.target.is_none() && !machine.has_specialization_parameters())
             .map(|machine| machine.symbol)
             .collect();
         let subjects = [Some(package)];
