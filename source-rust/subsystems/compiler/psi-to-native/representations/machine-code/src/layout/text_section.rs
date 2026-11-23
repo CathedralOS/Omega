@@ -35,7 +35,7 @@ use terminal_psi::TerminalPsiIdentity;
 
 use crate::identity_encoding::{encode_call_owner, encode_invocation_site, encode_nested_identity};
 
-const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section.v13";
+const TEXT_SECTION_SCHEMA: &[u8] = b"omega.terminal.relocation-free-text-section.v14";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextSectionPlacementPolicy {
@@ -208,6 +208,101 @@ pub struct PlacedNormalizedForeignCallResolution {
     pub callback_materializations: Vec<PlacedCallbackAddressMaterialization>, // Emitted ahead of call bytes in roster order
 }
 
+impl PlacedNormalizedForeignCallResolution {
+    /// Canonical bytes shared by the placed section identity and saved object plan.
+    pub fn encode_identity(&self, output: &mut impl selected_instructions::MachineIdentityBytes) {
+        let kind = match self.kind {
+            NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => 1,
+            NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => 2,
+        };
+        let state = match self.state {
+            NormalizedForeignCallResolutionState::UnresolvedImportFieldV1 => 1,
+        };
+        output.identity_bytes(&[kind, state]);
+        output.identity_bytes(&self.caller.get().to_le_bytes());
+        output.identity_bytes(&self.block.0.to_le_bytes());
+        output.identity_bytes(&self.instruction.0.to_le_bytes());
+        encode_invocation_site(output, self.invocation_site);
+        output.identity_bytes(&self.boundary.get().to_le_bytes());
+        output.identity_bytes(&self.ordinal.to_le_bytes());
+        for offset in [
+            self.call_function_offset,
+            self.call_section_offset,
+            self.call_byte_count,
+            self.opcode_function_offset,
+            self.opcode_section_offset,
+            self.field_function_offset,
+            self.field_section_offset,
+            self.next_instruction_function_offset,
+            self.next_instruction_section_offset,
+        ] {
+            output.identity_bytes(&offset.to_le_bytes());
+        }
+        output.identity_bytes(&[self.field_byte_width]);
+        output.identity_bytes(&self.addend.to_le_bytes());
+        let count =
+            u64::try_from(self.callback_materializations.len()).expect("counted row fits u64");
+        output.identity_bytes(&count.to_le_bytes());
+        for callback in &self.callback_materializations {
+            callback.encode_identity(output);
+        }
+    }
+}
+
+impl PlacedCallbackAddressMaterialization {
+    fn encode_identity(&self, output: &mut impl selected_instructions::MachineIdentityBytes) {
+        match &self.destination {
+            crate::CallbackAddressDestination::Register(register) => {
+                let (class, index) = register.wire_class_index();
+                output.identity_bytes(&[1, class, index]);
+            }
+            crate::CallbackAddressDestination::OutgoingStack { byte_offset } => {
+                output.identity_bytes(&[2]);
+                output.identity_bytes(&byte_offset.to_le_bytes());
+            }
+            crate::CallbackAddressDestination::RecordField {
+                root_register,
+                placements,
+            } => {
+                let (class, index) = root_register.wire_class_index();
+                output.identity_bytes(&[3, class, index]);
+                let mut encoded = Vec::new();
+                calling_conventions::encode_private_callback_placements(&mut encoded, placements);
+                output.identity_bytes(&encoded);
+            }
+        }
+        output.identity_bytes(&self.code_function_offset.to_le_bytes());
+        output.identity_bytes(&self.code_section_offset.to_le_bytes());
+        output.identity_bytes(&self.code_byte_count.to_le_bytes());
+        match self.encoding {
+            PlacedCallbackAddressEncoding::X86_64Relative32 {
+                relocation_function_offset,
+                relocation_section_offset,
+            } => {
+                output.identity_bytes(&[1]);
+                output.identity_bytes(&relocation_function_offset.to_le_bytes());
+                output.identity_bytes(&relocation_section_offset.to_le_bytes());
+            }
+            PlacedCallbackAddressEncoding::Aarch64PageAddress {
+                page_relocation_function_offset,
+                page_relocation_section_offset,
+                page_offset_relocation_function_offset,
+                page_offset_relocation_section_offset,
+            } => {
+                output.identity_bytes(&[2]);
+                for offset in [
+                    page_relocation_function_offset,
+                    page_relocation_section_offset,
+                    page_offset_relocation_function_offset,
+                    page_offset_relocation_section_offset,
+                ] {
+                    output.identity_bytes(&offset.to_le_bytes());
+                }
+            }
+        }
+    }
+}
+
 pub fn relocation_free_text_section_identity(
     section: &RelocationFreeTextSectionPlacement,
 ) -> TerminalRelocationFreeTextSectionIdentity {
@@ -281,30 +376,7 @@ pub fn relocation_free_text_section_identity(
     }
     hasher.u64(section.unresolved_normalized_foreign_calls.len() as u64);
     for resolution in &section.unresolved_normalized_foreign_calls {
-        hasher.byte(match resolution.kind {
-            NormalizedForeignCallResolutionKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => 1,
-            NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => 2,
-        });
-        hasher.byte(match resolution.state {
-            NormalizedForeignCallResolutionState::UnresolvedImportFieldV1 => 1,
-        });
-        hasher.raw(&resolution.caller.get().to_le_bytes());
-        hasher.raw(&resolution.block.0.to_le_bytes());
-        hasher.raw(&resolution.instruction.0.to_le_bytes());
-        encode_invocation_site(&mut hasher, resolution.invocation_site);
-        hasher.raw(&resolution.boundary.get().to_le_bytes());
-        hasher.raw(&resolution.ordinal.to_le_bytes());
-        hasher.raw(&resolution.call_function_offset.to_le_bytes());
-        hasher.raw(&resolution.call_section_offset.to_le_bytes());
-        hasher.raw(&resolution.call_byte_count.to_le_bytes());
-        hasher.raw(&resolution.opcode_function_offset.to_le_bytes());
-        hasher.raw(&resolution.opcode_section_offset.to_le_bytes());
-        hasher.raw(&resolution.field_function_offset.to_le_bytes());
-        hasher.raw(&resolution.field_section_offset.to_le_bytes());
-        hasher.raw(&resolution.next_instruction_function_offset.to_le_bytes());
-        hasher.raw(&resolution.next_instruction_section_offset.to_le_bytes());
-        hasher.byte(resolution.field_byte_width);
-        hasher.raw(&resolution.addend.to_le_bytes());
+        resolution.encode_identity(&mut hasher);
     }
     if !section.unresolved_image_addresses.is_empty() {
         hasher.raw(b"image-addresses-v2");

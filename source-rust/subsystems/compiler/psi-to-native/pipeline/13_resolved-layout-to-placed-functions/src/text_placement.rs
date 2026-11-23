@@ -1652,6 +1652,68 @@ struct ForeignCall<'a> {
     fixup: FunctionFragmentNormalizedForeignCallFixup,
 }
 
+fn callback_matches_fragment(
+    source: &machine_code::FunctionFragmentCallbackMaterialization,
+    placed: &machine_code::PlacedCallbackAddressMaterialization,
+    section_start: u64,
+) -> bool {
+    use machine_code::{
+        FunctionFragmentCallbackMaterializationEncoding as Fragment,
+        PlacedCallbackAddressEncoding as Placed,
+    };
+    let matches_offset = |expected: u64, function: u64, section: u64| {
+        function == expected && section.checked_sub(section_start) == Some(expected)
+    };
+    if placed.destination != source.destination
+        || placed.code_byte_count != source.code_byte_count
+        || !matches_offset(
+            source.code_function_offset,
+            placed.code_function_offset,
+            placed.code_section_offset,
+        )
+    {
+        return false;
+    }
+    match (source.encoding, placed.encoding) {
+        (
+            Fragment::X86_64Relative32 {
+                patch_function_offset,
+            },
+            Placed::X86_64Relative32 {
+                relocation_function_offset,
+                relocation_section_offset,
+            },
+        ) => matches_offset(
+            patch_function_offset,
+            relocation_function_offset,
+            relocation_section_offset,
+        ),
+        (
+            Fragment::Aarch64PageAddress {
+                page_patch_function_offset,
+                page_offset_patch_function_offset,
+            },
+            Placed::Aarch64PageAddress {
+                page_relocation_function_offset,
+                page_relocation_section_offset,
+                page_offset_relocation_function_offset,
+                page_offset_relocation_section_offset,
+            },
+        ) => {
+            matches_offset(
+                page_patch_function_offset,
+                page_relocation_function_offset,
+                page_relocation_section_offset,
+            ) && matches_offset(
+                page_offset_patch_function_offset,
+                page_offset_relocation_function_offset,
+                page_offset_relocation_section_offset,
+            )
+        }
+        _ => false,
+    }
+}
+
 fn check_foreign_call(
     call: ForeignCall<'_>,
     architecture: Architecture,
@@ -1734,6 +1796,12 @@ fn check_foreign_call(
         || row.next_instruction_section_offset != reference
         || row.field_byte_width != 4
         || row.addend != 0
+        || row.callback_materializations.len() != fixup.callbacks.len()
+        || !fixup
+            .callbacks
+            .iter()
+            .zip(&row.callback_materializations)
+            .all(|(source, placed)| callback_matches_fragment(source, placed, section_offset))
     {
         return Err(TextPlacementError::ArtifactMismatch);
     }
@@ -1852,4 +1920,73 @@ fn check_instruction_span(
         return Err(TextPlacementError::ArtifactMismatch);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn foreign_call_replay_keeps_the_callback_placement() {
+        let machine = MachineId::new(1).unwrap();
+        let block = SelectedBlockId(0);
+        let instruction = SelectedInstructionId(0);
+        let site = semantic_vocabulary::InvocationSite::Operation(OperationId::new(1).unwrap());
+        let bytes = [0x48, 0x8d, 0x0d, 0, 0, 0, 0, 0xe8, 0, 0, 0, 0];
+        let section_offset = 64;
+        let fixup = FunctionFragmentNormalizedForeignCallFixup {
+            kind: FunctionFragmentNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1,
+            state: FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1,
+            boundary: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+            ordinal: 0,
+            opcode_function_offset: 7,
+            patch_function_offset: 8,
+            reference_function_offset: 12,
+            patch_byte_width: 4,
+            addend: 0,
+            callbacks: vec![machine_code::FunctionFragmentCallbackMaterialization {
+                destination: machine_code::CallbackAddressDestination::Register(target_vocabulary::MachineRegister::X86Rcx),
+                code_function_offset: 0,
+                code_byte_count: 7,
+                encoding: machine_code::FunctionFragmentCallbackMaterializationEncoding::X86_64Relative32 { patch_function_offset: 3 },
+            }],
+        };
+        let original = resolve_foreign(
+            Architecture::X86_64,
+            machine,
+            block,
+            instruction,
+            site,
+            0,
+            &bytes,
+            section_offset,
+            fixup.clone(),
+            &bytes,
+        )
+        .unwrap();
+        let check = |row: &PlacedNormalizedForeignCallResolution| {
+            check_foreign_call(
+                ForeignCall {
+                    caller: machine,
+                    block,
+                    instruction,
+                    invocation_site: site,
+                    offset: 0,
+                    bytes: &bytes,
+                    fixup: fixup.clone(),
+                },
+                Architecture::X86_64,
+                section_offset,
+                &bytes,
+                row,
+            )
+        };
+        check(&original).unwrap();
+        let mut shifted = original.clone();
+        shifted.callback_materializations[0].code_section_offset += 1;
+        assert_eq!(check(&shifted), Err(TextPlacementError::ArtifactMismatch));
+        let mut missing = original;
+        missing.callback_materializations.clear();
+        assert_eq!(check(&missing), Err(TextPlacementError::ArtifactMismatch));
+    }
 }
