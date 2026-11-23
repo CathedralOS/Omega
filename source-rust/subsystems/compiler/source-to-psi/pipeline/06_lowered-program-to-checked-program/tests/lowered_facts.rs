@@ -444,3 +444,20 @@ fn each_match_arm_disposes_its_own_sibling_before_the_join() {
         "normal edge affine disposal differs from its canonical schedule in machine `choose`"
     );
 }
+
+/// The checker judges every machine of the program, not only the one a test
+/// reads: `main` does nothing and is unchanged, and removing the constant
+/// `helper` returns from `helper`'s body still makes the program refused,
+/// at the return that now names a value nothing produced.
+#[test]
+fn an_operation_removed_from_another_machine_is_refused() {
+    let program = Program::of("machine main() {} machine helper() -> u8 { 7u8 }");
+    program.judged(|_| {}).accepted();
+    let detail = refused(program.judged_in("helper", |machine| {
+        machine.blocks[0].operations.clear();
+    }));
+    assert_eq!(
+        detail,
+        "invalid declared scalar qualifications: scalar transfer names an absent value in machine `helper`"
+    );
+}
