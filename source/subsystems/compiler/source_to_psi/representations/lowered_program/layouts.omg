@@ -1,3 +1,5 @@
+use representations/lowered_program/scalar.omg;
+
 // One packed internal memory layout for every retained monomorphic type.
 // This is an Alpha execution representation, not a foreign ABI or a new
 // serialized artifact. Byte arrays stay byte arrays; loads and stores must
@@ -19,13 +21,13 @@ public data ScalarLayout [copy] {
     length: u64 in Trapping;
 }
 
-public machine scalar_layout_at(program: @ScalarProgram, handle: u64 in Trapping) -> ScalarLayout
+public machine scalar_layout_at(program: @|scalar|::ScalarProgram, handle: u64 in Trapping) -> ScalarLayout
 crashes Trap
 {
     transition handle < program.layout_count && handle < 8192 {
         true -> read(program, handle),
         _ -> invalid()
     }
-    machine read(program: @ScalarProgram, handle: u64 in Trapping) -> ScalarLayout { program.layouts[(handle) as -Trapping] }
+    machine read(program: @|scalar|::ScalarProgram, handle: u64 in Trapping) -> ScalarLayout { program.layouts[(handle) as -Trapping] }
     machine invalid() -> ScalarLayout { crash Trap; }
 }

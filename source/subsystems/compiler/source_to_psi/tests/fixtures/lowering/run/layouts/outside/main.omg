@@ -1,0 +1,14 @@
+// Expected crash: Trap
+use representations/lowered_program/scalar.omg as program;
+use representations/lowered_program/layouts.omg;
+
+machine start() crashes Trap {
+    let mutable output: |program|::ScalarProgram;
+    output.layout_count = 1;
+    output.layouts[1] = |layouts|::ScalarLayout {
+        kind: |layouts|::ScalarLayoutKind::Scalar, size: 4 as +Trapping,
+        inner: 0 as +Trapping, length: 0 as +Trapping
+    };
+    // Slot 1 has storage but is outside the program's declared layouts.
+    let selected: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@output, 1 as +Trapping);
+}
