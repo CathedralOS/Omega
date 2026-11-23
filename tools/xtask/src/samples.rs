@@ -70,6 +70,20 @@ fn strip_comments(text: &str) -> String {
     out
 }
 
+fn optional_text(path: &Path) -> Result<Option<String>, String> {
+    match fs::read_to_string(path) {
+        Ok(text) => Ok(Some(text)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(format!("{}: {error}", path.display())),
+    }
+}
+
+fn directory_entries(directory: &Path) -> Result<Vec<fs::DirEntry>, String> {
+    fs::read_dir(directory)
+        .and_then(|entries| entries.collect())
+        .map_err(|error| format!("{}: {error}", directory.display()))
+}
+
 pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String> {
     let rel_path = directory
         .strip_prefix(repo)
@@ -77,9 +91,7 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         .to_string_lossy()
         .replace('\\', "/");
     let meta_path = directory.join("sample.json");
-    let meta: serde_json::Value = if meta_path.is_file() {
-        let content =
-            fs::read_to_string(&meta_path).map_err(|e| format!("{}: {e}", meta_path.display()))?;
+    let meta: serde_json::Value = if let Some(content) = optional_text(&meta_path)? {
         serde_json::from_str(&content).map_err(|e| format!("{}: {e}", meta_path.display()))?
     } else {
         serde_json::json!({})
@@ -90,10 +102,8 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
     } else if directory.join("main.omg").is_file() {
         Some("main.omg".to_owned())
     } else {
-        let mut omg_files: Vec<String> = fs::read_dir(directory)
+        let mut omg_files: Vec<String> = directory_entries(directory)?
             .into_iter()
-            .flatten()
-            .flatten()
             .filter_map(|e| {
                 let name = e.file_name().to_string_lossy().into_owned();
                 (name.ends_with(".omg") && name != "build.omg").then_some(name)
@@ -104,7 +114,7 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
     };
     let entry = entry_name.map(|n| directory.join(n));
 
-    let build_raw = fs::read_to_string(directory.join("build.omg")).unwrap_or_default();
+    let build_raw = optional_text(&directory.join("build.omg"))?.unwrap_or_default();
     let build = strip_comments(&build_raw);
     let dir_name = directory.file_name().and_then(|s| s.to_str()).unwrap_or("");
     let diag_file = REJECTION_FILES
@@ -148,7 +158,9 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         } else if role == "intended-invalid"
             && let Some(df) = &diag_file
         {
-            fragment_lines(&fs::read_to_string(df).unwrap_or_default())
+            fragment_lines(
+                &fs::read_to_string(df).map_err(|error| format!("{}: {error}", df.display()))?,
+            )
         } else {
             Vec::new()
         };
@@ -198,9 +210,8 @@ pub fn project_at(directory: &Path, repo: &Path) -> Result<SampleProject, String
         }
     };
 
-    let native_rejection = fs::read_to_string(directory.join(NATIVE_REJECTION_FILE))
-        .ok()
-        .map(|text| fragment_lines(&text));
+    let native_rejection =
+        optional_text(&directory.join(NATIVE_REJECTION_FILE))?.map(|text| fragment_lines(&text));
 
     Ok(SampleProject {
         directory: directory.to_path_buf(),
@@ -226,10 +237,7 @@ fn project_source_inputs(root: &Path) -> Result<Vec<String>, String> {
         if directory != root && has_project_descriptor(&directory) {
             continue;
         }
-        let entries = fs::read_dir(&directory)
-            .map_err(|error| format!("{}: {error}", directory.display()))?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| format!("{}: {error}", directory.display()))?;
+        let entries = directory_entries(&directory)?;
         if entries.is_empty() && directory != root {
             inputs.push(relative_input(root, &directory)?);
         }
@@ -286,14 +294,15 @@ pub fn discover_samples(
     let mut out = Vec::new();
     let mut stack = vec![search_root.to_path_buf()];
     while let Some(dir) = stack.pop() {
-        let Ok(entries) = fs::read_dir(&dir) else {
-            continue;
-        };
+        let entries = directory_entries(&dir)?;
         let mut subdirs = Vec::new();
         let has_descriptor = has_project_descriptor(&dir);
-        for entry in entries.flatten() {
+        for entry in entries {
             let name = entry.file_name().to_string_lossy().into_owned();
-            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false)
+            if entry
+                .file_type()
+                .map_err(|error| format!("{}: {error}", entry.path().display()))?
+                .is_dir()
                 && !matches!(name.as_str(), "build" | ".git" | "target")
             {
                 subdirs.push(entry.path());
@@ -517,8 +526,9 @@ fn verify_native_rejection(
     }
 }
 
-pub fn parse_header_oracle(entry: &Path) -> (Option<i32>, Option<String>) {
-    let text = fs::read_to_string(entry).unwrap_or_default();
+pub fn parse_header_oracle(entry: &Path) -> Result<(Option<i32>, Option<String>), String> {
+    let text =
+        fs::read_to_string(entry).map_err(|error| format!("{}: {error}", entry.display()))?;
     let mut expected_exit = None;
     let mut expected_output = None;
     for line in text.lines() {
@@ -545,13 +555,12 @@ pub fn parse_header_oracle(entry: &Path) -> (Option<i32>, Option<String>) {
             }
         }
     }
-    (expected_exit, expected_output)
+    Ok((expected_exit, expected_output))
 }
 
-pub fn bound_targets(sample_dir: &Path) -> BTreeSet<String> {
-    let build =
-        strip_comments(&fs::read_to_string(sample_dir.join("build.omg")).unwrap_or_default());
-    build
+pub fn bound_targets(sample_dir: &Path) -> Result<BTreeSet<String>, String> {
+    let build = strip_comments(&optional_text(&sample_dir.join("build.omg"))?.unwrap_or_default());
+    Ok(build
         .split(',')
         .filter_map(|slot| {
             let (target, name) = slot.trim().split_once('\\')?;
@@ -563,7 +572,7 @@ pub fn bound_targets(sample_dir: &Path) -> BTreeSet<String> {
                     .all(|c| c.is_ascii_alphanumeric() || c == b'_'))
             .then(|| target.to_owned())
         })
-        .collect()
+        .collect())
 }
 
 fn compared_host_command(cli: &Path, target: &str) -> Result<Command, String> {
@@ -692,7 +701,7 @@ pub fn verify_sample(
     if project.rel_path.starts_with("samples/uefi/") {
         return Ok("not-host-runnable".to_owned());
     }
-    let targets = bound_targets(&project.directory);
+    let targets = bound_targets(&project.directory)?;
     if !targets.is_empty() && !targets.contains(target) {
         return Ok("not-host-runnable".to_owned());
     }
@@ -744,7 +753,7 @@ pub fn verify_sample(
         return Ok("checked".to_owned());
     }
 
-    let (expected_exit, expected_output) = parse_header_oracle(entry);
+    let (expected_exit, expected_output) = parse_header_oracle(entry)?;
     let input_path = project.directory.join("input.txt");
     let has_input = input_path.is_file();
     if !has_input && expected_exit.is_none() && expected_output.is_none() {
@@ -1174,6 +1183,47 @@ mod tests {
     }
 
     #[test]
+    fn sample_input_errors_during_discovery_name_the_unreadable_root() {
+        let root = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        assert!(discover_samples(&root, &root, &[]).unwrap().is_empty());
+        let missing = root.join("missing-samples");
+        let result = discover_samples(&missing, &root, &[]);
+        fs::remove_dir_all(root).unwrap();
+        assert!(result.unwrap_err().contains("missing-samples"));
+    }
+
+    #[test]
+    fn sample_input_errors_do_not_turn_unreadable_files_into_optional_inputs() {
+        let root = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        fs::write(root.join("sample.json"), "{}").unwrap();
+        fs::write(root.join("main.omg"), "machine main() {}").unwrap();
+        assert_eq!(project_at(&root, &root).unwrap().role, "check-only");
+        for name in ["build.omg", NATIVE_REJECTION_FILE] {
+            let path = root.join(name);
+            fs::write(&path, [0xff]).unwrap();
+            let result = project_at(&root, &root);
+            fs::remove_file(path).unwrap();
+            assert!(result.unwrap_err().contains(name));
+        }
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn reading_the_sample_header_distinguishes_an_absent_oracle_from_an_unreadable_entry() {
+        let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
+        let entry = directory.join("main.omg");
+        fs::write(&entry, "machine main() {}").unwrap();
+        assert_eq!(parse_header_oracle(&entry).unwrap(), (None, None));
+        fs::remove_file(&entry).unwrap();
+        assert!(
+            parse_header_oracle(&entry)
+                .unwrap_err()
+                .contains("main.omg")
+        );
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn malformed_source_inventory_cannot_fall_back_to_a_wide_capture() {
         let directory = execution::reserve_directory(&std::env::temp_dir()).unwrap();
         fs::write(directory.join("main.omg"), "machine main() {}\n").unwrap();
@@ -1266,7 +1316,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            bound_targets(&directory),
+            bound_targets(&directory).unwrap(),
             BTreeSet::from(["linux_arm64".to_owned(), "windows_x86_64".to_owned()])
         );
         fs::remove_dir_all(directory).unwrap();
@@ -1290,7 +1340,11 @@ mod tests {
                 format!("// Expected exit: {annotation}\nmachine main() {{}}\n"),
             )
             .unwrap();
-            assert_eq!(parse_header_oracle(&entry).0, expected, "{annotation}");
+            assert_eq!(
+                parse_header_oracle(&entry).unwrap().0,
+                expected,
+                "{annotation}"
+            );
         }
         fs::remove_dir_all(directory).unwrap();
     }
