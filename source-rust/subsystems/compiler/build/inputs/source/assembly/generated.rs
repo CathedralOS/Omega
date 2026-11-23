@@ -46,11 +46,11 @@ impl GeneratedSourceExtension {
             SourceInput(generated_sources.into_iter().collect()).append(&mut syntax, timings)?;
         let top_level_bindings =
             crate::source::source_imports::generated_file_imports(&parsed, &sources, inputs)?;
-        Ok(source_compiler::SourceExtensionRequest {
+        Ok(source_compiler::SourceExtensionRequest::new(
             syntax,
             sources,
             top_level_bindings,
-        })
+        ))
     }
 }
 
