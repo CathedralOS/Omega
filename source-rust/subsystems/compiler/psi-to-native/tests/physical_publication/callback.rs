@@ -568,6 +568,16 @@ fn check_callback_publication(retain_body_source: bool) {
     let root_originals = root.originals;
     let root = root.projection;
     let object = root.object();
+    let section = object.publication().text();
+    let mut edited = section.clone();
+    let registrar = edited
+        .unresolved_normalized_foreign_calls
+        .iter_mut()
+        .find(|resolution| !resolution.callback_materializations.is_empty())
+        .expect("the placed registrar carries its callback address");
+    registrar.callback_materializations[0].code_section_offset += 1;
+    assert_ne!(section.identity, edited.recomputed_identity());
+
     let bindings = object.publication().bindings();
     let mut missing_import = bindings.clone();
     let import = Arc::make_mut(&mut missing_import.imports)
