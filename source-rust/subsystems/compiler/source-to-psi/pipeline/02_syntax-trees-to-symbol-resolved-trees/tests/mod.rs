@@ -21,3 +21,35 @@ pub(super) fn source_request(text: &str) -> super::ResolutionRequest {
         retained_base: None,
     }
 }
+
+#[test]
+fn computed_measures_require_one_subject_and_a_result_type() {
+    let owner = "data Counter { value: i32; }";
+    for declaration in [
+        "measure Counter::Rank(subject: Counter) -> i32 { 0 }",
+        "measure Counter::Rank lexicographic { value }",
+    ] {
+        let source = format!("{owner} {declaration}");
+        let trees = super::resolve(source_request(&source))
+            .unwrap_or_else(|diagnostics| panic!("{declaration}: {diagnostics:?}"));
+        assert_eq!(trees.roots.measures.len(), 1);
+    }
+
+    for declaration in [
+        "measure Counter::Rank() -> i32 { 0 }",
+        "measure Counter::Rank(a: Counter, b: Counter) -> i32 { 0 }",
+        "measure Counter::Rank(subject: Counter) { 0 }",
+    ] {
+        let source = format!("{owner} {declaration}");
+        let diagnostics = match super::resolve(source_request(&source)) {
+            Err(diagnostics) => diagnostics,
+            Ok(_) => panic!("resolver accepted {declaration}"),
+        };
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("computed measure")),
+            "{declaration}: {diagnostics:?}"
+        );
+    }
+}
