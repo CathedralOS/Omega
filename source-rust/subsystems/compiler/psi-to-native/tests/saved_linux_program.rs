@@ -110,7 +110,7 @@ fn published_target_entry_emits_linux_image() {
     let artifact = CanonicalTerminalArtifact::from_bytes(SAVED).unwrap();
     assert_eq!(
         artifact.manifest().identity().to_string(),
-        "5832612f0086193e5f311724887f42fb1d8eba038338b72999c5d48f175877d1"
+        "1738aa18524b390ee9d51c518f41ced0e4bb5a27aa6ba04a54c42e34135fc038"
     );
     let entry = artifact
         .semantic_module()
@@ -146,13 +146,16 @@ fn pre_namespace_publication_does_not_supply_the_current_physical_entry() {
     let old = include_bytes!(
         "../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.pre_namespace.psi"
     );
-    let artifact = CanonicalTerminalArtifact::from_bytes(old).unwrap();
-    let Err(diagnostics) = emit(artifact) else {
-        panic!("a pre-namespace physical entry filled the current target contract");
-    };
-    assert!(diagnostics.iter().any(|diagnostic| diagnostic.message ==
-        "selected entry schema does not declare exactly one `targets::linux_x86_64::LinuxX86_64PhysicalEntry::enter` arrival"
-    ), "{diagnostics:?}");
+    // The specimen was saved under semantic format marker 289, which format 290
+    // (#5035) retired; older markers are rejected before their payload is read
+    // (wiki/spec/terminal-psi/encoding.md#machine-rows). Its unqualified
+    // physical arrival therefore never reaches native admission.
+    assert!(matches!(
+        CanonicalTerminalArtifact::from_bytes(old),
+        Err(terminal_codec::CanonicalTerminalArtifactError::Semantic(
+            terminal_codec::CodecError::UnsupportedFormatMarker(289)
+        ))
+    ));
 }
 
 #[test]

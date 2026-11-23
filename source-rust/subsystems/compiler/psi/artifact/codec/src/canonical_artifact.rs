@@ -759,12 +759,29 @@ mod tests {
         assert!(attached.entry_receipt.is_none());
     }
 
+    // The pre-namespace specimen was saved under semantic format marker 289.
+    // Format 290 (#5035) retired its sealed byte reader, and the encoding
+    // rejects older markers before reading their payload
+    // (wiki/spec/terminal-psi/encoding.md#machine-rows).
     #[test]
-    fn pre_namespace_linux_program_reencodes_from_its_decoded_module_and_publication() {
+    fn pre_namespace_linux_program_is_refused_by_its_retired_format_marker() {
+        let bytes = include_bytes!(
+            "../../../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.pre_namespace.psi"
+        );
+        assert!(matches!(
+            CanonicalTerminalArtifact::from_bytes(bytes),
+            Err(CanonicalTerminalArtifactError::Semantic(
+                CodecError::UnsupportedFormatMarker(289)
+            ))
+        ));
+    }
+
+    #[test]
+    fn saved_linux_program_reencodes_from_its_decoded_module_and_publication() {
         use ::wire::digest_encoder::{content_identity, hex};
 
         let bytes = include_bytes!(
-            "../../../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.pre_namespace.psi"
+            "../../../../../../../tests/fixtures/calls/run/scalar_contract_route_exit/linux_x86_64.psi"
         );
         let received = CanonicalTerminalArtifact::from_bytes(bytes).unwrap();
         // A fresh seal encodes the decoded fields without retaining the received semantic bytes.
@@ -772,11 +789,11 @@ mod tests {
         assert!(closed.semantic_bytes() == received.semantic_bytes());
         assert_eq!(
             hex(&content_identity(closed.semantic_bytes())),
-            "273a842ad0f86f7fe5712afbd7146bd242e59e78262298622d90fc2081f3c851"
+            "bb4ed491bc41e157ef2d895a0ab910d36eac877fe5e5eb52a6983b34faf787ca"
         );
         assert_eq!(
             closed.identity().program_fingerprint.to_string(),
-            "8123ac5e147e6c749b10fee91b23e84f38f9a2a9f7a4d79cd4dbc0475a3a5108"
+            "b247bfc121c88d56fbdd3a024ad64eee2abdea9bd591da087580f8a2fbf6ae28"
         );
         let debug = received
             .debug_bytes()
@@ -796,13 +813,10 @@ mod tests {
         .unwrap();
         assert_eq!(
             rebuilt.manifest().identity().to_string(),
-            "b0e903a139095a3e99ccaf9771df7036d403983b81191df1615731fc21d1d721"
+            "1738aa18524b390ee9d51c518f41ced0e4bb5a27aa6ba04a54c42e34135fc038"
         );
         let encoded = rebuilt.to_bytes();
-        assert_eq!(
-            hex(&content_identity(&encoded)),
-            "9c0b0799e91b0097e51173b6c58377a18b499c89eeda46a024172aa91e1ea4d7"
-        );
+        assert_eq!(hex(&content_identity(&encoded)), "6e55b89c3ee581d108b7a70884070e5924c367e41af7ce8c7602a7a948bc3716");
         assert!(encoded.as_slice() == bytes);
     }
 
