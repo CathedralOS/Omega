@@ -105,7 +105,12 @@ impl<'program> Program<'program> {
             return true;
         }
         let binders = parameters.iter()
-            .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }))
+            .filter(|parameter| {
+                matches!(
+                    parameter.kind,
+                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                )
+            })
             .map(|parameter| parameter.symbol)
             .collect::<Vec<_>>();
         if binders.is_empty() {

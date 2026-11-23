@@ -747,6 +747,7 @@ impl<'t> Program<'t> {
                         parameter.kind,
                         crate::source_state::data::TypeParameterKind::Type
                             | crate::source_state::data::TypeParameterKind::Const { .. }
+                            | crate::source_state::data::TypeParameterKind::Value { .. }
                     )
                 })
             {
@@ -1673,6 +1674,7 @@ impl<'t> Program<'t> {
                     match parameter.kind {
                         crate::source_state::data::TypeParameterKind::Implementation
                         | crate::source_state::data::TypeParameterKind::Const { .. }
+                        | crate::source_state::data::TypeParameterKind::Value { .. }
                         | crate::source_state::data::TypeParameterKind::Machine {
                             contract:
                                 crate::source_state::data::MachineParameterContract::Structural(_)
@@ -1701,6 +1703,7 @@ impl<'t> Program<'t> {
                         parameter.kind,
                         crate::source_state::data::TypeParameterKind::Type
                             | crate::source_state::data::TypeParameterKind::Const { .. }
+                            | crate::source_state::data::TypeParameterKind::Value { .. }
                             | crate::source_state::data::TypeParameterKind::Machine {
                                 contract: crate::source_state::data::MachineParameterContract::Structural(
                                     _
@@ -1819,12 +1822,13 @@ impl<'t> Program<'t> {
         let binders = parameters
             .iter()
             .filter_map(|parameter| match parameter.kind {
-                TypeParameterKind::Const { .. }
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
                     if self.record_parameter(parameter.symbol).is_some() =>
                 {
                     None
                 }
-                TypeParameterKind::Const { type_reference } => {
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference } => {
                     Some((parameter.symbol, type_reference))
                 }
                 _ => None,
@@ -1880,7 +1884,8 @@ impl<'t> Program<'t> {
             .requirement_parameters(id, requirement)?
             .iter()
             .filter_map(|parameter| match parameter.kind {
-                TypeParameterKind::Const { type_reference } => {
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference } => {
                     Some((parameter.symbol, type_reference))
                 }
                 _ => None,
@@ -1992,7 +1997,8 @@ impl<'t> Program<'t> {
     fn value_binders(&self, id: MachineId, machine: &Machine) -> Checked<Vec<ValueBinder>> {
         let mut binders = Vec::new();
         for parameter in self.generic_parameters(id, machine)? {
-            let crate::source_state::data::TypeParameterKind::Const { type_reference } =
+            let (crate::source_state::data::TypeParameterKind::Const { type_reference }
+            | crate::source_state::data::TypeParameterKind::Value { type_reference }) =
                 parameter.kind
             else {
                 continue;
@@ -2178,6 +2184,7 @@ impl<'t> Program<'t> {
                         matches!(
                             parameter.kind,
                             crate::source_state::data::TypeParameterKind::Const { .. }
+                                | crate::source_state::data::TypeParameterKind::Value { .. }
                         )
                         .then_some(parameter.symbol)
                     }),
@@ -2479,6 +2486,7 @@ impl<'t> Program<'t> {
                 parameter.kind,
                 crate::source_state::data::TypeParameterKind::Type
                     | crate::source_state::data::TypeParameterKind::Const { .. }
+                    | crate::source_state::data::TypeParameterKind::Value { .. }
             ) || parameter.bounds != crate::source_state::data::DataProperties::default()
         }) {
             return Err(unserved("applied trait parameter eligibility"));
@@ -2716,7 +2724,8 @@ impl<'t> Program<'t> {
         }
         let mut binders = Vec::with_capacity(required.len());
         for (parameter, &(_, expected)) in parameters.iter().zip(required) {
-            let crate::source_state::data::TypeParameterKind::Const { type_reference } =
+            let (crate::source_state::data::TypeParameterKind::Const { type_reference }
+            | crate::source_state::data::TypeParameterKind::Value { type_reference }) =
                 parameter.kind
             else {
                 return Err(unserved(
@@ -2792,7 +2801,8 @@ impl<'t> Program<'t> {
             if parameter.bounds != crate::source_state::data::DataProperties::default() {
                 return unserved("requirement value parameter eligibility");
             }
-            let crate::source_state::data::TypeParameterKind::Const { type_reference } =
+            let (crate::source_state::data::TypeParameterKind::Const { type_reference }
+            | crate::source_state::data::TypeParameterKind::Value { type_reference }) =
                 parameter.kind
             else {
                 return Err(refuse_parameters(

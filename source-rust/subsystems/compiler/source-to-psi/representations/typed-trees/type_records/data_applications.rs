@@ -322,7 +322,9 @@ impl<'source> ApplicationPreparation<'source> {
             || parameters.iter().any(|parameter| {
                 !matches!(
                     parameter.kind,
-                    TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                    TypeParameterKind::Type
+                        | TypeParameterKind::Const { .. }
+                        | TypeParameterKind::Value { .. }
                 )
             })
         {
@@ -369,7 +371,7 @@ impl<'source> ApplicationPreparation<'source> {
         let mut definition = template.clone();
         // Only a newly formed view needs canonical integers in its member types.
         for (parameter, (_, argument)) in parameters.iter().zip(&mut substitutions) {
-            if matches!(parameter.kind, TypeParameterKind::Const { .. })
+            if parameter.kind.is_const_or_value()
                 && let Some(value) = self
                     .source
                     .static_const_literal_from_type_reference(*argument)
@@ -393,7 +395,7 @@ impl<'source> ApplicationPreparation<'source> {
         for (parameter, (_, argument)) in parameters.iter().zip(&substitutions) {
             closed &= match parameter.kind {
                 TypeParameterKind::Type => self.reference(*argument)?,
-                TypeParameterKind::Const { .. } => {
+                TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
                     self.source
                         .static_const_literal_from_type_reference(*argument)
                         .is_some()

@@ -728,7 +728,8 @@ impl Program<'_> {
             let served = parameter.bounds == crate::source_state::data::DataProperties::default()
                 && match parameter.kind {
                     TypeParameterKind::Type => true,
-                    TypeParameterKind::Const { type_reference } => {
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference } => {
                         crate::source_state::canonical_const_carrier_is_supported(
                             typed,
                             type_reference,
@@ -788,19 +789,26 @@ impl Program<'_> {
         {
             return Err(unserved());
         }
-        let own = |symbol: SymbolHandle, constant: bool| {
-            parameters.iter().any(|parameter| {
-                parameter.symbol == symbol
-                    && constant == matches!(parameter.kind, TypeParameterKind::Const { .. })
-            })
+        // A type binder names a type. A `const` binder is static, so it may
+        // size an inline array; a value binder may also be runtime, so it
+        // only indexes an application (generics.md, "Runtime index identity
+        // and storage": inline fixed arrays keep static extents).
+        let own = |symbol: SymbolHandle, accepts: fn(&TypeParameterKind) -> bool| {
+            parameters
+                .iter()
+                .any(|parameter| parameter.symbol == symbol && accepts(&parameter.kind))
         };
+        let type_binder: fn(&TypeParameterKind) -> bool = |kind| *kind == TypeParameterKind::Type;
+        let const_binder: fn(&TypeParameterKind) -> bool =
+            |kind| matches!(kind, TypeParameterKind::Const { .. });
+        let value_binder: fn(&TypeParameterKind) -> bool = |kind| kind.is_const_or_value();
         match typed.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
                 use symbols::BuiltinTypeAtom as Atom;
                 match typed.symbols.builtin_type_atom(*symbol) {
                     Some(Atom::Bool | Atom::Integer(_) | Atom::F32 | Atom::F64) => Ok(()),
                     Some(_) => Err(unserved()),
-                    None if own(*symbol, false) => Ok(()),
+                    None if own(*symbol, type_binder) => Ok(()),
                     None if self.data_declaration(*symbol).is_some() => {
                         self.record_at(entry, reference).map(|_| ())
                     }
@@ -817,7 +825,8 @@ impl Program<'_> {
             } => {
                 match length {
                     _ if typed.closed_fixed_array_length(reference).is_some() => {}
-                    FixedArrayLength::ConstParameter { symbol, .. } if own(*symbol, true) => {}
+                    FixedArrayLength::ConstParameter { symbol, .. }
+                        if own(*symbol, const_binder) => {}
                     _ => return Err(unserved()),
                 }
                 self.template_type(entry, declaration, parameters, *element_type, depth + 1)
@@ -857,11 +866,20 @@ impl Program<'_> {
                         TypeParameterKind::Type => {
                             self.template_type(entry, declaration, parameters, *argument, depth + 1)?;
                         }
-                        TypeParameterKind::Const { .. } => {
+                        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
+                            // A `const` formal needs a static argument; a
+                            // value formal also takes this header's value
+                            // binder.
+                            let accepts = if matches!(formal.kind, TypeParameterKind::Const { .. })
+                            {
+                                const_binder
+                            } else {
+                                value_binder
+                            };
                             let named_constant = matches!(
                                 typed.type_reference_table.type_reference(*argument),
                                 TypeReferenceNode::Named { symbol, .. }
-                                    if symbol.is_valid() && own(*symbol, true)
+                                    if symbol.is_valid() && own(*symbol, accepts)
                             );
                             if !named_constant
                                 && typed
@@ -894,16 +912,49 @@ impl Program<'_> {
         let diagnostic = MachineId::new(1).expect("1 is nonzero");
         self.subject_data_template(diagnostic, declared)?;
         let parameters = self.typed.data_type_parameters(declared);
-        if parameters
-            .iter()
-            .any(|parameter| parameter.kind != TypeParameterKind::Type)
-        {
-            return Err(refuse(
-                diagnostic,
-                Construct::Machine,
-                Unserved::Type("generic data invariant with const parameters"),
-            ));
+        // `data Index<Limit: u32> requires value < Limit` holds for every
+        // `Limit`, so the predicate is formed with each `const` or value
+        // binder as an input of its carrier that nothing defines. These
+        // inputs belong to this check form only: the module has no machine,
+        // and every application reads the template again with its own
+        // arguments (`record_definition`).
+        let mut inputs = Vec::new();
+        for parameter in parameters {
+            match parameter.kind {
+                TypeParameterKind::Type => {}
+                TypeParameterKind::Const { type_reference }
+                | TypeParameterKind::Value { type_reference } => {
+                    let value = semantic_vocabulary::ValueId::new(inputs.len() as u64 + 1)
+                        .ok_or_else(|| {
+                            refuse(
+                                diagnostic,
+                                Construct::Machine,
+                                Unserved::Parameter("value binder identity overflow"),
+                            )
+                        })?;
+                    inputs.push(super::ConstBinding {
+                        symbol: parameter.symbol,
+                        owner: diagnostic,
+                        value,
+                        scalar_type: self.scalar_type(diagnostic, type_reference)?,
+                    });
+                }
+                _ => {
+                    return Err(refuse(
+                        diagnostic,
+                        Construct::Machine,
+                        Unserved::Type(
+                            "generic data invariant with a machine or proposition binder",
+                        ),
+                    ));
+                }
+            }
         }
+        inputs.sort_unstable_by_key(|binding| {
+            (binding.symbol.arena_index(), binding.symbol.generation())
+        });
+        self.open_equation_inputs = Some(inputs.len() as u64 + 1);
+        self.const_scope = inputs;
         self.scope = super::type_parameters::rigid_type_scope(parameters);
         self.generic_binders
             .extend(parameters.iter().map(|parameter| parameter.symbol));

@@ -1028,6 +1028,7 @@ fn bind_requirement(
         matches!(
             parameter.kind,
             crate::source_state::data::TypeParameterKind::Const { .. }
+                | crate::source_state::data::TypeParameterKind::Value { .. }
         )
     }) {
         return Ok(());
@@ -1193,6 +1194,7 @@ fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selectio
                     matches!(
                         parameter.kind,
                         crate::source_state::data::TypeParameterKind::Const { .. }
+                            | crate::source_state::data::TypeParameterKind::Value { .. }
                     )
                 });
             if !only_values

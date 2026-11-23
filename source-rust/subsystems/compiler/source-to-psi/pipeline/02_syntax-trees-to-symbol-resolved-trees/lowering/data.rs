@@ -120,25 +120,11 @@ fn lower_data_definition_with_argument_origins(
 ) -> Result<DataDefinition, Diagnostic> {
     let type_parameters =
         lower_type_parameters(lowerer, syntax_trees, data_definition.type_parameters)?;
+    // A value binder (`data Index<Limit: u32>`) is an index of the type, not
+    // a field: `Index { value: 4u32 }` constructs an `Index<5>`, and the
+    // index stays proof-only unless the author stores it (generics.md,
+    // "Value binders and const requirements").
     let mut members = HandleSpan::empty();
-    for parameter in syntax_items(syntax_trees).type_parameters(data_definition.type_parameters) {
-        let syntax::item::TypeParameterKind::Value { type_reference } = &parameter.kind else {
-            continue;
-        };
-        let field = DataMember::Field(DataField {
-            identity: None,
-            symbol: SymbolHandle::invalid(),
-            name: lower_name(syntax_trees, &parameter.name),
-            relevance: language_core::BindingRelevance::default(),
-            type_reference: lower_type_reference_handle(lowerer, syntax_trees, *type_reference)?,
-        });
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .data_members
-            .append_to_span(&mut members, field);
-    }
     for member in syntax_trees.items.data_members(data_definition.members) {
         if matches!(member, syntax::item::DataMember::Retired(_)) {
             continue;

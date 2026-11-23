@@ -2128,14 +2128,11 @@ pub(crate) mod construction_destinations {
             if let ExpressionNode::StructLiteral(literal) =
                 program.expression_table.expression(value).clone()
             {
-                // Runtime value indices still need their actual source argument
-                // materialization. This type-only landing does not snapshot or
-                // invent those values and grants no construction premise.
+                // A value index is a type argument like a `const` one: this
+                // type-only landing names the application, and construction
+                // still owes the declaration's `requires` at it.
                 let exact_template = matches!(program.type_reference_table.type_reference(carrier),
-            TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == literal.type_symbol)
-                    && !program
-                        .type_application_value_indices(carrier)
-                        .has_runtime_values();
+            TypeReferenceNode::Generic { base_symbol, .. } if *base_symbol == literal.type_symbol);
                 if !exact_template
                     && program
                         .closed_data_constructor_definition(destination, literal.type_symbol)

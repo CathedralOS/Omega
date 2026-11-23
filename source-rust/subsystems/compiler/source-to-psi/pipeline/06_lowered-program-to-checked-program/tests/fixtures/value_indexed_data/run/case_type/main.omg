@@ -1,0 +1,24 @@
+// Expected exit: 0.
+// A case constraint relates the case to the type argument: a `Value<i32>`
+// must be `Value::Integer` (data_and_literals.md, "Case constraints").
+// The fail twin `fail/case_type_mismatch` constructs `Value::Boolean`.
+data Value<T>
+    requires ((self in Value::Integer) && T == i32)
+       || ((self in Value::Boolean) && T == bool)
+{
+    case Integer(value: i32);
+    case Boolean(value: bool);
+}
+
+machine main() crashes Trap {
+    let number: Value<i32> = Value::Integer { value: 17 };
+    transition number {
+        Value::Integer { value, .. } -> check(value),
+        Value::Boolean { .. } -> wrong()
+    }
+    machine check(value: i32) {
+        transition value == 17 { true -> done(), false -> wrong() }
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

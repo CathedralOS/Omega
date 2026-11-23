@@ -627,7 +627,9 @@ fn infer_call(
         || omitted.iter().any(|parameter| {
             !matches!(
                 parameter.kind,
-                TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                TypeParameterKind::Type
+                    | TypeParameterKind::Const { .. }
+                    | TypeParameterKind::Value { .. }
             )
         })
         || formals.len() != call.arguments.len()
@@ -1357,14 +1359,16 @@ fn call_result(
     for (parameter, argument) in parameters.iter().zip(&arguments) {
         if !matches!(
             parameter.kind,
-            TypeParameterKind::Type | TypeParameterKind::Const { .. }
+            TypeParameterKind::Type
+                | TypeParameterKind::Const { .. }
+                | TypeParameterKind::Value { .. }
         ) {
             return Ok(None);
         }
         let Ok(reference) = program.static_operand_type_reference(argument) else {
             return Ok(None);
         };
-        let reference = if matches!(parameter.kind, TypeParameterKind::Const { .. }) {
+        let reference = if parameter.kind.is_const_or_value() {
             let Some(value) = program
                 .static_const_literal_from_type_reference(reference)
                 .and_then(|literal| literal.value_u64())
