@@ -833,13 +833,18 @@ fn file_imports_neither_bind_bare_names_nor_reexport_imports() {
 fn file_qualifiers_respect_foreign_declaration_visibility() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     let dependency = PackageKeyIdentity::from_digest([0x64; 32]).unwrap();
-    for (source, visible) in [
-        ("public machine read() -> u8 { 7u8 }", true),
-        ("machine read() -> u8 { 7u8 }", false),
+    for (source, direct, refusal) in [
+        ("public machine read() -> u8 { 7u8 }", true, None),
+        ("public machine read() -> u8 { 7u8 }", false, Some("direct")),
+        ("machine read() -> u8 { 7u8 }", true, Some("private")),
     ] {
         let (mut files, root) = captured(package, "machine value() -> u8 { |leaf|::read() }");
         let helper = capture_file(&mut files, "dependency", dependency, "helper.omg", source);
         let mut stage = product(files, root, package, &[]).unwrap();
+        stage.product.declaration_scope = Some(Arc::new(ProductDeclarationScope::from_direct_dependencies(
+            &[package, dependency],
+            direct.then_some((package, dependency)),
+        )));
         stage.parsed.roots.push(helper);
         stage
             .parsed
@@ -848,16 +853,11 @@ fn file_qualifiers_respect_foreign_declaration_visibility() {
                 root, helper, "leaf",
             ));
         let actual = compile(stage, None);
-        if visible {
-            actual.expect("the imported public machine is callable");
+        if let Some(refusal) = refusal {
+            let errors = actual.expect_err("loading a file cannot grant extra authority");
+            assert!(errors.iter().any(|d| d.message.contains(refusal)), "{errors:?}");
         } else {
-            let errors = actual.expect_err("a package-private machine stays private");
-            assert!(
-                errors
-                    .iter()
-                    .any(|d| d.message.contains("private") || d.message.contains("inaccessible")),
-                "{errors:?}"
-            );
+            actual.expect("the direct dependency exposes its public machine");
         }
     }
 }
