@@ -56,60 +56,24 @@ pub fn collect_root_bindings(
                     ).with_source_span(binding.source_span));
                     continue;
                 }
-                let qualified = implementation.split_once("::");
-                let dependency = qualified.and_then(|(alias, _)| {
-                    typed.symbols.product_dependency_target(occurrence, alias)
-                });
-                let declaration_path = match (qualified, dependency) {
-                    (Some((_, path)), Some(_)) => path,
-                    _ => implementation.as_str(),
-                };
+                let scope = super::ProductScope::new(typed, occurrence, &implementation);
                 let mut candidates = typed
                     .machines()
                     .iter()
-                    // Retained declaration coordinates are not membership in
-                    // this compilation. Only its selected source generation
-                    // can supply the exact Product declaration.
                     .filter(|machine| typed.symbols.symbol_source_is_selected(machine.symbol))
-                    .filter(|machine| {
-                        ((dependency.is_none() && machine.name.as_str() == declaration_path)
-                            || typed.symbols.display_path(machine.symbol, "::") == declaration_path)
-                            && match dependency {
-                                Some(package) => {
-                                    machine.is_public
-                                        && typed
-                                            .symbols
-                                            .symbol_product_package_identity(machine.symbol)
-                                            == Some(package)
-                                }
-                                None => typed
-                                    .symbols
-                                    .symbol_source_span(machine.symbol)
-                                    .is_some_and(|span| {
-                                        typed
-                                            .symbols
-                                            .same_product_package_instance(occurrence, span)
-                                    }),
-                            }
-                    })
-                    .filter(|machine| {
-                        typed.symbols.source_reference_can_describe_product_symbol(
-                            occurrence,
-                            machine.symbol,
-                        )
-                    })
+                    .filter(|machine| scope.contains(typed, machine.symbol, machine.is_public))
                     .collect::<Vec<_>>();
                 if candidates.iter().any(|machine| {
-                    typed.symbols.display_path(machine.symbol, "::") == declaration_path
+                    typed.symbols.display_path(machine.symbol, "::") == scope.path
                 }) {
                     candidates.retain(|machine| {
-                        typed.symbols.display_path(machine.symbol, "::") == declaration_path
+                        typed.symbols.display_path(machine.symbol, "::") == scope.path
                     });
                 }
                 match candidates.as_slice() {
                     [machine] => (implementation, machine.symbol),
                     [] => {
-                        let probe = qualified.map_or(implementation.as_str(), |(_, path)| path);
+                        let probe = super::ProductScope::probe(&implementation);
                         let message = if typed.machines().iter().any(|machine| {
                             machine.name.as_str() == probe
                                 || typed.symbols.display_path(machine.symbol, "::") == probe
