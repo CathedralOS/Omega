@@ -1,0 +1,10 @@
+machine main() crashes Trap {
+    let a: u32 = 3;
+    let b: u32 = 4;
+    transition {
+        (a + b) > a + 3 -> done(),
+        _ -> failed(),
+    }
+    machine done() {}
+    machine failed() { crash Trap; }
+}
