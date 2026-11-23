@@ -267,9 +267,10 @@ impl Program<'_> {
         Ok(Some(primitive))
     }
 
-    /// Named constants are materialized before this reader. Read the format
-    /// from the checked record, including the declaration attached to this
-    /// particular use. An equivalent authored record has the same meaning.
+    /// Read the format from the checked record. A named format such as
+    /// `FloatFormat::BINARY64` stays a name for the constant at its leaf, and
+    /// the record is the one that declaration stores; its head names only the
+    /// carrier. An equivalent authored record has the same meaning.
     fn meaning_format(&self, id: MachineId, argument: ExpressionHandle) -> Checked<Format> {
         use application_identity::const_value::decode_declaration_value;
 
@@ -286,10 +287,7 @@ impl Program<'_> {
             .map_err(|detail| unavailable(id, detail))?;
         let (selected, materialized) = match expressions.expression(argument) {
             ExpressionNode::Name(name) if !name.static_application.is_valid() => {
-                let named = name
-                    .resolved_symbol()
-                    .and_then(|symbol| typed.const_declaration_by_symbol(symbol))
-                    .ok_or_else(unknown)?;
+                let named = typed.named_const_declaration(name).ok_or_else(unknown)?;
                 if authored.is_some_and(|declaration| declaration.symbol != named.symbol) {
                     return Err(unavailable(
                         id,

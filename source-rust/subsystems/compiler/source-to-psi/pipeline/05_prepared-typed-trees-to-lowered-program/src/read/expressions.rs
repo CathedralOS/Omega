@@ -146,9 +146,22 @@ impl<'t> Program<'t> {
                 Unserved::Expression("missing expression"),
             ));
         }
+        let value = self.constant_value(id, expression)?;
+        Ok(self.typed.expression_table.expression(value))
+    }
+
+    /// The expression a reader interprets in place of `expression`. A use of
+    /// an evaluated constant stays a name for its selected declaration, so
+    /// every value and contract reader reads the value that declaration
+    /// stores (its materialized initializer). Any other expression, a
+    /// constant still awaiting a target observation included, reads itself.
+    pub(super) fn constant_value(
+        &self,
+        id: MachineId,
+        expression: ExpressionHandle,
+    ) -> Checked<ExpressionHandle> {
         let table = &self.typed.expression_table;
-        let node = table.expression(expression);
-        if let ExpressionNode::Name(path) = node
+        if let ExpressionNode::Name(path) = table.expression(expression)
             && let Some(constant) = self.typed.named_const_declaration(path)
             && constant.evaluated_value.is_some()
         {
@@ -159,12 +172,12 @@ impl<'t> Program<'t> {
                     Unserved::Expression("evaluated constant has no materialized initializer"),
                 ));
             }
-            return Ok(table.expression(constant.materialized_initializer));
+            return Ok(constant.materialized_initializer);
         }
-        Ok(node)
+        Ok(expression)
     }
 
-/// Reads the term at an erased position: an `[erased]` local's
+    /// Reads the term at an erased position: an `[erased]` local's
     /// initializer or the argument for an `[erased]` formal. It is a literal
     /// or a scalar binding, relevant or erased. Anything that computes has a
     /// formation condition (contracts.md, "Total arithmetic": "Exact
