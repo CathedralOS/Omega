@@ -538,7 +538,8 @@ impl SyntaxCopy<'_> {
                 UseItem::Namespace { path } => UseItem::Namespace {
                     path: self.copy_item_identifier_span(other, *path),
                 },
-                UseItem::File { root, components, alias, span } => UseItem::File {
+                UseItem::File { root, components, alias, span, only_product_operands } => UseItem::File {
+                    only_product_operands: *only_product_operands,
                     root: root.clone(),
                     components: self.copy_item_identifier_span(other, *components),
                     alias: alias.clone(),

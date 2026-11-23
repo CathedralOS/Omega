@@ -113,6 +113,7 @@ pub enum UseItem {
         root: Option<Identifier>,
         components: HandleSpan<Identifier>,
         alias: Identifier,
+        only_product_operands: bool,
         span: source_text::SourceSpan,
     },
 }
