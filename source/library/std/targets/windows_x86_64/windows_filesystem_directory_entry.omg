@@ -1,3 +1,4 @@
+use targets/windows_x86_64/windows_filesystem_control.omg as control;
 use filesystem_host.omg as paths;
 use targets/windows_x86_64/windows_filesystem_directory.omg as directory;
 use targets/windows_x86_64/windows_filesystem_directory_native.omg as directory_io;
@@ -21,12 +22,12 @@ use omega\language\core\narrow_i64_to_u64_wrapping;
 
 machine windows_filesystem_native_directory_nth(path: @[u8] in |paths|::Path, ordinal: u64) -> |win_fs|::WindowsDirectoryEntryResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery {
-    let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_directory_open(path);
+    let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block |directory|::windows_directory_open(path);
     transition (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block query(handle, ordinal), false -> (windows_directory_entry_error()) }
     machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64) -> |win_fs|::WindowsDirectoryEntryResult
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
         let result: |win_fs|::WindowsDirectoryEntryResult = block windows_directory_select(handle, ordinal);
-        let released: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(handle as -WindowsPrivateNonalertFileOrAbsent));
+        let released: i32 = block |control|::windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(handle as -WindowsPrivateNonalertFileOrAbsent));
         transition released == 0 { true -> (result), false -> failed_close(result) }
     }
     machine failed_close(result: |win_fs|::WindowsDirectoryEntryResult) -> |win_fs|::WindowsDirectoryEntryResult {

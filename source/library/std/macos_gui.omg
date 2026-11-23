@@ -1,3 +1,5 @@
+use posix_filesystem_host.omg as raw_fs;
+use macos_image.omg as image;
 use omega\language\core\byte_observation;
 // Explicit application-owned macOS window state and stateless operations.
 // Named provider maps select these machines; selection creates no hidden state.
@@ -186,7 +188,7 @@ reaches
 invokes ObjectiveC
 {
     let mutable terminated: [u8; 256];
-    let fits: bool = posix_terminated_path(name, @mutable terminated[..]);
+    let fits: bool = |raw_fs|::posix_terminated_path(name, @mutable terminated[..]);
     terminated[255] = 0;
     transition fits { true -> ObjectiveC::get_class(@terminated), _ -> (0) }
 }
@@ -196,7 +198,7 @@ reaches none
 invokes ObjectiveC
 {
     let mutable terminated: [u8; 256];
-    let fits: bool = posix_terminated_path(name, @mutable terminated[..]);
+    let fits: bool = |raw_fs|::posix_terminated_path(name, @mutable terminated[..]);
     terminated[255] = 0;
     transition fits { true -> ObjectiveC::register_selector(@terminated), _ -> (0) }
 }
@@ -443,7 +445,7 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
     StandardOutput + ProcessExit
-invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
+invokes ObjectiveC invokes |image|::MacosImageData invokes |image|::MacosImageObjects
 {
     macos_window_present(window_state, source_width, source_height, @pixels[0..4096])
 }
@@ -456,7 +458,7 @@ reaches
     FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
     DirectoryEnumeration + FilesystemNamespaceMutation + StandardInput +
     StandardOutput + ProcessExit
-invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
+invokes ObjectiveC invokes |image|::MacosImageData invokes |image|::MacosImageObjects
 {
     let count: u64 = (source_width as u64) * (source_height as u64);
     transition source_width > 0 && source_width <= 8192 && source_height > 0 && source_height <= 8192 && pixels.length == count && pixels.length > 0 {
@@ -467,9 +469,9 @@ invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
     requires source_width > 0 && source_width <= 8192
     requires source_height > 0 && source_height <= 8192
     requires pixels.length == (source_width as u64) * (source_height as u64)
-    invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
+    invokes ObjectiveC invokes |image|::MacosImageData invokes |image|::MacosImageObjects
     {
-        let cgimg: u64 = macos_image_snapshot(source_width, source_height, pixels, window_state.space);
+        let cgimg: u64 = |image|::macos_image_snapshot(source_width, source_height, pixels, window_state.space);
         transition cgimg != 0 {
             true -> image(window_state, source_width, source_height, cgimg),
             _ -> (0)
@@ -478,7 +480,7 @@ invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
 
     machine image(window_state: @Window, source_width: u32, source_height: u32, cgimg: u64) -> u32
     requires cgimg != 0
-    invokes ObjectiveC invokes MacosImageObjects
+    invokes ObjectiveC invokes |image|::MacosImageObjects
     {
         let fbwf: f64 = F64::from_u32(source_width);
         let fbhf: f64 = F64::from_u32(source_height);
@@ -498,22 +500,22 @@ invokes ObjectiveC invokes MacosImageData invokes MacosImageObjects
 
     machine failed_image(cgimg: u64) -> u32
     requires cgimg != 0
-    invokes MacosImageObjects
+    invokes |image|::MacosImageObjects
     {
-        MacosImageObjects::release_image(cgimg);
+        |image|::MacosImageObjects::release_image(cgimg);
         0
     }
 
     machine display(window_state: @Window, source_height: u32, cgimg: u64, nsimg: u64) -> u32
     requires cgimg != 0 && nsimg != 0
-    invokes ObjectiveC invokes MacosImageObjects
+    invokes ObjectiveC invokes |image|::MacosImageObjects
     {
         let cbuf33: [u8; 10] = "setImage:\0";
         let sel: u64 = macos_objc_selector(@cbuf33[..]);
         let rc: u64 = ObjectiveC::send_scalar(window_state.view, sel, nsimg);
         // NSImage owns its image backing and setImage: retains the NSImage.
         // Drop our native image and NSImage references; no pixel loan survives.
-        MacosImageObjects::release_image(cgimg);
+        |image|::MacosImageObjects::release_image(cgimg);
         let released: u64 = ObjectiveC::send(nsimg, window_state.relsel);
         // Every source scanline was copied into the independent snapshot.
         source_height

@@ -1,3 +1,4 @@
+use targets/windows_x86_64/filesystem/errors.omg as errors;
 use File;
 use TryLockResult;
 use UnitResult;
@@ -7,10 +8,10 @@ use WindowsFilesystemHost;
 // denied access and unmatched unlocks remain errors. No service reach is added.
 
 machine windows_filesystem_lock(file: File) -> UnitResult
-{ windows_filesystem_unit(block WindowsFilesystemHost::lock_file(file.handle, true, false)) }
+{ |errors|::windows_filesystem_unit(block WindowsFilesystemHost::lock_file(file.handle, true, false)) }
 
 machine windows_filesystem_lock_shared(file: File) -> UnitResult
-{ windows_filesystem_unit(block WindowsFilesystemHost::lock_file(file.handle, false, false)) }
+{ |errors|::windows_filesystem_unit(block WindowsFilesystemHost::lock_file(file.handle, false, false)) }
 
 machine windows_filesystem_try_lock(file: File) -> TryLockResult
 { windows_filesystem_try_lock_result(block WindowsFilesystemHost::lock_file(file.handle, true, true)) }
@@ -19,12 +20,12 @@ machine windows_filesystem_try_lock_shared(file: File) -> TryLockResult
 { windows_filesystem_try_lock_result(block WindowsFilesystemHost::lock_file(file.handle, false, true)) }
 
 machine windows_filesystem_unlock(file: File) -> UnitResult
-{ windows_filesystem_unit(block WindowsFilesystemHost::unlock_file(file.handle)) }
+{ |errors|::windows_filesystem_unit(block WindowsFilesystemHost::unlock_file(file.handle)) }
 
 machine windows_filesystem_try_lock_result(status: i32) -> TryLockResult {
     transition status {
         0 -> TryLockResult::Acquired,
         -33 -> TryLockResult::WouldBlock,
-        _ -> (TryLockResult::Error { kind: windows_filesystem_status_error(status as i64) })
+        _ -> (TryLockResult::Error { kind: |errors|::windows_filesystem_status_error(status as i64) })
     }
 }
