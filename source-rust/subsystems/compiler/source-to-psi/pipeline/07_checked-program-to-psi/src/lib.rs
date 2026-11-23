@@ -25,6 +25,8 @@ pub use lowered_source_publication::{
     ProgramEntryContractSelection as TerminalProgramEntryContractSelection,
 };
 pub use terminal_check_tables::program::SuppliedRequirement as TerminalSuppliedRequirement;
+#[cfg(test)]
+pub(crate) use accepted::DeclaredRequirementApplication;
 pub use accepted::{
     AcceptedTerminalSource, ConstantRead, DeclaredBoundaryRequirement, PreparedTerminalPublication,
 };

@@ -1,5 +1,5 @@
 use super::*;
-use crate::accepted::DeclaredRequirementApplication;
+use crate::production::DeclaredRequirementApplication;
 use crate::provider_choice_inputs::{ProviderApplicationId, ProviderSelectionIdentity};
 use symbols::SymbolHandle;
 
