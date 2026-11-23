@@ -1,4 +1,5 @@
 use {omega}/language/core/access/access.omg as access;
+use {omega}/language/core/reflect/reflect.omg as reflect;
 
 // LAYOUT POLICIES (wiki/spec/layouts/plans.md):
 // Layout is a library, not a language axiom. A policy is an ordinary named
@@ -175,11 +176,6 @@ public machine layout_plan_place_private_field(plan: LayoutPlan, representation:
     plan
 }
 
-use omega\language\core\reflect\TypeSchema;
-use omega\language\core\reflect\CallableInfo;
-use omega\language\core\reflect\FieldInfo;
-use omega\language\core\access;
-
 // Access-policy vocabulary (wiki/spec/resources/access.md). LayoutPlan owns
 // geometry; AccessPlan retains a semantic schema, explicit issuance choice,
 // caller restrictions, observation demands and required boundary reach.
@@ -276,7 +272,7 @@ public data FieldAccess {
 }
 
 public data AccessFieldEntry<'text> {
-    field: FieldInfo<'text>;
+    field: |reflect|::FieldInfo<'text>;
     access: FieldAccess;
 }
 
@@ -290,20 +286,20 @@ public data BoundaryReach requires service_count <= 32 {
 // A policy states its issuer choice explicitly. The first case is the
 // ordinary zero value, so omitted or zeroed issuance permits nobody.
 public data Issuance<'text> {
-    case Only(routes: [CallableInfo<'text>]);
+    case Only(routes: [|reflect|::CallableInfo<'text>]);
     case Unrestricted;
 }
 
 // A region describes a semantic subject or member, independently of layout.
 // The receiving validator authenticates its schema and member correspondence.
 public data AccessRegion<'text> {
-    case Subject(schema: TypeSchema<'text>);
-    case Field(field: FieldInfo<'text>);
+    case Subject(schema: |reflect|::TypeSchema<'text>);
+    case Field(field: |reflect|::FieldInfo<'text>);
 }
 
 public data AccessCallerRule<'text> {
     region: AccessRegion<'text>;
-    callers: [CallableInfo<'text>];
+    callers: [|reflect|::CallableInfo<'text>];
 }
 
 // Access policies describe restrictions and observation demands. Geometry is
@@ -313,7 +309,7 @@ public data AccessCallerRule<'text> {
 public data AccessPlan<'text>
 requires field_count <= 32, reader_count <= 32, writer_count <= 32
 {
-    schema: TypeSchema<'text>;
+    schema: |reflect|::TypeSchema<'text>;
     issuance: Issuance<'text>;
     fields: [AccessFieldEntry<'text>; 32];
     field_count: u64;
@@ -324,14 +320,14 @@ requires field_count <= 32, reader_count <= 32, writer_count <= 32
     reach: BoundaryReach;
 }
 
-public IssuedBy<const R: CallableInfo> satisfies AccessPolicy {
-    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+public IssuedBy<const R: |reflect|::CallableInfo> satisfies AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> AccessPlan reaches none crashes none terminates {
         |access|::new_plan(@schema, Issuance::Only { routes: [R] })
     }
 }
 
-public IssuedByAny<const N: u64, const Routes: [CallableInfo; N]> satisfies AccessPolicy {
-    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+public IssuedByAny<const N: u64, const Routes: [|reflect|::CallableInfo; N]> satisfies AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> AccessPlan reaches none crashes none terminates {
         |access|::new_plan(@schema, Issuance::Only { routes: Routes })
     }
 }
@@ -595,5 +591,5 @@ public trait FixedLayout<T> {
 // semantic regions, issuance, operations and reach of the returned plan,
 // then joins the independently validated layout and backing supply.
 public trait AccessPolicy {
-    machine plan(schema: TypeSchema) -> AccessPlan;
+    machine plan(schema: |reflect|::TypeSchema) -> AccessPlan;
 }

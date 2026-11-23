@@ -1,4 +1,4 @@
-use omega\language\core\AccessRegion;
+use {omega}/language/core/layout.omg as layout;
 
 // An explicitly retained, immutable graph in this program's own constant data.
 // Its bytes contain descriptive identities, never compiler pointers or access
@@ -14,12 +14,12 @@ public machine schema<T>() -> TypeSchema { TypeSchema { storage: "" } }
 
 // A whole-subject rule retains the same immutable semantic schema. Its
 // consumer still authenticates that schema against the policy request.
-public machine TypeSchema::root<'graph>(schema: @TypeSchema<'graph>) -> AccessRegion<'graph>
+public machine TypeSchema::root<'graph>(schema: @TypeSchema<'graph>) -> |layout|::AccessRegion<'graph>
 reaches none
 crashes none
 terminates
 {
-    AccessRegion::Subject { schema: TypeSchema { storage: schema.storage } }
+    |layout|::AccessRegion::Subject { schema: TypeSchema { storage: schema.storage } }
 }
 
 // These bytes describe the selected declaration and its chosen arguments.
