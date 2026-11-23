@@ -136,7 +136,10 @@ impl<'a> FileImport<'a> {
         match self.root {
             Some("omega") => self.core(filesystem),
             Some(_) if let Some(inputs) = mounted => self.package(inputs, inputs.root(), true),
-            Some(_) => self.unavailable(match self.source.scope { DependencyScope::Build => DependencyPurpose::Build, DependencyScope::Product => DependencyPurpose::Product }),
+            Some(_) => self.unavailable(match self.source.scope {
+                DependencyScope::Build => DependencyPurpose::Build,
+                DependencyScope::Product => DependencyPurpose::Product,
+            }),
             None => self.select_captured(current_root, self.path, filesystem),
         }
     }

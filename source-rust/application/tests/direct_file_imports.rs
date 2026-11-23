@@ -15,9 +15,17 @@ fn the_imported_callable_reads_the_stored_value() {
         std::fs::copy(fixture.join(file), scratch.path().join(file)).unwrap();
         command.args(["--build-input", file]);
     }
-    let output = command.arg("main.omg").current_dir(scratch.path())
-        .stdin(Stdio::null()).output().unwrap();
-    let report = format!("{}{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+    let output = command
+        .arg("main.omg")
+        .current_dir(scratch.path())
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    let report = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
     assert!(output.status.success(), "{report}");
     for receipt in ["native exit 0", "interp exit: 0"] {
         assert!(report.lines().any(|line| line == receipt), "{report}");

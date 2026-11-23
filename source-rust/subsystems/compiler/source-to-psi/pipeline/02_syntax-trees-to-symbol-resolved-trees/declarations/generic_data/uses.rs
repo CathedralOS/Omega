@@ -1384,8 +1384,6 @@ mod expressions {
             syntax.items.state_parameter(*parameter).name.as_str(syntax) == name.as_str(syntax))
         }
     }
-
-
 }
 mod patterns {
     /* Membership and sum-pattern relabeling. */
