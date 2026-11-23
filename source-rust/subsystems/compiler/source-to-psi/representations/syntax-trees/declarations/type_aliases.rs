@@ -18,4 +18,8 @@ pub struct TypeAliasDefinition {
     pub conformance_bounds: Vec<GenericConformanceBound>,
     pub authored_expansion: TypeReferenceHandle,
     pub expansion: TypeReferenceHandle,
+    /// `data Count [copy] = u64;` asserts that the expansion is `copy`. The
+    /// alias keeps its expansion's multiplicity either way; typing refuses an
+    /// assertion the expansion does not satisfy. `None` asserts nothing.
+    pub asserted_multiplicity: Option<language_core::Multiplicity>,
 }

@@ -83,14 +83,6 @@ framework or a list of unimplemented features.
 - Cost: A read and its roster row can select different fields and nothing compares them: lowering checks coverage on the roster and reads through the member. No program is known to separate them. Typing already has the subject's record for every pattern it places, so it can write every row's symbol and the marker's subject, and the stage 04 pass can go.
 - Reported: 2026-11-22, Claude Code, while adding positional and headed data patterns
 
-### Typing lowers a local's member initializer twice and leaves the first copy in the expression table
-
-- Category: Re-deriving
-- Where: [the first lowering](source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/statement_lowering.rs#L472), [the test support that had to work around it](source-rust/subsystems/compiler/source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/tests/support/positional_fields.rs)
-- Saw: `infer_initializer_type` lowers an initializer that is a member, only to ask whether it is a collection's length, and `lower_local` then lowers the same initializer again for the local. Both copies stay in the typed expression table; no statement reaches the first. `let (alpha, _) = pair;` therefore leaves two identical reads of `pair.zeta`.
-- Cost: Every `let x = a.b;` stores its read twice. A test or tool that scans all typed expressions sees reads no machine executes, and changing the first copy changes nothing, which reads as a consumer ignoring its input. Ask the selection question on the resolved member, or reuse the lowered handle for the local.
-- Reported: 2026-11-22, Claude Code, while testing which field typing gives each place of a positional pattern
-
 ### Clippy with `-D warnings` cannot lint an application test because four crates it builds carry warnings
 
 - Category: Tests that pin the bug

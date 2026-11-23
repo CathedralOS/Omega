@@ -4,38 +4,50 @@
 //! expression or chooses a result. Every job still passes typed preparation,
 //! structural discharge, publication and hermetic invocation admission.
 
-use checked_program_to_psi::production;
-use std::collections::VecDeque;
+use std::sync::Arc;
 use typed_trees_to_prepared_typed_trees::{PreparedValue, TargetInputs, ValueInputs};
 
 use crate::source_state::TypedTrees;
+use crate::source_state::constant::ConstDeclaration;
+use crate::source_state::references::DeclarationSelection;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 use crate::compile_time_invocations::{
-    FixedLayoutTargetScope, PreparedBuildMachineProgram, SourceCompletionAccounting,
-    demanded_declarations, invocation_error,
+    FixedLayoutTargetScope, PureEvaluationRecord, SourceCompletionAccounting, invocation_error,
 };
 
+use super::super::demanded_values::{DemandedValues, RoundProgram};
 use super::{References, decoded, family_position, key};
 
-/// Nominate computation from the same request the lowered-form checker will
-/// judge. This discovers identities only; neither membership nor an empty
-/// dependency row admits an invocation or supplies its result.
-fn demanded_constants(
-    program: &TypedTrees,
-    request: production::TerminalSourceCompilation<'_>,
-) -> Result<Vec<SymbolHandle>, String> {
-    let selected = demanded_declarations(program, request)?;
-    let mut constants = program
-        .const_declarations()
-        .iter()
-        .filter(|constant| selected.contains(constant.symbol))
-        .map(|constant| constant.symbol)
-        .collect::<Vec<_>>();
-    constants.sort_unstable_by_key(|symbol| key(*symbol));
-    constants.dedup();
-    Ok(constants)
+/// Keeps the machine that computes each unevaluated constant among the
+/// program's machines, where the declarations it reaches can be read.
+pub(in super::super) fn retain_evaluation_entries(
+    program: &mut TypedTrees,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut entries = Vec::new();
+    for declaration in program.const_declarations() {
+        if declaration.evaluated_value.is_some() || !declaration.evaluation_entry.is_valid() {
+            continue;
+        }
+        if !program
+            .tables
+            .machines
+            .is_valid(declaration.evaluation_entry)
+        {
+            return Err(vec![Diagnostic::error(
+                "retained constant lost its complete evaluation entry",
+            )]);
+        }
+        let entry = program.tables.machines.get(declaration.evaluation_entry);
+        if program.machine_by_symbol(entry.symbol).is_none() {
+            entries.push(entry.clone());
+        }
+    }
+    for entry in entries {
+        program.push_machine(entry);
+    }
+    Ok(())
 }
 
 /// The deployments whose declaration closure reaches each constant, in
@@ -77,251 +89,316 @@ fn deployment_targets<'scope>(
     Ok(reached)
 }
 
-pub fn evaluate_with_source_consent(
-    program: &mut TypedTrees,
-    request: production::TerminalSourceCompilation<'_>,
-    scopes: &[FixedLayoutTargetScope],
-    authority: Option<std::sync::Arc<declaration_scope::PackageDeclarationScope>>,
-    source_consent: Option<
-        std::sync::Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>,
-    >,
-    accounting: &mut SourceCompletionAccounting,
-) -> Result<Vec<ValueInputs>, Vec<Diagnostic>> {
-    let demanded =
-        demanded_constants(program, request).map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let mut declarations = program
-        .const_declarations()
-        .iter()
-        .filter(|decl| family_position(&demanded, decl.symbol).is_some())
-        .collect::<Vec<_>>();
-    declarations.sort_unstable_by_key(|decl| key(decl.symbol));
-    let mut values = declarations
-        .into_iter()
-        .map(|declaration| {
-            let inputs = if program
-                .expression_table
-                .expression_is_valid(declaration.authored_initializer)
-                && !program
-                    .tables
-                    .machines
-                    .is_valid(declaration.evaluation_entry)
-            {
-                super::request_references(program, declaration.authored_initializer)
-                    .symbols
-                    .into_iter()
-                    .filter(|&symbol| {
-                        program.symbols.symbols().nodes().is_valid(symbol)
-                            && program.symbols.get(symbol).kind == symbols::SymbolKind::Const
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
-            ValueInputs::new(
-                program,
-                PreparedValue::Constant(declaration.symbol),
-                inputs,
-                if declaration.pending_target_observation {
-                    TargetInputs::Deferred
-                } else {
-                    TargetInputs::None
-                },
-            )
-        })
-        .collect::<Vec<_>>();
-    let jobs = program
-        .roots
-        .const_declarations
-        .handles()
-        .filter_map(|handle| {
-            let constant = program.tables.const_declarations.get(handle);
-            (family_position(&demanded, constant.symbol).is_some()
-                && constant.evaluated_value.is_none()
-                && program.tables.machines.is_valid(constant.evaluation_entry))
-            .then(|| {
-                (
-                    handle,
-                    constant.symbol,
-                    program
+/// One demanded constant whose initializer is still a machine to run.
+struct Job<'scope> {
+    handle: arena::Handle<ConstDeclaration>,
+    /// The constant. Every use names it, so it alone holds the value.
+    symbol: [SymbolHandle; 1],
+    /// The machine that computes the initializer, where evaluation starts.
+    entry: [SymbolHandle; 1],
+    /// This constant's row among the demanded constants' inputs.
+    inputs: usize,
+    deployments: Vec<&'scope FixedLayoutTargetScope>,
+}
+
+/// The constants a request demands. Those written as a literal already have
+/// their value; each of the others is a job.
+pub(in super::super) struct Initializers<'scope> {
+    jobs: Vec<Job<'scope>>,
+    /// The inputs stage 04 prepares for every demanded constant, sorted by
+    /// constant.
+    values: Vec<ValueInputs>,
+}
+
+impl<'scope> Initializers<'scope> {
+    /// Nominate computation from the same request the lowered-form checker
+    /// will judge. This discovers identities only; neither membership nor an
+    /// empty dependency row admits an invocation or supplies its result.
+    pub(in super::super) fn demanded(
+        program: &mut TypedTrees,
+        selected: &DeclarationSelection,
+        scopes: &'scope [FixedLayoutTargetScope],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let mut demanded = program
+            .const_declarations()
+            .iter()
+            .filter(|constant| selected.contains(constant.symbol))
+            .map(|constant| constant.symbol)
+            .collect::<Vec<_>>();
+        demanded.sort_unstable_by_key(|symbol| key(*symbol));
+        demanded.dedup();
+        let mut declarations = program
+            .const_declarations()
+            .iter()
+            .filter(|decl| family_position(&demanded, decl.symbol).is_some())
+            .collect::<Vec<_>>();
+        declarations.sort_unstable_by_key(|decl| key(decl.symbol));
+        let mut values = declarations
+            .into_iter()
+            .map(|declaration| {
+                let inputs = if program
+                    .expression_table
+                    .expression_is_valid(declaration.authored_initializer)
+                    && !program
                         .tables
                         .machines
-                        .get(constant.evaluation_entry)
-                        .symbol,
+                        .is_valid(declaration.evaluation_entry)
+                {
+                    super::request_references(program, declaration.authored_initializer)
+                        .symbols
+                        .into_iter()
+                        .filter(|&symbol| {
+                            program.symbols.symbols().nodes().is_valid(symbol)
+                                && program.symbols.get(symbol).kind == symbols::SymbolKind::Const
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+                ValueInputs::new(
+                    program,
+                    PreparedValue::Constant(declaration.symbol),
+                    inputs,
+                    if declaration.pending_target_observation {
+                        TargetInputs::Deferred
+                    } else {
+                        TargetInputs::None
+                    },
                 )
             })
-        })
-        .collect::<Vec<_>>();
-    if jobs.is_empty() {
-        return Ok(values);
-    }
-    let mut constants = program
-        .const_declarations()
-        .iter()
-        .map(|constant| constant.symbol)
-        .collect::<Vec<_>>();
-    constants.sort_unstable_by_key(|symbol| key(*symbol));
-    let mut positions = jobs
-        .iter()
-        .enumerate()
-        .map(|(index, (_, symbol, _))| (*symbol, index))
-        .collect::<Vec<_>>();
-    positions.sort_unstable_by_key(|(symbol, _)| key(*symbol));
-    let mut successors = vec![Vec::new(); jobs.len()];
-    let mut remaining = vec![0usize; jobs.len()];
-    for (position, (_, symbol, entry)) in jobs.iter().enumerate() {
-        let value = family_position(&demanded, *symbol).expect("constant job was demanded");
-        let references = References {
-            calls: vec![*entry],
-            ..Default::default()
-        }
-        .follow_calls(program);
-        for dependency in references.symbols {
-            if family_position(&constants, dependency).is_some() {
-                values[value].constants.push(dependency);
-            }
-            if let Ok(index) =
-                positions.binary_search_by_key(&key(dependency), |(symbol, _)| key(*symbol))
-            {
-                let dependency = positions[index].1;
-                remaining[position] += 1;
-                successors[dependency].push(position);
-            }
-        }
-    }
-    let job_symbols = jobs
-        .iter()
-        .map(|(_, symbol, _)| *symbol)
-        .collect::<Vec<_>>();
-    let deployments = deployment_targets(program, scopes, &job_symbols)
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
-    let mut ready = remaining
-        .iter()
-        .enumerate()
-        .filter_map(|(position, count)| (*count == 0).then_some(position))
-        .collect::<VecDeque<_>>();
-    let mut completed = 0usize;
-    while let Some(position) = ready.pop_front() {
-        let (handle, symbol, entry) = jobs[position];
-        let value_index = family_position(&demanded, symbol).expect("constant job was demanded");
-        let result = (|| -> Result<(), Vec<Diagnostic>> {
-            let prepared = PreparedBuildMachineProgram::prepare_for(
-                program,
-                authority.clone(),
-                request.purpose,
-                source_consent.clone(),
-            )?;
-            let targets = deployments[position]
-                .iter()
-                .map(|scope| (scope.target.as_str(), scope.facts.as_ref()))
-                .collect::<Vec<_>>();
-            let invocation = prepared.prepare_entry(symbol, entry, &[])?;
-            let module = invocation.accepted().module();
-            let applications = module.scalars.scalar_applications.declarations();
-            // A scalar produced with target inputs belongs to that deployment.
-            // Publish the initializer so each use closes it with its own facts.
-            use crate::compile_time_invocations::PreparedBuildMachineEntry;
-            let observes_target = PreparedBuildMachineEntry::uses_target_layout(module);
-            let scalar_result = matches!(module.entry,
-                Some(terminal_psi::TargetMachineCallable::Machine(entry))
-                    if module.machine(entry).is_some_and(|machine| machine.result.scalar().is_some()));
-            if observes_target && (targets.is_empty() || scalar_result)
-                || applications.iter().any(|application| {
-                    matches!(
-                        application,
-                        terminal_psi::ScalarApplication::Evaluate { .. }
+            .collect::<Vec<_>>();
+        let found = program
+            .roots
+            .const_declarations
+            .handles()
+            .filter_map(|handle| {
+                let constant = program.tables.const_declarations.get(handle);
+                (family_position(&demanded, constant.symbol).is_some()
+                    && constant.evaluated_value.is_none()
+                    && program.tables.machines.is_valid(constant.evaluation_entry))
+                .then(|| {
+                    (
+                        handle,
+                        constant.symbol,
+                        program
+                            .tables
+                            .machines
+                            .get(constant.evaluation_entry)
+                            .symbol,
                     )
                 })
-                || PreparedBuildMachineEntry::needs_selected_provider(module)
-            {
-                // The checked initializer is the recipe until a deployment
-                // supplies its layout facts or selects its implementation.
-                program
-                    .tables
-                    .const_declarations
-                    .get_mut(handle)
-                    .pending_target_observation = true;
-                values[value_index].targets = TargetInputs::Deferred;
-                return Ok(());
+            })
+            .collect::<Vec<_>>();
+        if found.is_empty() {
+            return Ok(Self {
+                jobs: Vec::new(),
+                values,
+            });
+        }
+        let mut constants = program
+            .const_declarations()
+            .iter()
+            .map(|constant| constant.symbol)
+            .collect::<Vec<_>>();
+        constants.sort_unstable_by_key(|symbol| key(*symbol));
+        let symbols = found
+            .iter()
+            .map(|(_, symbol, _)| *symbol)
+            .collect::<Vec<_>>();
+        let deployments = deployment_targets(program, scopes, &symbols)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let mut jobs = Vec::with_capacity(found.len());
+        for ((handle, symbol, entry), deployments) in found.into_iter().zip(deployments) {
+            let inputs = family_position(&demanded, symbol).expect("constant job was demanded");
+            let references = References {
+                calls: vec![entry],
+                ..Default::default()
             }
-            let (outcomes, target_inputs) = invocation
-                .invoke_recorded_in_targets(&targets, accounting)
-                .map_err(invocation_error)?;
-            values[value_index].targets = target_inputs;
-            let carrier = program.tables.const_declarations.get(handle).declared_type;
-            // A constant is one value for every deployment that reads it. Each
-            // target's layout decides only where the bytes go, so the
-            // semantic snapshot must be the same under every one of them.
-            let mut folded = None;
-            for value in &outcomes {
-                let value = decoded(program, carrier, value).map_err(invocation_error)?;
-                let encoding =
-                    application_identity::const_value::CanonicalConstIdentity::from_declaration_value(
-                        &value,
-                    )
-                    .ok_or_else(|| {
-                        invocation_error(
-                            "constant result has no canonical declaration encoding",
-                        )
-                    })?
-                    .encoding;
-                match &folded {
-                    None => folded = Some((value, encoding)),
-                    Some((_, first)) if *first == encoding => {}
-                    Some(_) => {
-                        return Err(invocation_error(
-                            "constant result differs between the deployments that read it",
-                        ));
-                    }
+            .follow_calls(program);
+            for dependency in references.symbols {
+                if family_position(&constants, dependency).is_some() {
+                    values[inputs].constants.push(dependency);
                 }
             }
-            let (value, encoding) =
-                folded.ok_or_else(|| invocation_error("constant evaluation returned no result"))?;
-            let node = program
-                .materialize_canonical_const_value(carrier, &value)
-                .ok_or_else(|| {
-                    invocation_error("constant result does not materialize in its declared carrier")
-                })?;
-            let expression = program.expression_table.insert(node);
-            let span = program
+            jobs.push(Job {
+                handle,
+                symbol: [symbol],
+                entry: [entry],
+                inputs,
+                deployments,
+            });
+        }
+        Ok(Self {
+            jobs,
+            values,
+        })
+    }
+
+    pub(in super::super) fn into_inputs(self) -> Vec<ValueInputs> {
+        self.values
+    }
+
+    fn evaluate_job(
+        &mut self,
+        value: usize,
+        round: &RoundProgram,
+        program: &mut TypedTrees,
+        accounting: &mut SourceCompletionAccounting,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let job = &self.jobs[value];
+        let (handle, symbol, entry) = (job.handle, job.symbol[0], job.entry[0]);
+        let targets = job
+            .deployments
+            .iter()
+            .map(|scope| (scope.target.as_str(), scope.facts.as_ref()))
+            .collect::<Vec<_>>();
+        let invocation = round.calls().prepare_entry(symbol, entry, &[])?;
+        let module = invocation.accepted().module();
+        let applications = module.scalars.scalar_applications.declarations();
+        // A scalar produced with target inputs belongs to that deployment.
+        // Publish the initializer so each use closes it with its own facts.
+        use crate::compile_time_invocations::PreparedBuildMachineEntry;
+        let observes_target = PreparedBuildMachineEntry::uses_target_layout(module);
+        let scalar_result = matches!(module.entry,
+            Some(terminal_psi::TargetMachineCallable::Machine(entry))
+                if module.machine(entry).is_some_and(|machine| machine.result.scalar().is_some()));
+        if observes_target && (targets.is_empty() || scalar_result)
+            || applications.iter().any(|application| {
+                matches!(
+                    application,
+                    terminal_psi::ScalarApplication::Evaluate { .. }
+                )
+            })
+            || PreparedBuildMachineEntry::needs_selected_provider(module)
+        {
+            // The checked initializer is the recipe until a deployment
+            // supplies its layout facts or selects its implementation.
+            program
                 .tables
                 .const_declarations
-                .get(handle)
-                .initializer_source_span;
-            program.expression_table.set_source_span(expression, span);
-            let declaration = program.tables.const_declarations.get_mut(handle);
-            declaration.materialized_initializer = expression;
-            declaration.evaluated_value = Some(encoding.into());
-            Ok(())
-        })();
-        if let Err(mut diagnostics) = result {
-            let name = program.symbols.name(symbol);
-            let declaration_span = program.symbols.symbol_source_span(symbol);
-            for error in diagnostics
-                .iter_mut()
-                .filter(|diagnostic| diagnostic.is_error())
+                .get_mut(handle)
+                .pending_target_observation = true;
+            self.values[job.inputs].targets = TargetInputs::Deferred;
+            return Ok(());
+        }
+        let first_receipt = accounting.receipts().len();
+        let (outcomes, target_inputs) = invocation
+            .invoke_recorded_in_targets(&targets, accounting)
+            .map_err(invocation_error)?;
+        // The final receipt join compares what the invocation read with the
+        // program as it then stands. Values settle between the two, so the
+        // receipt is tied here to the one program this round was judged in.
+        for record in &accounting.receipts()[first_receipt..] {
+            if let PureEvaluationRecord::Invocation(receipt) = record
+                && !accounting
+                    .constant_input(receipt)
+                    .map_err(invocation_error)?
+                    .is_some_and(|source| Arc::ptr_eq(source, round.source()))
             {
-                error.message = format!("constant `{name}` evaluation: {}", error.message);
-                // Name the request while pointing at the operation that failed.
-                if error.resolved_location.is_none()
-                    && error.source_span.unwrap_or_default() == source_text::SourceSpan::default()
-                {
-                    error.source_span = declaration_span;
+                return Err(invocation_error(
+                    "constant receipt was judged in another program than its round's",
+                ));
+            }
+        }
+        self.values[job.inputs].targets = target_inputs;
+        let carrier = program.tables.const_declarations.get(handle).declared_type;
+        // A constant is one value for every deployment that reads it. Each
+        // target's layout decides only where the bytes go, so the
+        // semantic snapshot must be the same under every one of them.
+        let mut folded = None;
+        for value in &outcomes {
+            let value = decoded(program, carrier, value).map_err(invocation_error)?;
+            let encoding =
+                application_identity::const_value::CanonicalConstIdentity::from_declaration_value(
+                    &value,
+                )
+                .ok_or_else(|| {
+                    invocation_error("constant result has no canonical declaration encoding")
+                })?
+                .encoding;
+            match &folded {
+                None => folded = Some((value, encoding)),
+                Some((_, first)) if *first == encoding => {}
+                Some(_) => {
+                    return Err(invocation_error(
+                        "constant result differs between the deployments that read it",
+                    ));
                 }
             }
-            return Err(diagnostics);
         }
-        completed += 1;
-        for &successor in &successors[position] {
-            remaining[successor] -= 1;
-            if remaining[successor] == 0 {
-                ready.push_back(successor);
-            }
-        }
+        let (value, encoding) =
+            folded.ok_or_else(|| invocation_error("constant evaluation returned no result"))?;
+        let node = program
+            .materialize_canonical_const_value(carrier, &value)
+            .ok_or_else(|| {
+                invocation_error("constant result does not materialize in its declared carrier")
+            })?;
+        let expression = program.expression_table.insert(node);
+        let span = program
+            .tables
+            .const_declarations
+            .get(handle)
+            .initializer_source_span;
+        program.expression_table.set_source_span(expression, span);
+        let declaration = program.tables.const_declarations.get_mut(handle);
+        declaration.materialized_initializer = expression;
+        declaration.evaluated_value = Some(encoding.into());
+        Ok(())
     }
-    if completed != jobs.len() {
-        return Err(vec![Diagnostic::error(
-            "constant evaluation dependency cycle",
-        )]);
+}
+
+impl DemandedValues for Initializers<'_> {
+    fn len(&self) -> usize {
+        self.jobs.len()
     }
-    Ok(values)
+
+    fn holders(&self, value: usize) -> &[SymbolHandle] {
+        &self.jobs[value].symbol
+    }
+
+    fn roots(&self, value: usize) -> &[SymbolHandle] {
+        &self.jobs[value].entry
+    }
+
+    fn description(&self, program: &TypedTrees, value: usize) -> String {
+        format!(
+            "constant `{}`",
+            program.symbols.name(self.jobs[value].symbol[0])
+        )
+    }
+
+    fn source_span(&self, program: &TypedTrees, value: usize) -> Option<source_text::SourceSpan> {
+        program
+            .symbols
+            .symbol_source_span(self.jobs[value].symbol[0])
+    }
+
+    fn evaluate(
+        &mut self,
+        value: usize,
+        round: &RoundProgram,
+        program: &mut TypedTrees,
+        accounting: &mut SourceCompletionAccounting,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let symbol = self.jobs[value].symbol[0];
+        self.evaluate_job(value, round, program, accounting)
+            .map_err(|mut diagnostics| {
+                let name = program.symbols.name(symbol);
+                let declaration_span = program.symbols.symbol_source_span(symbol);
+                for error in diagnostics
+                    .iter_mut()
+                    .filter(|diagnostic| diagnostic.is_error())
+                {
+                    error.message = format!("constant `{name}` evaluation: {}", error.message);
+                    // Name the request while pointing at the operation that failed.
+                    if error.resolved_location.is_none()
+                        && error.source_span.unwrap_or_default()
+                            == source_text::SourceSpan::default()
+                    {
+                        error.source_span = declaration_span;
+                    }
+                }
+                diagnostics
+            })
+    }
 }

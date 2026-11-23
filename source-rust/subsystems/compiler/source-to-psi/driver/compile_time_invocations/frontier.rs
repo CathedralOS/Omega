@@ -28,15 +28,32 @@ fn defer_source_jobs(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     Ok(())
 }
 
-/// Recompute unresolved layout policy occurrences after a target's plans were
-/// installed. Each declaration keeps its other independently issued obligations.
-pub(super) fn refresh_layout_policy_requests(
-    typed: &mut TypedTrees,
-) -> Result<(), Vec<Diagnostic>> {
+/// Brings the rows of evaluated requests up to date after values settled.
+/// Each declaration keeps its other independently issued obligations.
+///
+/// A layout policy occurrence is recomputed: its row stays while no plan is
+/// installed for it. A type expression or array extent row is recorded only
+/// from the program's declared requests (`declared_jobs`), so it is current
+/// exactly when that inventory still lists it, and is dropped otherwise. A
+/// declaration that held such a request is refused wherever it is demanded
+/// while it carries the row, so the row goes before the next value reads it.
+pub(super) fn refresh_evaluated_requests(typed: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let jobs = declared_jobs(typed)?;
-    typed
-        .deferred_refusals
-        .retain(|row| row.request != DeferredRequest::LayoutPolicyStorage);
+    let written = |request| {
+        matches!(
+            request,
+            DeferredRequest::TypeExpressionEvaluation | DeferredRequest::ArrayExtentEvaluation
+        )
+    };
+    let current = jobs
+        .iter()
+        .filter(|(_, request)| written(*request))
+        .map(|&(declaration, request)| (typed.refusal_declaration(declaration), request))
+        .collect::<Vec<_>>();
+    typed.deferred_refusals.retain(|row| {
+        row.request != DeferredRequest::LayoutPolicyStorage
+            && (!written(row.request) || current.contains(&(row.declaration, row.request)))
+    });
     record_jobs(
         typed,
         jobs.into_iter()
@@ -119,7 +136,7 @@ fn require_no_recorded_work(typed: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
 
 /// The evaluation requests written inside declarations, each with the
 /// declaration that holds it. One that no declaration owns refuses.
-pub(super) fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
+fn declared_jobs(typed: &TypedTrees) -> Result<Vec<SourceJob>, Vec<Diagnostic>> {
     // Reuse the reference owner's complete type-position inventory rather
     // than searching selected statements or treating a type as only a name.
     let references =

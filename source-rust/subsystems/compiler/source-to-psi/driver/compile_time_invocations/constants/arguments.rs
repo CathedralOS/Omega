@@ -8,8 +8,7 @@
 //! materialized value updates the original type argument through
 //! [`data_applications::settle_const_argument`].
 
-use checked_program_to_psi::production;
-use std::collections::VecDeque;
+use std::sync::Arc;
 use typed_trees::data_applications;
 use typed_trees_to_prepared_typed_trees::{PreparedValue, TargetInputs, ValueInputs};
 
@@ -19,14 +18,15 @@ use crate::source_state::constant_recipes::{
     retain_constant_recipes,
 };
 use crate::source_state::data::TypeParameterKind;
-use crate::source_state::deferred_refusals::DeferredRequest;
 use crate::source_state::expression::ExpressionHandle;
+use crate::source_state::references::DeclarationSelection;
 use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
+use super::super::demanded_values::{DemandedValues, RoundProgram};
 use super::super::typed_invocation::TypedInvocationDeclaration;
-use super::{decoded, insert, key};
+use super::{decoded, insert};
 use crate::compile_time_invocations::{InvocationTarget, SourceCompletionAccounting};
 
 /// One value required by a type and still written as an expression.
@@ -35,8 +35,15 @@ struct Job {
     expression: ExpressionHandle,
     /// The argument's exact builtin carrier.
     carrier: TypeReferenceHandle,
-    /// The declaration the application is written in.
+    /// The demanded declaration the application is written in. The
+    /// evaluation runs as its request.
     owner: SymbolHandle,
+    /// Every declaration the application is written in, sorted. Each one
+    /// carries the request's row and is refused where it is read until the
+    /// argument has its value.
+    holders: Vec<SymbolHandle>,
+    /// The symbols the expression names, with the machines it calls.
+    roots: Vec<SymbolHandle>,
     /// The application and parameter that ask for the value, if any.
     application: Option<(SymbolHandle, String)>,
 }
@@ -91,6 +98,8 @@ fn pending_argument(
         expression,
         carrier,
         owner: SymbolHandle::invalid(),
+        holders: Vec::new(),
+        roots: Vec::new(),
         application: application.map(|(symbol, parameter)| (symbol, parameter.to_owned())),
     });
 }
@@ -194,29 +203,6 @@ impl crate::source_state::references::TypedReferences for Named {
     }
 }
 
-/// Every declaration reachable from `start` through the declarations each
-/// one names (`rows`, sorted by declaration), sorted.
-fn reached(
-    program: &TypedTrees,
-    rows: &[(SymbolHandle, Vec<SymbolHandle>)],
-    start: Vec<SymbolHandle>,
-) -> Vec<SymbolHandle> {
-    let mut pending = start;
-    let mut reached = Vec::new();
-    while let Some(symbol) = pending.pop() {
-        if !program.symbols.symbols().nodes().is_valid(symbol) {
-            continue;
-        }
-        let symbol = program.refusal_declaration(symbol);
-        if insert(&mut reached, symbol)
-            && let Ok(index) = rows.binary_search_by_key(&key(symbol), |(symbol, _)| key(*symbol))
-        {
-            pending.extend(rows[index].1.iter().copied());
-        }
-    }
-    reached
-}
-
 /// The zero-argument machine whose value is `job`'s expression, added to
 /// `probe`: `machine @const-argument<..>() -> Carrier { expression }`.
 fn entry(probe: &mut TypedTrees, job: &Job) -> Result<SymbolHandle, String> {
@@ -239,206 +225,202 @@ fn entry(probe: &mut TypedTrees, job: &Job) -> Result<SymbolHandle, String> {
         .return_expression(probe, job.expression)
 }
 
-/// Evaluates every const argument written as an expression in a declaration
-/// the request demands, in dependency order, and settles each value into the
-/// program. Runs before constant initializers: a constant may be computed
-/// through a type whose argument is evaluated here.
-pub fn evaluate(
-    program: &mut TypedTrees,
-    request: production::TerminalSourceCompilation<'_>,
-    authority: Option<std::sync::Arc<declaration_scope::PackageDeclarationScope>>,
-    source_consent: Option<
-        std::sync::Arc<dyn crate::compile_time_invocations::InvocationSourceConsent>,
-    >,
-    accounting: &mut SourceCompletionAccounting,
-) -> Result<Vec<ValueInputs>, Vec<Diagnostic>> {
-    let found = pending(program);
-    if found.is_empty() {
-        return Ok(Vec::new());
+/// Every const argument written as an expression in a declaration the
+/// request demands, with the inputs stage 04 prepares for each.
+pub(in super::super) struct Arguments {
+    jobs: Vec<Job>,
+    values: Vec<ValueInputs>,
+}
+
+impl Arguments {
+    pub(in super::super) fn demanded(
+        program: &TypedTrees,
+        demanded: &DeclarationSelection,
+    ) -> Self {
+        let found = pending(program);
+        if found.is_empty() {
+            return Self {
+                jobs: Vec::new(),
+                values: Vec::new(),
+            };
+        }
+        let owners = crate::source_state::references::collect_program_operand_owners(program);
+        let jobs = found
+            .into_iter()
+            .filter_map(|job| {
+                let mut holders = Vec::new();
+                for owner in owners
+                    .type_owners(job.argument)
+                    .filter(|owner| owner.is_valid())
+                {
+                    insert(&mut holders, program.refusal_declaration(owner));
+                }
+                // The application is its declaration's to carry; an argument no
+                // demanded declaration holds is not asked for by this request.
+                let owner = owners
+                    .type_owners(job.argument)
+                    .filter(|owner| owner.is_valid())
+                    .map(|owner| program.refusal_declaration(owner))
+                    .find(|owner| demanded.contains(*owner))?;
+                let mut named = Named::default();
+                crate::source_state::references::visit_expression(
+                    program,
+                    &mut named,
+                    job.expression,
+                );
+                Some(Job {
+                    owner,
+                    holders,
+                    roots: named.0,
+                    ..job
+                })
+            })
+            .collect::<Vec<_>>();
+        let values = jobs
+            .iter()
+            .map(|job| {
+                ValueInputs::new(
+                    program,
+                    PreparedValue::StaticArgument {
+                        owner: job.owner,
+                        site: job.argument,
+                        expression: job.expression,
+                        carrier: job.carrier,
+                    },
+                    Vec::new(),
+                    TargetInputs::None,
+                )
+            })
+            .collect();
+        Self { jobs, values }
     }
-    let refuse = |reason: String| vec![Diagnostic::error(reason)];
-    let demanded =
-        crate::compile_time_invocations::demanded_declarations(program, request).map_err(refuse)?;
-    let owners = crate::source_state::references::collect_program_operand_owners(program);
-    let jobs = found
-        .into_iter()
-        .filter_map(|job| {
-            // The application is its declaration's to carry; an argument no
-            // demanded declaration holds is not asked for by this request.
-            let owner = owners
-                .type_owners(job.argument)
-                .filter(|owner| owner.is_valid())
-                .map(|owner| program.refusal_declaration(owner))
-                .find(|owner| demanded.contains(*owner))?;
-            Some(Job { owner, ..job })
-        })
-        .collect::<Vec<_>>();
-    if jobs.is_empty() {
-        return Ok(Vec::new());
+
+    pub(in super::super) fn into_inputs(self) -> Vec<ValueInputs> {
+        self.values
     }
-    // A job waits for every job held by a declaration its expression
-    // reaches: `Outer<outer()>` waits for the `Buffer<leaf()>` in `outer`.
-    let mut rows =
-        crate::source_state::references::collect_computation_symbol_dependencies(program);
-    rows.sort_unstable_by_key(|(symbol, _)| key(*symbol));
-    let mut values = Vec::with_capacity(jobs.len());
-    let mut successors = vec![Vec::new(); jobs.len()];
-    let mut remaining = vec![0usize; jobs.len()];
-    for (position, job) in jobs.iter().enumerate() {
-        let mut named = Named::default();
-        crate::source_state::references::visit_expression(program, &mut named, job.expression);
-        let reached = reached(program, &rows, named.0);
-        let constants = reached
+
+    fn evaluate_job(
+        &mut self,
+        value: usize,
+        round: &RoundProgram,
+        program: &mut TypedTrees,
+        accounting: &mut SourceCompletionAccounting,
+    ) -> Result<(), String> {
+        let job = &self.jobs[value];
+        let mut probe = TypedTrees::clone(round.source());
+        let entry = entry(&mut probe, job)?;
+        let prepared = round.calls().extended_to(Arc::new(probe));
+        let invocation = prepared.entry(job.owner, entry, &[])?;
+        let module = invocation.accepted().module();
+        use crate::compile_time_invocations::PreparedBuildMachineEntry;
+        if job.application.is_none()
+            && (PreparedBuildMachineEntry::uses_target_layout(module)
+                || PreparedBuildMachineEntry::needs_selected_provider(module))
+        {
+            let symbol = self::entry(program, job)?;
+            let contexts =
+                program
+                    .constant_expression_contexts
+                    .insert_many([ConstantExpressionContext {
+                        owner: job.owner,
+                        result_type: job.carrier,
+                        evaluation_entry: symbol,
+                        evaluation_expression: job.expression,
+                    }]);
+            let source_span = program.expression_table.source_span(job.expression);
+            retain_constant_recipes(
+                program,
+                [RetainedConstantRecipe {
+                    position: RetainedConstantPosition::ConstApplication {
+                        site: job.argument,
+                        root: job.expression,
+                    },
+                    contexts,
+                    machine: job.owner,
+                    source_span,
+                    ..Default::default()
+                }],
+            );
+            self.values[value].targets = TargetInputs::Deferred;
+            return Ok(());
+        }
+        let result = invocation.invoke_recorded(
+            InvocationTarget {
+                name: None,
+                layout_target: None,
+                carrier_layout: None,
+                address_model: None,
+            },
+            accounting,
+        )?;
+        use application_identity::const_value::DecodedCanonicalConstValue;
+        let spelling = match decoded(program, job.carrier, &result)? {
+            DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
+            DecodedCanonicalConstValue::Boolean(value) => value.to_string(),
+            _ => return Err("the value is neither an integer nor a Boolean".into()),
+        };
+        data_applications::settle_const_argument(program, job.argument, &spelling)
+    }
+}
+
+impl DemandedValues for Arguments {
+    fn len(&self) -> usize {
+        self.jobs.len()
+    }
+
+    fn holders(&self, value: usize) -> &[SymbolHandle] {
+        &self.jobs[value].holders
+    }
+
+    fn roots(&self, value: usize) -> &[SymbolHandle] {
+        &self.jobs[value].roots
+    }
+
+    fn reaches(&mut self, program: &TypedTrees, value: usize, reached: &[SymbolHandle]) {
+        self.values[value].constants = reached
             .iter()
             .copied()
             .filter(|&symbol| program.symbols.get(symbol).kind == symbols::SymbolKind::Const)
             .collect();
-        values.push(ValueInputs::new(
-            program,
-            PreparedValue::StaticArgument {
-                owner: job.owner,
-                site: job.argument,
-                expression: job.expression,
-                carrier: job.carrier,
-            },
-            constants,
-            TargetInputs::None,
-        ));
-        for (dependency, other) in jobs.iter().enumerate() {
-            if reached
-                .binary_search_by_key(&key(other.owner), |symbol| key(*symbol))
-                .is_ok()
-            {
-                remaining[position] += 1;
-                successors[dependency].push(position);
-            }
-        }
     }
-    let mut ready = remaining
-        .iter()
-        .enumerate()
-        .filter_map(|(position, count)| (*count == 0).then_some(position))
-        .collect::<VecDeque<_>>();
-    let mut completed = 0usize;
-    while let Some(position) = ready.pop_front() {
-        let job = &jobs[position];
-        let result = (|| -> Result<(), String> {
-            let mut probe = program.clone();
-            let entry = entry(&mut probe, job)?;
-            let prepared =
-                crate::compile_time_invocations::PreparedBuildMachineProgram::prepare_for(
-                    &probe,
-                    authority.clone(),
-                    request.purpose,
-                    source_consent.clone(),
-                )
-                .map_err(|errors| diagnostics::join_messages(&errors))?;
-            let invocation = prepared.entry(job.owner, entry, &[])?;
-            let module = invocation.accepted().module();
-            use crate::compile_time_invocations::PreparedBuildMachineEntry;
-            if job.application.is_none()
-                && (PreparedBuildMachineEntry::uses_target_layout(module)
-                    || PreparedBuildMachineEntry::needs_selected_provider(module))
-            {
-                let symbol = self::entry(program, job)?;
-                let contexts =
-                    program
-                        .constant_expression_contexts
-                        .insert_many([ConstantExpressionContext {
-                            owner: job.owner,
-                            result_type: job.carrier,
-                            evaluation_entry: symbol,
-                            evaluation_expression: job.expression,
-                        }]);
-                let source_span = program.expression_table.source_span(job.expression);
-                retain_constant_recipes(
-                    program,
-                    [RetainedConstantRecipe {
-                        position: RetainedConstantPosition::ConstApplication {
-                            site: job.argument,
-                            root: job.expression,
-                        },
-                        contexts,
-                        machine: job.owner,
-                        source_span,
-                        ..Default::default()
-                    }],
-                );
-                values[position].targets = TargetInputs::Deferred;
-                return Ok(());
-            }
-            let value = invocation.invoke_recorded(
-                InvocationTarget {
-                    name: None,
-                    layout_target: None,
-                    carrier_layout: None,
-                    address_model: None,
-                },
-                accounting,
-            )?;
-            use application_identity::const_value::DecodedCanonicalConstValue;
-            let spelling = match decoded(program, job.carrier, &value)? {
-                DecodedCanonicalConstValue::Integer { value, .. } => value.to_string(),
-                DecodedCanonicalConstValue::Boolean(value) => value.to_string(),
-                _ => return Err("the value is neither an integer nor a Boolean".into()),
-            };
-            data_applications::settle_const_argument(program, job.argument, &spelling)?;
-            Ok(())
-        })();
-        if let Err(reason) = result {
-            return Err(vec![
-                Diagnostic::error(format!("{}: {reason}", job.description(program)))
-                    .with_source_span(program.expression_table.source_span(job.expression)),
-            ]);
-        }
-        // The declaration held a request no pass served, and is refused
-        // wherever it is demanded while it carries that row. The next job
-        // may demand it, so the row goes as soon as nothing backs it.
-        withdraw_served_requests(program)?;
-        completed += 1;
-        for &successor in &successors[position] {
-            remaining[successor] -= 1;
-            if remaining[successor] == 0 {
-                ready.push_back(successor);
-            }
-        }
-    }
-    if completed != jobs.len() {
-        let job = remaining
-            .iter()
-            .position(|count| *count != 0)
-            .map(|position| &jobs[position])
-            .expect("an unfinished job");
-        return Err(vec![
-            Diagnostic::error(format!(
-                "{} is computed through a declaration that needs \
-                 this argument's value: the evaluation has no first step",
-                job.description(program),
-            ))
-            .with_source_span(program.expression_table.source_span(job.expression)),
-        ]);
-    }
-    Ok(values)
-}
 
-/// Drops the type-expression and array-extent rows of declarations that no
-/// longer hold such a request. Those two kinds are recorded only from the
-/// program's declared requests (`frontier::declared_jobs`), so a row
-/// is current exactly when that inventory still lists it.
-fn withdraw_served_requests(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
-    let evaluated = |request| {
-        matches!(
-            request,
-            DeferredRequest::TypeExpressionEvaluation | DeferredRequest::ArrayExtentEvaluation
+    fn description(&self, program: &TypedTrees, value: usize) -> String {
+        let job = &self.jobs[value];
+        format!(
+            "the {} in `{}`",
+            job.description(program),
+            program.symbols.name(job.owner)
         )
-    };
-    let current = crate::compile_time_invocations::frontier::declared_jobs(program)?
-        .into_iter()
-        .filter(|(_, request)| evaluated(*request))
-        .map(|(declaration, request)| (program.refusal_declaration(declaration), request))
-        .collect::<Vec<_>>();
-    program
-        .deferred_refusals
-        .retain(|row| !evaluated(row.request) || current.contains(&(row.declaration, row.request)));
-    Ok(())
+    }
+
+    fn source_span(&self, program: &TypedTrees, value: usize) -> Option<source_text::SourceSpan> {
+        Some(
+            program
+                .expression_table
+                .source_span(self.jobs[value].expression),
+        )
+    }
+
+    /// The holders carry a type-expression or array-extent row until the
+    /// argument settles, and a later value may read them.
+    fn serves_recorded_requests(&self) -> bool {
+        true
+    }
+
+    fn evaluate(
+        &mut self,
+        value: usize,
+        round: &RoundProgram,
+        program: &mut TypedTrees,
+        accounting: &mut SourceCompletionAccounting,
+    ) -> Result<(), Vec<Diagnostic>> {
+        self.evaluate_job(value, round, program, accounting)
+            .map_err(|reason| {
+                let job = &self.jobs[value];
+                vec![
+                    Diagnostic::error(format!("{}: {reason}", job.description(program)))
+                        .with_source_span(program.expression_table.source_span(job.expression)),
+                ]
+            })
+    }
 }

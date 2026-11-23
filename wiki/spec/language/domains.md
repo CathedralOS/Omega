@@ -215,13 +215,13 @@ A package may declare a domain over a foreign carrier without a carrier-owner
 veto or orphan restriction. Its declarations cannot change the carrier's validity,
 reveal private representation, or alter another domain's establishment routes.
 
-Foreign domains follow [ordinary import scope and exposure](modules.md#import-scope-and-exposure):
-importing the declaring module exposes its directly declared public domains in
-the importing source file; importing one domain exposes only that declaration.
-Sibling files, descendant modules, and transitive imports add no exposure.
-Importing a carrier or ordinary machine does not expose unrelated domains merely
-because their source was loaded. Direct qualified selection uses the
-[declaring-owner-first address](modules.md#foreign-attached-declaration-paths).
+Select a foreign domain through its declaring file alias under
+[ordinary import rules](modules.md#foreign-attached-declaration-paths).
+A sibling file, the carrier's file and a transitive import supply no implicit
+domain candidates. For example, after `use {ui_policy}/screen/rules.omg as screen;`,
+write `|screen|::Point::OnScreen` to select the public attachment in that file.
+Another alias for the same file selects the same domain. Both the declaring
+package and the carrier package must be accessible to the caller.
 
 The exact domain owner and carrier owner remain independent in interfaces and
 reports, including [anonymous roots](../build/declarations.md#default-builds-and-anonymous-owner-identity).
@@ -230,8 +230,8 @@ package field cannot identify both a root and an injected library. Repeated
 exposure of one exact declaration is not a collision; distinct
 visible declarations competing for the same carrier-qualified case, domain, or
 machine name reject without inherent-declaration or import-order priority.
-Broad imports may be affected by later module additions; narrow imports avoid
-unrelated exposure. Diagnostics identify both owners and the exposing imports.
+An explicit file prefix fixes the declaration owner before member lookup.
+Diagnostics identify the competing declarations within that owner.
 
 Importing enables selection, not membership, minting, or implicit operator
 changes. A value carrying a foreign qualification retains its exact identity and

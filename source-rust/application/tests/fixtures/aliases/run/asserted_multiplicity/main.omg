@@ -1,0 +1,12 @@
+data Lease [linear] { slot: u8; }
+data Held [linear] = Lease;
+data Count [copy] = u64;
+machine twice(n: Count) -> u64 {
+    let m: Count = n;
+    n + m
+}
+machine main() crashes Trap {
+    transition twice(4) == 8 { true -> done(), false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

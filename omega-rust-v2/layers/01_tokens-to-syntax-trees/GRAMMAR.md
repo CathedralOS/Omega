@@ -120,8 +120,8 @@ ahead to tell them apart.
 
     use = 'use' path ';'
 
-`use topology;` (build/scoped_execution.md:134),
-`use ui_policy\screen\Point::OnScreen;`. [Names and imports](../../../wiki/spec/language/modules.md#names-and-imports)
+V2 parses `use topology;` and `use ui_policy\screen\Point::OnScreen;`.
+The current language uses [file imports](../../../wiki/spec/language/modules.md#names-and-imports).
 
 ### const
 
@@ -367,7 +367,7 @@ mathematical declarations and in machine parameters
 - Destructuring `let Lease { pool, slot } = move value;`
   (language/ownership.md:309).
 - Discard `_ = builder.tests.group::<Tests::memory>();`
-  (build/scoped_execution.md:293, in V2's spelling).
+  (build/scoped_execution.md:286, in V2's spelling).
 - The last expression of a body, with no semicolon, is its result. Nothing
   executable follows it, and nothing executable follows a `transition`.
 - A `match` used as a statement ends with `;` like any other expression.

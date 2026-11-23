@@ -24,7 +24,7 @@ L2	Type and value roles	refusals	L2	tests/stage.rs	cases_nested_data_and_attache
 L2	Predicate subject	direct	L2	tests/stage.rs	self_binds_as_the_subject_only_in_the_declarations_own_predicates	predicate-subject/producer
 L2	Predicate subject	consumer	L3	tests/contextual_examples.rs	published_domain_casts_require_complete_accounting	predicate-subject/consumer
 L2	Predicate subject	refusals	L2	tests/stage.rs	a_predicate_pattern_cannot_rebind_self	predicate-subject/refusal
-L2	Domains	direct	L2	tests/stage.rs	published_import_exposes_the_exact_remote_domain	domain-declarations/producer
+L2	Domains	direct	L2	tests/stage.rs	imported_domain_resolves_to_its_exact_declaration	domain-declarations/producer
 L2	Domains	consumer	L3	tests/contextual_examples.rs	a_bound_decides_which_visible_domain_applies_to_the_written_carrier	domain-declarations/consumer
 L2	Domains	refusals	L2	tests/stage.rs	ambiguous_domains_report_each_owner_carrier_and_exposing_import	domain-declarations/refusal
 L2	Overloads and operators	direct	L2	tests/stage.rs	overload_identity_renames_only_occurrences_bound_to_a_generic_parameter	overloads-and-operators/producer

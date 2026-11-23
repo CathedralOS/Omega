@@ -8,10 +8,11 @@ pub(crate) use source_completion_accounting::{
     PureTerminalEvaluationOutcome, PureTerminalEvaluationReceipt,
 };
 pub use source_symbol_table::source_inputs::InvocationSourceConsent;
+mod demand_order;
+mod demanded_values;
+pub(crate) use demanded_values::{ValueDemand, evaluate_demanded_values};
 mod domain_access_plans;
-pub(crate) use domain_access_plans::evaluate as evaluate_domain_access_plans;
 mod fixed_layouts;
-pub(crate) use fixed_layouts::evaluate_fixed_layout_applications;
 mod frontier;
 pub(crate) use frontier::PreCheckEvaluation;
 
@@ -19,10 +20,7 @@ mod demands;
 pub(crate) use demands::demanded_declarations;
 
 mod constants;
-pub(crate) use constants::{
-    evaluate_const_arguments, evaluate_constant_initializers_with_source_consent,
-    validate_constant_evaluations,
-};
+pub(crate) use constants::validate_constant_evaluations;
 
 mod calls;
 mod typed_invocation;

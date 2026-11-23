@@ -1,0 +1,1 @@
+is not build-time admissible: the checked Trap crash route can occur; constant evaluation requires proof that no crash route can occur before execution

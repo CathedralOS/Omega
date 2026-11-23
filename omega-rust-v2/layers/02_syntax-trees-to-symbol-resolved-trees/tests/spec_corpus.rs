@@ -11,7 +11,14 @@ fn spec_fragments_have_reviewed_resolution_outcomes() {
         let label = example.get_label();
         let text = parser_source(&example.source_text);
         let tokens = lex(text.as_bytes()).unwrap();
-        let tree = parse_fragment(text.as_bytes(), &tokens, fragment_kind(&label)).unwrap();
+        let tree = match parse_fragment(text.as_bytes(), &tokens, fragment_kind(&label)) {
+            Ok(tree) => tree,
+            Err(error) => {
+                let reason = error.get_kind().get_message(error.get_expected());
+                outcomes.push_str(&format!("{label}  L1 {reason}\n"));
+                continue;
+            }
+        };
         let input = StageSource {
             package: "example",
             source: ParsedSource {

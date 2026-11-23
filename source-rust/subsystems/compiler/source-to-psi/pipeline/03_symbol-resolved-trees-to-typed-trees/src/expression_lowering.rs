@@ -1843,7 +1843,7 @@ pub(crate) mod expression {
                                 )))
                         }
                         resolved::expression::ExpressionNode::Member(member) => {
-                            let (selection, case_variant) = self.selected_member(member)?;
+                            let (selection, case_variant) = super::member_binding::selected_member(self.program, self.source, member)?;
                             if matches!(
                                 selection,
                                 typed::expression::MemberSelection::CollectionMeasure(
@@ -2850,84 +2850,84 @@ pub(crate) mod expression {
                         crate::typing::lowerer::name::lower_name(&field.name),
                     ))
                 }
+            }
 
-                pub(crate) fn selected_member(
-                    &self,
-                    member: &TableMemberExpression,
-                ) -> Result<
-                    (
-                        crate::source_state::expression::MemberSelection,
-                        Option<resolved::name::DiagnosticName>,
-                    ),
-                    diagnostics::Diagnostic,
-                > {
-                    use crate::declaration_selection::CollectionMeasure;
-                    use crate::source_state::expression::MemberSelection;
-                    let (field, case) = self.declared_member(member);
-                    if field.is_valid() {
-                        return Ok((MemberSelection::Field(field), case));
+            pub(crate) fn selected_member(
+                program: Option<&resolved::SymbolResolvedTrees>,
+                expressions: &resolved::expression::ExpressionTable,
+                member: &TableMemberExpression,
+            ) -> Result<
+                (
+                    crate::source_state::expression::MemberSelection,
+                    Option<resolved::name::DiagnosticName>,
+                ),
+                diagnostics::Diagnostic,
+            > {
+                use crate::declaration_selection::CollectionMeasure;
+                use crate::source_state::expression::MemberSelection;
+                let (field, case) = declared_member(program, expressions, member);
+                if field.is_valid() {
+                    return Ok((MemberSelection::Field(field), case));
+                }
+                // A same-spelled nominal field keeps its exact selection.
+                // Only an actual builtin collection type gives this
+                // observation its meaning; unknown receivers stay unresolved.
+                let collection = program.is_some_and(|program| {
+                    declared_type(program, expressions, member.receiver, 0).is_some_and(
+                        |reference| {
+                            matches!(
+                                peel(program, reference),
+                                TypeReference::Slice(_) | TypeReference::FixedArray(_)
+                            )
+                        },
+                    )
+                });
+                if collection && case.is_none() {
+                    match CollectionMeasure::from_authored_spelling(member.member.as_str()) {
+                        Some(CollectionMeasure::Length) => {
+                            return Ok((
+                                MemberSelection::CollectionMeasure(CollectionMeasure::Length),
+                                None,
+                            ));
+                        }
+                        None if member.member.is_source_backed() => {
+                            return Err(diagnostics::Diagnostic::error(format!(
+                                "collection has no member `{}`",
+                                member.member.as_str()
+                            ))
+                            .with_source_span(member.member.source_span()));
+                        }
+                        _ => {}
                     }
-                    // A same-spelled nominal field keeps its exact selection.
-                    // Only an actual builtin collection type gives this
-                    // observation its meaning; unknown receivers stay unresolved.
-                    let collection = self.program.is_some_and(|program| {
-                        declared_type(program, self.source, member.receiver, 0).is_some_and(
-                            |reference| {
-                                matches!(
-                                    peel(program, reference),
-                                    TypeReference::Slice(_) | TypeReference::FixedArray(_)
-                                )
+                }
+                Ok((MemberSelection::Unresolved, case))
+            }
+
+            fn declared_member(
+                program: Option<&resolved::SymbolResolvedTrees>,
+                expressions: &resolved::expression::ExpressionTable,
+                member: &TableMemberExpression,
+            ) -> (SymbolHandle, Option<resolved::name::DiagnosticName>) {
+                if member.member_symbol.is_valid() {
+                    return (member.member_symbol, member.case_variant.clone());
+                }
+                program
+                    .and_then(|program| declared_receiver_field(program, expressions, member, 0))
+                    .map(|field| {
+                        let payload = program.is_some_and(|program| {
+                            let owner = program.symbols.get(field.symbol).parent;
+                            program.symbols.get(owner).kind == SymbolKind::Variant
+                        });
+                        (
+                            field.symbol,
+                            if payload {
+                                member.case_variant.clone()
+                            } else {
+                                None
                             },
                         )
-                    });
-                    if collection && case.is_none() {
-                        match CollectionMeasure::from_authored_spelling(member.member.as_str()) {
-                            Some(CollectionMeasure::Length) => {
-                                return Ok((
-                                    MemberSelection::CollectionMeasure(CollectionMeasure::Length),
-                                    None,
-                                ));
-                            }
-                            None if member.member.is_source_backed() => {
-                                return Err(diagnostics::Diagnostic::error(format!(
-                                    "collection has no member `{}`",
-                                    member.member.as_str()
-                                ))
-                                .with_source_span(member.member.source_span()));
-                            }
-                            _ => {}
-                        }
-                    }
-                    Ok((MemberSelection::Unresolved, case))
-                }
-
-                pub(crate) fn declared_member(
-                    &self,
-                    member: &TableMemberExpression,
-                ) -> (SymbolHandle, Option<resolved::name::DiagnosticName>) {
-                    if member.member_symbol.is_valid() {
-                        return (member.member_symbol, member.case_variant.clone());
-                    }
-                    self.program
-                        .and_then(|program| {
-                            declared_receiver_field(program, self.source, member, 0)
-                        })
-                        .map(|field| {
-                            let payload = self.program.is_some_and(|program| {
-                                let owner = program.symbols.get(field.symbol).parent;
-                                program.symbols.get(owner).kind == SymbolKind::Variant
-                            });
-                            (
-                                field.symbol,
-                                if payload {
-                                    member.case_variant.clone()
-                                } else {
-                                    None
-                                },
-                            )
-                        })
-                        .unwrap_or_else(|| (member.member_symbol, member.case_variant.clone()))
-                }
+                    })
+                    .unwrap_or_else(|| (member.member_symbol, member.case_variant.clone()))
             }
 
             fn declared_receiver_field<'program>(

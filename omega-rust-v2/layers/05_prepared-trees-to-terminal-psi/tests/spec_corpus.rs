@@ -59,6 +59,7 @@ fn spec_fragments_have_reviewed_lowering_outcomes() {
         // The witnesses use Rust assertions. Preserve each failure and inspect the next independent example.
         let expected_frontend = match resolution.get(label.as_str()) {
             Some(&"accepted") => typing.get(label.as_str()).copied().unwrap_or("<missing typing expectation>").to_owned(),
+            Some(&reason) if reason.starts_with("L1 ") => reason.to_owned(),
             Some(reason) => format!("L2 {reason}"),
             None => "<missing resolution expectation>".to_owned(),
         };
@@ -943,7 +944,7 @@ fn check_machine_templates(
 ) {
     use omega_lowering::{MachineTemplateBinder, TemplateCallTarget, TypeExpressionStep};
     let first = &package.machine_templates[0];
-    if label == "language/modules.md:227" {
+    if label == "language/modules.md:190" {
         let [domain] = package.domains.as_slice() else { panic!("missing Audio::Audible") };
         let [audio] = package.data.as_slice() else { panic!("missing Audio") };
         let [player] = package.traits.as_slice() else { panic!("missing Player") };

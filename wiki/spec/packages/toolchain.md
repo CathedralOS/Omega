@@ -1,6 +1,6 @@
 # Core, ordinary libraries, and semantic bindings
 
-`omega\language\core` is bundled as part of the language. The checker depends
+The file-import root `{omega}/language/core/` is bundled as part of the language. The checker depends
 on it, its version is the language version, and two core versions cannot coexist
 in one graph. This is explicit semantic coupling, not an implicit package default.
 

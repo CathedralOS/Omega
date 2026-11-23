@@ -9,8 +9,8 @@ build/foreign_bindings.md:15  unresolved name Build::bind
 build/provider_selection.md:95  unresolved name Build::select_provider
 build/provider_selection.md:244  unresolved name Build::await_provider
 build/provider_selection.md:305  accepted
-build/scoped_execution.md:134  unavailable import topology
-build/scoped_execution.md:293  unresolved name Build::bind
+build/scoped_execution.md:133  L1 expected an expression
+build/scoped_execution.md:286  L1 expected `;`
 build/task_runtime.md:133  unresolved name Request
 build/testing.md:21  unresolved name builder
 build/validation_subjects.md:68  unresolved name Build
@@ -86,9 +86,9 @@ language/lifetimes.md:96  unresolved name Value
 language/machine_values.md:22  unresolved name counter
 language/machine_values.md:44  accepted
 language/machines.md:33  accepted
-language/modules.md:117  unavailable import ui_policy\screen\Point::OnScreen
-language/modules.md:203  builtin type u7 cannot be redeclared
-language/modules.md:227  accepted
+language/modules.md:97  unresolved name use
+language/modules.md:166  builtin type u7 cannot be redeclared
+language/modules.md:190  accepted
 language/numeric_values.md:498  accepted
 language/numeric_values.md:643  unresolved name cursor
 language/ownership.md:199  unresolved name items

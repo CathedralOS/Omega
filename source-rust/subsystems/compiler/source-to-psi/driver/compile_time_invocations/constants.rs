@@ -3,8 +3,8 @@
 mod arguments;
 #[path = "constants/initializers.rs"]
 mod initializers;
-pub use arguments::evaluate as evaluate_const_arguments;
-pub use initializers::evaluate_with_source_consent as evaluate_constant_initializers_with_source_consent;
+pub(super) use arguments::Arguments;
+pub(super) use initializers::{Initializers, retain_evaluation_entries};
 
 use crate::source_state::TypedTrees;
 use crate::source_state::data::DataField;
@@ -148,9 +148,6 @@ pub fn validate_constant_evaluations(
     {
         return Err("constant receipt has changed expression input storage".into());
     }
-    // Reuse one comparison program for all constants so its owned tables are
-    // copied once for this validation.
-    let mut comparison = program.clone();
     for constant in program.const_declarations() {
         let index =
             family_position(&wanted, constant.symbol).ok_or("constant declaration family drift")?;
@@ -189,15 +186,12 @@ pub fn validate_constant_evaluations(
             if program.identity.get() != source.identity.get() {
                 return Err("constant receipt belongs to another source owner".into());
             }
-            // Evaluation changes the constant records and materialized expression
-            // values. All other source data must be the original request owner.
-            // The expression dependency closure is compared separately below, so
-            // later independent constant materializations need not be identical.
-            comparison.expression_table = source.expression_table.clone();
-            comparison.tables.const_declarations = source.tables.const_declarations.clone();
-            if &comparison != source {
-                return Err("constant receipt has stale declaration or execution metadata".into());
-            }
+            // The receipt's source is the program of the round that evaluated
+            // this constant (`Initializers` ties the two when the receipt is
+            // recorded). Values that settled in later rounds changed their own
+            // types, layouts and plans since, so the two programs differ by
+            // design. What this constant read is compared below: its
+            // declaration, and every expression its initializer reaches.
             let original = source
                 .const_declaration_by_symbol(constant.symbol)
                 .ok_or("constant receipt lost its original requesting declaration")?;

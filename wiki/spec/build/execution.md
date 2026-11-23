@@ -148,10 +148,9 @@ to a file or overlay cannot change it. Source consumption retains the matching
 compiler-owned generated-source namespace and product purpose. This replaces
 the BuildOutput filesystem-specific source-publication route.
 
-The parent directory in that authorized logical name determines the unit's
-[language namespace](../language/modules.md#directory-namespaces) within the
-owning package. For example, including `audio/tables.omg` places its declarations
-in `audio` regardless of where the generator computed or staged the bytes.
+The complete authorized logical filename determines the unit's
+[file identity](../language/modules.md#file-identity) within the owning package.
+A permitted consumer of `audio/tables.omg` imports that exact logical file.
 
 Own generated source is a later resolution stratum:
 

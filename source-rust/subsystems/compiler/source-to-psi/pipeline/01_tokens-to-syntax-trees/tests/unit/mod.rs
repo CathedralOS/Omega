@@ -124,6 +124,7 @@ fn expect_error(error: &ParseError, needle: &str) {
     );
 }
 
+pub(crate) mod alias_properties;
 pub(crate) mod bindings_and_conformances;
 pub(crate) mod body_sequences;
 pub(crate) mod constructors;
@@ -138,4 +139,5 @@ pub(crate) mod properties_and_requirements;
 pub(crate) mod source_parsing;
 pub(crate) mod static_parameters;
 pub(crate) mod type_constraints;
+pub(crate) mod unannotated_constants;
 pub(crate) mod value_dispatch;

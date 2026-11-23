@@ -1,0 +1,27 @@
+// A constant computed through a type applied at a call. `total` holds a
+// `Buffer<capacity()>`, so `TOTAL` has no value until `capacity()` has run.
+// `third` requires three bytes, so the program is valid only while
+// `capacity` returns 3.
+data Buffer<const Capacity: u64> { slots: [u8; Capacity]; }
+
+const TOTAL: u64 = total();
+machine capacity() -> u64 crashes none { TOTAL }
+machine total() -> u64 crashes none {
+    let buffer: Buffer<capacity()>;
+    buffer.slots.length
+}
+
+machine third(values: @[u8; 3]) -> u8 { values[2u64] }
+
+machine main() crashes Trap {
+    let mutable values: [u8; TOTAL];
+    values[0u64] = 5u8;
+    values[1u64] = 6u8;
+    values[2u64] = 7u8;
+    let end: u8 = third(@values);
+    transition end == 7u8 && values[0u64] == 5u8 && values.length == 3u64 {
+        true -> done(), false -> failed()
+    }
+    machine done() {}
+    machine failed() crashes Trap { crash Trap; }
+}
