@@ -1,0 +1,33 @@
+name: Check exact file imports
+on:
+  push:
+    branches: [work/verify-logical-file-imports]
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      MBX_GC_AUTO: 'false'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_DEV_OPT_LEVEL: '1'
+      CARGO_INCREMENTAL: '0'
+      OMEGA_MBX_INSTALL_CACHE: /tmp/omega-mbx-install
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Identify the build tool
+        id: key
+        run: echo "key=$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: /tmp/omega-mbx-install/artifacts
+          key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.key.outputs.key }}
+      - name: Install the pinned adapter
+        run: bash tools/xtask/bootstrap-mbx.sh --install-dir "$RUNNER_TEMP/bin"
+      - name: Test that a stored output used as source contains UTF-8
+        run: |
+          "$RUNNER_TEMP/bin/mbx" test --locked -p build-output --lib a_legacy_export_can_contain_binary_bytes
+          "$RUNNER_TEMP/bin/mbx" clippy --locked --no-deps -p build-output --all-targets -- -D warnings
