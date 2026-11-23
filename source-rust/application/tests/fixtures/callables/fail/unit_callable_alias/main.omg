@@ -1,0 +1,9 @@
+data Check = machine(value: u32) crashes Trap;
+machine expect_one(value: u32) crashes Trap {
+    transition value == 1 { true -> done(), false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}
+machine echo(value: u32) -> u32 crashes Trap { value }
+machine apply<const F: Check>(value: u32) crashes Trap { F(value) }
+machine main() crashes Trap { apply::<echo>(1); }
