@@ -90,15 +90,7 @@ impl ModuleDemand {
     ) -> Result<Self, Vec<Diagnostic>> {
         let declared = accepted
             .boundary_requirements_declared()
-            .map_err(|error| vec![error])?
-            .into_iter()
-            .map(|declared| ReachedBoundaryRequirement {
-                boundary: declared.boundary,
-                requirement: declared.requirement,
-                slot: declared.slot,
-                name: declared.name,
-            })
-            .collect();
+            .map_err(|error| vec![error])?;
         // Every entry the Build binds is a root of every target's walk. The
         // Build binds an entry per target, so a program that binds different
         // entries to different targets is asked on each for what any of
