@@ -16,7 +16,8 @@ use terminal_semantics::callable_envelopes::{
     CallableOperationalView, callable_operational_refines,
 };
 use terminal_semantics::calls::callable_refinement::{
-    CallableContractView, contract_refinement_context, contract_refinement_goals,
+    CallableContractView, CallableRefinementGoalKind, contract_refinement_context,
+    contract_refinement_goals,
 };
 
 fn fault(site: impl Into<RefusalSite>, detail: &'static str) -> Refusal {
@@ -766,18 +767,32 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                     )
                 })?;
             crate::checking::derive_contract_obligation(
+                site,
                 &context,
                 obligation,
                 &goal.proposition,
                 &declarations,
                 &mut Default::default(),
             )
-            .map_err(|detail| {
-                Refusal::at(
-                    RefusalReason::Unproved(terminal_check_tables::UnprovedCause::NoDerivation),
-                    site,
-                    detail,
-                )
+            .map_err(|mut refused| {
+                if let StaticImplementation::Machine(id) = question.implementation
+                    && let Some(names) = elaboration.names.get(id)
+                {
+                    let bound = match goal.kind {
+                        CallableRefinementGoalKind::Input => "input precondition",
+                        CallableRefinementGoalKind::NormalOutput => "normal return guarantee",
+                        CallableRefinementGoalKind::GuardedOutput { .. } => {
+                            "conditional return guarantee"
+                        }
+                        CallableRefinementGoalKind::Crash { .. } => "crash guarantee",
+                    };
+                    refused.detail = format!(
+                        "cannot prove the {bound} of `{}`: {}",
+                        names.machine, refused.detail
+                    );
+                    refused.source_span = names.declared;
+                }
+                refused
             })?;
         }
     }

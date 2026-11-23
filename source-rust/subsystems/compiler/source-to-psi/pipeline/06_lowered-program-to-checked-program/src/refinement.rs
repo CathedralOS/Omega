@@ -181,18 +181,13 @@ pub fn finalize_callable_refinements(
             .into_iter()
             .map(|(id, goal)| {
                 crate::checking::derive_contract_obligation(
+                    descriptor.machine.into(),
                     &context,
                     id,
                     &goal.proposition,
                     &declarations,
                     activity,
                 )
-                .map_err(|detail| {
-                    refuse(
-                        RefusalReason::Unproved(terminal_check_tables::UnprovedCause::NoDerivation),
-                        detail,
-                    )
-                })
             })
             .collect::<Checked<Vec<_>>>()?;
         prepared.push((descriptor.id, certificates));

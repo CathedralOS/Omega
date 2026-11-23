@@ -137,7 +137,7 @@ fn declared_refinement_module() -> TerminalModule {
     let mut sources = SourceMap::default();
     let source = sources
         .add_with_metadata(
-            PathBuf::from("selected.omg"),
+            PathBuf::from("package/selected.omg"),
             "Selected entry amount Callback".to_owned(),
             PathBuf::from("package"),
             package,
@@ -259,8 +259,9 @@ fn declared_refinement_module() -> TerminalModule {
             bindings: &[],
         },
     );
-    let RouteVerdict::Accepted(closure) = crate::checking::judge(elaborated).unwrap() else {
-        panic!("the source-owned selected body must be accepted");
+    let verdict = crate::checking::judge(elaborated).unwrap();
+    let RouteVerdict::Accepted(closure) = verdict else {
+        panic!("the source-owned selected body must be accepted: {verdict:?}");
     };
     assert!(closure.elaboration.undeclared.is_empty());
     let mut module = closure.elaboration.module;
@@ -314,7 +315,7 @@ fn declared_refinement_module() -> TerminalModule {
 
 fn derive_refinements(
     module: &TerminalModule,
-) -> Result<Vec<terminal_psi::CertificateEnvelope>, &'static str> {
+) -> Result<Vec<terminal_psi::CertificateEnvelope>, String> {
     let context = callable_refinement_context(module, id(1))?;
     let required = &module.execution.callables.contracts[0];
     let mut declarations = required
@@ -329,14 +330,33 @@ fn derive_refinements(
         .into_iter()
         .map(|(id, goal)| {
             crate::checking::derive_contract_obligation(
+                terminal_check_tables::RefusalSite::Program,
                 &context,
                 id,
                 &goal.proposition,
                 &declarations,
                 &mut Default::default(),
             )
+            .map_err(|refused| refused.detail)
         })
         .collect()
+}
+
+#[test]
+fn a_malformed_contract_formal_is_a_checker_defect() {
+    let refusal = crate::checking::derive_contract_obligation(
+        terminal_check_tables::RefusalSite::Program,
+        &semantic_vocabulary::PropositionContext::default(),
+        id(1),
+        &Proposition::Truth,
+        &[(id(1), u32_type()), (id(1), u32_type())],
+        &mut Default::default(),
+    )
+    .unwrap_err();
+    assert_eq!(
+        refusal.reason,
+        terminal_check_tables::RefusalReason::ForeignIdentity
+    );
 }
 
 #[test]

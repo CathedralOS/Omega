@@ -87,7 +87,16 @@ fn a_private_map_callback_must_accept_every_input_its_binder_allows() {
     let (output, report) = invoke("fail", "private_map_callback");
     assert!(!output.status.success(), "{report}");
     assert!(
-        report.contains("cannot prove requires contract for call local from invoke: false"),
+        report
+            .matches("cannot prove requires contract for call local from invoke: false")
+            .count()
+            == 1
+            && report
+                .matches("cannot prove the input precondition of `local`")
+                .count()
+                == 1
+            && !report.contains("defect of the checker")
+            && !report.contains("not supported yet"),
         "{report}"
     );
 }

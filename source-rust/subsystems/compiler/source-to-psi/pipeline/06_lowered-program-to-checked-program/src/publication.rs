@@ -144,6 +144,21 @@ fn accept_compilation(
                 diagnostic.source_span = refused.source_span;
                 diagnostics.push(diagnostic);
             }
+            Err(CompilationRefusal::Elaboration(terminal_check_tables::Refusal {
+                reason: terminal_check_tables::RefusalReason::Unproved(cause),
+                detail,
+                source_span,
+                ..
+            })) => {
+                let message = format!("{detail} ({})", cause.describe());
+                let mut diagnostic = Diagnostic::error(if cause.is_incomplete() {
+                    format!("not supported yet: {message}")
+                } else {
+                    message
+                });
+                diagnostic.source_span = source_span;
+                diagnostics.push(diagnostic);
+            }
             Err(CompilationRefusal::Elaboration(refused)) if refused.source_span.is_some() => {
                 let mut diagnostic = route_defect(&refused.detail);
                 diagnostic.source_span = refused.source_span;
@@ -153,6 +168,14 @@ fn accept_compilation(
         }
     }
     if !diagnostics.is_empty() {
+        // A template and its applications can report the same error at the
+        // same authored site. Keep the first occurrence in traversal order.
+        let mut reported = std::collections::HashSet::new();
+        diagnostics.retain(|diagnostic| {
+            diagnostic
+                .source_span
+                .is_none_or(|span| reported.insert((span, diagnostic.message.clone())))
+        });
         return Err(diagnostics);
     }
     let closure = first.ok_or_else(|| vec![route_defect("no accepted compilation root")])?;
@@ -175,6 +198,39 @@ mod tests {
     use super::*;
     use crate::lowering::Compilation;
     use std::sync::Arc;
+
+    #[test]
+    fn an_unsupported_contract_goal_identifies_its_proof_limit() {
+        use semantic_vocabulary::{ObligationId, Proposition, PropositionContext, PropositionId};
+        use terminal_check_tables::{RefusalReason, RefusalSite, UnprovedCause};
+
+        let identity = PropositionId::new(1).unwrap();
+        let refusal = crate::checking::derive_contract_obligation(
+            RefusalSite::Program,
+            &PropositionContext::default(),
+            ObligationId::new(1).unwrap(),
+            &Proposition::Atom(identity),
+            &[],
+            &mut Default::default(),
+        )
+        .expect_err("an opaque proposition without premises has no proof");
+        assert_eq!(
+            refusal.reason,
+            RefusalReason::Unproved(UnprovedCause::NoRuleForGoalForm)
+        );
+        let diagnostics =
+            accept_compilation(vec![Err(CompilationRefusal::Elaboration(refusal))]).unwrap_err();
+        let [diagnostic] = diagnostics.as_slice() else {
+            panic!("expected one proof limit")
+        };
+        assert!(diagnostic.message.starts_with("not supported yet:"));
+        assert!(
+            diagnostic
+                .message
+                .contains(UnprovedCause::NoRuleForGoalForm.describe())
+        );
+        assert!(!diagnostic.message.contains("defect"));
+    }
 
     #[test]
     fn checker_defect_retains_its_authored_location() {
