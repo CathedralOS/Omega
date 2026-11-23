@@ -6,6 +6,7 @@ use semantic_vocabulary::{
     DomainSemanticId, MachineId, ScalarDomainId, ScalarQualificationSetId, ScalarType,
     StructuralDomainId, StructuralTypeId,
 };
+use terminal_check_tables::program::DomainSource;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{
     NominalDeclarationIdentity, ScalarDomainDeclaration, ScalarDomainPredicate,
@@ -200,7 +201,7 @@ pub(crate) fn publish_access_plans(
 pub(crate) struct Qualifications {
     pub catalog: ScalarQualificationCatalog,
     pub identities: TerminalIdentityTableBuilder,
-    pub domain_names: arena::IdTable<DomainSemanticId, String>,
+    pub domain_sources: arena::IdTable<DomainSemanticId, DomainSource>,
     last_semantic_domain: u64,
     domains: Vec<(DomainInstance, ScalarDomainId)>,
     policies: Vec<(ScalarType, Policy, ScalarDomainId)>,
@@ -446,18 +447,11 @@ impl Qualifications {
         // The same logical domain can be displayed by several descriptor
         // carriers. Prepare its semantic ID once; each carrier still retains
         // its own declaration and must pass the existing theory comparison.
-        let key = |instance: DomainInstance| {
-            (
-                instance.declaration.arena_index(),
-                instance.declaration.generation(),
-                instance.identity.0,
-            )
-        };
         let mut structural_instances: Vec<_> = source
             .declared_domains
             .iter()
             .filter(|declared| matches!(declared.carrier, ValueType::Record(..)))
-            .map(|declared| key(declared.instance))
+            .map(|declared| declared.instance.coordinates())
             .collect();
         structural_instances.sort_unstable();
         structural_instances.dedup();
@@ -465,14 +459,29 @@ impl Qualifications {
             .into_iter()
             .map(|instance| (instance, None))
             .collect();
-        let mut domain_names = Vec::with_capacity(source.declared_domains.len());
+        // Byte descriptor carriers can already own a domain before the other
+        // declarations are lowered. Keep that exact application as well.
+        let mut applications = result
+            .structural_domains
+            .iter()
+            .map(|&(application, _, id)| {
+                let row = result
+                    .structural
+                    .binary_search_by_key(&id, |row| row.id)
+                    .map_err(|_| unavailable("byte domain lost its declaration"))?;
+                Ok((result.structural[row].semantic_domain, application))
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        applications.sort_unstable_by_key(|(id, _)| *id);
+        applications.dedup();
+
         for declared in &source.declared_domains {
             let symbol = declared.instance;
             let carrier = match declared.carrier {
                 ValueType::Scalar(carrier, _) => carrier,
                 ValueType::Record(_, _, _) => {
                     let position = structural_semantics
-                        .binary_search_by_key(&key(symbol), |(instance, _)| *instance)
+                        .binary_search_by_key(&symbol.coordinates(), |(instance, _)| *instance)
                         .map_err(|_| {
                             unavailable("structural domain lost its prepared semantic identity")
                         })?;
@@ -481,7 +490,7 @@ impl Qualifications {
                         None => {
                             let id = result.next_semantic_domain(&unavailable)?;
                             structural_semantics[position].1 = Some(id);
-                            domain_names.push((id, source.domain_named(symbol)));
+                            applications.push((id, symbol));
                             id
                         }
                     };
@@ -499,7 +508,7 @@ impl Qualifications {
                 }
             };
             let semantic_domain = result.next_semantic_domain(&unavailable)?;
-            domain_names.push((semantic_domain, source.domain_named(symbol)));
+            applications.push((semantic_domain, symbol));
             let builder = &mut result.identities;
             let id = ScalarDomainId::new(result.catalog.domains.len() as u64 + 1)
                 .ok_or_else(|| unavailable("scalar domain identity overflow"))?;
@@ -561,8 +570,17 @@ impl Qualifications {
             });
             result.domains.push((symbol, id));
         }
-        result.domain_names = arena::IdTable::from_rows(domain_names)
-            .map_err(|_| unavailable("domain diagnostic identities are not dense"))?;
+        result.domain_sources =
+            arena::IdTable::from_rows(applications.into_iter().map(|(id, application)| {
+                (
+                    id,
+                    DomainSource {
+                        application,
+                        label: source.domain_named(application),
+                    },
+                )
+            }))
+            .map_err(|_| unavailable("domain source identities are not dense"))?;
         Ok(result)
     }
 
