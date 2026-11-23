@@ -12,6 +12,7 @@ pub use grants::*;
 pub use metadata::*;
 pub use source_selection::{
     FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT, canonical_filesystem_metadata_path_is_canonical,
+    source_snapshot_path_is_canonical,
 };
 pub use staging::*;
 
