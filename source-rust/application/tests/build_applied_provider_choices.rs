@@ -3,7 +3,8 @@
 End-to-end CLI check that a package may choose a provider whose slot and
 implementation are applied to compile-time arguments, and hand that choice to
 the program that depends on it. Building the executable for Linux checks that
-the target has the method the consumer calls.
+the target has the method the consumer calls. The same package also names a
+different provider application for macOS.
 
 `Reading<const Tag: u64>` is one requirement per tag, and an implementation
 `FirstReading<T, const Tag: u64>` satisfies `Reading<Tag>` for whatever tag it
@@ -101,7 +102,8 @@ fn check_package(name: &str, build: &str, files: &[(&str, &str)], main: &str) ->
 fn a_package_chooses_an_applied_provider_and_its_consumer_receives_the_choice() {
     let (compiled, stderr) = check(
         "chosen",
-        "Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
+        "Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);
+        Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u32>; 2], Tag>>(builder, macos_arm64);",
     );
     assert!(compiled, "{stderr}");
 }

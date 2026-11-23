@@ -379,14 +379,20 @@ pub fn prepare_with_source_defaults(
     let mut roots = Vec::new();
     let mut applications = Vec::new();
     let mut seen_targets = std::collections::BTreeSet::new();
-    for target in targets {
-        if !seen_targets.insert(*target) {
+    // A deployment runs only its requested targets. The source checker still
+    // needs each provider application that the Build names for another target.
+    let declared_targets = defaults
+        .iter()
+        .chain(&overrides)
+        .filter_map(|row| row.target.as_deref());
+    for target in targets.iter().copied().chain(declared_targets) {
+        if !seen_targets.insert(target) {
             continue;
         }
         let applies = |row: &&SourceDeclaration<'_>| {
             row.target
                 .as_deref()
-                .is_none_or(|selected| selected == *target)
+                .is_none_or(|selected| selected == target)
         };
         let mut slots = defaults
             .iter()
@@ -413,8 +419,7 @@ pub fn prepare_with_source_defaults(
                 .collect::<Vec<_>>();
             let selected = choose_supply(&supplies).map_err(|reason| match reason {
                 UnchosenSupply::Unsupplied => diagnostic(format!(
-                    "source provider selection for {}: explicit source slot has no provider supply",
-                    *target
+                    "source provider selection for {target}: explicit source slot has no provider supply"
                 )),
                 // Name who made the competing choices and which providers they chose.
                 UnchosenSupply::Competing(rows) => {
@@ -429,8 +434,7 @@ pub fn prepare_with_source_defaults(
                         .collect::<Vec<_>>()
                         .join(" and ");
                     diagnostic(format!(
-                        "conflicting providers on target `{}`: {declarer} declares {providers}",
-                        *target
+                        "conflicting providers on target `{target}`: {declarer} declares {providers}"
                     ))
                 }
             })?;
@@ -443,19 +447,18 @@ pub fn prepare_with_source_defaults(
                 })?;
             if !available.contains(&slot) {
                 return Err(diagnostic(format!(
-                    "source provider selection for {}: UnknownSlot",
-                    *target
+                    "source provider selection for {target}: UnknownSlot"
                 )));
             }
             let mut matching = candidates.iter().enumerate().filter(|(_, candidate)| {
                 candidate.slot == slot
                     && candidate.provider_key == origin.provider
-                    && (candidate.target.is_empty() || candidate.target == *target)
+                    && (candidate.target.is_empty() || candidate.target == target)
             });
             let (Some((index, candidate)), None) = (matching.next(), matching.next()) else {
                 return Err(diagnostic(format!(
-                    "source provider selection for {} has no unique exact candidate for `{}`",
-                    *target, origin.source.provider_type.authored_path
+                    "source provider selection for {target} has no unique exact candidate for `{}`",
+                    origin.source.provider_type.authored_path
                 )));
             };
             if !candidate.complete {
@@ -475,7 +478,7 @@ pub fn prepare_with_source_defaults(
             }
             selected_candidates.push(index);
             selections.push(ProviderSelectionInput {
-                target: (*target).to_owned(),
+                target: target.to_owned(),
                 schema: candidate.scope.clone(),
                 provider: candidate.provider,
                 provider_application: origin.source.provider_type.applied.then(|| {
