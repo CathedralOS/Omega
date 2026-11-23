@@ -64,48 +64,15 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### 1. Which firmware operation may establish the UEFI application’s two storage grants?
-
-The returning UEFI application needs correspondence between its actual image
-handle and the mapped image, plus independent custody of its initial storage.
-The checked adapter must establish both before calling the selected
-continuation. The entry specification assigns these premises to selected
-firmware providers and leaves the public issuer interface open.
-[UEFI physical arrival and semantic roots](wiki/spec/build/uefi_entry.md#physical-arrival-and-semantic-roots)
-
-The shipped `UefiPhysicalEntry::enter` currently permits reaching and invoking
-only `ProgramImage`, whose sole operation returns an address. In an ordinary
-package using the shipped public declaration, a constant EFI-status adapter
-passes. Calling `ExtentRootProvider::grant` from its body exceeds both
-permissions. The Boot Services declaration returns a status and writes a raw
-address on page allocation. The Loaded Image declaration describes field
-layout. Neither declaration relates the physical invocation to a granted
-extent. [Physical entry](source/library/std/uefi_x86_64_entry.omg)
-[Boot Services](source/library/std/uefi_x86_64_handoff.omg)
-[Loaded Image layout](source/library/std/targets/uefi_x86_64/tables.omg)
-[Core grant and transport](source/library/core/extent.omg)
-
-Should the physical contract admit separate, lifecycle-scoped firmware
-operations for Loaded Image correspondence and allocation custody, or one
-selected firmware provider that takes the physical invocation and supplies
-the pair under a single public contract? The second option places more of the
-correspondence and allocation checks inside one trusted provider.
-
-Recommend separate operation contracts tied to the actual image-handle and
-allocation occurrences. Let checked adapter source validate bounds, disjointness
-and live stack exclusions and call `ProgramStorageEntry::enter` only when it
-can forward both grants. Grant issuance and the semantic transport each need
-an explicit place in the physical adapter’s published effect ceiling.
-
 <a id="machine-hypothesis-without-a-binder"></a>
-### 2. Does a theorem’s machine hypothesis require an explicit binder?
+### 1. Does a theorem’s machine hypothesis require an explicit binder?
 
 When a theorem writes `requires machine Step(...)` but its generic binders do not name `Step`, must the compiler reject the declaration, or does the hypothesis introduce an evidence parameter? For the latter interpretation, which argument at a citation supplies that evidence? The archived V2 compiler rejects a citation with no evidence for the root hypothesis during typing. The declaration alone still reaches lowering, where it lacks a binder slot. The corresponding declaration with an explicit machine binder gives the citation an evidence position.
 
 [Logical hypotheses and machine use](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use) describes nested machine-shaped requirements. Its [proof-construction example](wiki/spec/proofs/mathematical_bindings.md#witnesses-existence-and-proof-construction) binds `machine Step` explicitly. An answer settles which declarations type and what evidence a citation must supply.
 
 <a id="whole-subject-region-constructor"></a>
-### 3. Which core declaration names the whole subject of an access policy?
+### 2. Which core declaration names the whole subject of an access policy?
 
 A domain can restrict reads of an entire value to one machine and writes to another. The documented policy passes `TypeSchema::root(@schema)` to both rule constructors. Which ordinary core declaration should a caller select to identify that whole subject? The access chapter gives the spelling and its meaning. The machine declaration rule reserves `::` for specific owners, and reflection defines `TypeSchema` as data. [Access plan construction](wiki/spec/resources/access.md) · [Worked domain policy](wiki/spec/language/domains.md#domain-owned-read-and-write-authority) · [Machine declarations](wiki/spec/language/machines.md#static-declarations-and-explicit-state) · [Semantic reflection](wiki/spec/language/reflection.md)
 

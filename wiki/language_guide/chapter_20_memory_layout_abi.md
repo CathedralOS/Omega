@@ -147,6 +147,12 @@ justifies calling the function. A readable address or matching record layout
 does not grant that trust. See
 [function-table bindings](../spec/build/foreign_bindings.md#function-table-bindings).
 
+For example, a UEFI entry adapter can lend a memory manager the authority to
+call Boot Services. If firmware allocates four pages, the manager can pass the
+application a grant for those four pages while keeping the Boot Services borrow
+scoped to the allocation work. The application can use the pages without
+acquiring permission to call firmware. [UEFI entry authority](../spec/build/uefi_entry.md#firmware-api-authority-and-storage-grants)
+
 ## Access policies and externally mutable memory
 
 A device register can change underneath you, and reading or writing it has

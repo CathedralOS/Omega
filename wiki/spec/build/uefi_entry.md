@@ -54,17 +54,32 @@ The physical arrival contract retains pointer validity, alignment and lifetime,
 the paging/CPU regime, entry/exit control, and firmware lifecycle assumptions.
 An ABI-compatible pointer or register arrangement establishes none of these.
 
-The image handle is provenance-bearing identification, not storage authority.
-The selected Loaded Image provider admits correspondence to the real mapped
-image. Successful page allocation admits exclusive page custody; release admits
-its return. Layout and arithmetic checks derive facts above these premises,
-not the premises themselves. Retain exact selected provider postconditions,
-input occurrences, phase, schema, calling plan, continuation, and receipts.
+### Firmware API authority and storage grants
 
-Both semantic root geometry obligations must hold before either complete root
-is introduced. Failure before installation calls no continuation and returns
-all moved bootstrap inputs. Target result mapping specifies recoverable
-bootstrap errors; normal Unit return maps to success. Crash, trap, or abort
+The installed physical entry contract establishes which firmware operations the
+adapter may invoke through the handles and table borrows received on this call.
+The adapter delegates that authority to the subsystem doing the work by passing
+a qualified handle or borrow. The subsystem may use it only for the permitted
+operations and within its firmware phase. Each protected domain uses
+`Issuance::Only` in its `AccessPlan` to name its authorized issuers. The adapter
+declares the firmware calls, grant issuance and semantic entry call in its
+`reaches` and `invokes` ceilings. [Initial-call authority](../resources/authority.md#initial-call-authority)
+
+Firmware supplies the image handle for this invocation. The selected Loaded Image
+operation establishes which mapping belongs to that handle. A successful page
+allocation establishes exclusive custody of the pages returned by that call.
+A successful release returns that custody. A single target package may implement
+both lookup and allocation. Each storage grant must retain its own evidence for
+the exact range, including when a checked helper forwards the pair. The
+provider and invocation records retain the inputs, postconditions, firmware
+phase, schema, calling plan, continuation and receipts.
+[External roots and issuance](../resources/authority.md#external-roots-and-issuance)
+
+Before introducing either complete root, the checked adapter proves that both
+ranges fit their backing, are disjoint and exclude the live stack and retained
+state. It then forwards both grants to `ProgramStorageEntry::enter`. Failure
+before installation calls no continuation and returns all moved bootstrap inputs.
+Target result mapping specifies recoverable bootstrap errors; normal Unit return maps to success. Crash, trap, or abort
 does not manufacture a returning status result.
 
 Initial storage is a separately owned reserved region proved disjoint from the
