@@ -359,11 +359,14 @@ testing. A failure there is an investigation of that failure, never a wider
 run.
 
 Builds, test runs and compiled programs from every local agent share one
-machine. Before the first build on a host you share with its owner or with
-other agents, apply the [host build budget](wiki/development/build_slot.md): cap the total
-load of all agents so the machine never reaches 100%, run at the lowest
-operating-system priority on a workstation its owner is using, and write the
-budget into every worker prompt. On the test VMs, run one heavy job per machine
+machine. The [host build budget](wiki/development/build_slot.md) caps the total
+load of all agents so the machine never reaches 100%: the pinned mbx turns the
+host's mbx scheduler budget (`scheduler.reserve_cpus` in the owner's global mbx
+configuration) into a hard CPU ceiling at the lowest operating-system priority
+for every process it starts, so run builds, tests and the programs they start
+through mbx, and worker prompts need no thread caps. `mbx xtask doctor` reports
+the ceiling; until the host has that setting, put `MBX_SCHEDULER_CPUS` in every
+worker prompt. On the test VMs, run one heavy job per machine
 and never change the settings of a job that is already running; the remote shim
 refuses a second build or test run while one is active.
 

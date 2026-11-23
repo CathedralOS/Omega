@@ -15,7 +15,7 @@ Local subagents share one physical machine (CPU, RAM, disk, and process table):
    Local named branches are banned. Reuse a worker's fixed `.agents/worktree/worker-N` slot across slices (`cargo xtask worktree release`) so its `target/` cache stays warm.
 3. **Host build concurrency ([host-setup.md](host-setup.md)):**
    - Agent slots and expensive-build slots are separate. Keep each worktree's `CARGO_TARGET_DIR` independent (`CARGO_PROFILE_DEV_OPT_LEVEL=1`).
-   - Before dispatching, fix the [host build budget](../../../../wiki/development/build_slot.md#on-a-workstation-someone-is-using) and write it into every worker prompt: cap the total build load of all workers so the machine never reaches 100% (one expensive build at a time unless a shared limit caps the total), and on a workstation its owner is using run at the lowest OS priority. Worker subagents do not inherit the coordinator's environment.
+   - Before dispatching, check the [host build budget](../../../../wiki/development/build_slot.md#on-a-workstation-someone-is-using): `mbx xtask doctor` must report a `host-ceiling` that keeps the machine below 100%. The pinned mbx then holds every worker's builds and tests under that ceiling at the lowest OS priority, so prompts need no thread caps. If the host has no global `scheduler.reserve_cpus`, write `MBX_SCHEDULER_CPUS` into every worker prompt; worker subagents do not inherit the coordinator's environment.
    - Build the `omega` binary once at the shared base commit and pass it to every worker's sample checks (`mbx xtask sample-gate --cli <path>`) instead of rebuilding it per worker.
 
 ## 2. Launching & Communicating with Local Subagents

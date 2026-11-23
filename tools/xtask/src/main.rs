@@ -30,6 +30,7 @@ mod doctor;
 mod execution;
 mod fmt;
 mod gamma_invoke;
+mod host_ceiling;
 mod portable_services;
 mod producer;
 mod provenance;

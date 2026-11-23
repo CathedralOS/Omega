@@ -22,10 +22,11 @@ Execution and publication follow [AGENTS.md](../../../../AGENTS.md) and [landing
   do not assume a fixed agent count or change user configuration to obtain more.
 - Each editing worker gets an isolated `worker-N` pool slot using `mbx xtask worktree acquire`.
   Preserve its fixed path and warm target across successive repairs.
-- Workers share this host's CPU, memory and disk. Set the current
-  [host build budget](../../../../wiki/development/build_slot.md) before builds and include
-  it in every worker prompt; shell settings are not inherited by subagents.
-  Keep target directories separate and use the shared mbx scheduler budget.
+- Workers share this host's CPU, memory and disk. The pinned mbx holds their
+  builds and tests under the [host build budget](../../../../wiki/development/build_slot.md)
+  ceiling; if the host has no global `scheduler.reserve_cpus`, include
+  `MBX_SCHEDULER_CPUS` in every worker prompt, since shell settings are not
+  inherited by subagents. Keep target directories separate.
 
 ## Dispatch and continuation
 
