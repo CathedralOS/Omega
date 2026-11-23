@@ -3,7 +3,7 @@ pub mod callable_values;
 mod control_flow_and_calls;
 mod declarations_and_machines;
 pub mod evidence;
-mod state_bodies;
+pub(crate) mod state_bodies;
 mod type_system_and_names;
 pub mod values;
 

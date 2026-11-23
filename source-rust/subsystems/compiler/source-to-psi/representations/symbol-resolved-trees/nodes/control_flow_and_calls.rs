@@ -565,6 +565,61 @@ pub mod control_flow {
             }
         }
 
+        impl Statement {
+            /// Visit each expression the statement evaluates or tests, in
+            /// stored order. A block value inside one is a single operand.
+            pub fn visit_operands(
+                &self,
+                expressions: &crate::source_resolved::expression::ExpressionTable,
+                mut visit: impl FnMut(crate::source_resolved::expression::ExpressionHandle),
+            ) {
+                let target = |target: &TransitionTarget, visit: &mut dyn FnMut(_)| match target {
+                    TransitionTarget::Named(named) => expressions
+                        .expression_handles(named.arguments)
+                        .iter()
+                        .copied()
+                        .for_each(visit),
+                    TransitionTarget::Value(value) => visit(*value),
+                    TransitionTarget::Terminal => {}
+                };
+                match self {
+                    Self::Assembly(_) => {}
+                    Self::RootBinding(binding) => {
+                        visit(binding.receiver);
+                        visit(binding.implementation_operand);
+                    }
+                    Self::AssemblyFact(fact) => visit(fact.expression),
+                    Self::Assignment(assignment) => {
+                        visit(assignment.target);
+                        visit(assignment.value);
+                    }
+                    Self::Call(call) => {
+                        visit(call.callee);
+                        expressions
+                            .expression_handles(call.arguments)
+                            .iter()
+                            .copied()
+                            .for_each(&mut visit);
+                    }
+                    Self::ProofOutputBindingStatement(binding) => visit(binding.call),
+                    Self::Expression(expression) => visit(*expression),
+                    Self::LocalData(local) => visit(local.initial_value),
+                    Self::Transition(transition) => {
+                        for pattern in transition.patterns.iter() {
+                            visit(pattern.subject);
+                        }
+                        if let TransitionGuard::When(guard) = &transition.guard {
+                            visit(*guard);
+                        }
+                        target(&transition.target, &mut visit);
+                        if let Some(continuation) = &transition.continuation {
+                            target(continuation, &mut visit);
+                        }
+                    }
+                }
+            }
+        }
+
         #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
         pub struct Assignment {
             pub target: crate::source_resolved::expression::ExpressionHandle,

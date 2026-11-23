@@ -476,7 +476,7 @@ impl Program<'_> {
                 borrowed_regions: crate::lowering::body::Regions::NONE,
             },
             Statement::Bind {
-                slot: slots.len(),
+                slot: self.next_slot(slots),
                 value,
             },
         ))

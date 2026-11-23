@@ -659,6 +659,7 @@ fn expression_type_payloads(owner: &mut impl TypePayloadTransform, expression: E
         .expression(expression)
         .clone();
     match &mut node {
+        ExpressionNode::Block(_) => {}
         ExpressionNode::MachineValue(value) => {
             value.type_reference = owner.reference(value.type_reference);
             static_argument_types(owner, &mut value.selected);

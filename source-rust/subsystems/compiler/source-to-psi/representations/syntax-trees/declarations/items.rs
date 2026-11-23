@@ -456,6 +456,31 @@ impl ItemTable {
         self.state_storage.statement_handles.append(handle)
     }
 
+    /// The position the next body statement handle is appended at.
+    pub fn statement_handle_frontier(&self) -> arena::PagedArenaFrontier<StatementHandle> {
+        self.state_storage.statement_handles.frontier()
+    }
+
+    /// Remove the body statement handles appended since `frontier` and return
+    /// them in order. A block value parses its statements with the ordinary
+    /// statement grammar, which appends to the enclosing body's span; the
+    /// block takes them back so that span stays contiguous.
+    pub fn detach_statement_handles_since(
+        &mut self,
+        frontier: arena::PagedArenaFrontier<StatementHandle>,
+    ) -> Vec<StatementHandle> {
+        let appended = self.state_storage.statement_handles.span_since(frontier);
+        let handles = self
+            .state_storage
+            .statement_handles
+            .span_or_empty(appended)
+            .to_vec();
+        self.state_storage
+            .statement_handles
+            .rewind_appended(frontier);
+        handles
+    }
+
     pub fn append_item(&mut self, item: Item) -> ItemHandle {
         self.items.append(item)
     }

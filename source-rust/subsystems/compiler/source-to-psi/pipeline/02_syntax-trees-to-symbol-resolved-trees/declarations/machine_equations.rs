@@ -593,6 +593,14 @@ mod argument_types {
                     }
                 }
             }
+            ExpressionNode::Block(block) if block.tail.is_valid() => expression_types(
+                syntax,
+                trees,
+                sources,
+                block.tail,
+                selection,
+                pending_diagnostics,
+            ),
             ExpressionNode::Match(dispatch) => {
                 let mut references = Vec::new();
                 for arm in trees.tables.bodies.expressions.match_arms(dispatch.arms) {

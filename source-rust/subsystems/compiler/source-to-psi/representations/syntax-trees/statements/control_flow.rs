@@ -36,11 +36,24 @@ paged_roster! {
         arena transition_patterns: TransitionPattern,
         arena dispatches: TableDispatch,
         arena outcome_proof_selectors: TableOutcomeProofSelector,
+        arena block_statements: StatementHandle,
         roster assembly: AssemblyTable => crate::assembly::AssemblyTableAppendCheckpoint,
     }
 }
 
 impl StatementTable {
+    /// The statements of one block value, in authored order.
+    pub fn insert_block_statements(
+        &mut self,
+        statements: impl IntoIterator<Item = StatementHandle>,
+    ) -> HandleSpan<StatementHandle> {
+        self.block_statements.insert_many(statements)
+    }
+
+    pub fn block_statements(&self, span: HandleSpan<StatementHandle>) -> &[StatementHandle] {
+        self.block_statements.span_or_empty(span)
+    }
+
     pub fn insert_dispatch(&mut self, dispatch: TableDispatch) -> Handle<TableDispatch> {
         self.dispatches.insert(dispatch)
     }

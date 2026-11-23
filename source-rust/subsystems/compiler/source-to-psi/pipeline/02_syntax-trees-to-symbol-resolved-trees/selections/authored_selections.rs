@@ -478,6 +478,9 @@ fn collect_authored_statement_call_candidates(
             }
             _ => {}
         }
+        for block in program.statement_block_spans(statement) {
+            collect_authored_statement_call_candidates(program, block, partition, candidates);
+        }
     }
 }
 
@@ -1117,6 +1120,9 @@ fn collect_statement_static_sites(
             }
             _ => {}
         }
+        for block in program.statement_block_spans(statement) {
+            collect_statement_static_sites(program, block, partition, sites);
+        }
     }
 }
 
@@ -1247,6 +1253,8 @@ fn collect_expression_subtree(
                 collect_expression_subtree(program, field.value, handles);
             }
         }
+        // Contract clauses hold no block; typing refuses one there.
+        ExpressionNode::Block(block) => collect_expression_subtree(program, block.tail, handles),
         ExpressionNode::Match(dispatch) => {
             collect_expression_subtree(program, dispatch.subject, handles);
             for arm in expressions.match_arms(dispatch.arms) {

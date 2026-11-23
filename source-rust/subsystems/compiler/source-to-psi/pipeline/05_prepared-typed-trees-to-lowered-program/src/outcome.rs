@@ -612,6 +612,17 @@ impl<'b> Walk<'b> {
             | ExpressionKind::Payload { base, .. }
             | ExpressionKind::IsCase { subject: base, .. }
             | ExpressionKind::Borrow { place: base, .. } => self.expression(machine, base),
+            ExpressionKind::Block {
+                statements, value, ..
+            } => {
+                if !self.statements(machine, statements)? {
+                    return Ok(false);
+                }
+                match value {
+                    Some(value) => self.expression(machine, value),
+                    None => Ok(true),
+                }
+            }
             // One arm runs: the match completes when its subject does and
             // some arm does, and every arm's causes are reachable.
             ExpressionKind::Match {

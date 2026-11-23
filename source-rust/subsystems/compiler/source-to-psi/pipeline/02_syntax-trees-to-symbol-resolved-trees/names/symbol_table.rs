@@ -1376,6 +1376,22 @@ pub(super) fn append_body_symbols(
                     );
                 }
             }
+            // A block value's locals are the state's locals too; scope
+            // routing decides where each one is visible.
+            let blocks = crate::source_resolved::block_values::nested_block_statement_spans(
+                &program.tables.bodies.expressions,
+                &declarations.state_statements,
+                declarations
+                    .state_statements
+                    .span_or_empty(state.construction_statement_span()),
+            );
+            for block in blocks {
+                append_local_symbols(
+                    &mut program.symbols,
+                    state.symbol,
+                    declarations.state_statements.span_mut_or_empty(block),
+                );
+            }
         }
     }
     for (type_parameters, state_handle) in new_states {

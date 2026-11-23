@@ -882,6 +882,10 @@ pub(crate) fn scoped_expression_type_reference(
                 state_scope,
                 active,
             )?,
+            // A block's type is its final value's.
+            ExpressionNode::Block(block) if block.tail.is_valid() => {
+                visit(program, parameters, result, block.tail, state_scope, active)?
+            }
             ExpressionNode::Match(dispatch) => {
                 let arms = program.expression_table.match_arms(dispatch.arms);
                 let mut joined = None;

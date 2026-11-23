@@ -724,6 +724,21 @@ mod constructors {
         selection: Option<&declaration_selection::ConstantSelection>,
         frontier: &ConstructorFrontier<'_>,
     ) {
+        // A block arm's value is its final expression.
+        if let ExpressionNode::Block(block) = syntax.expressions.expression(expression) {
+            let tail = block.tail;
+            if tail.is_valid() {
+                relabel_data_literal_for_expected_type(
+                    syntax,
+                    tail,
+                    expected_type,
+                    instances,
+                    selection,
+                    frontier,
+                );
+            }
+            return;
+        }
         if let ExpressionNode::Match(dispatch) = syntax.expressions.expression(expression) {
             let arms = syntax.expressions.match_arms(dispatch.arms).to_vec();
             for arm in arms {
@@ -1004,19 +1019,29 @@ mod expressions {
         statement: syntax_trees::statement::StatementHandle,
     ) -> Vec<syntax_trees::types::TypeReferenceHandle> {
         let mut inputs = Vec::new();
-        match syntax.statements.statement(statement) {
-            StatementNode::LocalData(local) => inputs.push(local.type_reference),
-            StatementNode::Call(call) => {
-                visit_static_argument_type_inputs(
-                    syntax,
-                    &call.machine_arguments,
-                    &mut |reference| inputs.push(reference),
-                );
-            }
-            _ => {}
-        }
         let mut expressions = ExpressionInventory::default();
-        collect_statement_expression_handles(syntax, statement, &mut expressions);
+        // A block value's statements declare their own locals and calls.
+        let mut pending = vec![statement];
+        while let Some(statement) = pending.pop() {
+            match syntax.statements.statement(statement) {
+                StatementNode::LocalData(local) => inputs.push(local.type_reference),
+                StatementNode::Call(call) => {
+                    visit_static_argument_type_inputs(
+                        syntax,
+                        &call.machine_arguments,
+                        &mut |reference| inputs.push(reference),
+                    );
+                }
+                _ => {}
+            }
+            let first = expressions.handles.len();
+            collect_statement_expression_handles(syntax, statement, &mut expressions);
+            for expression in &expressions.handles[first..] {
+                if let ExpressionNode::Block(block) = syntax.expressions.expression(*expression) {
+                    pending.extend(syntax.statements.block_statements(block.statements));
+                }
+            }
+        }
         for expression in expressions.handles {
             visit_expression_type_inputs(syntax, expression, &mut |reference| {
                 inputs.push(reference)
@@ -1313,6 +1338,12 @@ mod expressions {
             return;
         }
         match syntax.expressions.expression(expression) {
+            ExpressionNode::Block(block) => {
+                for statement in syntax.statements.block_statements(block.statements) {
+                    collect_statement_expression_handles(syntax, *statement, handles);
+                }
+                collect_expression_handles(syntax, block.tail, handles);
+            }
             ExpressionNode::Match(dispatch) => {
                 collect_expression_handles(syntax, dispatch.subject, handles);
                 for arm in syntax.expressions.match_arms(dispatch.arms) {

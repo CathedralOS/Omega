@@ -1529,6 +1529,7 @@ impl Program<'_> {
             | ExpressionNode::Indexed(_)
             | ExpressionNode::TypeExpression(_)
             | ExpressionNode::Match(_)
+            | ExpressionNode::Block(_)
             | ExpressionNode::SavedSubject(_)
             | ExpressionNode::ArrayLiteral(_)
             | ExpressionNode::Atomic(_)

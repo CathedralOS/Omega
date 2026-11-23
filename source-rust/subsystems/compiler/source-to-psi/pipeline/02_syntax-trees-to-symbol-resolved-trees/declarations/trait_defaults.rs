@@ -1066,6 +1066,16 @@ fn substitute_expression_static_arguments(
                 substitute_expression_static_arguments(syntax, argument, substitution, seen);
             }
         }
+        ExpressionNode::Block(block) => {
+            for statement in syntax
+                .statements
+                .block_statements(block.statements)
+                .to_vec()
+            {
+                substitute_statement_static_arguments(syntax, statement, substitution, seen);
+            }
+            substitute_expression_static_arguments(syntax, block.tail, substitution, seen);
+        }
         ExpressionNode::Match(dispatch) => {
             substitute_expression_static_arguments(syntax, dispatch.subject, substitution, seen);
             let arms = syntax.expressions.match_arms(dispatch.arms).to_vec();

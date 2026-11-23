@@ -864,6 +864,26 @@ impl SyntaxCopy<'_> {
                     arms,
                 })
             }
+            ExpressionNode::Block(block) => {
+                let statements = other
+                    .statements
+                    .block_statements(block.statements)
+                    .iter()
+                    .map(|statement| {
+                        let statement =
+                            self.copy_statement_node(other, other.statements.statement(*statement));
+                        self.statements.insert(statement)
+                    })
+                    .collect::<Vec<_>>();
+                ExpressionNode::Block(crate::expression::TableBlockExpression {
+                    statements: self.statements.insert_block_statements(statements),
+                    tail: if block.tail.is_valid() {
+                        self.copy_expression_handle(other, block.tail)
+                    } else {
+                        ExpressionHandle::invalid()
+                    },
+                })
+            }
             ExpressionNode::SavedSubject(saved) => {
                 ExpressionNode::SavedSubject(TableSavedSubject {
                     component: saved.component,

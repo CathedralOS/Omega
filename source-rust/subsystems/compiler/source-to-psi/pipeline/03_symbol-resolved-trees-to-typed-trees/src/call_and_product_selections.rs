@@ -1260,6 +1260,12 @@ pub(crate) mod capture_product_operands {
                     capture: self.capture_subject(value.capture)?,
                     pattern_head: self.expression(value.pattern_head)?,
                 },
+                Source::Block(_) => {
+                    return Err(Diagnostic::error(
+                        "a block value cannot be a designated static operand",
+                    )
+                    .with_source_span(span));
+                }
                 Source::Match(value) => {
                     let subject = self.expression(value.subject)?;
                     let capture = self.capture_subject(value.capture)?;
@@ -1868,6 +1874,8 @@ pub(crate) mod construction_destinations {
                 | ExpressionNode::String(_)
                 | ExpressionNode::ArrayLiteral(_)
                 | ExpressionNode::Match(_) => true,
+                // A block delivers its final value.
+                ExpressionNode::Block(block) => needs_destination(program, block.tail),
                 ExpressionNode::Cast(cast) => cast.form.entry().is_some(),
                 _ => false,
             }

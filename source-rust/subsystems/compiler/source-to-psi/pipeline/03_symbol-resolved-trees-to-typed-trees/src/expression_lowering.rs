@@ -910,6 +910,10 @@ pub(crate) mod expression {
                     arena::Handle<resolved::expression::MatchSubjectCapture>,
                     arena::Handle<typed::expression::CompletedValueCapture>,
                 )>,
+                /// Set when a body statement owns this lowering: a block
+                /// value's statements are typed by that statement's lowering.
+                /// Elsewhere a block is refused.
+                pending_blocks: Option<&'target mut Vec<crate::typing::lowerer::PendingBlock>>,
             }
 
             impl<'program, 'target> ExpressionTableLowerer<'program, 'target> {
@@ -932,12 +936,66 @@ pub(crate) mod expression {
                         admits_policy_operators: false,
                         lowered_expressions: Vec::new(),
                         match_captures: Vec::new(),
+                        pending_blocks: None,
                     }
                 }
 
                 pub(crate) fn with_source_owner(mut self, owner: symbols::SymbolHandle) -> Self {
                     self.source_owner = owner;
                     self
+                }
+
+                /// Lower a body statement's expression: blocks go to
+                /// `pending`, and the statements of an enclosing block see
+                /// its match captures.
+                pub(crate) fn collecting_blocks(
+                    mut self,
+                    pending: &'target mut Vec<crate::typing::lowerer::PendingBlock>,
+                    captures: &[crate::typing::lowerer::BlockCapture],
+                ) -> Self {
+                    self.pending_blocks = Some(pending);
+                    self.match_captures = captures.to_vec();
+                    self
+                }
+
+                /// A block value: its final value now, its statements once the
+                /// statement holding it is typed, in that body's scope.
+                fn lower_block(
+                    &mut self,
+                    expression: resolved::expression::ExpressionHandle,
+                    block: resolved::expression::TableBlockExpression,
+                ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+                    let span = self.source.source_span(expression);
+                    if self.fact_position || self.pending_blocks.is_none() {
+                        return Err(Diagnostic::error(
+                            "a block value is a dispatch arm of an executable body; it cannot appear in this position",
+                        )
+                        .with_source_span(span));
+                    }
+                    if block.statement_nodes.len() != block.statements.len() {
+                        return Err(Diagnostic::error(
+                            "a block value lost its published statements",
+                        )
+                        .with_source_span(span));
+                    }
+                    let tail = self.lower_value(block.tail)?;
+                    let lowered = self
+                        .target()
+                        .insert(typed::expression::ExpressionNode::Block(
+                            typed::expression::TableBlockExpression {
+                                statements: arena::HandleSpan::empty(),
+                                tail,
+                            },
+                        ));
+                    let captures = self.match_captures.clone();
+                    if let Some(pending) = self.pending_blocks.as_mut() {
+                        pending.push(crate::typing::lowerer::PendingBlock {
+                            block: lowered,
+                            statements: block.statement_nodes,
+                            captures,
+                        });
+                    }
+                    Ok(lowered)
                 }
 
                 pub(crate) fn target(&mut self) -> &mut typed::expression::ExpressionTable {
@@ -1283,6 +1341,9 @@ pub(crate) mod expression {
                     node: &resolved::expression::ExpressionNode,
                 ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
                     match node {
+                        resolved::expression::ExpressionNode::Block(block) => {
+                            self.lower_block(expression, *block)
+                        }
                         resolved::expression::ExpressionNode::Match(dispatch) => {
                             self.lower_match(*dispatch)
                         }
@@ -3719,10 +3780,13 @@ pub(crate) mod expression {
             target: &mut typed::TypedTrees,
             expression: resolved::expression::ExpressionHandle,
             source_owner: symbols::SymbolHandle,
+            pending_blocks: &mut Vec<crate::typing::lowerer::PendingBlock>,
+            block_captures: &[crate::typing::lowerer::BlockCapture],
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
             lowerer::ExpressionTableLowerer::new(Some(program), source, target, None)
                 .with_source_owner(source_owner)
                 .admitting_policy_operators(true)
+                .collecting_blocks(pending_blocks, block_captures)
                 .lower(expression)
         }
 
@@ -3772,6 +3836,8 @@ pub(crate) mod expression {
             typed_trees,
             source_trees,
             source_owner,
+            pending_blocks,
+            block_captures,
             ..
         } = lowerer;
         let source = &source_trees.tables.bodies.expressions;
@@ -3781,6 +3847,8 @@ pub(crate) mod expression {
             typed_trees,
             expression,
             *source_owner,
+            pending_blocks,
+            block_captures,
         )
     }
 

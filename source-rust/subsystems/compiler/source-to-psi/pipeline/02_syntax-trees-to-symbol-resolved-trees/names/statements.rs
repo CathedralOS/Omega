@@ -135,6 +135,132 @@ mod assembly {
         }
     }
 }
+mod blocks {
+    /*
+        A block value's statements see the statements before the statement
+        that holds the block, then the block's own earlier statements; its
+        final value sees all of them. The block's locals are absent from every
+        other sequence, so they leave scope at its end. The enclosing
+        statement's own walk leaves the block to this routing.
+    */
+
+    use super::routing;
+    use crate::resolution::names::expressions::assign_statement_expression_symbols;
+    use crate::resolution::names::scopes::MachineScope;
+    use crate::source_resolved::{expression, name, signature, statement, types};
+    use crate::source_symbols::SymbolTable;
+    use arena::{Arena, HandleSpan};
+    use symbols::SymbolHandle;
+
+    pub(super) struct BlockScopeRouting<'scope> {
+        pub statements: &'scope mut Arena<statement::Statement>,
+        pub expressions: &'scope mut expression::ExpressionTable,
+        pub child_types: &'scope mut crate::source_resolved::types::TypeReferenceArena,
+        pub type_constraints: &'scope Arena<types::TypeConstraint>,
+        pub path_members: &'scope mut Arena<name::DiagnosticName>,
+        pub symbols: &'scope SymbolTable,
+    }
+
+    impl BlockScopeRouting<'_> {
+        pub(super) fn assign(
+            &mut self,
+            machine: &MachineScope<'_>,
+            parameters: &[signature::StateParameter],
+            state: SymbolHandle,
+            outer: HandleSpan<statement::Statement>,
+        ) {
+            let outer = self.statements.span_or_empty(outer).to_vec();
+            self.sequence(machine, parameters, state, &outer, 0);
+        }
+
+        /// The blocks of `sequence[first..]`, each seeing the statements
+        /// before the statement that holds it.
+        fn sequence(
+            &mut self,
+            machine: &MachineScope<'_>,
+            parameters: &[signature::StateParameter],
+            state: SymbolHandle,
+            sequence: &[statement::Statement],
+            first: usize,
+        ) {
+            for index in first..sequence.len() {
+                let mut operands = Vec::new();
+                sequence[index].visit_operands(self.expressions, |operand| operands.push(operand));
+                for operand in operands {
+                    self.blocks_in(machine, parameters, state, &sequence[..index], operand);
+                }
+            }
+        }
+
+        fn blocks_in(
+            &mut self,
+            machine: &MachineScope<'_>,
+            parameters: &[signature::StateParameter],
+            state: SymbolHandle,
+            prefix: &[statement::Statement],
+            expression: expression::ExpressionHandle,
+        ) {
+            let mut blocks = Vec::new();
+            self.expressions.direct_blocks(expression, &mut blocks);
+            for block in blocks {
+                self.block(machine, parameters, state, prefix, block);
+            }
+        }
+
+        fn block(
+            &mut self,
+            machine: &MachineScope<'_>,
+            parameters: &[signature::StateParameter],
+            state: SymbolHandle,
+            prefix: &[statement::Statement],
+            block: expression::ExpressionHandle,
+        ) {
+            let expression::ExpressionNode::Block(found) = *self.expressions.expression(block)
+            else {
+                return;
+            };
+            let mut sequence = prefix.to_vec();
+            let start = sequence.len();
+            sequence.extend_from_slice(self.statements.span_or_empty(found.statements));
+            for index in start..sequence.len() {
+                let (prior, next) = sequence.split_at_mut(index);
+                let scope = MachineScope {
+                    prior_statements: prior,
+                    ..*machine
+                };
+                routing::assign_statement_symbols(
+                    &scope,
+                    parameters,
+                    state,
+                    self.expressions,
+                    self.child_types,
+                    self.type_constraints,
+                    self.path_members,
+                    &mut next[0],
+                    self.symbols,
+                );
+            }
+            let scope = MachineScope {
+                prior_statements: &sequence,
+                ..*machine
+            };
+            assign_statement_expression_symbols(
+                self.symbols,
+                &scope,
+                parameters,
+                state,
+                self.expressions,
+                self.child_types,
+                found.tail,
+            );
+            self.statements
+                .span_mut_or_empty(found.statements)
+                .clone_from_slice(&sequence[start..]);
+            self.sequence(machine, parameters, state, &sequence, start);
+            self.blocks_in(machine, parameters, state, &sequence, found.tail);
+        }
+    }
+}
 mod routing {
     use crate::source_symbols::SymbolTable;
     use arena::Arena;
@@ -804,6 +930,20 @@ fn assign_machine_references(
                 graphs: assembly_graphs,
                 blocks: assembly_blocks,
                 contracts: assembly_expressions,
+                statements: state_statements,
+                expressions: expression_table,
+                child_types: child_type_references,
+                type_constraints,
+                path_members: statement_path_members,
+                symbols,
+            }
+            .assign(
+                &machine_scope,
+                parameters,
+                state_symbol,
+                state.construction_statement_span(),
+            );
+            blocks::BlockScopeRouting {
                 statements: state_statements,
                 expressions: expression_table,
                 child_types: child_type_references,

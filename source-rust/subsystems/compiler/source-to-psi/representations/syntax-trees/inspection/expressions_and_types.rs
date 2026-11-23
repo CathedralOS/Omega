@@ -166,6 +166,11 @@ pub enum ExpressionSnapshot {
         capture: Option<(u32, u32)>,
         arms: Vec<MatchArmSnapshot>,
     },
+    Block {
+        statements: Vec<crate::snapshot::StatementSnapshot>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        tail: Option<Box<ExpressionSnapshot>>,
+    },
     SavedSubject {
         #[serde(skip_serializing_if = "Option::is_none")]
         component: Option<&'static str>,
@@ -428,6 +433,23 @@ pub(crate) fn snapshot_expression_handle(
                     value: snapshot_expression_handle(syntax_trees, arm.value),
                 })
                 .collect(),
+        },
+        ExpressionNode::Block(block) => ExpressionSnapshot::Block {
+            statements: syntax_trees
+                .statements
+                .block_statements(block.statements)
+                .iter()
+                .map(|statement| {
+                    crate::snapshot::state_and_statement_snapshots::snapshot_statement(
+                        syntax_trees,
+                        syntax_trees.statements.statement(*statement),
+                    )
+                })
+                .collect(),
+            tail: block
+                .tail
+                .is_valid()
+                .then(|| Box::new(snapshot_expression_handle(syntax_trees, block.tail))),
         },
         ExpressionNode::SavedSubject(saved) => ExpressionSnapshot::SavedSubject {
             component: (saved.component == language_core::PatternComponent::Case).then_some("case"),

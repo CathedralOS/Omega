@@ -123,6 +123,15 @@ impl ExpressionTable {
                     arms,
                 }))
             }
+            // The statements belong to the body statement tables, which this
+            // expression copy does not own; the copy names the same ones.
+            ExpressionNode::Block(block) => {
+                let tail = self.copy_graph(source, block.tail, copies);
+                self.insert(ExpressionNode::Block(super::TableBlockExpression {
+                    tail,
+                    ..block
+                }))
+            }
             ExpressionNode::SavedSubject(saved) => {
                 let copied_capture = copies
                     .subjects

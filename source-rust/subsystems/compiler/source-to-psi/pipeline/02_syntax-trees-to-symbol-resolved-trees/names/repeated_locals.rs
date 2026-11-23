@@ -3,6 +3,9 @@
 //! and visible static values. A state gains locals in statement order.
 //! Match and transition arms extend that scope with their subject, field,
 //! and proof bindings. Ending an arm removes those names before its sibling.
+//! A block value adds its own locals in statement order and removes them at
+//! its end, so disjoint blocks may reuse a name (state_contracts.md,
+//! "Disjoint arms or blocks may reuse names").
 //! Arm uses have already become references to the saved dispatch subject;
 //! the patterns retain the authored names and their diagnostic spans.
 
@@ -78,44 +81,20 @@ pub(super) fn check_bindings(
             let parameter_count = declared.len();
             let mut arms = ArmBindings {
                 expressions,
+                statements: &declarations.state_statements,
+                symbols,
                 record_overlap: &mut record_overlap,
                 declared,
+                parameter_count,
                 machine,
                 state_name,
                 diagnostics: &mut diagnostics,
             };
-            for statement in declarations
-                .state_statements
-                .span_or_empty(state.construction_statement_span())
-            {
-                arms.statement(statement);
-                let Statement::LocalData(local) = statement else {
-                    continue;
-                };
-                if !local.role.is_runtime_binding() || !local.symbol.is_valid() {
-                    continue;
-                }
-                let name = symbols.name(local.symbol);
-                (arms.record_overlap)(&local.name);
-                let shadowed = arms.declared.iter().position(|earlier| earlier == name);
-                arms.declared.push(name.to_owned());
-                if let Some(position) = shadowed {
-                    let message = if position < parameter_count {
-                        format!(
-                            "machine `{machine}` state `{state_name}` local data `{name}` conflicts \
-                             with an existing name: a parameter with this name is still visible"
-                        )
-                    } else {
-                        format!(
-                            "machine `{machine}` state `{state_name}` has duplicate local data `{name}`: \
-                             an earlier local with this name is still visible"
-                        )
-                    };
-                    arms.diagnostics.push(
-                        Diagnostic::error(message).with_source_span(local.name.source_span()),
-                    );
-                }
-            }
+            arms.sequence(
+                declarations
+                    .state_statements
+                    .span_or_empty(state.construction_statement_span()),
+            );
         }
     }
     if diagnostics.is_empty() {
@@ -130,14 +109,51 @@ pub(super) fn check_bindings(
 /// arm, pushed on entry to the arm and popped on exit.
 struct ArmBindings<'walk> {
     expressions: &'walk ExpressionTable,
+    statements: &'walk arena::Arena<Statement>,
+    symbols: &'walk crate::source_symbols::SymbolTable,
     record_overlap: &'walk mut dyn FnMut(&DiagnosticName),
     declared: Vec<String>,
+    parameter_count: usize,
     machine: &'walk str,
     state_name: &'walk str,
     diagnostics: &'walk mut Vec<Diagnostic>,
 }
 
 impl ArmBindings<'_> {
+    /// A body's or block's statements in order: each local enters the scope
+    /// after its own initializer and must not reuse a visible name.
+    fn sequence(&mut self, statements: &[Statement]) {
+        let (machine, state_name) = (self.machine, self.state_name);
+        for statement in statements {
+            self.statement(statement);
+            let Statement::LocalData(local) = statement else {
+                continue;
+            };
+            if !local.role.is_runtime_binding() || !local.symbol.is_valid() {
+                continue;
+            }
+            let name = self.symbols.name(local.symbol);
+            (self.record_overlap)(&local.name);
+            let shadowed = self.declared.iter().position(|earlier| earlier == name);
+            self.declared.push(name.to_owned());
+            if let Some(position) = shadowed {
+                let message = if position < self.parameter_count {
+                    format!(
+                        "machine `{machine}` state `{state_name}` local data `{name}` conflicts \
+                         with an existing name: a parameter with this name is still visible"
+                    )
+                } else {
+                    format!(
+                        "machine `{machine}` state `{state_name}` has duplicate local data `{name}`: \
+                         an earlier local with this name is still visible"
+                    )
+                };
+                self.diagnostics
+                    .push(Diagnostic::error(message).with_source_span(local.name.source_span()));
+            }
+        }
+    }
+
     fn statement(&mut self, statement: &Statement) {
         match statement {
             Statement::Assembly(_) | Statement::AssemblyFact(_) => {}
@@ -201,6 +217,13 @@ impl ArmBindings<'_> {
         }
         let expressions = self.expressions;
         match expressions.expression(expression) {
+            ExpressionNode::Block(block) => {
+                let scope = self.declared.len();
+                let statements = self.statements;
+                self.sequence(statements.span_or_empty(block.statements));
+                self.expression(block.tail);
+                self.declared.truncate(scope);
+            }
             ExpressionNode::Match(dispatch) => {
                 self.expression(dispatch.subject);
                 for arm in expressions.match_arms(dispatch.arms) {

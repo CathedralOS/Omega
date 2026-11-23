@@ -125,6 +125,8 @@ fn assign_expression_symbols_in_role(
         };
     }
     match expressions.expression(expression).clone() {
+        // Typing refuses a block value in a proposition.
+        ExpressionNode::Block(_) => {}
         ExpressionNode::Match(dispatch) => {
             recurse!(dispatch.subject);
             for arm in expressions.match_arms(dispatch.arms).to_vec() {

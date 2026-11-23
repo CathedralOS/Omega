@@ -1796,6 +1796,10 @@ pub mod evidence {
                 render_expression(program, expression, substitutions, name_substitutions)
             };
             Ok(match program.expression_table.expression(expression) {
+                // A contract fact holds no block value.
+                ExpressionNode::Block(_) => {
+                    return Err(crate::source_state::runtime_callable_identity::RuntimeCallableIdentityError::UnresolvedContractFact);
+                }
                 ExpressionNode::MachineValue(value) => {
                     return program.runtime_machine_value_identity(value, substitutions);
                 }
@@ -4477,6 +4481,11 @@ pub mod inspection {
                     capture: Option<(u32, u32)>,
                     arms: Vec<MatchArmSnapshot>,
                 },
+                Block {
+                    statements: Vec<StatementSnapshot>,
+                    #[serde(skip_serializing_if = "Option::is_none")]
+                    tail: Option<Box<ExpressionSnapshot>>,
+                },
                 SavedSubject {
                     #[serde(skip_serializing_if = "Option::is_none")]
                     component: Option<&'static str>,
@@ -4837,6 +4846,18 @@ pub mod inspection {
             application: static_application_snapshot(program, value.application),
             conformance: program.symbols.display_path(value.conformance, "::"),
             requirement: program.symbols.display_path(value.requirement, "::"),
+        },
+        ExpressionNode::Block(block) => ExpressionSnapshot::Block {
+            statements: program
+                .statement_table
+                .statements(block.statements)
+                .iter()
+                .map(|statement| statement_snapshot(program, statement))
+                .collect(),
+            tail: block
+                .tail
+                .is_valid()
+                .then(|| Box::new(expression_snapshot(program, block.tail))),
         },
         ExpressionNode::Match(dispatch) => ExpressionSnapshot::Match {
             subject: Box::new(expression_snapshot(program, dispatch.subject)),

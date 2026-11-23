@@ -297,6 +297,10 @@ fn retarget_expression(
     let node = body_expressions(program).expression(expression).clone();
     let mut children = Vec::new();
     match node {
+        ExpressionNode::Block(block) => {
+            retarget_statement_span(program, block.statement_nodes, decide);
+            children.push(block.tail);
+        }
         ExpressionNode::Match(dispatch) => {
             children.push(dispatch.subject);
             for arm in program.tables.bodies.expressions.match_arms(dispatch.arms) {

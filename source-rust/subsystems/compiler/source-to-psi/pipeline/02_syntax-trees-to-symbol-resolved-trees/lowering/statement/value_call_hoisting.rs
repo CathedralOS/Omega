@@ -147,6 +147,22 @@ pub(super) fn expression_contains(
     }
     let contains = |child| expression_contains(lowerer, child, selects);
     match node {
+        ExpressionNode::Block(block) => {
+            let statements = &lowerer
+                .symbol_resolved_trees
+                .tables
+                .declarations
+                .state_statements;
+            statements
+                .span_or_empty(block.statements)
+                .iter()
+                .any(|statement| {
+                    let mut operands = Vec::new();
+                    statement.visit_operands(expressions, |operand| operands.push(operand));
+                    operands.into_iter().any(contains)
+                })
+                || contains(block.tail)
+        }
         ExpressionNode::Match(dispatch) => {
             contains(dispatch.subject)
                 || expressions.match_arms(dispatch.arms).iter().any(|arm| {

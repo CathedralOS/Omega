@@ -87,6 +87,34 @@ pub(crate) mod statement {
             Ok(())
         }
 
+        /// A block's locals are typed in the body that holds the block.
+        pub(crate) fn declare_block_locals(
+            &mut self,
+            statements: &[crate::source_resolved::statement::StatementNode],
+        ) -> Result<(), diagnostics::Diagnostic> {
+            use crate::source_resolved::statement::StatementNode;
+            for statement in statements {
+                let StatementNode::LocalData(local) = statement else {
+                    continue;
+                };
+                if !local.role.has_ordinary_initializer() || !local.symbol.is_valid() {
+                    continue;
+                }
+                let key = (local.symbol.arena_index(), local.symbol.generation());
+                match self.rows.binary_search_by_key(&key, |(symbol, _)| {
+                    (symbol.arena_index(), symbol.generation())
+                }) {
+                    Ok(_) => {
+                        return Err(diagnostics::Diagnostic::error(
+                            "local type information repeats a block binder",
+                        ));
+                    }
+                    Err(position) => self.rows.insert(position, (local.symbol, None)),
+                }
+            }
+            Ok(())
+        }
+
         fn position(&self, symbol: symbols::SymbolHandle) -> Option<usize> {
             self.rows
                 .binary_search_by_key(
@@ -1413,10 +1441,50 @@ pub(crate) mod statement {
         if let resolved::statement::StatementNode::Assembly(handle) = statement {
             assembly::lower(lowerer, state, types, *handle)
         } else {
+            let pending = lowerer.pending_blocks.len();
             let statement = lower_statement_node(lowerer, state, types, statement, closes_run)?;
             types.record(&statement)?;
+            complete_blocks(lowerer, state, types, pending)?;
             Ok(vec![statement])
         }
+    }
+
+    /// Type the statements of each block the last statement's expressions
+    /// produced, beyond `first`, in order. A block's locals join the body's
+    /// local types; resolution already confined their names to the block.
+    fn complete_blocks(
+        lowerer: &mut Lowerer,
+        state: &resolved::state::State,
+        types: &mut LocalTypes,
+        first: usize,
+    ) -> Result<(), Diagnostic> {
+        while lowerer.pending_blocks.len() > first {
+            let block = lowerer.pending_blocks.remove(first);
+            let statements = crate::typing::tables::resolved_statements(lowerer.source_trees)
+                .statements(block.statements);
+            types.declare_block_locals(statements)?;
+            let outer = std::mem::replace(&mut lowerer.block_captures, block.captures);
+            let mut lowered = Vec::with_capacity(statements.len());
+            let completed = (|| {
+                for statement in statements {
+                    lowered.extend(lower_statement(lowerer, state, types, statement, true)?);
+                }
+                Ok::<_, Diagnostic>(())
+            })();
+            lowerer.block_captures = outer;
+            completed?;
+            let span = crate::typing::tables::statement_table_mut(&mut lowerer.typed_trees)
+                .insert_statements(lowered);
+            let typed::expression::ExpressionNode::Block(node) = lowerer
+                .typed_trees
+                .expression_table
+                .expression_mut(block.block)
+            else {
+                return Err(Diagnostic::error("a typed block value lost its node"));
+            };
+            node.statements = span;
+        }
+        Ok(())
     }
 
     fn lower_local(

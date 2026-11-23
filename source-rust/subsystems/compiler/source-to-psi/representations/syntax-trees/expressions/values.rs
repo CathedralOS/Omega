@@ -277,6 +277,7 @@ impl Default for ExpressionTable {
 )]
 pub enum ExpressionNode {
     Match(TableMatchExpression),
+    Block(TableBlockExpression),
     SavedSubject(TableSavedSubject),
     ArrayLiteral(HandleSpan<ExpressionHandle>),
     Atomic(TableAtomicExpression),
@@ -616,6 +617,29 @@ pub struct TableMatchExpression {
     pub subject: ExpressionHandle,
     pub capture: Handle<MatchSubjectCapture>,
     pub arms: HandleSpan<TableMatchArm>,
+}
+
+/// A block-valued dispatch arm, `0 -> { let port: u32 = 1; port }`
+/// (patterns.md: "a comma separates each arm from the next, including after
+/// a block-valued arm"). Its statements run in order in the block's own
+/// scope; `tail` then supplies the arm's value. A block without a tail
+/// completes with Unit. The statements are ordinary body statements, held in
+/// `StatementTable::block_statements` because the enclosing body's statement
+/// span is still being built when the block is parsed.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    syntax_trees_derive::SyntaxRelocate,
+    record_storage::Record,
+)]
+pub struct TableBlockExpression {
+    pub statements: HandleSpan<crate::statement::StatementHandle>,
+    pub tail: ExpressionHandle,
 }
 
 #[derive(

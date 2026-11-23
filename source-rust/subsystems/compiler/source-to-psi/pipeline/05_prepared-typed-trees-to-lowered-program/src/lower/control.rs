@@ -474,6 +474,23 @@ impl Lowering<'_> {
     }
 
     fn complete_value(&mut self, expression: &Expression) -> Checked<()> {
+        // A block that completes the invocation runs its statements, then
+        // completes with its value: a return, a terminal call or Unit. Its
+        // locals end with the invocation, as the body's do.
+        if let ExpressionKind::Block {
+            statements, value, ..
+        } = &expression.kind
+        {
+            for statement in statements {
+                if let Reached::Ended(_) = self.statement(statement)? {
+                    return Ok(());
+                }
+            }
+            return match value {
+                Some(value) => self.complete_value(value),
+                None => self.return_unit(expression.source),
+            };
+        }
         if let ExpressionKind::Match {
             capture,
             subject,

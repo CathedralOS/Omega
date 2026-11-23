@@ -1251,6 +1251,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                 }
                 self.queue_expressions(fields.iter().rev().map(|field| field.value));
             }
+            ExpressionNode::Block(block) => self.queue_expression(block.tail),
             ExpressionNode::Match(dispatch) => {
                 let arms = table.match_arms(dispatch.arms);
                 if arms.len() != dispatch.arms.len() {
@@ -1466,6 +1467,24 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             }
             let mut statements: Vec<_> = body.iter().rev().collect();
             while let Some(statement) = statements.pop() {
+                // A block value's statements run inside the body.
+                for span in crate::source_resolved::block_values::statement_block_spans(
+                    expressions,
+                    statement,
+                )
+                .into_iter()
+                .rev()
+                {
+                    statements.extend(
+                        program
+                            .tables
+                            .declarations
+                            .state_statements
+                            .span_or_empty(span)
+                            .iter()
+                            .rev(),
+                    );
+                }
                 match statement {
                     Statement::Assembly(handle) => {
                         let declarations = &program.tables.declarations;

@@ -790,6 +790,61 @@ use syntax_trees::{self as syntax, SyntaxTrees};
     reads a plain local. The hoisted statements come first so later passes seed
     and resolve the temps' symbols (locals are bound by ORDER + NAME).
 */
+/*
+    A block value lowers each statement with the ordinary statement lowering,
+    so a statement's hoisted evaluations stay inside the block, before it, and
+    run only when the arm is selected. The final value is hoisted as a body's
+    final value is. The statements join the declaration statement arena as one
+    span, like an assembly block's instructions; the enclosing body's own span
+    is appended after its statements are lowered, so the two stay separate.
+*/
+pub(crate) fn lower_block_value(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    block: syntax::expression::TableBlockExpression,
+) -> Result<crate::source_resolved::expression::ExpressionHandle, Diagnostic> {
+    use crate::resolution::lowering::expression::expression_table;
+    use crate::resolution::lowering::statement::indexed_read_hoisting::{
+        OperandHoisting, hoist_operand_indexed_reads,
+    };
+    use crate::source_resolved::expression::{
+        ExpressionHandle, ExpressionNode, TableBlockExpression,
+    };
+    let mut statements = Vec::new();
+    for statement in syntax_trees.statements.block_statements(block.statements) {
+        statements.extend(lower_statement_handle(
+            lowerer,
+            syntax_trees,
+            *statement,
+            statements.len(),
+            false,
+        )?);
+    }
+    let tail = if block.tail.is_valid() {
+        let tail = crate::resolution::lowering::expression::lower_private_expression_into_table(
+            lowerer,
+            syntax_trees,
+            block.tail,
+        )?;
+        hoist_operand_indexed_reads(lowerer, tail, &mut statements, OperandHoisting::Computation)
+    } else {
+        ExpressionHandle::invalid()
+    };
+    let statements = lowerer
+        .symbol_resolved_trees
+        .tables
+        .declarations
+        .state_statements
+        .insert_many(statements);
+    Ok(
+        expression_table(lowerer).insert(ExpressionNode::Block(TableBlockExpression {
+            statements,
+            statement_nodes: arena::HandleSpan::empty(),
+            tail,
+        })),
+    )
+}
+
 pub(crate) fn lower_statement_handle(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,

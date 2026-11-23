@@ -614,23 +614,12 @@ pub(crate) fn declare<'a, 'b>(
     }
     for (machine, body) in bodies.iter() {
         for statement in &body.statements {
-            statement_homes(statement, &mut |value_type, identity, slot| {
+            statement_homes(statement, &body.slots, &mut |value_type, identity, slot| {
                 homes.push(ScalarHomeDemand {
                     value_type,
-                    identity: Some(identity),
+                    identity,
                     lender: slot.map(|slot| (machine, slot)),
                 });
-            });
-            let Statement::Declare { slot, home, .. } = statement else {
-                continue;
-            };
-            let Some(value_type @ ValueType::Scalar(..)) = body.slots.get(*slot).copied() else {
-                continue;
-            };
-            homes.push(ScalarHomeDemand {
-                value_type,
-                identity: home.as_ref(),
-                lender: None,
             });
         }
     }
@@ -1031,22 +1020,28 @@ struct ScalarHomeDemand<'b> {
 /// local binding the loan captures.
 fn statement_homes<'b>(
     statement: &'b Statement,
-    homes: &mut impl FnMut(ValueType, &'b String, Option<usize>),
+    slots: &[ValueType],
+    homes: &mut impl FnMut(ValueType, Option<&'b String>, Option<usize>),
 ) {
     match statement {
         Statement::Bind { value, .. }
         | Statement::Decompose { subject: value }
         | Statement::Evaluate {
             expression: value, ..
-        } => expression_homes(value, homes),
+        } => expression_homes(value, slots, homes),
         Statement::Store {
             destination, value, ..
         } => {
-            expression_homes(destination, homes);
-            expression_homes(value, homes);
+            expression_homes(destination, slots, homes);
+            expression_homes(value, slots, homes);
         }
-        Statement::Declare { .. }
-        | Statement::Witness { .. }
+        // A scalar local declared without an initializer is its own home.
+        Statement::Declare { slot, home, .. } => {
+            if let Some(value_type @ ValueType::Scalar(..)) = slots.get(*slot).copied() {
+                homes(value_type, home.as_ref(), None);
+            }
+        }
+        Statement::Witness { .. }
         | Statement::CaptureReference { .. }
         | Statement::ParkedBuildLocals(..) => {}
         Statement::Dispatch {
@@ -1055,43 +1050,45 @@ fn statement_homes<'b>(
             default,
             ..
         } => {
-            expression_homes(subject, homes);
+            expression_homes(subject, slots, homes);
             for (selector, arm, _) in arms {
                 if let Some(condition) = selector.condition.as_deref() {
-                    expression_homes(condition, homes);
+                    expression_homes(condition, slots, homes);
                 }
-                target_homes(arm, homes);
+                target_homes(arm, slots, homes);
             }
             if let Some((arm, _)) = default {
-                target_homes(arm, homes);
+                target_homes(arm, slots, homes);
             }
         }
         Statement::Arm { guard, target, .. } => {
             if let Some(guard) = guard {
-                expression_homes(guard, homes);
+                expression_homes(guard, slots, homes);
             }
-            target_homes(target, homes);
+            target_homes(target, slots, homes);
         }
     }
 }
 
 fn target_homes<'b>(
     target: &'b Target,
-    homes: &mut impl FnMut(ValueType, &'b String, Option<usize>),
+    slots: &[ValueType],
+    homes: &mut impl FnMut(ValueType, Option<&'b String>, Option<usize>),
 ) {
     if let Target::Value(value) = target {
-        expression_homes(value, homes);
+        expression_homes(value, slots, homes);
     }
 }
 
 fn expression_homes<'b>(
     expression: &'b Expression,
-    homes: &mut impl FnMut(ValueType, &'b String, Option<usize>),
+    slots: &[ValueType],
+    homes: &mut impl FnMut(ValueType, Option<&'b String>, Option<usize>),
 ) {
     match &expression.kind {
         ExpressionKind::Atomic(operation) => {
             for operand in operation.inputs() {
-                expression_homes(operand, homes);
+                expression_homes(operand, slots, homes);
             }
         }
         ExpressionKind::SavedSubject(_)
@@ -1109,9 +1106,9 @@ fn expression_homes<'b>(
                     ExpressionKind::Slot(slot) => Some(slot),
                     _ => None,
                 };
-                homes(value_type, home, slot);
+                homes(value_type, Some(home), slot);
             }
-            expression_homes(place, homes);
+            expression_homes(place, slots, homes);
         }
         ExpressionKind::OwnedTemporary { value: operand, .. }
         | ExpressionKind::Not(operand)
@@ -1127,10 +1124,10 @@ fn expression_homes<'b>(
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
             subject: operand, ..
-        } => expression_homes(operand, homes),
+        } => expression_homes(operand, slots, homes),
         ExpressionKind::Array { elements } => {
             for element in elements {
-                expression_homes(element, homes);
+                expression_homes(element, slots, homes);
             }
         }
         ExpressionKind::CollectionSubslice { base, start, end } => {
@@ -1138,16 +1135,26 @@ fn expression_homes<'b>(
                 .chain(start.as_deref())
                 .chain(end.as_deref())
             {
-                expression_homes(operand, homes);
+                expression_homes(operand, slots, homes);
             }
         }
         ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index, .. } => {
-            expression_homes(base, homes);
-            expression_homes(index, homes);
+            expression_homes(base, slots, homes);
+            expression_homes(index, slots, homes);
         }
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
             for (_, operand) in fields {
-                expression_homes(operand, homes);
+                expression_homes(operand, slots, homes);
+            }
+        }
+        ExpressionKind::Block {
+            statements, value, ..
+        } => {
+            for statement in statements {
+                statement_homes(statement, slots, homes);
+            }
+            if let Some(value) = value {
+                expression_homes(value, slots, homes);
             }
         }
         ExpressionKind::Match {
@@ -1156,30 +1163,30 @@ fn expression_homes<'b>(
             default,
             ..
         } => {
-            expression_homes(subject, homes);
+            expression_homes(subject, slots, homes);
             for (selector, arm) in arms {
                 if let Some(condition) = selector.test() {
-                    expression_homes(condition, homes);
+                    expression_homes(condition, slots, homes);
                 }
-                expression_homes(arm, homes);
+                expression_homes(arm, slots, homes);
             }
             if let Some(arm) = default {
-                expression_homes(arm, homes);
+                expression_homes(arm, slots, homes);
             }
         }
         ExpressionKind::Strict { left, right, .. }
         | ExpressionKind::ShortCircuit { left, right, .. } => {
-            expression_homes(left, homes);
-            expression_homes(right, homes);
+            expression_homes(left, slots, homes);
+            expression_homes(right, slots, homes);
         }
         ExpressionKind::Call {
             callee, arguments, ..
         } => {
             if let crate::lowering::body::CallTarget::Selected { callable, .. } = callee {
-                expression_homes(callable, homes);
+                expression_homes(callable, slots, homes);
             }
             for argument in arguments {
-                expression_homes(argument, homes);
+                expression_homes(argument, slots, homes);
             }
         }
     }
@@ -2396,6 +2403,10 @@ impl<'a> Lowering<'a> {
             ExpressionKind::Atomic(_) => {
                 Err(self.internal("an atomic scalar event is used as structural storage"))
             }
+            // `record` forms a block's value before its scope ends.
+            ExpressionKind::Block { .. } => {
+                Err(self.internal("a block value is used as a storage place"))
+            }
             ExpressionKind::OwnedTemporary { .. } => {
                 let (root, path, place, _) = continuing!(self.capture_place(expression));
                 // A reference into this copy can outlive the call that borrows it.
@@ -3016,6 +3027,16 @@ impl<'a> Lowering<'a> {
     /// exclusive borrowed source uses `MoveStructuralField`, retaining its
     /// storage and restoration debt instead of consuming the incoming loan.
     pub(super) fn record(&mut self, expression: &Expression) -> Evaluation<PlaceId> {
+        // A block's value is its final value, formed after its statements.
+        if let ExpressionKind::Block { statements, value } = &expression.kind {
+            for statement in statements {
+                continuing!(self.statement(statement));
+            }
+            let Some(value) = value else {
+                return Err(self.internal("a structural block value has no final value"));
+            };
+            return self.record(value);
+        }
         let root = continuing!(self.owned_record(expression));
         if self.empty_owned_value(root) {
             // Keep the actual owned Empty expression as the completion. It

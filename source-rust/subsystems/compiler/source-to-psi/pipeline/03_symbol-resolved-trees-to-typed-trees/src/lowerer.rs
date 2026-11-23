@@ -876,6 +876,8 @@ pub(crate) mod seeded_continuation {
                 AuthoredDeclarationSelectionExposure::PrivateImplementation,
             ),
             admits_contract_policy_operators: false,
+            pending_blocks: Vec::new(),
+            block_captures: Vec::new(),
         };
         if let Err(error) = type_resolved_cohort(&mut lowerer, &cohort) {
             return Err(SeededContinuationError::Lowering(error));
@@ -953,6 +955,8 @@ pub(crate) mod seeded_continuation {
                 AuthoredDeclarationSelectionExposure::PrivateImplementation,
             ),
             admits_contract_policy_operators: false,
+            pending_blocks: Vec::new(),
+            block_captures: Vec::new(),
         };
         type_resolved_cohort(&mut lowerer, &cohort)?;
         for forwarding in source
@@ -1594,6 +1598,8 @@ pub fn lower_symbol_resolved_trees(
         type_reference_exposure:
             Some(crate::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
         admits_contract_policy_operators: false,
+        pending_blocks: Vec::new(),
+        block_captures: Vec::new(),
     };
     lowerer.typed_trees.service_reach_rows = symbol_resolved_trees.service_reach_rows.clone();
     lowerer.typed_trees.authored_service_reach_rows = symbol_resolved_trees
@@ -2135,6 +2141,27 @@ pub(crate) struct Lowerer<'source> {
     /// the machine's parameters; no other proof fact has that owner, so every
     /// other fact still rejects the suffix.
     pub(crate) admits_contract_policy_operators: bool,
+    /// Blocks an expression lowering produced whose statements the enclosing
+    /// statement's lowering still owes (`statement::complete_blocks`).
+    pub(crate) pending_blocks: Vec<PendingBlock>,
+    /// The match captures visible to the block statements being lowered.
+    pub(crate) block_captures: Vec<BlockCapture>,
+}
+
+/// A resolved match capture and the typed capture lowering gave it.
+pub(crate) type BlockCapture = (
+    arena::Handle<crate::source_resolved::expression::MatchSubjectCapture>,
+    arena::Handle<crate::source_state::expression::CompletedValueCapture>,
+);
+
+/// A typed block value whose statements are typed after the statement that
+/// holds it, in the enclosing body's local scope. Expression lowering has no
+/// statement context, so it records the block here with the match captures
+/// its statements read.
+pub(crate) struct PendingBlock {
+    pub(crate) block: crate::source_state::expression::ExpressionHandle,
+    pub(crate) statements: arena::HandleSpan<crate::source_resolved::statement::StatementNode>,
+    pub(crate) captures: Vec<BlockCapture>,
 }
 
 impl Lowerer<'_> {

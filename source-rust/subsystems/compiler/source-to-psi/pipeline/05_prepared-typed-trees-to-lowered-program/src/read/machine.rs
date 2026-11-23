@@ -4075,7 +4075,14 @@ impl<'t> Program<'t> {
         }
         let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
         let owner = std::mem::replace(&mut self.lifetime_owner, symbol);
+        // Block slots belong to one body's statement at a time.
+        let blocks = (
+            std::mem::take(&mut self.block_slots),
+            std::mem::take(&mut self.block_slot_base),
+            self.block_floor.take(),
+        );
         let read = self.read_body(id, symbol);
+        (self.block_slots, self.block_slot_base, self.block_floor) = blocks;
         self.lifetime_owner = owner;
         read.map_err(|refusal| self.read_failure_at(refusal, symbol, "the body"))
     }
@@ -4253,6 +4260,9 @@ impl<'t> Program<'t> {
                 ));
             }
             let last = position + 1 == statements.len() && parked.is_none();
+            // A statement skipped by `continue` may still have read a block.
+            self.join_block_slots(&mut slots, &mut slot_names);
+            self.block_slot_base = slots.len();
             let handle = state
                 .statement_nodes
                 .handle_at(u32::try_from(position).map_err(|_| {
@@ -4354,6 +4364,7 @@ impl<'t> Program<'t> {
                 {
                     let (slot, statement) =
                         self.atomic_binding(id, &slots, local, statements.get(position + 1))?;
+                    self.join_block_slots(&mut slots, &mut slot_names);
                     slots.push(slot);
                     slot_names.push(local.name.as_str().to_owned());
                     position += 1;
@@ -4368,6 +4379,7 @@ impl<'t> Program<'t> {
                     {
                         self.static_truths.push((local.symbol, truth));
                     }
+                    self.join_block_slots(&mut slots, &mut slot_names);
                     slots.push(slot);
                     slot_names.push(local.name.as_str().to_owned());
                     statement
@@ -4415,9 +4427,11 @@ impl<'t> Program<'t> {
                     }
                 }
             };
+            self.join_block_slots(&mut slots, &mut slot_names);
             body.push(read);
             position += 1;
         }
+        self.join_block_slots(&mut slots, &mut slot_names);
         if let Some(parked) = parked {
             let mut retained = Vec::with_capacity(parked.declarations.len());
             for &declaration in &parked.declarations {
@@ -4455,6 +4469,17 @@ impl<'t> Program<'t> {
             slots: slots.iter().map(|slot| slot.value_type).collect(),
             statements: body,
         })
+    }
+}
+
+impl Program<'_> {
+    /// The block locals the statement just read bound take their numbered
+    /// slots after the body's, before the statement's own binding.
+    fn join_block_slots(&mut self, slots: &mut Vec<Slot>, slot_names: &mut Vec<String>) {
+        for (slot, name) in self.block_slots.drain(..) {
+            slots.push(slot);
+            slot_names.push(name);
+        }
     }
 }
 
@@ -4723,6 +4748,11 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
             spans(base, binder, out);
         }
         ExpressionKind::IsCase { subject, .. } => spans(subject, binder, out),
+        ExpressionKind::Block { value, .. } => {
+            if let Some(value) = value {
+                spans(value, binder, out);
+            }
+        }
         ExpressionKind::Borrow { place, .. } => spans(place, binder, out),
         ExpressionKind::Match {
             subject,

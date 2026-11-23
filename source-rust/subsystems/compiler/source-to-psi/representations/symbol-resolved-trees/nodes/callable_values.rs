@@ -390,6 +390,9 @@ impl<'program> ResolvedSignatureInputs<'program> {
                     self.expression(program, *argument, scope);
                 }
             }
+            // A signature names no statements; a block cannot be read as a
+            // closed input set.
+            ExpressionNode::Block(_) => self.unresolved = true,
             ExpressionNode::Match(matched) => {
                 self.expression(program, matched.subject, scope);
                 for arm in table.match_arms(matched.arms) {

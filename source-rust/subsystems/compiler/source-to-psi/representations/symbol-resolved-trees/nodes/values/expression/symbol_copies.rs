@@ -421,6 +421,9 @@ impl SymbolCopy<'_, '_> {
                         .pattern = arm.pattern;
                 }
             }
+            // A block's statements stay with their body; only executable
+            // bodies hold blocks, and typing refuses one anywhere else.
+            ExpressionNode::Block(block) => self.expression_payloads(block.tail),
             ExpressionNode::SavedSubject(_) => {}
             ExpressionNode::ArrayLiteral(elements) => self.expression_span_payloads(*elements),
             ExpressionNode::Atomic(atomic) => {

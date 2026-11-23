@@ -2,9 +2,10 @@ use arena::{Handle, HandleSpan};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     ExpressionHandle, ExpressionNode, MatchSubjectCapture, TableAtomicExpression,
-    TableBinaryExpression, TableBorrowExpression, TableCallExpression, TableCastExpression,
-    TableIndexedExpression, TableMemberExpression, TableMembershipExpression, TableRangeExpression,
-    TableSavedSubject, TableStructLiteral, TableStructLiteralField, TableUnaryExpression,
+    TableBinaryExpression, TableBlockExpression, TableBorrowExpression, TableCallExpression,
+    TableCastExpression, TableIndexedExpression, TableMemberExpression, TableMembershipExpression,
+    TableRangeExpression, TableSavedSubject, TableStructLiteral, TableStructLiteralField,
+    TableUnaryExpression,
 };
 use syntax_trees::identifier::Identifier;
 
@@ -120,6 +121,9 @@ fn rewrite_expression(
                 arms,
                 capture,
             })
+        }
+        ExpressionNode::Block(block) => {
+            rewrite_block_statements(syntax_trees, block, subject, fields, captures)
         }
         ExpressionNode::SavedSubject(saved) => ExpressionNode::SavedSubject(TableSavedSubject {
             component: saved.component,
@@ -309,6 +313,94 @@ fn rewrite_expression(
         .expressions
         .set_source_span(rewritten, source_span);
     rewritten
+}
+
+/// A pattern binding is visible throughout a block arm, so each statement and
+/// the final value read it from the saved subject. The block owns its
+/// statements, so they are rewritten in place. A block-local `let` that
+/// reuses a binding's name is the declaration error resolution reports; from
+/// that statement on the name is left as written rather than read from the
+/// subject.
+fn rewrite_block_statements(
+    syntax_trees: &mut SyntaxTrees,
+    block: TableBlockExpression,
+    subject: ExpressionHandle,
+    fields: &[DestructureBinding],
+    captures: &mut SubjectCopies,
+) -> ExpressionNode {
+    use syntax_trees::statement::{StatementNode, TableAssignment};
+    let mut visible = fields.to_vec();
+    let statements = syntax_trees
+        .statements
+        .block_statements(block.statements)
+        .to_vec();
+    for statement in statements {
+        let rewritten =
+            match syntax_trees.statements.statement(statement).clone() {
+                StatementNode::LocalData(mut local) => {
+                    local.initial_value = rewrite_optional_expression(
+                        syntax_trees,
+                        local.initial_value,
+                        subject,
+                        &visible,
+                        captures,
+                    );
+                    let name = local.name.as_str(syntax_trees).to_owned();
+                    visible.retain(|field| field.binding.as_str(syntax_trees) != name);
+                    StatementNode::LocalData(local)
+                }
+                StatementNode::Assignment(assignment) => {
+                    StatementNode::Assignment(TableAssignment {
+                        target: rewrite_expression(
+                            syntax_trees,
+                            assignment.target,
+                            subject,
+                            &visible,
+                            captures,
+                        ),
+                        value: rewrite_expression(
+                            syntax_trees,
+                            assignment.value,
+                            subject,
+                            &visible,
+                            captures,
+                        ),
+                    })
+                }
+                StatementNode::Call(mut call) => {
+                    call.callee = rewrite_optional_expression(
+                        syntax_trees,
+                        call.callee,
+                        subject,
+                        &visible,
+                        captures,
+                    );
+                    let arguments = syntax_trees
+                        .statements
+                        .expression_handles(call.arguments)
+                        .to_vec();
+                    let arguments = arguments
+                        .into_iter()
+                        .map(|argument| {
+                            rewrite_expression(syntax_trees, argument, subject, &visible, captures)
+                        })
+                        .collect::<Vec<_>>();
+                    call.arguments = syntax_trees.statements.insert_expression_handles(arguments);
+                    StatementNode::Call(call)
+                }
+                StatementNode::Expression(expression) => StatementNode::Expression(
+                    rewrite_expression(syntax_trees, expression, subject, &visible, captures),
+                ),
+                other => other,
+            };
+        syntax_trees
+            .statements
+            .replace_statement(statement, rewritten);
+    }
+    ExpressionNode::Block(TableBlockExpression {
+        statements: block.statements,
+        tail: rewrite_optional_expression(syntax_trees, block.tail, subject, &visible, captures),
+    })
 }
 
 fn rewrite_optional_expression(
