@@ -282,32 +282,46 @@ fn a_record_field_is_writable_only_through_a_mutable_binding() {
 
 /// A linear value must be consumed. A linear local left at the end of its
 /// machine, a linear field of a local record, and a linear formal left
-/// unconsumed are each refused, because no edge may dispose of them; the
+/// unconsumed are each rejected, because no edge may dispose of them; the
 /// affine twin is disposed of on the way out and accepted.
 #[test]
-fn a_linear_value_left_unconsumed_is_refused() {
+fn a_linear_value_left_unconsumed_is_rejected() {
     Program::of(
         "data Point { x: u8; } machine make() { let mutable p = (Point { x: 1 }); p.x = 2; }",
     )
     .judged(|_| {})
     .accepted();
-    for source in [
-        "data Point [linear] { x: u8; } machine make() { let mutable p = (Point { x: 1 }); p.x = 2; }",
-        "data Lease [linear] {} data Held { a: Lease; } machine keep() { let h = Held { a: Lease {} }; }",
-        "data Lease [linear] {} machine stop(l: Lease) {}",
+    // The linear twin that consumes its value by a complete consuming
+    // pattern is accepted.
+    Program::of("data Lease [linear] { n: u8; } machine stop(l: Lease) { let { n } = move l; }")
+        .judged(|_| {})
+        .accepted();
+    // Each is rejected at the value that is lost: the construction a local
+    // holds, or, for a formal, the machine as a whole.
+    for (source, at) in [
+        (
+            "data Point [linear] { x: u8; } machine make() { let mutable p = (Point { x: 1 }); p.x = 2; }",
+            "Point { x: 1 }",
+        ),
+        (
+            "data Lease [linear] {} data Held { a: Lease; } machine keep() { let h = Held { a: Lease {} }; }",
+            "Held { a: Lease {} }",
+        ),
+        ("data Lease [linear] {} machine stop(l: Lease) {}", ""),
     ] {
         let refusal = refused(source);
         assert_eq!(
-            (refusal.stage, refusal.message.as_str()),
-            (
-                "lowering",
-                "Unsupported: while checking control-flow edge: normal edge cannot \
-                 implicitly dispose storage without an authorized disposition"
-            ),
+            (refusal.stage, refusal.message.as_str(), refusal.at.as_str()),
+            ("lowering", UNCONSUMED, at),
             "{source}"
         );
     }
 }
+
+const UNCONSUMED: &str = "Violation: while checking control-flow edge: a linear value is still \
+     held when this path leaves its storage, and nothing consumes it: every path must pass it \
+     on, return it or end it by its declared disposition, and neither `_ =` nor leaving scope \
+     can discard it";
 
 /// `Cell<u8>` written in a local's annotation and in a formal is one
 /// structural type: `build`'s record and `accept`'s parameter share it.

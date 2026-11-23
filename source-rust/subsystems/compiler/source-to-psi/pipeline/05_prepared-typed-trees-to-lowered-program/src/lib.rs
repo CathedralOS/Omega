@@ -2043,10 +2043,29 @@ fn finish_storage(
                 ),
                 None => (Construct::Machine, None, None),
             };
+            // A linear value lost on an edge with no written position (the
+            // end of a body) is reported where the value was made: the call
+            // whose result `_ =` drops, or the construction a local holds.
+            let lost_at = match error {
+                terminal_semantics::plain_affine::Error::Unconsumed { place, .. } => origin
+                    .and_then(|origin| origin.span())
+                    .or_else(|| {
+                        let (producer, _) = machine
+                            .structural_place(place)?
+                            .kind
+                            .as_operation_result()?;
+                        sources.get(machine.id)?.operations.get(producer)?.span()
+                    }),
+                _ => None,
+            };
             let (reason, detail) = match error {
                 terminal_semantics::plain_affine::Error::Unavailable(unavailable) => (
                     terminal_check_tables::RefusalReason::Unestablished,
                     unavailable.message(),
+                ),
+                terminal_semantics::plain_affine::Error::Unconsumed { at_join, .. } => (
+                    terminal_check_tables::RefusalReason::Violation,
+                    terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
                 ),
                 terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                     (terminal_check_tables::RefusalReason::Unsupported, detail)
@@ -2059,7 +2078,7 @@ fn finish_storage(
             terminal_check_tables::Refusal {
                 reason,
                 site: terminal_check_tables::RefusalSite::Machine(machine.id, concerns),
-                source_span: None,
+                source_span: lost_at,
                 detail: {
                     let detail = match (operation, origin.and_then(|origin| origin.span())) {
                         (Some(operation), Some(span)) => format!(
