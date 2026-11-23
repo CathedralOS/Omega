@@ -801,10 +801,11 @@ an expected binder supplies a compatibility target, not omitted arguments.
 Erased arrival/bundle subjects do not acquire runtime storage.
 
 [Stage 04](04_typed-trees-to-prepared-typed-trees/prepare.rs) specializes static
-calls before preparing domains and record patterns. A specialized body keeps the
-template's lexical owner, its selected conformance applications and their
-obligations. Generated fields and signatures inherit only the exposure and supply
-authorized by those original selections.
+calls before preparing domains. Record patterns already carry typing's record
+and field selections; specialization preserves or remaps those exact identities.
+A specialized body keeps the template's lexical owner, its selected conformance
+applications and their obligations. Generated fields and signatures inherit only
+the exposure and supply authorized by those original selections.
 
 Resolution and typing keep the selections the source made. The lowered-form
 route must settle late calls, operators and evidence before it accepts a program. Public declaration contracts remain

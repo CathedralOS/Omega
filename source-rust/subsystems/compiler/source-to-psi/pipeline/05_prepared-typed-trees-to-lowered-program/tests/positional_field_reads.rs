@@ -17,7 +17,9 @@
 #[path = "../../03_symbol-resolved-trees-to-typed-trees/tests/support/positional_fields.rs"]
 mod program;
 
-use program::{FieldRead, MACHINES, MAIN, PACKAGE, field, field_reads, typed};
+use program::{
+    FieldRead, MACHINES, MAIN, PACKAGE, field, field_reads, let_pattern, let_pattern_handle, typed,
+};
 use semantic_vocabulary::PackageKeyIdentity;
 use source_compiler::representations::source_state::TypedTrees;
 use source_compiler::representations::source_state::expression::{ExpressionNode, MemberSelection};
@@ -64,8 +66,12 @@ fn compilation<'a>(
 /// The program after the lexer, parser, resolver, typer and stage 04, with
 /// its four machines as the request's entries.
 fn prepare() -> Prepared {
-    let (_, typed) = typed(MAIN).unwrap();
-    let entries: Vec<_> = MACHINES
+    prepare_program(MAIN, &MACHINES)
+}
+
+fn prepare_program(text: &'static str, names: &[&str]) -> Prepared {
+    let (_, typed) = typed(text).unwrap();
+    let entries: Vec<_> = names
         .iter()
         .map(|name| typed.realized_machine_named(name).unwrap().symbol)
         .collect();
@@ -198,9 +204,7 @@ fn changing_only_the_selected_field_changes_the_field_that_is_read() {
     let original = returned_fields(&lower(&fixture, prepared).unwrap(), trees);
 
     // Control: stage 04 run again with nothing changed lowers to the same
-    // reads, so a later difference comes from the one change. (The product
-    // itself differs: stage 04 writes each pattern's resolved roster as new
-    // rows every time it runs.)
+    // reads, so a later difference comes from the one change.
     let unchanged = prepared_with(prepared, |_| {});
     assert_eq!(
         returned_fields(&lower(&fixture, &unchanged).unwrap(), unchanged.trees()),
@@ -230,4 +234,103 @@ fn changing_only_the_selected_field_changes_the_field_that_is_read() {
             read.member
         );
     }
+}
+
+#[test]
+fn preparation_preserves_the_record_and_rows_typing_selected() {
+    let fixture = prepare();
+    let prepared = &fixture.program;
+    let again = prepared_with(prepared, |_| {});
+    for name in ["by_place", "with_rest", "by_name"] {
+        let before = let_pattern(prepared.trees(), name);
+        let after = let_pattern(again.trees(), name);
+        assert_eq!(after.pattern_subject, before.pattern_subject, "{name}");
+        assert_eq!(after.pattern_fields, before.pattern_fields, "{name}");
+        assert_eq!(
+            again
+                .trees()
+                .expression_table
+                .match_fields(after.pattern_fields),
+            prepared
+                .trees()
+                .expression_table
+                .match_fields(before.pattern_fields),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn preparation_cannot_replace_a_refused_pattern_selection() {
+    let fixture = prepare();
+    let prepared = &fixture.program;
+    let alpha = field(prepared.trees(), "alpha");
+    for (field, reason) in [
+        (alpha, "typing record pattern repeats a field"),
+        (
+            SymbolHandle::invalid(),
+            "spelling record pattern field without a symbol",
+        ),
+    ] {
+        let changed = prepared_with(prepared, |trees| {
+            let row = let_pattern(trees, "by_place").pattern_fields.start();
+            trees.expression_table.match_field_mut(row).field_symbol = field;
+        });
+        assert_eq!(
+            lower(&fixture, &changed).unwrap_err().detail,
+            format!("{reason} while reading the body of `by_place`")
+        );
+    }
+    let changed = prepared_with(prepared, |trees| {
+        let handle = let_pattern_handle(trees, "by_name");
+        let source_compiler::representations::source_state::statement::StatementNode::LocalData(
+            marker,
+        ) = trees.statement_table.statement_mut(handle)
+        else {
+            panic!("the selected statement is a record pattern")
+        };
+        marker.pattern_subject = alpha;
+    });
+    assert_eq!(
+        lower(&fixture, &changed).unwrap_err().detail,
+        "typing record pattern resolved against another record while reading the body of `by_name`"
+    );
+}
+
+#[test]
+fn a_block_local_pattern_keeps_its_selected_fields_through_preparation_and_lowering() {
+    let fixture = prepare_program(program::REFERENCED, &["through_block"]);
+    let prepared = &fixture.program;
+    let again = prepared_with(prepared, |_| {});
+    let before = let_pattern(prepared.trees(), "through_block");
+    let after = let_pattern(again.trees(), "through_block");
+    assert_eq!(after.pattern_subject, before.pattern_subject);
+    assert_eq!(after.pattern_fields, before.pattern_fields);
+    let lowered = lower(&fixture, &again).unwrap();
+    let machine = lowered
+        .module
+        .machines
+        .iter()
+        .find(|machine| {
+            again
+                .trees()
+                .symbols
+                .name(*lowered.machines.get(machine.id).unwrap())
+                == "through_block"
+        })
+        .unwrap();
+    let reads: Vec<_> = machine
+        .operations()
+        .filter_map(|operation| match &operation.kind {
+            OperationKind::PrimitiveScalarRead { path, .. } => path.last(),
+            _ => None,
+        })
+        .map(|step| {
+            let StructuralPathSegment::Field(field) = step else {
+                panic!("the block pattern reads a declared field: {step:?}")
+            };
+            lowered.module.identities.text(*field).unwrap()
+        })
+        .collect();
+    assert_eq!(reads, ["alpha"]);
 }

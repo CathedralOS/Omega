@@ -12,7 +12,7 @@
 //!
 //! In this compiler the fact has two parts on the typed trees. Each read of
 //! a binding is a member with the selected field's symbol and name, and the
-//! pattern's roster has one row per field with that field's name. The
+//! pattern's roster has one row per field with that field's symbol and name. The
 //! program in `support/positional_fields.rs` binds place 0 under the name
 //! of the field at place 1, so each assertion below fails if a name was
 //! looked up where a place should have been counted. Lowering's side of
@@ -22,7 +22,7 @@
 #[path = "support/positional_fields.rs"]
 mod program;
 
-use program::{MAIN, arm_roster, field, field_reads, let_roster, typed};
+use program::{MAIN, arm_roster, field, field_reads, let_pattern, let_roster, typed};
 use symbols::SymbolHandle;
 
 #[test]
@@ -78,18 +78,27 @@ fn each_roster_names_one_row_per_field_and_no_place() {
             false
         )
     );
-    // The named pattern keeps the rows its author wrote. Preparation gives
-    // them their symbols from these names.
+    // A named pattern carries the same field identities as positional rows.
     assert_eq!(
-        let_roster(&trees, "by_name")
-            .into_iter()
-            .map(|(name, _, binds)| (name, binds))
-            .collect::<Vec<_>>(),
-        [
-            ("zeta".to_owned(), None),
-            ("alpha".to_owned(), Some("named".to_owned()))
-        ]
+        let_roster(&trees, "by_name"),
+        [row("zeta", zeta, None), row("alpha", alpha, Some("named"))]
     );
+    let pair = trees.data_definition_by_name_str("Pair").unwrap().symbol;
+    for name in ["by_place", "with_rest", "by_name"] {
+        assert_eq!(let_pattern(&trees, name).pattern_subject, pair, "{name}");
+    }
+}
+
+#[test]
+fn named_patterns_select_the_record_behind_a_borrow_field_path_or_block_local() {
+    let (_, trees) = typed(program::REFERENCED).unwrap();
+    let pair = trees.data_definition_by_name_str("Pair").unwrap().symbol;
+    for name in ["through_borrow", "through_field", "through_block"] {
+        assert_eq!(let_pattern(&trees, name).pattern_subject, pair, "{name}");
+        let roster = let_roster(&trees, name);
+        assert_eq!(roster[0].1, field(&trees, "zeta"), "{name}");
+        assert_eq!(roster[1].1, field(&trees, "alpha"), "{name}");
+    }
 }
 
 /// A pattern whose subject gives its places no field is refused here, at the

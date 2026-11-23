@@ -1,9 +1,7 @@
-//! A positional pattern says which place of its subject each binding reads,
-//! and a final `..` stands for the fields the pattern leaves out. Neither
-//! names a field. This module gives each such row the declared field it
-//! selects, as soon as the subject's record is known, so that every later
-//! stage reads the same named rows and field reads it already reads for
-//! `let { first as _, second } = pair;`.
+//! Every record pattern keeps the record and fields typing selected for it.
+//! A positional row names a place, and `..` waives the remaining fields;
+//! typing resolves those and named rows against the same declared record.
+//! Later stages read those identities without looking the names up again.
 //!
 //! `wiki/spec/language/patterns.md`, "Data and case decomposition": "A
 //! positional pattern binds fields by position; binding names need not match
@@ -11,8 +9,8 @@
 //! "positional patterns have the corresponding exact arity. An explicit `..`
 //! may waive the remaining components."
 //!
-//! A pattern whose subject has no record known here is refused: there is no
-//! later stage that could still give a place its field.
+//! A positional or rest pattern whose subject has no record known here is
+//! refused: no later stage could still give a place its field.
 
 use crate::source_resolved as resolved;
 use crate::typing::expressions::call_results::peel;
@@ -147,31 +145,41 @@ pub(crate) struct FieldRow<'program> {
     pub(crate) written: bool,
 }
 
+pub(crate) struct FieldRows<'program> {
+    pub(crate) record: symbols::SymbolHandle,
+    pub(crate) fields: Vec<FieldRow<'program>>,
+}
+
 /// The rows of a pattern over `subject`, each naming one declared field.
 ///
-/// Returns `None` for a pattern that already names every row's field and
-/// has no `..`: nothing in it depends on the subject's record, and the later
-/// stages judge it as written.
+/// Named case payloads keep their existing case-selection path. A named
+/// subject whose record is not known here stays unresolved and grants no
+/// record identity. An explicit `let` head can supply its declared record;
+/// lowering still checks that the actual subject holds that record.
 pub(crate) fn field_rows<'program>(
     program: &'program resolved::SymbolResolvedTrees,
     expressions: &ExpressionTable,
     subject: ExpressionHandle,
     rows: &[TableMatchField],
-) -> Result<Option<Vec<FieldRow<'program>>>, Diagnostic> {
-    if rows.iter().all(|row| row.selector == PatternSelector::Name) {
-        return Ok(None);
-    }
+    head: Option<Record<'program>>,
+) -> Result<Option<FieldRows<'program>>, Diagnostic> {
+    let names_only = rows.iter().all(|row| row.selector == PatternSelector::Name);
     let whole = written_span(rows, expressions.source_span(subject));
     let positional = rows
         .iter()
         .any(|row| matches!(row.selector, PatternSelector::Position(_)));
-    let record = subject_record(program, expressions, subject).map_err(|reason| {
-        if positional {
-            no_positional_decomposition(expressions, subject, reason, whole)
-        } else {
-            no_rest(expressions, subject, reason, whole)
+    let record = head.map_or_else(|| subject_record(program, expressions, subject), Ok);
+    let record = match record {
+        Ok(record) => record,
+        Err(_) if names_only => return Ok(None),
+        Err(reason) => {
+            return Err(if positional {
+                no_positional_decomposition(expressions, subject, reason, whole)
+            } else {
+                no_rest(expressions, subject, reason, whole)
+            });
         }
-    })?;
+    };
     let mut selected = vec![false; record.fields.len()];
     let mut resolved = Vec::with_capacity(record.fields.len());
     let mut components = 0usize;
@@ -199,13 +207,12 @@ pub(crate) fn field_rows<'program>(
                 });
             }
             PatternSelector::Name => {
-                // `..` covers the fields the pattern does not name, so each
-                // name has to be found before the rest can be counted.
-                let Some(position) = record
+                let mut named = record
                     .fields
                     .iter()
-                    .position(|field| field.name.as_str() == row.member.as_str())
-                else {
+                    .enumerate()
+                    .filter(|(_, field)| field.name.as_str() == row.member.as_str());
+                let Some((position, field)) = named.next() else {
                     return Err(Diagnostic::error(format!(
                         "`{}` has no field `{}` for this pattern to name",
                         record.definition.name.as_str(),
@@ -213,9 +220,17 @@ pub(crate) fn field_rows<'program>(
                     ))
                     .with_source_span(row.member.source_span()));
                 };
+                if named.next().is_some() {
+                    return Err(Diagnostic::error(format!(
+                        "`{}` has more than one field `{}` for this pattern to name",
+                        record.definition.name.as_str(),
+                        row.member.as_str()
+                    ))
+                    .with_source_span(row.member.source_span()));
+                }
                 selected[position] = true;
                 resolved.push(FieldRow {
-                    field: record.fields[position],
+                    field,
                     action: row.action.clone(),
                     written: true,
                 });
@@ -248,7 +263,10 @@ pub(crate) fn field_rows<'program>(
         }
         None => {}
     }
-    Ok(Some(resolved))
+    Ok(Some(FieldRows {
+        record: record.definition.symbol,
+        fields: resolved,
+    }))
 }
 
 /// The span from a pattern's first written row to its last.
@@ -355,12 +373,12 @@ fn no_rest(
 ///
 /// A subject whose record is not declared here passes: the lowered-form
 /// reader still compares the marker's record with the value it opens.
-pub(crate) fn check_head(
-    program: &resolved::SymbolResolvedTrees,
+pub(crate) fn check_head<'program>(
+    program: &'program resolved::SymbolResolvedTrees,
     expressions: &ExpressionTable,
     subject: ExpressionHandle,
     head: &resolved::types::TypeReferenceNode,
-) -> Result<(), Diagnostic> {
+) -> Result<Record<'program>, Diagnostic> {
     use resolved::types::TypeReferenceNode;
     let (symbol, name, at) = match head {
         TypeReferenceNode::Named { symbol, name } => (*symbol, name.as_str(), name.source_span()),
@@ -413,7 +431,7 @@ pub(crate) fn check_head(
     };
     let shown = shown(expressions, subject);
     match subject_record(program, expressions, subject) {
-        Ok(actual) if actual.definition.symbol == named.definition.symbol => Ok(()),
+        Ok(actual) if actual.definition.symbol == named.definition.symbol => Ok(named),
         Ok(actual) => refused(format!(
             "this pattern names `{name}`, but `{shown}` is a `{}`",
             actual.definition.name.as_str()
@@ -426,6 +444,6 @@ pub(crate) fn check_head(
         Err(NoRecord::NotData) => refused(format!(
             "this pattern names the record `{name}`, but `{shown}` is not a record"
         )),
-        Err(NoRecord::UnknownType) => Ok(()),
+        Err(NoRecord::UnknownType) => Ok(named),
     }
 }

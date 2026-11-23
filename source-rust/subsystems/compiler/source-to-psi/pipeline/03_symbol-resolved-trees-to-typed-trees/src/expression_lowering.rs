@@ -706,9 +706,14 @@ pub(crate) mod expression {
                             self.source,
                             subject,
                             written,
+                            None,
                         )?;
                         let written = if placed.is_some() { &[][..] } else { written };
-                        for row in placed.into_iter().flatten().filter(|row| row.written) {
+                        for row in placed
+                            .into_iter()
+                            .flat_map(|placed| placed.fields)
+                            .filter(|row| row.written)
+                        {
                             use typed::expression::MatchFieldAction;
                             let action = match &row.action {
                                 resolved::expression::MatchFieldAction::Bind(binding) => {
