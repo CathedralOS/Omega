@@ -127,19 +127,9 @@ crashes Trap
 }
 
 // Whether an operator home is data declaration `data`.
-public machine homed_at(home: |symbol_resolved_trees|::TypeBinding, data: u64 in Trapping) -> bool {
-    transition home {
-        |symbol_resolved_trees|::TypeBinding::Data { item } -> data_item(item, data),
-        _ -> elsewhere()
-    }
-
-    machine data_item(item: u64 in Trapping, data: u64 in Trapping) -> bool {
-        item == data
-    }
-
-    machine elsewhere() -> bool {
-        false
-    }
+public machine homed_at(home: |symbol_resolved_trees|::TypeBinding, data: u64 in Trapping) -> bool
+{
+    |symbol_resolved_trees|::operator_home_is_data(home, data)
 }
 
 machine set_operator_home(resolver: @mutable |resolution_state|::Resolver, handle: u64 in Trapping, home: |symbol_resolved_trees|::TypeBinding)

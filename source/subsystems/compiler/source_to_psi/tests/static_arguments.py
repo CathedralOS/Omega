@@ -35,7 +35,7 @@ def main():
     args = parser.parse_args()
     fixture = PACKAGE / "tests/fixtures/generics/run/static_arguments"
     units = []
-    resolver_files = {}
+    stage_files = {}
     for filename, names in DECLARATIONS.items():
         source = (PACKAGE / filename).read_text()
         declarations = []
@@ -46,8 +46,8 @@ def main():
             if not match:
                 raise ValueError(f"missing declaration {name} in {filename}")
             declarations.append(match[0])
-        if filename.startswith(RESOLVER):
-            resolver_files[filename] = declarations
+        if filename.startswith((RESOLVER, TYPER)):
+            stage_files[filename] = declarations
         else:
             units.extend(declarations)
 
@@ -61,16 +61,19 @@ def main():
             (root / state.parent).mkdir(parents=True)
             shutil.copyfile(fixture / state.name, root / state)
             units.insert(0, f"use {state.as_posix()};")
-        for filename, declarations in resolver_files.items():
-            # These queries use the fixture's short syntax and name tables. Other
-            # resolver declarations still come from their own source files.
+        stage_paths = {Path(filename).stem: filename for filename in stage_files}
+        stage_paths["typing_state"] = TYPER + "typing_state.omg"
+        stage_paths["resolution_state"] = RESOLVER + "resolution_state.omg"
+        for filename, declarations in stage_files.items():
+            # The fixture supplies the tables and records which type and machine
+            # the binder selects. The queries under test retain their own files.
             body = "\n\n".join(declarations) + "\n"
             imports = []
             for alias in sorted(set(re.findall(r"\|(\w+)\|::", body))):
-                if alias in {"syntax_trees", "symbol_resolved_trees"}:
+                if alias in {"syntax_trees", "symbol_resolved_trees", "typed_trees", "binders", "generics"}:
                     imports.append(f"use main.omg as {alias};")
                 else:
-                    imports.append(f"use {RESOLVER}{alias}.omg;")
+                    imports.append(f"use {stage_paths[alias]};")
             (root / filename).write_text("\n".join(imports) + "\n\n" + body)
             units.insert(0, f"use {filename};")
         program = root / "main.omg"

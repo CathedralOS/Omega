@@ -1,0 +1,45 @@
+// Expected exit: 0
+use pipeline/symbol_resolved_trees_to_typed_trees/joins.omg;
+use pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg;
+use representations/source_files/source.omg;
+use representations/syntax_trees/syntax_trees.omg as syntax;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg as names;
+use representations/typed_trees/typed_trees.omg as types;
+
+machine start() crashes Trap {
+    let zero = 0u64 as +Trapping;
+    let one = 1u64 as +Trapping;
+    let two = 2u64 as +Trapping;
+    let site = |source|::SourceSpan { source: |source|::SourceId { value: 0 as +Trapping },
+        span: |source|::Span { start: one, end: two } };
+    let mutable tree: |syntax|::SyntaxTrees;
+    |syntax|::syntax_trees_clear(@mutable tree, site.source);
+    tree.expression_count = 2;
+    tree.argument_count = 2;
+    tree.arguments[0] = zero;
+    tree.arguments[1] = one;
+    tree.expressions[1].source_span = site;
+    let values = |syntax|::JoinedValues { arms: false, first: zero, count: two };
+    let mutable typer: |typing_state|::Typer;
+    typer.output.types.row_count = 1;
+    typer.output.expression_count = 2;
+    typer.output.accepted = true;
+    let unit = |typing_state|::typer_intern(@mutable typer, |types|::type_row_of(|types|::TypeKind::Unit), site);
+    let mutable boolean = |types|::type_row_of(|types|::TypeKind::Builtin);
+    boolean.builtin = |names|::BuiltinType::Bool;
+    let flag = |typing_state|::typer_intern(@mutable typer, boolean, site);
+    |types|::set_expression_type(@mutable typer.output, zero, unit);
+    |types|::set_expression_type(@mutable typer.output, one, unit);
+    let expected = |joins|::fixed_join(@typer, @tree, values);
+    |joins|::admit_joined(@mutable typer, @tree, values, expected);
+    let matched = typer.output.accepted;
+    |types|::set_expression_type(@mutable typer.output, one, flag);
+    |joins|::admit_joined(@mutable typer, @tree, values, expected);
+    transition expected == unit && unit != flag && matched && !typer.output.accepted
+        && typer.output.diagnostic.code == |types|::TypeDiagnosticCode::MismatchedTypes
+        && typer.output.diagnostic.source_span.span.start == one {
+        true -> done(), _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

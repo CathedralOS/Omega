@@ -17,6 +17,11 @@ SHARED = (
     "representations/tokens/numeric.omg",
 )
 PROGRAMS = {
+    "join_types": (
+        f"{STAGE}/joins.omg", f"{STAGE}/admission.omg", f"{STAGE}/landing.omg",
+        f"{STAGE}/typing_state.omg", "foundation/integers.omg",
+        "representations/typed_trees/typed_trees.omg",
+    ),
     "literal_values": (f"{STAGE}/literals.omg", f"{STAGE}/quoted_literals.omg"),
     "typing_state": (
         f"{STAGE}/typing_state.omg",
