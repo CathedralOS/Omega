@@ -13,11 +13,14 @@
 
 #[path = "known/normalization.rs"]
 mod normalization;
+#[path = "known/value_rows.rs"]
+mod value_rows;
 pub(crate) use normalization::{BranchPreparation, NormalizedPremises};
 use std::borrow::Cow;
 use std::cell::OnceCell;
 use std::collections::VecDeque;
 use std::sync::Arc;
+pub(crate) use value_rows::{ValueFamily, ValueRows};
 
 use arena::IdTable;
 use proof_admission::{
@@ -232,7 +235,7 @@ pub(crate) struct Known {
     pub(crate) equations: Vec<usize>,
     /// The first checked definition of each value, retained from normalization
     /// so proof transport selects the same reachable equation family.
-    pub(crate) definitions: IdTable<ValueId, Option<usize>>,
+    pub(crate) definitions: ValueRows<Option<usize>>,
     /// `equations` followed by each compound integer equality an arrival
     /// supplied for a value nothing above defines, with `definitions`
     /// extended to cite them. Normalization never substitutes these: they
@@ -240,7 +243,7 @@ pub(crate) struct Known {
     /// transport may still cite one, as `length == count - 0` from a match
     /// arm that read its window's length. Empty when there is none.
     pub(crate) arrival_equations: Vec<usize>,
-    pub(crate) arrival_definitions: IdTable<ValueId, Option<usize>>,
+    pub(crate) arrival_definitions: ValueRows<Option<usize>>,
 }
 
 /// One context's reusable equation traversal. Queries clear only the preceding
@@ -458,18 +461,15 @@ impl Known {
             normalization_checks: 0,
             facts,
             equations,
-            definitions: IdTable::default(),
+            definitions: ValueRows::default(),
             arrival_equations: Vec::new(),
-            arrival_definitions: IdTable::default(),
+            arrival_definitions: ValueRows::default(),
         };
-        let mut defined: IdTable<ValueId, Option<usize>> =
-            IdTable::from_rows((0..values.count()).map(|position| {
-                let identity = values
-                    .identity(position)
-                    .expect("proof value owner retains each actual input identity");
-                (identity, None)
-            }))
-            .expect("proof value owner retains its exact contiguous identity namespace");
+        // Rows for the values these facts name; every other value of the
+        // namespace reads as undefined (`ValueRows`).
+        let mut defined =
+            ValueFamily::of(values, result.facts.iter().map(|fact| &fact.proposition))
+                .rows(None::<usize>);
         for (index, &fact) in result.equations.iter().enumerate() {
             let fact = &result.facts[fact];
             let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = &fact.proposition else {
@@ -541,8 +541,8 @@ impl Known {
     /// and not naming `v`, for an integer `v` with no definition. Each value
     /// keeps at most one definition, so transport through them terminates
     /// as it does through `equations`.
-    fn arrival_definitions(&mut self, defined: &IdTable<ValueId, Option<usize>>) {
-        let mut extended: Option<IdTable<ValueId, Option<usize>>> = None;
+    fn arrival_definitions(&mut self, defined: &ValueRows<Option<usize>>) {
+        let mut extended: Option<ValueRows<Option<usize>>> = None;
         for (index, fact) in self.facts.iter().enumerate() {
             let Proposition::Equal(
                 ScalarTerm::Value {
@@ -591,7 +591,7 @@ impl Known {
     /// Only other integer facts need an embedding view, including guarantees
     /// nested inside a conjunction or retained as an axiom. Definition lookup
     /// uses the prepared value index, not a scan or a proof-tree classification.
-    fn integer_equalities(&mut self, first: usize, defined: &IdTable<ValueId, Option<usize>>) {
+    fn integer_equalities(&mut self, first: usize, defined: &ValueRows<Option<usize>>) {
         let end = self.facts.len();
         for index in first..end {
             let fact = &self.facts[index];
@@ -615,7 +615,7 @@ impl Known {
     fn add_literal(
         &mut self,
         index: usize,
-        defined: &mut IdTable<ValueId, Option<usize>>,
+        defined: &mut ValueRows<Option<usize>>,
     ) -> Option<ValueId> {
         let fact = &self.facts[index];
         if !is_branch_fact(&fact.proposition) {
@@ -639,7 +639,7 @@ impl Known {
     fn add_integer_alias(
         &mut self,
         index: usize,
-        defined: &mut IdTable<ValueId, Option<usize>>,
+        defined: &mut ValueRows<Option<usize>>,
         values: &dyn ProofValues,
     ) -> Option<ValueId> {
         let Proposition::Equal(
@@ -754,7 +754,7 @@ impl Known {
         facts: &[Fact],
         equations: &[usize],
         proposition: &Proposition,
-        defined: &IdTable<ValueId, Option<usize>>,
+        defined: &ValueRows<Option<usize>>,
         scratch: &mut TransportInputs,
     ) {
         let TransportInputs {
@@ -824,7 +824,7 @@ impl Known {
     fn normalize(
         &mut self,
         context: &PropositionContext,
-        defined: &mut IdTable<ValueId, Option<usize>>,
+        defined: &mut ValueRows<Option<usize>>,
         conjuncts: &mut Vec<usize>,
         values: &dyn ProofValues,
         mut branch: Option<&mut BranchPreparation<'_>>,
@@ -840,7 +840,7 @@ impl Known {
             .enumerate()
             .filter_map(|(index, queued)| queued.then_some(index))
             .collect();
-        let mut users = defined.map(|_, _| Vec::new());
+        let mut users = defined.like(Vec::new());
         let mut transport = TransportInputs::new(self.equations.len());
         while let Some(index) = pending.pop_front() {
             queued[index] = false;
