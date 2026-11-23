@@ -88,23 +88,23 @@ fn implementation_members<'program, 'row>(
 }
 
 impl<'program> Program<'program> {
-    /// Whether `signature` is a template requirement: one with binders of its
-    /// own that a trait's schema cannot state. These are its own lifetime
-    /// parameters (`open<'scope>`), which each call instantiates, and a fixed
-    /// array sized by one of its own `const` binders (`@[u8; Count]`), which
-    /// has an extent only in a closed application. Its own check form reads
-    /// both as a bodyless machine.
+    /// A requirement's own type and lifetime parameters have meaning inside
+    /// its signature. So does an array extent that depends on its own const
+    /// parameter. Check those requirements separately with their binders in scope.
     pub(super) fn checked_as_template(&self, signature: &StateSignature) -> bool {
         use crate::source_state::data::TypeParameterKind;
         use crate::source_state::types::{FixedArrayLength, TypeReferenceNode};
 
-        if !signature.lifetime_parameters.is_empty() {
+        let typed = self.typed;
+        let parameters = typed.state_signature_type_parameters(signature);
+        if !signature.lifetime_parameters.is_empty()
+            || parameters
+                .iter()
+                .any(|parameter| parameter.kind == TypeParameterKind::Type)
+        {
             return true;
         }
-        let typed = self.typed;
-        let binders = typed
-            .state_signature_type_parameters(signature)
-            .iter()
+        let binders = parameters.iter()
             .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. }))
             .map(|parameter| parameter.symbol)
             .collect::<Vec<_>>();

@@ -13,7 +13,10 @@ pub(super) struct ApplicationArguments<'source> {
     /// Original source scope for callbacks nested in this application.
     pub(super) lexical_owner: SymbolHandle,
     pub(super) types: Vec<ValueType>,
-    pub(super) references: Option<Vec<crate::source_state::types::TypeReferenceHandle>>,
+    pub(super) type_sources: Vec<(
+        SymbolHandle,
+        crate::source_state::types::TypeReferenceHandle,
+    )>,
     pub(super) values: Vec<ScalarTerm>,
     pub(super) const_sources: Vec<(
         SymbolHandle,
@@ -216,7 +219,7 @@ impl<'source> Program<'source> {
         let inherited = prepared.inherited;
         let retained = prepared.bindings;
         let mut types = Vec::new();
-        let mut references = Vec::new();
+        let mut type_sources = Vec::new();
         let mut values = Vec::new();
         let mut const_sources = Vec::new();
         let mut callables = Vec::new();
@@ -265,7 +268,7 @@ impl<'source> Program<'source> {
                             "type parameter was supplied with another binding kind",
                         ));
                     };
-                    references.push(reference);
+                    type_sources.push((parameter.symbol, reference));
                     self.value_type(id, reference)?
                 };
                 types.push(value);
@@ -362,7 +365,7 @@ impl<'source> Program<'source> {
         Ok(ApplicationArguments {
             lexical_owner: prepared.lexical_owner,
             types,
-            references: (!inherited).then_some(references),
+            type_sources,
             values,
             const_sources,
             callables,

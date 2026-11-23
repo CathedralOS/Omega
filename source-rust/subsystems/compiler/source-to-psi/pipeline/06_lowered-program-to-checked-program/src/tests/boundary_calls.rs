@@ -4351,3 +4351,35 @@ machine entry()"#,
         "the unused header must still support its arbitrary Value parameter"
     );
 }
+
+#[test]
+fn a_boundary_call_uses_its_callers_type_argument() {
+    let source = r#"
+        boundary trait Transport {
+            machine keep<Item>(input: Item) -> Item reaches none crashes none;
+        }
+        machine relay<A, B>(second: B) -> B
+        reaches Transport invokes Transport {
+            Transport::keep::<B>(move second)
+        }
+    "#;
+    let verdict = super::entryless::judged(source, false);
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    let bounded = r#"
+        boundary trait Transport {
+            machine observe<Item [copy]>() reaches none crashes none;
+        }
+        machine relay<A, B [copy]>() reaches Transport invokes Transport {
+            Transport::observe::<B>();
+        }
+    "#;
+    let valid = super::entryless::judged(bounded, false);
+    assert!(matches!(valid, RouteVerdict::Accepted(_)), "{valid:?}");
+    let missing_bound = bounded.replace("relay<A, B [copy]>", "relay<A, B>");
+    let Err(diagnostics) = crate::preparation::prepare_typed_trees(typed(&missing_bound), &[], &[])
+    else {
+        panic!("the caller's unbounded type cannot satisfy a copy bound");
+    };
+    assert!(diagnostics.iter().any(|diagnostic| diagnostic.message
+        == "type argument `B` for `Item` has neither `[copy]` nor `[linear]` but the binder requires `[copy]`"), "{diagnostics:?}");
+}
