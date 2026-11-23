@@ -450,6 +450,12 @@ fn later_build_admissions_keep_the_original_artifact_only_consent() {
         .unwrap()
         .prepare(None, &Default::default(), profile.target_name(), None)
         .unwrap();
+    let check_only = syntax
+        .check_only_build_stage_source()
+        .unwrap()
+        .expect("an anonymous root has a check-only Build stage")
+        .prepare(None, &Default::default(), profile.target_name(), None)
+        .unwrap();
     let staging = platform_custody::temporary_directory::TemporaryDirectory::create(
         "build-reviewed-staging",
         false,
@@ -466,6 +472,7 @@ fn later_build_admissions_keep_the_original_artifact_only_consent() {
             execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose::Source,
             root_path: &entry,
             interval: &interval,
+            check_only_subject: Some(&check_only),
             build_source: syntax.build_source,
             sources: &syntax.parsed.files,
             package_inputs: None,

@@ -55,6 +55,34 @@ impl AnonymousSourceCapture {
         &self.sources
     }
 
+    /*
+        The compiler checks the whole Build file before running it
+        (`wiki/spec/build/command_line.md`), but naming a boundary the root
+        declares needs an exact owner, and the root receives its real owner
+        only after Build returns (`wiki/spec/build/declarations.md`). This
+        owner lets that check name the root's declarations. A domain tag of its
+        own keeps it distinct from every real owner. The check that uses it
+        keeps only its verdict and the constants it read, and the root is
+        checked again under its real owner once Build returns.
+    */
+    pub fn provisional_check_owner(&self) -> Result<PackageKeyIdentity, String> {
+        let mut digest = Sha256::new();
+        field(&mut digest, b"OMEGA-CHECK-ONLY-PROVISIONAL-OWNER-V1\0");
+        snapshot(&mut digest, &self.capture)?;
+        PackageKeyIdentity::from_digest(digest.finalize().into())
+            .ok_or_else(|| "provisional check owner has the reserved zero digest".to_owned())
+    }
+
+    /// The Build stage with this capture's unowned files under the check-only owner.
+    pub fn check_only_stage(
+        &self,
+        mut stage: source_compiler::BuildStageSource,
+    ) -> Result<source_compiler::BuildStageSource, String> {
+        let owner = self.provisional_check_owner()?;
+        Arc::make_mut(&mut stage.parsed.files).bind_anonymous_owner(&self.root, owner)?;
+        Ok(stage)
+    }
+
     pub fn complete_without_dependencies(
         self,
     ) -> Result<Arc<source_compiler::representations::source_inputs::SourceMap>, Vec<diagnostics::Diagnostic>> {

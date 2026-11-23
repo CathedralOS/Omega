@@ -197,11 +197,13 @@ pub fn prepare(
         checkpoint.assemble(inputs, &mut timings, &mut catalogue)?.1
     };
     let interval = resolve(&mut assembled, None, &preparation, profile, inputs)?;
+    let check_only_subject = check_only_subject(&assembled, &interval, &preparation, profile)?;
     let evaluation = prepare_build_evaluation(
         BuildEvaluationRequest {
             execution_purpose: BuildExecutionPurpose::Source,
             root_path: request.root,
             interval: &interval,
+            check_only_subject: check_only_subject.as_ref(),
             build_source: assembled.build_source,
             sources: &assembled.parsed.files,
             package_inputs: inputs,
@@ -227,6 +229,27 @@ pub fn prepare(
             profile,
         },
     })
+}
+
+/// Type the complete root Build again with its own files under a check-only
+/// owner, so the whole file can be checked before Build runs. A staged Build
+/// checks its available declarations in their own interval instead.
+fn check_only_subject(
+    assembled: &AssembledSyntax,
+    interval: &TypedBuildInterval,
+    preparation: &SourcePreparation,
+    profile: TargetProfile,
+) -> Result<Option<TypedBuildInterval>, CompileFailure> {
+    if interval.program.roots.partial_build_entry.is_some() {
+        return Ok(None);
+    }
+    let Some(stage) = assembled.check_only_build_stage_source()? else {
+        return Ok(None);
+    };
+    stage
+        .prepare(None, preparation, profile.target_name(), None)
+        .map(Some)
+        .map_err(|rows| locate_failure(rows.into(), assembled, None))
 }
 
 fn resolve(
@@ -419,9 +442,9 @@ impl PlanningSource {
                 )
             })?
             .1;
-        let awaiting_owner =
-            evaluated.subject_validation == BuildSubjectValidation::AwaitingPackageOwner;
-        if awaiting_owner
+        let owes_real_owner_check =
+            evaluated.subject_validation == BuildSubjectValidation::CheckedUnderProvisionalOwner;
+        if owes_real_owner_check
             || !evaluated.constants.read.is_empty()
             || evaluated.constants.folded_under_providers
         {
@@ -454,7 +477,7 @@ impl PlanningSource {
             })();
             let spent = checked.map_err(|failure| locate_failure(failure, &source, inputs))?;
             evaluated.source_completion_accounting.append(spent);
-            if awaiting_owner {
+            if owes_real_owner_check {
                 evaluated.subject_validation = BuildSubjectValidation::Checked;
             }
         }

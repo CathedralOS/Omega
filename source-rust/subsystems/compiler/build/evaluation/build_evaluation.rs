@@ -12,7 +12,10 @@ authored `build.omg` code can run:
 2. Semantic checking (`admission::checking::prepare_admitted_build`) validates the
    `Build` machine and its helpers before any snapshot capture or host effects.
    Package authority narrows what is allowed on top of that semantic floor;
-   standalone source never bypasses it.
+   standalone source never bypasses it. A complete root with no package owner
+   yet is also checked whole, before it runs, under a check-only owner
+   (`admission::checking::check_subject_before_execution`), and checked again
+   under its real owner once Build returns.
 3. Filesystem scope preparation (`prepare_filesystem_scope`) and program
    admission (`admit_build_program`) project any restricted host requests
    (`RestrictedBuildRequest`). If the caller supplied `restricted_grants`, each
@@ -47,6 +50,10 @@ pub struct BuildEvaluationRequest<'request> {
     pub execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose, // Measurement only; source custody and admission independently establish authority.
     pub root_path: &'request Path,
     pub interval: &'request TypedBuildInterval,
+    /// The same complete Build stage typed with the root's own files under the
+    /// anonymous capture's check-only owner (`AssembledSyntax::check_only_build_stage_source`).
+    /// Judged once before Build runs, then dropped.
+    pub check_only_subject: Option<&'request TypedBuildInterval>,
     pub build_source: Option<package_compilation::BuildSourceSelection>,
     pub sources: &'request source_compiler::representations::source_inputs::SourceMap,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
@@ -306,6 +313,7 @@ pub fn prepare_build_evaluation(
         execution_purpose,
         root_path,
         interval,
+        check_only_subject,
         build_source,
         sources,
         package_inputs,
@@ -355,16 +363,28 @@ pub fn prepare_build_evaluation(
             .map(|subject| subject.source_consumption_commitment())
         })
         .transpose()?;
+    // A complete Build with no package owner yet is checked whole under a
+    // check-only owner before it runs, and again under its real owner after it
+    // returns. A staged Build checks the available declarations in their
+    // original interval, so it keeps the ordinary whole-subject check.
+    let check_only = match (check_only_subject, anonymous_source) {
+        (Some(subject), Some(capture))
+            if !dependency_activation
+                && package_inputs.is_none()
+                && typed.roots.partial_build_entry.is_none() =>
+        {
+            Some((subject.program.as_ref(), capture))
+        }
+        _ => None,
+    };
     let subject_validation = if dependency_activation {
         BuildSubjectValidation::EntryOnly
-    } else if package_inputs.is_none() && typed.roots.partial_build_entry.is_none() {
-        // A complete Build can check its other declarations after it returns an owner.
-        // A staged Build must check the available declarations in their original interval.
-        BuildSubjectValidation::AwaitingPackageOwner
+    } else if check_only.is_some() {
+        BuildSubjectValidation::CheckedUnderProvisionalOwner
     } else {
         BuildSubjectValidation::Checked
     };
-    let (prepared, providers, constants, source_completion_accounting) =
+    let (prepared, providers, entry_constants, source_completion_accounting) =
         crate::admission::checking::prepare_admitted_build(
             typed,
             selected_machine,
@@ -373,6 +393,19 @@ pub fn prepare_build_evaluation(
             subject_validation == BuildSubjectValidation::Checked,
             timings,
         )?;
+    let constants = match check_only {
+        Some((subject, capture)) => crate::admission::checking::check_subject_before_execution(
+            subject,
+            typed,
+            build_source,
+            capture,
+            timings,
+        )
+        .map_err(|failure| {
+            failure.with_source_completion_accounting(source_completion_accounting.clone())
+        })?,
+        None => entry_constants,
+    };
     let result = (|| {
         let filesystem_scope = crate::prepare_filesystem_scope(
             root_path,
