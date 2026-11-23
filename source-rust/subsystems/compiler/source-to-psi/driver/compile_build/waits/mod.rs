@@ -66,8 +66,9 @@ impl BuildStage {
             .collect::<Vec<_>>();
         incomplete_files.sort_unstable();
         incomplete_files.dedup();
-        for import in imports {
-            if incomplete_files.binary_search(&import.source.0).is_err() {
+        let product_uses = PendingBuildImport::used_by_product(imports, typed);
+        for (import, used) in imports.iter().zip(product_uses) {
+            if !used && incomplete_files.binary_search(&import.source.0).is_err() {
                 let diagnostic =
                     Diagnostic::warning(format!("unused deferred Build import `{}`", import.target))
                         .with_source_span(SourceSpan::new(import.source, import.span));
