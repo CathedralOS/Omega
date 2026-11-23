@@ -4,23 +4,19 @@ snapshots.
 
 We capture what a sponsored build wrote into its private output directory,
 commit to a canonical tree identity (`BuildStagedOutputTreeCommitment`),
-select completed or generated-source subsets, and materialize retained trees
+select completed outputs, and materialize retained trees
 onto an empty host directory on request. `captured_source` applies the same
 retained-custody discipline to immutable source trees before a build runs, bound
 to the canonical source metadata index that narrows the build's filesystem
 reads.
 
-Why keep `BuildStagedOutputTree` fields private and recompute commitments on
-reconstruction? Package-controlled data or decoded persistence rows must never
-impersonate compiler capture or substitute a stored commitment without
-reproducing its exact digest, entry count, and unique file-byte count.
+Materialization recomputes the tree identity before exporting its contents.
 */
 
 /*
 Module layout:
 - `staged_output_tree`: the canonical tree carrier, domain-separated commitment,
-  legacy source recovery (`recover_included_output_sources`), and completed-output
-  subset selection (`select_files`).
+  and completed-output selection (`select_files`).
 - `capture`: physical host-tree acquisition with open-file identity and
   link-count custody checks.
 - `materialization`: deterministic host-directory materialization and retained
@@ -53,7 +49,6 @@ pub use captured_source::{
 };
 pub(crate) use staged_output_tree::BuildStagedOutputMaterializationError;
 pub use staged_output_tree::{
-    BuildStagedOutputEntryInput, BuildStagedOutputEntryKind, BuildStagedOutputTree,
-    BuildStagedOutputTreeCommitment, PackageGeneratedSource, empty,
-    recover_included_output_sources,
+    BuildStagedOutputEntryKind, BuildStagedOutputTree, BuildStagedOutputTreeCommitment,
+    PackageGeneratedSource, empty,
 };

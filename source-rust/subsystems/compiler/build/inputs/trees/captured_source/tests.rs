@@ -99,6 +99,15 @@ fn captured_inventory_lists_entries_in_deterministic_canonical_order() {
     let input = input_with_template();
     assert_eq!(input.entry_count(), 6, "inventory includes the root row");
     assert_eq!(input.file_bytes(), 14);
+    let inventory = input.inventory();
+    assert_eq!(inventory.entry_count(), input.entry_count());
+    assert_eq!(inventory.file_bytes(), input.file_bytes());
+    assert_eq!(
+        inventory
+            .source_metadata_identity()
+            .source_content_commitment(),
+        [0x42; 32]
+    );
     let listed = input
         .entries()
         .map(|entry| {
@@ -170,26 +179,4 @@ fn snapshot_reads_retained_bytes_and_leaves_links_inert() {
             SourceSnapshotEntry::File(b"HELLO WORLD")
         )]
     );
-}
-
-#[test]
-fn captured_inventory_retains_the_review_record_layout() {
-    let snapshot = input_with_template();
-    let inventory = snapshot.inventory();
-    let mut encoded = Vec::new();
-    inventory.encode(&mut encoded);
-    let mut expected = snapshot.entry_count().to_le_bytes().to_vec();
-    expected.extend_from_slice(&snapshot.file_bytes().to_le_bytes());
-    let policy = snapshot.canonical_source_metadata().policy_version();
-    expected.extend_from_slice(&policy.to_le_bytes());
-    expected.extend_from_slice(&[0x42; 32]);
-    assert_eq!(encoded, expected);
-    use filesystem_authority::observation_codec::ObservationCursor;
-    assert_eq!(
-        super::BuildCapturedSourceInventory::recover(&mut ObservationCursor::new(&encoded)),
-        Some(inventory)
-    );
-    encoded.pop();
-    let mut truncated = ObservationCursor::new(&encoded);
-    assert!(super::BuildCapturedSourceInventory::recover(&mut truncated).is_none());
 }

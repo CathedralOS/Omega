@@ -112,6 +112,14 @@ pub enum BuildDeclarationKind {
 }
 
 impl BuildDeclarationKind {
+    pub const fn canonical_tag(self) -> u8 {
+        match self {
+            Self::Package => 0,
+            Self::Application => 1,
+            Self::Workspace => 2,
+        }
+    }
+
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Package => "package",

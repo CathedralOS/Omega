@@ -1,36 +1,9 @@
-/*
-Reconciled package compilation inputs, source-consumption custody, and Build
-execution settlement.
-
-We own the shared input contract below both compiler invocations and package
-manager commands. `package_compilation` validates and constructs the immutable
-package dependency graph, target attachments, provider selections, and native
-binding handoffs. `source` captures physical package and toolchain trees once,
-resolves import frontiers through exact package scopes (`source_imports`),
-parses them into an immutable Psi 00/01 checkpoint (`source_assembly`), and
-seals the exact consumed source bytes into `BuildSourceCustody` and
-`CheckedSourceCustody` (`source_consumption`). `build_execution` prepares
-read-only filesystem scopes for `Build` evaluation and settles interpreter
-observations into content-addressed outputs. `reuse` computes exact input
-equivalence keys and maintains the content-verified checked-source metadata
-cache.
-*/
-
-/*
-Neither the compiler coordinator nor the package manager may reopen a source
-file or reconstruct package custody ad hoc after frontend preparation. By
-committing every physical source tree once at capture time and sealing the
-checked closure against those exact bytes, we guarantee that Build evaluation,
-product compilation, and persisted review caches agree on the exact bytes and
-authority boundaries that produced a compile.
-*/
-
-/*
-Start at `package.rs` for `PackageCompilationInputs` construction
-and admission, `source/assembly/mod.rs` for Psi 00/01 source loading,
-`build_execution.rs` for `Build` evaluation scopes and output custody, and
-`reuse.rs` for compilation reuse keys and checked-source caching.
-*/
+//! Package-aware compilation uses one set of acquired sources for Build evaluation,
+//! Product compilation and package review. `package.rs` validates the graph and
+//! the products supplied by dependencies. `source/assembly` loads the selected
+//! files and `source/source_consumption.rs` records the bytes the compiler read.
+//! `build_execution` settles the Build's filesystem work, generated source and
+//! outputs. `reuse` identifies equivalent inputs within the running compiler.
 
 #![forbid(unsafe_code)]
 
@@ -50,27 +23,19 @@ pub use source::toolchain_library;
 mod diagnostic_locations;
 pub use diagnostic_locations::attribute_diagnostics;
 mod package;
-#[doc(hidden)]
-pub use reuse::review_record_encoding;
-mod target_profile_tags;
 
 pub use build_declarations::BuildDeclarationKind;
-pub use provider_acceptance::{
-    AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
-    program_entry_semantic_binding_role,
-};
 pub use package::{
     IndependentComponentDescription, PackageBuildHandoff, PackageCompilationInputError,
     PackageCompilationInputs, PackageCompilationSourceInputs, PackageCompilationTargetInputs,
     PackageDependencyAcquisition, PackageDependencyBinding, PackageDependencyClosure,
     PackageSourceBinding,
 };
-#[doc(hidden)]
-pub use package::{native_output_codec, provider_selection_codec};
-pub use reuse::compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
-pub use reuse::review_cache_digests::{
-    package_build_handoff_digest, review_cache_inputs_digest, review_cache_snapshot_digest,
+pub use provider_acceptance::{
+    AcceptedSemanticBinding, AcceptedSemanticBindingRole, accepted_service_schema_digest,
+    program_entry_semantic_binding_role,
 };
+pub use reuse::compilation_reuse::{ProductSourceInputs, SourceAssemblyInputs};
 pub use source::source_consumption::{
     BuildSourceCustody, CheckedSourceCustody, ConsumedSourceUnit, ConsumedSourceUnitKind,
     PackageSourceConsumptionCommitment, derive_package_compilation_subject,

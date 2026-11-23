@@ -16,13 +16,15 @@ use crate::resolution::graph::{ExactTargetPackageSourceClosure, ResolvedPackageS
 use crate::resolution::source::PackageSourceCustody;
 use diagnostics::Diagnostic;
 use package_compilation::{
-    PackageCompilationInputError, PackageCompilationInputs, derive_source_consumption_commitment,
+    ConsumedSourceUnit, IndependentComponentDescription, PackageCompilationInputError,
+    PackageCompilationInputs,
+    derive_source_consumption_commitment,
 };
 use provider_acceptance::AcceptedSemanticBinding;
 use review_evidence::record::SemanticBindingReviewCandidate;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
-use super::super::review_cache::{CachedOccurrenceFacts, compiled_review_key};
 use super::PackageSourceBindings;
 
 #[path = "fresh_occurrence.rs"]
@@ -50,6 +52,13 @@ impl RetainedPackageReviews {
 }
 
 #[derive(Debug, Clone)]
+pub(super) struct OccurrenceFacts {
+    consumed_units: Vec<ConsumedSourceUnit>,
+    component_description: Option<IndependentComponentDescription>,
+    target_entry_candidate: Option<SemanticBindingReviewCandidate>,
+}
+
+#[derive(Debug, Clone)]
 pub(super) struct RetainedOccurrenceCompile {
     pub(super) position: usize, // Position in the dependency-first occurrence order.
     pub(super) purpose: DependencyPurpose,
@@ -58,7 +67,7 @@ pub(super) struct RetainedOccurrenceCompile {
     pub(super) build_snapshot: BuildSnapshotRequest, // Source inventory and output roster captured by build evaluation.
     pub(super) policy_canonical_bytes: usize, // Canonical-policy bytes added to the running retained-policy total.
     pub(super) review: usize, // Index of this occurrence's review inside the pass's review vector.
-    pub(super) compilation: Box<CachedOccurrenceFacts>,
+    pub(super) compilation: Arc<OccurrenceFacts>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -179,8 +188,8 @@ impl<'pass> PackageReviewPass<'pass> {
         })
     }
 
-    /// Review the dependency-first roster, reusing matching receipts and opening
-    /// a fresh Product from the original Build on a cache miss.
+    /// Review dependencies before their consumers. A matching pass from this invocation
+    /// supplies its completed review. Each other occurrence opens its original Build product.
     pub fn review(
         self,
         source_bindings: &mut PackageSourceBindings,
@@ -270,7 +279,7 @@ impl PackageReviewOccurrence<'_> {
 
 struct CompletedOccurrence {
     review: CompilerIssuedPackageReview,
-    facts: Box<CachedOccurrenceFacts>,
+    facts: Arc<OccurrenceFacts>,
     policy_bytes: usize,
 }
 
@@ -467,57 +476,25 @@ impl<'pass> PackageReviewRound<'pass> {
         product: &project_build::PlannedProduct,
     ) -> Result<bool, CompileResolvedPackageReviewsError> {
         let PackageReviewOccurrence {
-            key,
-            custody,
             position,
             purpose,
             checked_target,
             ..
         } = *occurrence;
-        let execution_profile = self.execution_profile;
         let entry = assembled.entry.as_path();
         let build_snapshot = &assembled.build_snapshot;
-        let carried = self
-            .prior
-            .and_then(|prior| {
-                let occurrence = prior.occurrences.iter().find(|occurrence| {
-                    occurrence.position == position
-                        && occurrence.purpose == purpose
-                        && occurrence.entry == *entry
-                        && occurrence.inputs == *unanswered_inputs
-                        && occurrence.build_snapshot == *build_snapshot
-                })?;
-                let review = prior.reviews.reviews().get(occurrence.review)?.clone();
-                Some((
-                    occurrence.compilation.clone(),
-                    review,
-                    occurrence.policy_canonical_bytes,
-                ))
-            })
-            .or_else(|| {
-                let directory = custody.compiled_review_cache_dir()?;
-                let cache = super::super::review_cache::CompiledReviewCache::open(directory)?;
-                let record = cache.lookup(&compiled_review_key(
-                    key.identity(),
-                    purpose,
-                    checked_target,
-                    execution_profile,
-                    entry,
-                    unanswered_inputs,
-                    build_snapshot,
-                )?)?;
-                let policy_canonical_bytes = record.policy_canonical_bytes()?;
-                let (review, facts) = record.into_review_and_facts(
-                    key,
-                    custody.resolution(),
-                    purpose,
-                    checked_target,
-                    execution_profile,
-                )?;
-                let occurrence = Box::new(facts);
-                Some((occurrence, review, policy_canonical_bytes))
-            });
-        let Some((compile, review, policy_canonical_bytes)) = carried else {
+        let carried = self.prior.and_then(|prior| {
+            let occurrence = prior.occurrences.iter().find(|occurrence| {
+                occurrence.position == position
+                    && occurrence.purpose == purpose
+                    && occurrence.entry == *entry
+                    && occurrence.inputs == *unanswered_inputs
+                    && occurrence.build_snapshot == *build_snapshot
+            })?;
+            let review = prior.reviews.reviews().get(occurrence.review)?;
+            Some((occurrence, review))
+        });
+        let Some((previous, review)) = carried else {
             return Ok(false);
         };
         let evaluated = product.evaluated();
@@ -539,9 +516,9 @@ impl<'pass> PackageReviewRound<'pass> {
             unanswered_inputs,
             assembled,
             CompletedOccurrence {
-                review,
-                facts: compile,
-                policy_bytes: policy_canonical_bytes,
+                review: review.clone(),
+                facts: Arc::clone(&previous.compilation),
+                policy_bytes: previous.policy_canonical_bytes,
             },
         )?;
         self.carried_occurrences += 1;
@@ -569,7 +546,7 @@ impl<'pass> PackageReviewRound<'pass> {
         let entry = &assembled.entry;
         let build_snapshot = &assembled.build_snapshot;
         derive_source_consumption_commitment(&compile.consumed_units, unanswered_inputs).and_then(|commitment| {
-            if commitment == compile.source_consumption_commitment {
+            if commitment == review.source_consumption_commitment() {
                 Ok(())
             } else {
                 Err(vec![Diagnostic::error("retained review source consumption differs from the current package inputs")])

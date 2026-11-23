@@ -39,7 +39,6 @@ pub use build_resolution::{
     PendingBuildSource, ResolvedBuildSources,
 };
 pub(crate) use custody::PackageSourceCustody;
-pub(crate) use custody::COMPILED_REVIEW_CACHE_LANE;
 pub(crate) use git::GitPackageSourceRequest;
 pub(crate) use git::workspace::GitWorkspaceSelectionEvidence;
 pub(crate) use git::{RecordedGitPackage, recover_recorded_git_source};

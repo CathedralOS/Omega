@@ -77,10 +77,6 @@ impl CompilerIssuedPackageReview {
         &self.semantic_bindings
     }
 
-    pub(crate) fn semantic_binding_candidates(&self) -> &[SemanticBindingReviewCandidate] {
-        &self.semantic_binding_candidates
-    }
-
     pub const fn build_handoff(&self) -> &PackageBuildHandoff {
         &self.build_handoff
     }

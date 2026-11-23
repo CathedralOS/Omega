@@ -1,6 +1,5 @@
 /*
-Retained staged-output tree, domain-separated commitment, and generated-source /
-completed-output subset selection.
+Retained staged-output tree, its content commitment, and selection of completed outputs.
 
 We represent a captured build-output tree as canonical slash-separated relative
 paths sorted in unsigned byte order, paired with directory, regular-file
@@ -13,14 +12,6 @@ Commitment rules (`OMEGA-BUILD-STAGED-OUTPUT-TREE\0`, schema v2):
   content_length)` and bounded by `MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES` (256 MiB),
   while total entries are bounded by `MAX_STAGED_OUTPUT_ENTRIES` (4,096) and path
   bytes by `MAX_STAGED_OUTPUT_PATH_BYTES` (16 MiB).
-- `from_retained_parts` sorts decoded rows, rejects duplicate or non-canonical
-  paths, recomputes the commitment, and fails closed if it disagrees with the
-  recorded commitment.
-- Older saved Builds selected generated source from closed output files.
-  `recover_included_output_sources` checks that every `.omg` file in that tree
-  has an explicit `BuildOutput::include_source` handoff, forbids reserved
-  discovery names (`build.omg`, `main.omg`) and executable `.omg` files, and
-  recomputes each generated source's content digest.
 */
 
 use crate::capture::{StagedOutputEntry, StagedOutputEntryKind};
@@ -60,15 +51,6 @@ pub struct BuildStagedOutputTreeCommitment {
 }
 
 impl BuildStagedOutputTreeCommitment {
-    #[doc(hidden)]
-    pub const fn from_retained_parts(digest: [u8; 32], entry_count: u64, file_bytes: u64) -> Self {
-        Self {
-            digest,
-            entry_count,
-            file_bytes,
-        }
-    }
-
     pub const fn digest(self) -> [u8; 32] {
         self.digest
     }
@@ -142,68 +124,7 @@ impl PackageGeneratedSource {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum BuildStagedOutputEntryInput {
-    Directory,
-    File { bytes: Arc<[u8]>, executable: bool },
-    Symlink { target: Vec<u8> },
-}
-
 impl BuildStagedOutputTree {
-    #[doc(hidden)]
-    pub fn from_retained_parts(
-        expected_commitment: &BuildStagedOutputTreeCommitment,
-        entries: impl IntoIterator<Item = (Vec<u8>, BuildStagedOutputEntryInput)>,
-    ) -> Result<Self, Vec<Diagnostic>> {
-        let mut retained = Vec::new();
-        for (relative_path, kind) in entries {
-            if relative_path.is_empty()
-                || !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(
-                    &relative_path,
-                    false,
-                )
-            {
-                return Err(diagnostics(format!(
-                    "retained staged-output entry is not a canonical relative path: {relative_path:?}"
-                )));
-            }
-            let kind = match kind {
-                BuildStagedOutputEntryInput::Directory => RetainedStagedOutputEntryKind::Directory,
-                BuildStagedOutputEntryInput::File { bytes, executable } => {
-                    RetainedStagedOutputEntryKind::File { bytes, executable }
-                }
-                BuildStagedOutputEntryInput::Symlink { target } => {
-                    RetainedStagedOutputEntryKind::Symlink { target }
-                }
-            };
-            retained.push(RetainedStagedOutputEntry {
-                relative_path,
-                kind,
-            });
-        }
-        retained.sort_by(|left, right| left.relative_path.cmp(&right.relative_path));
-        if retained
-            .windows(2)
-            .any(|pair| pair[0].relative_path == pair[1].relative_path)
-        {
-            return Err(diagnostics(
-                "retained staged-output entries repeat a relative path",
-            ));
-        }
-        let commitment = commitment_for_retained_entries(&retained).ok_or_else(|| {
-            diagnostics("retained staged-output tree exceeds its unique-bytes ceiling")
-        })?;
-        if &commitment != expected_commitment {
-            return Err(diagnostics(
-                "retained staged-output entries do not reproduce the recorded commitment",
-            ));
-        }
-        Ok(Self {
-            commitment,
-            entries: retained,
-        })
-    }
-
     pub const fn commitment(&self) -> BuildStagedOutputTreeCommitment {
         self.commitment
     }
@@ -388,84 +309,6 @@ pub(crate) enum RetainedStagedOutputEntryKind {
 
 pub fn empty() -> BuildStagedOutputTree {
     finish_commitment(Vec::new())
-}
-
-pub fn recover_included_output_sources(
-    tree: &BuildStagedOutputTree,
-    relative_paths: &[Vec<u8>],
-) -> Result<Vec<PackageGeneratedSource>, Vec<Diagnostic>> {
-    for entry in &tree.entries {
-        let RetainedStagedOutputEntryKind::File { .. } = &entry.kind else {
-            continue;
-        };
-        let is_omega_source = entry
-            .relative_path
-            .rsplit(|byte| *byte == b'/')
-            .next()
-            .is_some_and(|name| name.ends_with(b".omg") && name.len() > 4);
-        if is_omega_source && !relative_paths.contains(&entry.relative_path) {
-            return Err(diagnostics(format!(
-                "captured staged Omega source `{}` has no explicit include_source handoff",
-                String::from_utf8_lossy(&entry.relative_path)
-            )));
-        }
-    }
-    let mut selected = Vec::with_capacity(relative_paths.len());
-    for relative_path in relative_paths {
-        let is_omega_source = relative_path
-            .rsplit(|byte| *byte == b'/')
-            .next()
-            .is_some_and(|name| name.ends_with(b".omg") && name.len() > 4);
-        if !is_omega_source || std::str::from_utf8(relative_path).is_err() {
-            return Err(diagnostics(format!(
-                "included build source `{}` must name a regular .omg file",
-                String::from_utf8_lossy(relative_path)
-            )));
-        }
-        if relative_path
-            .rsplit(|byte| *byte == b'/')
-            .next()
-            .is_some_and(|name| matches!(name, b"build.omg" | b"main.omg"))
-        {
-            return Err(diagnostics(format!(
-                "included build source `{}` uses a reserved source-discovery filename",
-                String::from_utf8_lossy(relative_path)
-            )));
-        }
-        let Some(entry) = tree
-            .entries
-            .iter()
-            .find(|entry| entry.relative_path == *relative_path)
-        else {
-            return Err(diagnostics(format!(
-                "included build source `{}` is absent from the captured staged-output tree",
-                String::from_utf8_lossy(relative_path)
-            )));
-        };
-        let RetainedStagedOutputEntryKind::File { bytes, executable } = &entry.kind else {
-            return Err(diagnostics(format!(
-                "included build source `{}` is not a regular file",
-                String::from_utf8_lossy(relative_path)
-            )));
-        };
-        if *executable {
-            return Err(diagnostics(format!(
-                "included build source `{}` must not be executable",
-                String::from_utf8_lossy(relative_path)
-            )));
-        }
-        std::str::from_utf8(bytes).map_err(|_| {
-            diagnostics(format!(
-                "generated source `{}` must contain UTF-8 bytes",
-                relative_path.escape_ascii()
-            ))
-        })?;
-        selected.push(PackageGeneratedSource::from_retained_parts(
-            relative_path.clone(),
-            Arc::clone(bytes),
-        ));
-    }
-    Ok(selected)
 }
 
 pub(crate) fn finish_commitment(mut entries: Vec<StagedOutputEntry>) -> BuildStagedOutputTree {

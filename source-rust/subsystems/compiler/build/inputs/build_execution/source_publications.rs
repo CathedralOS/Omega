@@ -89,9 +89,7 @@ fn publication_bytes(path: &[u8], bytes: &[u8]) -> Result<u64, &'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::build_record_codec::{encode_observation_summary, recover_observation_summary};
     use crate::{BuildMachineFilesystemScope, CapturedBuildObservations};
-    use filesystem_authority::observation_codec::ObservationCursor;
     use std::path::{Path, PathBuf};
 
     fn account(live: u64, result: u64) -> EvaluationInvocationAccount {
@@ -106,7 +104,7 @@ mod tests {
     }
 
     #[test]
-    fn published_bytes_survive_a_changed_input_and_a_reopened_review() {
+    fn the_observation_binds_the_bytes_at_the_time_of_publication() {
         let scope = BuildMachineFilesystemScope::for_root(
             Path::new("build.omg"),
             PathBuf::from("staged"),
@@ -132,21 +130,16 @@ mod tests {
         assert!(summary.filesystem_operation_attempts().is_empty());
         let usage = account.snapshot().unwrap();
         assert_eq!(usage.record().result_payload_bytes, (path.len() + 5) as u64);
-        let mut encoded = Vec::new();
-        encode_observation_summary(&summary, &mut encoded);
-        let recover =
-            |bytes: &[u8]| recover_observation_summary(&mut ObservationCursor::new(bytes));
-        let reopened = recover(&encoded).unwrap();
-        assert_eq!(reopened.generated_sources()[0].bytes(), b"first");
-        assert_eq!(reopened, summary);
-        let pos = encoded.windows(5).position(|row| row == b"first").unwrap();
-        encoded[pos] = b'F';
-        assert_ne!(recover(&encoded).unwrap().identity(), summary.identity());
-        encoded[pos] = 255;
-        assert!(recover(&encoded).is_none());
-        encoded[pos] = b'f';
-        encoded.push(0);
-        assert!(recover(&encoded).is_none());
+        assert_eq!(summary.generated_sources()[0].bytes(), b"first");
+        let mut changed = BuildSourcePublications::default();
+        changed.publish(&account, path, &bytes).unwrap();
+        let mut observations = CapturedBuildObservations::new(&scope);
+        observations
+            .retain_source_publications(changed, &account)
+            .unwrap();
+        let other = observations.settle(false, "build").unwrap();
+        assert_eq!(other.generated_sources()[0].bytes(), b"Xirst");
+        assert_ne!(other.identity(), summary.identity());
     }
 
     #[test]

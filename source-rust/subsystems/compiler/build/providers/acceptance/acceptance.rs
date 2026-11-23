@@ -48,7 +48,7 @@ pub enum AcceptedSemanticBindingRole {
 }
 
 impl AcceptedSemanticBindingRole {
-    /// Stable role tag in accepted package locks and compiled review records.
+    /// Package locks and prepared dependency identities bind this role tag.
     pub const fn canonical_tag(self) -> u8 {
         match self {
             Self::ConsoleIo => 10,
