@@ -3553,14 +3553,14 @@ fn a_bound_payload_is_what_its_leaf_was_constructed_with_and_nothing_from_a_sibl
     assert_eq!(parameters(DOT).len(), 1);
     assert_eq!(bound_payloads(tables), [(l, thirty), (r, four)]);
     // `bounded(r)` discharges from the constructing 4 with kernel evidence;
-    // `bounded(l)` is the 30 and `bounded(at)` is unknown.
+    // The reachable call with 30 fails. The Dot edge contradicts the stored Pair tag.
     let requirements = verdicts(&elaboration, &result, 1, requirement);
-    let [(first, needs_r), (_, needs_l), (_, needs_at)] = requirements.as_slice() else {
+    let [(first, needs_r), (_, needs_l), (dot, needs_at)] = requirements.as_slice() else {
         panic!("three requirements");
     };
     assert_kernel_checked(&elaboration, 1, *first, certificate(needs_r));
     assert_unproved(needs_l);
-    assert_unproved(needs_at);
+    assert_kernel_checked(&elaboration, 1, *dot, certificate(needs_at));
 
     // Two payload fields of one case are disjoint.
     let leaf = |case: u64, field: u64| {

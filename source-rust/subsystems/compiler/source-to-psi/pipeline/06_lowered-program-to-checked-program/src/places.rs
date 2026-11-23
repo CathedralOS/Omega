@@ -4512,6 +4512,43 @@ impl<'a> Storage<'a> {
         Ok(bound)
     }
 
+    /// An edge for a different tag cannot run when the same storage holds
+    /// one known case on every arrival at the dispatch.
+    pub(crate) fn excluded_dispatch_cases(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+        block: &Block,
+    ) -> Checked<Vec<(EdgeId, StructuralCaseId)>> {
+        let Terminator::StructuralCase {
+            source,
+            path,
+            cases,
+        } = &block.terminator else {
+            return Ok(Vec::new());
+        };
+        let concerns = Construct::Block(block.id);
+        let subject = self.stored_at(*source, path, concerns)?;
+        if subject.segments.iter().any(|part| matches!(part, Segment::RuntimeIndex { .. })) {
+            return Ok(Vec::new());
+        }
+        let Reached::Case(selected) = self.reaching(
+            references,
+            tables,
+            Asked::Case(&subject, None),
+            (block.id, usize::MAX),
+            &mut self.budget(),
+            concerns,
+        )? else {
+            return Ok(Vec::new());
+        };
+        Ok(cases
+            .iter()
+            .filter(|edge| edge.case != selected)
+            .map(|edge| (edge.edge, selected))
+            .collect())
+    }
+
     /// What a dispatch binds on one of its edges: each payload parameter of
     /// the target block equal to the one value its payload leaf holds on
     /// every path to the dispatch, when there is one. The same answer a

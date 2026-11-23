@@ -343,7 +343,8 @@ fn unchanged_inputs(body: &Body, signature: &Signature) -> Vec<bool> {
     let mut unchanged = vec![true; signature.parameters.len()];
     for statement in &body.statements {
         let slot = match statement {
-            Statement::Bind { slot, .. }
+            Statement::Observe { slot, .. }
+            | Statement::Bind { slot, .. }
             | Statement::Declare { slot, .. }
             | Statement::CaptureReference { slot, .. } => *slot,
             _ => continue,
@@ -403,7 +404,7 @@ fn needs_separate_entry(
     for statement in &body.statements {
         // Only an unchanged formal has the invocation's original permission.
         let slot = match statement {
-            Statement::CaptureReference { slot, .. } => {
+            Statement::CaptureReference { slot, .. } | Statement::Observe { slot, .. } => {
                 direct_allowed = false;
                 *slot
             }
@@ -541,7 +542,7 @@ fn owned_local(body: &Body, signature: &Signature, slot: usize) -> bool {
 fn statements<'body>(statements: &'body [Statement], sites: &mut BodyWalk<'body, '_>) {
     for statement in statements {
         match statement {
-            Statement::Bind { value, .. }
+            Statement::Observe { value, .. } | Statement::Bind { value, .. }
             | Statement::Decompose { subject: value }
             | Statement::Evaluate {
                 expression: value, ..

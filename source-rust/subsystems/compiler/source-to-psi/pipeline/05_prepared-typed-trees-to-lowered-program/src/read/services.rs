@@ -1058,7 +1058,7 @@ impl<'a> CallCollector<'a> {
             collect_statement(statement, &mut collector);
             // Evaluate the right-hand side against the old binding before replacing it.
             match statement {
-                Statement::Bind { slot, value }
+                Statement::Observe { slot, value } | Statement::Bind { slot, value }
                 | Statement::Store {
                     destination:
                         Expression {
@@ -1130,7 +1130,7 @@ impl<'a> CallCollector<'a> {
 
 fn collect_statement<'a>(statement: &'a Statement, calls: &mut CallCollector<'a>) {
     match statement {
-        Statement::Bind { value, .. }
+        Statement::Observe { value, .. } | Statement::Bind { value, .. }
         | Statement::Evaluate {
             expression: value, ..
         }
