@@ -2,7 +2,8 @@
 
 End-to-end CLI check that a package may choose a provider whose slot and
 implementation are applied to compile-time arguments, and hand that choice to
-the program that depends on it (`omega --check`).
+the program that depends on it. Building the executable for Linux checks that
+the target has the method the consumer calls.
 
 `Reading<const Tag: u64>` is one requirement per tag, and an implementation
 `FirstReading<T, const Tag: u64>` satisfies `Reading<Tag>` for whatever tag it
@@ -84,7 +85,7 @@ fn check_package(name: &str, build: &str, files: &[(&str, &str)], main: &str) ->
     )
     .expect("staged program Build");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "main.omg", "--target", "linux_x86_64"])
+        .args(["--target", "linux_x86_64", "build.omg"])
         .current_dir(&program)
         .stdin(std::process::Stdio::null())
         .output()
