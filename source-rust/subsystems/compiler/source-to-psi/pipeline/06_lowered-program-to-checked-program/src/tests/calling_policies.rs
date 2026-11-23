@@ -98,7 +98,7 @@ fn describe_verdicts(
                 Ok(_) => "accepted".to_owned(),
                 Err(error) => format!("accepted and not published: {error:?}"),
             },
-            Ok(RouteVerdict::Rejected { unproved, .. }) => unproved
+            Ok(RouteVerdict::Rejected { unproved, .. }) if !unproved.is_empty() => unproved
                 .iter()
                 .map(|entry| format!("{}: {}", entry.statement, entry.detail))
                 .collect::<Vec<_>>()
