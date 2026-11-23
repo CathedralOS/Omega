@@ -272,7 +272,25 @@ pub fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlaceDeclar
     }
 }
 
+pub fn encode_type_requirements(
+    bytes: &mut Vec<u8>,
+    requirements: &[semantic_vocabulary::Proposition],
+) -> Result<(), psi_declaration_encoding::CodecError> {
+    encode_len(bytes, requirements.len());
+    for requirement in requirements {
+        let encoded =
+            psi_declaration_encoding::terms::proposition::canonical_proposition_order_key(
+                requirement,
+            )?;
+        encode_len(bytes, encoded.len());
+        bytes.extend_from_slice(&encoded);
+    }
+    Ok(())
+}
+
 pub fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &StructuralTypeDeclaration) {
+    encode_type_requirements(bytes, &declaration.requires)
+        .expect("canonical structural type requirements");
     crate::codec_bytes::push_encoded(bytes, declaration.id.get().to_le_bytes());
     bytes.extend_from_slice(&declaration.identity.0.to_le_bytes());
     bytes.extend_from_slice(&declaration.declaration_identity.0.to_le_bytes());
@@ -542,7 +560,10 @@ fn encode_scalar_restriction(bytes: &mut Vec<u8>, field_type: &StructuralFieldTy
             // A refinement is its carrier and its predicate, each bound by its
             // canonical encoding.
             super::encode_scalar_type(bytes, refinement.carrier());
-            let predicate = psi_declaration_encoding::terms::proposition::canonical_proposition_order_key(refinement.predicate())
+            let predicate =
+                psi_declaration_encoding::terms::proposition::canonical_proposition_order_key(
+                    refinement.predicate(),
+                )
                 .expect("canonical refinement predicate");
             encode_len(bytes, predicate.len());
             bytes.extend_from_slice(&predicate);

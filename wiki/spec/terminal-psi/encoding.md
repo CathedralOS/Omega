@@ -2097,8 +2097,11 @@ marked 280 through 285, including independent layouts that shared marker 280, an
 every earlier semantic format reject before payload interpretation.
 Version 117 of the `OMGFCV\0\0` fixed-view recovery envelope encoded this
 semantic vocabulary. Version 119 binds each transferred claim's structural path
-in the transformed instruction plan identity. The reader rejects earlier
-recovery envelopes at the header.
+in the transformed instruction plan identity. Version 120 retains the domain and
+route of each structural operation result qualification establishment in both the
+recovery payload and the transformed instruction plan identity. It also preserves
+record and sum requirements and the projected qualifications of target parameters.
+The reader rejects earlier recovery envelopes at the header.
 
 Semantic schema images use version 2. Declaration shape 4 describes an exact
 compiler-owned scalar: its payload retains Boolean, integer sign and width,
