@@ -436,6 +436,12 @@ pub(crate) mod access_fields_validation {
             )));
         }
 
+        let fragment = |offset, destination_lsb, source_lsb, width| {
+            LogicalFieldFragment::from_layout_placement(offset, destination_lsb, source_lsb, width)
+                .ok_or_else(|| {
+                    AccessPlanDiagnostic(format!("access field `{field}` layout bit range overflows"))
+                })
+        };
         let transfer_bytes = u64::from(transfer_width_bits / 8);
         match placements.as_slice() {
             [LayoutPlacementReport::At { offset }] => {
@@ -444,11 +450,7 @@ pub(crate) mod access_fields_validation {
                 Ok((
                     offset,
                     LogicalFieldExtent {
-                        fragments: vec![LogicalFieldFragment {
-                            layout_bit_offset: offset * 8,
-                            source_bit_offset: 0,
-                            width_bits: u64::from(transfer_width_bits),
-                        }],
+                        fragments: vec![fragment(offset, 0, 0, u64::from(transfer_width_bits))?],
                     },
                     RelativeEffectFootprint {
                         byte_offset: offset,
@@ -473,11 +475,7 @@ pub(crate) mod access_fields_validation {
                 Ok((
                     offset,
                     LogicalFieldExtent {
-                        fragments: vec![LogicalFieldFragment {
-                            layout_bit_offset: offset * 8,
-                            source_bit_offset: 0,
-                            width_bits: *stored_width,
-                        }],
+                        fragments: vec![fragment(offset, 0, 0, *stored_width)?],
                     },
                     RelativeEffectFootprint {
                         byte_offset: offset,
@@ -516,11 +514,7 @@ pub(crate) mod access_fields_validation {
                             field
                         )));
                     }
-                    fragments.push(LogicalFieldFragment {
-                        layout_bit_offset: candidate * 8 + destination_lsb,
-                        source_bit_offset: *source_lsb,
-                        width_bits: *width,
-                    });
+                    fragments.push(fragment(*candidate, *destination_lsb, *source_lsb, *width)?);
                 }
                 let container = container.expect("nonempty placements");
                 validate_transfer_range(field, container, transfer_bytes, layout_size)?;
