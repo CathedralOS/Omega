@@ -10,9 +10,15 @@ use symbols::SymbolHandle;
 /// bindings, subjects and supplies through the declarations each one names,
 /// sorted. A const argument is demanded when one of these declarations
 /// holds it.
+///
+/// Each target's layout scope adds the providers that target selected. The
+/// Product request names none of them, yet lowering reads their members, so
+/// a domain or constant only a selected provider uses is demanded too: a
+/// Windows filesystem adapter's handle domain needs its access plan.
 pub(crate) fn demanded_declarations(
     program: &TypedTrees,
     request: production::TerminalSourceCompilation<'_>,
+    scopes: &[super::FixedLayoutTargetScope],
 ) -> Result<DeclarationSelection, String> {
     let mut pending = request
         .entries
@@ -39,7 +45,17 @@ pub(crate) fn demanded_declarations(
             }
         }
     }
-    from_supplied_roots(program, pending, request.supplies.iter().copied()).map_err(str::to_owned)
+    let mut supplies = request.supplies.to_vec();
+    for scope in scopes {
+        pending.extend(scope.entry_declarations.iter().copied());
+        supplies.extend(
+            scope
+                .provider_declarations
+                .iter()
+                .flat_map(crate::compile_product::provider_settlement::selected_supplies),
+        );
+    }
+    from_supplied_roots(program, pending, supplies).map_err(str::to_owned)
 }
 
 impl super::FixedLayoutTargetScope {

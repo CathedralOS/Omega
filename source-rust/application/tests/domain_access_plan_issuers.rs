@@ -121,3 +121,102 @@ machine main() crashes Trap {
         }
     }
 }
+
+/// A dependency's Build may select a provider whose member is the only code
+/// that names a governed domain, as std's Windows filesystem adapters do with
+/// their handle domains. The Product request never names that member, but
+/// lowering reads it, so the Build must still run the domain's plan: the
+/// member may then remove `Stamped` and the program runs. The twin's plan
+/// keeps a reader rule, which a removal cannot carry, so it stays refused.
+#[test]
+fn a_domain_only_a_selected_dependency_provider_uses_has_its_plan_run() {
+    use platform_custody::temporary_directory::TemporaryDirectory;
+    let project = TemporaryDirectory::create("provider-domain-plans", false).unwrap();
+    let kit = project.path().join("kit");
+    std::fs::create_dir_all(kit.join("main")).unwrap();
+    let targets = [
+        "linux_x86_64",
+        "linux_arm64",
+        "macos_arm64",
+        "windows_x86_64",
+    ];
+    let mut kit_build = String::from(
+        "machine build(builder: @mutable Build) {\n    Build::package(builder, \"stamp_kit\");\n",
+    );
+    let mut consumer_build = String::from(
+        r#"machine build(builder: @mutable Build) {
+    Build::application(builder, "stamp_consumer");
+    let kit: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "kit" }));
+"#,
+    );
+    for target in targets {
+        kit_build.push_str(&format!(
+            "    Build::select_provider::<Probe, StampedProbe>(builder, {target});\n"
+        ));
+        consumer_build.push_str(&format!(
+            "    Build::bind(builder, {target}\\ProgramEntry, main);\n"
+        ));
+    }
+    kit_build.push_str("}\n");
+    consumer_build.push_str("}\n");
+    std::fs::write(kit.join("build.omg"), kit_build).unwrap();
+    std::fs::write(kit.join("main.omg"), "use main;\n").unwrap();
+    std::fs::write(project.path().join("build.omg"), consumer_build).unwrap();
+    std::fs::write(
+        project.path().join("main.omg"),
+        r#"use stamp_kit\main\Probe;
+machine main() crashes Trap {
+    let value: i64 = Probe::probe();
+    transition value == 4i64 { true -> done(), _ -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}
+"#,
+    )
+    .unwrap();
+    let issued = "|plans|::new_plan(@schema, |layout|::Issuance::Only { routes: [|reflection|::callable(stamp)] })";
+    let source = r#"use {omega}/language/core/layout.omg as layout;
+use {omega}/language/core/access/access.omg as plans;
+use {omega}/language/core/reflect/reflect.omg as reflection;
+public boundary trait Probe {
+    machine probe() -> i64 reaches none crashes none;
+}
+domain i64::Stamped requires self != -1 access StampAccess;
+StampAccess satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflection|::TypeSchema) -> |layout|::AccessPlan {
+        PLAN
+    }
+}
+machine stamp() -> i64 in Stamped { 4i64 as +Stamped }
+public StampedProbe satisfies Probe {
+    machine probe() -> i64 {
+        let stamped: i64 in Stamped = stamp();
+        stamped as -Stamped
+    }
+}
+"#;
+    let read_restricted = format!(
+        "let mutable plan: |layout|::AccessPlan = {issued};\n        |plans|::allow_readers(@mutable plan, |layout|::AccessRegion::Subject {{ schema: schema }}, [|reflection|::callable(stamp)]);\n        plan"
+    );
+    for (plan, runs) in [(issued.to_owned(), true), (read_restricted, false)] {
+        let program = source.replace("PLAN", &plan);
+        std::fs::write(kit.join("main").join("stamps.omg"), &program).unwrap();
+        let (succeeded, report) = run_both(project.path(), &["build.omg"]);
+        assert_eq!(succeeded, runs, "{report}");
+        if runs {
+            for receipt in ["native exit 0", "interp exit: 0"] {
+                assert!(report.lines().any(|line| line == receipt), "{report}");
+            }
+        } else {
+            // The checker names the member whose body holds the removal.
+            let (prefix, _) = program.split_once("probe() -> i64 {").unwrap();
+            let line = prefix.lines().count();
+            assert!(
+                report.contains("removal of a domain governed by an access policy")
+                    && report.contains("the body of `main::StampedProbe::probe`")
+                    && report.contains(&format!("stamps.omg:{line}:13")),
+                "{report}"
+            );
+        }
+    }
+}
