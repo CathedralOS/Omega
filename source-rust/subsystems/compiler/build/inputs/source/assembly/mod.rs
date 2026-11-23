@@ -118,8 +118,18 @@ pub struct DeferredProductSources {
 
 impl ImmutableSourceParseCheckpoint {
     pub fn assemble(
+        self,
+        package_inputs: Option<&PackageCompilationInputs>,
+        timings: &mut CompileTimings,
+        catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
+    ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
+        self.assemble_sources(package_inputs, None, timings, catalogue)
+    }
+
+    fn assemble_sources(
         mut self,
         package_inputs: Option<&PackageCompilationInputs>,
+        product: Option<checkpoint::ProductSourceSelection<'_>>,
         timings: &mut CompileTimings,
         catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
@@ -146,6 +156,9 @@ impl ImmutableSourceParseCheckpoint {
             )?,
             None => Vec::new(),
         };
+        if let Some(product) = product {
+            product.seed(&mut source_storage, &mut imports, package_inputs)?;
+        }
         macro_rules! load_phase {
             ($phase:expr) => {
                 load_imports(

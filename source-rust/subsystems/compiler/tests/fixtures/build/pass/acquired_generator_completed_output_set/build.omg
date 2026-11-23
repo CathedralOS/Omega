@@ -40,7 +40,7 @@ machine build(builder: @mutable Build) {
         let declaration: [u8; 34] = build_support\generate_declaration();
         _ = BuildOutput::write(@mutable builder.output, source_writer, @declaration[..]);
         _ = BuildOutput::close(@mutable builder.output, source_writer);
-        BuildOutput::include_source(@mutable builder.output, generated);
+        Build::include_source(builder, "generated.omg", @declaration[..]);
         let source_completion: OutputCompletion = BuildOutput::complete(@mutable builder.output, source, generated);
         settle(builder, source_completion);
     }

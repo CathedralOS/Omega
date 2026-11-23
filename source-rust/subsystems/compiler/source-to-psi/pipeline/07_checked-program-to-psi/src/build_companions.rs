@@ -522,6 +522,7 @@ fn request_operation(name: &str) -> Result<TerminalBuildRequestOperation, Diagno
         "register_git_dependency" => Request::GitDependency,
         "prepare_dependency" => Request::PrepareDependency,
         "write_log" => Request::LogLine,
+        "publish_source" => Request::PublishSource,
         other => return Err(unknown("BuildRequestOperations", other)),
     })
 }
@@ -538,7 +539,6 @@ fn filesystem_operation(name: &str) -> Result<TerminalBuildFilesystemOperation, 
         "create" => Operation::Create,
         "write" => Operation::Write,
         "close_output" => Operation::CloseOutput,
-        "include_source" => Operation::IncludeSource,
         "require" => Operation::Require,
         "can_complete" => Operation::CanComplete,
         "complete" => Operation::Complete,

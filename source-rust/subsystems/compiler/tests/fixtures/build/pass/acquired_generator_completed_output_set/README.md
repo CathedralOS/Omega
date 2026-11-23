@@ -4,7 +4,8 @@ This is the Linux completed-export admission witness for
 **BUILD-SNAPSHOT-OUTPUTS**. The root acquires a generator by `Source::Path` in
 both Build and Product contexts. Its Build reads `template.txt` from captured
 source and passes only six bytes to the package-local `build_support` helper. The helper produces the
-companion payload and a later-stratum source declaration. Both files must seal
+companion payload and the generated declaration. The Build passes the declaration
+bytes to `Build::include_source`, then completes its promised file. Both files must seal
 and complete before their shared output-set manifest is published. Authored
 product source calls the ordinary product helper, not a declaration generated
 by its own Build.
@@ -18,7 +19,8 @@ joins both purposes. Explicit cross-package execution is pinned separately by
 `explicit_provider_readiness_exit` and its private-backing refusal control.
 This fixture does not establish a shared custom generator interface.
 
-`omega run --both main.omg` exits 0 in native and Terminal execution. The
+`omega run --both build.omg` selects the project’s declared entry. The expected
+result is native/Psi agreement at exit 0. The
 publication oracle requires exactly `companion.txt` and `generated.omg` under
 the committed set's `files/` directory. The Linux host workflow is exercised by
 `python3 tests/product/completed_outputs/check.py --omega <fresh-omega>`:

@@ -16,15 +16,15 @@ suspends
     machine emit(builder: @mutable Build) {
         let template: BuildPath = BuildSource::resolve(@builder.source, "template.txt");
         let reader: i32 = BuildSource::open(@builder.source, template, 0);
-        let mutable bytes: [u8; 45];
-        _ = BuildSource::read(@builder.source, reader, @mutable bytes[..], 45);
+        let mutable bytes: [u8; 83];
+        _ = BuildSource::read(@builder.source, reader, @mutable bytes[..], 83);
         let _closed_reader: i32 = BuildSource::close(@builder.source, reader);
         let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "generated.omg");
         let generated: BuildPath = BuildOutput::resolve(@builder.output, "generated.omg");
         let writer: i32 = BuildOutput::create(@mutable builder.output, generated, 0);
         _ = BuildOutput::write(@mutable builder.output, writer, @bytes[..]);
         let _sealed: i32 = BuildOutput::close(@mutable builder.output, writer);
-        BuildOutput::include_source(@mutable builder.output, generated);
+        Build::include_source(builder, "generated.omg", @bytes[..]);
         let settled: OutputCompletion = BuildOutput::complete(@mutable builder.output, obligation, generated);
         settle(builder, settled);
     }
