@@ -41,6 +41,16 @@ impl Invocation {
         );
     }
 
+    fn changed_sweep(&self, extra: &[&str]) -> Output {
+        Command::new(env!("CARGO_BIN_EXE_xtask"))
+            .current_dir(self.0.join("nested"))
+            .args(["sweep", "--list", "--changed", "HEAD^", "--omega"])
+            .arg(env!("CARGO_BIN_EXE_xtask")) // List selection never executes the compiler.
+            .args(extra)
+            .output()
+            .unwrap()
+    }
+
     fn audit(&self, explicit: bool) -> Output {
         let mut command = Command::new(env!("CARGO_BIN_EXE_xtask"));
         command
@@ -284,20 +294,11 @@ fn changed_compiler_sweep_guards_programs_from_the_invocation_checkout() {
     invocation.git(&["commit", "-qm", "compiler change"]);
     fs::write(invocation.0.join("previous.tsv"), previous).unwrap();
 
-    let sweep = |extra: &[&str]| {
-        Command::new(env!("CARGO_BIN_EXE_xtask"))
-            .current_dir(invocation.0.join("nested"))
-            .args(["sweep", "--list", "--changed", "HEAD^", "--omega"])
-            .arg(env!("CARGO_BIN_EXE_xtask")) // List selection never executes the compiler.
-            .args(extra)
-            .output()
-            .unwrap()
-    };
-    let missing = sweep(&[]);
+    let missing = invocation.changed_sweep(&[]);
     assert!(!missing.status.success());
     assert!(String::from_utf8_lossy(&missing.stderr).contains("--previous"));
     let arguments = ["--previous", "../previous.tsv"];
-    let selected = sweep(&arguments);
+    let selected = invocation.changed_sweep(&arguments);
     assert!(
         selected.status.success(),
         "{}",
@@ -315,7 +316,7 @@ fn changed_compiler_sweep_guards_programs_from_the_invocation_checkout() {
         "diff.external",
         "missing-omega-sweep-diff-for-test",
     ]);
-    let failed = sweep(&arguments);
+    let failed = invocation.changed_sweep(&arguments);
     assert!(!failed.status.success());
     assert!(String::from_utf8_lossy(&failed.stderr).contains("git diff"));
 
@@ -325,10 +326,67 @@ fn changed_compiler_sweep_guards_programs_from_the_invocation_checkout() {
     fs::write(path, "").unwrap();
     invocation.git(&["add", fixture]);
     invocation.git(&["commit", "-qm", "fixture change"]);
-    let fixture_only = sweep(&[]);
+    let fixture_only = invocation.changed_sweep(&[]);
     assert!(fixture_only.status.success());
     assert_eq!(
         String::from_utf8(fixture_only.stdout).unwrap().trim(),
         fixture
+    );
+}
+
+#[test]
+fn changed_sweep_selects_the_consumer_of_a_child_packages_dependency() {
+    let invocation = Invocation::new(true);
+    invocation.git(&["init", "-q"]);
+    invocation.git(&["config", "user.name", "Sweep test"]);
+    invocation.git(&["config", "user.email", "sweep@example.invalid"]);
+    for folder in ["samples/app", "samples/independent"] {
+        fs::create_dir_all(invocation.0.join(folder)).unwrap();
+        fs::write(
+            invocation.0.join(folder).join("main.omg"),
+            "machine main() {}",
+        )
+        .unwrap();
+    }
+    for (package, location) in [
+        ("samples/app", "../../packages/lib"),
+        ("packages/lib", "vendor"),
+        ("packages/lib/vendor", "../../shared"),
+    ] {
+        let folder = invocation.0.join(package);
+        fs::create_dir_all(&folder).unwrap();
+        fs::write(
+            folder.join("build.omg"),
+            format!(r#"machine build(builder: @mutable Build) {{
+    Build::package(builder, "example");
+    let registered: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path {{ location: "{location}" }}));
+}}"#),
+        ).unwrap();
+    }
+    invocation.git(&["add", "."]);
+    invocation.git(&["commit", "-qm", "package dependencies"]);
+    // Changing a file inside lib would select app even if the sweep missed the vendor edge.
+    let shared = invocation.0.join("packages/shared");
+    fs::create_dir_all(&shared).unwrap();
+    fs::write(
+        shared.join("math.omg"),
+        "public machine one() -> u64 { 1u64 }",
+    )
+    .unwrap();
+    invocation.git(&["add", "packages/shared/math.omg"]);
+    invocation.git(&["commit", "-qm", "change shared math"]);
+
+    let selected = invocation.changed_sweep(&[]);
+    assert!(
+        selected.status.success(),
+        "{}",
+        String::from_utf8_lossy(&selected.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(selected.stdout)
+            .unwrap()
+            .lines()
+            .collect::<Vec<_>>(),
+        ["samples/app/main.omg"]
     );
 }

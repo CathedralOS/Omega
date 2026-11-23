@@ -656,7 +656,16 @@ fn direct_dependencies(root: &Path, folder: &str) -> Vec<String> {
         .split("location:")
         .skip(1)
         .filter_map(|rest| rest.split('"').nth(1))
-        .filter(|location| location.starts_with('.'))
+        .filter(|location| {
+            matches!(
+                Path::new(location).components().next(),
+                Some(
+                    std::path::Component::CurDir
+                        | std::path::Component::ParentDir
+                        | std::path::Component::Normal(_)
+                )
+            )
+        })
         .map(|location| normal(&format!("{folder}/{location}")))
         .collect()
 }
@@ -1343,8 +1352,7 @@ mod tests {
 
     #[test]
     fn dependencies_are_followed_to_the_end() {
-        // app depends on lib, lib on base, and base back on lib: the closure
-        // is both packages, once each.
+        // The child package leads outside its parent to base, which cycles back to lib.
         let root = std::env::temp_dir().join(format!("sweep-deps-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         let build = |folder: &str, location: &str| {
@@ -1356,11 +1364,17 @@ mod tests {
             .unwrap();
         };
         build("samples/app", "../../packages/lib");
-        build("packages/lib", "../base");
+        build("packages/lib/vendor", "../../base");
         build("packages/base", "../lib");
-        let roots = dependency_roots(&root, "samples/app/main.omg");
+        for location in ["./vendor", "vendor"] {
+            build("packages/lib", location);
+            assert_eq!(
+                dependency_roots(&root, "samples/app/main.omg"),
+                ["packages/base", "packages/lib", "packages/lib/vendor"],
+                "transitive dependencies through {location}"
+            );
+        }
         let _ = fs::remove_dir_all(&root);
-        assert_eq!(roots, ["packages/base", "packages/lib"]);
     }
 
     #[test]
