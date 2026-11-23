@@ -95,7 +95,7 @@ mod tests {
                         &context,
                         &[],
                         &[],
-                        &tables.values,
+                        &*tables.values,
                         activity,
                     );
                     completed.fetch_add(1, Ordering::SeqCst);
