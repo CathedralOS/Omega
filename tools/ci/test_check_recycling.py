@@ -116,7 +116,12 @@ class RecyclingBoundary(unittest.TestCase):
             (repo / "_recycling" / "impl.rs").write_text("")
             (repo / "src").mkdir()
             (repo / "src/lib.rs").write_text("mod active;")
-            (repo / "src/active.rs").symlink_to("../_recycling/impl.rs")
+            try:
+                (repo / "src/active.rs").symlink_to("../_recycling/impl.rs")
+            except OSError as refusal:
+                # Windows refuses symbolic links without Developer Mode or an
+                # administrator token; admission runs this test on Linux.
+                self.skipTest(f"this host cannot create symbolic links: {refusal}")
             (repo / "src/active.bin").symlink_to("../_recycling/impl.rs")
             subprocess.run(["git", "init", "--quiet"], cwd=repo, check=True)
             subprocess.run(["git", "add", "."], cwd=repo, check=True)
