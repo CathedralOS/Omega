@@ -27,8 +27,8 @@ pub(crate) use key::compiled_review_key;
 
 use key::{lineage_digest, resolution_digest};
 use package_compilation::{
-    CheckedSourceCacheLimits, ConsumedSourceUnit, IndependentComponentDescription,
-    PackageBuildHandoff, PackageSourceConsumptionCommitment,
+    ConsumedSourceUnit, IndependentComponentDescription, PackageBuildHandoff,
+    PackageSourceConsumptionCommitment,
 };
 use provider_acceptance::AcceptedSemanticBinding;
 use record_codec::{decode_record, encode_record};
@@ -126,7 +126,8 @@ impl CachedCompiledReview {
 
 pub(crate) struct CompiledReviewCache {
     directory: PathBuf,
-    limits: CheckedSourceCacheLimits,
+    max_records: usize,
+    max_record_bytes: u64,
 }
 
 impl CompiledReviewCache {
@@ -134,10 +135,8 @@ impl CompiledReviewCache {
         let metadata = std::fs::metadata(directory).ok()?;
         metadata.is_dir().then_some(Self {
             directory: directory.to_path_buf(),
-            limits: CheckedSourceCacheLimits {
-                max_records: DEFAULT_MAX_RECORDS,
-                max_record_bytes: DEFAULT_MAX_RECORD_BYTES,
-            },
+            max_records: DEFAULT_MAX_RECORDS,
+            max_record_bytes: DEFAULT_MAX_RECORD_BYTES,
         })
     }
 
@@ -179,10 +178,10 @@ impl CompiledReviewCache {
                 review.name,
                 crate::digest_encoder::hex(key),
                 payload.len(),
-                self.limits.max_record_bytes,
+                self.max_record_bytes,
             )
         });
-        if payload.len() as u64 > self.limits.max_record_bytes {
+        if payload.len() as u64 > self.max_record_bytes {
             return;
         }
         let mut trailer = Vec::with_capacity(payload.len() + 32);
@@ -237,7 +236,7 @@ impl CompiledReviewCache {
                 (written, entry.path())
             })
             .collect::<Vec<_>>();
-        let Some(excess) = (records.len() + 1).checked_sub(self.limits.max_records) else {
+        let Some(excess) = (records.len() + 1).checked_sub(self.max_records) else {
             return true;
         };
         records.sort();
@@ -277,7 +276,7 @@ pub(crate) fn record_compiled_review(
 
 #[cfg(test)]
 mod tests {
-    use super::{CheckedSourceCacheLimits, CompiledReviewCache};
+    use super::CompiledReviewCache;
     use std::process::id;
     use std::time::{Duration, SystemTime};
 
@@ -302,10 +301,8 @@ mod tests {
         written("staging.tmp", 50);
         let cache = CompiledReviewCache {
             directory: directory.clone(),
-            limits: CheckedSourceCacheLimits {
-                max_records: 2,
-                max_record_bytes: 1024,
-            },
+            max_records: 2,
+            max_record_bytes: 1024,
         };
         assert!(cache.make_room());
         let mut remaining = std::fs::read_dir(&directory)

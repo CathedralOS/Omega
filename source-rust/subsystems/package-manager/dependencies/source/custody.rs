@@ -30,16 +30,13 @@ pub(crate) struct PackageSourceCustody {
     selection_evidence: PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
     dependency_projections: DependencyProjections,
-    checked_source_cache_dir: Option<PathBuf>, // Storage location only; ignored by equality and semantic equivalence
     compiled_review_cache_dir: Option<PathBuf>, // Storage location only; ignored by equality and semantic equivalence
 }
 
-pub(crate) const CHECKED_SOURCE_CACHE_LANE: &str = "checked-source-cache";
 pub(crate) const COMPILED_REVIEW_CACHE_LANE: &str = "compiled-review-cache";
 
 #[derive(Debug, Clone)]
 pub(super) struct SourceCacheDirectories {
-    checked_source: PathBuf,
     compiled_review: PathBuf,
 }
 
@@ -47,13 +44,9 @@ impl SourceCacheDirectories {
     pub(super) fn retain(storage: &source_acquisition::SourceResolver) -> Option<Self> {
         let retained = (|| {
             storage.verify_path_identity()?;
-            let checked_source = storage
-                .external_local_sources()
-                .retain_child(CHECKED_SOURCE_CACHE_LANE)?;
             let compiled_review = retain_compiled_review_storage(storage)?;
             storage.verify_path_identity()?;
             Ok::<_, source_acquisition::SourceResolveError>(Self {
-                checked_source: checked_source.path().to_path_buf(),
                 compiled_review: compiled_review.path().to_path_buf(),
             })
         })();
@@ -61,9 +54,7 @@ impl SourceCacheDirectories {
     }
 
     pub(super) fn apply_to(&self, custody: PackageSourceCustody) -> PackageSourceCustody {
-        custody
-            .with_checked_source_cache_dir(self.checked_source.clone())
-            .with_compiled_review_cache_dir(self.compiled_review.clone())
+        custody.with_compiled_review_cache_dir(self.compiled_review.clone())
     }
 }
 
@@ -110,7 +101,6 @@ impl PackageSourceCustody {
             selection_evidence,
             source_limits,
             dependency_projections: projected_dependencies.into(),
-            checked_source_cache_dir: None,
             compiled_review_cache_dir: None,
         }
     }
@@ -125,15 +115,6 @@ impl PackageSourceCustody {
 
     pub fn captured_source(&self) -> Option<&Arc<source_capture::CapturedSourceTree>> {
         self.captured_source.as_ref()
-    }
-
-    pub(crate) fn with_checked_source_cache_dir(mut self, directory: PathBuf) -> Self {
-        self.checked_source_cache_dir = Some(directory);
-        self
-    }
-
-    pub(crate) fn checked_source_cache_dir(&self) -> Option<&Path> {
-        self.checked_source_cache_dir.as_deref()
     }
 
     pub(crate) fn with_compiled_review_cache_dir(mut self, directory: PathBuf) -> Self {

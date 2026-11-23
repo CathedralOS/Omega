@@ -10,9 +10,7 @@ the root.
 
 /*
 `compilation_inputs_reusing` captures the root's canonical build-source metadata once
-per `(identity, source_root)` pair and reuses it across passes and purposes for that
-root, consulting the self-verifying `CheckedSourceCache` when a persisted source
-supplies a checked-source cache directory.
+per `(identity, source_root)` pair and reuses it across passes for that root.
 */
 
 use crate::resolution::graph::ResolvedPackageSourceClosure;
@@ -171,13 +169,6 @@ fn binding_with_canonical_source_metadata(
     if let Some(tree) = custody.captured_source() {
         return binding
             .with_captured_source(std::sync::Arc::clone(tree))
-            .map_err(invalid);
-    }
-    if let Some(directory) = custody.checked_source_cache_dir()
-        && let Ok(cache) = package_compilation::CheckedSourceCache::open_or_create(directory)
-    {
-        return binding
-            .with_cached_canonical_source_metadata(&cache)
             .map_err(invalid);
     }
     binding.with_canonical_source_metadata().map_err(invalid)

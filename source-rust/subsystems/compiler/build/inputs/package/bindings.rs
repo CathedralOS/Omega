@@ -62,22 +62,6 @@ impl PackageSourceBinding {
         Ok(self)
     }
 
-    pub fn with_cached_canonical_source_metadata(
-        mut self,
-        cache: &crate::reuse::checked_source_cache::CheckedSourceCache,
-    ) -> Result<Self, String> {
-        if self.captured_source.is_some() {
-            return Ok(self);
-        }
-        self.canonical_source_metadata = Some(
-            cache
-                .capture(&self.source_root)?
-                .canonical_source_metadata()
-                .clone(),
-        );
-        Ok(self)
-    }
-
     pub const fn identity(&self) -> PackageKeyIdentity {
         self.identity
     }
