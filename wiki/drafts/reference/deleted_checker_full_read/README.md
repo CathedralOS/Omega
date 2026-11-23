@@ -9,8 +9,9 @@ delete this directory when that audit is deleted.
 The deletion was cut into 137 slices of about 8,000 lines. One reader took
 each slice, read it in order, and wrote one report. Every slice has a
 report, and the coverage logs account for all 875,311 lines in the slices.
-Two reports (080, 116) abbreviate file names in their logs; their ranges are
-complete.
+Thirteen reports shorten file names in their logs. `verify.py` lists each
+shortened name beside the file it stands for; without that table it counts
+795,020 lines and 124 complete slices.
 
 | Path | What it holds |
 | --- | --- |

@@ -1,38 +1,118 @@
-import os,re,sys
-S='/tmp/claude-0/-home-user-Omega/1601736f-52e4-5ba1-a47f-e8466f18ac78/scratchpad/full'
-rx=re.compile(r'READ\s+`?([^\s`]+)`?\s+(\d+)\s*[-–]\s*(\d+)')
-full=[];part=[];missing=[];tot=0;cov=0
-for i in range(1,138):
-    sid=f'{i:03d}'
-    spec=[l.rstrip('\n').split('\t') for l in open(f'{S}/slices/{sid}.txt') if not l.startswith('#') and l.strip()]
-    need=sum(int(b)-int(a)+1 for _,a,b in spec); tot+=need
-    rp=f'{S}/reports/{sid}.md'
-    if not os.path.isfile(rp): missing.append(sid); continue
-    text=open(rp,encoding='utf-8',errors='replace').read()
-    reads={}
-    for m in rx.finditer(text):
-        reads.setdefault(os.path.basename(m.group(1)),[]).append((int(m.group(2)),int(m.group(3))))
-    got=0; gaps=[]
-    # files with same basename within a slice: fall back to pooled ranges per basename
-    byname={}
-    for p,a,b in spec: byname.setdefault(os.path.basename(p),[]).append((int(a),int(b)))
-    for name,ranges in byname.items():
-        rs=sorted(reads.get(name,[]))
-        for a,b in ranges:
-            covered=0; cur=a
-            for x,y in rs:
-                if y<cur or x>b: continue
-                if x>cur: gaps.append((name,cur,x-1))
-                cur=max(cur,min(y,b)+1)
-            if cur<=b: gaps.append((name,cur,b))
-            covered=(b-a+1)-sum(g[2]-g[1]+1 for g in gaps if g[0]==name and g[1]>=a and g[2]<=b)
-            got+=max(0,covered)
-    cov+=got
-    done='## Surprises' in text and re.search(r'NOT READ', text)
-    if got>=need and done: full.append(sid)
-    else: part.append((sid,need,got,len(gaps),bool(done)))
-print(f'lines assigned {tot}; lines logged as read {cov} ({100*cov/tot:.1f}%)')
-print(f'fully logged and finished: {len(full)}; partial: {len(part)}; no report file: {len(missing)}')
-print('partial:',' '.join(f'{s}({g}/{n}{"" if d else ",unfinished"})' for s,n,g,k,d in part))
-print('missing:',' '.join(missing))
-open(S+'/todo.txt','w').write(' '.join([p[0] for p in part]+missing))
+"""Compare each reader's logged line ranges with the ranges its slice assigned.
+
+Run from anywhere: `python3 verify.py`. It reads `slices/NNN.txt` and
+`reports/NNN.md` beside this file and prints how many assigned lines the
+reports log as read.
+
+A report logs a read as `READ <file name> <first>-<last>`. Thirteen reports
+shortened the file name. ALIASES maps each shortened name to the slice file it
+stands for, so a reviewer can see every mapping this check relies on. Without
+the table the count is 795,020 of 875,311 lines and 124 of 137 slices.
+
+This checks the logs, not the reading: a logged range shows that the reader
+claimed the lines, and nothing here can show that it read them with care.
+"""
+
+import os
+import re
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+READ = re.compile(r"READ\s+`?([^\s`]+)`?\s+(\d+)\s*[-–]\s*(\d+)")
+
+# slice -> {name the report used: file name in the slice}
+ALIASES = {
+    "038": {
+        "cleanup_dispositions.rs": "checks_multiplicity_cleanup_dispositions.rs",
+        "linear_validation.rs": "checks_multiplicity_linear_validation.rs",
+        "permission_events.rs": "checks_multiplicity_permission_events.rs",
+    },
+    "051": {"seq.rs": "execution_terminal_unit_control_statement_sequence.rs"},
+    "052": {"seq.rs": "execution_terminal_unit_control_statement_sequence.rs"},
+    "080": {"a_b.rs": "admissibility_and_borrow.rs"},
+    "109": {"CE": "contract_entailment.rs"},
+    "110": {"DC": "declarations_core.rs"},
+    "111": {"dp.rs": "domains_and_predicates.rs"},
+    "114": {"F": "expression_types_and_fields.rs"},
+    "116": {"F": "frozen_program_and_queries.rs", "L": "lib.rs"},
+    "117": {"F": "literals_and_struct_literals.rs"},
+    "129": {"rrc": "reference_result_custody.rs"},
+    "132": {"F": "type_references_and_wire.rs"},
+    "137": {"diff": "other_changes.diff"},
+}
+
+
+def assigned(slice_id):
+    """The (file name, first, last) ranges a slice assigns."""
+    ranges = []
+    with open(os.path.join(HERE, "slices", slice_id + ".txt")) as lines:
+        for line in lines:
+            if line.startswith("#") or not line.strip():
+                continue
+            path, first, last = line.rstrip("\n").split("\t")
+            ranges.append((os.path.basename(path), int(first), int(last)))
+    return ranges
+
+
+def logged(slice_id, text):
+    """The ranges a report logs, grouped by slice file name."""
+    aliases = ALIASES.get(slice_id, {})
+    reads = {}
+    for name, first, last in READ.findall(text):
+        name = aliases.get(name, os.path.basename(name))
+        reads.setdefault(name, []).append((int(first), int(last)))
+    return reads
+
+
+def uncovered(first, last, reads):
+    """How many lines of first..=last no logged range covers."""
+    missing = 0
+    cursor = first
+    for start, end in sorted(reads):
+        if end < cursor or start > last:
+            continue
+        if start > cursor:
+            missing += start - cursor
+        cursor = max(cursor, min(end, last) + 1)
+    if cursor <= last:
+        missing += last - cursor + 1
+    return missing
+
+
+def main():
+    total = covered = 0
+    complete, partial, absent = [], [], []
+    for number in range(1, 138):
+        slice_id = f"{number:03d}"
+        ranges = assigned(slice_id)
+        need = sum(last - first + 1 for _, first, last in ranges)
+        total += need
+        report = os.path.join(HERE, "reports", slice_id + ".md")
+        if not os.path.isfile(report):
+            absent.append(slice_id)
+            continue
+        with open(report, encoding="utf-8", errors="replace") as handle:
+            text = handle.read()
+        reads = logged(slice_id, text)
+        got = sum(
+            (last - first + 1) - uncovered(first, last, reads.get(name, []))
+            for name, first, last in ranges
+        )
+        covered += got
+        finished = "## Surprises" in text and "NOT READ" in text
+        if got == need and finished:
+            complete.append(slice_id)
+        else:
+            partial.append(f"{slice_id}({got}/{need})")
+    print(f"lines assigned {total}; lines logged as read {covered}")
+    print(
+        f"slices fully logged and finished: {len(complete)}; "
+        f"partial: {len(partial)}; no report: {len(absent)}"
+    )
+    if partial:
+        print("partial:", " ".join(partial))
+    if absent:
+        print("no report:", " ".join(absent))
+
+
+if __name__ == "__main__":
+    main()
