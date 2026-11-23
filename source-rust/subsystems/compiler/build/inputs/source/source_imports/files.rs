@@ -182,21 +182,19 @@ impl<'a> FileImport<'a> {
         if let Some(target) = inputs.dependency_target_for_purpose(requester, purpose, root) {
             return Ok(Some(target));
         }
+        // The same written import may be used by a designated Product operand.
+        // A missing host dependency stays pending until an ordinary Build use demands it.
+        if purpose == DependencyPurpose::Build {
+            return Ok(None);
+        }
         if inputs
-            .dependency_target_for_purpose(
-                requester,
-                super::package_selection::other_purpose(purpose),
-                root,
-            )
+            .dependency_target_for_purpose(requester, DependencyPurpose::Build, root)
             .is_some()
         {
             return Err(self.error(format!(
                 "dependency `{root}` is unavailable in the {} scope",
                 purpose.name()
             )));
-        }
-        if purpose == DependencyPurpose::Build {
-            return Ok(None);
         }
         Err(self.error(format!(
             "no direct {} dependency named `{root}` supplies `{}`",
