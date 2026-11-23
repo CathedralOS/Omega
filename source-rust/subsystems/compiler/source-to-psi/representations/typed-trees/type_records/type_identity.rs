@@ -4568,7 +4568,7 @@ pub(crate) mod package_policy_reading_tests {
                 let mut sources = SourceMap::default();
                 let package_sources = [1u8, 2, 3, 4].map(|package| {
                     let file = sources.add_with_metadata(
-                        PathBuf::from(format!("package{package}.omg")),
+                        PathBuf::from(format!("package/package{package}.omg")),
                         text.clone(),
                         PathBuf::from("package"),
                         PackageKeyIdentity::from_digest([package; 32]),
@@ -11049,7 +11049,7 @@ mod nested_callback_region_tests {
         let mut sources = SourceMap::default();
         let source = sources
             .add_with_metadata(
-                PathBuf::from("nested_callback_regions.omg"),
+                PathBuf::from("nested_callback_regions/nested_callback_regions.omg"),
                 "environment".to_owned(),
                 PathBuf::from("nested_callback_regions"),
                 PackageKeyIdentity::from_digest([7; 32]),

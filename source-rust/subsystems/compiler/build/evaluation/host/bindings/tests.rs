@@ -34,14 +34,20 @@ fn produce(build: &str) -> source_compiler::publication::ProducedTerminalProgram
     let mut sources = source_compiler::representations::source_inputs::SourceMap::default();
     let mut syntax = None;
     let mut ids = Vec::new();
-    for (path, text, origin) in [
+    // The compiler admits the Build prelude with its own coordinate as both
+    // path and root and no package owner, so it is no file of `package`.
+    for (path, root, owner, text, origin) in [
         (
             "package/build.omg",
+            "package",
+            Some(package),
             build,
             source_admission::SourceOrigin::User,
         ),
         (
-            "<build-prelude>",
+            source_admission::source_identity::BUILD_PRELUDE_ROOT,
+            source_admission::source_identity::BUILD_PRELUDE_ROOT,
+            None,
             PRELUDE,
             source_admission::SourceOrigin::Toolchain,
         ),
@@ -50,8 +56,8 @@ fn produce(build: &str) -> source_compiler::publication::ProducedTerminalProgram
             .add_checked_instance(
                 path.into(),
                 text,
-                "package".into(),
-                Some(package),
+                root.into(),
+                owner,
                 origin,
                 source_admission::SourceResolutionStratum::Base,
                 source_provenance::DependencyScope::Build,

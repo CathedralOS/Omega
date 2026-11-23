@@ -168,3 +168,34 @@ fn a_local_is_not_in_scope_in_its_own_initializer() {
         )]
     );
 }
+
+/// `use limits.omg;` binds the alias `limits` to that file, and
+/// `|limits|::LIMIT` selects the constant it declares
+/// (`wiki/spec/language/modules.md`, "Names and imports"). Name resolution
+/// binds the file itself when no compiler loader supplied the alias, so a
+/// program checked from its sources alone reads the same declaration the
+/// Build would bind. In the twins only the import changes: under another
+/// alias, or with no import at all, `|limits|::LIMIT` selects nothing, and
+/// the read never falls back to the file's declaration by its name.
+#[test]
+fn a_file_alias_selects_the_declaration_of_the_file_it_imports() {
+    let value = ("limits.omg", "public const LIMIT: u8 = 7;\n");
+    let read = "machine read() -> u8 { |limits|::LIMIT }\n";
+    let imported = format!("use limits.omg;\n{read}");
+    let trees = resolved(&[("main.omg", &imported), value]);
+    assert_eq!(
+        uses(&trees, "|limits|::LIMIT"),
+        [(
+            (0, imported.rfind("|limits|").unwrap()),
+            declared("Const", "LIMIT", 1, 13)
+        )]
+    );
+    for twin in [format!("use limits.omg as other;\n{read}"), read.to_owned()] {
+        let trees = resolved(&[("main.omg", &twin), value]);
+        assert_eq!(
+            uses(&trees, "|limits|::LIMIT"),
+            [((0, twin.rfind("|limits|").unwrap()), None)],
+            "{twin}"
+        );
+    }
+}

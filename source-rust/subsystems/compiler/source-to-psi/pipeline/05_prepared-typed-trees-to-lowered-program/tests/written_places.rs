@@ -327,14 +327,10 @@ fn without_type_numbers(text: &str) -> String {
 
 #[test]
 fn a_returned_record_names_the_parameter_the_body_names_in_either_file_order() {
-    // The other file declares a record and a machine of its own, so reading
-    // it first changes the order every declaration is met in. The stage
-    // harness does not bind file imports (the Build does), so `select`
-    // names only its own file's type.
-    let other = (
-        "product/other.omg",
-        "data Other [copy] { w: u16; }\nmachine keep(o: Other) -> Other { o }\n",
-    );
+    // `select` names the record its file imports from `cell.omg`
+    // (`wiki/spec/language/modules.md`, "Names and imports"), so reading
+    // that file first changes the order every declaration is met in.
+    let cell = ("product/cell.omg", "public data Cell [copy] { v: u8; }\n");
     let returned_place = |files: &[(&str, &str)], position: usize| {
         let program = Program::try_of(files).unwrap_or_else(|refusal| panic!("{refusal:?}"));
         let lowered = program.lower();
@@ -370,11 +366,11 @@ fn a_returned_record_names_the_parameter_the_body_names_in_either_file_order() {
     };
     for (body, position) in [("a", 0), ("b", 1)] {
         let select = format!(
-            "data Cell [copy] {{ v: u8; }}\nmachine select(a: Cell, b: Cell) -> Cell {{ {body} }}\n"
+            "use cell.omg;\nmachine select(a: |cell|::Cell, b: |cell|::Cell) -> |cell|::Cell {{ {body} }}\n"
         );
         let main = ("product/main.omg", select.as_str());
-        let forward = returned_place(&[main, other], position);
-        let backward = returned_place(&[other, main], position);
+        let forward = returned_place(&[main, cell], position);
+        let backward = returned_place(&[cell, main], position);
         assert_eq!(forward, backward, "{body}");
     }
 }

@@ -232,6 +232,15 @@ impl<'base> ConstantSelection<'base> {
                     }
                 }
                 Item::Use(syntax_trees::item::UseItem::Namespace { path }) => namespaces.record_import(syntax, *path),
+                Item::Use(syntax_trees::item::UseItem::File {
+                    root,
+                    components,
+                    alias,
+                    span,
+                    only_product_operands: false,
+                }) => {
+                    namespaces.record_file_import(syntax, root.as_ref(), *components, alias, *span)
+                }
                 _ => {}
             }
         }
