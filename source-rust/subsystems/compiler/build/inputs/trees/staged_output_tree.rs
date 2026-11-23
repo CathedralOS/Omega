@@ -16,7 +16,8 @@ Commitment rules (`OMEGA-BUILD-STAGED-OUTPUT-TREE\0`, schema v2):
 - `from_retained_parts` sorts decoded rows, rejects duplicate or non-canonical
   paths, recomputes the commitment, and fails closed if it disagrees with the
   recorded commitment.
-- `select_included_sources` enforces that every `.omg` file in the staged tree
+- Older saved Builds selected generated source from closed output files.
+  `recover_included_output_sources` checks that every `.omg` file in that tree
   has an explicit `BuildOutput::include_source` handoff, forbids reserved
   discovery names (`build.omg`, `main.omg`) and executable `.omg` files, and
   recomputes each generated source's content digest.
@@ -95,6 +96,38 @@ pub struct PackageGeneratedSource {
 }
 
 impl PackageGeneratedSource {
+    pub fn validate_publication(logical_name: &[u8], bytes: &[u8]) -> Result<(), String> {
+        let valid_name = std::str::from_utf8(logical_name)
+            .ok()
+            .and_then(|name| name.strip_suffix(".omg"))
+            .is_some_and(|stem| {
+                stem.split('/').all(|component| {
+                    !component.is_empty()
+                        && component.chars().all(|character| {
+                            character.is_alphanumeric() || matches!(character, '_' | '-')
+                        })
+                })
+            });
+        if !valid_name
+            || !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(
+                logical_name,
+                false,
+            )
+        {
+            return Err(format!(
+                "invalid generated source filename \"{}\": expected a package-relative .omg filename",
+                logical_name.escape_ascii()
+            ));
+        }
+        std::str::from_utf8(bytes).map_err(|_| {
+            format!(
+                "generated source \"{}\" must contain UTF-8 bytes",
+                logical_name.escape_ascii()
+            )
+        })?;
+        Ok(())
+    }
+
     #[doc(hidden)]
     pub fn from_retained_parts(relative_path: Vec<u8>, bytes: Arc<[u8]>) -> Self {
         let digest: [u8; 32] = crate::digest_encoder::content_identity(bytes.as_ref());
@@ -366,7 +399,7 @@ pub fn empty() -> BuildStagedOutputTree {
     finish_commitment(Vec::new())
 }
 
-pub fn select_included_sources(
+pub fn recover_included_output_sources(
     tree: &BuildStagedOutputTree,
     relative_paths: &[Vec<u8>],
 ) -> Result<Vec<PackageGeneratedSource>, Vec<Diagnostic>> {
