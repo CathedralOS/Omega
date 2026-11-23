@@ -10,6 +10,8 @@ pub(crate) use source_completion_accounting::{
 pub use source_symbol_table::source_inputs::InvocationSourceConsent;
 mod demand_order;
 mod demanded_values;
+#[cfg(test)]
+pub(crate) use demanded_values::EvaluatedValues;
 pub(crate) use demanded_values::{ValueDemand, evaluate_demanded_values};
 mod domain_access_plans;
 mod fixed_layouts;

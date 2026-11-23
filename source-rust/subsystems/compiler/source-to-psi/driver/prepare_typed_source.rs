@@ -92,7 +92,7 @@ impl<'request> SourcePreparationRequest<'request> {
             // Layouts, access plans, const arguments and constants can each
             // need another, so they are evaluated in the order their reads
             // require rather than kind by kind.
-            let values = crate::compile_time_invocations::evaluate_demanded_values(
+            let evaluated = crate::compile_time_invocations::evaluate_demanded_values(
                 &mut program,
                 &crate::compile_time_invocations::ValueDemand {
                     compilation: self.compilation,
@@ -102,13 +102,17 @@ impl<'request> SourcePreparationRequest<'request> {
                 },
                 &mut accounting,
             )?;
-            crate::compile_time_invocations::validate_constant_evaluations(&program, &accounting)
-                .map_err(|reason| {
+            crate::compile_time_invocations::validate_constant_evaluations(
+                &program,
+                &accounting,
+                &evaluated.constant_reaches,
+            )
+            .map_err(|reason| {
                 vec![Diagnostic::error(format!(
                     "constant materialization receipt join: {reason}"
                 ))]
             })?;
-            Ok((program, values))
+            Ok((program, evaluated.inputs))
         })();
         accounting.release_constant_inputs();
         match result {

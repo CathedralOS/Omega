@@ -9,7 +9,7 @@ pub(super) use initializers::{Initializers, retain_evaluation_entries};
 use crate::source_state::TypedTrees;
 use crate::source_state::data::DataField;
 use crate::source_state::expression::ExpressionHandle;
-use crate::source_state::references::TypedReferences;
+use crate::source_state::references::{DeclarationSelection, TypedReferences};
 use application_identity::const_value::DecodedCanonicalConstValue;
 use symbols::SymbolHandle;
 
@@ -49,11 +49,127 @@ fn insert_expression(family: &mut Vec<ExpressionHandle>, expression: ExpressionH
     }
 }
 
+/// The declarations each evaluated constant's computation reached, sorted by
+/// constant. The demand order computed each row once, before any value ran,
+/// and made the constant wait for every value those declarations hold.
+#[derive(Debug, Default)]
+pub struct ConstantReaches {
+    rows: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
+}
+
+impl ConstantReaches {
+    pub(super) fn new(rows: impl IntoIterator<Item = (SymbolHandle, Vec<SymbolHandle>)>) -> Self {
+        let mut rows = rows.into_iter().collect::<Vec<_>>();
+        rows.sort_unstable_by_key(|(constant, _)| key(*constant));
+        Self { rows }
+    }
+
+    fn of(&self, constant: SymbolHandle) -> Option<&[SymbolHandle]> {
+        self.rows
+            .binary_search_by_key(&key(constant), |(constant, _)| key(*constant))
+            .ok()
+            .map(|index| self.rows[index].1.as_slice())
+    }
+}
+
+/// Requires every declaration in `reached` to read the same in `program` as
+/// in `source`, the program the constant was evaluated in: each type written
+/// in it, the layout planned for each of those types and for it as data, its
+/// access plan as a domain, and its value as a constant.
+///
+/// The demand order evaluated the constant only after every value those
+/// declarations hold. If it missed one, a later round changed what the
+/// constant read and this refuses. Declarations outside `reached` may differ:
+/// later rounds settle their own values.
+fn reached_declarations_unchanged(
+    source: &TypedTrees,
+    program: &TypedTrees,
+    reached: &[SymbolHandle],
+) -> Result<(), &'static str> {
+    let is_reached = |symbol: SymbolHandle| family_position(reached, symbol).is_some();
+    let layout_reads_the_same =
+        |before: Option<&crate::source_state::PlanLaidLayout>,
+         after: Option<&crate::source_state::PlanLaidLayout>| {
+            match (before, after) {
+                (None, None) => true,
+                (Some(before), Some(after)) => {
+                    before == after
+                        && before.target_layouts(source) == after.target_layouts(program)
+                }
+                _ => false,
+            }
+        };
+    const TYPE: &str = "constant receipt read a type that changed after the constant was evaluated";
+    const LAYOUT: &str =
+        "constant receipt read a layout that changed after the constant was evaluated";
+    let selection = DeclarationSelection::from_symbols(reached.iter().copied());
+    let references =
+        crate::source_state::references::collect_selected_program_references(program, &selection);
+    for &reference in &references.type_references {
+        if !source
+            .type_reference_table
+            .contains_type_reference(reference)
+            || source.type_reference_table.type_reference(reference)
+                != program.type_reference_table.type_reference(reference)
+        {
+            return Err(TYPE);
+        }
+        if !layout_reads_the_same(
+            source.plan_laid_layout_for_type(reference),
+            program.plan_laid_layout_for_type(reference),
+        ) {
+            return Err(LAYOUT);
+        }
+    }
+    let mut before = source
+        .plan_laid_layouts
+        .iter()
+        .filter(|plan| is_reached(plan.data_symbol));
+    let mut after = program
+        .plan_laid_layouts
+        .iter()
+        .filter(|plan| is_reached(plan.data_symbol));
+    loop {
+        match (before.next(), after.next()) {
+            (None, None) => break,
+            (before, after) if layout_reads_the_same(before, after) => {}
+            _ => return Err(LAYOUT),
+        }
+    }
+    for (_, domain) in program.domain_definitions.iter() {
+        if !is_reached(domain.symbol) {
+            continue;
+        }
+        let earlier = source
+            .domain_definitions
+            .iter()
+            .find(|(_, earlier)| earlier.symbol == domain.symbol)
+            .map(|(_, earlier)| &earlier.access_policy);
+        if earlier != Some(&domain.access_policy) {
+            return Err(
+                "constant receipt read an access plan that changed after the constant was \
+                 evaluated",
+            );
+        }
+    }
+    for constant in program.const_declarations() {
+        if is_reached(constant.symbol)
+            && source.const_declaration_by_symbol(constant.symbol) != Some(constant)
+        {
+            return Err(
+                "constant receipt read a constant that changed after the constant was evaluated",
+            );
+        }
+    }
+    Ok(())
+}
+
 /// Check each computed constant against the invocation that evaluated it.
 /// The requester, source program and returned value must agree.
 pub fn validate_constant_evaluations(
     program: &TypedTrees,
     accounting: &SourceCompletionAccounting,
+    reaches: &ConstantReaches,
 ) -> Result<(), String> {
     accounting.validate_charges()?;
     let mut wanted = program
@@ -189,9 +305,14 @@ pub fn validate_constant_evaluations(
             // The receipt's source is the program of the round that evaluated
             // this constant (`Initializers` ties the two when the receipt is
             // recorded). Values that settled in later rounds changed their own
-            // types, layouts and plans since, so the two programs differ by
-            // design. What this constant read is compared below: its
-            // declaration, and every expression its initializer reaches.
+            // types, layouts and plans since, so the two programs differ
+            // outside what this constant read. Inside it they must not: the
+            // declarations its computation reached, its own declaration, and
+            // every expression its initializer reaches are compared exactly.
+            let reached = reaches
+                .of(constant.symbol)
+                .ok_or("constant receipt has no recorded reach")?;
+            reached_declarations_unchanged(source, program, reached)?;
             let original = source
                 .const_declaration_by_symbol(constant.symbol)
                 .ok_or("constant receipt lost its original requesting declaration")?;
