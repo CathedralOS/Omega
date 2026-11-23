@@ -1,0 +1,36 @@
+name: Verify exact file selection
+on:
+  push:
+    branches: [work/verify-posix-filesystem-imports]
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      MBX_GC_AUTO: 'false'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_DEV_OPT_LEVEL: '1'
+      CARGO_INCREMENTAL: '0'
+      OMEGA_MBX_INSTALL_CACHE: /tmp/omega-mbx-install
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Identify the build tool
+        id: key
+        run: echo "key=$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: /tmp/omega-mbx-install/artifacts
+          key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.key.outputs.key }}
+      - name: Run the wire protocol that imports the standard library
+        run: |
+          git checkout --detach fd1bf55a54e8d6c748f0067ef223552e5c7c58c8
+          bash tools/xtask/bootstrap-mbx.sh --install-dir "$RUNNER_TEMP/bin"
+          export OMEGA_LIBRARY_ROOT="$PWD/source/library"
+          "$RUNNER_TEMP/bin/mbx" test --no-fail-fast --locked -p omega --test reflected_field_inspection -- the_wire_program_round_trips_thirteen_bytes_and_every_field --nocapture < /dev/null
+
+
