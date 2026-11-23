@@ -465,7 +465,11 @@ fn a_denied_cast_names_its_domain_and_exact_source_without_weakening_artifact_ch
         .site
         .expect("the cast retains its source span")
         .span;
-    assert_eq!(&source[span.start..span.end], "ticket as +Stamped");
+    assert_eq!(&source[span.start..span.end], "+");
+    assert_eq!(
+        span.start,
+        source.find("ticket as +Stamped").unwrap() + "ticket as ".len()
+    );
 }
 
 #[test]
@@ -737,9 +741,10 @@ fn normal_result_membership_rejects_missing_facts_and_wrong_subjects() {
                 "{name}: {violations:?}"
             );
             let span = violations[0].site.unwrap().span;
+            assert_eq!(&NORMAL_MEMBERSHIP[span.start..span.end], "+");
             assert_eq!(
-                &NORMAL_MEMBERSHIP[span.start..span.end],
-                "plain as +Stamped"
+                span.start,
+                NORMAL_MEMBERSHIP.find("plain as +Stamped").unwrap() + "plain as ".len()
             );
         } else {
             let refusal = verdict.expect_err(name);
@@ -891,7 +896,11 @@ fn normal_result_membership_does_not_survive_alias_writes_or_value_changes() {
         "{violations:?}"
     );
     let span = violations[0].site.unwrap().span;
-    assert_eq!(&alias_write[span.start..span.end], "plain as +Stamped");
+    assert_eq!(&alias_write[span.start..span.end], "+");
+    assert_eq!(
+        span.start,
+        alias_write.find("plain as +Stamped").unwrap() + "plain as ".len()
+    );
     let refusal = judge(invocation(&changed_value)).unwrap_err();
     assert!(
         refusal
