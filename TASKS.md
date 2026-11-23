@@ -136,7 +136,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **OPERATION-ARITHMETIC-POLICY.** Implement [policy operators](wiki/spec/language/numeric_values.md#policy-operators) and their [declared policy-domain overloads](wiki/spec/language/numeric_values.md#policy-domains). Preserve exact qualified/plain signatures through selection, lowered-form checking and realization; no implicit conversions or surrounding-policy propagation.
   - Retain each selected operation's exact carrier and policy in canonical callable/index identities. Raw non-Exact recipes require that complete representation before they can publish an exact identity.
   - Verify the SHA-256 and wire customers after static-machine and qualification migration.
-  - Read a package's own `domain u8::Wrapping;` as that domain. `machine + add(x: u8 in Wrapping, y: u8) -> u8 in Wrapping` beside it is refused in resolution as a primitive-family binding ("operands that name no declared type or domain (u8[in Wrapping], u8)"), because `in Wrapping` is read as the builtin policy; `domains.md` makes the policies `omega\core` contributions, not reserved names.
 
 - **NAMED-DOMAIN-CASTS.** Implement [casts](wiki/drafts/designs/named_domain_casts.md).
 
