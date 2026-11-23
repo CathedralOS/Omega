@@ -148,6 +148,21 @@ path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/variant_parent
 required-features = ["test-support"]
 
 [[test]]
+name = "lowering_selected_calls"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/selected_calls.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_prepared_scalar_values"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/prepared_scalar_values.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_selected_operations"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/selected_operations.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "checking_owned_place_transfers"
 path = "pipeline/06_lowered-program-to-checked-program/tests/owned_place_transfers.rs"
 required-features = ["test-support"]

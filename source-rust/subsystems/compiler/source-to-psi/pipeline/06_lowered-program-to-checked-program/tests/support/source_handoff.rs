@@ -8,19 +8,27 @@
 //! clones that output, applies the caller's change and returns stage 06's
 //! verdict; `|_| {}` is the control, the verdict on the program as stage 05
 //! lowered it.
+//!
+//! Stage 05's own tests read the same product: `Program::prepared_with`
+//! changes one fact of stage 04's output, and `Program::lower_prepared`
+//! lowers it again and names its machines and operations by what the
+//! author wrote.
 #![allow(dead_code)]
 
 #[path = "../../../../../../../../tests/support/frontend.rs"]
 mod frontend;
 
-use semantic_vocabulary::{MachineId, OperationId, PackageKeyIdentity};
+use semantic_vocabulary::{MachineId, OperationId, PackageKeyIdentity, ValueId};
 use source_compiler::representations::source_inputs::SourceMap;
 use source_compiler::representations::source_state::TypedTrees;
+use source_compiler::representations::source_state::expression::{
+    ExpressionHandle, ExpressionNode,
+};
 use source_compiler::test_support::checking::{
     CompilationRefusal, RouteVerdict, judge_compilation,
 };
 use source_compiler::test_support::lowering::{self, Elaboration};
-use source_compiler::test_support::preparation::PreparedTypedTrees;
+use source_compiler::test_support::preparation::{self, PreparedTypedTrees};
 use source_compiler::test_support::{
     SourcePreparationRequest, TerminalSourceCompilation, prepare_source_for_test, resolution,
     typing,
@@ -31,7 +39,7 @@ use symbols::SymbolHandle;
 use terminal_check_tables::compilation::{PreparedCompilation, TerminalCompilation};
 use terminal_check_tables::program::SourceOrigin;
 use terminal_check_tables::{MachineTables, Refusal, RefusalReason};
-use terminal_psi::{Operation, OperationKind, TerminalMachine};
+use terminal_psi::{Operation, OperationKind, OperationResult, TerminalMachine, Terminator};
 
 pub const PACKAGE: [u8; 32] = [0x4d; 32];
 
@@ -394,4 +402,189 @@ pub fn operation_mut(machine: &mut TerminalMachine, id: OperationId) -> &mut Ope
         .flat_map(|block| &mut block.operations)
         .find(|operation| operation.id == id)
         .expect("the machine has the operation")
+}
+
+impl Program {
+    /// Stage 05's lowered program for the program as stage 04 issued it.
+    pub fn lower(&self) -> Lowered<'_> {
+        self.lower_prepared(&self.prepared)
+            .unwrap_or_else(|refusal| panic!("stage 05 refused the program: {refusal:?}"))
+    }
+
+    /// Stage 05's lowered program for `prepared`, with every machine of the
+    /// package as an entry, or its refusal.
+    pub fn lower_prepared<'a>(
+        &'a self,
+        prepared: &'a PreparedTypedTrees,
+    ) -> Result<Lowered<'a>, Refusal> {
+        let package = PackageKeyIdentity::from_digest(PACKAGE).unwrap();
+        let entries: Vec<_> = prepared
+            .trees()
+            .machines()
+            .iter()
+            .filter(|machine| machine.target.is_none())
+            .map(|machine| machine.symbol)
+            .collect();
+        let subjects = [Some(package)];
+        let lowered = lowering::prepare_compilation(
+            prepared,
+            compilation(&entries, &subjects),
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .unwrap();
+        let TerminalCompilation::Prepared(lowered) = lowered.program else {
+            panic!("the program binds no callable shape that could fail to form")
+        };
+        Ok(Lowered {
+            elaboration: lowered.closure?,
+            trees: prepared.trees(),
+            files: &self.files,
+        })
+    }
+
+    /// Stage 04's product for the same trees after `change`.
+    /// `PreparedTypedTrees` cannot be built or edited outside stage 04, so
+    /// the trees are taken back with `into_inner`, changed, and prepared
+    /// again; stage 05 still receives a product only stage 04 could issue.
+    pub fn prepared_with(&self, change: impl FnOnce(&mut TypedTrees)) -> PreparedTypedTrees {
+        let values = self.prepared.values().to_vec();
+        let mut trees = self.prepared.clone().into_inner();
+        change(&mut trees);
+        preparation::prepare_typed_trees(trees, &values, &[]).unwrap()
+    }
+
+    /// The source text an expression stands for.
+    pub fn written_expression(&self, expression: ExpressionHandle) -> String {
+        self.text(self.trees().expression_table.source_span(expression))
+    }
+
+    /// The one expression accepted by `wanted` whose source text is
+    /// `written`.
+    pub fn expression(
+        &self,
+        written: &str,
+        wanted: impl Fn(&ExpressionNode) -> bool,
+    ) -> ExpressionHandle {
+        let found: Vec<_> = self
+            .trees()
+            .expression_table
+            .iter_expressions()
+            .filter(|(handle, node)| wanted(node) && self.written_expression(*handle) == written)
+            .map(|(handle, _)| handle)
+            .collect();
+        let [expression] = found.as_slice() else {
+            panic!(
+                "expected one such expression written `{written}`, found {}",
+                found.len()
+            )
+        };
+        *expression
+    }
+
+    /// The symbol of the machine whose path from the package root is `path`.
+    pub fn machine_symbol(&self, path: &str) -> SymbolHandle {
+        let trees = self.trees();
+        let found: Vec<_> = trees
+            .machines()
+            .iter()
+            .filter(|machine| {
+                machine.target.is_none() && machine_path(trees, machine.symbol) == path
+            })
+            .map(|machine| machine.symbol)
+            .collect();
+        let [symbol] = found.as_slice() else {
+            panic!("expected one machine at `{path}`, found {}", found.len())
+        };
+        *symbol
+    }
+}
+
+/// Stage 05's product for one version of the program, with what a test needs
+/// to name its machines and operations by what the author wrote.
+pub struct Lowered<'a> {
+    pub elaboration: Elaboration,
+    trees: &'a TypedTrees,
+    files: &'a [(SourceId, String)],
+}
+
+impl Lowered<'_> {
+    /// The identity stage 05 gave the machine at `path`.
+    pub fn machine_id(&self, path: &str) -> MachineId {
+        self.machine(path).id
+    }
+
+    /// The lowered machine at `path`, such as `main` or `east\pick`.
+    pub fn machine(&self, path: &str) -> &TerminalMachine {
+        let found: Vec<_> = self
+            .elaboration
+            .module
+            .machines
+            .iter()
+            .filter(|machine| {
+                self.elaboration
+                    .machines
+                    .get(machine.id)
+                    .is_some_and(|symbol| machine_path(self.trees, *symbol) == path)
+            })
+            .collect();
+        let [machine] = found.as_slice() else {
+            panic!(
+                "expected one lowered machine at `{path}`, found {}",
+                found.len()
+            )
+        };
+        machine
+    }
+
+    /// The source text stage 05 recorded for an operation of `machine`, or
+    /// the empty text for an operation with no authored counterpart.
+    pub fn written(&self, machine: &TerminalMachine, operation: OperationId) -> &str {
+        let Some(SourceOrigin::Authored(span)) = self
+            .elaboration
+            .sources
+            .get(machine.id)
+            .and_then(|sources| sources.operations.get(operation))
+        else {
+            return "";
+        };
+        self.files
+            .iter()
+            .find(|(id, _)| *id == span.source_id)
+            .and_then(|(_, text)| text.get(span.span.start..span.span.end))
+            .unwrap_or_default()
+    }
+
+    /// Every operation of the machine at `path`, in block order, each with
+    /// the source text recorded for it.
+    pub fn operations(&self, path: &str) -> Vec<(&str, &Operation)> {
+        let machine = self.machine(path);
+        machine
+            .operations()
+            .map(|operation| (self.written(machine, operation.id), operation))
+            .collect()
+    }
+}
+
+/// The scalar an operation produces.
+pub fn scalar(operation: &Operation) -> ValueId {
+    let OperationResult::Scalar(result) = &operation.result else {
+        panic!("the operation produces no scalar: {operation:?}")
+    };
+    result.id
+}
+
+/// The one scalar `machine` returns: it must have exactly one scalar return.
+pub fn returned(machine: &TerminalMachine) -> ValueId {
+    let returns: Vec<_> = machine
+        .blocks
+        .iter()
+        .filter_map(|block| match &block.terminator {
+            Terminator::Return { value, .. } => Some(*value),
+            _ => None,
+        })
+        .collect();
+    let [value] = returns.as_slice() else {
+        panic!("the machine returns one scalar once: {returns:?}")
+    };
+    *value
 }
