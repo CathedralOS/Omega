@@ -1,2 +1,1 @@
-BuildPath
-@[u8]
+expects a slice, but the supplied data type is `BuildPath`
