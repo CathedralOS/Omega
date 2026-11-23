@@ -85,9 +85,13 @@ fn verdict(text: &str, roots: &[&str]) -> String {
     describe_verdicts(judged(text, roots))
 }
 
-fn describe_verdicts(verdicts: Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>>) -> String {
-    let parts: Vec<String> = verdicts.into_iter()
-        .map(|verdict| match verdict {
+fn describe_verdicts(
+    verdicts: Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>>,
+) -> String {
+    let parts: Vec<String> = verdicts
+        .into_iter()
+        .map(|verdict| {
+            match verdict {
             Err(crate::checking::CompilationRefusal::Elaboration(refusal))
             | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
             Ok(RouteVerdict::Accepted(accepted)) => match accepted.publish_invocation() {
@@ -114,12 +118,17 @@ fn typed_hosted_policy(policy: &str) -> crate::source_state::TypedTrees {
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xbc; 32]).unwrap();
     let mut syntax = syntax_trees::SyntaxTrees::default();
     let mut add_file = |name: &str, text: &str| {
-        let id = sources.add_checked_instance(
-            std::path::Path::new("std").join(name), text, "std".into(), Some(package),
-            source_admission::SourceOrigin::User,
-            source_admission::SourceResolutionStratum::Base,
-            source_provenance::DependencyScope::Product,
-        ).source_id;
+        let id = sources
+            .add_checked_instance(
+                std::path::Path::new("std").join(name),
+                text,
+                "std".into(),
+                Some(package),
+                source_admission::SourceOrigin::User,
+                source_admission::SourceResolutionStratum::Base,
+                source_provenance::DependencyScope::Product,
+            )
+            .source_id;
         let tokens = Lexer::new(text).tokenize().unwrap();
         parse(&mut syntax, id, &tokens).unwrap();
         id
@@ -136,7 +145,8 @@ fn typed_hosted_policy(policy: &str) -> crate::source_state::TypedTrees {
             SourceScopedTopLevelBinding::file_import(entry, shapes, "shapes"),
         ],
         retained_base: None,
-    }).unwrap();
+    })
+    .unwrap();
     crate::typing::lower_symbol_resolved_trees(&resolved).unwrap()
 }
 
