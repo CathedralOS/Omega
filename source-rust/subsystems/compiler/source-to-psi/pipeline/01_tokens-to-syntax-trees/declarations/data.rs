@@ -71,12 +71,10 @@ pub(crate) fn parse_data_definition<'tokens, 'source>(
             parse_type_reference_handle(syntax_trees, input)?
         };
         if next.at_punctuation(PunctuationKind::Semicolon) {
-            // An alias may assert its target's multiplicity, which typing
-            // checks; a carry list is invalid on an alias, and an alias has
-            // its expansion's cleanup.
-            if properties.carry.is_some() || cleanup_selection.is_some() {
+            // Typing checks an alias's asserted multiplicity. Cleanup belongs to its expansion.
+            if cleanup_selection.is_some() {
                 return Err(next.error_here(
-                    "a transparent type alias inherits its expansion's carry policy and cleanup; it may assert only `copy` or `linear`",
+                    "a transparent type alias inherits its expansion's cleanup; it may assert only `copy` or `linear`",
                 ));
             }
             return Ok((
@@ -95,11 +93,9 @@ pub(crate) fn parse_data_definition<'tokens, 'source>(
                 next.take_punctuation(PunctuationKind::Semicolon, ";")?,
             ));
         }
-        if properties.multiplicity == language_core::Multiplicity::Linear
-            || properties.carry.is_some()
-        {
+        if properties.multiplicity == language_core::Multiplicity::Linear {
             return Err(next.error_here(
-                "a quotient data declaration cannot declare linear or carry properties; the initial quotient surface excludes custody",
+                "a quotient data declaration cannot declare linear multiplicity; the initial quotient surface excludes custody",
             ));
         }
         input = next.take_punctuation(PunctuationKind::Percent, "%")?;

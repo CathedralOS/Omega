@@ -90,9 +90,9 @@ impl Program<'_> {
             .ok_or_else(|| {
                 unavailable("type parameter ordinal belongs to another declared binder")
             })?;
-        if parameter.kind != TypeParameterKind::Type || parameter.bounds.carry.is_some() {
+        if parameter.kind != TypeParameterKind::Type {
             return Err(unavailable(
-                "type parameter has an unrepresented kind or carry bound",
+                "type parameter has an unrepresented kind",
             ));
         }
         let identity = self.typed.package_qualified_type_identity_text(reference);

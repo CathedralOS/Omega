@@ -524,20 +524,13 @@ fn named_static_record(
 /// including constraints). The copied body is later checked as a closed
 /// machine, but that check judges the body's uses, not the declared contract
 /// callers rely on. An unbounded (affine) binder admits any type and leaves
-/// the uses to that closed check. A `carry` bound has no judgment against a
-/// supplied type yet, so the application is refused, as the other
-/// application paths refuse it.
+/// the uses to that closed check.
 pub fn type_argument_meets_bounds(
     program: &TypedTrees,
     binder: &crate::source_state::data::TypeParameter,
     reference: TypeReferenceHandle,
 ) -> Served<()> {
     use language_core::Multiplicity;
-    if binder.bounds.carry.is_some() {
-        return Err(unserved(
-            "a type binder's carry bound has no judgment against its argument yet",
-        ));
-    }
     let required = binder.bounds.multiplicity;
     if required == Multiplicity::Affine {
         return Ok(());

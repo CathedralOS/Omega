@@ -361,7 +361,6 @@ impl<'a> PolicySource<'a> {
                 type_parameters: self.type_parameters(definition.symbol)?,
                 properties: PackageReviewDataProperties {
                     multiplicity: definition.properties.multiplicity,
-                    carry: definition.properties.carry,
                 },
                 zero_gated: definition.zero_gated,
                 invariants,

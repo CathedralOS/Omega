@@ -1348,7 +1348,6 @@ impl PolicySource<'_> {
                     kind,
                     bounds: review_evidence::record::PackageReviewDataProperties {
                         multiplicity: parameter.bounds.multiplicity,
-                        carry: parameter.bounds.carry,
                     },
                 })
             })

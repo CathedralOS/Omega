@@ -464,48 +464,17 @@ fn parameter_shape(
 }
 
 fn properties(bounds: crate::source_state::data::DataProperties) -> String {
-    use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension, Multiplicity};
+    use language_core::Multiplicity;
     let multiplicity = match bounds.multiplicity {
         Multiplicity::Unrestricted => "copy",
         Multiplicity::Affine => "affine",
         Multiplicity::Linear => "linear",
     };
-    let mut parts = vec![scalar("multiplicity", multiplicity)];
-    if let Some(carry) = bounds.carry {
-        parts.extend([
-            scalar(
-                "suspension",
-                match carry.suspension {
-                    CarrySuspension::Forbidden => "forbidden",
-                    CarrySuspension::Allowed => "allowed",
-                },
-            ),
-            scalar(
-                "cpu",
-                match carry.cpu {
-                    CarryCpu::Origin => "origin",
-                    CarryCpu::Any => "any",
-                },
-            ),
-            scalar(
-                "thread",
-                match carry.host_thread {
-                    CarryHostThread::Origin => "origin",
-                    CarryHostThread::Any => "any",
-                },
-            ),
-            scalar(
-                "address",
-                match carry.address {
-                    CarryAddress::Stable => "stable",
-                    CarryAddress::Movable => "movable",
-                },
-            ),
-        ]);
-    } else {
-        parts.push(scalar("carry", "omitted"));
-    }
-    record("properties", parts)
+    // Existing callable identities include the absent source-policy marker.
+    record(
+        "properties",
+        [scalar("multiplicity", multiplicity), scalar("carry", "omitted")],
+    )
 }
 
 fn machine_contract(

@@ -84,7 +84,6 @@ fn objective_c(count_binder: u32) -> PackagePolicyTraitShape {
                 kind: PackagePolicyTypeParameterKind::Const(type_identity(U64)),
                 bounds: PackageReviewDataProperties {
                     multiplicity: Default::default(),
-                    carry: None,
                 },
             }],
             parameters: vec![PackageReviewSignatureParameter {

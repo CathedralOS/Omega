@@ -75,7 +75,6 @@ pub mod declarations {
 
         #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
         pub struct DataProperties {
-            pub carry: Option<language_core::CarryPolicy>,
             pub multiplicity: language_core::Multiplicity,
         }
 

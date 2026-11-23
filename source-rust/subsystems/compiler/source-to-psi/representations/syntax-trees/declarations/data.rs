@@ -62,7 +62,6 @@ pub struct QuotientEquivalenceSelection {
 )]
 pub struct DataProperties {
     pub multiplicity: language_core::Multiplicity,
-    pub carry: Option<language_core::CarryPolicy>,
 }
 
 #[derive(

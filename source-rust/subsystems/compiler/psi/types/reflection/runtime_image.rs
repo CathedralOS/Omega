@@ -73,11 +73,8 @@ fn record(node: &SchemaNode) -> Vec<u8> {
             );
             span(&mut bytes, 18, value.supply.as_bytes());
             span(&mut bytes, 20, value.multiplicity.as_bytes());
-            span(
-                &mut bytes,
-                22,
-                value.carry.as_deref().unwrap_or("").as_bytes(),
-            );
+            // Published schema images reserve this empty span at word 22.
+            span(&mut bytes, 22, &[]);
             span(
                 &mut bytes,
                 24,
@@ -256,6 +253,9 @@ fn image_node(bytes: &[u8]) -> Result<SchemaNode, String> {
     Ok(match image_word(bytes, 0)? {
         0 => SchemaNode::Invalid,
         1 => {
+            if !image_span(bytes, 22)?.is_empty() {
+                return Err("a reflected declaration cannot have a carry policy".into());
+            }
             let parameters = image_strings(bytes, 30)?;
             if !parameters.len().is_multiple_of(4) {
                 return Err("schema image lost a complete type parameter".into());
@@ -323,7 +323,6 @@ fn image_node(bytes: &[u8]) -> Result<SchemaNode, String> {
                 },
                 supply: image_text(bytes, 18)?,
                 multiplicity: image_text(bytes, 20)?,
-                carry: optional(image_text(bytes, 22)?),
                 type_parameters: parameters,
                 lifetime_parameters: image_strings(bytes, 32)?,
                 application_identity: optional(image_text(bytes, 16)?),

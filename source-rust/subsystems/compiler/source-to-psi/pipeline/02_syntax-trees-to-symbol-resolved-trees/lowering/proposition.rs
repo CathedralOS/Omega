@@ -85,7 +85,6 @@ fn lower_proposition_binders(
             name: crate::resolution::lowering::name::lower_name(syntax_trees, &binder.name),
             kind,
             bounds: DataProperties {
-                carry: binder.bounds.carry,
                 multiplicity: binder.bounds.multiplicity,
             },
         });

@@ -703,7 +703,6 @@ pub mod data {
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
     pub struct DataProperties {
-        pub carry: Option<language_core::CarryPolicy>,
         pub multiplicity: language_core::Multiplicity,
     }
 
@@ -780,7 +779,6 @@ pub mod data {
     ) -> bool {
         (provider.bounds.multiplicity != language_core::Multiplicity::Affine
             && requirement.bounds.multiplicity != provider.bounds.multiplicity)
-            || provider.bounds.carry.is_some() && provider.bounds.carry != requirement.bounds.carry
     }
 
     impl Default for TypeParameter {

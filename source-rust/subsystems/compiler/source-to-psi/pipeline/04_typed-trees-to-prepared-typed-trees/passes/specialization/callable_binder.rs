@@ -234,8 +234,7 @@ pub(super) fn binder_shape(
 /// An ordinary callback must admit the binder's whole type family. A finite
 /// per-member expansion instead knows every application: extra multiplicity
 /// bounds must hold for every included field. This does not weaken any runtime
-/// precondition or permit a qualification change. Carry refinement still needs
-/// its ordinary evidence and is not inferred from field multiplicity.
+/// precondition or permit a qualification change.
 fn properties_match(
     program: &TypedTrees,
     required: &TypeParameter,
@@ -244,9 +243,6 @@ fn properties_match(
 ) -> bool {
     if !type_parameter_demands_stronger_properties(required, supplied) {
         return true;
-    }
-    if supplied.bounds.carry.is_some() && supplied.bounds.carry != required.bounds.carry {
-        return false;
     }
     applications.is_some_and(|types| {
         types.iter().all(|reference| {

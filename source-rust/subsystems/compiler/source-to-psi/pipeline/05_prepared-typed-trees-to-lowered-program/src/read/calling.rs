@@ -906,7 +906,6 @@ mod header_reading_tests {
             members,
             properties: crate::source_state::data::DataProperties {
                 multiplicity: language_core::Multiplicity::Linear,
-                carry: None,
             },
             ..Default::default()
         });

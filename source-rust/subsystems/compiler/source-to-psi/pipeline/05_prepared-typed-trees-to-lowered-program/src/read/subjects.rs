@@ -693,7 +693,7 @@ impl Program<'_> {
     /// application serves (`source_records::source_application`):
     ///
     /// - the header binds types and constants with copyable, address-free
-    ///   carriers, with no bound, lifetime, cleanup, carry policy or quotient;
+    ///   carriers, with no bound, lifetime, cleanup or quotient;
     ///   a declared predicate has its own generic formation check;
     /// - each member is an ordinary runtime field or payload field, and its
     ///   type is built from builtin scalars, the header's own type
@@ -715,7 +715,6 @@ impl Program<'_> {
             || data.supply_mode != language_core::DataSupplyMode::CheckedShape
             || !data.lifetime_parameters.is_empty()
             || !data.conformance_bounds.is_empty()
-            || data.properties.carry.is_some()
             || data.cleanup_selection.is_some()
             || data.quotient.is_some()
             || !data.retired_identities.is_empty()
@@ -939,7 +938,6 @@ impl Program<'_> {
             })?;
         if parameters.iter().any(|parameter| {
             parameter.kind != TypeParameterKind::Type
-                || parameter.bounds.carry.is_some()
                 || !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
                 || typed.symbols.get(parameter.symbol).parent != alias.symbol
         }) || !alias.conformance_bounds.is_empty()
@@ -1169,7 +1167,7 @@ fn served_parent(
 }
 
 /// Whether a data declaration declares a name and nothing else: no field or
-/// case, no parameter, no `requires`, no cleanup and no carry policy. Its
+/// case, no parameter, no `requires` and no cleanup. Its
 /// multiplicity is not read: with no value of the type there is no custody.
 /// Such a declaration has nothing to prove, so as a subject it is passed over. A
 /// binding, formal or field of the type resolves it where its type is read
@@ -1181,7 +1179,6 @@ fn names_only(data: &crate::source_state::data::DataDefinition) -> bool {
         && data.type_parameters.is_empty()
         && data.generic_instance.is_none()
         && data.conformance_bounds.is_empty()
-        && data.properties.carry.is_none()
         && data.cleanup_selection.is_none()
         && data.quotient.is_none()
         && data.requires_facts.is_empty()

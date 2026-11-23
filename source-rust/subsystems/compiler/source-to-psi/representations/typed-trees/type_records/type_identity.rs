@@ -453,9 +453,6 @@ pub(crate) mod callable_identity {
                     language_core::Multiplicity::Affine => 2,
                     language_core::Multiplicity::Linear => 3,
                 });
-                if let Some(carry) = parameter.bounds.carry {
-                    bytes.extend(carry.to_string().as_bytes());
-                }
                 bytes.push(0);
                 length(&mut bytes, contract.len())?;
                 bytes.extend(contract.as_bytes());

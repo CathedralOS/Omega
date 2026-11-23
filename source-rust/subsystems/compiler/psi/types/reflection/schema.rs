@@ -90,7 +90,6 @@ impl SemanticSchemaGraph {
                 || !declaration.lifetime_parameters.is_empty()
                 || !declaration.supply.is_empty()
                 || declaration.multiplicity != "Copy"
-                || declaration.carry.is_some()
             {
                 return Err(
                     "primitive schema adds data members or changes scalar properties".into(),

@@ -266,8 +266,6 @@ pub struct PropositionParameterSignatureSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DataPropertiesSnapshot {
     pub multiplicity: &'static str,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub carry: Option<CarryPolicySnapshot>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -283,14 +281,6 @@ pub struct QuotientEquivalenceSelectionSnapshot {
     pub trait_name: IdentifierSnapshot,
     pub trait_arguments: Vec<TypeReferenceSnapshot>,
     pub conformance_name: IdentifierSnapshot,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct CarryPolicySnapshot {
-    pub suspension: &'static str,
-    pub cpu: &'static str,
-    pub thread: &'static str,
-    pub address: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -842,31 +832,13 @@ pub(crate) fn snapshot_type_parameters(
         .collect()
 }
 fn snapshot_data_properties(properties: crate::item::DataProperties) -> DataPropertiesSnapshot {
-    use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarrySuspension, Multiplicity};
+    use language_core::Multiplicity;
     DataPropertiesSnapshot {
         multiplicity: match properties.multiplicity {
             Multiplicity::Unrestricted => "unrestricted",
             Multiplicity::Affine => "affine",
             Multiplicity::Linear => "linear",
         },
-        carry: properties.carry.map(|carry| CarryPolicySnapshot {
-            suspension: match carry.suspension {
-                CarrySuspension::Forbidden => "forbidden",
-                CarrySuspension::Allowed => "allowed",
-            },
-            cpu: match carry.cpu {
-                CarryCpu::Origin => "same",
-                CarryCpu::Any => "any",
-            },
-            thread: match carry.host_thread {
-                CarryHostThread::Origin => "same",
-                CarryHostThread::Any => "any",
-            },
-            address: match carry.address {
-                CarryAddress::Stable => "stable",
-                CarryAddress::Movable => "movable",
-            },
-        }),
     }
 }
 

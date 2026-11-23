@@ -4,7 +4,6 @@ use super::super::PackageReviewEncodingError;
 use super::super::encoder::Encoder;
 use super::super::type_identity_in_scope;
 use crate::record::{PackageReviewDataField, PackageReviewDataMember, PackageReviewDataProperties};
-use language_core::CarrySuspension;
 
 pub(crate) fn encode_data_properties(
     encoder: &mut Encoder,
@@ -18,41 +17,9 @@ pub(crate) fn encode_data_properties(
         };
         Ok(())
     });
+    // Existing package evidence encodes an absent policy after the multiplicity.
     let _ = encoder.field("carry", |encoder| {
-        match properties.carry {
-            None => encoder.tag("none", 0),
-            Some(carry) => {
-                encoder.tag("some", 1);
-                let _ = encoder.field("suspension", |encoder| {
-                    match carry.suspension {
-                        CarrySuspension::Forbidden => encoder.tag("forbidden", 0),
-                        CarrySuspension::Allowed => encoder.tag("allowed", 1),
-                    };
-                    Ok(())
-                });
-                let _ = encoder.field("cpu", |encoder| {
-                    match carry.cpu {
-                        language_core::CarryCpu::Origin => encoder.tag("origin", 0),
-                        language_core::CarryCpu::Any => encoder.tag("any", 1),
-                    };
-                    Ok(())
-                });
-                let _ = encoder.field("host_thread", |encoder| {
-                    match carry.host_thread {
-                        language_core::CarryHostThread::Origin => encoder.tag("origin", 0),
-                        language_core::CarryHostThread::Any => encoder.tag("any", 1),
-                    };
-                    Ok(())
-                });
-                let _ = encoder.field("address", |encoder| {
-                    match carry.address {
-                        language_core::CarryAddress::Stable => encoder.tag("stable", 0),
-                        language_core::CarryAddress::Movable => encoder.tag("movable", 1),
-                    };
-                    Ok(())
-                });
-            }
-        };
+        encoder.tag("none", 0);
         Ok(())
     });
 }

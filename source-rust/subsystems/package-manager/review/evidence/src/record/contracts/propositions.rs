@@ -9,9 +9,6 @@ use crate::record::PackageReviewDataProperties;
 use crate::record::PackageReviewNominalIdentity;
 use crate::record::PackageReviewTypeIdentity;
 use crate::record::accessors::field_projection_accessors;
-use language_core::CarryAddress;
-use language_core::CarryHostThread;
-use language_core::CarrySuspension;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewPropositionBinderKind {
@@ -20,47 +17,11 @@ pub(crate) enum PackageReviewPropositionBinderKind {
     Machine,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewPropositionBinder {
     pub(crate) kind: PackageReviewPropositionBinderKind,
     pub(crate) bounds: PackageReviewDataProperties,
 }
-
-impl PartialOrd for PackageReviewPropositionBinder {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for PackageReviewPropositionBinder {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.kind.cmp(&other.kind).then_with(|| {
-            package_review_data_properties_key(self.bounds)
-                .cmp(&package_review_data_properties_key(other.bounds))
-        })
-    }
-}
-
-fn package_review_data_properties_key(
-    properties: PackageReviewDataProperties,
-) -> (u8, Option<(u8, u8, u8, u8)>) {
-    let multiplicity = match properties.multiplicity {
-        language_core::Multiplicity::Unrestricted => 0,
-        language_core::Multiplicity::Affine => 1,
-        language_core::Multiplicity::Linear => 2,
-    };
-    let carry = properties.carry.map(|carry| {
-        (
-            u8::from(matches!(carry.suspension, CarrySuspension::Allowed)),
-            u8::from(matches!(carry.cpu, language_core::CarryCpu::Any)),
-            u8::from(matches!(carry.host_thread, CarryHostThread::Any)),
-            u8::from(matches!(carry.address, CarryAddress::Movable)),
-        )
-    });
-    (multiplicity, carry)
-}
-
-impl PackageReviewPropositionBinder {}
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PackageReviewPropositionBinderValue {

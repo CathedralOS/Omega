@@ -60,7 +60,6 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
                 generic_instance: None,
                 properties: crate::snapshot::DataPropertiesSnapshot {
                     multiplicity: "affine",
-                    carry: None,
                 },
                 quotient: None,
                 requires_facts: Vec::new(),
