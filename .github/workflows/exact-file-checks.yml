@@ -1,0 +1,54 @@
+name: Check exact file imports
+on:
+  push:
+    branches: [work/verify-logical-file-imports]
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      MBX_GC_AUTO: 'false'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_DEV_OPT_LEVEL: '1'
+      CARGO_INCREMENTAL: '0'
+      OMEGA_MBX_INSTALL_CACHE: /tmp/omega-mbx-install
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Identify the build tool
+        id: key
+        run: echo "key=$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: /tmp/omega-mbx-install/artifacts
+          key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.key.outputs.key }}
+      - name: Install the pinned adapter
+        run: bash tools/xtask/bootstrap-mbx.sh --install-dir "$RUNNER_TEMP/bin"
+      - name: Observe the checked preparation at all three spellings on main
+        run: |
+          cat >> source-rust/subsystems/compiler/source-to-psi/driver/compile_build/waits/tests.rs <<'RUST'
+
+          #[test]
+          fn report_which_lookup_requests_the_pending_dependency() {
+              let local = PROGRAM.replace("    let seven", "    let kit: u32 = 1;\n    let seven");
+              let canonical = local.replace("use kit;", "use {kit}/tools.omg as kit;");
+              let file = crate::SourceImportTarget::File {
+                  root: Some("kit".into()),
+                  path: "tools.omg".into(),
+                  alias: "kit".into(),
+              };
+              for (label, text, target) in [
+                  ("explicit imported machine", canonical.replace("TEST", "|kit|::seven"), file.clone()),
+                  ("ordinary value receiver", canonical.replace("TEST", "kit.seven"), file),
+                  ("retained legacy path", local.replace("TEST", r"kit\seven"), crate::SourceImportTarget::Namespace(vec!["kit".into()])),
+              ] {
+                  let imports = [PendingBuildImport { source: SOURCE, span: Span::default(), target }];
+                  let (_, plan, parked) = select(&text, &imports);
+                  println!("{label}: requests a preparation = {}, parked locals = {}", plan.stage.outgoing_parked_preparation().is_some(), parked.len());
+              }
+          }
+          RUST
+          "$RUNNER_TEMP/bin/mbx" test --locked -p source-compiler --lib report_which_lookup_requests_the_pending_dependency -- --nocapture
