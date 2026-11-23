@@ -20,7 +20,7 @@ const PREPARATION: &str = "prepare_dependency";
 pub struct PendingBuildImport {
     pub source: SourceId,
     pub span: Span,
-    pub path: String,
+    pub target: crate::SourceImportTarget,
 }
 
 /// An authored suspending call and the captured declaration that owns it.
@@ -69,7 +69,7 @@ impl BuildStage {
         for import in imports {
             if incomplete_files.binary_search(&import.source.0).is_err() {
                 let diagnostic =
-                    Diagnostic::warning(format!("unused deferred Build import `{}`", import.path))
+                    Diagnostic::warning(format!("unused deferred Build import `{}`", import.target))
                         .with_source_span(SourceSpan::new(import.source, import.span));
                 self.advisories.push(diagnostic);
             }
