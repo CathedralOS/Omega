@@ -1066,7 +1066,7 @@ fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparati
     let mutable first: [u8; 1] = [0u8];
     let first_count: i64 = BuildSource::read(@builder.source, reader, @mutable first[..], 1u64);
     let saw_first: bool = first_count == 1i64 && first[0] == 109u8;
-    let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "joined.txt");
+    let promised: RequiredOutput = BuildOutput::require(@mutable builder.output, "joined.txt");
     let output: BuildPath = BuildOutput::resolve(@builder.output, "joined.txt");
     let writer: i32 = BuildOutput::create(@mutable builder.output, output, 0);
     _ = BuildOutput::write(@mutable builder.output, writer, "machine joined() -> i32 { ");"#;
@@ -1079,7 +1079,7 @@ fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparati
     _ = BuildOutput::close(@mutable builder.output, writer);
     Build::include_source(builder, "joined.omg", "machine joined() -> i32 { 7i32 }");
     let ready: bool = selected == 7 && saw_first && second_count == 1i64 && second[0] == 97u8 && denied == -1;
-    let completion: OutputCompletion = BuildOutput::complete(@mutable builder.output, obligation, output);
+    let completion: OutputCompletion = BuildOutput::complete(@mutable builder.output, promised, output);
     transition completion {
         OutputCompletion::Sealed { receipt } -> checked(builder, ready),
         OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
@@ -1128,8 +1128,8 @@ fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparati
     );
 
     let forged = after.replace(
-        "obligation, output);",
-        "obligation, BuildPath {});",
+        "promised, output);",
+        "promised, BuildPath {});",
     );
     let (ran, report) = check_with_dependency_build(
         "unissued-output-path-after-mount",

@@ -1,27 +1,23 @@
-# build_retry_reseal
+# Retry a promised output
 
-The dep's build completes its required output in two rounds:
+The dependency writes source bytes to a promised file and tries to complete it
+while the writer is open. Build returns `OutputCompletion::Retry` with the
+same obligation and file. The dependency closes the writer, publishes the
+captured bytes as `generated.omg`, then completes the file. This time Build
+must return `Sealed`.
 
-1. `require` + `resolve` + `create` + `write`, then `complete` while the
-   writer is still live — the evaluator answers
-   `OutputCompletion::Retry { obligation, file }` because the staged file
-   is not yet sealed.
-2. The retry path closes the writer, passes the captured bytes to
-   `Build::include_source` as `generated.omg`, and calls `complete` on the file.
-   The second completion must yield `Sealed`.
+The executable imports `value()` from the dependency’s `generated.omg`. That
+machine calls `seed()` in the dependency’s authored source. The executable
+checks that it returned 7.
 
-The pinned failure direction (Retry then `fail`) already exists as an
-invalid control under `build_package_custody`; this sample covers the
-success direction of the same custody loop.
+The controls cover three refusals.
 
-The generated `value()` forwards to the authored `seed()`. The
-`invalid_authored_selects_generated` control inverts that direction: the
-dep's authored `value()` calls a generated `generated_value()`, which the
-generated-source boundary forbids (`wiki/spec/build/execution.md`), and the
-rejection must be the same whether the dep is reviewed on its own or
-checked inside its consumer.
+- `invalid_authored_selects_generated` tries to import the generated file
+  from authored source in the same dependency. The dependency’s own check and
+  its consumer must both refuse that import.
+- `invalid_foreign_include` tries to publish a file outside the dependency.
+- `invalid_path_as_source_bytes` passes a borrowed filesystem handle where
+  source publication requires a byte slice.
 
-
-The `invalid_foreign_include` control tries to publish outside the dependency’s
-logical namespace. The `invalid_path_as_source_bytes` control passes a filesystem
-handle where publication requires a byte slice.
+The `build_package_custody` sample also has a control that calls `fail` after
+Build returns `Retry`.

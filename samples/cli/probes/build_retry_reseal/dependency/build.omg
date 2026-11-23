@@ -5,8 +5,8 @@ machine build(builder: @mutable Build) {
     Build::package(builder, "retry_kernel");
     let template: BuildPath = BuildSource::resolve(@builder.source, "template.txt");
     let reader: i32 = BuildSource::open(@builder.source, template, 0);
-    let mutable bytes: [u8; 38];
-    _ = BuildSource::read(@builder.source, reader, @mutable bytes[..], 38);
+    let mutable bytes: [u8; 71];
+    _ = BuildSource::read(@builder.source, reader, @mutable bytes[..], 71);
     let _closed_reader: i32 = BuildSource::close(@builder.source, reader);
     let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "generated.omg");
     let generated: BuildPath = BuildOutput::resolve(@builder.output, "generated.omg");
