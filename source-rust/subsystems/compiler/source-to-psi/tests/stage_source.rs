@@ -231,9 +231,11 @@ fn invocation_ceiling_follows_callable_parameter_aliases() {
     };
     let alias = "let alias: Callback = selected; alias()";
     let forwarded = "let first: Callback = selected; let second: Callback = first; forward(second)";
+    let arm = "let saved: Callback = selected; transition true { true -> saved(), _ -> 7u64 }";
+    check("invokes selected", arm).unwrap();
     check("invokes selected", alias).unwrap();
     let rebound = "let mutable slot: Callback = other; slot = selected; forward(slot)";
-    for body in ["selected()", alias, forwarded, rebound] {
+    for body in ["selected()", alias, forwarded, rebound, arm] {
         let artifact = check("", body).unwrap();
         let module = artifact.semantic_module();
         let probe = module
@@ -258,7 +260,7 @@ fn invocation_ceiling_follows_callable_parameter_aliases() {
     )
     .unwrap();
     check("invokes other", "let alias: Callback = selected; 7u64").unwrap();
-    for body in [alias, forwarded] {
+    for body in [alias, forwarded, arm] {
         let errors = check("invokes other", body).unwrap_err();
         assert!(
             errors
@@ -267,6 +269,31 @@ fn invocation_ceiling_follows_callable_parameter_aliases() {
                     && error.message.contains("parameter 2")),
             "{errors:?}"
         );
+    }
+}
+
+#[test]
+fn a_transition_calls_the_lexical_value_with_its_declared_arguments() {
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    let check = |kind: &str, body: &str| {
+        let source = format!(
+            "data Read = machine(value: u8) -> u8 reaches none crashes none;
+             machine read(value: bool) -> u8 {{ 0u8 }}
+             machine probe(read: {kind}) -> u8 {{ {body} }}"
+        );
+        let (files, root) = captured(package, &source);
+        compile(product(files, root, package, &[]).unwrap(), None)
+    };
+    check("Read", "transition true { true -> read(7u8), _ -> 0u8 }").unwrap();
+    for (kind, argument) in [("Read", "true"), ("u8", "7u8")] {
+        let call = format!("read({argument})");
+        let expression = check(kind, &call).unwrap_err();
+        let arm = check(
+            kind,
+            &format!("transition true {{ true -> {call}, _ -> 0u8 }}"),
+        )
+        .unwrap_err();
+        assert_eq!(arm[0].message, expression[0].message);
     }
 }
 

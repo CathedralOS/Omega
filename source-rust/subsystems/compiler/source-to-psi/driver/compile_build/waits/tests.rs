@@ -353,17 +353,12 @@ machine build(builder: @mutable Build, choosing: bool) suspends {
             _ => None,
         })
         .map(|arm| {
-            let syntax_trees::statement::TransitionTargetNode::Named { path, .. } =
+            let syntax_trees::statement::TransitionTargetNode::Named(expression) =
                 syntax.statements.transition_target(arm.target)
             else {
                 panic!("authored call")
             };
-            syntax
-                .statements
-                .identifier_path_members(*path)
-                .last()
-                .unwrap()
-                .as_str(&syntax)
+            syntax.expressions.call(*expression).target.as_str(&syntax)
         })
         .collect::<Vec<_>>();
     assert_eq!(choices, ["ready", "skipped"]);

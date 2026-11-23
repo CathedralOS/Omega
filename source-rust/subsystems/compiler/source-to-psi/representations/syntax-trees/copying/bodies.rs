@@ -518,19 +518,9 @@ impl SyntaxCopy<'_> {
         }
 
         let target = match other.statements.transition_target(handle) {
-            TransitionTargetNode::Named {
-                operational_acknowledgement,
-                path,
-                arguments,
-                evidence_arguments,
-                source_span,
-            } => TransitionTargetNode::Named {
-                operational_acknowledgement: *operational_acknowledgement,
-                path: self.copy_statement_identifier_span(other, *path),
-                arguments: self.copy_statement_expression_span(other, *arguments),
-                evidence_arguments: evidence_arguments.clone(),
-                source_span: *source_span,
-            },
+            TransitionTargetNode::Named(call) => {
+                TransitionTargetNode::Named(self.copy_expression_handle(other, *call))
+            }
             TransitionTargetNode::Value(value) => {
                 TransitionTargetNode::Value(self.copy_expression_handle(other, *value))
             }
@@ -1143,21 +1133,6 @@ impl SyntaxCopy<'_> {
         )
     }
 
-    fn copy_statement_identifier_span(
-        &mut self,
-        other: &SyntaxTrees,
-        span: HandleSpan<Identifier>,
-    ) -> HandleSpan<Identifier> {
-        self.copy_span(
-            other
-                .statements
-                .identifier_path_members(span)
-                .iter()
-                .cloned(),
-            |this, member| this.statements.append_identifier_path_member(member),
-        )
-    }
-
     fn copy_expression_identifier_span(
         &mut self,
         other: &SyntaxTrees,
@@ -1171,22 +1146,6 @@ impl SyntaxCopy<'_> {
                 .cloned(),
             |this, member| this.expressions.append_identifier_path_member(member),
         )
-    }
-
-    fn copy_statement_expression_span(
-        &mut self,
-        other: &SyntaxTrees,
-        span: HandleSpan<ExpressionHandle>,
-    ) -> HandleSpan<ExpressionHandle> {
-        let copied_handles: Vec<_> = other
-            .statements
-            .expression_handles(span)
-            .iter()
-            .copied()
-            .map(|handle| self.copy_expression_handle(other, handle))
-            .collect();
-
-        self.statements.insert_expression_handles(copied_handles)
     }
 
     pub(crate) fn copy_mapped_span<S, T>(

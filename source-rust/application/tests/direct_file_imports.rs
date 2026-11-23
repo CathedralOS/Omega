@@ -1,17 +1,20 @@
-//! Exercise a direct call when a file, a value and a type share one name.
+//! Exercise direct and stored calls when a file, a value and a type share one name.
 mod support;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::process::{Command, Stdio};
 
 #[test]
+fn invoke_a_returned_machine_in_a_transition_arm() {
+    run_example(include_str!(
+        "../../../samples/cli/probes/direct_file_imports/main.omg"
+    ));
+}
+
+#[test]
 fn the_file_type_and_value_each_select_their_own_member() {
-    let fixture = support::repository_root().join("samples/cli/probes/direct_file_imports");
-    let scratch = TemporaryDirectory::create("direct-file-imports", false).unwrap();
-    std::fs::create_dir(scratch.path().join("m")).unwrap();
-    let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
-    command.args(["run", "--both"]);
-    std::fs::write(scratch.path().join("main.omg"), r#"
+    run_example(
+        r#"
 use m/value-cell.omg as cell;
 use m/b.omg;
 
@@ -38,7 +41,17 @@ machine main() crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-"#).unwrap();
+"#,
+    );
+}
+
+fn run_example(source: &str) {
+    let fixture = support::repository_root().join("samples/cli/probes/direct_file_imports");
+    let scratch = TemporaryDirectory::create("direct-file-imports", false).unwrap();
+    std::fs::create_dir(scratch.path().join("m")).unwrap();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_omega"));
+    command.args(["run", "--both"]);
+    std::fs::write(scratch.path().join("main.omg"), source).unwrap();
     command.args(["--build-input", "main.omg"]);
     for file in ["build.omg", "m/b.omg", "m/value-cell.omg"] {
         std::fs::copy(fixture.join(file), scratch.path().join(file)).unwrap();

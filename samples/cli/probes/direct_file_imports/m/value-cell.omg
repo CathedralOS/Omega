@@ -1,4 +1,4 @@
-public data A { value: i32; }
+public data A [copy] { value: i32; }
 
 // Package-private helper, selected by its owning file.
 machine read(value: A) -> i32 { value.value }

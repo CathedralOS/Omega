@@ -4,7 +4,7 @@ use m/b.omg;
 use {omega}/language/core/numeric_conversion.omg as numeric;
 
 data Read = machine(value: |cell|::A) -> i32 reaches none crashes none;
-data Reader { read: Read; }
+data Reader [copy] { read: Read; }
 
 // Three distinct owners can share the name cell.
 data cell { case Stored; case Supplied; }

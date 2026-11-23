@@ -31,7 +31,6 @@ paged_roster! {
     pub struct StatementTable => pub(crate) StatementTableAppendCheckpoint {
         arena statements: StatementNode,
         arena expression_handles: ExpressionHandle,
-        arena identifier_path_members: Identifier,
         arena transition_targets: TransitionTargetNode,
         arena transition_patterns: TransitionPattern,
         arena dispatches: TableDispatch,
@@ -163,10 +162,6 @@ impl StatementTable {
         self.expression_handles.insert_many(expressions)
     }
 
-    pub fn append_identifier_path_member(&mut self, member: Identifier) -> Handle<Identifier> {
-        self.identifier_path_members.append(member)
-    }
-
     pub fn insert_transition_target(
         &mut self,
         target: TransitionTargetNode,
@@ -198,10 +193,6 @@ impl StatementTable {
 
     pub fn expression_handles(&self, span: HandleSpan<ExpressionHandle>) -> &[ExpressionHandle] {
         self.expression_handles.span_or_empty(span)
-    }
-
-    pub fn identifier_path_members(&self, span: HandleSpan<Identifier>) -> &[Identifier] {
-        self.identifier_path_members.span_or_empty(span)
     }
 
     pub fn transition_target(&self, handle: TransitionTargetHandle) -> &TransitionTargetNode {
@@ -343,12 +334,7 @@ impl TableCall {
         &self,
         syntax: &'a crate::SyntaxTrees,
     ) -> &'a crate::expression::TableCallExpression {
-        let crate::expression::ExpressionNode::Call(call) =
-            syntax.expressions.expression(self.expression)
-        else {
-            unreachable!("a call statement holds a call expression");
-        };
-        call
+        syntax.expressions.call(self.expression)
     }
 }
 
@@ -459,14 +445,8 @@ impl TableDispatch {
             if let TransitionGuardNode::When(guard) = arm.guard {
                 visit(guard);
             }
-            match trees.statements.transition_target(arm.target) {
-                TransitionTargetNode::Named { arguments, .. } => {
-                    for &argument in trees.statements.expression_handles(*arguments) {
-                        visit(argument);
-                    }
-                }
-                TransitionTargetNode::Value(value) => visit(*value),
-                TransitionTargetNode::Terminal => {}
+            if let Some(value) = trees.statements.transition_target(arm.target).expression() {
+                visit(value);
             }
         }
     }
@@ -578,16 +558,19 @@ pub enum TransitionGuardNode {
     record_storage::Record,
 )]
 pub enum TransitionTargetNode {
-    Named {
-        operational_acknowledgement: language_core::CallOperationalAcknowledgement,
-        path: HandleSpan<Identifier>,
-        arguments: HandleSpan<ExpressionHandle>,
-        evidence_arguments: Box<[Identifier]>,
-        source_span: SourceSpan,
-    },
+    Named(ExpressionHandle),
     Value(ExpressionHandle),
     #[default]
     Terminal,
+}
+
+impl TransitionTargetNode {
+    pub fn expression(&self) -> Option<ExpressionHandle> {
+        match self {
+            Self::Named(expression) | Self::Value(expression) => Some(*expression),
+            Self::Terminal => None,
+        }
+    }
 }
 
 #[cfg(test)]

@@ -210,6 +210,13 @@ impl ExpressionTable {
     }
 
     #[inline]
+    pub fn call(&self, handle: ExpressionHandle) -> &TableCallExpression {
+        let ExpressionNode::Call(call) = self.expression(handle) else {
+            unreachable!("a call handle must point to a call expression");
+        };
+        call
+    }
+
     pub fn expression(&self, handle: ExpressionHandle) -> &ExpressionNode {
         self.expressions.get(handle)
     }
