@@ -219,8 +219,9 @@ def resolves_into_archive(root, path):
 def violations(root, files):
     manifests = {file.parent for file in files if file.name == "Cargo.toml"}
     for file in sorted(files):
-        relative = file.relative_to(root)
-        directories = relative.parts[:-1]
+        # Report the path as Git names it, with forward slashes on every host.
+        relative = file.relative_to(root).as_posix()
+        directories = file.relative_to(root).parts[:-1]
         if "_recycling" in directories[1:]:
             yield f"{relative}: nested _recycling directory; use the repository-root _recycling"
             continue
