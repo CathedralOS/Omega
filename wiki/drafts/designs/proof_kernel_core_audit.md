@@ -60,7 +60,9 @@ Delete it when that task closes or its plan carries these findings.
    judged nothing outside the proof crate. The read restates the three
    properties, names twelve patterns the earlier readings missed, lists 1,366
    old rules with what today's compiler does about each, and finds ten of the
-   old faults still present today in small form. See
+   old faults still present today in small form. Probe programs confirmed
+   one rule today's compiler does not enforce: two parameters of one machine
+   may share a name. See
    [what the line-by-line read found](#what-the-line-by-line-read-found).
 8. **Do first.** Build toward the core library, not the samples. It needs no
    level binder, no `core\Squash` and no value-indexed family, but every law
@@ -428,10 +430,16 @@ accepts nothing new. About 20 are retired surfaces or constructs with no
 route from source today. The rest are below, with what was done to check
 each.
 
+Treat the rows that were not probed as leads. Four rules that a reader
+called likely unenforced were tested with small programs, and the compiler
+refused three of them. A search that finds no check does not show there is
+none.
+
 | Rule | What the reader found | Checked for this audit |
 | --- | --- | --- |
-| Two declarations of one name in one scope (two `data`, two `trait`, a `data` and a `trait`), two parameters of one machine with one name, two machines with one callable identity | No refusal at the declaration; a later use is refused as ambiguous. The surviving duplicate check covers `const` only (`02_.../constants/uses.rs:15-35`). | Probe programs written; not yet run |
-| The number of arguments in a type application matches the declaration | A mismatch is skipped with `continue` in const-argument admission (`03_.../src/type_reference.rs:908-932`); no other count check was found | That code confirmed. A probe program is written; not yet run |
+| Two parameters of one machine with one name | Nothing compares a machine's parameter names with each other | **Confirmed by a probe: the program compiles.** `machine pick(a: i32, a: i32) -> i32 requires a > 0 { a }` is accepted, and both the contract and the body read the first parameter: `pick(1, 0 - 7)` compiles and runs to Psi exit 0, and `pick(0 - 7, 1)` is refused. The second parameter cannot be named. A local that repeats a parameter or another local is refused (`02_.../names/repeated_locals.rs:143-148`). |
+| Two declarations of one name in one scope (two `data`, two `trait`, a `data` and a `trait`), two machines with one callable identity | No refusal at the declaration; a later use is refused as ambiguous | Probed: all four are refused, so the reader's "likely unenforced" was wrong. The refusal is an internal check with no source position, and it prints a debug dump: "source selection dictionary repeats a declaration in one purpose: 34 SelectionDeclaration { identity: ..." |
+| The number of arguments in a type application matches the declaration | A mismatch is skipped with `continue` in const-argument admission (`03_.../src/type_reference.rs:908-932`); no other count check was found | Probed: `Box<i32, i32>` for a one-parameter `Box` is refused, with no source position: "data application does not retain its complete argument tuple" |
 | An `AccessCustody` implementation agrees with its schema | Nothing | Confirmed: no Rust file names it. Reach is limited, because stage 05 refuses data with an erased field |
 | A value stored into a narrowed integer field fits its stored width (four cross-checks) | No fit obligation | Unreachable today; see [old faults that remain](#old-faults-that-remain-in-todays-compiler) |
 | Content conservation: a content-bearing result descends from a consumed owned claim (four cross-checks) | Stage 05 has no reader for it and the prover refuses the goal form. No reader found the site that refuses the source form. | Not checked further. It needs a direct negative test |
@@ -443,7 +451,7 @@ each.
 | A clause does not read through a stored reference | The clause reader follows a shared stored reference (`05_.../src/read/contracts.rs:2476-2489`); the old rule was that nothing does | Not checked |
 | A value live across a suspension has a carry policy that allows it | A comment says it "is checked row by row" (`06_.../src/operational.rs:347-348`); no code was found | Not checked |
 | Smaller ones: accessor privacy, destructive-read views, the five properties of a progress-profile domain, at most one `via`, wire schemas with no `encoding` | Not found | Not checked |
-| A Boolean expression written as a statement is proved | Today it is evaluated and discarded | Not a gap. [Contracts](../../spec/proofs/contracts.md) says there is "no new assertion primitive", and the corpus's assertion fixtures use a guarded transition |
+| A Boolean expression written as a statement is proved | Today it is evaluated and discarded | Not a gap. Probed: `x > 0;` as a statement is refused with "use the returned value or explicitly discard it with `_ =`". [Contracts](../../spec/proofs/contracts.md) says there is "no new assertion primitive", and the corpus's assertion fixtures use a guarded transition |
 
 #### Old faults that remain in today's compiler
 
@@ -461,7 +469,7 @@ program.
 | The stored-field `range_obligation` slot has no producer | Stage 05 writes `None` at all six sites (`05_.../src/lower/places.rs:3611-4964`). It is unreachable today because stage 05 reads only whole-field placements (`AuthoredFieldStorage::Direct`, `read/source_records/layouts.rs:443-448`). The fit proof that [layout plans](../../spec/layouts/plans.md) require must arrive with narrowed integer fields. | A slot with readers and no writer |
 | The spec and the library say the compiler checks an `AccessCustody` implementation against its schema; no Rust file names `AccessCustody` | `wiki/spec/resources/access.md:342`, `source/library/core/layout.omg:511-514` | A check described and not built |
 | `ProofOnlyClassification::classify` is called by nothing | `typed-trees/proofs/evidence_and_inspection.rs:463` | Dead code that reads as a check |
-| A program that breaks a rule is told "not supported yet" | For example `[copy]` data with an owned field (`05_.../src/read/places.rs:485`) | A refusal that does not say what is wrong |
+| A program that breaks a rule is told "not supported yet", or gets an internal message | `[copy]` data with an owned field is "not supported yet" (`05_.../src/read/places.rs:485`). Two `data` of one name get a debug dump of a `SelectionDeclaration` with no source position (probed). | A refusal that does not say what is wrong |
 | The stage 05 README lists references, slices, floats and domains as refused; the code serves them | Five cross-checks classified from the code for this reason | A document behind its code |
 
 ### What this changes in the plan
@@ -994,9 +1002,19 @@ Recorded, not answered:
   read the 17 rule inventories row by row. The counts of rules (1,366 and
   its classes) are sums of the cross-checks' own summaries. The rows marked
   confirmed in [old faults that remain](#old-faults-that-remain-in-todays-compiler)
-  were read in the current source for this audit; nothing was compiled or
-  run. The counts in the patterns table are the readers' and were not
-  recounted.
+  were read in the current source for this audit. The counts in the
+  patterns table are the readers' and were not recounted.
+- Probes (2026-11-23): `CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p omega`
+  at `b8213143d790` plus this branch's documentation commits, on the cloud
+  session's `linux_x86_64` container, then `omega --check --target
+  linux_x86_64 main.omg` on thirteen two-file programs kept outside the
+  repository. An empty `main` compiled, and a call that breaks its callee's
+  `requires` was refused with the expected message; these two are the
+  controls. Results for duplicate parameters, duplicate declarations, a
+  type-argument count and a Boolean statement are in
+  [the table of rules not found](#what-todays-compiler-does-with-the-old-rules).
+  The duplicate-parameter program was also run with `omega run --engine
+  psi` (Psi exit 0); it was not run natively.
 - Not determined: whether a full core library check with `no_wrap` passes
   end to end (no sample reaches it); `erased_array_evidence`'s signal 9;
   whether old level constraints were ever published; the two samples bound to
