@@ -51,7 +51,7 @@ def main():
         program = root / "main.omg"
         program.write_text("\n\n".join([*units, (fixture / "main.omg").read_text()]))
         result = subprocess.run(
-            [args.omega.resolve(), "run", "--both", program],
+            [args.omega.resolve(), "run", "--both", root / "build.omg"],
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
