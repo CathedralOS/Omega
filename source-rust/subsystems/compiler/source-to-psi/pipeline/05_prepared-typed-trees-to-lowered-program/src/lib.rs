@@ -1961,7 +1961,7 @@ fn lower_program<'source>(
             sources,
             boundaries: IdTable::default(),
             names: IdTable::default(),
-            domain_names: qualifications.domain_names,
+            domain_sources: qualifications.domain_sources,
             machines: IdTable::default(),
             private_inputs: Vec::new(),
             local_results: local_summaries.map_or_else(Vec::new, |local| local.result_contracts),

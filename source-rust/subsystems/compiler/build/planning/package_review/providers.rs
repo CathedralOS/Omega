@@ -198,6 +198,84 @@ impl<'module> AcceptedDeclarations<'module> {
         }
     }
 
+    fn validate_parameter_domains(
+        &self,
+        signature: &StateSignature,
+        boundary: &BoundaryMachineDeclaration,
+    ) -> Result<(), Vec<Diagnostic>> {
+        use terminal_psi::{BoundaryParameterKind, StructuralDomainRequirement};
+        use terminal_semantics::scalar_qualifications::{
+            primitive_qualifications, qualification_domains, scalar_domain,
+        };
+        let mismatch =
+            || unavailable("the exact root domain applications of a boundary's parameters");
+        if !boundary.has_valid_parameter_order()
+            || !StructuralDomainRequirement::declared_roots(&boundary.structural_parameters)
+                .eq(boundary.requires.iter().cloned())
+        {
+            return Err(mismatch());
+        }
+        let module = self.accepted.module();
+        let origins = &self.accepted.closure().elaboration().domain_sources;
+        let scalar_source = |id| {
+            scalar_domain(module, id)
+                .and_then(|domain| origins.get(domain.semantic_domain))
+                .map(|source| source.application)
+                .ok_or_else(mismatch)
+        };
+        let scalar_positions: Vec<_> = boundary
+            .parameter_positions(BoundaryParameterKind::Scalar)
+            .collect();
+        let structural_positions: Vec<_> = boundary
+            .parameter_positions(BoundaryParameterKind::Structural)
+            .collect();
+        let mut actual = Vec::new();
+        for row in &boundary.scalar_domain_requirements {
+            let position = *scalar_positions
+                .get(row.argument_index as usize)
+                .ok_or_else(mismatch)?;
+            actual.push((position, scalar_source(row.domain)?));
+        }
+        for formal in &boundary.structural_parameters {
+            let position = *structural_positions
+                .get(formal.position as usize)
+                .ok_or_else(mismatch)?;
+            for &id in &formal.qualifications {
+                let domain = module
+                    .structural_domain(id)
+                    .and_then(|d| origins.get(d.semantic_domain))
+                    .ok_or_else(mismatch)?;
+                actual.push((position, domain.application));
+            }
+            // A borrowed scalar carries its domains on the referent's primitive storage.
+            let home = primitive_qualifications(module, formal.structural_type);
+            for &id in qualification_domains(module, home).ok_or_else(mismatch)? {
+                actual.push((position, scalar_source(id)?));
+            }
+        }
+        let source = match self.accepted.requirement_review(signature.symbol) {
+            Ok(metadata) => metadata,
+            // Open declaration templates can lack an applied review. No physical
+            // membership may rely on that missing declaration.
+            Err(_) if actual.is_empty() => return Ok(()),
+            Err(reason) => return Err(unavailable(reason)),
+        };
+        actual.sort_unstable_by_key(|(position, domain)| (*position, domain.coordinates()));
+        if boundary.parameter_order.len() != source.parameter_types.len()
+            || !structural_positions.iter().copied().eq(source
+                .structural_parameter_positions
+                .iter()
+                .map(|&position| position as usize))
+            || !actual.into_iter().eq(source
+                .parameter_qualifications
+                .iter()
+                .map(|&(position, application)| (position as usize, application)))
+        {
+            return Err(mismatch());
+        }
+        Ok(())
+    }
+
     fn has_authored_reach(&self, owner: SymbolHandle) -> bool {
         self.authored_reach_owners
             .binary_search_by_key(&symbol_key(owner), |symbol| symbol_key(*symbol))
@@ -1283,6 +1361,7 @@ impl PolicySource<'_> {
         let authored_routes = source.state_signature_contracts(signature).iter().any(|clause| {
             matches!(clause.kind, source_compiler::representations::source_state::signature::SignatureContractKind::Crashes { .. })
         });
+        declarations.validate_parameter_domains(signature, boundary)?;
         if !signature.lifetime_parameters.is_empty()
             || !signature.conformance_bounds.is_empty()
             || signature.spelling.is_some()
@@ -1293,10 +1372,13 @@ impl PolicySource<'_> {
             || boundary.role != BoundaryDeclarationRole::Callable
             || declaration.execution != CheckedBoundaryExecution::Provider
             || boundary.structural_parameters.iter().any(|parameter| {
-                !parameter.is_unqualified_root()
+                !matches!(
+                    parameter.multiplicity,
+                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
+                ) || !parameter.projected_qualifications.is_empty()
                     || !parameter.additional_input_qualifications.is_empty()
             })
-            || ((!boundary.requires.is_empty() || !boundary.scalar_requires.is_empty())
+            || (!boundary.scalar_requires.is_empty()
                 && !contracts.iter().any(|clause| {
                     clause.kind == review_evidence::record::PackageReviewContractKind::Requires
                 }))
@@ -1305,7 +1387,6 @@ impl PolicySource<'_> {
                     clause.kind == review_evidence::record::PackageReviewContractKind::Ensures
                 }))
             || !boundary.normal_qualifications.is_empty()
-            || !boundary.scalar_domain_requirements.is_empty()
             || !boundary.reference_outputs.is_empty()
             || !boundary.program_local_root_introductions.is_empty()
             || !boundary.content_guarantees.is_empty()

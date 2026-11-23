@@ -107,13 +107,7 @@ impl Qualification {
     }
 }
 
-/// One exact domain application. The declaration owns the family and its
-/// routes; the semantic coordinate distinguishes its carrier and indices.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct DomainInstance {
-    pub declaration: symbols::SymbolHandle,
-    pub identity: semantic_vocabulary::SemanticDomainId,
-}
+pub use terminal_check_tables::program::DomainInstance;
 
 /// The declared domains of one type, each by its exact application, kept
 /// sorted so that equal sets are equal values. The set is held inline, as
@@ -143,14 +137,6 @@ impl DomainSet {
         members: [(0, 0, 0); Self::CAPACITY],
     };
 
-    const fn key(domain: DomainInstance) -> (u32, u32, u32) {
-        (
-            domain.declaration.arena_index(),
-            domain.declaration.generation(),
-            domain.identity.0,
-        )
-    }
-
     pub fn members(&self) -> impl Iterator<Item = DomainInstance> + '_ {
         self.members[..usize::from(self.len)]
             .iter()
@@ -165,7 +151,7 @@ impl DomainSet {
     }
 
     pub fn contains(&self, domain: DomainInstance) -> bool {
-        self.members[..usize::from(self.len)].contains(&Self::key(domain))
+        self.members[..usize::from(self.len)].contains(&domain.coordinates())
     }
 
     /// Whether every member of this set is a member of `other`.
@@ -180,7 +166,7 @@ impl DomainSet {
         if self.contains(domain) || count == Self::CAPACITY {
             return None;
         }
-        let key = Self::key(domain);
+        let key = domain.coordinates();
         let position = self.members[..count].partition_point(|member| *member < key);
         self.members.copy_within(position..count, position + 1);
         self.members[position] = key;
@@ -193,7 +179,7 @@ impl DomainSet {
         let count = usize::from(self.len);
         let position = self.members[..count]
             .iter()
-            .position(|member| *member == Self::key(domain))?;
+            .position(|member| *member == domain.coordinates())?;
         self.members.copy_within(position + 1..count, position);
         self.members[count - 1] = (0, 0, 0);
         self.len -= 1;

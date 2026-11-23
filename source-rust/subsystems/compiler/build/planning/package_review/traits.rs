@@ -284,17 +284,16 @@ impl PolicySource<'_> {
             services.sort();
             services.dedup();
         }
-        let mut qualifications = metadata
-            .parameter_qualifications
-            .iter()
-            .map(|(structural_index, domain)| {
-                self.nominal(*domain)
-                    .map(|domain| PackageReviewParameterQualification {
-                        structural_index: *structural_index,
-                        domain,
-                    })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut qualifications = Vec::new();
+        for (position, domain) in &metadata.parameter_qualifications {
+            if let Ok(index) = metadata.structural_parameter_positions.binary_search(position) {
+                qualifications.push(PackageReviewParameterQualification {
+                    structural_index: u32::try_from(index)
+                        .map_err(|_| unavailable("a requirement's structural parameter position"))?,
+                    domain: self.nominal(domain.declaration)?,
+                });
+            }
+        }
         qualifications.sort();
         qualifications.dedup();
         Ok(PackagePolicyTraitRequirement {
