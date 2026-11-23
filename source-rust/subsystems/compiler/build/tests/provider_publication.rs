@@ -1444,6 +1444,18 @@ Provider satisfies Reading {{
         };
         assert_ne!(plain.type_identity, qualified.type_identity);
         assert!(qualified.type_identity.canonical.contains("Marked"));
+        let [contract] = declaration.contracts.as_slice() else {
+            panic!("expected the input membership contract");
+        };
+        assert_eq!(contract.kind, review_evidence::record::PackageReviewContractKind::Requires);
+        let review_evidence::record::PackageReviewContractFact::Membership {
+            value: review_evidence::record::PackageReviewContractExpression::Parameter(1),
+            domain,
+            ..
+        } = &contract.fact else {
+            panic!("expected membership on the second parameter");
+        };
+        assert_eq!(domain.path(), "main.omg::i32::Marked");
     }
 }
 
