@@ -71,7 +71,7 @@ fn collection_catalog_keeps_its_build_product_and_query_source_cohorts() {
         collection_source(query.parsed(), source_provenance::DependencyScope::Product);
     assert_ne!(build_source, query_source);
     let (_, product) = continuation
-        .assemble(None, &[], &mut timings, &mut catalogue)
+        .assemble(None, &[], &[], &mut timings, &mut catalogue)
         .expect("the final Product source assembly");
     let product_source =
         collection_source(&product.parsed, source_provenance::DependencyScope::Product);

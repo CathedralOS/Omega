@@ -37,8 +37,7 @@ and admission, `source/assembly/mod.rs` for Psi 00/01 source loading,
 pub use source::anonymous_owner::AnonymousSourceCapture;
 pub use source_acquisition::local::resolution_observations::CapturedLocalSource;
 pub mod build_execution;
-mod codec_bytes;
-mod cursor;
+use wire::codec_bytes;
 mod reuse;
 mod source;
 pub(crate) use ::wire::digest_encoder;
