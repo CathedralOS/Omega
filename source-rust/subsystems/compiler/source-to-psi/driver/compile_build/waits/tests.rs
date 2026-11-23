@@ -146,18 +146,29 @@ machine consume() -> u32 { kit\seven() }";
 }
 
 #[test]
-fn a_lexical_value_named_like_a_pending_import_does_not_request_it() {
+fn only_a_file_qualifier_requests_a_pending_import_named_like_a_local_value() {
     let program = PROGRAM
-        .replace("    let seven", "    let kit: u32 = 1;\n    let seven")
-        .replace("TEST", r"kit\seven");
+        .replace("use kit;", "use {kit}/tools.omg as kit;")
+        .replace("    let seven", "    let kit: u32 = 1;\n    let seven");
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::default(),
-        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
+        target: crate::SourceImportTarget::File {
+            root: Some("kit".into()),
+            path: "tools.omg".into(),
+            alias: "kit".into(),
+        },
     }];
-    let (_, plan, parked) = select(&program, &imports);
-    assert!(plan.stage.outgoing_parked_preparation().is_none());
-    assert!(parked.is_empty());
+    // Preparing the package can supply its machine. It cannot supply a method on the local value.
+    for (call, waits) in [("kit.seven", false), ("|kit|::seven", true)] {
+        let (_, plan, parked) = select(&program.replace("TEST", call), &imports);
+        assert_eq!(
+            plan.stage.outgoing_parked_preparation().is_some(),
+            waits,
+            "{call}"
+        );
+        assert_eq!(!parked.is_empty(), waits, "{call}");
+    }
 }
 
 #[test]
