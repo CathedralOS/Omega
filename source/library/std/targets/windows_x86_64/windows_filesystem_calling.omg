@@ -1,11 +1,6 @@
-use AbiValueClass;
-use AbiValueShape;
-use BoundaryEntryPlan;
-use BoundarySignature;
-use MachineRegister;
-use ValueClass;
-use ValueLocation;
-use ValueShape;
+use calling.omg as abi;
+use targets/windows_x86_64/calling.omg as scalar;
+
 // ReadFile/WriteFile split one borrowed view into pointer and DWORD count.
 // Place all sixteen descriptor bytes: pointer in RDX, length in R8. The
 // requirement proves length <= DWORD_MAX, so the callee's right-justified
@@ -13,14 +8,14 @@ use ValueShape;
 // Handle, count-output pointer and null OVERLAPPED retain their ordered slots.
 // This plan supplies representation, never storage authority or completion.
 
-machine windows_filesystem_transfer_signature(signature: @BoundarySignature) -> bool {
+machine windows_filesystem_transfer_signature(signature: @|abi|::BoundarySignature) -> bool {
     transition signature.parameter_count == 4 && signature.native_parameter_count == 4
         && signature.has_result && signature.callback_binder_count == 0
         && signature.callback_demand_count == 0 {
         true -> indices(signature),
         _ -> false
     }
-    machine indices(signature: @BoundarySignature) -> bool {
+    machine indices(signature: @|abi|::BoundarySignature) -> bool {
         transition signature.parameters[0] < 256 && signature.parameters[0] < signature.shape_count
             && signature.parameters[1] < 256 && signature.parameters[1] < signature.shape_count
             && signature.parameters[2] < 256 && signature.parameters[2] < signature.shape_count
@@ -34,8 +29,8 @@ machine windows_filesystem_transfer_signature(signature: @BoundarySignature) -> 
             _ -> false
         }
     }
-    machine shapes(handle: @ValueShape, bytes: @ValueShape, transferred: @ValueShape,
-        overlapped: @ValueShape, result: @ValueShape) -> bool {
+    machine shapes(handle: @|abi|::ValueShape, bytes: @|abi|::ValueShape, transferred: @|abi|::ValueShape,
+        overlapped: @|abi|::ValueShape, result: @|abi|::ValueShape) -> bool {
         transition windows_transfer_integer_shape(handle, 8)
             && windows_transfer_reference_shape(bytes, 16)
             && windows_transfer_reference_shape(transferred, 8)
@@ -47,42 +42,42 @@ machine windows_filesystem_transfer_signature(signature: @BoundarySignature) -> 
     }
 }
 
-machine windows_filesystem_transfer_entry() -> BoundaryEntryPlan {
-    let mutable plan: BoundaryEntryPlan = windows_x64_call_entry();
+machine windows_filesystem_transfer_entry() -> |abi|::BoundaryEntryPlan {
+    let mutable plan: |abi|::BoundaryEntryPlan = |scalar|::windows_x64_call_entry();
     plan.call.parameter_count = 4;
-    plan.call.parameters[0] = windows_x64_register_place(8, MachineRegister::X86Rcx);
-    plan.call.parameters[1].shape = AbiValueShape {
-        class: AbiValueClass::Integer, byte_size: 16, alignment: 8
+    plan.call.parameters[0] = |scalar|::windows_x64_register_place(8, |abi|::MachineRegister::X86Rcx);
+    plan.call.parameters[1].shape = |abi|::AbiValueShape {
+        class: |abi|::AbiValueClass::Integer, byte_size: 16, alignment: 8
     };
     plan.call.parameters[1].location_count = 2;
-    plan.call.parameters[1].locations[0] = ValueLocation::Register {
-        register: MachineRegister::X86Rdx, value_byte_offset: 0, byte_size: 8
+    plan.call.parameters[1].locations[0] = |abi|::ValueLocation::Register {
+        register: |abi|::MachineRegister::X86Rdx, value_byte_offset: 0, byte_size: 8
     };
-    plan.call.parameters[1].locations[1] = ValueLocation::Register {
-        register: MachineRegister::X86R8, value_byte_offset: 8, byte_size: 8
+    plan.call.parameters[1].locations[1] = |abi|::ValueLocation::Register {
+        register: |abi|::MachineRegister::X86R8, value_byte_offset: 8, byte_size: 8
     };
-    plan.call.parameters[2] = windows_x64_register_place(8, MachineRegister::X86R9);
-    plan.call.parameters[3].shape = AbiValueShape {
-        class: AbiValueClass::Integer, byte_size: 8, alignment: 8
+    plan.call.parameters[2] = |scalar|::windows_x64_register_place(8, |abi|::MachineRegister::X86R9);
+    plan.call.parameters[3].shape = |abi|::AbiValueShape {
+        class: |abi|::AbiValueClass::Integer, byte_size: 8, alignment: 8
     };
     plan.call.parameters[3].location_count = 1;
-    plan.call.parameters[3].locations[0] = ValueLocation::Stack {
+    plan.call.parameters[3].locations[0] = |abi|::ValueLocation::Stack {
         stack_byte_offset: 32, value_byte_offset: 0, byte_size: 8, alignment: 8
     };
     plan.call.has_result = true;
-    plan.call.result = windows_x64_register_place(4, MachineRegister::X86Rax);
+    plan.call.result = |scalar|::windows_x64_register_place(4, |abi|::MachineRegister::X86Rax);
     plan
 }
 
-machine windows_transfer_integer_shape(shape: @ValueShape, bytes: u64) -> bool {
+machine windows_transfer_integer_shape(shape: @|abi|::ValueShape, bytes: u64) -> bool {
     transition shape.class {
-        ValueClass::Integer -> (shape.byte_size == bytes && shape.alignment == bytes),
+        |abi|::ValueClass::Integer -> (shape.byte_size == bytes && shape.alignment == bytes),
         _ -> false
     }
 }
-machine windows_transfer_reference_shape(shape: @ValueShape, bytes: u64) -> bool {
+machine windows_transfer_reference_shape(shape: @|abi|::ValueShape, bytes: u64) -> bool {
     transition shape.class {
-        ValueClass::Reference -> (shape.byte_size == bytes && shape.alignment == 8),
+        |abi|::ValueClass::Reference -> (shape.byte_size == bytes && shape.alignment == 8),
         _ -> false
     }
 }

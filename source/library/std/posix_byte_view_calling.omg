@@ -1,29 +1,32 @@
+use calling.omg as abi;
+use darwin_calling.omg as darwin;
+
 // Explicit native ABI for POSIX byte-view leaves. A slice is one semantic
 // borrowed formal: pointer then extent occupy two consecutive native words.
 // Scalar and sized-reference formals occupy one word. This policy is opt-in;
 // it neither changes the default slice ABI nor grants access beyond the view.
 
-public LinuxArm64ByteViewCalling satisfies CallingPolicy {
-    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        let mutable plan: BoundaryEntryPlan = posix_byte_view_linux_arm64_entry();
+public LinuxArm64ByteViewCalling satisfies |abi|::CallingPolicy {
+    machine plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
+        let mutable plan: |abi|::BoundaryEntryPlan = posix_byte_view_linux_arm64_entry();
         let accepted: bool = posix_byte_view_parameters(@signature, @mutable plan);
         transition accepted {
-            true -> BoundaryPlanResult::Accepted { plan: plan },
-            _ -> BoundaryPlanResult::Rejected {
-                reason: CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as +Utf8 }
+            true -> |abi|::BoundaryPlanResult::Accepted { plan: plan },
+            _ -> |abi|::BoundaryPlanResult::Rejected {
+                reason: |abi|::CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as + |abi|::Utf8 }
             }
         }
     }
 }
 
-public LinuxX86ByteViewCalling satisfies CallingPolicy {
-    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        let mutable plan: BoundaryEntryPlan = posix_byte_view_linux_x86_entry();
+public LinuxX86ByteViewCalling satisfies |abi|::CallingPolicy {
+    machine plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
+        let mutable plan: |abi|::BoundaryEntryPlan = posix_byte_view_linux_x86_entry();
         let accepted: bool = posix_byte_view_parameters(@signature, @mutable plan);
         transition accepted {
-            true -> BoundaryPlanResult::Accepted { plan: plan },
-            _ -> BoundaryPlanResult::Rejected {
-                reason: CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as +Utf8 }
+            true -> |abi|::BoundaryPlanResult::Accepted { plan: plan },
+            _ -> |abi|::BoundaryPlanResult::Rejected {
+                reason: |abi|::CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as + |abi|::Utf8 }
             }
         }
     }
@@ -31,32 +34,32 @@ public LinuxX86ByteViewCalling satisfies CallingPolicy {
 
 // The C ABI borrows the same pointer/count value but has ordinary call-return
 // control and the full caller-saved register promise.
-public SystemVByteViewCalling satisfies CallingPolicy {
-    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        let mutable plan: BoundaryEntryPlan = posix_byte_view_system_v_entry();
+public SystemVByteViewCalling satisfies |abi|::CallingPolicy {
+    machine plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
+        let mutable plan: |abi|::BoundaryEntryPlan = posix_byte_view_system_v_entry();
         let accepted: bool = posix_byte_view_parameters(@signature, @mutable plan);
         transition accepted {
-            true -> BoundaryPlanResult::Accepted { plan: plan },
-            _ -> BoundaryPlanResult::Rejected {
-                reason: CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as +Utf8 }
+            true -> |abi|::BoundaryPlanResult::Accepted { plan: plan },
+            _ -> |abi|::BoundaryPlanResult::Rejected {
+                reason: |abi|::CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as + |abi|::Utf8 }
             }
         }
     }
 }
 
-public DarwinArm64ByteViewCalling satisfies CallingPolicy {
-    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        let mutable plan: BoundaryEntryPlan = darwin_arm64_entry();
+public DarwinArm64ByteViewCalling satisfies |abi|::CallingPolicy {
+    machine plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
+        let mutable plan: |abi|::BoundaryEntryPlan = |darwin|::darwin_arm64_entry();
         let accepted: bool = posix_byte_view_parameters(@signature, @mutable plan);
         transition accepted {
-            true -> BoundaryPlanResult::Accepted { plan: plan },
-            _ -> BoundaryPlanResult::Rejected {
-                reason: CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as +Utf8 }
+            true -> |abi|::BoundaryPlanResult::Accepted { plan: plan },
+            _ -> |abi|::BoundaryPlanResult::Rejected {
+                reason: |abi|::CallingPolicyRejection { reason: "expected bounded byte views, integer or sized-reference formals, and Unit or integer result" as + |abi|::Utf8 }
             }
         }
     }
 }
-machine posix_byte_view_parameters(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan) -> bool
+machine posix_byte_view_parameters(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan) -> bool
 {
     transition signature.parameter_count == signature.native_parameter_count
         && signature.parameter_count <= 6
@@ -65,35 +68,35 @@ machine posix_byte_view_parameters(signature: @BoundarySignature, plan: @mutable
         true -> completion(signature, plan),
         _ -> false
     }
-    machine completion(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan) -> bool
+    machine completion(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan) -> bool
     requires signature.parameter_count <= 6 {
         transition signature.has_result {
             true -> result_index(signature, plan),
             _ -> unit(signature, plan)
         }
     }
-    machine unit(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan) -> bool
+    machine unit(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan) -> bool
     requires signature.parameter_count <= 6 {
         plan.call.parameter_count = signature.parameter_count;
         plan.call.callback_materialization_count = 0;
         plan.call.has_result = false;
         posix_byte_view_parameters_from(signature, plan, 0, 0, 6)
     }
-    machine result_index(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan) -> bool {
+    machine result_index(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan) -> bool {
         transition signature.result < signature.shape_count && signature.result < 256 {
             true -> result(signature, plan, @signature.shapes[signature.result]),
             _ -> false
         }
     }
-    machine result(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan, shape: @ValueShape) -> bool
+    machine result(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan, shape: @|abi|::ValueShape) -> bool
     requires signature.parameter_count <= 32
     {
         transition shape.class {
-            ValueClass::Integer -> result_size(signature, plan, shape),
+            |abi|::ValueClass::Integer -> result_size(signature, plan, shape),
             _ -> false
         }
     }
-    machine result_size(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan, shape: @ValueShape) -> bool
+    machine result_size(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan, shape: @|abi|::ValueShape) -> bool
     requires signature.parameter_count <= 32
     {
         transition (shape.byte_size == 4 && shape.alignment == 4)
@@ -102,7 +105,7 @@ machine posix_byte_view_parameters(signature: @BoundarySignature, plan: @mutable
             _ -> false
         }
     }
-    machine result_place(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan, shape: @ValueShape) -> bool
+    machine result_place(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan, shape: @|abi|::ValueShape) -> bool
     requires signature.parameter_count <= 32
     {
         // Restate both CallPlan bounds before any other field write. The
@@ -111,16 +114,16 @@ machine posix_byte_view_parameters(signature: @BoundarySignature, plan: @mutable
         plan.call.parameter_count = signature.parameter_count;
         plan.call.callback_materialization_count = 0;
         plan.call.has_result = true;
-        plan.call.result.shape = AbiValueShape { class: AbiValueClass::Integer, byte_size: shape.byte_size, alignment: shape.alignment };
+        plan.call.result.shape = |abi|::AbiValueShape { class: |abi|::AbiValueClass::Integer, byte_size: shape.byte_size, alignment: shape.alignment };
         plan.call.result.location_count = 1;
-        plan.call.result.locations[0] = ValueLocation::Register {
+        plan.call.result.locations[0] = |abi|::ValueLocation::Register {
             register: posix_byte_view_result_register(@plan.call.convention), value_byte_offset: 0, byte_size: shape.byte_size
         };
         posix_byte_view_parameters_from(signature, plan, 0, 0, 6)
     }
 }
 
-machine posix_byte_view_parameters_from(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan, ordinal: u64, word: u64, remaining: u64) -> bool
+machine posix_byte_view_parameters_from(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan, ordinal: u64, word: u64, remaining: u64) -> bool
 terminates by remaining
 {
     let next_word: u64 = posix_byte_view_parameter(signature, plan, ordinal, word);
@@ -132,14 +135,14 @@ terminates by remaining
     }
 }
 
-machine posix_byte_view_parameter(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan, ordinal: u64, word: u64) -> u64
+machine posix_byte_view_parameter(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan, ordinal: u64, word: u64) -> u64
 {
         transition {
             ordinal == signature.parameter_count -> word,
             ordinal < signature.parameter_count && ordinal < 6 && ordinal < 32 -> root(signature, plan, ordinal, word, signature.parameters[ordinal]),
             _ -> 7
         }
-    machine root(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan, ordinal: u64, word: u64, root: u64) -> u64
+    machine root(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan, ordinal: u64, word: u64, root: u64) -> u64
     requires ordinal < 6
     {
         transition root < signature.shape_count && root < 256 {
@@ -147,16 +150,16 @@ machine posix_byte_view_parameter(signature: @BoundarySignature, plan: @mutable 
             _ -> 7
         }
     }
-    machine shape(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan, ordinal: u64, word: u64, shape: @ValueShape) -> u64
+    machine shape(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan, ordinal: u64, word: u64, shape: @|abi|::ValueShape) -> u64
     requires ordinal < 6
     {
         transition shape.class {
-            ValueClass::Reference -> reference(signature, plan, ordinal, word, shape),
-            ValueClass::Integer -> scalar(signature, plan, ordinal, word, shape),
+            |abi|::ValueClass::Reference -> reference(signature, plan, ordinal, word, shape),
+            |abi|::ValueClass::Integer -> scalar(signature, plan, ordinal, word, shape),
             _ -> 7
         }
     }
-    machine reference(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan, ordinal: u64, word: u64, shape: @ValueShape) -> u64
+    machine reference(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan, ordinal: u64, word: u64, shape: @|abi|::ValueShape) -> u64
     requires ordinal < 6
     {
         transition {
@@ -165,7 +168,7 @@ machine posix_byte_view_parameter(signature: @BoundarySignature, plan: @mutable 
             _ -> 7
         }
     }
-    machine scalar(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan, ordinal: u64, word: u64, shape: @ValueShape) -> u64
+    machine scalar(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan, ordinal: u64, word: u64, shape: @|abi|::ValueShape) -> u64
     requires ordinal < 6
     {
         transition word < 6 && ((shape.byte_size == 4 && shape.alignment == 4)
@@ -174,18 +177,18 @@ machine posix_byte_view_parameter(signature: @BoundarySignature, plan: @mutable 
             _ -> 7
         }
     }
-    machine place(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan, ordinal: u64, word: u64, shape: @ValueShape, pair: bool) -> u64
+    machine place(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan, ordinal: u64, word: u64, shape: @|abi|::ValueShape, pair: bool) -> u64
     requires ordinal < 6, word < 6
     {
-        plan.call.parameters[ordinal].shape = AbiValueShape {
-            class: AbiValueClass::Integer, byte_size: shape.byte_size, alignment: shape.alignment
+        plan.call.parameters[ordinal].shape = |abi|::AbiValueShape {
+            class: |abi|::AbiValueClass::Integer, byte_size: shape.byte_size, alignment: shape.alignment
         };
         transition pair {
             true -> pair(signature, plan, ordinal, word),
             _ -> single(signature, plan, ordinal, word, shape.byte_size)
         }
     }
-    machine pair(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan, ordinal: u64, word: u64) -> u64
+    machine pair(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan, ordinal: u64, word: u64) -> u64
     requires ordinal < 6, word < 6
     {
         transition word <= 4 {
@@ -193,127 +196,127 @@ machine posix_byte_view_parameter(signature: @BoundarySignature, plan: @mutable 
             _ -> 7
         }
     }
-    machine pair_place(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan, ordinal: u64, word: u64) -> u64
+    machine pair_place(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan, ordinal: u64, word: u64) -> u64
     requires ordinal < 6, word <= 4
     {
         plan.call.parameters[ordinal].location_count = 2;
-        plan.call.parameters[ordinal].locations[0] = ValueLocation::Register {
+        plan.call.parameters[ordinal].locations[0] = |abi|::ValueLocation::Register {
             register: posix_byte_view_argument_register(word, @plan.call.convention), value_byte_offset: 0, byte_size: 8
         };
-        plan.call.parameters[ordinal].locations[1] = ValueLocation::Register {
+        plan.call.parameters[ordinal].locations[1] = |abi|::ValueLocation::Register {
             register: posix_byte_view_argument_register(word + 1, @plan.call.convention), value_byte_offset: 8, byte_size: 8
         };
         word + 2
     }
-    machine single(signature: @BoundarySignature, plan: @mutable BoundaryEntryPlan, ordinal: u64, word: u64, size: u64) -> u64
+    machine single(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan, ordinal: u64, word: u64, size: u64) -> u64
     requires ordinal < 6, word < 6
     {
         plan.call.parameters[ordinal].location_count = 1;
-        plan.call.parameters[ordinal].locations[0] = ValueLocation::Register {
+        plan.call.parameters[ordinal].locations[0] = |abi|::ValueLocation::Register {
             register: posix_byte_view_argument_register(word, @plan.call.convention), value_byte_offset: 0, byte_size: size
         };
         word + 1
     }
 }
 
-machine posix_byte_view_argument_register(word: u64, convention: @CallingConvention) -> MachineRegister {
+machine posix_byte_view_argument_register(word: u64, convention: @|abi|::CallingConvention) -> |abi|::MachineRegister {
     transition convention {
-        CallingConvention::LinuxSyscallX86_64 -> x86(word, MachineRegister::X86R10),
-        CallingConvention::SystemVAMD64 -> x86(word, MachineRegister::X86Rcx),
-        _ -> MachineRegister::Aarch64X { index: word }
+        |abi|::CallingConvention::LinuxSyscallX86_64 -> x86(word, |abi|::MachineRegister::X86R10),
+        |abi|::CallingConvention::SystemVAMD64 -> x86(word, |abi|::MachineRegister::X86Rcx),
+        _ -> |abi|::MachineRegister::Aarch64X { index: word }
     }
-    machine x86(word: u64, fourth: MachineRegister) -> MachineRegister {
+    machine x86(word: u64, fourth: |abi|::MachineRegister) -> |abi|::MachineRegister {
         transition word {
-            0 -> MachineRegister::X86Rdi,
-            1 -> MachineRegister::X86Rsi,
-            2 -> MachineRegister::X86Rdx,
+            0 -> |abi|::MachineRegister::X86Rdi,
+            1 -> |abi|::MachineRegister::X86Rsi,
+            2 -> |abi|::MachineRegister::X86Rdx,
             3 -> fourth,
-            4 -> MachineRegister::X86R8,
-            _ -> MachineRegister::X86R9
+            4 -> |abi|::MachineRegister::X86R8,
+            _ -> |abi|::MachineRegister::X86R9
         }
     }
 }
-machine posix_byte_view_result_register(convention: @CallingConvention) -> MachineRegister {
+machine posix_byte_view_result_register(convention: @|abi|::CallingConvention) -> |abi|::MachineRegister {
     transition convention {
-        CallingConvention::LinuxSyscallX86_64 -> MachineRegister::X86Rax,
-        CallingConvention::SystemVAMD64 -> MachineRegister::X86Rax,
-        _ -> MachineRegister::Aarch64X { index: 0 }
+        |abi|::CallingConvention::LinuxSyscallX86_64 -> |abi|::MachineRegister::X86Rax,
+        |abi|::CallingConvention::SystemVAMD64 -> |abi|::MachineRegister::X86Rax,
+        _ -> |abi|::MachineRegister::Aarch64X { index: 0 }
     }
 }
 
-machine posix_byte_view_linux_arm64_entry() -> BoundaryEntryPlan {
-    let mutable plan: BoundaryEntryPlan;
-    plan.call.convention = CallingConvention::LinuxSyscallAarch64;
+machine posix_byte_view_linux_arm64_entry() -> |abi|::BoundaryEntryPlan {
+    let mutable plan: |abi|::BoundaryEntryPlan;
+    plan.call.convention = |abi|::CallingConvention::LinuxSyscallAarch64;
     plan.call.stack_alignment = 16;
-    plan.call.entry_control = EntryControl::SupervisorCall { number_register: MachineRegister::Aarch64X { index: 8 }, immediate: 0 };
-    plan.call.ordinary_clobbers.registers[0] = MachineRegister::Aarch64X { index: 0 };
-    plan.call.ordinary_clobbers.registers[1] = MachineRegister::Aarch64X { index: 1 };
-    plan.call.ordinary_clobbers.registers[2] = MachineRegister::Aarch64X { index: 2 };
-    plan.call.ordinary_clobbers.registers[3] = MachineRegister::Aarch64X { index: 3 };
-    plan.call.ordinary_clobbers.registers[4] = MachineRegister::Aarch64X { index: 4 };
-    plan.call.ordinary_clobbers.registers[5] = MachineRegister::Aarch64X { index: 5 };
-    plan.call.ordinary_clobbers.registers[6] = MachineRegister::Aarch64X { index: 8 };
+    plan.call.entry_control = |abi|::EntryControl::SupervisorCall { number_register: |abi|::MachineRegister::Aarch64X { index: 8 }, immediate: 0 };
+    plan.call.ordinary_clobbers.registers[0] = |abi|::MachineRegister::Aarch64X { index: 0 };
+    plan.call.ordinary_clobbers.registers[1] = |abi|::MachineRegister::Aarch64X { index: 1 };
+    plan.call.ordinary_clobbers.registers[2] = |abi|::MachineRegister::Aarch64X { index: 2 };
+    plan.call.ordinary_clobbers.registers[3] = |abi|::MachineRegister::Aarch64X { index: 3 };
+    plan.call.ordinary_clobbers.registers[4] = |abi|::MachineRegister::Aarch64X { index: 4 };
+    plan.call.ordinary_clobbers.registers[5] = |abi|::MachineRegister::Aarch64X { index: 5 };
+    plan.call.ordinary_clobbers.registers[6] = |abi|::MachineRegister::Aarch64X { index: 8 };
     plan.call.ordinary_clobbers.register_count = 7;
-    plan.state.initial_regime = MachineRegime::Aarch64A64 { exception_level: 0 };
+    plan.state.initial_regime = |abi|::MachineRegime::Aarch64A64 { exception_level: 0 };
     plan.state.permitted_transitive_use.general_registers = true;
     plan.state.permitted_transitive_use.flags = true;
-    plan.state.stack = EntryStack::ProviderSelected;
-    plan.state.preemption = Preemption::NotApplicable;
+    plan.state.stack = |abi|::EntryStack::ProviderSelected;
+    plan.state.preemption = |abi|::Preemption::NotApplicable;
     plan
 }
-machine posix_byte_view_linux_x86_entry() -> BoundaryEntryPlan {
-    let mutable plan: BoundaryEntryPlan;
-    plan.call.convention = CallingConvention::LinuxSyscallX86_64;
+machine posix_byte_view_linux_x86_entry() -> |abi|::BoundaryEntryPlan {
+    let mutable plan: |abi|::BoundaryEntryPlan;
+    plan.call.convention = |abi|::CallingConvention::LinuxSyscallX86_64;
     plan.call.stack_alignment = 16;
-    plan.call.entry_control = EntryControl::SupervisorCall { number_register: MachineRegister::X86Rax, immediate: 0 };
-    plan.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
-    plan.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
-    plan.call.ordinary_clobbers.registers[2] = MachineRegister::X86R11;
+    plan.call.entry_control = |abi|::EntryControl::SupervisorCall { number_register: |abi|::MachineRegister::X86Rax, immediate: 0 };
+    plan.call.ordinary_clobbers.registers[0] = |abi|::MachineRegister::X86Rax;
+    plan.call.ordinary_clobbers.registers[1] = |abi|::MachineRegister::X86Rcx;
+    plan.call.ordinary_clobbers.registers[2] = |abi|::MachineRegister::X86R11;
     plan.call.ordinary_clobbers.register_count = 3;
-    plan.state.initial_regime = MachineRegime::X86Long64;
+    plan.state.initial_regime = |abi|::MachineRegime::X86Long64;
     plan.state.permitted_transitive_use.general_registers = true;
     plan.state.permitted_transitive_use.flags = true;
-    plan.state.stack = EntryStack::ProviderSelected;
-    plan.state.preemption = Preemption::NotApplicable;
+    plan.state.stack = |abi|::EntryStack::ProviderSelected;
+    plan.state.preemption = |abi|::Preemption::NotApplicable;
     plan
 }
 
-machine posix_byte_view_system_v_entry() -> BoundaryEntryPlan {
-    let mutable plan: BoundaryEntryPlan;
-    plan.call.convention = CallingConvention::SystemVAMD64;
+machine posix_byte_view_system_v_entry() -> |abi|::BoundaryEntryPlan {
+    let mutable plan: |abi|::BoundaryEntryPlan;
+    plan.call.convention = |abi|::CallingConvention::SystemVAMD64;
     plan.call.stack_alignment = 16;
-    plan.call.entry_control = EntryControl::CallReturn;
-    plan.state.initial_regime = MachineRegime::X86Long64;
+    plan.call.entry_control = |abi|::EntryControl::CallReturn;
+    plan.state.initial_regime = |abi|::MachineRegime::X86Long64;
     plan.state.permitted_transitive_use.general_registers = true;
     plan.state.permitted_transitive_use.vector_registers = true;
     plan.state.permitted_transitive_use.flags = true;
-    plan.state.stack = EntryStack::ProviderSelected;
-    plan.state.preemption = Preemption::NotApplicable;
-    plan.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
-    plan.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
-    plan.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
-    plan.call.ordinary_clobbers.registers[3] = MachineRegister::X86Rsi;
-    plan.call.ordinary_clobbers.registers[4] = MachineRegister::X86Rdi;
-    plan.call.ordinary_clobbers.registers[5] = MachineRegister::X86R8;
-    plan.call.ordinary_clobbers.registers[6] = MachineRegister::X86R9;
-    plan.call.ordinary_clobbers.registers[7] = MachineRegister::X86R10;
-    plan.call.ordinary_clobbers.registers[8] = MachineRegister::X86R11;
-    plan.call.ordinary_clobbers.registers[9] = MachineRegister::X86Xmm { index: 0 };
-    plan.call.ordinary_clobbers.registers[10] = MachineRegister::X86Xmm { index: 1 };
-    plan.call.ordinary_clobbers.registers[11] = MachineRegister::X86Xmm { index: 2 };
-    plan.call.ordinary_clobbers.registers[12] = MachineRegister::X86Xmm { index: 3 };
-    plan.call.ordinary_clobbers.registers[13] = MachineRegister::X86Xmm { index: 4 };
-    plan.call.ordinary_clobbers.registers[14] = MachineRegister::X86Xmm { index: 5 };
-    plan.call.ordinary_clobbers.registers[15] = MachineRegister::X86Xmm { index: 6 };
-    plan.call.ordinary_clobbers.registers[16] = MachineRegister::X86Xmm { index: 7 };
-    plan.call.ordinary_clobbers.registers[17] = MachineRegister::X86Xmm { index: 8 };
-    plan.call.ordinary_clobbers.registers[18] = MachineRegister::X86Xmm { index: 9 };
-    plan.call.ordinary_clobbers.registers[19] = MachineRegister::X86Xmm { index: 10 };
-    plan.call.ordinary_clobbers.registers[20] = MachineRegister::X86Xmm { index: 11 };
-    plan.call.ordinary_clobbers.registers[21] = MachineRegister::X86Xmm { index: 12 };
-    plan.call.ordinary_clobbers.registers[22] = MachineRegister::X86Xmm { index: 13 };
-    plan.call.ordinary_clobbers.registers[23] = MachineRegister::X86Xmm { index: 14 };
-    plan.call.ordinary_clobbers.registers[24] = MachineRegister::X86Xmm { index: 15 };
+    plan.state.stack = |abi|::EntryStack::ProviderSelected;
+    plan.state.preemption = |abi|::Preemption::NotApplicable;
+    plan.call.ordinary_clobbers.registers[0] = |abi|::MachineRegister::X86Rax;
+    plan.call.ordinary_clobbers.registers[1] = |abi|::MachineRegister::X86Rcx;
+    plan.call.ordinary_clobbers.registers[2] = |abi|::MachineRegister::X86Rdx;
+    plan.call.ordinary_clobbers.registers[3] = |abi|::MachineRegister::X86Rsi;
+    plan.call.ordinary_clobbers.registers[4] = |abi|::MachineRegister::X86Rdi;
+    plan.call.ordinary_clobbers.registers[5] = |abi|::MachineRegister::X86R8;
+    plan.call.ordinary_clobbers.registers[6] = |abi|::MachineRegister::X86R9;
+    plan.call.ordinary_clobbers.registers[7] = |abi|::MachineRegister::X86R10;
+    plan.call.ordinary_clobbers.registers[8] = |abi|::MachineRegister::X86R11;
+    plan.call.ordinary_clobbers.registers[9] = |abi|::MachineRegister::X86Xmm { index: 0 };
+    plan.call.ordinary_clobbers.registers[10] = |abi|::MachineRegister::X86Xmm { index: 1 };
+    plan.call.ordinary_clobbers.registers[11] = |abi|::MachineRegister::X86Xmm { index: 2 };
+    plan.call.ordinary_clobbers.registers[12] = |abi|::MachineRegister::X86Xmm { index: 3 };
+    plan.call.ordinary_clobbers.registers[13] = |abi|::MachineRegister::X86Xmm { index: 4 };
+    plan.call.ordinary_clobbers.registers[14] = |abi|::MachineRegister::X86Xmm { index: 5 };
+    plan.call.ordinary_clobbers.registers[15] = |abi|::MachineRegister::X86Xmm { index: 6 };
+    plan.call.ordinary_clobbers.registers[16] = |abi|::MachineRegister::X86Xmm { index: 7 };
+    plan.call.ordinary_clobbers.registers[17] = |abi|::MachineRegister::X86Xmm { index: 8 };
+    plan.call.ordinary_clobbers.registers[18] = |abi|::MachineRegister::X86Xmm { index: 9 };
+    plan.call.ordinary_clobbers.registers[19] = |abi|::MachineRegister::X86Xmm { index: 10 };
+    plan.call.ordinary_clobbers.registers[20] = |abi|::MachineRegister::X86Xmm { index: 11 };
+    plan.call.ordinary_clobbers.registers[21] = |abi|::MachineRegister::X86Xmm { index: 12 };
+    plan.call.ordinary_clobbers.registers[22] = |abi|::MachineRegister::X86Xmm { index: 13 };
+    plan.call.ordinary_clobbers.registers[23] = |abi|::MachineRegister::X86Xmm { index: 14 };
+    plan.call.ordinary_clobbers.registers[24] = |abi|::MachineRegister::X86Xmm { index: 15 };
     plan.call.ordinary_clobbers.register_count = 25;
     plan
 }
