@@ -463,19 +463,7 @@ impl PlanningSource {
                 &evaluated.configuration.generated_sources,
                 &mut *self.preparation.catalogue()?,
             )?;
-            let first_source = extension
-                .custody()
-                .first()
-                .map(|(source, _)| *source)
-                .ok_or_else(|| {
-                    refusal("generated-source handoff has no selected source".to_owned())
-                })?;
-            let (sources, units) = extension.source_input(&source.parsed.files)?;
-            Some(source_compiler::SourceExtensionRequest {
-                sources,
-                units,
-                first_source,
-            })
+            Some(extension.prepare_source_request(&source.parsed.files, inputs, &mut self.timings)?)
         };
         let mut build_advisories = self.stage.unused_import_advisories().to_vec();
         if !build_advisories.is_empty() {

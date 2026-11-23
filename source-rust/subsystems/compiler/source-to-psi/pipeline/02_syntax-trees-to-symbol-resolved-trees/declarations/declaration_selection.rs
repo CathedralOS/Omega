@@ -232,11 +232,6 @@ impl<'base> ConstantSelection<'base> {
                     }
                 }
                 Item::Use(syntax_trees::item::UseItem::Namespace { path }) => namespaces.record_import(syntax, *path),
-                Item::Use(syntax_trees::item::UseItem::File { alias, .. })
-                    if symbols::BuiltinTypeAtom::is_builtin_type_spelling(alias.as_str(syntax)) =>
-                {
-                    return Err(vec![Diagnostic::error(format!("file alias `{}` names a builtin type", alias.as_str(syntax))).with_source_span(alias.source_span())]);
-                }
                 _ => {}
             }
         }
