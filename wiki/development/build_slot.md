@@ -103,6 +103,27 @@ while it ran.
   there. `omega-remote` routes every command that names `mbx`, `cargo` or a
   built binary through it. Wait, or use the other VM. For a deliberate overlap,
   start the command with `OMEGA_REMOTE_SHARE=1`.
+- `mbx xtask vm` starts a job under `vm-heavy` and shows its progress while it
+  runs, so nobody has to ssh in and grep a log. Run it from any checkout:
+
+  ```sh
+  mbx xtask vm start omega-linux both-output both-output.sh  # or: -- <command...>
+  mbx xtask vm status omega-linux both-output    # state, elapsed, counts, last lines
+  mbx xtask vm follow omega-linux both-output    # stream the log until the job ends
+  mbx xtask vm status omega-linux                # lock holder and every job
+  ```
+
+  `start` copies the script to `~/omega-agent/jobs/<label>/job.sh` on the VM,
+  starts it detached at the lowest priority, and returns once `vm-heavy` has
+  taken the lock or refused; a refusal exits 75 and prints why. The job's
+  output goes to `~/omega-agent/jobs/<label>/log`, and the pinned mbx in
+  `~/.cache/omega-mbx-bin/` comes first on its `PATH` when the VM has it.
+  `status` counts `test ... ok`, `test ... FAILED` and `ignored` lines, lists
+  the failed tests, and groups `DIVERGENCE` lines from `omega run --both` and
+  `error` lines by text. `follow` exits with the job's exit code, so an agent
+  can run it in the background and be woken when the job ends; stopping
+  `follow` leaves the job running. A job that is still running keeps its
+  label: `start` refuses to replace it.
 - Do not change the settings of a job that is already running. Measure one
   unit first (one build), choose the settings, then leave them.
 - On `omega-win`, Defender scanned every file a slot worktree touched until

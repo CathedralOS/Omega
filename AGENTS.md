@@ -331,7 +331,9 @@ mbx xtask check-boundary
 <a id="heavy-checks-run-on-the-lan-vms"></a>
 **Heavy checks run on the LAN VMs, never on a GitHub runner.** Run
 full-workspace tests and Clippy on a LAN VM under
-`~/omega-agent/bin/vm-heavy` (`omega-linux` for the Linux gate). The required
+`~/omega-agent/bin/vm-heavy` (`omega-linux` for the Linux gate); `mbx xtask vm`
+starts such a job and shows its progress
+([how](wiki/development/build_slot.md#on-the-test-vms)). The required
 `admission` job stays light: it compiles and tests no Rust code, checks that
 the shared specification exists and runs
 `python3 -B tools/ci/check_recycling.py` on the checkout.
