@@ -93,10 +93,14 @@ fn a_selection_row_names_the_exact_file_that_declares_its_requirement() {
     ] {
         std::fs::write(root.join(path), source).unwrap();
     }
-    for owner in ["selected", "other"] {
+    for (owner, accepted) in [
+        ("|renamed|::Step", true),
+        ("|other|::Step", false),
+        ("Step", false),
+    ] {
         let source = format!(
-            "use selected.omg; use other.omg; use action.omg;\n\
-             Whole satisfies |selected|::Step {{ |{owner}|::Step::apply = |action|::keep; }}"
+            "use selected.omg; use selected.omg as renamed; use other.omg; use action.omg;\n\
+             Whole satisfies |selected|::Step {{ {owner}::apply = |action|::keep; }}"
         );
         std::fs::write(root.join("main.omg"), source).unwrap();
         let output = Command::new(env!("CARGO_BIN_EXE_omega"))
@@ -106,10 +110,10 @@ fn a_selection_row_names_the_exact_file_that_declares_its_requirement() {
             .output()
             .unwrap();
         let report = String::from_utf8_lossy(&output.stderr);
-        assert_eq!(output.status.success(), owner == "selected", "{report}");
-        if owner == "other" {
+        assert_eq!(output.status.success(), accepted, "{report}");
+        if !accepted {
             assert!(
-                report.contains("no inherited requirement slot `|other|::Step::apply`"),
+                report.contains(&format!("no inherited requirement slot `{owner}::apply`")),
                 "{report}"
             );
         }
