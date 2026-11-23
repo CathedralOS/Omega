@@ -1492,6 +1492,30 @@ Provider satisfies Reading {{
         };
         assert_eq!(qualification.structural_index(), 0);
         assert_eq!(qualification.domain(), domain);
+
+        use review_evidence::record::{
+            PackageReviewContractBinaryOperator, PackageReviewContractExpression as Expression,
+            PackageReviewContractFact, PackageReviewContractOperatorMeaning,
+        };
+        let marked = policy
+            .public_api
+            .domains
+            .iter()
+            .find(|row| &row.identity == domain)
+            .unwrap();
+        let [PackageReviewContractFact::Expression(Expression::Binary {
+            operator: PackageReviewContractBinaryOperator::Equal,
+            left,
+            ..
+        })] = marked.predicate_facts.as_slice() else {
+            panic!("expected the Marked domain's equality predicate");
+        };
+        let Expression::Indexed { meaning, collection, index } = left.as_ref() else {
+            panic!("expected the domain predicate to retain self[0]");
+        };
+        assert_eq!(*meaning, PackageReviewContractOperatorMeaning::Builtin);
+        assert_eq!(collection.as_ref(), &Expression::DomainSubject);
+        assert_eq!(index.as_ref(), &Expression::Integer("0".to_owned()));
     } else {
         assert!(declaration.parameter_qualification_preconditions.is_empty());
     }
