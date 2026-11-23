@@ -522,10 +522,11 @@ impl Program<'_> {
         // contracts use.
         let root =
             crate::lowering::body::self_place().ok_or_else(|| unserved("self place identity"))?;
+        let bound = self.application_values(id, symbol, application.as_ref())?;
         let scope = ClauseScope {
             slots: &[],
             values: &[],
-            bound: &[],
+            bound: &bound,
             owner: SymbolHandle::invalid(),
             result: ResultTerm::Absent("result in a data clause"),
             formal_fields: false,
@@ -759,6 +760,61 @@ impl Program<'_> {
             ));
         }
         Ok((identity, value_type))
+    }
+
+    /*
+        The value each `const` or value parameter of an applied declaration
+        stands for. `data Index<const Limit: u32> requires value < Limit`
+        applied as `Index<5>` owes `value < 5`: its `requires` names the
+        template's `Limit`, and the application supplies the argument
+        (generics.md, "Value binders and const requirements": "Constructing
+        an instance owes the coupling"). A type parameter binds no value.
+    */
+    fn application_values(
+        &self,
+        id: MachineId,
+        declaration: SymbolHandle,
+        application: Option<&crate::source_state::SourceTypeApplication>,
+    ) -> Checked<Vec<(SymbolHandle, semantic_vocabulary::ScalarTerm)>> {
+        use crate::source_state::data::TypeParameterKind;
+        let Some(application) = application else {
+            return Ok(Vec::new());
+        };
+        let template = self
+            .typed
+            .unique_data_definition_by_symbol(declaration)
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Typing("applied data lost its template"),
+                )
+            })?;
+        let mut bound = Vec::new();
+        for parameter in self.typed.data_type_parameters(template) {
+            let (TypeParameterKind::Const { type_reference }
+            | TypeParameterKind::Value { type_reference }) = parameter.kind
+            else {
+                continue;
+            };
+            let Some((_, argument)) = application
+                .substitutions
+                .iter()
+                .find(|(binder, _)| *binder == parameter.symbol)
+            else {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Typing("applied data without an argument for its value parameter"),
+                ));
+            };
+            let scalar_type = self.scalar_type(id, type_reference)?;
+            bound.push((
+                parameter.symbol,
+                self.bound_scalar_value(id, scalar_type, *argument, false)?,
+            ));
+        }
+        Ok(bound)
     }
 
     fn source(&self, id: MachineId, record: StructuralTypeId) -> Checked<&RecordSource> {

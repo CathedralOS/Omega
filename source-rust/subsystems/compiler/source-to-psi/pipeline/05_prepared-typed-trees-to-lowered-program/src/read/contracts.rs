@@ -1343,9 +1343,8 @@ impl Program<'_> {
                     ResultTerm::Absent(why) => unserved(why),
                 }
             }
-            ExpressionNode::Name(_) if scope.subject.is_some() => {
-                self.field_term(id, scope, expression)
-            }
+            // A value parameter bound to its argument, including one of an
+            // applied data declaration whose `requires` also names its fields.
             ExpressionNode::Name(path)
                 if path.symbol.is_valid()
                     && scope.bound.iter().any(|(symbol, _)| *symbol == path.symbol) =>
@@ -1369,6 +1368,9 @@ impl Program<'_> {
                 self.use_unfolded_argument(id, scope.owner, position)?;
                 let scalar_type = literal.scalar_type();
                 Ok((literal, ValueType::plain(scalar_type)))
+            }
+            ExpressionNode::Name(_) if scope.subject.is_some() => {
+                self.field_term(id, scope, expression)
             }
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, scope.slots, path)?;
