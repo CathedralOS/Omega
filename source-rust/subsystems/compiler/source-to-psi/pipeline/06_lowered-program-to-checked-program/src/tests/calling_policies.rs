@@ -148,9 +148,7 @@ fn typed_hosted_policy(policy: &str) -> crate::source_state::TypedTrees {
         syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: vec![
-            SourceScopedTopLevelBinding::logical_module_import(
-                abi, observations, "omega::language::core::byte_observation", 3,
-            ),
+            SourceScopedTopLevelBinding::file_import(abi, observations, "bytes"),
             SourceScopedTopLevelBinding::file_import(shapes, abi, "abi"),
             SourceScopedTopLevelBinding::file_import(entry, abi, "abi"),
             SourceScopedTopLevelBinding::file_import(entry, shapes, "shapes"),
