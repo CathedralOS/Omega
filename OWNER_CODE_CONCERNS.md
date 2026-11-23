@@ -75,6 +75,14 @@ framework or a list of unimplemented features.
 
 ## Entries
 
+### check-portable-services stops at a selected requirement, so most POSIX filesystem facts went unread
+
+- Category: Tests that pin the bug
+- Where: [`Family::member_facts`](tools/xtask/src/portable_services.rs) follows only free machines and `machine ... satisfies Trait::member` rows
+- Saw: Since the POSIX adapter moved behind `|raw|::PosixFilesystemHost::...` and `|raw|::PosixFilesystemTarget::...` calls, those calls reach the Build-selected provider block (`LinuxX8664PosixFilesystem` and its siblings), which the closure never enters. The check also crashed on aliased selections (`|clock|::Clock`) and aliased trait headers, so nobody saw the loss; once it ran again, 128 reviewed POSIX `FilesystemService` rows no longer appeared and were deleted. `NativeWindowsFilesystem` behind `WindowsFilesystemHost` is unread the same way.
+- Cost: The check reports far fewer POSIX and Windows refusals and limits than the adapters apply, so a divergence inside a raw host provider passes. Following a `Service::member` call into the provider Build selects for that target would restore them, at the price of reviewing the rows that reappear.
+- Reported: 2026-11-23, Claude Code, while extending the check to `windows_arm64`
+
 ### A resumed Build refuses itself whenever it is typed again, because region owners print as symbol slots
 
 - Category: Knowledge crossing a boundary

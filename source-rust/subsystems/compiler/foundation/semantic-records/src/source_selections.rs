@@ -21,10 +21,12 @@ pub enum ProductTarget {
     CrossPlatformCli,
     LocalUnchecked,
     AlphaBootstrap,
+    WindowsArm64,
 }
 
 impl ProductTarget {
-    pub const ALL: [Self; 9] = [
+    /// A target's code is its position here, so new targets append.
+    pub const ALL: [Self; 10] = [
         Self::LinuxArm64,
         Self::LinuxX86_64,
         Self::MacosArm64,
@@ -34,6 +36,7 @@ impl ProductTarget {
         Self::CrossPlatformCli,
         Self::LocalUnchecked,
         Self::AlphaBootstrap,
+        Self::WindowsArm64,
     ];
 
     pub fn from_code(code: u64) -> Option<Self> {
@@ -67,6 +70,7 @@ impl ProductTarget {
             Self::CrossPlatformCli => "cross_platform_cli",
             Self::LocalUnchecked => "local_unchecked",
             Self::AlphaBootstrap => "alpha_bootstrap",
+            Self::WindowsArm64 => "windows_arm64",
         }
     }
 
@@ -81,11 +85,14 @@ impl ProductTarget {
             Self::CrossPlatformCli => "CrossPlatformCli",
             Self::LocalUnchecked => "LocalUnchecked",
             Self::AlphaBootstrap => "AlphaBootstrap",
+            Self::WindowsArm64 => "WindowsArm64",
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
+)]
 pub enum CompositionMode {
     #[default]
     Fused,

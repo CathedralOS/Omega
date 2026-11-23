@@ -332,7 +332,10 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
 
     let descriptor_table_size = (libraries.len() + 1) * 20;
     let mut ilt_offsets = Vec::with_capacity(libraries.len());
-    let mut cursor = descriptor_table_size;
+    // PE32+ lookup and address tables hold 8-byte entries. Twenty-byte
+    // descriptors leave an odd library count 4 bytes short, and an AArch64
+    // thunk can only load an 8-byte-aligned IAT slot.
+    let mut cursor = align_to(descriptor_table_size, 8);
     for (_, members) in &libraries {
         ilt_offsets.push(cursor);
         cursor += (members.len() + 1) * 8;
@@ -637,6 +640,23 @@ mod tests {
                 .message
                 .contains("canonical slot branch")
         );
+    }
+
+    #[test]
+    fn lookup_and_address_tables_start_on_eight_byte_boundaries() {
+        for libraries in 1..=3usize {
+            let thunks = (0..libraries)
+                .map(|index| PeImportThunk {
+                    symbol: format!("import{index}"),
+                    library: format!("library{index}.dll").into_bytes(),
+                    lookup: super::PeImportLookup::ByOrdinal(1),
+                    text_offset: index * 12,
+                })
+                .collect::<Vec<_>>();
+            let table = build_import_table(&thunks, 0x3000);
+            assert!(table.iat_table_offsets.iter().all(|offset| offset % 8 == 0));
+            assert_eq!(table.iat_rva % 8, 0);
+        }
     }
 
     #[test]

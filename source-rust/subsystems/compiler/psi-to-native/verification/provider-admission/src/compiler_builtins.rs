@@ -144,9 +144,8 @@ pub(super) fn settle_compiler_builtins<'request>(
                 ))]
             })?;
         if execution == CompilerBuiltinExecution::HostedExitProcessI32
-            && request.profile == target::TargetProfile::WindowsX64
+            && let Some(import) = target_operations::CompilerImport::process_exit(request.profile)
         {
-            let import = target_operations::CompilerImport::WindowsProcessExit;
             if terminal_semantics::closed_conformances::hosted_primitive_requirement(
                 input.module(),
                 boundary,
@@ -162,7 +161,9 @@ pub(super) fn settle_compiler_builtins<'request>(
                 crate::normalized_foreign_terminal_mechanism(import.locator(), import.entry_plan())
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
             if super::terminal_authority_policy::reviewed_host_operation(physical)
-                .as_ref().map(|row| row.disposition()) != Some(&disposition)
+                .as_ref()
+                .map(|row| row.disposition())
+                != Some(&disposition)
             {
                 return Err(vec![Diagnostic::error(
                     "Windows process exit import and primitive require different authority",
@@ -566,7 +567,8 @@ fn validate_access_schema(
         return Err(invalid());
     }
     let placement = module
-        .access.access_view_plans
+        .access
+        .access_view_plans
         .iter()
         .find(|placement| placement.carrier == demand.carrier)
         .ok_or_else(invalid)?;
@@ -852,12 +854,10 @@ mod selected_completion_contract_tests {
         let mut extra_schema_promise = plan.clone();
         std::sync::Arc::make_mut(&mut extra_schema_promise.schema.declaration).methods[0]
             .normal_result_memberships
-            .push(
-                service_surface::ServiceNormalResultMembership {
-                    path: Vec::new(),
-                    domain: "another-domain-application".into(),
-                },
-            );
+            .push(service_surface::ServiceNormalResultMembership {
+                path: Vec::new(),
+                domain: "another-domain-application".into(),
+            });
         assert!(!boundary_contract_matches_selected_schema(
             &module,
             &original,
