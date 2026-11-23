@@ -794,15 +794,19 @@ mod tests {
                         logical_byte_length: 5,
                     },
                 ),
+                CanonicalFilesystemMetadataRow::new(
+                    b"link",
+                    Kind::Symlink { target_spelling_logical_byte_length: 5 },
+                ),
             ],
         )
         .unwrap();
         let input = CapturedBuildSourceInput::from_capture_rows(
             metadata,
-            [(
-                b"asset".to_vec(),
-                CapturedSourceEntry::file(&b"hello"[..], false),
-            )],
+            [
+                (b"asset".to_vec(), CapturedSourceEntry::file(&b"hello"[..], false)),
+                (b"link".to_vec(), CapturedSourceEntry::symlink(b"asset".to_vec())),
+            ],
         )
         .unwrap();
         let mut scope = BuildMachineFilesystemScope::for_root(
@@ -814,6 +818,20 @@ mod tests {
         .unwrap();
         scope.establish_filesystem_access().unwrap();
         scope
+    }
+
+    #[test]
+    fn snapshot_open_records_why_a_path_cannot_be_read() {
+        let temp = platform_custody::temporary_directory::TemporaryDirectory::create("snapshot-open", false).unwrap();
+        let scope = scope(temp.path(), "session");
+        let mut runtime = scope.begin_filesystem_runtime(account()).unwrap();
+        for path in [b"link".as_slice(), b"link/child", b"asset/child", b"absent/child"] {
+            assert_eq!(runtime.open(BUILD_SOURCE_ROOT_IDENTITY, path, 0).unwrap(), -1);
+        }
+        let effects = runtime.finish().unwrap();
+        let errors: Vec<_> = effects.attempts.iter().map(|op| op.post_error).collect();
+        // A final or intermediate symlink, an intermediate file, and a missing entry.
+        assert_eq!(errors, [40, 40, 20, 2]);
     }
 
     fn account() -> EvaluationInvocationAccount {
