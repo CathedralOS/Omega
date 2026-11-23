@@ -263,6 +263,10 @@ fill another manifest. Keep current compiler and review bindings apart from
 old frozen products. This does not waive reruns of affected code, artifact
 integrity or review the submitted change requires.
 
+For a layer-local change, run the owning layer's fixture. If the behavior spans
+a boundary, exercise its consumer or public entry point. Use an end-to-end run
+when the assigned result depends on the whole program.
+
 Record evidence against the source you tested. The [admission check](landing.md)
 compiles nothing, so the author runs affected tests and Clippy before
 squash-merging. Review and rerun affected checks

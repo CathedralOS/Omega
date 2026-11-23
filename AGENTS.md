@@ -144,8 +144,8 @@ hard, investigate further; do not give up or change what "done" means.
 **Outcome ownership experiment (owner-authorized, 2026-11-15).** We are testing
 whether checkpoint merges let attention leave unfinished programs. Keep the
 original program and its specified result as the assignment through those
-merges. After each checkpoint lands, run that program on the landed source and
-follow its next failure, including a pre-existing failure in another stage.
+merges. Use the pre-merge result to identify any remaining failure, including
+a pre-existing failure in another stage, and keep working on that failure.
 Small PRs remain useful checkpoints; they do not complete the assignment or
 release its claim. If the session must stop, record the source revision,
 original acceptance, current failure and next action in the existing task or PR,
@@ -198,11 +198,12 @@ are the one looking at it, it is yours: finish it or close it.
    `root.field` or one variant's payload. A write to `a.x` invalidates what is
    known about `a.x` and about `a` as a whole, but not about a separate field
    `a.y`.
-4. **Carry every fix all the way to machine code:** A fix to what a program
-   means must work in each later stage: the lowered-form checker, Terminal Psi,
-   and the native program. Check the expected result independently on each
-   engine, then compare termination, stdout, stderr and any outputs the test
-   declares. Honor the required exit of the original program. The current
+4. **Test the behavior the change promises.** Use the owning layer's fixture
+   for a layer contract. Exercise the consumer when the change affects a
+   boundary. For a program whose expected behavior includes Terminal Psi and
+   native execution, check the expected result independently on each engine,
+   then compare termination, stdout, stderr and any outputs the test declares.
+   Honor the required exit of the original program. The current
    `omega run --both` can report agreement for different
    streams. Until **BUILD-TEST-COMPARISON** lands, check the captured bytes
    explicitly. [Comparison contract](wiki/spec/build/testing.md#comparing-native-and-psi-tests)
@@ -259,13 +260,15 @@ beside that test.
      `TOP-LEVEL-BOUNDARY-REQUIREMENTS`).
    - Third, remaining `TASKS.md` items and failing `samples/` programs.
 2. **Keep the assigned outcome on the warm worktree:** Reproduce the failure,
-   repair its cause, test and review the change, and verify it after landing.
+   repair its cause, and test and review the change before merge. After merge,
+   confirm publication with the [landing guide](wiki/development/landing.md#confirm-publication-and-continue).
+   A merge alone calls for no compiler build or test rerun.
    When running with subagents, the coordinator chooses work from `TASKS.md`,
    acquires worktrees and registers claims. Each worker traces the failure,
-   repairs and validates the change, and lands its PR in its own context window. After landing a checkpoint,
-   return to the original program and follow its next failure on
-   the warm worktree. An unfinished handoff preserves the original acceptance
-   and names the receiving session when one has accepted it.
+   repairs and validates the change, and lands its PR in its own context window.
+   Continue any unmet part of the original assignment on the warm worktree.
+   An unfinished handoff preserves the original acceptance and names the
+   receiving session when one has accepted it.
    Acquisition starts a stable model-audit interval automatically. Before a new
    outcome on a clean warm slot, run `mbx xtask worktree begin`; it changes only
    that slot's audit boundary, never its source, cache or pool lease. Keep one
