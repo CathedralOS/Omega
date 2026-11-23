@@ -1,5 +1,5 @@
 /*
-Project, dependency, and log host requests from an admitted Terminal Build.
+Project requests, logs and generated source from an admitted Terminal Build.
 
 Source production authenticates protocol declarations and exact call sites, and
 each activation authenticates its original compiler-issued `Build` receiver (or
@@ -18,7 +18,8 @@ use build_declarations::{
     BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName, WorkspaceMemberPath,
 };
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
-use package_compilation::BuildSourcePublications;
+mod output;
+pub(crate) use output::BuildRequestOutput;
 use source_compiler::publication::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation as Operation, TerminalBuildRequests,
 };
@@ -76,11 +77,8 @@ struct Registrations {
     completed_preparation: bool,
 }
 
-/// What the request host of a suspended stage hands to the host of the next
-/// stage of the same activation (`source-to-psi/driver/compile_build/waits`): every
-/// registration issued so far, so later registrations keep counting from
-/// them, and the log and generated source published so far. A live registration's marker follows
-/// the value saved in its checked continuation home.
+/// Registrations, log lines and source publications survive a dependency wait.
+/// Each live registration still names the marker in the resumed program.
 pub(crate) struct CarriedRequests {
     registrations: Registrations,
     output: BuildRequestOutput,
@@ -100,28 +98,6 @@ pub struct BuildDependencyPreparation {
     pub purpose: DependencyPurpose,
     /// Position among the activation's issued requests of `purpose`.
     pub request_ordinal: usize,
-}
-
-#[derive(Default)]
-pub(crate) struct BuildRequestOutput {
-    pub(crate) log: BuildLog,
-    pub(crate) sources: BuildSourcePublications,
-}
-
-#[derive(Default)]
-pub(crate) struct BuildLog {
-    bytes: Vec<u8>,
-    storage: Vec<EvaluationStorageLease>, // Retained until normal-return settlement publishes `bytes`.
-}
-
-impl BuildLog {
-    pub(crate) fn publish(self, account: &EvaluationInvocationAccount) -> Result<Vec<u8>, String> {
-        let bytes = u64::try_from(self.bytes.len()).map_err(|_| "Build log size overflowed")?;
-        account
-            .charge_result_custody(u64::from(bytes != 0), bytes)
-            .map_err(|error| error.to_string())?;
-        Ok(self.bytes)
-    }
 }
 
 impl TerminalBuildRequestHost {
@@ -220,9 +196,10 @@ impl TerminalBuildRequestHost {
         if registrations.awaiting.is_some() {
             return Err("a Build stage ended while it awaited a dependency preparation".into());
         }
+        let output = self.take_output()?;
         Ok(CarriedRequests {
             registrations: std::mem::take(&mut *registrations),
-            output: self.take_output()?,
+            output,
         })
     }
 
@@ -238,14 +215,8 @@ impl TerminalBuildRequestHost {
             .registrations
             .lock()
             .map_err(|_| REGISTRATIONS_POISONED)?;
-        let mut output = self
-            .output
-            .lock()
-            .map_err(|_| "Build request output lock was poisoned")?;
-        if !registrations.issued.is_empty()
-            || !output.log.bytes.is_empty()
-            || !output.sources.is_empty()
-        {
+        let mut output = self.output()?;
+        if !registrations.issued.is_empty() || !output.is_empty() {
             return Err("a Build stage adopts earlier requests before it runs".into());
         }
         *registrations = carried.registrations;
@@ -254,11 +225,14 @@ impl TerminalBuildRequestHost {
         Ok(())
     }
 
-    pub(crate) fn take_output(&self) -> Result<BuildRequestOutput, String> {
-        let mut output = self
-            .output
+    fn output(&self) -> Result<std::sync::MutexGuard<'_, BuildRequestOutput>, &'static str> {
+        self.output
             .lock()
-            .map_err(|_| "Build request output lock was poisoned")?;
+            .map_err(|_| "Build request output lock was poisoned")
+    }
+
+    pub(crate) fn take_output(&self) -> Result<BuildRequestOutput, String> {
+        let mut output = self.output()?;
         Ok(std::mem::take(&mut *output))
     }
 }
@@ -437,41 +411,12 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                     "build logging requires the activation's compiler-issued BuildLog facet",
                 ));
             }
-            let appended = bytes
-                .len()
-                .checked_add(1)
-                .ok_or_else(|| refuse("Build log size overflowed"))?;
-            let count = u64::try_from(appended).map_err(|_| refuse("Build log size overflowed"))?;
-            let storage = self
-                .host
-                .account
-                .as_ref()
-                .map(|account| {
-                    let storage = account.reserve_site(0, 1, count)?;
-                    account.charge_build_log_bytes(count)?;
-                    Ok::<_, evaluation_contracts::EvaluationAccountingError>(storage)
-                })
-                .transpose()
-                .map_err(|error| {
-                    TerminalEffectRejection::new(format!("Build log accounting: {error}"))
-                })?;
-            let mut output = self
-                .host
-                .output
-                .lock()
-                .map_err(|_| refuse("Build request output lock was poisoned"))?;
-            let log = &mut output.log;
-            log.bytes
-                .try_reserve(appended)
-                .map_err(|_| refuse("Build log allocation was refused"))?;
-            if let Some(storage) = storage {
-                log.storage
-                    .try_reserve(1)
-                    .map_err(|_| refuse("Build log reservation allocation was refused"))?;
-                log.storage.push(storage);
-            }
-            log.bytes.extend_from_slice(bytes);
-            log.bytes.push(b'\n');
+            self.host
+                .output()
+                .map_err(TerminalEffectRejection::new)?
+                .log
+                .append_line(bytes, self.host.account.as_ref())
+                .map_err(TerminalEffectRejection::new)?;
             return Ok(TerminalEffectResult::Unit);
         }
         if call.action == Operation::PrepareDependency {
@@ -520,9 +465,8 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 refuse("Build source publication requires the activation's evaluation account")
             })?;
             self.host
-                .output
-                .lock()
-                .map_err(|_| refuse("Build request output lock was poisoned"))?
+                .output()
+                .map_err(TerminalEffectRejection::new)?
                 .sources
                 .publish(account, name, source)
                 .map_err(TerminalEffectRejection::new)?;
