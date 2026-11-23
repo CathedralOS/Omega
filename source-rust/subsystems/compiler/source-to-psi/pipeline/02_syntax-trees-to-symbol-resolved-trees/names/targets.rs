@@ -1300,6 +1300,50 @@ mod transitions {
             return;
         };
 
+        if named.callee.is_valid() {
+            assign_statement_expression_symbols(
+                symbols,
+                machine,
+                parameters,
+                state_symbol,
+                expression_table,
+                child_type_references,
+                named.callee,
+            );
+            if crate::source_resolved::callable_values::callee_uses_value_binding(
+                symbols, expression_table, named.callee,
+            ) && let Some(name) = statement_path_members.span_or_empty(named.path).last()
+            {
+                use crate::source_resolved::expression::{ExpressionNode, TableCallExpression};
+
+                // The callee supplies the callable contract and the value to invoke.
+                let expression = expression_table.insert(ExpressionNode::Call(TableCallExpression {
+                    callee: named.callee,
+                    target_is_static: true,
+                    authored_call_binding: None,
+                    receiver: Default::default(),
+                    target_symbol: SymbolHandle::invalid(),
+                    target: name.clone(),
+                    requirement_application: Default::default(),
+                    machine_arguments: Box::default(),
+                    arguments: named.arguments,
+                    evidence_arguments: std::mem::take(&mut named.storage.evidence_arguments),
+                    operational_acknowledgement: named.operational_acknowledgement,
+                }));
+                expression_table.set_source_span(expression, named.source_span);
+                *target = crate::source_resolved::statement::TransitionTarget::Value(expression);
+                assign_statement_expression_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    expression_table,
+                    child_type_references,
+                    expression,
+                );
+                return;
+            }
+        }
         named.receiver_symbol = SymbolHandle::invalid();
         named.head_symbol = SymbolHandle::invalid();
         named.symbol = SymbolHandle::invalid();

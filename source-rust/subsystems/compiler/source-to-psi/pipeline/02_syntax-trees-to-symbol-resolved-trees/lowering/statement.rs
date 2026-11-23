@@ -595,12 +595,18 @@ mod statement_nodes {
     ) -> Result<TransitionTarget, Diagnostic> {
         match syntax_trees.statements.transition_target(target) {
             TransitionTargetNode::Named {
+                callee,
                 operational_acknowledgement,
                 path,
                 arguments,
                 evidence_arguments,
                 source_span,
             } => {
+                let callee = callee
+                    .is_valid()
+                    .then(|| lower_statement_expression(lowerer, syntax_trees, *callee))
+                    .transpose()?
+                    .unwrap_or_else(ExpressionHandle::invalid);
                 let arguments = lower_statement_expressions(
                     lowerer,
                     syntax_trees,
@@ -625,6 +631,7 @@ mod statement_nodes {
                     head_symbol: SymbolHandle::invalid(),
                     symbol: SymbolHandle::invalid(),
                     storage: NamedTransitionTargetStorage {
+                        callee,
                         unresolved_name: Default::default(),
                         operational_acknowledgement: *operational_acknowledgement,
                         path: lower_statement_path_members(

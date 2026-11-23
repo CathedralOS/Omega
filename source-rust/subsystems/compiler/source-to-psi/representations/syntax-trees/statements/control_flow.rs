@@ -579,6 +579,7 @@ pub enum TransitionGuardNode {
 )]
 pub enum TransitionTargetNode {
     Named {
+        callee: ExpressionHandle,
         operational_acknowledgement: language_core::CallOperationalAcknowledgement,
         path: HandleSpan<Identifier>,
         arguments: HandleSpan<ExpressionHandle>,

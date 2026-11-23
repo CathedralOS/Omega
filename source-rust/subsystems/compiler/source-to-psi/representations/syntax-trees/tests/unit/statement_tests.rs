@@ -21,6 +21,7 @@ fn statement_table_stores_transition_payloads_as_handles() {
     let _argument_two = statements.append_expression_handle(argument_two);
     let arguments = HandleSpan::from_parts(argument_one, 2);
     let target = statements.insert_transition_target(TransitionTargetNode::Named {
+        callee: Default::default(),
         operational_acknowledgement: Default::default(),
         path,
         arguments,

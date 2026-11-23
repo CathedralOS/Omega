@@ -84,6 +84,7 @@ fn classify_transition_target_handle(
         {
             let owner = receiver.first().copied().cloned();
             let target = call.target.clone();
+            let callee = call.callee;
             let operational_acknowledgement = call.operational_acknowledgement;
             let evidence_arguments = call.evidence_arguments.clone();
             let arguments = syntax_trees.copy_expression_handles_to_statement_table(call.arguments);
@@ -96,6 +97,7 @@ fn classify_transition_target_handle(
                 );
             }
             TransitionTargetNode::Named {
+                callee,
                 operational_acknowledgement,
                 path,
                 arguments,

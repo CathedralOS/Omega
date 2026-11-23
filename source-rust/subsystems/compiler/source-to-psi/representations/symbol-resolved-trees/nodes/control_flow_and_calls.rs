@@ -749,6 +749,8 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
         pub struct NamedTransitionTargetStorage {
+            /// Name resolution decides whether this call invokes a stored value.
+            pub callee: crate::source_resolved::expression::ExpressionHandle,
             pub unresolved_name: crate::source_symbols::UnresolvedName,
             pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
             pub path: HandleSpan<DiagnosticName>,
