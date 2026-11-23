@@ -105,3 +105,82 @@ fn package_review_retains_the_build_grant_for_a_private_provider() {
         );
     }
 }
+
+#[test]
+fn package_review_recovers_a_native_bindings_caller_chosen_result() {
+    use review_evidence::record::{PackagePolicyBaseline, PackageReviewForeignLocator};
+
+    let temporary =
+        platform_custody::temporary_directory::TemporaryDirectory::create("native-errno", false)
+            .unwrap();
+    let root = temporary.path();
+    let fixture = fixture_repository::root()
+        .join("source-rust/application/tests/fixtures/providers/run/provider_errno_realpath");
+    std::fs::copy(fixture.join("build.omg"), root.join("build.omg")).unwrap();
+    let mut main = std::fs::read_to_string(fixture.join("main.omg")).unwrap();
+    // The private import and this public signature must retain the same checked result.
+    main.push_str("\npublic boundary trait PublicErrno { machine slot() -> @i32 reaches none crashes none; }\n");
+    std::fs::write(root.join("main.omg"), main).unwrap();
+
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
+    let settled = returned.settle_dependency(inputs.clone()).unwrap();
+    let product = settled.open_product(inputs).unwrap();
+    let reviewed = product
+        .product_stage(&[target])
+        .unwrap()
+        .review_policy(target)
+        .unwrap();
+    let bytes = reviewed.policy.canonical_bytes().unwrap();
+    let policy = PackagePolicyBaseline::recover_canonical(&bytes, Default::default()).unwrap();
+    policy
+        .validate_package_membership(|key| key == policy.package, Default::default())
+        .unwrap();
+
+    let public = policy
+        .public_api
+        .traits
+        .iter()
+        .find(|row| row.identity.path == "main.omg::PublicErrno")
+        .unwrap();
+    let [slot] = public.requirements.as_slice() else {
+        panic!("expected PublicErrno::slot")
+    };
+    assert_eq!(slot.lifetime_parameter_count, 1);
+    assert!(slot.parameters.is_empty());
+    assert!(slot.returned_borrow_origins.is_empty());
+    let result = slot.return_type.as_ref().unwrap();
+    assert_eq!(
+        result.canonical,
+        r"ref(named(name(compiler-type\(atom\(i32\)\))),region(owner(schema),ordinal(0)))"
+    );
+
+    let binding = policy
+        .native_bindings
+        .iter()
+        .find(|row| row.method.requirement.path == "main.omg::HostErrno::slot")
+        .unwrap();
+    assert!(
+        matches!(binding.locator(), Some(PackageReviewForeignLocator::ElfVersioned { object, symbol, version })
+        if object == b"libc.so.6" && symbol == b"__errno_location" && version == b"GLIBC_2.2.5")
+    );
+    let signature = &binding.method.signature;
+    assert_eq!(signature.requirement_lifetime_parameter_count, 1);
+    assert!(signature.parameters.is_empty());
+    assert_eq!(signature.result.as_ref(), Some(result));
+    let [calling] = binding.method.calling.as_slice() else {
+        panic!("expected one Linux calling application")
+    };
+    assert_eq!(calling.requirement_lifetime_parameter_count, 1);
+    assert_eq!(calling.semantic_result.as_ref(), Some(result));
+
+    let callable = policy
+        .callables
+        .callables
+        .iter()
+        .find(|row| row.identity == binding.method.requirement)
+        .unwrap();
+    assert_eq!(callable.lifetime_parameter_count, 1);
+    assert!(callable.parameters.is_empty());
+    assert_eq!(callable.return_type.as_ref(), Some(result));
+}

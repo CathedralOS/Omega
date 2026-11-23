@@ -93,7 +93,7 @@ fn physical_contract_row(target: target::NativeTarget) -> Option<PhysicalContrac
         LINUX_X86_64_ADDRESS_TYPE_IDENTITY, LINUX_X86_64_I32_TYPE_IDENTITY,
         MACOS_ARM64_ADDRESS_TYPE_IDENTITY, MACOS_ARM64_I32_TYPE_IDENTITY,
         MACOS_X86_64_ADDRESS_TYPE_IDENTITY, MACOS_X86_64_I32_TYPE_IDENTITY,
-        WINDOWS_X86_64_U32_TYPE_IDENTITY,
+        WINDOWS_ARM64_U32_TYPE_IDENTITY, WINDOWS_X86_64_U32_TYPE_IDENTITY,
     };
     Some(if target == target::NativeTarget::macos_arm64() {
         PhysicalContractRow {
@@ -134,6 +134,12 @@ fn physical_contract_row(target: target::NativeTarget) -> Option<PhysicalContrac
             profile: target::TargetProfile::WindowsX64,
             parameter_type_identities: &[],
             result_type_identity: WINDOWS_X86_64_U32_TYPE_IDENTITY,
+        }
+    } else if target == target::NativeTarget::windows_arm64() {
+        PhysicalContractRow {
+            profile: target::TargetProfile::WindowsArm64,
+            parameter_type_identities: &[],
+            result_type_identity: WINDOWS_ARM64_U32_TYPE_IDENTITY,
         }
     } else {
         return None;

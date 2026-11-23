@@ -102,8 +102,9 @@ omega --check --target linux_x86_64 samples/cli/independent/mold_front_vent_anal
 
 Use the corresponding built executable on Windows and `python` if that is the
 Python 3 command. Build metadata binds Linux x86-64/ARM64, macOS x86-64/ARM64 and
-Windows x86-64, while execution evidence covers only the measured host. A single
-`omega run --both` compares process termination only.
+Windows x86-64, while execution evidence covers only the measured host. `omega run --both`
+compares termination and the exact stdout and stderr bytes from
+both engines.
 
 The separate intended-invalid control must reject for `cannot prove index` at
 `arrival[16]`, with no unrelated errors. Its bounds rule is documented in

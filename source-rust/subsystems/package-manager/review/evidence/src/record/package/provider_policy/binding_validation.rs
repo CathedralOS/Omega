@@ -130,10 +130,10 @@ fn validate_locator(
     let valid = |bytes: &[u8]| !bytes.is_empty() && !bytes.contains(&0);
     let supported = match locator {
         PackageReviewForeignLocator::PeByName { library, export } => {
-            target == TargetProfile::WindowsX64 && valid(library) && valid(export)
+            target.imports_through_pe() && valid(library) && valid(export)
         }
         PackageReviewForeignLocator::PeByOrdinal { library, ordinal } => {
-            target == TargetProfile::WindowsX64 && valid(library) && *ordinal != 0
+            target.imports_through_pe() && valid(library) && *ordinal != 0
         }
         PackageReviewForeignLocator::ElfVersioned {
             object,

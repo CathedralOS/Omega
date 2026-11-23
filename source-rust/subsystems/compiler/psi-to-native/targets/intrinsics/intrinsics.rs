@@ -177,47 +177,73 @@ pub fn compiler_accessor_scalar_contract_identity(
     hash.finalize().into()
 }
 
+// The first byte identifies the operation family in both native receipt and
+// boundary coverage identities. Keep published discriminants stable.
+#[repr(u8)]
+enum IntrinsicTag {
+    HostedExitProcessI32 = 0,
+    BuiltinFunction = 1,
+    PrimitiveFloatBinary = 2,
+    NamedFloatNegation = 3,
+    NamedFloatConversion = 4,
+    HostedWriteByteI32 = 5,
+    HostedReadByte = 6,
+    PrimitiveIntegerComparison = 7,
+    AccessorScalarAccess = 8,
+    ProgramImageRetainedSuffixStart = 9,
+    ProgramStorageEntry = 10,
+    AccessLifecycle = 11,
+    TaskRegisterActivate = 12,
+    TaskRegisterRead = 13,
+    SegmentReload = 14,
+    SegmentRead = 15,
+    // Tag 16 formerly meant either interrupt installation or empty-run release.
+    StaticInterrupt = 17,
+    EmptyRunRelease = 18,
+}
+
 pub fn compiler_intrinsic_execution_identity_bytes(
     identity: CompilerIntrinsicExecutionIdentity,
 ) -> Vec<u8> {
+    use CompilerIntrinsicExecutionIdentity as Execution;
+
     let mut bytes = vec![0_u8; 8];
-    match identity {
-        CompilerIntrinsicExecutionIdentity::StaticInterrupt(operation) => {
-            bytes[0] = 16;
+    let tag = match identity {
+        Execution::StaticInterrupt(operation) => {
             bytes[1] = operation.code();
+            IntrinsicTag::StaticInterrupt
         }
-        CompilerIntrinsicExecutionIdentity::TaskRegisterActivate => bytes[0] = 12,
-        CompilerIntrinsicExecutionIdentity::TaskRegisterRead => bytes[0] = 13,
-        CompilerIntrinsicExecutionIdentity::SegmentReload(kind) => {
-            bytes[0] = 14;
+        Execution::TaskRegisterActivate => IntrinsicTag::TaskRegisterActivate,
+        Execution::TaskRegisterRead => IntrinsicTag::TaskRegisterRead,
+        Execution::SegmentReload(kind) => {
             bytes[1] = kind.code();
+            IntrinsicTag::SegmentReload
         }
-        CompilerIntrinsicExecutionIdentity::SegmentRead(register) => {
-            bytes[0] = 15;
+        Execution::SegmentRead(register) => {
             bytes[1] = register.code();
+            IntrinsicTag::SegmentRead
         }
-        CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => bytes[0] = 0,
-        CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => bytes[0] = 5,
-        CompilerIntrinsicExecutionIdentity::HostedReadByte => bytes[0] = 6,
-        CompilerIntrinsicExecutionIdentity::ProgramImageRetainedSuffixStart => bytes[0] = 9,
-        CompilerIntrinsicExecutionIdentity::ProgramStorageEntry => bytes[0] = 10,
-        CompilerIntrinsicExecutionIdentity::EmptyRunRelease => bytes[0] = 16,
-        CompilerIntrinsicExecutionIdentity::AccessLifecycle(operation) => {
-            bytes[0] = 11;
+        Execution::HostedExitProcessI32 => IntrinsicTag::HostedExitProcessI32,
+        Execution::HostedWriteByteI32 => IntrinsicTag::HostedWriteByteI32,
+        Execution::HostedReadByte => IntrinsicTag::HostedReadByte,
+        Execution::ProgramImageRetainedSuffixStart => IntrinsicTag::ProgramImageRetainedSuffixStart,
+        Execution::ProgramStorageEntry => IntrinsicTag::ProgramStorageEntry,
+        Execution::EmptyRunRelease => IntrinsicTag::EmptyRunRelease,
+        Execution::AccessLifecycle(operation) => {
             bytes[1] = match operation {
                 terminal_psi::TerminalAccessLifecycleOperation::Initialize => 0,
                 terminal_psi::TerminalAccessLifecycleOperation::MoveOut => 1,
                 terminal_psi::TerminalAccessLifecycleOperation::View => 2,
                 terminal_psi::TerminalAccessLifecycleOperation::Relocate => 3,
             };
+            IntrinsicTag::AccessLifecycle
         }
-        CompilerIntrinsicExecutionIdentity::AccessorScalarAccess {
+        Execution::AccessorScalarAccess {
             contract,
             placement_commitment,
             access_slot,
             operation,
         } => {
-            bytes[0] = 8;
             bytes[1] = match operation {
                 CompilerAccessorScalarOperation::Read => 0,
                 CompilerAccessorScalarOperation::Take => 1,
@@ -226,39 +252,41 @@ pub fn compiler_intrinsic_execution_identity_bytes(
             bytes.extend_from_slice(&contract);
             bytes.extend_from_slice(&placement_commitment);
             bytes.extend_from_slice(&access_slot.to_be_bytes());
+            IntrinsicTag::AccessorScalarAccess
         }
-        CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
-            bytes[0] = 1;
+        Execution::BuiltinFunction(function) => {
             bytes[1..5].copy_from_slice(&(function.ordinal() as u32).to_be_bytes());
+            IntrinsicTag::BuiltinFunction
         }
-        CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { operation, format } => {
-            bytes[0] = 2;
+        Execution::PrimitiveFloatBinary { operation, format } => {
             bytes[1] = primitive_float_operation_tag(operation);
             bytes[2] = float_format_tag(format);
+            IntrinsicTag::PrimitiveFloatBinary
         }
-        CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+        Execution::PrimitiveIntegerComparison {
             operation,
             integer_type,
         } => {
-            bytes[0] = 7;
             bytes[1] = primitive_integer_comparison_operation_tag(operation);
             bytes.extend_from_slice(&integer_type.canonical_encoding());
+            IntrinsicTag::PrimitiveIntegerComparison
         }
-        CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format) => {
-            bytes[0] = 3;
+        Execution::NamedFloatNegation(format) => {
             bytes[1] = float_format_tag(format);
+            IntrinsicTag::NamedFloatNegation
         }
-        CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+        Execution::NamedFloatConversion {
             source,
             target,
             domain,
         } => {
-            bytes[0] = 4;
             bytes[3] = arithmetic_domain_tag(domain);
             bytes.extend_from_slice(&source.canonical_encoding());
             bytes.extend_from_slice(&target.canonical_encoding());
+            IntrinsicTag::NamedFloatConversion
         }
-    }
+    };
+    bytes[0] = tag as u8;
     bytes
 }
 
@@ -283,3 +311,27 @@ pub use numerics::intrinsics::PrimitiveFloatBinaryOperation as CompilerPrimitive
 pub use numerics::intrinsics::PrimitiveIntegerComparisonOperation as CompilerPrimitiveIntegerComparisonOperation;
 pub use numerics::intrinsics::primitive_float_operation_tag;
 pub use numerics::intrinsics::primitive_integer_comparison_operation_tag;
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        CompilerIntrinsicExecutionIdentity as Intrinsic,
+        compiler_intrinsic_execution_identity_bytes,
+    };
+    use language_core::static_interrupts::StaticInterruptOperation;
+
+    #[test]
+    fn interrupt_and_release_identities_retire_the_ambiguous_encoding() {
+        let retired = [16, 0, 0, 0, 0, 0, 0, 0];
+        let operations = StaticInterruptOperation::ALL
+            .into_iter()
+            .map(Intrinsic::StaticInterrupt)
+            .chain([Intrinsic::EmptyRunRelease]);
+        let mut seen = std::collections::BTreeSet::new();
+        for operation in operations {
+            let encoded = compiler_intrinsic_execution_identity_bytes(operation);
+            assert_ne!(encoded, retired);
+            assert!(seen.insert(encoded), "duplicate identity for {operation:?}");
+        }
+    }
+}

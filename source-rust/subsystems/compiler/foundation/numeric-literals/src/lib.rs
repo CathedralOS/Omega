@@ -221,13 +221,8 @@ impl FloatLiteral {
             return Self::from_bits(format, bits ^ sign)
                 .expect("validated floating representation");
         }
-        let text: &str = &self.text;
-        let flipped = match text.strip_prefix('-') {
-            Some(positive) => Arc::from(positive),
-            None => Arc::from(format!("-{text}")),
-        };
         Self {
-            text: flipped,
+            text: negated_float_spelling(&self.text).into(),
             landing: self.landing,
             presented: None,
         }
@@ -244,6 +239,15 @@ impl std::fmt::Display for FloatLiteral {
     }
 }
 
+/// Negate only the leading sign. The exponent, digits and any format suffix
+/// stay in their authored form until the literal is read at its selected precision.
+pub fn negated_float_spelling(spelling: &str) -> String {
+    match spelling.strip_prefix('-') {
+        Some(magnitude) => magnitude.to_owned(),
+        None => format!("-{}", spelling.strip_prefix('+').unwrap_or(spelling)),
+    }
+}
+
 fn strip_float_literal_suffix(source: &str) -> (&str, Option<FloatFormat>) {
     if let Some(body) = source.strip_suffix("f32") {
         return (body, Some(FloatFormat::F32));
@@ -251,7 +255,11 @@ fn strip_float_literal_suffix(source: &str) -> (&str, Option<FloatFormat>) {
     if let Some(body) = source.strip_suffix("f64") {
         return (body, Some(FloatFormat::F64));
     }
-    (source.trim_end_matches(['f', 'F']), None)
+    // The formatter spells infinity as "inf"; its final f belongs to the value.
+    match source {
+        "inf" | "+inf" | "-inf" => (source, None),
+        _ => (source.trim_end_matches(['f', 'F']), None),
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
@@ -667,6 +675,26 @@ mod tests {
         FixedInteger, FloatFormat, FloatLiteral, IntegerLanding, IntegerLiteral, IntegerRadix,
         LandedIntegerType,
     };
+
+    #[test]
+    fn formatted_infinities_round_trip_through_literal_text() {
+        for value in [1.25, f64::INFINITY, f64::NEG_INFINITY] {
+            let text = FloatLiteral::from_f64(value).to_string();
+            let parsed = FloatLiteral::parse(&text).unwrap_or_else(|| panic!("cannot read {text}"));
+            assert_eq!(parsed.landing(), None);
+            assert_eq!(parsed.value_f64().to_bits(), value.to_bits());
+        }
+    }
+
+    #[test]
+    fn negating_an_explicit_positive_sign_preserves_the_magnitude() {
+        let negative = FloatLiteral::parse("+1.25e+1f32").unwrap().negated();
+        assert_eq!(negative.landing(), Some(FloatFormat::F32));
+        assert_eq!(negative.value_f32(), -12.5);
+        assert_eq!(negative.value_f64(), -12.5);
+        let zero = FloatLiteral::parse("+0.0").unwrap().negated();
+        assert_eq!(zero.value_f32().to_bits(), (-0.0_f32).to_bits());
+    }
 
     #[test]
     fn presented_float_bits_survive_wide_storage_and_negation() {

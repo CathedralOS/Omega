@@ -74,10 +74,16 @@ pub(crate) fn encode_application(
         &application.shape_graph,
         encode_boundary_shape_graph,
     )?;
+    let (_, lifetime_count) = application
+        .lifetime_scope()
+        .map_err(PackageReviewEncodingError::new)?;
+    let signature_type = |encoder: &mut Encoder, identity: &_| {
+        super::super::type_identity_in_scope(encoder, identity, Some(lifetime_count as usize))
+    };
     encoder.field("semantic_parameters", |encoder| {
         encoder.sequence(&application.semantic_parameters, |encoder, parameter| {
             encoder.field("name", |encoder| encoder.string(&parameter.name))?;
-            encoder.field_by("value_type", &parameter.value_type, type_identity)?;
+            encoder.field_by("value_type", &parameter.value_type, signature_type)?;
             encoder.boolean_field("is_mutable", parameter.is_mutable)?;
             encoder.boolean_field("is_const", parameter.is_const)?;
             encoder.u16_field("shape_root", parameter.shape_root)?;
@@ -87,7 +93,7 @@ pub(crate) fn encode_application(
     encoder.option_field(
         "semantic_result",
         application.semantic_result.as_ref(),
-        type_identity,
+        signature_type,
     )?;
     encoder.field("native_parameters", |encoder| {
         encoder.sequence(&application.native_parameters, |encoder, parameter| {

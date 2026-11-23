@@ -37,7 +37,7 @@ plain wording over the shorthand:
 - **Positive / negative twin**: two test programs that differ in one input.
   The positive must compile and run; the negative must be refused with a
   specific error.
-- **Hosted target**: one of the four operating-system/CPU pairs Omega must
+- **Hosted target**: one of the five operating-system/CPU pairs Omega must
   produce native programs for (listed below).
 - **Release gate**: one of the six areas that must all be finished before the
   compiler ships (listed below).
@@ -46,8 +46,11 @@ plain wording over the shorthand:
 
 **The goal is a complete compiler that ships.** Follow the work and review rules below and [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md)
 for the six release gates (`repository`, `source semantics`, `build and packages`,
-`native matrix`, `diagnostics`, and `representative programs`) across all four
-hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`).
+`native matrix`, `diagnostics`, and `representative programs`) across all five
+hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`,
+`windows_arm64`). The owner added `windows_arm64` on 2026-11-23. Programs can
+bind `windows_arm64\ProgramEntry`; `TASKS.md` **WINDOWS-ARM64-TARGET** tracks
+its std providers and the first run on a Windows ARM64 host.
 
 Omega has one specification in [wiki/spec/](wiki/spec/). Describe
 compiler-specific implementation status in the compiler's plan or layer
@@ -141,8 +144,8 @@ hard, investigate further; do not give up or change what "done" means.
 **Outcome ownership experiment (owner-authorized, 2026-11-15).** We are testing
 whether checkpoint merges let attention leave unfinished programs. Keep the
 original program and its specified result as the assignment through those
-merges. After each checkpoint lands, run that program on the landed source and
-follow its next failure, including a pre-existing failure in another stage.
+merges. Use the pre-merge result to identify any remaining failure, including
+a pre-existing failure in another stage, and keep working on that failure.
 Small PRs remain useful checkpoints; they do not complete the assignment or
 release its claim. If the session must stop, record the source revision,
 original acceptance, current failure and next action in the existing task or PR,
@@ -195,11 +198,12 @@ are the one looking at it, it is yours: finish it or close it.
    `root.field` or one variant's payload. A write to `a.x` invalidates what is
    known about `a.x` and about `a` as a whole, but not about a separate field
    `a.y`.
-4. **Carry every fix all the way to machine code:** A fix to what a program
-   means must work in each later stage: the lowered-form checker, Terminal Psi,
-   and the native program. Check the expected result independently on each
-   engine, then compare termination, stdout, stderr and any outputs the test
-   declares. Honor the required exit of the original program. The current
+4. **Test the behavior the change promises.** Use the owning layer's fixture
+   for a layer contract. Exercise the consumer when the change affects a
+   boundary. For a program whose expected behavior includes Terminal Psi and
+   native execution, check the expected result independently on each engine,
+   then compare termination, stdout, stderr and any outputs the test declares.
+   Honor the required exit of the original program. The current
    `omega run --both` can report agreement for different
    streams. Until **BUILD-TEST-COMPARISON** lands, check the captured bytes
    explicitly. [Comparison contract](wiki/spec/build/testing.md#comparing-native-and-psi-tests)
@@ -213,7 +217,7 @@ are the one looking at it, it is yours: finish it or close it.
 ## The sample loop
 
 A language feature should work wherever a value can appear (a local, a field,
-an argument, a return value, and so on) and on all four hosted targets, with a
+an argument, a return value, and so on) and on every hosted target, with a
 negative twin. The lowered-form checker gives every one of those places the
 same treatment: a fact belongs to a value, and a place only says which value it
 holds ([check on the lowered form](wiki/drafts/designs/check_on_lowered_form.md)).
@@ -256,13 +260,15 @@ beside that test.
      `TOP-LEVEL-BOUNDARY-REQUIREMENTS`).
    - Third, remaining `TASKS.md` items and failing `samples/` programs.
 2. **Keep the assigned outcome on the warm worktree:** Reproduce the failure,
-   repair its cause, test and review the change, and verify it after landing.
+   repair its cause, and test and review the change before merge. After merge,
+   confirm publication with the [landing guide](wiki/development/landing.md#confirm-publication-and-continue).
+   A merge alone calls for no compiler build or test rerun.
    When running with subagents, the coordinator chooses work from `TASKS.md`,
    acquires worktrees and registers claims. Each worker traces the failure,
-   repairs and validates the change, and lands its PR in its own context window. After landing a checkpoint,
-   return to the original program and follow its next failure on
-   the warm worktree. An unfinished handoff preserves the original acceptance
-   and names the receiving session when one has accepted it.
+   repairs and validates the change, and lands its PR in its own context window.
+   Continue any unmet part of the original assignment on the warm worktree.
+   An unfinished handoff preserves the original acceptance and names the
+   receiving session when one has accepted it.
    Acquisition starts a stable model-audit interval automatically. Before a new
    outcome on a clean warm slot, run `mbx xtask worktree begin`; it changes only
    that slot's audit boundary, never its source, cache or pool lease. Keep one
@@ -356,11 +362,14 @@ testing. A failure there is an investigation of that failure, never a wider
 run.
 
 Builds, test runs and compiled programs from every local agent share one
-machine. Before the first build on a host you share with its owner or with
-other agents, apply the [host build budget](wiki/development/build_slot.md): cap the total
-load of all agents so the machine never reaches 100%, run at the lowest
-operating-system priority on a workstation its owner is using, and write the
-budget into every worker prompt. On the test VMs, run one heavy job per machine
+machine. The [host build budget](wiki/development/build_slot.md) caps the total
+load of all agents so the machine never reaches 100%: the pinned mbx turns the
+host's mbx scheduler budget (`scheduler.reserve_cpus` in the owner's global mbx
+configuration) into a hard CPU ceiling at the lowest operating-system priority
+for every process it starts, so run builds, tests and the programs they start
+through mbx, and worker prompts need no thread caps. `mbx xtask doctor` reports
+the ceiling; until the host has that setting, put `MBX_SCHEDULER_CPUS` in every
+worker prompt. On the test VMs, run one heavy job per machine
 and never change the settings of a job that is already running; the remote shim
 refuses a second build or test run while one is active.
 

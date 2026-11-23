@@ -27,8 +27,8 @@ use crate::storage::record::storage::{ConstructorStorage, ConstructorValue};
 use crate::storage::reference::{AggregateViewTip, translate_aggregate_view_field};
 use crate::storage::runtime_rows::RuntimeRows;
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerType,
-    IntegerValue, ScalarType, StructuralDomainId, StructuralTypeId,
+    CanonicalStructuralPathSegment, IntegerSign, IntegerType, IntegerValue, ScalarType,
+    StructuralDomainId, StructuralTypeId,
 };
 use terminal_psi::{
     ByteSequenceCarrier, OperationKind, StructuralAccess, StructuralArgument, StructuralFieldType,
@@ -598,11 +598,9 @@ impl TerminalExecution<'_> {
     pub(crate) fn prepare_subtree_retirement(
         &self,
         from: &StructuralRuntimePlace,
-    ) -> Result<
-        crate::storage::scalar_array::empty_storage::EmptyArrayRetirement,
-        TerminalInterpretError,
-    > {
-        self.empty_array_storage.prepare_retirement(
+    ) -> Result<crate::storage::scalar_array::initialization::ArrayRetirement, TerminalInterpretError>
+    {
+        self.array_initialization.prepare_retirement(
             &self.structural_types(),
             self.account.as_ref(),
             from,
@@ -611,7 +609,7 @@ impl TerminalExecution<'_> {
 
     pub(crate) fn prune_subtree(
         &mut self,
-        retirement: crate::storage::scalar_array::empty_storage::EmptyArrayRetirement,
+        retirement: crate::storage::scalar_array::initialization::ArrayRetirement,
     ) -> Result<(), TerminalInterpretError> {
         let from = retirement.root();
         self.require_guest_storage_mutation(from)?;
@@ -640,7 +638,7 @@ impl TerminalExecution<'_> {
             from,
         );
         self.structural_primitive_storage.prune(from);
-        self.empty_array_storage.retire(retirement)
+        self.array_initialization.retire(retirement)
     }
 
     pub(crate) fn execute_establish_byte_sequence_literal(
@@ -754,7 +752,7 @@ impl TerminalExecution<'_> {
         value: &TerminalStructuralValue,
         established_fields: &[terminal_semantics::EstablishedErasedStructuralField],
     ) -> Result<(), TerminalInterpretError> {
-        let leaves = terminal_semantics::zeroed_structural_leaves_with_established_erased_fields(
+        let storage = terminal_semantics::zeroed_structural_storage(
             self.structural_types().values(),
             value.structural_type,
             established_fields,
@@ -762,7 +760,65 @@ impl TerminalExecution<'_> {
         .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
             "zeroed structural backing or erased establishment cannot be materialized",
         ))?;
-        self.materialize_zeroed_leaves(source, value, &leaves)
+        self.materialize_zeroed_leaves(source, value, &storage.leaves)?;
+        for array in storage.arrays {
+            let mut element = value.clone();
+            element.path.extend_from_slice(&array.path);
+            self.array_initialization.establish_zero_record_fields(
+                StructuralRuntimePlace::from(&element),
+                array.array_type,
+            )?;
+            if !array.represented.is_empty() {
+                for index in 0..array.length {
+                    element.path.push(StructuralPathSegment::FixedIndex(index));
+                    self.materialize_zeroed_leaves(source, &element, &array.represented)?;
+                    element.path.pop();
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn scalar_field_contents(
+        &self,
+        field: &StructuralScalarRuntimeField,
+    ) -> Result<Option<TerminalScalarValue>, TerminalInterpretError> {
+        self.scalar_field_cell(field)?
+            .map(|cell| cell.read())
+            .transpose()
+    }
+
+    pub(crate) fn scalar_field_cell(
+        &self,
+        field: &StructuralScalarRuntimeField,
+    ) -> Result<Option<crate::storage::scalar_storage::ScalarCell>, TerminalInterpretError> {
+        use crate::storage::scalar_storage::ScalarCell;
+        if let Some(cell) = self.structural_scalar_fields.get(field) {
+            return Ok(Some(cell.clone()));
+        }
+        self.array_initialization
+            .zero_record_field(&self.structural_types(), field)?
+            .map(|scalar| {
+                TerminalScalarValue::zero(scalar)
+                    .map(ScalarCell::Local)
+                    .ok_or(malformed())
+            })
+            .transpose()
+    }
+
+    pub(crate) fn scalar_field_cell_mut(
+        &mut self,
+        field: &StructuralScalarRuntimeField,
+    ) -> Result<Option<&mut crate::storage::scalar_storage::ScalarCell>, TerminalInterpretError>
+    {
+        if !self.structural_scalar_fields.contains_key(field) {
+            let Some(cell) = self.scalar_field_cell(field)? else {
+                return Ok(None);
+            };
+            self.structural_scalar_fields
+                .insert_cell(field.clone(), cell)?;
+        }
+        Ok(self.structural_scalar_fields.get_mut(field))
     }
 
     fn materialize_zeroed_leaves(
@@ -771,22 +827,6 @@ impl TerminalExecution<'_> {
         value: &TerminalStructuralValue,
         leaves: &[ZeroedStructuralLeaf],
     ) -> Result<(), TerminalInterpretError> {
-        let zero = |scalar_type: ScalarType| -> Option<TerminalScalarValue> {
-            match scalar_type {
-                ScalarType::Callable(_) => None,
-                ScalarType::Boolean => Some(TerminalScalarValue::Boolean(false)),
-                ScalarType::Integer(integer_type) => Some(TerminalScalarValue::Integer {
-                    scalar_type: integer_type,
-                    value: integer_type.zero(),
-                }),
-                ScalarType::IeeeFloat(format) => {
-                    Some(TerminalScalarValue::IeeeFloat(match format {
-                        IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(0),
-                        IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(0),
-                    }))
-                }
-            }
-        };
         for leaf in leaves {
             let storage_path = || {
                 let mut path = value.path.clone();
@@ -806,8 +846,10 @@ impl TerminalExecution<'_> {
                         path: storage_path(),
                     };
                     let cell = StructuralScalarRuntimeField::member(parent, *field);
-                    self.structural_scalar_fields
-                        .insert(cell, zero(*scalar_type).ok_or(malformed())?)?;
+                    self.structural_scalar_fields.insert(
+                        cell,
+                        TerminalScalarValue::zero(*scalar_type).ok_or(malformed())?,
+                    )?;
                 }
                 ZeroedStructuralLeaf::EmptyView {
                     field: Some(field),
@@ -875,13 +917,13 @@ impl TerminalExecution<'_> {
                     };
                     self.structural_scalar_fields.insert(
                         StructuralScalarRuntimeField::case_payload(parent, *field),
-                        zero(*scalar_type).ok_or(malformed())?,
+                        TerminalScalarValue::zero(*scalar_type).ok_or(malformed())?,
                     )?;
                 }
                 ZeroedStructuralLeaf::EmptyScalarArray {
                     structural_type, ..
                 } => {
-                    self.empty_array_storage.establish(
+                    self.array_initialization.establish(
                         &self.program.structural_types(),
                         StructuralRuntimePlace {
                             opaque_identity: value.opaque_identity,
@@ -915,7 +957,7 @@ impl TerminalExecution<'_> {
                             opaque_identity: value.opaque_identity,
                             path: storage_path(),
                         },
-                        zero(*scalar_type).ok_or(malformed())?,
+                        TerminalScalarValue::zero(*scalar_type).ok_or(malformed())?,
                     )?;
                 }
                 ZeroedStructuralLeaf::SumSelection {
@@ -2497,16 +2539,13 @@ impl TerminalExecution<'_> {
                 );
             }
         }
-        let value = self
-            .structural_scalar_fields
-            .get(&cell)
-            .map(crate::storage::scalar_storage::ScalarCell::read)
-            .transpose()?
-            .ok_or(if scalar_type == ScalarType::Boolean {
-                TerminalInterpretError::StructuralBooleanFieldMissing { source, field }
-            } else {
-                TerminalInterpretError::StructuralScalarFieldMissing { source, field }
-            })?;
+        let value =
+            self.scalar_field_contents(&cell)?
+                .ok_or(if scalar_type == ScalarType::Boolean {
+                    TerminalInterpretError::StructuralBooleanFieldMissing { source, field }
+                } else {
+                    TerminalInterpretError::StructuralScalarFieldMissing { source, field }
+                })?;
         if value.scalar_type() != scalar_type {
             return Err(malformed());
         }

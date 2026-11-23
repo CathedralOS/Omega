@@ -357,6 +357,7 @@ pub(super) fn representation_target(
         TargetProfile::MacosArm64 => Profile::MacosArm64,
         TargetProfile::MacosX64 => Profile::MacosX64,
         TargetProfile::WindowsX64 => Profile::WindowsX64,
+        TargetProfile::WindowsArm64 => Profile::WindowsArm64,
         TargetProfile::UefiX64 => Profile::UefiX64,
         TargetProfile::CrossPlatformCli => Profile::CrossPlatformCli,
         TargetProfile::LocalUnchecked => Profile::LocalUnchecked,

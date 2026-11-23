@@ -14,8 +14,6 @@ use selected_instructions::{
     MachineSizeKnowledge, MachineTrapBehavior, SelectedConstraintKeys,
     isa_machine_effect_catalog_plumbing,
 };
-#[cfg(test)]
-use target::ObjectFormat;
 use target::{Architecture, NativeTarget};
 
 use crate::saturating_forms::SaturatingRealization;
@@ -897,11 +895,10 @@ mod tests {
     use super::{
         AARCH64_AAPCS64_RETURN, AARCH64_AAPCS64_RETURN_UNIT, AARCH64_CONDITIONAL_BRANCH,
         AARCH64_COPY_I64, AARCH64_DARWIN_RETURN, AARCH64_DARWIN_RETURN_UNIT, AARCH64_SUBTRACT_I64,
-        Aarch64MachineEffectCatalogValidationError, Architecture, MachineAlternativeApplicability,
+        Aarch64MachineEffectCatalogValidationError, MachineAlternativeApplicability,
         MachineBarrier, MachineCallEffect, MachineEncodedControlEffect, MachineEncodedEffects,
-        MachineSemanticKind, MachineSizeKnowledge, NativeTarget, ObjectFormat,
-        PreparedRegisterConstraintCatalog, aarch64_machine_effect_catalog,
-        validate_aarch64_machine_effect_catalog,
+        MachineSemanticKind, MachineSizeKnowledge, NativeTarget, PreparedRegisterConstraintCatalog,
+        aarch64_machine_effect_catalog, validate_aarch64_machine_effect_catalog,
     };
     use crate::{
         Aarch64RegisterConstraintCatalogValidationError, aarch64_physical_register_model,
@@ -1440,18 +1437,22 @@ mod tests {
     }
 
     #[test]
-    fn selected_keys_fail_closed_on_undeclared_pairs() {
+    fn windows_arm64_keeps_x18_reserved_and_declares_no_system_calls() {
         let constraints = constraints();
-        let coff = NativeTarget {
-            architecture: Architecture::Aarch64,
-            object_format: ObjectFormat::Coff,
-            pointer_size: 8,
-            pointer_alignment: 8,
-        };
-        assert_eq!(
-            aarch64_machine_effect_catalog(coff, &constraints),
-            Err(Aarch64MachineEffectCatalogValidationError::UnsupportedTargetAbi)
-        );
+        let windows = aarch64_machine_effect_catalog(NativeTarget::windows_arm64(), &constraints)
+            .unwrap()
+            .selected_keys;
+        let darwin = aarch64_machine_effect_catalog(NativeTarget::macos_arm64(), &constraints)
+            .unwrap()
+            .selected_keys;
+        // Windows reserves x18 for the TEB exactly as Darwin reserves it, so
+        // both select the call rows that preserve x18.
+        assert_eq!(windows.return_i64, AARCH64_DARWIN_RETURN);
+        assert_eq!(windows.call_scalar, darwin.call_scalar);
+        assert_eq!(windows.call_aggregate, darwin.call_aggregate);
+        assert_eq!(windows.hosted_read_byte, None);
+        assert_eq!(windows.hosted_exit_process_i32, None);
+        assert_eq!(windows.hosted_write_byte_i32, None);
     }
 
     #[test]

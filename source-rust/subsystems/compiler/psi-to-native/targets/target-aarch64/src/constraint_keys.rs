@@ -6,15 +6,18 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Aarch64SelectedAbi {
     Aapcs64,
+    /// AAPCS64 with x18 reserved for the platform, as on Apple (Darwin) and
+    /// Windows. Calls preserve x18 and the allocator never assigns it.
     Darwin,
 }
 
 pub fn aarch64_selected_abi(target: NativeTarget) -> Option<Aarch64SelectedAbi> {
     match (target.architecture, target.object_format) {
         (Architecture::Aarch64, ObjectFormat::Elf) => Some(Aarch64SelectedAbi::Aapcs64),
-        (Architecture::Aarch64, ObjectFormat::MachO) => Some(Aarch64SelectedAbi::Darwin),
-        (Architecture::Aarch64, ObjectFormat::Coff)
-        | (Architecture::X86_64, ObjectFormat::Elf)
+        (Architecture::Aarch64, ObjectFormat::MachO | ObjectFormat::Coff) => {
+            Some(Aarch64SelectedAbi::Darwin)
+        }
+        (Architecture::X86_64, ObjectFormat::Elf)
         | (Architecture::X86_64, ObjectFormat::MachO)
         | (Architecture::X86_64, ObjectFormat::Coff) => None,
     }

@@ -9,7 +9,9 @@
 // realization custody independent of the invocation site.
 
 use super::structural::encode_call_source;
-use super::structural_types::{encode_structural_argument, encode_target_structural_argument};
+use super::structural_types::{
+    encode_claim_transfers, encode_structural_argument, encode_target_structural_argument,
+};
 use super::{
     encode_access_call_bindings, encode_ids, encode_len, encode_option, encode_register,
     encode_scalar_type,
@@ -232,12 +234,13 @@ pub fn encode_call(bytes: &mut Vec<u8>, call: &LegalizedScalarCall) {
             }
         }
     }
-    encode_option(bytes, call.result_placement.as_ref(), encode_placement);
-    encode_len(bytes, call.claim_transfers.len());
-    for transfer in &call.claim_transfers {
-        crate::codec_bytes::push_encoded(bytes, transfer.claim.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, transfer.argument_index.to_le_bytes());
+    // Legacy call identities used 0 or 1 here for result placement and omitted
+    // transferred paths. Reserve tag 2 for records with the complete roster.
+    if !call.claim_transfers.is_empty() {
+        bytes.push(2);
     }
+    encode_option(bytes, call.result_placement.as_ref(), encode_placement);
+    encode_claim_transfers(bytes, &call.claim_transfers);
     encode_ids(
         bytes,
         call.requirement_obligations.iter().map(|value| value.get()),

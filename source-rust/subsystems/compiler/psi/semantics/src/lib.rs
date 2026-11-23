@@ -300,11 +300,12 @@ pub use structural::structural_window::{
     structural_window_selects_child,
 };
 pub use structural::zeroed_structural::{
-    EstablishedErasedStructuralField, ZeroedStructuralLeaf,
-    zeroed_projected_byte_qualifications_hold, zeroed_structural_fields_satisfy,
-    zeroed_structural_leaves, zeroed_structural_leaves_modulo_references,
+    EstablishedErasedStructuralField, RepeatedZeroedElement, ZeroedStructuralLeaf,
+    ZeroedStructuralStorage, zeroed_projected_byte_qualifications_hold,
+    zeroed_structural_fields_satisfy, zeroed_structural_leaves,
+    zeroed_structural_leaves_modulo_references,
     zeroed_structural_leaves_with_established_erased_fields, zeroed_structural_shape,
-    zeroed_structural_types_and_fields_satisfy,
+    zeroed_structural_storage, zeroed_structural_types_and_fields_satisfy,
 };
 
 pub use descriptors::descriptor_lifetimes;

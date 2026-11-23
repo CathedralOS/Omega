@@ -12,7 +12,10 @@ pub(crate) fn matches_entry(
     bytes: &[u8],
 ) -> bool {
     if target.architecture == target::Architecture::Aarch64 {
-        let (prefix, suffix): (&[u32], &[u32]) = if target == NativeTarget::macos_arm64() {
+        // Darwin and Windows call the entry and take its returned status.
+        let returns =
+            target == NativeTarget::macos_arm64() || target == NativeTarget::windows_arm64();
+        let (prefix, suffix): (&[u32], &[u32]) = if returns {
             (
                 &[0xa9bf_7bfd, 0x9100_03fd],
                 &[0xa8c1_7bfd, 0x5280_0000, 0xd65f_03c0],

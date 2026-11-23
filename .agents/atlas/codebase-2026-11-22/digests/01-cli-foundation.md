@@ -235,12 +235,12 @@ Vocabularies:
 - `source-provenance`: `PackageSourceConsumptionCommitment::from_retained_digest` wraps any 32 bytes, including zero (`source_provenance.rs:55`): open.
 - `language-core`: `NumericTargetCapabilities::support_for` returns `None` for names not in the 104 (`float_operations.rs:213-221`): open. `asm_catalog_entry` returns `None` for an unknown mnemonic (`inline_assembly.rs:1835`) and `accepts_target_name` lists `macos_x86_64` (`:1012`): open.
 - `numerics`: `ArithmeticDomain::combine` takes the left of two conflicting non-exact domains (`lib.rs:60-65`): open.
-- `numeric-literals`: `value_f64`/`value_f32` return `0.0` when `FloatSemantics::from_decimal` fails (`lib.rs:154-181`): open for `inf`/`-inf` text in the record; section 10 shows `inf`, `-inf` and `NaN` spellings parse, so the `from_f64` texts the record worried about do not reach the fallback.
+- `numeric-literals`: `value_f64`/`value_f32` return `0.0` when `FloatSemantics::from_decimal` fails (`lib.rs:154-181`): open for `inf`/`-inf` text in the record; section 10 shows `inf`, `-inf` and `NaN` spellings parse, so the `from_f64` texts the record worried about do not reach the fallback. **Follow-up (2026-11-23).** Negating the parsed literal `+1.25` did reach the fallback: it produced `-+1.25` and both format reads returned zero. Source parsing separately turned `-(-1.25f32)` into `--1.25f32`, which resolution rejected. Both paths now toggle the leading sign and preserve the rest of the spelling. This fixes negation of valid literals. Validation of other decimal text restored from records remains open.
 - `worker-budget`: none; `within_budget` panics rather than running unbudgeted (`lib.rs:90`).
 
 ## 6. Silent drops
 
-- `--verbose` is removed from anywhere in `argv` by equality, so a path or value spelled `--verbose` never reaches a command (`main.rs:54-56`).
+- `--verbose` is removed from anywhere in `argv` by equality, so a path or value spelled `--verbose` never reaches a command (`main.rs:54-56`). **Follow-up (2026-11-23).** `omega --check --report-file --verbose report.txt main.omg` wrote a report because removing the flag shifted `report.txt` into the path slot. The parser now recognizes verbosity between arguments. An option reads the token immediately after it, so this invocation reports a missing path before opening a file.
 - `--build-dir` silently keeps the last value (`arguments/compile.rs:164-169`); repeated `--target` names are deduplicated (stated, `:3`, `:176`).
 - `omega source` ignores every argument after the action (`arguments/mod.rs:230-254`); the command always errors.
 - `omega run` passes no installation assumptions (`execution/compilation.rs:147`), unlike compile (`commands/compile.rs:409-417`).

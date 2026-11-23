@@ -30,6 +30,7 @@ mod doctor;
 mod execution;
 mod fmt;
 mod gamma_invoke;
+mod host_ceiling;
 mod portable_services;
 mod producer;
 mod provenance;
@@ -122,7 +123,8 @@ fn main() -> ExitCode {
         "provenance" => provenance::run(&args),
         "worktree" => worktree::run(&args),
         "alpha-forge" => alpha_forge::run(&args),
-        "gamma-invoke" => gamma_invoke::run(&args),
+        // A Windows evaluator can return a full 32-bit process status.
+        "gamma-invoke" => std::process::exit(gamma_invoke::run(&args)),
         "source-closure" => source_closure::run(&args),
         "sweep" => sweep::run(&args),
         "vm" => vm::run(&args),

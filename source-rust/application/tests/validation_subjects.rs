@@ -85,6 +85,7 @@ fn check_entry(directory: &Path, entry: &str) -> Outcome {
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .arg("--check")
         .arg("--offline")
+        .args(["--target", "linux_x86_64"])
         .arg(entry)
         .current_dir(directory)
         .stdin(std::process::Stdio::null())

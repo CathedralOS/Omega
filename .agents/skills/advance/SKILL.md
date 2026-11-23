@@ -64,11 +64,12 @@ This skill lists **only** the steps. The shared rules, including the
 
 ## Step 2: Reproduce & Trace Before Editing (the Worker's Job in a Swarm)
 
-1. **Build the optimized `omega` compiler, or reuse the existing build,** from
-   the worktree root (`CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p omega < /dev/null`).
-   Let mbx place `target/` so it can rebuild it after cache cleanup.
-2. **See the failure first:** Run the focused test for the affected mechanism
-   or its witness through `mbx xtask sample-gate --filter <sample_path>`.
+1. **Choose the smallest check that exercises the failure.** Start with the
+   owning layer's fixture. Include its consumer when the change spans a boundary.
+2. **Reproduce the failure.** Run that check. For a program-level requirement,
+   use the named program or `mbx xtask sample-gate --filter <sample_path>`.
+   Reuse a suitable compiler when the check needs one. Build `omega` if the
+   check needs an executable from changed compiler inputs.
 3. **Read the spec, then shrink the failing program:** Read the `wiki/spec/`
    page for the feature first. Cut the program down to the refused construct
    and use the spec to decide whether the language forbids it or the compiler
@@ -83,10 +84,9 @@ This skill lists **only** the steps. The shared rules, including the
 Before editing, apply rule 6 of the [decision-making framing](../../../AGENTS.md#decision-making-framing-for-compiler-completion):
 widen the existing mechanism instead of adding a special case.
 
-1. **Make the fix general and carry it through every stage:** Apply
-   [compositional lowering](../../../omega-rust/pipeline.md#compositional-lowering)
-   and the [decision-making framing](../../../AGENTS.md#decision-making-framing-for-compiler-completion),
-   from the lowered-form checker to the native program.
+1. **Fix the shared cause.** Follow the affected contract through the stages
+   that consume it. Select the fixture or program using the
+   [repository testing rules](../../../AGENTS.md#decision-making-framing-for-compiler-completion).
 2. **Write the reasoning into the code:** At the top of the module or where
    the decision is made, write why this approach fits and what must stay true.
 3. **Try to break your fix:** Write a realistic program that would expose a
@@ -108,9 +108,8 @@ Never make a kept test program pass by changing its fact, bound or operation
    - Prove the change itself: tests on the code you changed, in the crates you
      touched.
    - Then a very small area around it: the tests that exercise the same mechanism
-     (for the lowered-form checker, the `lowered_route_*` tests in
-     `omega-rust/omega/compilation/compiler/tests/`), and the witness the
-     `TASKS.md` item names. Check its expected observations on each engine.
+     and the witness the `TASKS.md` item names. Check program output on each
+     engine the assignment covers.
    - If that is fine, land.
    - If it is not, investigate that failure: run the same test at the base
      commit to learn whether your change caused it. A pre-existing failure in
@@ -144,11 +143,11 @@ tests and Clippy yourself; heavy runs go to a LAN VM
 2. **Land it:** Review your own diff for soundness, regression coverage and cost, then squash-merge it
    when `admission` passes. You already have permission; waiting for it only
    slows the project down.
-3. **Return to the original program in the same worktree:** After each merge,
-   run it on the landed source against its original expected result. If it
-   fails, follow that failure through the next repair without releasing outcome
-   ownership. Choose another requirement only after that acceptance is complete
-   or an unfinished handoff is recorded under the law of completion. Keep its
-   build cache. Check
+3. **Confirm publication and continue unfinished work.** Check the submitted
+   head and published commit using the landing guide. Carry the pre-merge test
+   result forward. If the original program still has a known failure, follow
+   it through the next repair in the same worktree. Choose another requirement
+   only after that acceptance is complete or an unfinished handoff is recorded
+   under the law of completion. Keep the build cache. Check
    `git status --short` and keep unfinished or untracked work before you fetch
    `main` and check out the new base. Do not clean the worktree blindly.

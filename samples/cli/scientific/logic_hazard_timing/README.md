@@ -49,8 +49,8 @@ requiring an accepted deployable entry. Its complete separate entrypoint calls `
 positive-delay precondition. Validation requires that intended diagnostic;
 unrelated compilation refusal is not accepted as evidence.
 
-`--both` compares termination only in the current CLI; the application checks
-its trace digest inside both runtimes. This digest is a bounded regression
+The CLI compares termination, stdout and stderr. The application also checks its trace
+digest inside both runtimes. This digest is a bounded regression
 check, not a collision-free equivalence proof.
 
 Model limits: integer synthetic ticks, ideal two-valued gates, bounded DAG and

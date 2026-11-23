@@ -23,7 +23,9 @@ enum Fixture {
     Pair,
 }
 
-fn execute_provider_fixture(fixture: Fixture) {
+/// Writes the provider library, `main.omg` and the `build.omg` that binds the
+/// provider, and returns the temporary directory and the source root.
+fn write_provider_fixture(fixture: Fixture) -> (TemporaryDirectory, std::path::PathBuf) {
     let forward = fixture == Fixture::Forwarded;
     let directory = TemporaryDirectory::create("provider-reference", false).unwrap();
     let root = directory.path().join("source");
@@ -135,9 +137,14 @@ machine build(builder: @mutable Build) {{
         ),
     )
     .unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "--keep", "main.omg"])
-        .current_dir(&root)
+    (directory, root)
+}
+
+/// Runs `omega run --both --keep <file>` in the fixture's source root.
+fn run(directory: &TemporaryDirectory, root: &std::path::Path, file: &str) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args(["run", "--both", "--keep", file])
+        .current_dir(root)
         .env(
             "OMEGA_LIBRARY_ROOT",
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../source/library"),
@@ -145,14 +152,24 @@ machine build(builder: @mutable Build) {{
         .env("TMPDIR", directory.path())
         .env_remove("OMEGA_HOST_PACKAGE_LOCK")
         .env_remove("OMEGA_HOST_PACKAGE_LOCK_SHA256")
+        .stdin(std::process::Stdio::null())
         .output()
-        .unwrap();
+        .unwrap()
+}
+
+fn execute_provider_fixture(fixture: Fixture) {
+    let forward = fixture == Fixture::Forwarded;
+    let (directory, root) = write_provider_fixture(fixture);
+    // The run names the Build file: `omega run <file>` selects the Build in
+    // the named file and ignores a neighboring `build.omg`
+    // (wiki/spec/build/command_line.md, "Build-first entry selection").
+    let output = run(&directory, &root, "build.omg");
     let report = String::from_utf8(output.stderr).unwrap();
+    // `omega run` forwards the native program's stdout and stderr before it
+    // reports the native exit, so an empty stdout and a report that opens with
+    // the exit line show that the native program wrote nothing to either.
     assert!(output.stdout.is_empty(), "{:?}", output.stdout);
-    assert!(
-        report.lines().any(|line| line == "native exit 0"),
-        "{report}"
-    );
+    assert_eq!(report.lines().next(), Some("native exit 0"), "{report}");
     let retained = report
         .lines()
         .find_map(|line| line.strip_prefix("build dir kept: "))
@@ -164,7 +181,8 @@ machine build(builder: @mutable Build) {{
     let boundary = program
         .view()
         .module()
-        .interfaces.boundary_machines
+        .interfaces
+        .boundary_machines
         .iter()
         .find(|boundary| {
             matches!(
@@ -216,4 +234,29 @@ fn provider_reference_forwarding_requires_actual_pointer_authority() {
 #[test]
 fn canonical_provider_reference_reads_both_fields_of_its_live_pair() {
     execute_provider_fixture(Fixture::Pair);
+}
+
+/// The negative twin of the scalar program: run from `main.omg`, the program
+/// gets core's default Build, which binds no provider for `Source::cell`. The
+/// neighboring `build.omg` that binds one has no effect, so the compiler must
+/// refuse the unsupplied requirement rather than find the binding anyway.
+#[test]
+fn the_program_file_alone_supplies_no_provider() {
+    let (directory, root) = write_provider_fixture(Fixture::Scalar);
+    let output = run(&directory, &root, "main.omg");
+    let report = String::from_utf8(output.stderr).unwrap();
+    assert!(!output.status.success(), "{report}");
+    assert!(output.stdout.is_empty(), "{:?}", output.stdout);
+    let target = target::TargetProfile::host().target_name();
+    assert!(
+        report.contains(&format!(
+            "boundary requirement `Source::cell` has no provider on target `{target}`: \
+             the Build selects none and the target package declares no default"
+        )),
+        "{report}"
+    );
+    assert!(
+        !report.lines().any(|line| line == "native exit 0"),
+        "{report}"
+    );
 }

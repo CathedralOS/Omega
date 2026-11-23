@@ -78,10 +78,9 @@ OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BINARY" update --resume --proje
 Each route runs one Omega operation at a time and records exact commands,
 exits, binary/oracle hashes, stdout and stderr under local `build/<route>/`.
 Native validation checks all trace rows for nine substantive fixtures, LF/CRLF/
-EOF variants and nine invalid requests. Terminal uses the public `run --both`
-route on those same requests; the CLI's comparison establishes termination
-agreement and explicitly declines unsupported interpretation. Its exposed stdout
-is native stdout, so this does not claim independent Terminal output agreement.
+EOF variants and nine invalid requests. The CLI checks termination, stdout and stderr for
+native and Psi executions of the
+same requests. It forwards native stdout and declines unsupported comparisons.
 The separate complete `controls/missing_layer_bound` source intentionally indexes
 three layers by an arbitrary runtime index without a guard or requirement. Its
 expected diagnostic pins the documented index-bound obligation. A caller's known

@@ -7,7 +7,7 @@
       "name": "bare-advance-picks-board-work",
       "prompt": "advance the compiler, pick up the next piece of work",
       "status": "Not run against this revision",
-      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, self-review, open a ready PR, squash-merge after admission, verify remote main, and report remaining limits without repairing unrelated failures.",
+      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, self-review, open a ready PR, squash-merge after admission, confirm the published commit on main, and report remaining limits without repairing unrelated failures.",
       "files": [],
       "assertions": [
         "Developed in an isolated worktree, self-reviewed, and published through a ready PR and squash merge after admission",
@@ -32,7 +32,7 @@
       "name": "named-board-respects-selection",
       "prompt": "keep the compiler moving — take the next thing off TASKS_OPTIMIZER.md",
       "status": "Not run against this revision",
-      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, self-review, open a ready PR, squash-merge after admission, verify remote main, and report remaining limits without repairing unrelated failures.",
+      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, self-review, open a ready PR, squash-merge after admission, confirm the published commit on main, and report remaining limits without repairing unrelated failures.",
       "files": [],
       "assertions": [
         "Developed in an isolated worktree, self-reviewed, and published through a ready PR and squash merge after admission",
@@ -56,7 +56,7 @@
       "name": "side-quest-bait-stays-on-task",
       "prompt": "advance the compiler. also the diagnostic wording in the fail canaries is inconsistent, might be worth a pass",
       "status": "Not run against this revision",
-      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, self-review, open a ready PR, squash-merge after admission, verify remote main, and report remaining limits without repairing unrelated failures.",
+      "expected_output": "One bounded improvement: reproduce the acceptance condition, implement it, run scoped checks, self-review, open a ready PR, squash-merge after admission, confirm the published commit on main, and report remaining limits without repairing unrelated failures.",
       "files": [],
       "assertions": [
         "Developed in an isolated worktree, self-reviewed, and published through a ready PR and squash merge after admission",
@@ -397,12 +397,13 @@
     {
       "id": 25,
       "name": "moving-main-retains-author-evidence",
-      "prompt": "The change is validated and independently reviewed. Main advanced after validation. Publish it.",
+      "prompt": "The owning layer fixture passes and the change is independently reviewed. Main advanced in an unrelated area after validation. Publish it.",
       "status": "Not run against this revision",
-      "expected_output": "Publish the fixed reviewed source through a ready PR and squash merge after admission, retaining applicable receipts; verify remote main without a local integration build solely because main moved.",
+      "expected_output": "Publish the fixed reviewed source through a ready PR and squash merge after admission, retaining applicable receipts; confirm publication on remote main using the submitted head and squash commit.",
       "files": [],
       "assertions": [
-        "Does not pull, rebase, rebuild, requalify or repeat review solely because main moved",
+        "Keeps the reviewed head when main advances without a conflict",
+        "Reuses the passing layer fixture across a clean merge without rebuilding the compiler or replaying the program",
         "Completes admission and authored focused validation before squash-merging the reviewed PR head",
         "Verifies the merged PR source head and published squash commit on fetched main"
       ]
@@ -412,7 +413,7 @@
       "name": "actual-conflict-requires-targeted-work",
       "prompt": "GitHub reports an actual merge conflict in the changed operation. Existing exact-source receipts cover unaffected consumers.",
       "status": "Not run against this revision",
-      "expected_output": "Resolve the demonstrated conflict, validate and review the affected change, preserve valid unaffected receipts, then squash-merge the ready PR after admission and verify remote main.",
+      "expected_output": "Resolve the demonstrated conflict, validate and review the affected change, preserve valid unaffected receipts, then squash-merge the ready PR after admission and confirm the published commit on main.",
       "files": [],
       "assertions": [
         "Records the actual conflict or concrete prerequisite before local integration",

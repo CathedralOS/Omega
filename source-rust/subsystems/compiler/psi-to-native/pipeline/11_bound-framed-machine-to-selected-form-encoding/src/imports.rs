@@ -27,7 +27,7 @@ pub fn encode_import_program<Origin>(plan: PhysicalImportProgram<Origin>) -> Enc
             },
             None,
         ),
-        ImportRecipe::Aarch64MachO => (
+        ImportRecipe::Aarch64Indirect => (
             EncodedImportBody {
                 resources: plan.entry_resources().clone(),
                 bytes: words(&[0x9000_0010, 0xf940_0210, 0xd61f_0200]),

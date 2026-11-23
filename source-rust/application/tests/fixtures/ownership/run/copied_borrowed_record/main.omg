@@ -1,0 +1,18 @@
+data Cell [copy] { left: u32; right: u32; }
+
+machine read(cells: @mutable [Cell], index: u64) -> Cell
+requires index < cells.length
+{
+    cells[index]
+}
+
+machine main() crashes Trap {
+    let mutable cells: [Cell; 2] = [Cell { left: 1u32, right: 2u32 }, Cell { left: 3u32, right: 4u32 }];
+    let value: Cell = read(@mutable cells[..], 1u64);
+    transition value.left == 3u32 && value.right == 4u32 {
+        true -> done(),
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

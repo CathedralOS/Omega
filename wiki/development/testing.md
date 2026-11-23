@@ -263,6 +263,10 @@ fill another manifest. Keep current compiler and review bindings apart from
 old frozen products. This does not waive reruns of affected code, artifact
 integrity or review the submitted change requires.
 
+For a layer-local change, run the owning layer's fixture. If the behavior spans
+a boundary, exercise its consumer or public entry point. Use an end-to-end run
+when the assigned result depends on the whole program.
+
 Record evidence against the source you tested. The [admission check](landing.md)
 compiles nothing, so the author runs affected tests and Clippy before
 squash-merging. Review and rerun affected checks
@@ -617,13 +621,16 @@ support for this workflow.
 `tools/agent_setup.sh` and the warm-build container use `tools/xtask/bootstrap-mbx.sh`: it verifies the
 official bootstrap release's SHA-256, checks out upstream commit
 `7fa83b28d239bd39d1079127ffd2f8b0f92df00a`, and applies the immutable repository
-patch `tools/xtask/mbx-checksum.patch`. The patch retains the flag in command
+patch `tools/xtask/mbx-checksum.patch`. That patch retains the flag in command
 replay, action keys and predictions. Cached dep-info keeps its raw checksum
 comments. Before constructing a checksum action, the driver checks the entire
 build-script watch signature and requires a reliable change token for every
 file input. Filesystems with weak identities, including the modeled Linux NFS
 case, run rustc without shared caching rather than treating an inode as proof
 that its contents are unchanged. Other compiler flags retain existing policy.
+A second patch, `tools/xtask/mbx-host-ceiling.patch`, applied after it, holds
+every process an mbx command starts under the host CPU ceiling that the mbx
+scheduler budget sets ([host build budget](build_slot.md#the-host-cpu-ceiling)).
 
 The first install builds the tool with the selected Rust toolchain, optimized
 at level 3, without LTO, with 16 codegen units, unwind and stripped symbols.

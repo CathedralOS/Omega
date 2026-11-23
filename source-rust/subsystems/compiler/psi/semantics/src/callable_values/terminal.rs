@@ -471,7 +471,9 @@ pub fn project_callable_invocation(
             .place_types
             .get(&actual.place)
             .ok_or("callable actual lost its exact structural declaration")?;
-        let projected = crate::runtime_structural_path_tip(types.iter(), root, &actual.path)
+        // A lent element of a byte sequence has no declaration of its own; its
+        // actual type is the primitive carrier the borrowed formal declares.
+        let projected = crate::borrowed_projection_type(types.iter(), root, &actual.path, None)
             .ok_or("callable actual has no exact structural type")?;
         // The invocation records its actual at this evaluation point. A
         // query that substitutes a stored callable must separately resolve
@@ -480,7 +482,7 @@ pub fn project_callable_invocation(
             root: actual.place,
             path: crate::resolved_structural_path(types.iter(), root, &actual.path)?,
         });
-        structural_actual_types.push((projected.id, actual.access));
+        structural_actual_types.push((projected, actual.access));
     }
     Ok(CallableInvocation {
         operation: site.operation(),

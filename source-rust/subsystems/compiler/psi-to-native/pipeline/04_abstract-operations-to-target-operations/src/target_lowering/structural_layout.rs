@@ -1029,7 +1029,42 @@ pub(crate) fn runtime_projection(
     )
 }
 
-pub(crate) fn runtime_leaf_copy_projection(
+pub(crate) fn runtime_leaf_copy_projection_at(
+    root: StructuralTypeId,
+    formal: Option<&terminal_psi::StructuralParameterDeclaration>,
+    path: &[StructuralPathSegment],
+    expected: StructuralTypeId,
+    types: &crate::target_lowering::structural_type_lookup::StructuralTypeLookup<'_>,
+) -> Result<RuntimeProjection, LoweringError> {
+    use legalized_operations::structural_inputs::structural_reference_input::leaf_copy_geometry;
+
+    let invalid = || LoweringError::UnsupportedStructuralReference(root);
+    if formal.is_some_and(|formal| {
+        formal.structural_type != root || formal.access == StructuralAccess::WriteOnlyBorrow
+    }) {
+        return Err(invalid());
+    }
+    let element = formal.and_then(|formal| {
+        calling_conventions::terminal_layout::borrowed_slice_element(
+            &types.get(root)?.shape,
+            formal.access,
+        )
+    });
+    let (Some(element), Some((_, remaining))) = (element, path.split_first()) else {
+        return runtime_leaf_copy_projection(root, path, expected, types);
+    };
+
+    let geometry = leaf_copy_geometry(root, formal, path, expected, &types.projections)
+        .filter(|geometry| geometry.readable)
+        .ok_or_else(invalid)?;
+    // The slice supplies the address. The selected field's storage declaration
+    // still determines how many bytes the copy may read.
+    let (selected, shape, _, _) =
+        runtime_leaf_copy_projection(element, remaining, expected, types)?;
+    Ok((selected, shape, geometry.byte_offset, geometry.elements))
+}
+
+fn runtime_leaf_copy_projection(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     expected: StructuralTypeId,

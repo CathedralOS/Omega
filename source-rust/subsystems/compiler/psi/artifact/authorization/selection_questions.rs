@@ -486,6 +486,13 @@ pub fn validate_selection_questions(
                         "selection question {id} has no authenticated Product input association"
                     ));
                 }
+                // A semantic form has its own machine namespace and no emitted
+                // module here, so it cannot name a site in the published one.
+                if designation.site.is_some() != (row.form == SelectionForm::Published) {
+                    return Err(format!(
+                        "selection question {id} has a Build site outside its own form"
+                    ));
+                }
             } else if declaration(packet, row.occurrence.lexical_owner)?.purpose != row.purpose {
                 return Err(format!(
                     "selection question {id} changes its lexical source purpose"
@@ -807,12 +814,15 @@ pub fn validate_selection_questions(
             continue;
         }
         if let SelectionRole::ProductDesignation(designation) = &row.role {
+            let Some(emitted) = designation.site else {
+                return Err("published Product designation has no emitted Build site".into());
+            };
             let site = CallableInvocationSite::Invocation(
-                semantic_vocabulary::InvocationSite::Operation(designation.site.operation),
+                semantic_vocabulary::InvocationSite::Operation(emitted.operation),
             );
-            if lookup(&calls, (designation.site.machine, site)).map(|call| call.target)
+            if lookup(&calls, (emitted.machine, site)).map(|call| call.target)
                 != Some(SelectionCallTarget::Declared(
-                    TargetMachineCallable::Boundary(designation.site.boundary),
+                    TargetMachineCallable::Boundary(emitted.boundary),
                 ))
             {
                 return Err("Product designation has no actual Build boundary occurrence".into());

@@ -14,6 +14,7 @@ pub enum PackageReviewRepresentationTargetProfile {
     CrossPlatformCli,
     LocalUnchecked,
     MacosX64,
+    WindowsArm64,
 }
 
 impl PackageReviewRepresentationTargetProfile {
@@ -24,6 +25,7 @@ impl PackageReviewRepresentationTargetProfile {
             Self::MacosArm64 => target::TargetProfile::MacosArm64,
             Self::MacosX64 => target::TargetProfile::MacosX64,
             Self::WindowsX64 => target::TargetProfile::WindowsX64,
+            Self::WindowsArm64 => target::TargetProfile::WindowsArm64,
             Self::UefiX64 => target::TargetProfile::UefiX64,
             Self::CrossPlatformCli => target::TargetProfile::CrossPlatformCli,
             Self::LocalUnchecked => target::TargetProfile::LocalUnchecked,

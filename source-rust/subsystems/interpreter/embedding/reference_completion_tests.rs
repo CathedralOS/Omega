@@ -2301,3 +2301,226 @@ fn aggregate_reference_formation_refuses_invalid_views_without_publication() {
 fn aggregate_reference_formation_keeps_plain_views_when_descriptor_overflows() {
     check_aggregate_reference_formation(AggregateReferenceControl::PlainOverflow);
 }
+
+fn repeated_zeroed_record_types(count: u64) -> Vec<StructuralTypeDeclaration> {
+    let record = StructuralTypeId::new(2).unwrap();
+    let first = semantic_vocabulary::StructuralCaseId::new(1).unwrap();
+    vec![
+        ty(1, StructuralTypeShape::PrimitiveScalar(scalar())),
+        ty(
+            2,
+            StructuralTypeShape::Mixed {
+                fields: (1..=5)
+                    .map(|index| StructuralFieldDeclaration {
+                        declaration_identity: Default::default(),
+                        inline_carrier: Some(StructuralTypeId::new(1).unwrap()),
+                        id: StructuralFieldId::new(index).unwrap(),
+                        identity: TerminalIdentityIndex(index as u32),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(scalar()),
+                        storage: None,
+                    })
+                    .collect(),
+                cases: vec![StructuralCaseDeclaration {
+                    declaration_identity: Default::default(),
+                    id: first,
+                    identity: TerminalIdentityIndex(6),
+                    fields: vec![],
+                }],
+            },
+        ),
+        ty(
+            3,
+            StructuralTypeShape::FixedArray {
+                element: record,
+                length: count.into(),
+            },
+        ),
+    ]
+}
+
+#[test]
+fn repeated_zeroed_records_reserve_each_active_case_and_require_zeroable_fields() {
+    let array = StructuralTypeId::new(3).unwrap();
+    let first = semantic_vocabulary::StructuralCaseId::new(1).unwrap();
+    let mut declarations = repeated_zeroed_record_types(65_536);
+    let plan =
+        terminal_semantics::zeroed_structural_storage(declarations.iter(), array, &[]).unwrap();
+    assert!(plan.leaves.is_empty());
+    assert_eq!(plan.arrays.len(), 1);
+    assert_eq!(plan.arrays[0].length, 65_536);
+    assert!(
+        matches!(&plan.arrays[0].represented[..], [terminal_semantics::ZeroedStructuralLeaf::SumSelection { case, .. }] if *case == first)
+    );
+
+    // Check the retained case rows against the same bound as individually stored values.
+    let large = repeated_zeroed_record_types(1_000_000);
+    assert!(terminal_semantics::zeroed_structural_storage(large.iter(), array, &[]).is_none());
+
+    declarations[0].shape = StructuralTypeShape::Reference {
+        referent: StructuralTypeId::new(2).unwrap(),
+        access: StructuralAccess::SharedBorrow,
+    };
+    let StructuralTypeShape::Mixed { fields, .. } = &mut declarations[1].shape else {
+        unreachable!()
+    };
+    fields[0].field_type = StructuralFieldType::Structural(StructuralTypeId::new(1).unwrap());
+    assert!(
+        terminal_semantics::zeroed_structural_storage(declarations.iter(), array, &[]).is_none()
+    );
+}
+
+#[test]
+fn repeated_zeroed_record_fields_follow_copies_and_element_vacancies() {
+    use crate::boundary::values::{StructuralRuntimePlace, StructuralScalarRuntimeField};
+    use crate::storage::record::storage::ConstructorStorage;
+    let array = StructuralTypeId::new(3).unwrap();
+    let first = semantic_vocabulary::StructuralCaseId::new(1).unwrap();
+    let declarations = repeated_zeroed_record_types(3);
+    let (mut execution, _, mut result) = setup(declarations, 3);
+    result.structural_type = array;
+    let operation = Operation::unsuspended(
+        semantic_vocabulary::OperationId::new(3).unwrap(),
+        OperationResult::Structural(result.clone()),
+        OperationKind::EstablishZeroedStructural {},
+    );
+    execution
+        .execute_establish_zeroed_structural(&operation)
+        .unwrap();
+    let root =
+        StructuralRuntimePlace::from(execution.structural_values.get(&result.place).unwrap());
+    let element = |root: &StructuralRuntimePlace, index: u64| {
+        let mut element = root.clone();
+        element.path.push(StructuralPathSegment::FixedIndex(index));
+        element
+    };
+    let field =
+        |home| StructuralScalarRuntimeField::member(home, StructuralFieldId::new(3).unwrap());
+    let left = field(element(&root, 0));
+    let right = field(element(&root, 2));
+    assert_eq!(
+        execution.structural_cases.get(&right.parent).unwrap().case,
+        first
+    );
+    assert_eq!(
+        execution.scalar_field_contents(&right).unwrap(),
+        Some(word(scalar(), 0))
+    );
+    assert!(execution.structural_scalar_fields.keys().next().is_none());
+    execution
+        .scalar_field_cell_mut(&left)
+        .unwrap()
+        .unwrap()
+        .write(word(scalar(), 37))
+        .unwrap();
+
+    let duplicate = StructuralRuntimePlace {
+        opaque_identity: root.opaque_identity + 1,
+        path: vec![],
+    };
+    let mut copied = ConstructorStorage::new(None);
+    copied
+        .stage_subtree(&execution, &root, &duplicate, false)
+        .unwrap();
+    copied.publish(&mut execution).unwrap();
+    let copied_left = field(element(&duplicate, 0));
+    let copied_right = field(element(&duplicate, 2));
+    assert_eq!(
+        execution.scalar_field_contents(&copied_left).unwrap(),
+        Some(word(scalar(), 37))
+    );
+    execution
+        .scalar_field_cell_mut(&copied_left)
+        .unwrap()
+        .unwrap()
+        .write(word(scalar(), 99))
+        .unwrap();
+    assert_eq!(
+        execution.scalar_field_contents(&left).unwrap(),
+        Some(word(scalar(), 37))
+    );
+
+    let retirement = execution.prepare_subtree_retirement(&right.parent).unwrap();
+    execution.prune_subtree(retirement).unwrap();
+    assert!(execution.scalar_field_contents(&right).unwrap().is_none());
+    assert_eq!(
+        execution.scalar_field_contents(&copied_right).unwrap(),
+        Some(word(scalar(), 0))
+    );
+    assert_eq!(
+        execution.scalar_field_contents(&left).unwrap(),
+        Some(word(scalar(), 37))
+    );
+    let mut restored = ConstructorStorage::new(None);
+    restored
+        .stage_subtree(&execution, &copied_right.parent, &right.parent, false)
+        .unwrap();
+    restored.publish(&mut execution).unwrap();
+    assert_eq!(
+        execution.scalar_field_contents(&right).unwrap(),
+        Some(word(scalar(), 0))
+    );
+    assert_eq!(
+        execution.structural_cases.get(&right.parent).unwrap().case,
+        first
+    );
+    // Replacing a lent field with the default must write through its original backing.
+    let resident = backing(word(scalar(), 37));
+    execution
+        .structural_scalar_fields
+        .insert_cell(
+            left.clone(),
+            crate::storage::scalar_storage::ScalarCell::resident(
+                word(scalar(), 37),
+                resident.clone(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+    let mut replacement = ConstructorStorage::new(None);
+    replacement
+        .stage_subtree(&execution, &copied_right.parent, &left.parent, false)
+        .unwrap();
+    let replacement = replacement
+        .prepare_replacement(&execution, left.parent.clone())
+        .unwrap();
+    replacement.publish(&mut execution).unwrap();
+    assert_eq!(*resident.value.borrow(), word(scalar(), 0));
+
+    assert!(
+        execution
+            .scalar_field_contents(&field(element(&root, 3)))
+            .is_err()
+    );
+}
+
+#[test]
+fn repeated_zeroed_record_storage_is_reclaimed_when_its_array_leaves_scope() {
+    use crate::boundary::values::StructuralRuntimePlace;
+    let mut declarations = repeated_zeroed_record_types(3);
+    let StructuralTypeShape::Mixed { fields, .. } = &mut declarations[1].shape else {
+        unreachable!()
+    };
+    declarations[1].shape = StructuralTypeShape::Record {
+        fields: std::mem::take(fields),
+        storage: StructuralRecordStorage::Packed,
+    };
+    let (mut execution, _, mut result) = setup(declarations, 3);
+    result.structural_type = StructuralTypeId::new(3).unwrap();
+    let keep = result.place;
+    let operation = Operation::unsuspended(
+        semantic_vocabulary::OperationId::new(3).unwrap(),
+        OperationResult::Structural(result),
+        OperationKind::EstablishZeroedStructural {},
+    );
+    for _ in 0..4096 {
+        execution.structural_values.remove(&keep);
+        execution
+            .execute_establish_zeroed_structural(&operation)
+            .unwrap();
+    }
+    let retained = StructuralRuntimePlace::from(execution.structural_values.get(&keep).unwrap());
+    execution.reclaim_orphan_scalar_records();
+    assert_eq!(execution.array_initialization.rows.len(), 1);
+    assert!(execution.array_initialization.rows.contains_key(&retained));
+}

@@ -51,6 +51,18 @@ impl FloatSpelling {
         }
     }
 
+    pub fn negated(&self, context: &impl SyntaxTextContext, source_span: SourceSpan) -> Self {
+        match &self.text {
+            FloatSpellingText::Materialized(literal) => {
+                Self::materialized(literal.negated(), source_span)
+            }
+            _ => Self::new(
+                numeric_literals::negated_float_spelling(self.as_str(context)),
+                source_span,
+            ),
+        }
+    }
+
     pub fn source_backed(source: Handle<RetainedSource>, source_span: SourceSpan) -> Self {
         Self {
             text: FloatSpellingText::SourceBacked(source),

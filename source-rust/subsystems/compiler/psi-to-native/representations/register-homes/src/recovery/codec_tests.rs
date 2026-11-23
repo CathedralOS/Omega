@@ -1,7 +1,7 @@
 /*
 Wire envelope, round-trip, rejection precedence, and structural catalog tests for the fixed-view copy recovery codec.
 
-Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v118), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
+Verifies that `FixedViewCopyPlan` deterministic wire encoding (`OMGFCV\0\0` v119), authentication digests, stale-version rejection precedence, edge transport bindings, call-site owners, local and outgoing storage rosters, returned descriptor origins, and complete placement/lifecycle catalogs survive round-trip encoding and fail closed under tampering or truncation.
 */
 
 use access_admission::AccessFields;
@@ -546,7 +546,7 @@ fn current_envelope_has_exact_header_and_deterministic_bytes() {
     let plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
     let encoded = plan.encode().unwrap();
     assert_eq!(&encoded[..8], b"OMGFCV\0\0");
-    assert_eq!(&encoded[8..12], &118_u32.to_le_bytes());
+    assert_eq!(&encoded[8..12], &119_u32.to_le_bytes());
     assert_eq!(encoded, plan.encode().unwrap());
     assert_eq!(FixedViewCopyPlan::decode(&encoded).unwrap(), plan);
 }
@@ -1199,6 +1199,31 @@ fn artifact_v15_round_trips_structural_functions_call_plans_and_semantic_call_ro
         .functions
         .push(structural_function());
     eq!(FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap() => plan);
+}
+
+#[test]
+fn projected_claim_transfers_round_trip_with_distinct_selected_identities() {
+    let with_field = |field| {
+        let mut plan = plan(FixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1);
+        let mut function = structural_function();
+        function.calls[0]
+            .call
+            .claim_transfers
+            .push(terminal_psi::ClaimTransfer {
+                claim: semantic_vocabulary::ClaimId::new(1).unwrap(),
+                argument_index: 0,
+                path: vec![terminal_psi::StructuralPathSegment::Field(
+                    TerminalIdentityIndex(field),
+                )],
+            });
+        std::sync::Arc::make_mut(&mut plan.transformed)
+            .functions
+            .push(function);
+        let decoded = FixedViewCopyPlan::decode(&plan.encode().unwrap()).unwrap();
+        assert_eq!(decoded, plan);
+        selected_instructions::selected_instruction_plan_identity(&decoded.transformed)
+    };
+    assert_ne!(with_field(1), with_field(2));
 }
 
 #[test]

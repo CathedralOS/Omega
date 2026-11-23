@@ -5,8 +5,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use super::{collect_files_with_ext, is_ident_byte};
+use crate::repository::RUST_ROOT;
 
-const RUST_ROOT: &str = "source-rust";
 const READS_BASELINE: &str = "tools/ratchets/source_text_reads.txt";
 const STATUS_BASELINE: &str = "tools/ratchets/contract_status_phrases.txt";
 pub(super) const SEMANTIC_RECORDS: &str =

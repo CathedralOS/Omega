@@ -5316,10 +5316,15 @@ pub(crate) mod structural_case {
                 (identity, 0, Vec::new())
             }
             abstract_operations::StructuralCopyPath::Ordinary(path) => {
-                let geometry =
-                    leaf_copy_geometry(identity, path, result.structural_type, plan.geometry())
-                        .filter(|geometry| geometry.readable)
-                        .ok_or(LegalizationError::custody())?;
+                let geometry = leaf_copy_geometry(
+                    identity,
+                    function_inputs.arrival_parameter(source),
+                    path,
+                    result.structural_type,
+                    plan.geometry(),
+                )
+                .filter(|geometry| geometry.readable)
+                .ok_or(LegalizationError::custody())?;
                 (geometry.selected, geometry.byte_offset, geometry.elements)
             }
         };

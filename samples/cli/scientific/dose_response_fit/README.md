@@ -86,8 +86,9 @@ must reject for that exact bounds obligation. Empty stdin supplies the ordinary 
 gate's authored exit 2. The standard 10-million CLI allowance can be insufficient for
 all repeated nuisance fits; exhaustion is a decline and never counted as acceptance.
 The observer has an outer wall-clock bound and checks the same frozen numerical/refusal
-expectations. It supplies no filesystem permission or reconstructed artifact. `omega
-run --both` compares termination only and cannot establish numerical stdout agreement.
+expectations. It supplies no filesystem permission or reconstructed artifact. `omega run
+--both` compares termination and the exact stdout and stderr bytes from
+both engines.
 A declined Terminal run is not acceptance.
 
 References: [SciPy bounded least squares](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html),

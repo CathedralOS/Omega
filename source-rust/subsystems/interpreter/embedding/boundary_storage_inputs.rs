@@ -993,7 +993,7 @@ pub(crate) mod original_residence {
                         execution.structural_primitive_storage.get_mut(&home)
                     }
                     PrimitiveStorageEndpoint::ScalarField(field) => {
-                        execution.structural_scalar_fields.get_mut(&field)
+                        execution.scalar_field_cell_mut(&field)?
                     }
                     _ => {
                         let storage = PrimitiveStorage {
@@ -1426,7 +1426,7 @@ pub(crate) mod original_residence {
             let (selected, mut path) = self.actual_storage_projection(original, parent)?;
             let cell = match &storage.endpoint {
                 PrimitiveStorageEndpoint::Scalar(home) => {
-                    self.structural_primitive_storage.get(home)
+                    self.structural_primitive_storage.get(home).cloned()
                 }
                 PrimitiveStorageEndpoint::ScalarField(field) => {
                     if field.namespace == StructuralFieldNamespace::CasePayload {
@@ -1437,7 +1437,7 @@ pub(crate) mod original_residence {
                         path.push(Path::Case(active.case));
                     }
                     path.push(Path::Field(field.field));
-                    self.structural_scalar_fields.get(field)
+                    self.scalar_field_cell(field)?
                 }
                 _ => return Err(malformed()),
             }

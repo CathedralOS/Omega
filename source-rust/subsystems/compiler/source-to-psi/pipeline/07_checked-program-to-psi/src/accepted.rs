@@ -294,17 +294,17 @@ impl AcceptedTerminalSource {
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         let mut provenance = psi_publication_records::TerminalMachineProvenance::default();
-        for (machine, symbol) in elaboration.machines.iter() {
+        for (machine, _) in elaboration.machines.iter() {
             let name = elaboration.names.get(machine).ok_or_else(|| {
                 vec![Diagnostic::error(
                     "no product route yet: accepted machine lost its source name correspondence",
                 )]
             })?;
-            let span = self
-                .source()
-                .symbols
-                .symbol_source_span(self.source().symbols.authored_origin(*symbol));
-            provenance.name(machine, name.machine.clone(), span);
+            // The saved name carries no source span: a span's `SourceId` is
+            // the capture number this invocation gave the file, which means
+            // nothing to a reader of the saved artifact and would make the
+            // published bytes depend on the order the loader met the files.
+            provenance.name(machine, name.machine.clone(), None);
         }
         // A declaration module has no entry: every machine keeps its name,
         // and there is no call chain from a root to record.

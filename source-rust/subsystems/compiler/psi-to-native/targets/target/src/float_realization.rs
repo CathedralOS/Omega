@@ -116,7 +116,10 @@ impl TargetProfile {
             FloatControlObligation::CanonicalControls
         };
         let x86 = matches!(self, Self::LinuxX64 | Self::MacosX64 | Self::WindowsX64);
-        let arm = matches!(self, Self::LinuxArm64 | Self::MacosArm64);
+        let arm = matches!(
+            self,
+            Self::LinuxArm64 | Self::MacosArm64 | Self::WindowsArm64
+        );
         Some(if !(x86 || arm) {
             CanonicalFloatRealization::Unsupported {
                 constraint: "the target declares no floating-point realization table",

@@ -97,7 +97,8 @@ sharing, deterministic ties, three-way capacity contention, zero-resource preced
 horizon, zero demands/capacities, zero tasks, cycles, excess demand, 24 deterministic variants and
 invalid inputs.
 
-`omega run --both` compares termination only. To check actual Terminal output,
+The CLI compares termination, stdout and stderr between engines. To capture Psi output
+separately,
 `validation/observe.rs` consumes the same public package/native-product and
 Terminal runtime APIs as the shipped CLI.
 

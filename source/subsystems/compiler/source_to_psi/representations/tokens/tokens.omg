@@ -1,5 +1,5 @@
-use representations\source_files\SourceId;
-use representations\source_files\SourceSpan;
+use representations/source_files/source.omg;
+use representations/tokens/numeric.omg;
 
 // Product token vocabulary for the source-to-token phase. Token spans index
 // the source unit; word tokens (identifiers and keywords) and cooked string
@@ -110,12 +110,12 @@ public data TokenKind [copy] {
     // `magnitude` is meaningless. Later stages read these instead of
     // scanning the literal's bytes again.
     case Integer(
-        base: NumericBase,
+        base: |numeric|::NumericBase,
         empty_digits: bool,
         has_suffix: bool,
         magnitude: u64 in Wrapping,
         exact: bool,
-        suffix: IntegerSuffix
+        suffix: |numeric|::IntegerSuffix
     );
     case Float(
         has_exponent: bool,
@@ -144,7 +144,7 @@ public data LexDiagnosticCode [copy] {
 
 public data LexDiagnostic [copy] {
     code: LexDiagnosticCode;
-    source_span: SourceSpan;
+    source_span: |source|::SourceSpan;
 }
 
 public data TokenStream
@@ -161,7 +161,7 @@ requires
     last_retained: bool;
 }
 
-machine token_stream_clear(token_stream: @mutable TokenStream, source: SourceId) {
+machine token_stream_clear(token_stream: @mutable TokenStream, source: |source|::SourceId) {
     token_stream.token_count = 0;
     token_stream.decoded_length = 0;
     token_stream.accepted = true;
@@ -174,7 +174,7 @@ machine token_stream_clear(token_stream: @mutable TokenStream, source: SourceId)
 
 machine token_stream_reject(
     token_stream: @mutable TokenStream,
-    source: SourceId,
+    source: |source|::SourceId,
     code: LexDiagnosticCode,
     start: u64 in Trapping,
     end: u64 in Trapping

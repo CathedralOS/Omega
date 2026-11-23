@@ -45,7 +45,7 @@ pub(super) const USAGE: &str = concat!(
 );
 
 pub(super) fn parse_arguments(
-    mut arguments: impl Iterator<Item = std::ffi::OsString>,
+    arguments: &mut super::Arguments,
 ) -> Result<Option<RunArguments>, String> {
     let mut build_inputs = Vec::new();
     let mut both = false;
@@ -60,10 +60,10 @@ pub(super) fn parse_arguments(
     let mut outputs = None;
     let mut main_path = None;
     let mut trusted_artifact = None;
-    while let Some(argument) = arguments.next() {
+    while let Some(argument) = arguments.next_argument() {
         match argument.to_str() {
             Some(flag @ ("--build-input" | "--optional-build-input")) => {
-                build_inputs.push(super::parse_build_input(&mut arguments, flag)?);
+                build_inputs.push(super::parse_build_input(arguments, flag)?);
             }
             Some("--help" | "-h") => super::set_flag(&mut help, &argument.to_string_lossy())?,
             Some("--offline") => return Err("omega run does not support --offline".into()),
@@ -72,8 +72,8 @@ pub(super) fn parse_arguments(
                 if engine.is_some() {
                     return Err("duplicate --engine".into());
                 }
-                let value = super::option_value(&mut arguments)
-                    .ok_or("--engine requires `native` or `psi`")?;
+                let value =
+                    super::option_value(arguments).ok_or("--engine requires `native` or `psi`")?;
                 engine = Some(match value.to_str() {
                     Some("native") => ExecutionSelection::Native,
                     Some("psi") => ExecutionSelection::Terminal,
@@ -90,7 +90,7 @@ pub(super) fn parse_arguments(
                 if psi_work_budget.is_some() {
                     return Err("duplicate --psi-work-budget".into());
                 }
-                let value = super::option_value(&mut arguments)
+                let value = super::option_value(arguments)
                     .ok_or("--psi-work-budget requires a positive u64")?
                     .into_string()
                     .map_err(|_| "--psi-work-budget requires a positive u64")?;
@@ -102,7 +102,7 @@ pub(super) fn parse_arguments(
             }
             Some("--entry-ram") => {
                 let value = arguments
-                    .next()
+                    .next_value()
                     .ok_or("--entry-ram requires POSITION=HEX_BYTES")?
                     .into_string()
                     .map_err(|_| "--entry-ram requires UTF-8 POSITION=HEX_BYTES")?;
@@ -144,10 +144,10 @@ pub(super) fn parse_arguments(
                     .push(psi_entry_memory::PrivateEntryRamInitialization { position, contents });
             }
             Some("--trusted-artifact") => {
-                super::parse_trusted_artifact(&mut arguments, &mut trusted_artifact)?
+                super::parse_trusted_artifact(arguments, &mut trusted_artifact)?
             }
             Some("--input") => {
-                let file = super::option_value(&mut arguments).ok_or("--input requires a file")?;
+                let file = super::option_value(arguments).ok_or("--input requires a file")?;
                 input_files.push(std::path::PathBuf::from(file));
             }
             Some(flag @ ("--inputs" | "--outputs")) => {
@@ -159,7 +159,7 @@ pub(super) fn parse_arguments(
                 if slot.is_some() {
                     return Err(format!("duplicate {flag}"));
                 }
-                let directory = super::option_value(&mut arguments)
+                let directory = super::option_value(arguments)
                     .ok_or_else(|| format!("{flag} requires a directory"))?;
                 *slot = Some(std::path::PathBuf::from(directory));
             }
@@ -167,7 +167,7 @@ pub(super) fn parse_arguments(
                 if target_name.is_some() {
                     return Err("duplicate --target".into());
                 }
-                let name = arguments.next().ok_or("--target requires a name")?;
+                let name = arguments.next_value().ok_or("--target requires a name")?;
                 if name == "--offline" {
                     return Err("omega run does not support --offline".into());
                 }
@@ -260,11 +260,14 @@ pub(super) fn parse_arguments(
 #[cfg(test)]
 mod tests {
     use super::parse_arguments;
+    use crate::arguments::Arguments;
     use crate::execution::ExecutionSelection;
 
     fn parse(arguments: &[&str]) -> Result<super::RunArguments, String> {
-        parse_arguments(arguments.iter().map(std::ffi::OsString::from))?
-            .ok_or_else(|| "unexpected --help".to_owned())
+        parse_arguments(&mut Arguments::new(
+            arguments.iter().map(std::ffi::OsString::from),
+        ))?
+        .ok_or_else(|| "unexpected --help".to_owned())
     }
 
     #[test]

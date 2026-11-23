@@ -99,7 +99,6 @@ checks their exact state scope when admitting requirements, and invalidates thei
 facts on either write. A scalar local copies the live literal bounds and
 exclusions of its evaluated observation before destination invalidation,
 preserving nonzero facts through dynamic-index hoisting. The application retains
-its original preconditions and divisions. The generic CLI comparison verifies
-Terminal exits only; native stdout is checked byte for byte against the frozen
-fixtures. Terminal stdout comparison is not exposed by this CLI route and is not
-claimed.
+its original preconditions and divisions. The CLI compares exit status and both output
+streams. The sample validator checks
+native stdout byte for byte against the frozen fixtures.

@@ -1410,13 +1410,11 @@ pub(crate) mod placed {
                     let mut bytes = vec![0; original.recipe.contents().len()];
                     for field in original.recipe.fields() {
                         let value = self
-                            .structural_scalar_fields
-                            .get(&StructuralScalarRuntimeField::member(
+                            .scalar_field_contents(&StructuralScalarRuntimeField::member(
                                 StructuralRuntimePlace::from(&original.allocation),
                                 field.field,
-                            ))
-                            .ok_or(malformed())?
-                            .read()?;
+                            ))?
+                            .ok_or(malformed())?;
                         let bits = match value {
                             crate::TerminalScalarValue::Boolean(value) => u128::from(value),
                             crate::TerminalScalarValue::Integer {
@@ -1575,13 +1573,11 @@ pub(crate) mod placed {
                     continue;
                 };
                 let value = self
-                    .structural_scalar_fields
-                    .get(&StructuralScalarRuntimeField::member(
+                    .scalar_field_contents(&StructuralScalarRuntimeField::member(
                         StructuralRuntimePlace::from(&source),
                         field.id,
-                    ))
-                    .ok_or(malformed())?
-                    .read()?;
+                    ))?
+                    .ok_or(malformed())?;
                 if value.scalar_type() != scalar || !value.satisfies_field(&field.field_type) {
                     return Err(malformed());
                 }

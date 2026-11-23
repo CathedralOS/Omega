@@ -1024,7 +1024,8 @@ fn statement_homes<'b>(
     homes: &mut impl FnMut(ValueType, Option<&'b String>, Option<usize>),
 ) {
     match statement {
-        Statement::Bind { value, .. }
+        Statement::Observe { value, .. }
+        | Statement::Bind { value, .. }
         | Statement::Decompose { subject: value }
         | Statement::Evaluate {
             expression: value, ..
@@ -1100,7 +1101,8 @@ fn expression_homes<'b>(
         | ExpressionKind::Zero
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Slot(_) => {}
-        ExpressionKind::Borrow { place, home, .. } | ExpressionKind::StorageLocation { place, home, .. } => {
+        ExpressionKind::Borrow { place, home, .. }
+        | ExpressionKind::StorageLocation { place, home, .. } => {
             if let (Some(home), Some(value_type @ ValueType::Scalar(..))) = (home, place.result) {
                 let slot = match place.kind {
                     ExpressionKind::Slot(slot) => Some(slot),
@@ -1440,6 +1442,7 @@ impl Records<'_> {
 pub(super) enum Bound {
     Scalar(ValueId),
     Record(PlaceId),
+    Observed(usize),
     Home(PlaceId),
     /// An `[erased]` formal or local: the term it names. Nothing evaluates
     /// it and no runtime expression may read it.
@@ -1554,7 +1557,7 @@ pub(super) struct Lent {
 
 /// The storage a record-typed expression names, before anything is copied.
 #[derive(Debug, Clone)]
-struct Located {
+pub(super) struct Located {
     root: PlaceId,
     place: ExactPlaceId,
     /// The steps from the root to the place.
@@ -1564,6 +1567,16 @@ struct Located {
     /// The root was produced by this expression's own operation, so no slot
     /// names it and it can be used as the value without a copy.
     fresh: bool,
+}
+
+impl Located {
+    pub(super) fn retain_operands(&self, storage: &mut Vec<PlaceId>, scalars: &mut Vec<ValueId>) {
+        storage.push(self.root);
+        scalars.extend(self.path.iter().filter_map(|step| match step {
+            Step::Index { selector, .. } => Some(*selector),
+            _ => None,
+        }));
+    }
 }
 
 type CaseSelection = (Vec<(BlockId, Chosen)>, Option<(BlockId, Chosen)>);
@@ -1779,7 +1792,7 @@ impl<'a> Lowering<'a> {
                 // Which case an input or call result holds is not known, so
                 // every payload leaf gets an initial identity; the checker lets
                 // a read reach one only where that case is established.
-                for case in data.cases() {
+                for case in data.cases().iter().filter(|case| !case.fields.is_empty()) {
                     let payload = self.project(place, Segment::Case(case.id))?;
                     for field in &case.fields {
                         let leaf = self.project(payload, Segment::Field(field.id))?;
@@ -2394,6 +2407,14 @@ impl<'a> Lowering<'a> {
         )
     }
 
+    pub(super) fn observe(&mut self, slot: usize, expression: &Expression) -> Evaluation<()> {
+        let at = continuing!(self.located(expression));
+        let index = self.observed.len();
+        self.observed.push(at);
+        *self.slot_mut(slot)? = Some(Bound::Observed(index));
+        Ok(Reached::Value(()))
+    }
+
     fn located(&mut self, expression: &Expression) -> Evaluation<Located> {
         let Some(value_type @ ValueType::Record(record, qualification, _)) = expression.result
         else {
@@ -2447,6 +2468,9 @@ impl<'a> Lowering<'a> {
             ExpressionKind::Slot(slot) => {
                 let bound = *self.slot_mut(*slot)?;
                 match bound {
+                    Some(Bound::Observed(index)) => {
+                        Ok(Reached::Value(self.observed[index].clone()))
+                    }
                     Some(Bound::Record(root)) => Ok(Reached::Value(Located {
                         root,
                         place: self.exact_root(root)?,
@@ -2847,7 +2871,7 @@ impl<'a> Lowering<'a> {
                     subject,
                     arms,
                     default.as_deref(),
-                    result_type,
+                    Some(result_type),
                     expression.source,
                     *capture,
                 )) else {
@@ -3446,6 +3470,15 @@ impl<'a> Lowering<'a> {
             ExpressionKind::Slot(slot) => {
                 let value_type = self.slot_type(*slot)?;
                 let bound = *self.slot_mut(*slot)?;
+                if let Some(Bound::Observed(index)) = bound {
+                    let at = &self.observed[index];
+                    return Ok(Reached::Value((
+                        at.root,
+                        at.path.clone(),
+                        at.place,
+                        value_type,
+                    )));
+                }
                 let root = match bound {
                     Some(Bound::Home(root) | Bound::Record(root)) => root,
                     _ => return Err(self.internal("a captured slot holds no storage")),
@@ -4553,8 +4586,12 @@ impl<'a> Lowering<'a> {
             operation,
             Some(result),
             match query {
-                terminal_psi::StorageLocationQuery::Address => OperationKind::StorageAddress { source: argument },
-                terminal_psi::StorageLocationQuery::Alignment => OperationKind::StorageAlignment { source: argument },
+                terminal_psi::StorageLocationQuery::Address => {
+                    OperationKind::StorageAddress { source: argument }
+                }
+                terminal_psi::StorageLocationQuery::Alignment => {
+                    OperationKind::StorageAlignment { source: argument }
+                }
             },
         )
         .map(Reached::Value)
@@ -5060,12 +5097,7 @@ impl<'a> Lowering<'a> {
                 projected_qualifications,
                 additional_input_qualifications: Vec::new(),
             });
-        self.jump_with_structural(
-            block,
-            Vec::new(),
-            vec![argument],
-            source,
-        )?;
+        self.jump_with_structural(block, Vec::new(), vec![argument], source)?;
         self.enter(block);
         self.borrowed_roots.push(captured);
         if access == StructuralAccess::MutableBorrow {

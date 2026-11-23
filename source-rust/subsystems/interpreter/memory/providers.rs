@@ -417,11 +417,10 @@ pub(crate) mod entry {
             storage: &terminal_psi::TerminalAccessStorage,
         ) -> Result<Option<(u64, u64)>, TerminalInterpretError> {
             let integer = |field| -> Result<Option<u64>, TerminalInterpretError> {
-                let value = self
-                    .structural_scalar_fields
-                    .get(&StructuralScalarRuntimeField::member(home.clone(), field))
-                    .map(crate::storage::scalar_storage::ScalarCell::read)
-                    .transpose()?;
+                let value = self.scalar_field_contents(&StructuralScalarRuntimeField::member(
+                    home.clone(),
+                    field,
+                ))?;
                 Ok(match value {
                     Some(TerminalScalarValue::Integer {
                         value: semantic_vocabulary::IntegerValue::Unsigned(value),
@@ -954,11 +953,10 @@ pub(crate) mod empty_run {
             home: &StructuralRuntimePlace,
             field: StructuralFieldId,
         ) -> Result<bool, TerminalInterpretError> {
-            let value = self
-                .structural_scalar_fields
-                .get(&StructuralScalarRuntimeField::member(home.clone(), field))
-                .map(crate::storage::scalar_storage::ScalarCell::read)
-                .transpose()?;
+            let value = self.scalar_field_contents(&StructuralScalarRuntimeField::member(
+                home.clone(),
+                field,
+            ))?;
             Ok(matches!(
                 value,
                 Some(TerminalScalarValue::Integer {
@@ -2533,10 +2531,7 @@ pub(crate) mod profile_values {
             };
             let value = self
                 .execution
-                .structural_scalar_fields
-                .get(&cell)
-                .map(crate::storage::scalar_storage::ScalarCell::read)
-                .transpose()?
+                .scalar_field_contents(&cell)?
                 .ok_or(malformed())?;
             if !value.satisfies_field(&field.field_type) {
                 return Err(malformed());
@@ -2936,13 +2931,11 @@ pub(crate) mod relocation {
                 return Err(TerminalInterpretError::ClaimTransferMismatch);
             }
             let count_value = self
-                .structural_scalar_fields
-                .get(&StructuralScalarRuntimeField::member(
+                .scalar_field_contents(&StructuralScalarRuntimeField::member(
                     StructuralRuntimePlace::from(&owner),
                     count_field,
-                ))
-                .ok_or(malformed())?
-                .read()?;
+                ))?
+                .ok_or(malformed())?;
             let TerminalScalarValue::Integer {
                 value: IntegerValue::Unsigned(count),
                 ..

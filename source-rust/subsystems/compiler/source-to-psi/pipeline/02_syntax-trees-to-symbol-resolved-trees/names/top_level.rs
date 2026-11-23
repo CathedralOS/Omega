@@ -598,6 +598,7 @@ trait_machine_identity_slots: &trait_machine_identity_slots,
             crate::resolution::names::type_references::assign_type_argument_value_expression_symbols(
                 symbols,
                 &expression_scope,
+                conformance.symbol,
                 expression_table,
                 child_type_references,
                 conformance.arguments,

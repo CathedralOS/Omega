@@ -85,8 +85,7 @@ exhaustive tiny cases and 23 named valid, impossible and invalid-input cases.
 The four public `run --both` comparisons cover ambiguous observations, shared
 ancestry, impossible inheritance and invalid self-parent input; their native
 outputs match the frozen oracles and Terminal termination agrees in every case,
-without declines. That CLI comparison establishes termination agreement; it
-does not establish Terminal stdout equivalence.
+without declines. The CLI at that revision compared termination only.
 
 The original project-local package review was accepted after explicit user
 approval. All 286 disclosed decisions retain their exact declaration meanings

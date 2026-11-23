@@ -254,7 +254,11 @@ fn a_reached_requirement_with_two_defaults_is_rejected_as_a_conflict() {
     let refusal = prepare(&fixture, &[], fixture.defaults.clone())
         .err()
         .expect("source defaults conflict");
-    assert!(refusal.contains("ConflictingDefaults"), "{refusal}");
+    assert!(
+        refusal.contains("conflicting providers on target")
+            && refusal.contains("the target package declares"),
+        "{refusal}"
+    );
     assert!(refusal.contains(TARGET), "{refusal}");
 }
 

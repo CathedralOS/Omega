@@ -508,6 +508,7 @@ impl<'a> Lowering<'a> {
             point: None,
             slots: vec![None; slot_types.len()],
             selected: Vec::new(),
+            observed: Vec::new(),
             scalar_subjects: Vec::new(),
             slot_types,
             lender_homes: &[],
@@ -834,6 +835,7 @@ struct Lowering<'a> {
     /// arm the sum it selected on, the case, and the block parameter each
     /// scalar payload field arrived as.
     selected: Vec<places::Chosen>,
+    observed: Vec<places::Located>,
     scalar_subjects: Vec<(
         arena::Handle<crate::source_state::expression::CompletedValueCapture>,
         ValueId,
@@ -1080,7 +1082,8 @@ impl<'a> Lowering<'a> {
             // statement and none is reported for it.
             let first = statements.find_map(|statement| match statement {
                 Statement::Witness { .. } | Statement::ParkedBuildLocals(..) => None,
-                Statement::Bind { value, .. }
+                Statement::Observe { value, .. }
+                | Statement::Bind { value, .. }
                 | Statement::Decompose { subject: value }
                 | Statement::Evaluate {
                     expression: value, ..

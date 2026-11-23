@@ -386,14 +386,30 @@ pub mod structural_reference_input {
 
     pub fn leaf_copy_geometry(
         root: StructuralTypeId,
+        formal: Option<&terminal_psi::StructuralParameterDeclaration>,
         path: &[StructuralPathSegment],
         expected: StructuralTypeId,
         declarations: &NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
+        if formal.is_some_and(|formal| {
+            formal.structural_type != root
+                || formal.access == terminal_psi::StructuralAccess::WriteOnlyBorrow
+        }) {
+            return None;
+        }
         let expected = declarations.iter().find(|row| row.id == expected)?;
-        reference_source_geometry_with_leaf_type(root, path, declarations, |field| {
-            field.leaf_copy_type(Some(expected))
-        })
+        projection_at(
+            root,
+            formal,
+            path,
+            declarations,
+            |identity| identity,
+            |root, path| {
+                reference_source_geometry_with_leaf_type(root, path, declarations, |field| {
+                    field.leaf_copy_type(Some(expected))
+                })
+            },
+        )
     }
 
     fn reference_source_geometry_with_leaf_type(
@@ -1631,7 +1647,7 @@ pub mod structural_reference_input {
             terminal_semantics::canonical_case_leaf_type(declarations.iter(), root, path)?;
         let storage_path =
             terminal_semantics::canonical_structural_storage_path(declarations.iter(), root, path)?;
-        let geometry = leaf_copy_geometry(root, &storage_path, endpoint, declarations)?;
+        let geometry = leaf_copy_geometry(root, None, &storage_path, endpoint, declarations)?;
         (geometry.selected == endpoint
             && geometry.readable
             && geometry.elements.is_empty()

@@ -240,7 +240,11 @@ pub enum SelectionReference {
 /// actual request and its selected input. Purpose or role alone cannot do so.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectionProductDesignation {
-    pub site: BuildCallSite,
+    /// The emitted Build call that makes this request. Only the published
+    /// module emits one. A generic Build helper's own check form never runs
+    /// its request, so its designation has no site; each application of the
+    /// helper that does run is published with its own.
+    pub site: Option<BuildCallSite>,
     pub operand: u32,
     pub input_selection: [u8; 32],
     pub static_application: Option<[u8; 32]>,

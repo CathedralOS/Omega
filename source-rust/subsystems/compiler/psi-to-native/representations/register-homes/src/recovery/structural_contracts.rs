@@ -974,13 +974,7 @@ pub(super) fn decode_cleanup(
                 subject: decode_semantic_argument(cursor)?,
                 structural_type: decode_id(cursor, StructuralTypeId::new)?,
                 cleanup_machine: decode_id(cursor, MachineId::new)?,
-                claim_transfers: decode_list(cursor, |cursor| {
-                    Ok::<_, FixedViewCopyDecodeError>(terminal_psi::ClaimTransfer {
-                        claim: decode_id(cursor, ClaimId::new)?,
-                        argument_index: cursor.u32()?,
-                        path: decode_path(cursor)?,
-                    })
-                })?,
+                claim_transfers: super::structural_calls::decode_claim_transfers(cursor)?,
                 requirement_obligations: decode_ids(cursor, ObligationId::new)?,
             },
         )),

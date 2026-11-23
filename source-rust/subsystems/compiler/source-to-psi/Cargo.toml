@@ -292,6 +292,26 @@ name = "checking_indexed_and_member_contracts"
 path = "pipeline/06_lowered-program-to-checked-program/tests/indexed_and_member_contracts.rs"
 required-features = ["test-support"]
 
+[[test]]
+name = "lowering_obligation_sites"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/obligation_sites.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_imported_suspensions"
+path = "pipeline/06_lowered-program-to-checked-program/tests/imported_suspensions.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_operator_selection"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/operator_selection.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_requirement_interfaces"
+path = "pipeline/06_lowered-program-to-checked-program/tests/requirement_interfaces.rs"
+required-features = ["test-support"]
+
 [[example]]
 name = "checking_machine_checks"
 path = "pipeline/06_lowered-program-to-checked-program/examples/machine_checks.rs"

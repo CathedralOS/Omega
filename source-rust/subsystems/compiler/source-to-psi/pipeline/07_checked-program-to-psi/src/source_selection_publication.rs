@@ -1195,12 +1195,7 @@ impl<'source> Questions<'source> {
         let designation = match (raw.role, raw.designation) {
             (RawSelectionRole::Execution, None) => None,
             (RawSelectionRole::ProductDesignation, Some(input)) => {
-                if form != SelectionForm::Published {
-                    return Err(refused(
-                        "generic Product designation needs its own retained semantic input site",
-                    ));
-                }
-                Some(self.product_designation(raw, input)?)
+                Some(self.product_designation(form, raw, input)?)
             }
             _ => {
                 return Err(refused(
@@ -1306,6 +1301,7 @@ impl<'source> Questions<'source> {
 
     fn product_designation(
         &mut self,
+        form: SelectionForm,
         raw: &RawSelectionQuestion,
         input: RawDesignationInput,
     ) -> Result<SelectionProductDesignation, Diagnostic> {
@@ -1335,10 +1331,19 @@ impl<'source> Questions<'source> {
                 "Product input changed its resolver-owned selected declaration",
             ));
         }
-        let site = *self
-            .build_sites
-            .get(&(raw.lexical_owner, input.expression))
-            .ok_or_else(|| refused("Product input has no exact emitted Build site"))?;
+        // A generic helper's own check form shares the authored call with
+        // each published application, so only the published form may read
+        // the emitted site. The check form's request never runs.
+        let site = if form == SelectionForm::Published {
+            Some(
+                *self
+                    .build_sites
+                    .get(&(raw.lexical_owner, input.expression))
+                    .ok_or_else(|| refused("Product input has no exact emitted Build site"))?,
+            )
+        } else {
+            None
+        };
         let encoded = record_storage::encode(selected, Default::default()).map_err(refused)?;
         let owner = self.declarations.identity(raw.lexical_owner)?;
         let request = typed

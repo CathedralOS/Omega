@@ -299,7 +299,9 @@ impl<'t> Program<'t> {
         let expected = match node {
             // A constant supplies its declared carrier through the ordinary
             // value reader. Only a local slot needs its storage or borrow type.
-            ExpressionNode::Name(path) if self.typed.named_const_declaration(path).is_some() => false,
+            ExpressionNode::Name(path) if self.typed.named_const_declaration(path).is_some() => {
+                false
+            }
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
                 if slots[slot].borrowed.is_none() {
@@ -963,11 +965,7 @@ impl<'t> Program<'t> {
             ));
         }
         if left.result != right.result {
-            return Err(reject(
-                id,
-                source,
-                "equality operand types differ",
-            ));
+            return Err(reject(id, source, "equality operand types differ"));
         }
         self.require_intrinsic_tag_equality(id, left_record)?;
         self.require_intrinsic_tag_equality(id, right_record)?;
@@ -1036,11 +1034,7 @@ impl<'t> Program<'t> {
         if self.constant_value(id, target)? != target {
             let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
             if access != Access::Borrow {
-                return Err(reject(
-                    id,
-                    source,
-                    "a constant has no writable storage",
-                ));
+                return Err(reject(id, source, "a constant has no writable storage"));
             }
             // Each use borrows its own materialized copy. Fields and indices
             // project from this storage and keep its lifetime.
@@ -1169,7 +1163,7 @@ impl<'t> Program<'t> {
                     .collect(),
                 default,
             },
-            result: Some(result),
+            result,
             source,
         })
     }
@@ -1186,13 +1180,13 @@ impl<'t> Program<'t> {
     ) -> Checked<(
         Vec<(CaseSelector, Expression)>,
         Option<Box<Expression>>,
-        ValueType,
+        Option<ValueType>,
     )> {
         use crate::source_state::expression::MatchPattern;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         let mut arms: Vec<(CaseSelector, Expression)> = Vec::new();
         let mut default = None;
-        let mut result = expected;
+        let mut result = ArmsDeliver::expected(expected);
         let mut wildcard = None;
         let mut full_cases = vec![None; self.data_type(id, record.record())?.cases().len()];
         for arm in self.typed.expression_table.match_arms(matched.arms) {
@@ -1281,34 +1275,53 @@ impl<'t> Program<'t> {
                 }
             }
         }
-        let result = result.ok_or_else(|| unserved("match without an arm"))?;
+        let result = result
+            .result()
+            .ok_or_else(|| unserved("match without an arm"))?;
         Ok((arms, default, result))
     }
 
     /// Each returning arm transfers the destination's exact type, including
     /// its domains and regions. Structural arrival parameters carry those
     /// memberships into the match continuation.
+    ///
+    /// patterns.md, "Coverage and domain tests": "An intentional Unit
+    /// completion is explicit" and "A result-producing context still
+    /// requires a compatible result". So every arm of a `match` completes
+    /// with Unit, such as a call of a Unit machine or `{}`, or every arm
+    /// delivers the one value type; an arm that never returns joins either.
     fn arm_value(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         value: ExpressionHandle,
-        result: &mut Option<ValueType>,
+        result: &mut ArmsDeliver,
     ) -> Checked<Expression> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         // An earlier arm that produces no value supplies no expected type
         // for a later, returning arm. Its own expression remains unchanged.
-        let expected = result.filter(|value_type| !self.type_excludes_values(*value_type));
+        let expected = match *result {
+            ArmsDeliver::Value(value_type) if !self.type_excludes_values(value_type) => {
+                Some(value_type)
+            }
+            _ => None,
+        };
         let value = self.expression(id, slots, value, expected)?;
         if value
             .result
             .is_some_and(|value_type| self.type_excludes_values(value_type))
         {
-            if result.is_none() {
-                *result = value.result;
+            if let (ArmsDeliver::Unread, Some(value_type)) = (*result, value.result) {
+                *result = ArmsDeliver::Value(value_type);
             }
             return Ok(value);
         }
+        let earlier = match *result {
+            ArmsDeliver::Value(value_type) if self.type_excludes_values(value_type) => {
+                ArmsDeliver::Unread
+            }
+            earlier => earlier,
+        };
         let value_type = match value.result {
             // Every returning arm supplies the same arithmetic policy.
             // Predicate-domain membership still needs its own arrival proof.
@@ -1324,21 +1337,47 @@ impl<'t> Program<'t> {
             Some(ValueType::Rigid(_)) => {
                 return Err(unserved("match with a result of a rigid type"));
             }
-            None => return Err(unserved("match with a Unit arm")),
+            None => {
+                if let ArmsDeliver::Value(_) = earlier {
+                    return Err(reject(
+                        id,
+                        delivered_at(&value),
+                        String::from(
+                            "this match arm completes with Unit, but the match produces a \
+                             value: every arm of a match must deliver the same result",
+                        ),
+                    ));
+                }
+                *result = ArmsDeliver::Unit;
+                return Ok(value);
+            }
         };
-        if result.is_some_and(|result| {
-            !self.type_excludes_values(result) && !self.agrees(Some(value_type), Some(result))
-        }) {
-            return Err(self.mistyped(
-                id,
-                delivered_at(&value),
-                super::rejections::Destination::MatchArm,
-                *result,
-                value.result,
-                "match arm value type",
-            ));
+        match earlier {
+            ArmsDeliver::Unread => {}
+            ArmsDeliver::Unit => {
+                return Err(reject(
+                    id,
+                    delivered_at(&value),
+                    String::from(
+                        "this match arm produces a value, but an earlier arm completes with \
+                         Unit: every arm of a match must deliver the same result",
+                    ),
+                ));
+            }
+            ArmsDeliver::Value(earlier) => {
+                if !self.agrees(Some(value_type), Some(earlier)) {
+                    return Err(self.mistyped(
+                        id,
+                        delivered_at(&value),
+                        super::rejections::Destination::MatchArm,
+                        Some(earlier),
+                        value.result,
+                        "match arm value type",
+                    ));
+                }
+            }
         }
-        *result = Some(value_type);
+        *result = ArmsDeliver::Value(value_type);
         Ok(value)
     }
 
@@ -1424,7 +1463,7 @@ impl<'t> Program<'t> {
         };
         let mut arms: Vec<(Selector, Expression)> = Vec::new();
         let mut default = None;
-        let mut result = expected;
+        let mut result = ArmsDeliver::expected(expected);
         for arm in self.typed.expression_table.match_arms(matched.arms) {
             if default.is_some() {
                 return Err(unserved("match arm after the wildcard"));
@@ -1488,7 +1527,9 @@ impl<'t> Program<'t> {
             }
             default = arms.pop().map(|(_, value)| Box::new(value));
         }
-        let result = result.ok_or_else(|| unserved("match without an arm"))?;
+        let result = result
+            .result()
+            .ok_or_else(|| unserved("match without an arm"))?;
         Ok(Expression {
             call_context: None,
             kind: ExpressionKind::Match {
@@ -1497,7 +1538,7 @@ impl<'t> Program<'t> {
                 arms,
                 default,
             },
-            result: Some(result),
+            result,
             source,
         })
     }
@@ -1526,7 +1567,7 @@ impl Program<'_> {
         let boolean = ValueType::Scalar(ScalarType::Boolean, Qualification::NONE);
         let mut arms: Vec<(Selector, Expression)> = Vec::new();
         let mut default = None;
-        let mut result = expected;
+        let mut result = ArmsDeliver::expected(expected);
         for arm in self.typed.expression_table.match_arms(matched.arms) {
             if default.is_some() {
                 return Err(unserved("match arm after the wildcard"));
@@ -1569,7 +1610,9 @@ impl Program<'_> {
                 ),
             ));
         }
-        let result = result.ok_or_else(|| unserved("match without an arm"))?;
+        let result = result
+            .result()
+            .ok_or_else(|| unserved("match without an arm"))?;
         Ok(Expression {
             call_context: None,
             kind: ExpressionKind::Match {
@@ -1583,9 +1626,34 @@ impl Program<'_> {
                 arms,
                 default,
             },
-            result: Some(result),
+            result,
             source,
         })
+    }
+}
+
+/// What the arms of a `match` read so far deliver: nothing read yet, Unit,
+/// or one value type (which may be the expected type of the context).
+#[derive(Clone, Copy)]
+enum ArmsDeliver {
+    Unread,
+    Unit,
+    Value(ValueType),
+}
+
+impl ArmsDeliver {
+    fn expected(expected: Option<ValueType>) -> Self {
+        expected.map_or(Self::Unread, Self::Value)
+    }
+
+    /// The match's result: `Some(None)` for a Unit match, `None` when no
+    /// arm was read.
+    fn result(self) -> Option<Option<ValueType>> {
+        match self {
+            Self::Unread => None,
+            Self::Unit => Some(None),
+            Self::Value(value_type) => Some(Some(value_type)),
+        }
     }
 }
 
