@@ -25,10 +25,14 @@ machine read(cell: Reader, item: |b|::B, kind: cell) -> i32 {
     }
 }
 
-machine main() crashes Trap {
+machine read_case(kind: cell) -> i32 {
     let item: |b|::B = |b|::B { value: |cell|::A { value: 7 } };
     let local: Reader = Reader { read: 9 };
-    transition read(local, item, cell::Stored) == 7 && read(local, item, cell::Supplied) == 9 {
+    read(local, item, kind)
+}
+
+machine main() crashes Trap {
+    transition read_case(cell::Stored) == 7 && read_case(cell::Supplied) == 9 {
         true -> done(), _ -> bad()
     }
     machine done() {}
