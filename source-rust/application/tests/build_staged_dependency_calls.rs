@@ -1527,3 +1527,31 @@ fn an_unused_deferred_import_warns_at_the_authored_name() {
         "{report}"
     );
 }
+
+#[test]
+fn a_build_resolves_its_file_alias_after_preparing_the_named_dependency() {
+    let build = r#"use {kit}/main.omg as chosen;
+machine build(builder: @mutable Build) suspends {
+    Build::application(builder, "staged_file");
+    let mutable description: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
+    dependency\with_alias(@mutable description, "kit");
+    let registered: DependencyRegistration = Build::build_dependency(builder, description);
+    suspend Build::prepare_dependency(builder, registered);
+    let value: i32 = |chosen|::v();
+    transition value == 7 {
+        true -> bind(builder),
+        false -> wrong(builder)
+    }
+    machine bind(builder: @mutable Build) {
+        Build::bind(builder, HOST\ProgramEntry, main);
+    }
+    machine wrong(builder: @mutable Build) {
+        Build::application(builder, "another_application");
+    }
+}"#.replace("HOST", target::TargetProfile::host_if_supported().unwrap().target_name());
+    let check = |case: &str, source: &str| check_project(case, source, 7, "", &["--check", "main.omg"]);
+    let (ok, report) = check("exact-file-ready", &build);
+    assert!(ok, "{report}");
+    let (ok, report) = check("exact-file-missing", &build.replace("{kit}/main.omg", "{kit}/other.omg"));
+    assert!(!ok && report.contains("no admitted logical file `{kit}/other.omg`"), "{report}");
+}

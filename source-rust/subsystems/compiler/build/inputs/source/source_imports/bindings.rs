@@ -12,7 +12,7 @@ use crate::PackageCompilationInputs;
 use diagnostics::Diagnostic;
 use source_provenance::DependencyScope;
 use source_text::SourceId;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub(super) struct ImportOccurrence {
@@ -85,35 +85,37 @@ impl PendingPackageImport {
         packages: &PackageCompilationInputs,
         discovery: &mut impl super::LogicalSourceDiscovery,
     ) -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
+        self.resolve_with_prepared_build(packages, discovery, None)
+    }
+
+    pub(super) fn resolve_with_prepared_build(
+        &self,
+        packages: &PackageCompilationInputs,
+        discovery: &mut impl super::LogicalSourceDiscovery,
+        prepared: Option<&crate::PackageBuildHandoff>,
+    ) -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
         let mut paths = self.physical_sources(packages, discovery)?;
-        // Dependency-generated units have already been admitted under their
-        // issued handoff. One such unit can anchor package custody when the
-        // package has no authored unit in the selected logical namespace.
         let exact_file = self.occurrence.file_alias.is_some();
         if exact_file || paths.is_empty() {
-            for (purpose, bundle) in packages.dependency_build_handoff_instances() {
-                let scope = match purpose {
-                    build_declarations::DependencyPurpose::Product => DependencyScope::Product,
-                    build_declarations::DependencyPurpose::Build => DependencyScope::Build,
+            let purpose = match self.scope {
+                DependencyScope::Product => build_declarations::DependencyPurpose::Product,
+                DependencyScope::Build => build_declarations::DependencyPurpose::Build,
+            };
+            let admitted = packages.dependency_build_handoff_instances()
+                .filter(|(scope, bundle)| *scope == purpose && bundle.package() == self.request.package)
+                .map(|(_, bundle)| bundle);
+            // A prepared Build can supply its own output separately from the
+            // package graph. If both retain it, they name one issued handoff.
+            for bundle in admitted.filter(|bundle| Some(*bundle) != prepared).chain(prepared) {
+                if bundle.package() != self.request.package { continue; }
+                let unit = if exact_file {
+                    bundle.generated_source(std::slice::from_ref(&self.request.relative_path))
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?
+                } else {
+                    bundle.sources().first()
                 };
-                if bundle.package() == self.request.package && scope == self.scope {
-                    for unit in bundle.sources() {
-                        let logical = std::str::from_utf8(unit.relative_path()).map_err(|_| {
-                            vec![Diagnostic::error(
-                                "generated source has no UTF-8 logical filename",
-                            )]
-                        })?;
-                        if exact_file && Path::new(logical) != self.request.relative_path {
-                            continue;
-                        }
-                        paths.push(super::generated::dependency_generated_source_logical_path(
-                            &self.request.expected_root,
-                            unit,
-                        )?);
-                        if !exact_file {
-                            break;
-                        }
-                    }
+                if let Some(unit) = unit {
+                    paths.push(super::generated::dependency_generated_source_logical_path(&self.request.expected_root, unit)?);
                 }
             }
         }
@@ -173,16 +175,13 @@ pub(crate) fn pending_build_imports(
                 pending.push(source_compiler::PendingBuildImport {
                     source: roots.source_id,
                     span: import.span,
-                    path: match &import.target {
-                        source_compiler::SourceImportTarget::Namespace(members) => identifier_path_text(members),
-                        source_compiler::SourceImportTarget::File { alias, .. } => format!("|{alias}|"),
-                    },
+                    target: import.target.clone(),
                 });
             }
         }
     }
-    pending.sort_unstable_by(|a, b| (a.source.0, &a.path).cmp(&(b.source.0, &b.path)));
-    pending.dedup_by(|a, b| a.source == b.source && a.path == b.path);
+    pending.sort_unstable_by(|a, b| (a.source.0, &a.target).cmp(&(b.source.0, &b.target)));
+    pending.dedup_by(|a, b| a.source == b.source && a.target == b.target);
     pending
 }
 
@@ -314,6 +313,7 @@ mod tests {
                 ordinal: 0,
                 authored_path: "dep::Thing".into(),
                 package_prefix_members: 1,
+                file_alias: None,
             },
             path: path.into(),
         }

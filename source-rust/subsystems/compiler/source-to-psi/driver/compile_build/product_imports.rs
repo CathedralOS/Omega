@@ -17,15 +17,16 @@ impl PendingBuildImport {
         })?;
         imports.iter().find_map(|import| {
             let mut occurrence = path.split("::");
-            if import.source == span.source_id
-                && import
-                    .path
-                    .split("::")
-                    .all(|member| occurrence.next() == Some(member))
-            {
-                return import.path.split("::").next();
+            if import.source != span.source_id { return None; }
+            match &import.target {
+                crate::SourceImportTarget::File { root, alias, .. } => {
+                    let name = occurrence.next()?.strip_prefix('|')?.strip_suffix('|')?;
+                    (name == alias && occurrence.next().is_some()).then_some(root.as_deref()).flatten()
+                }
+                crate::SourceImportTarget::Namespace(members) => {
+                    members.iter().all(|member| occurrence.next() == Some(member.as_str())).then(|| members.first().map(String::as_str)).flatten()
+                }
             }
-            None
         })
     }
 }
