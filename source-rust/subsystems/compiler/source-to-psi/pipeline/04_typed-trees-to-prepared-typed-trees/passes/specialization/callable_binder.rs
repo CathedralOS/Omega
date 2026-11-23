@@ -434,7 +434,6 @@ mod tests {
         let supplied = TypeParameter {
             bounds: crate::source_state::data::DataProperties {
                 multiplicity: language_core::Multiplicity::Unrestricted,
-                ..Default::default()
             },
             ..Default::default()
         };

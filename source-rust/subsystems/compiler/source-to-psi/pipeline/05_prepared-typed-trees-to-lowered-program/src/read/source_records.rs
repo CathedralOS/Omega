@@ -1806,7 +1806,6 @@ mod tests {
     fn an_unlowered_generic_premise_is_not_an_empty_application_tuple() {
         let mut fixture = AppliedFixture::new(crate::source_state::data::DataProperties {
             multiplicity: language_core::Multiplicity::Unrestricted,
-            ..Default::default()
         });
         let constrained = fixture.apply(fixture.u64_type, fixture.u64_type);
         let mut program = Program::new(&fixture.typed, false);
