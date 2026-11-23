@@ -1,7 +1,7 @@
 // We provide a trusted descriptor-mode implementation for MSVCRT _setmode.
 // The call swaps a standard descriptor's translation mode in a private
 // per-descriptor table (each initialized to _O_TEXT = 0x4000) and returns the
-// previous mode verbatim, while descriptors outside 0..=2 reject as failed (-1).
+// previous translation mode. Invalid modes and unsupported descriptors return -1.
 
 use std::collections::BTreeMap;
 
@@ -19,6 +19,10 @@ use terminal_psi::{BoundaryMachineDeclaration, BoundaryParameterKind};
 use super::TerminalRuntimeError;
 
 const O_TEXT: i128 = 0x4000;
+const O_BINARY: i128 = 0x8000;
+const O_WTEXT: i128 = 0x10000;
+const O_U16TEXT: i128 = 0x20000;
+const O_U8TEXT: i128 = 0x40000;
 
 pub(super) struct DescriptorModeImport {
     signature: TerminalImportSignature,
@@ -127,10 +131,46 @@ impl TerminalEffectHandler for DescriptorModeImport {
         {
             return Err(invalid());
         }
-        if !matches!(*descriptor, 0..=2) {
-            return self.result(-1);
-        }
-        let previous = self.modes.insert(*descriptor, *mode).unwrap_or(O_TEXT);
+        let previous = set_mode(&mut self.modes, *descriptor, *mode);
         self.result(previous)
+    }
+}
+
+fn set_mode(modes: &mut BTreeMap<i128, i128>, descriptor: i128, mode: i128) -> i128 {
+    if !matches!(descriptor, 0..=2)
+        || !matches!(mode, O_BINARY | O_TEXT | O_WTEXT | O_U16TEXT | O_U8TEXT)
+    {
+        return -1;
+    }
+    match modes.insert(descriptor, mode).unwrap_or(O_TEXT) {
+        // MSVCRT reports a previous Unicode translation mode as wide text.
+        O_U16TEXT | O_U8TEXT => O_WTEXT,
+        previous => previous,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rejected_modes_leave_the_previous_descriptor_mode_intact() {
+        let mut modes = BTreeMap::new();
+        assert_eq!(set_mode(&mut modes, 1, 0x8000), O_TEXT);
+        for invalid in [0, 0x1234, -1, 0x4001] {
+            assert_eq!(set_mode(&mut modes, 1, invalid), -1);
+        }
+        assert_eq!(set_mode(&mut modes, 2, O_TEXT), O_TEXT);
+        assert_eq!(set_mode(&mut modes, 1, O_TEXT), 0x8000);
+        assert_eq!(set_mode(&mut modes, 3, 0x8000), -1);
+    }
+
+    #[test]
+    fn all_unicode_translation_modes_report_wide_text_as_the_previous_mode() {
+        let mut modes = BTreeMap::new();
+        for unicode in [0x10000, 0x20000, 0x40000] {
+            assert_eq!(set_mode(&mut modes, 1, unicode), O_TEXT);
+            assert_eq!(set_mode(&mut modes, 1, O_TEXT), 0x10000);
+        }
     }
 }
