@@ -1325,7 +1325,7 @@ reaches none invokes Receiver { Receiver::send(text) }
 
 public boundary trait Framed<Frame> {
     machine send<const Count: u64>(text: @[u8; Count]) -> u64
-    requires Count > 0 reaches none crashes none;
+    requires Count > 0 requires text[Count - 1] == 0 reaches none crashes none;
 }
 "#,
     )
@@ -1370,15 +1370,35 @@ public boundary trait Framed<Frame> {
                 .contains(&format!("const-parameter($T{count_binder})")),
             "array extent on {path} uses the wrong binder: {text:?}"
         );
-        let [requires] = send.contracts.as_slice() else {
-            panic!("expected Count > 0")
-        };
-        assert_eq!(requires.kind, PackageReviewContractKind::Requires);
         assert!(
-            matches!(&requires.fact, PackageReviewContractFact::Expression(Expression::Binary {
-            operator: PackageReviewContractBinaryOperator::Greater, left, right, ..
-        }) if **left == Expression::GenericBinder(count_binder) && **right == Expression::Integer("0".into()))
+            send.contracts
+                .iter()
+                .all(|contract| contract.kind == PackageReviewContractKind::Requires)
         );
+        assert!(send.contracts.iter().any(|contract| matches!(
+            &contract.fact, PackageReviewContractFact::Expression(Expression::Binary {
+                operator: PackageReviewContractBinaryOperator::Greater, left, right, ..
+            }) if **left == Expression::GenericBinder(count_binder) && **right == Expression::Integer("0".into())
+        )));
+        if path == "main.omg::Framed" {
+            use review_evidence::record::PackageReviewContractOperatorMeaning::Builtin;
+            let last_index = Expression::Binary {
+                meaning: Builtin,
+                operator: PackageReviewContractBinaryOperator::Subtract,
+                left: Box::new(Expression::GenericBinder(count_binder)),
+                right: Box::new(Expression::Integer("1".into())),
+            };
+            let final_byte = Expression::Indexed {
+                meaning: Builtin,
+                collection: Box::new(Expression::Parameter(0)),
+                index: Box::new(last_index),
+            };
+            assert!(send.contracts.iter().any(|contract| matches!(
+                &contract.fact, PackageReviewContractFact::Expression(Expression::Binary {
+                    meaning: Builtin, operator: PackageReviewContractBinaryOperator::Equal, left, right,
+                }) if **left == final_byte && **right == Expression::Integer("0".into())
+            )));
+        }
     }
 }
 
