@@ -6266,12 +6266,12 @@ pub(crate) mod portable_machine_applications {
                     .ok_or(
                         "captured declaration does not belong to its selecting implementation",
                     )?;
-                if !selection.binding_application.is_valid()
+                if !selection.binding_application().is_valid()
                     || !selection.supplying_application.is_valid()
                 {
                     return Err("captured member lost its binding or supplying application".into());
                 }
-                let binding = program.static_machine_application(selection.binding_application);
+                let binding = program.static_machine_application(selection.binding_application());
                 let supplying = program.static_machine_application(selection.supplying_application);
                 if binding.binding_declaration != implementation.symbol
                     || binding.lexical_owner != supplying.lexical_owner
@@ -6287,9 +6287,9 @@ pub(crate) mod portable_machine_applications {
                 };
                 let parameters = program.conformance_type_parameters(implementation);
                 let arguments =
-                    program.static_machine_application_arguments(selection.binding_application);
+                    program.static_machine_application_arguments(selection.binding_application());
                 let bindings =
-                    program.static_machine_application_bindings(selection.binding_application);
+                    program.static_machine_application_bindings(selection.binding_application());
                 if parameters.len() != bindings.len() || parameters.len() != arguments.len() {
                     return Err(
                         "captured member has an incomplete implementation argument list".into(),
@@ -6323,7 +6323,7 @@ pub(crate) mod portable_machine_applications {
                 }
                 let lifetimes = program
                     .static_application_lifetimes_for_declaration(
-                        selection.binding_application,
+                        selection.binding_application(),
                         implementation.symbol,
                     )
                     .map_err(str::to_owned)?;

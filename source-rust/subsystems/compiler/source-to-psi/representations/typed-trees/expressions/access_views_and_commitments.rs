@@ -1233,18 +1233,33 @@ pub(crate) mod commitments {
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
     pub struct CapturedMachineApplication {
-        pub root: CapturedMachineDeclaration,
-        pub nested: Vec<CapturedMachineDeclaration>,
-        pub binding_application:
-            crate::source_state::static_applications::StaticMachineApplicationHandle,
+        /// All demanded owned members and their lexical declarations at this map tuple.
+        pub declarations: Vec<CapturedMachineDeclaration>,
         pub supplying_application:
             crate::source_state::static_applications::StaticMachineApplicationHandle,
         pub conformance_application: ClosedConformanceApplication,
     }
 
     impl CapturedMachineApplication {
-        pub fn declarations(&self) -> impl Iterator<Item = &CapturedMachineDeclaration> {
-            std::iter::once(&self.root).chain(&self.nested)
+        pub fn binding_application(
+            &self,
+        ) -> crate::source_state::static_applications::StaticMachineApplicationHandle {
+            self.conformance_application.callable_application
+        }
+
+        pub fn declaration(
+            &self,
+            template: symbols::SymbolHandle,
+        ) -> Result<Option<&CapturedMachineDeclaration>, &'static str> {
+            let mut matching = self
+                .declarations
+                .iter()
+                .filter(|body| body.template == template);
+            let result = matching.next();
+            if matching.next().is_some() {
+                return Err("map application repeats a captured declaration");
+            }
+            Ok(result)
         }
     }
 

@@ -2,7 +2,9 @@
 //! required/supplied question. A named map grants no evidence by itself.
 
 use crate::source_state::signature::StateSignature;
-use crate::source_state::trait_definition::{AppliedTraitScope, TraitDefinition};
+use crate::source_state::trait_definition::{
+    AppliedTraitScope, Conformance, ConformanceRow, TraitDefinition,
+};
 use semantic_vocabulary::MachineId;
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
@@ -16,6 +18,73 @@ use crate::lowering::static_contracts::{
 
 fn key(symbol: SymbolHandle) -> (u32, u32) {
     (symbol.arena_index(), symbol.generation())
+}
+
+/// Pair every selected row with the declaration and arguments that own its public contract.
+struct ImplementationMember<'program, 'row> {
+    receiver: AppliedTraitScope<'program>,
+    requirement: &'program StateSignature,
+    row: &'row ConformanceRow,
+}
+
+fn implementation_members<'program, 'row>(
+    typed: &'program crate::source_state::TypedTrees,
+    context: MachineId,
+    declaration: &'row Conformance,
+    application: AppliedTraitScope<'program>,
+) -> Checked<Vec<ImplementationMember<'program, 'row>>> {
+    let receivers =
+        crate::source_state::service_declarations::projection::inherited_scopes(typed, application)
+            .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
+    let mut requirements = std::collections::HashMap::new();
+    for receiver in &receivers {
+        for signature in typed.trait_machine_signatures(receiver.declaration) {
+            if requirements
+                .insert(signature.symbol, (receiver, signature))
+                .is_some()
+            {
+                return Err(services::unavailable(
+                    context,
+                    "two declarations claim the same implementation requirement",
+                ));
+            }
+        }
+    }
+    if declaration.rows.len() != requirements.len() {
+        return Err(services::unavailable(
+            context,
+            "implementation rows do not cover the complete schema",
+        ));
+    }
+    declaration
+        .rows
+        .iter()
+        .map(|row| {
+            let (receiver, requirement) = requirements
+                .remove(&row.requirement)
+                .filter(|(owner, _)| owner.declaration.symbol == row.declaring_trait)
+                .ok_or_else(|| {
+                    services::unavailable(
+                        context,
+                        "implementation row repeats or changes an exact declaring requirement",
+                    )
+                })?;
+            if row.source
+                == crate::source_state::trait_definition::ConformanceRowSource::TraitDefault
+                && !requirement.is_default
+            {
+                return Err(services::unavailable(
+                    context,
+                    "selected requirement has no default body",
+                ));
+            }
+            Ok(ImplementationMember {
+                receiver: receiver.clone(),
+                requirement,
+                row,
+            })
+        })
+        .collect()
 }
 
 impl<'program> Program<'program> {
@@ -545,7 +614,7 @@ impl<'program> Program<'program> {
     ///
     /// Only unbounded type parameters are served. Lifetime binders, bounded
     /// or non-type parameters, a trait whose header the route does not read,
-    /// inherited rows and generic reference rows stay refused.
+    /// and generic reference rows stay refused.
     pub(super) fn generic_conformance_witnesses(
         &mut self,
         context: MachineId,
@@ -578,25 +647,13 @@ impl<'program> Program<'program> {
                 "static implementation family needs its general binder or region proof",
             ));
         };
-        let implemented = application.declaration;
-        let requirements = typed.trait_machine_signatures(implemented);
-        if declaration.rows.len() != requirements.len() {
-            return Err(unserved(
-                "implementation rows do not cover the complete schema",
-            ));
-        }
-        for requirement in requirements {
-            let mut rows = declaration
-                .rows
-                .iter()
-                .filter(|row| row.requirement == requirement.symbol);
-            let (Some(row), None) = (rows.next(), rows.next()) else {
+        for member in implementation_members(typed, context, declaration, application)? {
+            let row = member.row;
+            let implemented = member.receiver.declaration;
+            if super::subjects::served_trait_header(typed, implemented).is_err() {
                 return Err(unserved(
-                    "implementation repeats or changes an exact schema requirement",
+                    "generic implementation needs its exact declaring trait header",
                 ));
-            };
-            if row.declaring_trait != implemented.symbol {
-                return Err(unserved("implementation row of an inherited requirement"));
             }
             if row.source == crate::source_state::trait_definition::ConformanceRowSource::Reference
             {
@@ -710,46 +767,11 @@ impl<'program> Program<'program> {
         if schema.is_boundary && self.is_generic_conformance(declaration) {
             self.generic_conformance_witnesses(context, declaration)?;
         }
-        let receivers = crate::source_state::service_declarations::projection::inherited_scopes(
-            typed, application,
-        )
-        .map_err(|diagnostic| services::unavailable(context, diagnostic.message))?;
-        let mut requirements = std::collections::HashMap::new();
-        for receiver in &receivers {
-            for signature in typed.trait_machine_signatures(receiver.declaration) {
-                if requirements
-                    .insert(signature.symbol, (receiver, signature))
-                    .is_some()
-                {
-                    return Err(services::unavailable(
-                        context,
-                        "two declarations claim the same implementation requirement",
-                    ));
-                }
-            }
-        }
-        if declaration.rows.len() != requirements.len() {
-            return Err(services::unavailable(
-                context,
-                "implementation rows do not cover the complete schema",
-            ));
-        }
         let mut questions = Vec::with_capacity(declaration.rows.len());
-        for row in &declaration.rows {
-            let (application, required) = requirements
-                .remove(&row.requirement)
-                .filter(|(owner, _)| owner.declaration.symbol == row.declaring_trait)
-                .ok_or_else(|| {
-                    services::unavailable(
-                        context,
-                        "implementation row repeats or changes an exact declaring requirement",
-                    )
-                })?;
-            if row.source == crate::source_state::trait_definition::ConformanceRowSource::TraitDefault
-                && !required.is_default
-            {
-                return Err(services::unavailable(context, "selected requirement has no default body"));
-            }
+        for member in implementation_members(typed, context, declaration, application)? {
+            let application = &member.receiver;
+            let required = member.requirement;
+            let row = member.row;
             let application_identity = application
                 .portable_application_identity(typed)
                 .and_then(|identity| typed.type_identity_text(identity))

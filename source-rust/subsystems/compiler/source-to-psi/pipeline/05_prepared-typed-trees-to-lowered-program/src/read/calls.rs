@@ -57,8 +57,13 @@ enum CallBinding<'a> {
     },
 }
 
+enum NamedCallBody {
+    Closed(SymbolHandle),
+    EnclosingMap,
+}
+
 struct NamedCallTarget<'a> {
-    body: SymbolHandle,
+    body: NamedCallBody,
     member: ConformanceCallMember<'a>,
 }
 
@@ -389,16 +394,23 @@ impl<'t> Program<'t> {
         self.visible_declaration_to(id, owner.symbol, owner.is_public)?;
         let template = row.realization_machine;
         if owner.type_parameters.is_empty() {
-            return Ok(NamedCallTarget { body: template, member });
+            return Ok(NamedCallTarget {
+                body: NamedCallBody::Closed(template),
+                member,
+            });
         }
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
-        let StaticArgumentCall::Expression(_, call) = call else {
+        if !self
+            .typed
+            .expression_table
+            .static_machine_application_is_valid(call.application())
+        {
             return Err(unserved("named map call lost its supplied application"));
-        };
+        }
         let source = self
             .typed
             .expression_table
-            .static_machine_application(call.authored_machine_application);
+            .static_machine_application(call.application());
         let source_machine = self
             .typed
             .machine_by_own_or_state_symbol(source.lexical_owner)
@@ -407,27 +419,57 @@ impl<'t> Program<'t> {
             .symbols
             .get(id)
             .and_then(|symbol| self.typed.machine_by_own_or_state_symbol(*symbol))
-            .map(|machine| machine.symbol);
-        if source_machine.is_none() || source_machine != caller {
+            .ok_or_else(|| unserved("named map call lost its caller"))?
+            .symbol;
+        if source_machine != Some(caller) {
             return Err(unserved(
                 "named application changed its actual calling owner",
             ));
         }
-        let capture = self
+        if self.shares_enclosing_map(id, template)
+            && !matches!(call, StaticArgumentCall::Expression(_, written) if written.requirement_application.is_valid())
+        {
+            if self
+                .typed
+                .trait_definition_by_symbol(row.declaring_trait)
+                .is_some_and(|trait_| trait_.is_boundary)
+            {
+                return Err(unserved("a boundary requirement needs its provider slot"));
+            }
+            return Ok(NamedCallTarget {
+                body: NamedCallBody::EnclosingMap,
+                member,
+            });
+        }
+        let missing = || unserved("named map body has no prepared capture");
+        let handle = self
             .shared
             .captures
-            .get(self.typed, call)
+            .get(self.typed, caller, call)
             .map_err(unserved)?
-            .ok_or_else(|| unserved("named map body has no prepared capture"))?;
+            .ok_or_else(missing)?;
+        let group = self.typed.captured_machine_applications.get(handle);
+        let capture = group
+            .declaration(template)
+            .map_err(unserved)?
+            .ok_or_else(missing)?;
+        if self
+            .typed
+            .captured_conformance_owner(group, capture)
+            .map(|map| map.symbol)
+            != Some(owner.symbol)
+        {
+            return Err(unserved("named member belongs to another implementation"));
+        }
         let machine = self
             .typed
-            .machine_by_symbol(capture.root.instance)
+            .machine_by_symbol(capture.instance)
             .ok_or_else(|| unserved("named capture lost its actual machine"))?;
         let Some([entry]) = self.typed.machine_states(machine).as_array() else {
             return Err(unserved("named capture without one actual entry"));
         };
         if !self.typed.instantiated_machine_state_matches(
-            capture.root.instance,
+            capture.instance,
             template,
             row.realization_state,
             entry.symbol,
@@ -436,14 +478,23 @@ impl<'t> Program<'t> {
                 "named capture changed its exact entry correspondence",
             ));
         }
-        let expected = self
-            .typed
-            .applied_requirement_scope(source.lexical_owner, call.requirement_application)
-            .ok_or_else(|| unserved("named call lost its complete application"))?;
+        let expected = match call {
+            StaticArgumentCall::Expression(_, written)
+                if written.requirement_application.is_valid() =>
+            {
+                self.typed.applied_requirement_scope(
+                    source.lexical_owner,
+                    written.requirement_application,
+                )
+            }
+            _ => group.conformance_application.trait_scope.scope(self.typed),
+        }
+        .and_then(|scope| scope.declaring_scope(self.typed, row.declaring_trait))
+        .ok_or_else(|| unserved("named call lost its complete application"))?;
         let actual = self
             .typed
             .machine_conformance_requirement_scope(
-                capture.root.instance,
+                capture.instance,
                 row.declaring_trait,
                 row.requirement,
             )
@@ -455,7 +506,7 @@ impl<'t> Program<'t> {
             ));
         }
         Ok(NamedCallTarget {
-            body: capture.root.instance,
+            body: NamedCallBody::Closed(capture.instance),
             member,
         })
     }
@@ -1660,6 +1711,24 @@ impl<'t> Program<'t> {
             row,
             signature: required,
         } = member;
+        let body = match body {
+            NamedCallBody::Closed(symbol) => symbol,
+            NamedCallBody::EnclosingMap => {
+                // The map is fixed inside its own proof. Read its selected member at
+                // these rigid arguments, using the public entry and its inferred effects.
+                let outer = self.signature_view_owner.replace(row.realization_machine);
+                let callee = self.application(id, row.realization_machine, Vec::new(), None);
+                self.signature_view_owner = outer;
+                return self.call_of(
+                    id,
+                    slots,
+                    (callee?.into(), None),
+                    arguments,
+                    source,
+                    expected,
+                );
+            }
+        };
         let machine = self.typed.machine_by_symbol(body).ok_or_else(|| {
             refuse(
                 id,

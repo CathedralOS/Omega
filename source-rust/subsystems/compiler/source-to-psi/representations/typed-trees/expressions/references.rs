@@ -2738,7 +2738,14 @@ fn visit_declaration_dependencies(
                         == owner
             })
         {
-            visit_symbol(retained, capture.root.instance);
+            for body in &capture.declarations {
+                if program
+                    .owned_conformance_realization(body.template)
+                    .is_some()
+                {
+                    visit_symbol(retained, body.instance);
+                }
+            }
         }
     }
     if program.trait_implementation_applications.is_empty() {
@@ -2771,7 +2778,14 @@ fn visit_declaration_dependencies(
                                 == owner
                     })
             {
-                visit_symbol(retained, capture.root.instance);
+                for body in &capture.declarations {
+                    if program
+                        .owned_conformance_realization(body.template)
+                        .is_some()
+                    {
+                        visit_symbol(retained, body.instance);
+                    }
+                }
             }
         }
     }
@@ -4098,7 +4112,10 @@ fn visit_machine_with_sidecars(
                 .filter(|(_, declaration)| declaration.instance == machine.symbol)
             {
                 visit_symbol(retained, declaration.template);
-                if declaration.instance != capture.root.instance {
+                if program
+                    .owned_conformance_realization(declaration.template)
+                    .is_none()
+                {
                     let parent = program.symbols.get(declaration.instance).parent;
                     if let Some(enclosing) = program.machine_by_own_or_state_symbol(parent) {
                         visit_symbol(retained, enclosing.symbol);
@@ -4116,7 +4133,7 @@ fn visit_machine_with_sidecars(
                     visit_type_reference(program, retained, selected.source_application);
                 }
                 visit_symbol(retained, capture.conformance_application.declaration);
-                visit_static_machine_bindings(program, retained, capture.binding_application);
+                visit_static_machine_bindings(program, retained, capture.binding_application());
                 visit_static_machine_bindings(program, retained, capture.supplying_application);
                 visit_closed_conformance(program, retained, &capture.conformance_application);
             }

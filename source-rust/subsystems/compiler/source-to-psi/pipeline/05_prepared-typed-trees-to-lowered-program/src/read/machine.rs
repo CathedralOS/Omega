@@ -100,6 +100,20 @@ impl<'t> Program<'t> {
             })
     }
 
+    /// A universal body already knows which map supplies a lexical sibling.
+    /// The sibling receives exactly the map binders present at this call.
+    pub(super) fn shares_enclosing_map(&self, caller: MachineId, member: SymbolHandle) -> bool {
+        self.rigid
+            && self
+                .symbols
+                .get(caller)
+                .and_then(|caller| self.typed.enclosing_source_conformance(*caller))
+                .zip(self.typed.owned_conformance_realization(member))
+                .is_some_and(|(source, (selected, _))| {
+                    !source.type_parameters.is_empty() && source.symbol == selected.symbol
+                })
+    }
+
     pub(super) fn is_generic_template(&self, machine: &Machine) -> bool {
         crate::lowering::is_generic_template(self.typed, machine)
     }
@@ -639,6 +653,7 @@ impl<'t> Program<'t> {
         }
         if self.unapplied_map_body(symbol)
             && !matches!(reading, Reading::GenericEntry)
+            && !matches!(&reading, Reading::Applied(_, caller) if self.shares_enclosing_map(*caller, symbol))
             && !(self.rigid && matches!(reading, Reading::Implementation))
         {
             return Err(refuse(
@@ -790,7 +805,9 @@ impl<'t> Program<'t> {
                     Unserved::Call("type application has no exact caller"),
                 )
             })?;
-            if *source == symbol {
+            if *source == symbol
+                && !(arguments.is_empty() && self.shares_enclosing_map(caller, symbol))
+            {
                 return Err(refuse(
                     caller,
                     Construct::Machine,
@@ -843,7 +860,12 @@ impl<'t> Program<'t> {
         self.applied.push((id, arguments, Some(caller)));
         // The body is read under its own public input contract. Reading it
         // for effect inference does not let caller facts narrow that boundary.
-        self.fixed_contracts.push(super::FixedContract::Inputs(id));
+        self.fixed_contracts
+            .push(if self.unapplied_map_body(symbol) {
+                super::FixedContract::Interface(id)
+            } else {
+                super::FixedContract::Inputs(id)
+            });
         let inherited = self.typed.machine_by_symbol(symbol).is_some_and(|machine| {
             self.typed
                 .machine_type_parameters(machine)
@@ -2243,7 +2265,8 @@ impl<'t> Program<'t> {
             .symbols
             .symbol_provenance_source_span(authored.symbol);
         names.state = state.name.as_str().to_owned();
-        if matches!(reading, Reading::Closed | Reading::Provider)
+        if (matches!(reading, Reading::Closed | Reading::Provider)
+            || matches!(reading, Reading::Applied(_, _)) && self.unapplied_map_body(symbol))
             && let Some((owner, requirement)) = self.conformer_requirement(id, machine)?
         {
             let arguments = self.conformer_value_arguments(id, machine, requirement)?;

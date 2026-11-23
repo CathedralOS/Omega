@@ -2153,7 +2153,8 @@ pub(crate) mod declaration_tables {
                 std::collections::HashMap::<_, Vec<_>, arena::BuildIndexHasher>::default();
             for (_, capture) in self.captured_machine_applications.iter() {
                 if capture
-                    .declarations()
+                    .declarations
+                    .iter()
                     .any(|declaration| self.machine_by_symbol(declaration.instance).is_some())
                 {
                     captured_supplies
@@ -2966,10 +2967,10 @@ pub(crate) mod declaration_tables {
                 .insert(wrong_application);
             program.captured_machine_applications.insert(
                 crate::source_state::CapturedMachineApplication {
-                    root: crate::source_state::CapturedMachineDeclaration {
+                    declarations: vec![crate::source_state::CapturedMachineDeclaration {
                         instance,
                         ..Default::default()
-                    },
+                    }],
                     supplying_application: supplying,
                     conformance_application: application,
                     ..Default::default()

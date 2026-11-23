@@ -356,24 +356,29 @@ impl crate::source_state::TypedTrees {
         let Some(caller) = self.machine_by_own_or_state_symbol(owner) else {
             return Ok(None);
         };
-        for machine in std::iter::once(caller).chain(self.enclosing_machines(caller.symbol)) {
-            if let Some((implementation, _)) = self.lexical_conformance_scope(machine.symbol) {
-                let (_, row, signature) = self
-                    .named_conformance_member(implementation.symbol, required)?
-                    .ok_or("lexical requirement call lost its implementation row")?;
-                if row.realization_state != target {
-                    return Err(
-                        "lexical requirement call selected a different implementation entry",
-                    );
-                }
-                return Ok(Some(ConformanceCallMember {
-                    implementation,
-                    row,
-                    signature,
-                }));
-            }
+        let authored = self.lifetime_declaration_owner(caller.symbol);
+        let Some(implementation) = self.enclosing_source_conformance(authored) else {
+            return Ok(None);
+        };
+        let scope = match self.enclosing_map_capture(caller.symbol)? {
+            Some(capture) => capture.conformance_application.trait_scope.scope(self),
+            None => crate::source_state::trait_definition::AppliedTraitScope::from_conformance(
+                self,
+                implementation,
+            ),
         }
-        Ok(None)
+        .ok_or("lexical requirement call lost its map's trait application")?;
+        let (_, row, signature) = self
+            .named_conformance_member_at(implementation.symbol, required, Some(scope))?
+            .ok_or("lexical requirement call lost its implementation row")?;
+        if row.realization_state != target {
+            return Err("lexical requirement call selected a different implementation entry");
+        }
+        Ok(Some(ConformanceCallMember {
+            implementation,
+            row,
+            signature,
+        }))
     }
 
     /// Explicit and lexical calls expose the same selected public contract.
@@ -386,6 +391,7 @@ impl crate::source_state::TypedTrees {
             StaticArgumentCall::Expression(_, expression) => {
                 self.named_conformance_call_member(expression)?
             }
+            StaticArgumentCall::Statement(statement) if statement.static_requirement_dispatch.is_some() => return Ok(None),
             StaticArgumentCall::Statement(statement) => {
                 self.named_conformance_member(statement.receiver_symbol, statement.target_symbol)?
             }
@@ -519,6 +525,7 @@ impl crate::source_state::TypedTrees {
             .source_conformance_call_member(owner, call)?
             .ok_or("selected call lost its exact named requirement row")?;
         let namespace = member.implementation.symbol;
+        let mut supplier = owner;
         let operand = if let StaticArgumentCall::Expression(_, call) = call
             && call.requirement_application.is_valid()
         {
@@ -540,9 +547,32 @@ impl crate::source_state::TypedTrees {
             } else {
                 std::borrow::Cow::Owned(self.declaration_operand_from_expression(receiver)?)
             }
+        } else if !member.implementation.type_parameters.is_empty() {
+            let caller = self
+                .machine_by_own_or_state_symbol(owner)
+                .ok_or("lexical call lost its source caller")?;
+            let selection = self
+                .enclosing_map_capture(caller.symbol)?
+                .ok_or("lexical call lost its closed map application")?;
+            let closed = &selection.conformance_application;
+            if !closed.lifetime_arguments.is_empty() {
+                return Err("lexical map capture needs its lifetime arguments".into());
+            }
+            supplier = self
+                .static_machine_application(selection.binding_application())
+                .lexical_owner;
+            std::borrow::Cow::Owned(StaticMachineArgument {
+                symbol: closed.declaration,
+                application: Some(Box::new(
+                    crate::source_state::expression::StaticSymbolApplication {
+                        member: Default::default(),
+                        lifetime_arguments: Box::new([]),
+                        arguments: closed.arguments.clone(),
+                    },
+                )),
+                ..Default::default()
+            })
         } else {
-            // The named-row query above serves only nongeneric maps here;
-            // the statement form therefore has no unrepresented outer tuple.
             std::borrow::Cow::Owned(StaticMachineArgument {
                 symbol: namespace,
                 ..Default::default()
@@ -565,8 +595,8 @@ impl crate::source_state::TypedTrees {
         {
             return Err("selected call receiver lost its complete implementation tuple".into());
         }
-        self.static_operand_region_supplier(&operand, owner)?;
-        Ok((operand, owner))
+        self.static_operand_region_supplier(&operand, supplier)?;
+        Ok((operand, supplier))
     }
 
     /// Find the original record argument used by this call. An alias must

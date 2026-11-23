@@ -6,6 +6,9 @@ use crate::source_state::{
 };
 use symbols::SymbolHandle;
 
+mod map_captures;
+pub use map_captures::NamedConformanceCaptureIndex;
+
 const MISSING_EXECUTABLE_TEMPLATE: &str = "executable application lost its template machine";
 
 #[derive(Clone, Copy)]
@@ -41,7 +44,7 @@ impl MachineInstantiation<'_> {
     ) -> crate::source_state::static_applications::StaticMachineApplicationHandle {
         match self {
             Self::Specialization(receipt) => receipt.binding_application,
-            Self::Capture(receipt, _) => receipt.binding_application,
+            Self::Capture(receipt, _) => receipt.binding_application(),
         }
     }
 
@@ -341,7 +344,7 @@ impl TypedTrees {
                     )
                 }
                 MachineInstantiation::Capture(receipt, _) => {
-                    let application = receipt.binding_application;
+                    let application = receipt.binding_application();
                     let selected = &receipt.conformance_application;
                     let scope = selected
                         .trait_scope
@@ -396,15 +399,18 @@ impl TypedTrees {
         Ok(frames)
     }
 
-    /// A private declaration belongs to the map selected at the root only
-    /// when each copied parent and entry corresponds to its source parent.
+    /// Trace a copied declaration through its actual parents to an owned member
+    /// of this map. Every copied parent and entry must match its source.
     pub fn captured_conformance_owner(
         &self,
         selection: &CapturedMachineApplication,
         declaration: &crate::source_state::CapturedMachineDeclaration,
     ) -> Option<&crate::source_state::trait_definition::Conformance> {
-        let (owner, _) = self.owned_conformance_realization(selection.root.template)?;
-        if selection.conformance_application.declaration != owner.symbol {
+        let owner = self.conformance_by_symbol(selection.conformance_application.declaration)?;
+        if !std::ptr::eq(
+            selection.declaration(declaration.template).ok()??,
+            declaration,
+        ) {
             return None;
         }
         let source = self.machine_by_symbol(declaration.template)?;
@@ -438,16 +444,17 @@ impl TypedTrees {
             return None;
         }
         let mut body = declaration;
-        for _ in 0..=selection.nested.len() {
+        for _ in 0..selection.declarations.len() {
             let symbols = self.symbols.symbols().nodes();
-            if !symbols.is_valid(body.instance)
+            if body.instance == body.template
+                || !symbols.is_valid(body.instance)
                 || !symbols.is_valid(body.template)
                 || self.symbols.get(body.instance).generated_from != body.template
             {
                 return None;
             }
-            if body.instance == selection.root.instance {
-                return (body.template == selection.root.template).then_some(owner);
+            if let Some((implementation, _)) = self.owned_conformance_realization(body.template) {
+                return (implementation.symbol == owner.symbol).then_some(owner);
             }
             let parent = self.symbols.get(body.instance).parent;
             let source_parent = self.symbols.get(body.template).parent;
@@ -492,7 +499,8 @@ impl TypedTrees {
             .iter()
             .flat_map(|(_, application)| {
                 application
-                    .declarations()
+                    .declarations
+                    .iter()
                     .map(move |declaration| (application, declaration))
             })
     }
@@ -539,23 +547,27 @@ impl TypedTrees {
         Some(path)
     }
 
-    pub fn implementation_capture(
+    /// Follow the actual copy, including a helper specialized again at its
+    /// own arguments, to the map application that owns its declaration tree.
+    pub fn enclosing_map_capture(
         &self,
-        instance: SymbolHandle,
-        template: SymbolHandle,
-        implementation: SymbolHandle,
-    ) -> Option<&CapturedMachineApplication> {
-        let path = self.machine_instantiation_path(instance, template)?;
+        machine: SymbolHandle,
+    ) -> Result<Option<&CapturedMachineApplication>, &'static str> {
+        let authored = self.lifetime_declaration_owner(machine);
+        let path = self
+            .machine_instantiation_path(machine, authored)
+            .ok_or("lexical caller lost its declaration correspondence")?;
         let mut captures = path.into_iter().filter_map(|receipt| match receipt {
-            MachineInstantiation::Capture(capture, _)
-                if capture.conformance_application.declaration == implementation =>
-            {
-                Some(capture)
-            }
+            MachineInstantiation::Capture(selection, body) => Some((selection, body)),
             _ => None,
         });
-        let selected = captures.next()?;
-        captures.next().is_none().then_some(selected)
+        let Some((selection, body)) = captures.next() else {
+            return Ok(None);
+        };
+        if captures.next().is_some() || self.captured_conformance_owner(selection, body).is_none() {
+            return Err("lexical caller lost its unique owning map application");
+        }
+        Ok(Some(selection))
     }
 
     pub fn instantiated_machine_state_matches(

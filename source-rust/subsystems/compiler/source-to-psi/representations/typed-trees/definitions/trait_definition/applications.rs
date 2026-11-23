@@ -33,12 +33,12 @@ impl TypedTrees {
         {
             return None;
         }
-        let scope = if let Some(capture) =
-            self.implementation_capture(caller, authored, selecting.symbol)
-        {
+        let scope = if let Some(capture) = self.enclosing_map_capture(caller).ok()? {
+            if capture.conformance_application.declaration != selecting.symbol {
+                return None;
+            }
             capture.conformance_application.trait_scope.scope(self)?
         } else {
-            self.machine_instantiation_path(caller, authored)?;
             if caller != authored
                 && (!self.conformance_type_parameters(selecting).is_empty()
                     || !selecting.lifetime_parameters.is_empty())

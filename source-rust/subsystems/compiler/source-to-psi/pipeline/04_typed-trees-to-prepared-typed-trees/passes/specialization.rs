@@ -137,7 +137,7 @@ pub(crate) fn prepare_with_providers(
             Err((Stop::Defect(message), _)) => return Err(vec![Diagnostic::error(message)]),
         }
         for site in call_sites(program, position) {
-            let served = named_conformances::serve(program, site, &mut captures)
+            let served = named_conformances::serve(program, holder, site, &mut captures)
                 .and_then(|handled| {
                     if handled {
                         Ok(())

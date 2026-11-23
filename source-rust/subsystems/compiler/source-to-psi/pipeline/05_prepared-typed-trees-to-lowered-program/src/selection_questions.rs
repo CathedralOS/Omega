@@ -464,10 +464,17 @@ impl Capture<'_> {
         role: RawSelectionRole,
         kind: RawDependencyKind,
     ) {
-        let owner = self.dependency_owner.unwrap_or(self.owner);
-        if !self.valid_symbol(owner, "dependency owner")
-            || !self.valid_symbol(target, "referenced declaration")
-        {
+        if !self.valid_symbol(target, "referenced declaration") {
+            return;
+        }
+        // An applied header reads substituted types in the supplying scope.
+        // Its own formals and binders still belong to the authored signature.
+        let owner = if self.typed.symbols.get(target).parent == self.owner {
+            self.owner
+        } else {
+            self.dependency_owner.unwrap_or(self.owner)
+        };
+        if !self.valid_symbol(owner, "dependency owner") {
             return;
         }
         let row = RawSelectionDependency {

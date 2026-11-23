@@ -1117,7 +1117,6 @@ fn application(
             let owner = typed.captured_conformance_owner(selection, capture)
                 .ok_or("a captured application lost its exact enclosing map")?;
             if capture.normalized_template_identity != callable
-                || binding_application != selection.conformance_application.callable_application
             {
                 return Err("a captured application lost its exact source template");
             }

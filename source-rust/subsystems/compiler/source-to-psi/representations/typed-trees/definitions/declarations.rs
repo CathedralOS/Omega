@@ -3064,11 +3064,11 @@ pub mod visibility {
                 program
                     .captured_machine_applications
                     .insert(CapturedMachineApplication {
-                        root: crate::source_state::CapturedMachineDeclaration {
+                        declarations: vec![crate::source_state::CapturedMachineDeclaration {
                             template,
                             instance: captured,
                             ..Default::default()
-                        },
+                        }],
                         ..Default::default()
                     });
                 program.machine_specializations.push(MachineSpecialization {
@@ -3092,11 +3092,11 @@ pub mod visibility {
                 program
                     .captured_machine_applications
                     .insert(CapturedMachineApplication {
-                        root: crate::source_state::CapturedMachineDeclaration {
+                        declarations: vec![crate::source_state::CapturedMachineDeclaration {
                             template,
                             instance: invoked,
                             ..Default::default()
-                        },
+                        }],
                         ..Default::default()
                     });
                 assert!(super::authored_selection_visibility(&program, invoked).is_none());
@@ -3168,11 +3168,11 @@ pub mod visibility {
                     program
                         .captured_machine_applications
                         .insert(CapturedMachineApplication {
-                            root: crate::source_state::CapturedMachineDeclaration {
+                            declarations: vec![crate::source_state::CapturedMachineDeclaration {
                                 template: member,
                                 instance,
                                 ..Default::default()
-                            },
+                            }],
                             ..Default::default()
                         });
                     for symbol in [member, state, instance] {

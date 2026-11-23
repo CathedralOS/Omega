@@ -3907,7 +3907,10 @@ fn generic_named_map_captures_keep_every_unused_binder() {
         .map(|(_, row)| row)
         .collect::<Vec<_>>();
     assert_eq!(captures.len(), 2);
-    assert_ne!(captures[0].root.instance, captures[1].root.instance);
+    assert_ne!(
+        captures[0].declarations[0].instance,
+        captures[1].declarations[0].instance
+    );
     assert_ne!(
         captures[0].conformance_application.identity_encoding,
         captures[1].conformance_application.identity_encoding
@@ -3945,6 +3948,67 @@ fn generic_named_map_captures_keep_every_unused_binder() {
 }
 
 #[test]
+fn generic_named_map_reuses_owned_members_across_lexical_and_explicit_calls() {
+    let text = r#"
+trait Parent<Value> {
+    machine observe(value: @Value) reaches none crashes none;
+    machine next(value: Value) -> Value reaches none crashes none;
+}
+trait Child<Value>: Parent<Value> {
+    machine apply(value: Value) -> Value reaches none crashes none {
+        pass(value)
+        machine pass(item: Value) -> Value reaches none crashes none {
+            observe(@item);
+            next(item)
+        }
+    }
+}
+Selected<Value, Unused> satisfies Child<Value> {
+    machine observe(item: @Value) reaches none crashes none {}
+    machine next(item: Value) -> Value reaches none crashes none { item }
+}
+machine entry() -> u32 reaches none crashes none {
+    let first: u32 = Selected::<u32, bool>::next(3);
+    Selected::<u32, bool>::apply(7)
+}"#;
+    let prepared = prepare_named_map(text);
+    let program = prepared.trees();
+    let mut groups = program.captured_machine_applications.iter();
+    let (_, selected) = groups.next().expect("one selected map tuple");
+    assert!(groups.next().is_none());
+    assert_eq!(selected.declarations.len(), 4);
+    for body in &selected.declarations {
+        assert!(program.captured_conformance_owner(selected, body).is_some());
+    }
+    assert_named_invocation_value(
+        compilation_verdicts_of(&prepared),
+        semantic_vocabulary::IntegerValue::Unsigned(7),
+    );
+}
+
+#[test]
+fn generic_named_map_prepares_mutually_recursive_members_once() {
+    let prepared = prepare_named_map(
+        r#"
+trait Cycle {
+    machine left(value: u32) -> u32 reaches none crashes none { right(value) }
+    machine right(value: u32) -> u32 reaches none crashes none { left(value) }
+}
+Selected<Unused> satisfies Cycle {}
+machine entry() -> u32 reaches none crashes none { Selected::<bool>::left(7) }
+"#,
+    );
+    let mut groups = prepared.trees().captured_machine_applications.iter();
+    let (_, captured) = groups.next().expect("one selected map tuple");
+    assert!(groups.next().is_none());
+    assert_eq!(captured.declarations.len(), 2);
+    assert_ne!(
+        captured.declarations[0].template,
+        captured.declarations[1].template
+    );
+}
+
+#[test]
 fn private_helpers_belong_to_their_own_map_application() {
     let source = generic_named_map_source()
         .replace(
@@ -3973,21 +4037,29 @@ fn private_helpers_belong_to_their_own_map_application() {
     let left = program
         .captured_machine_applications
         .get(first)
-        .nested
+        .declarations[1]
         .clone();
     let right = program
         .captured_machine_applications
         .get(second)
-        .nested
+        .declarations[1]
         .clone();
-    assert_eq!(left.len(), 1);
-    assert_eq!(right.len(), 1);
-    assert_eq!(left[0].template, right[0].template);
-    assert_ne!(left[0].instance, right[0].instance);
-    program.captured_machine_applications.get_mut(first).nested = right;
-    program.captured_machine_applications.get_mut(second).nested = left;
+    assert_eq!(left.template, right.template);
+    assert_ne!(left.instance, right.instance);
+    program
+        .captured_machine_applications
+        .get_mut(first)
+        .declarations[1] = right;
+    program
+        .captured_machine_applications
+        .get_mut(second)
+        .declarations[1] = left;
     for (_, selection) in program.captured_machine_applications.iter() {
-        assert!(program.captured_conformance_owner(selection, &selection.nested[0]).is_none());
+        assert!(
+            program
+                .captured_conformance_owner(selection, &selection.declarations[1])
+                .is_none()
+        );
     }
     let verdict = judge(invocation(program)).unwrap();
     assert!(
@@ -4012,17 +4084,20 @@ fn generic_named_map_captures_keep_the_actual_source_owner() {
         .map(|(_, row)| row)
         .collect::<Vec<_>>();
     assert_eq!(captures.len(), 2);
-    assert_ne!(captures[0].root.instance, captures[1].root.instance);
+    assert_ne!(
+        captures[0].declarations[0].instance,
+        captures[1].declarations[0].instance
+    );
     assert_ne!(
         prepared
             .trees()
             .expression_table
-            .static_machine_application(captures[0].binding_application)
+            .static_machine_application(captures[0].binding_application())
             .lexical_owner,
         prepared
             .trees()
             .expression_table
-            .static_machine_application(captures[1].binding_application)
+            .static_machine_application(captures[1].binding_application())
             .lexical_owner
     );
     assert_named_invocation_value(
