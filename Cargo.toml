@@ -187,6 +187,7 @@ members = [
     "source-rust/subsystems/compiler/source-to-psi/representations/syntax-trees",
     "source-rust/subsystems/compiler/source-to-psi/representations/syntax-trees/derive",
     "source-rust/subsystems/compiler/source-to-psi/representations/tokens",
+    "source-rust/subsystems/compiler/source-to-psi/representations/prepared-source",
     "source-rust/subsystems/compiler/source-to-psi/representations/typed-trees",
     "source-rust/subsystems/interpreter",
     "source-rust/subsystems/interpreter/host",

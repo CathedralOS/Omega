@@ -2,9 +2,12 @@
 
 Every program's typed trees cross this stage on their way to the checker, by
 one path: [`prepare_typed_trees`](prepare.rs) runs an explicit, ordered
-list of passes over the typed trees and returns `PreparedTypedTrees`. Stage 05
-requires this output to lower a source compilation. A representation reader can
-freeze typed trees independently to inspect a read-only snapshot.
+list of passes over the typed trees, then returns
+[`PreparedTypedTrees`](../../representations/prepared-source/lib.rs). That
+representation checks that computation inputs belong to this source and retain
+their exact declarations before freezing them. Stage 05 depends on this data
+crate, not on the code that runs preparation. Its readers still refuse missing
+specializations, unresolved fields and unsupported shapes.
 
 Specialization reports an invalid static argument at the authored call. A
 request it cannot resolve stays on the owning declaration for lowering to

@@ -118,15 +118,12 @@ framework or a list of unimplemented features.
 - Cost: The two copies agree only because two separate writers make them agree. A change to either writer can make a use disagree with the constant it names, and no stage from lowering on would refuse it. No program is known to separate them today. Keep one value, on the declaration, and have lowering read it through the use's selection; then delete the copy and update that test.
 - Reported: 2026-11-22, Claude Code, while porting V2's prepared-constant handoff test to V1 lowering
 
-### Lowering and publication still link earlier source stages instead of reading their products
+### Publication still links earlier source stages instead of reading their products
 
 - Category: Knowledge crossing a boundary
-- Where: [retained links](tools/xtask/src/boundary/linear_pipeline.rs), [lowering's re-export](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/lib.rs#L58), [publication's entry](source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/lib.rs#L43), [prepared input](source-rust/subsystems/compiler/source-to-psi/pipeline/04_typed-trees-to-prepared-typed-trees/prepare.rs#L63).
-- Saw: `check-boundary` now refuses a production link from one numbered source stage to another, with three exceptions that exist today.
-
-  - Lowering (05) links preparation (04) for one type, `PreparedTypedTrees`. That type is lowering's input, but it is defined inside the stage that builds it.
-  - Publication (07) links lowering (05) and the checker (06). Its entry function calls `LoweredSourcePublication::prepare` and `judge_publication` itself, so publication runs the two stages before it. Its input types `LoweredSourcePublication` and `CheckedPublication` are also defined inside those stages.
-- Cost: A stage that links its producer can call the code that made a decision instead of reading the result, and the dependency check cannot tell the two apart. Move the three product types under `source-to-psi/representations/`, keeping each constructor reachable only from its producing stage. Move the calls to lowering and the checker into the source driver. Then delete the three pairs from `RETAINED_SOURCE_STAGE_LINKS`.
+- Where: [retained links](tools/xtask/src/boundary/linear_pipeline.rs), [source correspondence](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/publication.rs), [checked publication](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/publication.rs), [publication's accepted input](source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/accepted.rs).
+- Saw: `check-boundary` refuses a production link from one numbered source stage to another, with two retained links from publication (07) to lowering (05) and the checker (06). Publication reads their source correspondence and checked-closure types, including deferred advisory state. The source driver already runs lowering and judgment; the calls inside publication's `judge_fixture` are test-only.
+- Cost: Publication can still call its producers' implementation instead of reading independent products. Move the remaining source correspondence and checked publication data under `source-to-psi/representations/`, with checked construction at their owners, then delete the two remaining pairs from `RETAINED_SOURCE_STAGE_LINKS`. Tests that construct source through parsing, resolution and typing belong at the source driver.
 - Reported: 2026-11-22, Claude Code, while tightening the source stage dependency rule
 
 <a id="a-build-wide-flag-admits-machine-control-for-every-output"></a>
