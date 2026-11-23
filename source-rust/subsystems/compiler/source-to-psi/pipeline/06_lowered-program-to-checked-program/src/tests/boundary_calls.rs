@@ -3907,7 +3907,7 @@ fn generic_named_map_captures_keep_every_unused_binder() {
         .map(|(_, row)| row)
         .collect::<Vec<_>>();
     assert_eq!(captures.len(), 2);
-    assert_ne!(captures[0].instance, captures[1].instance);
+    assert_ne!(captures[0].root.instance, captures[1].root.instance);
     assert_ne!(
         captures[0].conformance_application.identity_encoding,
         captures[1].conformance_application.identity_encoding
@@ -3945,6 +3945,59 @@ fn generic_named_map_captures_keep_every_unused_binder() {
 }
 
 #[test]
+fn private_helpers_belong_to_their_own_map_application() {
+    let source = generic_named_map_source()
+        .replace(
+            "{ input }",
+            "{ pass(input) machine pass(item: Value) -> Value reaches none crashes none { item } }",
+        )
+        .replace(
+            "Selected::<u32>::apply(7)",
+            "let probe: bool = Selected::<bool>::apply(true); Selected::<u32>::apply(7)",
+        );
+    let prepared = prepare_named_map(&source);
+    assert_named_invocation_value(
+        compilation_verdicts_of(&prepared),
+        semantic_vocabulary::IntegerValue::Unsigned(7),
+    );
+
+    let mut program = prepared.into_inner();
+    let selections = program
+        .captured_machine_applications
+        .iter()
+        .map(|(id, _)| id)
+        .collect::<Vec<_>>();
+    let [first, second] = selections[..] else {
+        panic!("two map applications")
+    };
+    let left = program
+        .captured_machine_applications
+        .get(first)
+        .nested
+        .clone();
+    let right = program
+        .captured_machine_applications
+        .get(second)
+        .nested
+        .clone();
+    assert_eq!(left.len(), 1);
+    assert_eq!(right.len(), 1);
+    assert_eq!(left[0].template, right[0].template);
+    assert_ne!(left[0].instance, right[0].instance);
+    program.captured_machine_applications.get_mut(first).nested = right;
+    program.captured_machine_applications.get_mut(second).nested = left;
+    for (_, selection) in program.captured_machine_applications.iter() {
+        assert!(program.captured_conformance_owner(selection, &selection.nested[0]).is_none());
+    }
+    let verdict = judge(invocation(program)).unwrap();
+    assert!(
+        matches!(&verdict, RouteVerdict::FallBack(refusal)
+        if refusal.detail.contains("nested call belongs to another enclosing application")),
+        "{verdict:?}"
+    );
+}
+
+#[test]
 fn generic_named_map_captures_keep_the_actual_source_owner() {
     let text = generic_named_map_source().replace(
         "machine entry() -> u32 reaches none crashes none { Selected::<u32>::apply(7) }",
@@ -3959,7 +4012,7 @@ fn generic_named_map_captures_keep_the_actual_source_owner() {
         .map(|(_, row)| row)
         .collect::<Vec<_>>();
     assert_eq!(captures.len(), 2);
-    assert_ne!(captures[0].instance, captures[1].instance);
+    assert_ne!(captures[0].root.instance, captures[1].root.instance);
     assert_ne!(
         prepared
             .trees()

@@ -608,7 +608,12 @@ fn specialize_application(
     // An argument that names a parameter of the enclosing generic machine
     // leaves the application open: it is closed in each machine generated
     // from that one, where the parameter is replaced.
-    if open_callback || operands.iter().any(|operand| operand.is_open(program)) {
+    // A helper can mention a map binder in its body or signature even
+    // when its own arguments are all concrete. Close it in the selected tree.
+    let open_map = program
+        .enclosing_source_conformance(callee)
+        .is_some_and(|map| !map.type_parameters.is_empty() || !map.lifetime_parameters.is_empty());
+    if open_map || open_callback || operands.iter().any(|operand| operand.is_open(program)) {
         return Ok(None);
     }
     program

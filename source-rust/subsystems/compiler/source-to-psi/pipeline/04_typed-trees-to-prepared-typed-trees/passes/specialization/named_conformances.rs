@@ -2,10 +2,11 @@
 //! The original public call stays intact; the capture retains its actual
 //! constructor, source owner and fresh body correspondence for the reader.
 
-use super::{Operand, Served, Site, Stop, copy_declarations, template, unserved};
+use super::{Operand, Served, Site, Stop, copied_symbol, copy_declarations, unserved};
 use crate::source_state::references::StaticArgumentCall;
 use crate::source_state::{
-    CapturedMachineApplication, CapturedMachineState, NamedConformanceCaptureIndex, TypedTrees,
+    CapturedMachineApplication, CapturedMachineDeclaration, CapturedMachineState,
+    NamedConformanceCaptureIndex, TypedTrees,
 };
 
 pub(super) fn serve(
@@ -44,30 +45,24 @@ pub(super) fn serve(
     let declared = row.realization_machine;
     let expected_state = row.realization_state;
     let parameters = program.conformance_type_parameters(owner).to_vec();
-    let parts = template(program, declared)?;
-    // Nested captures need their own authenticated enclosing association;
-    // never publish unassociated declarations copied from the owned body.
-    let [(original, original_state)] = parts.as_slice() else {
-        return Err(unserved(
-            "selected implementation needs exactly one machine and entry",
-        ));
-    };
-    if original_state.symbol != expected_state {
+    let root = program
+        .machine_by_symbol(declared)
+        .ok_or(Stop::Defect("selected implementation lost its machine"))?;
+    if program
+        .machine_states(root)
+        .first()
+        .map(|state| state.symbol)
+        != Some(expected_state)
+    {
         return Err(unserved(
             "selected implementation body has a different entry",
         ));
     }
-    if !original.type_parameters.is_empty() {
+    if !root.type_parameters.is_empty() {
         return Err(unserved(
             "selected implementation body still has its own static parameters",
         ));
     }
-    let normalized_template_identity =
-        program
-            .machine_callable_identity_text(original)
-            .ok_or(unserved(
-                "selected implementation body has no callable identity",
-            ))?;
     let crate::source_state::types::TypeReferenceNode::Generic { arguments, .. } = program
         .type_reference_table
         .type_reference(call.requirement_application)
@@ -110,35 +105,43 @@ pub(super) fn serve(
         ))?;
     let binding_application = application.callable_application;
     let copied = copy_declarations(program, declared, &operands)?;
-    let parameters = program
-        .state_parameters(original_state)
-        .iter()
-        .map(|parameter| {
-            copied
-                .symbols
-                .execution_symbol(parameter.symbol)
-                .map(|fresh| (parameter.symbol, fresh))
-                .ok_or(Stop::Defect("shared copier omitted an owned formal"))
-        })
-        .collect::<Served<Vec<_>>>()?;
-    let states = program
-        .captured_machine_states
-        .insert_many([CapturedMachineState {
-            template: original_state.symbol,
-            instance: copied.state,
-        }]);
+    let mut declarations = Vec::with_capacity(copied.originals.len());
+    for (source, state) in &copied.originals {
+        let normalized_template_identity = program
+            .machine_callable_identity_text(source)
+            .ok_or(unserved("captured declaration has no callable identity"))?;
+        let parameters = program
+            .machine_type_parameters(source)
+            .iter()
+            .map(|parameter| parameter.symbol)
+            .chain(source.conformance_bounds.iter().map(|bound| bound.binder))
+            .map(|parameter| Ok((parameter, copied_symbol(&copied.symbols, parameter)?)))
+            .collect::<Served<Vec<_>>>()?;
+        declarations.push(CapturedMachineDeclaration {
+            template: source.symbol,
+            instance: copied_symbol(&copied.symbols, source.symbol)?,
+            normalized_template_identity,
+            states: program
+                .captured_machine_states
+                .insert_many([CapturedMachineState {
+                    template: state.symbol,
+                    instance: copied_symbol(&copied.symbols, state.symbol)?,
+                }]),
+            parameters,
+        });
+    }
+    let mut declarations = declarations.into_iter();
+    let root = declarations
+        .next()
+        .ok_or(Stop::Defect("shared copier omitted the selected member"))?;
     let handle = program
         .captured_machine_applications
         .insert(CapturedMachineApplication {
-            template: declared,
-            instance: copied.machine,
+            root,
+            nested: declarations.collect(),
             binding_application,
             supplying_application: call.authored_machine_application,
             conformance_application: application,
-            normalized_template_identity,
-            accepted_template_commitment: None,
-            states,
-            parameters,
         });
     captures.insert(program, handle).map_err(Stop::Defect)?;
     Ok(true)

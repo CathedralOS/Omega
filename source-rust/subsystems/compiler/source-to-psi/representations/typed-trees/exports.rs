@@ -81,10 +81,11 @@ pub use access_views::{
 };
 pub use calls::{signature, static_applications};
 pub use commitments::{
-    CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,
-    ClosedConformanceApplicationCommitment, ClosedConformanceApplicationSite,
-    ClosedConformanceConstArgument, ClosedConformanceRowIdentity, DataImplementationApplication,
-    MachineSpecialization, StaticRequirementDispatch, TraitImplementationApplication,
+    CapturedMachineApplication, CapturedMachineDeclaration, CapturedMachineState,
+    ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
+    ClosedConformanceApplicationSite, ClosedConformanceConstArgument, ClosedConformanceRowIdentity,
+    DataImplementationApplication, MachineSpecialization, StaticRequirementDispatch,
+    TraitImplementationApplication,
 };
 pub use control_flow::{machine, state, statement};
 pub use declarations::{

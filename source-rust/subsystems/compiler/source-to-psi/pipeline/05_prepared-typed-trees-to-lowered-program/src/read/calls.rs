@@ -199,7 +199,27 @@ impl<'t> Program<'t> {
                 .and_then(|states| states.as_array::<1>())
                 .map(|[state]| state.symbol);
             if state != Some(registration) {
-                return unserved("static application registers another declaration");
+                let enclosing = self
+                    .typed
+                    .machine_instantiation(owner)
+                    .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?;
+                let caller = self.symbols.get(id).copied();
+                let same_application = enclosing.zip(caller).is_some_and(|(selected, caller)| {
+                    let authored = self.typed.lifetime_declaration_owner(caller);
+                    self.typed
+                        .machine_instantiation_path(caller, authored)
+                        .is_some_and(|path| {
+                            path.iter().any(|frame| {
+                                frame.binding_application() == selected.binding_application()
+                            })
+                        })
+                });
+                if !self.instantiates_callable(target, registration) {
+                    return unserved("static application registers another declaration");
+                }
+                if !same_application {
+                    return unserved("nested call belongs to another enclosing application");
+                }
             }
         }
         Ok(())
@@ -244,9 +264,9 @@ impl<'t> Program<'t> {
                     .symbols
                     .get(id)
                     .and_then(|symbol| self.typed.machine_by_symbol(*symbol))
-                    .is_some_and(|machine| {
-                        self.typed
-                            .machine_type_parameters(machine)
+                    .and_then(|machine| self.generic_parameters(id, machine).ok())
+                    .is_some_and(|parameters| {
+                        parameters
                             .iter()
                             .any(|parameter| self.generic_binders.contains(&parameter.symbol))
                     })))
@@ -401,13 +421,13 @@ impl<'t> Program<'t> {
             .ok_or_else(|| unserved("named map body has no prepared capture"))?;
         let machine = self
             .typed
-            .machine_by_symbol(capture.instance)
+            .machine_by_symbol(capture.root.instance)
             .ok_or_else(|| unserved("named capture lost its actual machine"))?;
         let Some([entry]) = self.typed.machine_states(machine).as_array() else {
             return Err(unserved("named capture without one actual entry"));
         };
         if !self.typed.instantiated_machine_state_matches(
-            capture.instance,
+            capture.root.instance,
             template,
             row.realization_state,
             entry.symbol,
@@ -423,7 +443,7 @@ impl<'t> Program<'t> {
         let actual = self
             .typed
             .machine_conformance_requirement_scope(
-                capture.instance,
+                capture.root.instance,
                 row.declaring_trait,
                 row.requirement,
             )
@@ -435,7 +455,7 @@ impl<'t> Program<'t> {
             ));
         }
         Ok(NamedCallTarget {
-            body: capture.instance,
+            body: capture.root.instance,
             member,
         })
     }

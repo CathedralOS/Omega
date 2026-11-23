@@ -1233,15 +1233,26 @@ pub(crate) mod commitments {
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
     pub struct CapturedMachineApplication {
-        pub template: symbols::SymbolHandle,
-        pub instance: symbols::SymbolHandle,
+        pub root: CapturedMachineDeclaration,
+        pub nested: Vec<CapturedMachineDeclaration>,
         pub binding_application:
             crate::source_state::static_applications::StaticMachineApplicationHandle,
         pub supplying_application:
             crate::source_state::static_applications::StaticMachineApplicationHandle,
         pub conformance_application: ClosedConformanceApplication,
+    }
+
+    impl CapturedMachineApplication {
+        pub fn declarations(&self) -> impl Iterator<Item = &CapturedMachineDeclaration> {
+            std::iter::once(&self.root).chain(&self.nested)
+        }
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
+    pub struct CapturedMachineDeclaration {
+        pub template: symbols::SymbolHandle,
+        pub instance: symbols::SymbolHandle,
         pub normalized_template_identity: String,
-        pub accepted_template_commitment: Option<String>,
         pub states: HandleSpan<CapturedMachineState>,
         pub parameters: Vec<(symbols::SymbolHandle, symbols::SymbolHandle)>,
     }

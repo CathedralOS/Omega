@@ -1,6 +1,13 @@
 // A default's helpers inherit the trait's type until a helper declares its own.
 trait Step<Item> {
-    machine next(value: Item) -> Item;
+    machine next(value: Item) -> Item {
+        forward(value)
+        machine forward(item: Item) -> Item {
+            let probe: bool = true;
+            pass::<bool>(item, @probe)
+            machine pass<Other>(input: Item, witness: @Other) -> Item { input }
+        }
+    }
 }
 trait Relay<T>: Step<T> {
     machine relay(value: T) -> T {
@@ -10,6 +17,7 @@ trait Relay<T>: Step<T> {
         machine local<T>(item: T) -> T { item }
     }
 }
+Generic<Value, Unused> satisfies Step<Value> {}
 Numbers satisfies Relay<u64> { machine next(value: u64) -> u64 { value } }
 Flags satisfies Relay<bool> { machine next(value: bool) -> bool { !value } }
 
@@ -30,7 +38,9 @@ machine main() crashes Trap {
     let flag: bool = Flags::relay(false);
     let array: [u64; 2] = Arrays::relay([20u64, 25u64]);
     let overridden: u64 = Override::relay(37);
-    transition number == 37 && flag && overridden == 19 && array[1] == 25 {
+    let copied: u64 = Generic::<u64, bool>::next(41);
+    let second: bool = Generic::<bool, u64>::next(true);
+    transition copied == 41 && second && number == 37 && flag && overridden == 19 && array[1] == 25 {
         true -> done(),
         false -> wrong()
     }

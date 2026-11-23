@@ -2738,7 +2738,7 @@ fn visit_declaration_dependencies(
                         == owner
             })
         {
-            visit_symbol(retained, capture.instance);
+            visit_symbol(retained, capture.root.instance);
         }
     }
     if program.trait_implementation_applications.is_empty() {
@@ -2771,7 +2771,7 @@ fn visit_declaration_dependencies(
                                 == owner
                     })
             {
-                visit_symbol(retained, capture.instance);
+                visit_symbol(retained, capture.root.instance);
             }
         }
     }
@@ -4093,12 +4093,17 @@ fn visit_machine_with_sidecars(
             retained.declaration_description_dependency(origin.state);
         }
         if !program.captured_machine_applications.is_empty() {
-            for (_, capture) in program
-                .captured_machine_applications
-                .iter()
-                .filter(|(_, capture)| capture.instance == machine.symbol)
+            for (capture, declaration) in program
+                .captured_declarations()
+                .filter(|(_, declaration)| declaration.instance == machine.symbol)
             {
-                visit_symbol(retained, capture.template);
+                visit_symbol(retained, declaration.template);
+                if declaration.instance != capture.root.instance {
+                    let parent = program.symbols.get(declaration.instance).parent;
+                    if let Some(enclosing) = program.machine_by_own_or_state_symbol(parent) {
+                        visit_symbol(retained, enclosing.symbol);
+                    }
+                }
                 for (_, selected) in
                     program
                         .data_implementation_applications

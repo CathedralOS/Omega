@@ -1113,14 +1113,11 @@ fn application(
             }
             (parameters, false)
         }
-        MachineInstantiation::Capture(capture) => {
-            let (owner, _) = typed
-                .owned_conformance_realization(template)
-                .filter(|(owner, _)| owner.symbol == capture.conformance_application.declaration)
+        MachineInstantiation::Capture(selection, capture) => {
+            let owner = typed.captured_conformance_owner(selection, capture)
                 .ok_or("a captured application lost its exact enclosing map")?;
             if capture.normalized_template_identity != callable
-                || binding_application != capture.conformance_application.callable_application
-                || !declared.type_parameters.is_empty()
+                || binding_application != selection.conformance_application.callable_application
             {
                 return Err("a captured application lost its exact source template");
             }
