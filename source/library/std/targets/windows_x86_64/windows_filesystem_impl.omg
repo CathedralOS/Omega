@@ -1,7 +1,4 @@
-use WindowsDirectoryEntryResult;
-use WindowsFileTimeResult;
-use WindowsFilesystemHost;
-use WindowsMetadataResult;
+use windows_filesystem_host.omg as win_fs;
 use omega_language_std;
 use targets\windows_x86_64\filesystem_removal\windows_remove_tree;
 // Windows raw filesystem entrance. Select one complete public family map and
@@ -19,7 +16,7 @@ use omega\language\core\FilesystemNamespaceMutation;
 // std's Build selects this map for windows_x86_64. Its inline members forward
 // to the Windows adapters and their foreign bindings. Forwarding preserves operation capability rows;
 // the raw family's selection identity contributes no additional service reach.
-NativeWindowsFilesystem satisfies WindowsFilesystemHost {
+NativeWindowsFilesystem satisfies |win_fs|::WindowsFilesystemHost {
     machine remove_tree(path: @[u8] in Path) -> i32
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + DirectoryEnumeration {
         block windows_remove_tree(path)
@@ -34,7 +31,7 @@ NativeWindowsFilesystem satisfies WindowsFilesystemHost {
     machine unlock_file(handle: u64) -> i32 {
         block windows_filesystem_native_unlock_file(handle)
     }
-    machine directory_nth(path: @[u8] in Path, ordinal: u64) -> WindowsDirectoryEntryResult
+    machine directory_nth(path: @[u8] in Path, ordinal: u64) -> |win_fs|::WindowsDirectoryEntryResult
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery {
         block windows_filesystem_native_directory_nth(path, ordinal)
     }
@@ -60,10 +57,10 @@ NativeWindowsFilesystem satisfies WindowsFilesystemHost {
     machine set_path_readonly(path: @[u8] in Path, readonly: bool) -> i32 reaches FilesystemMetadataQuery + FilesystemMetadataMutation {
         block windows_filesystem_native_set_path_readonly(path, readonly)
     }
-    machine metadata(handle: u64) -> WindowsMetadataResult reaches FilesystemMetadataQuery {
+    machine metadata(handle: u64) -> |win_fs|::WindowsMetadataResult reaches FilesystemMetadataQuery {
         block windows_filesystem_native_metadata(handle)
     }
-    machine read_metadata(path: @[u8] in Path, no_follow: bool) -> WindowsMetadataResult reaches FilesystemMetadataQuery {
+    machine read_metadata(path: @[u8] in Path, no_follow: bool) -> |win_fs|::WindowsMetadataResult reaches FilesystemMetadataQuery {
         block windows_filesystem_native_read_metadata(path, no_follow)
     }
     machine create_file(path: @[u8] in Path, desired_access: u32, share_mode: u32, creation_disposition: u32, flags_and_attributes: u32) -> u64
@@ -95,7 +92,7 @@ NativeWindowsFilesystem satisfies WindowsFilesystemHost {
     machine set_file_time(handle: u64, access_time: u64, write_time: u64) -> i32 reaches FilesystemMetadataMutation {
         block windows_filesystem_native_set_file_time(handle, access_time, write_time)
     }
-    machine get_file_time(handle: u64) -> WindowsFileTimeResult reaches FilesystemMetadataQuery {
+    machine get_file_time(handle: u64) -> |win_fs|::WindowsFileTimeResult reaches FilesystemMetadataQuery {
         block windows_filesystem_native_get_file_time(handle)
     }
     machine set_file_attributes(path: @[u8] in Path, attributes: u32) -> i32 reaches FilesystemMetadataMutation {

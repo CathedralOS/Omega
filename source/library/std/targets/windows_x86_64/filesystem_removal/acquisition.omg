@@ -1,7 +1,7 @@
+use targets/windows_x86_64/filesystem_removal/native.omg as removal_io;
+use targets/windows_x86_64/windows_filesystem_directory_native.omg as directory_io;
+use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
 use omega_language_std;
-use targets\windows_x86_64\WindowsFilesystemIo;
-use targets\windows_x86_64\WindowsFilesystemIoStatus;
-use targets\windows_x86_64\WindowsNativeDirectoryEntryInfo;
 use targets\windows_x86_64\windows_wide_path;
 use targets\windows_x86_64;
 // Root acquisition uses one fresh synchronous no-follow file object. Children
@@ -31,7 +31,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     transition units > 0 { true -> block open(wide as +WindowsNativePath), false -> invalid() }
     machine invalid() -> i64
     ensures result != -1
-    { WindowsFilesystemIo::c_set_last_error(87); 0 }
+    { |win_io|::WindowsFilesystemIo::c_set_last_error(87); 0 }
     machine open(path: [u16; 4096] in WindowsNativePath) -> i64
     ensures result != -1
     {
@@ -39,7 +39,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         // OPEN_EXISTING; BACKUP_SEMANTICS|OPEN_REPARSE_POINT; no inheritance,
         // overlap or DELETE_ON_CLOSE. Anonymous SQOS does not grant a server
         // the caller's identity. This private object has no mode setter.
-        let handle: i64 = block WindowsFilesystemIo::c_create_file(@path, 1114241, 7, 0, 3, 36700160, 0);
+        let handle: i64 = block |win_io|::WindowsFilesystemIo::c_create_file(@path, 1114241, 7, 0, 3, 36700160, 0);
         transition handle != 0 && handle != -1 { true -> (handle), false -> 0 }
     }
 }
@@ -73,7 +73,7 @@ requires length > 0 && length < 4096 {
 }
 
 machine windows_removal_open_child(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
-    entry: @mutable WindowsNativeDirectoryEntryInfo, length: u64) -> i64 in WindowsPrivateNonalertFileOrAbsent
+    entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo, length: u64) -> i64 in WindowsPrivateNonalertFileOrAbsent
 requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
 reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     let handle: i64 = block windows_removal_acquire_child(parent, entry, length);
@@ -81,7 +81,7 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
 }
 
 machine windows_removal_acquire_child(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
-    entry: @mutable WindowsNativeDirectoryEntryInfo, length: u64) -> i64
+    entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo, length: u64) -> i64
 requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
 ensures result != -1
 reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
@@ -91,9 +91,9 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     }
     machine invalid() -> i64
     ensures result != -1
-    { WindowsFilesystemIo::c_set_last_error(87); 0 }
+    { |win_io|::WindowsFilesystemIo::c_set_last_error(87); 0 }
     machine access(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
-        entry: @mutable WindowsNativeDirectoryEntryInfo, length: u64) -> i64
+        entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo, length: u64) -> i64
     ensures result != -1
     requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096 {
         transition (entry.attributes & 16) != 0 {
@@ -102,7 +102,7 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
         }
     }
     machine open(parent: i64 in WindowsPrivateNonalertFileOrAbsent,
-        entry: @mutable WindowsNativeDirectoryEntryInfo, length: u64, access: u32) -> i64
+        entry: @mutable |directory_io|::WindowsNativeDirectoryEntryInfo, length: u64, access: u32) -> i64
     ensures result != -1
     requires (parent as -WindowsPrivateNonalertFileOrAbsent) != 0 && length > 0 && length < 4096
         && (access == 1114240 || access == 1114241) {
@@ -110,13 +110,13 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
         // The terminated copy carries `WindowsNativePath`; a domain cannot be
         // added through the borrow of `entry.characters` itself.
         let native: [u16; 4096] in WindowsNativePath = entry.characters as +WindowsNativePath;
-        let name: WindowsNativeUnicodeString = WindowsNativeUnicodeString {
+        let name: |removal_io|::WindowsNativeUnicodeString = |removal_io|::WindowsNativeUnicodeString {
             // length < 4096 makes this explicit narrowing exact; retain the
             // arithmetic expression so the record proves its even byte count.
             length: (length * 2) as u16, capacity: 8192, padding: 0,
             buffer: @native
         };
-        let attributes: WindowsNativeObjectAttributes = WindowsNativeObjectAttributes {
+        let attributes: |removal_io|::WindowsNativeObjectAttributes = |removal_io|::WindowsNativeObjectAttributes {
             // Traversal admits only retained disk-directory parents. The
             // single no-follow component cannot select a DOS pipe endpoint;
             // unlike root acquisition, this is not an arbitrary path open.
@@ -124,8 +124,8 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
             attributes: 4096, name_padding: 0, security: 0, quality: 0
         };
         let mutable handle: i64 = 0;
-        let mutable completion: WindowsFilesystemIoStatus;
-        let status: i32 = block WindowsFilesystemRemovalIo::open(@mutable handle, access, @attributes,
+        let mutable completion: |win_io|::WindowsFilesystemIoStatus;
+        let status: i32 = block |removal_io|::WindowsFilesystemRemovalIo::open(@mutable handle, access, @attributes,
             @mutable completion, 7, 2113568);
         transition status == 0 {
             true -> opened(handle),
@@ -139,11 +139,11 @@ reaches FilesystemContentRead + FilesystemMetadataQuery + DirectoryEnumeration {
     }
     machine corrupt() -> i64
     ensures result != -1
-    { WindowsFilesystemIo::c_set_last_error(31); 0 }
+    { |win_io|::WindowsFilesystemIo::c_set_last_error(31); 0 }
     machine failed(status: i32) -> i64
     ensures result != -1
     {
-        WindowsFilesystemIo::c_set_last_error(windows_removal_error(WindowsFilesystemIo::c_status_to_error(status)));
+        |win_io|::WindowsFilesystemIo::c_set_last_error(windows_removal_error(|win_io|::WindowsFilesystemIo::c_status_to_error(status)));
         0
     }
 }

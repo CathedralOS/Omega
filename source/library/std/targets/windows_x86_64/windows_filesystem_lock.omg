@@ -1,3 +1,4 @@
+use targets/windows_x86_64/windows_filesystem_lock_native.omg as lock_io;
 // Whole-file locks belong to the same live file object, process and range.
 // Duplicate with unchanged access, never ReOpenFile: reopening would change
 // lock identity. Closing the pin preserves a lock while another handle keeps
@@ -31,8 +32,8 @@ machine windows_filesystem_native_lock_file(handle: u64, exclusive: bool, nonblo
     }
     machine acquire(duplicate: i64 in WindowsSynchronousFileOrAbsent, flags: u32) -> i32
     requires (duplicate as -WindowsSynchronousFileOrAbsent) != 0 && flags <= 3 {
-        let mutable request: WindowsNativeLockRequest;
-        let succeeded: i32 = block WindowsFilesystemLockIo::acquire(duplicate, flags, 0, 4294967295, 4294967295, @mutable request);
+        let mutable request: |lock_io|::WindowsNativeLockRequest;
+        let succeeded: i32 = block |lock_io|::WindowsFilesystemLockIo::acquire(duplicate, flags, 0, 4294967295, 4294967295, @mutable request);
         let status: i32 = windows_filesystem_native_completion_status(succeeded);
         block windows_lock_completion(duplicate, status)
     }
@@ -47,7 +48,7 @@ machine windows_filesystem_native_unlock_file(handle: u64) -> i32
     }
     machine release(duplicate: i64 in WindowsSynchronousFileOrAbsent) -> i32
     requires (duplicate as -WindowsSynchronousFileOrAbsent) != 0 {
-        let succeeded: i32 = block WindowsFilesystemLockIo::release(duplicate, 0, 0, 4294967295, 4294967295);
+        let succeeded: i32 = block |lock_io|::WindowsFilesystemLockIo::release(duplicate, 0, 0, 4294967295, 4294967295);
         let status: i32 = windows_filesystem_native_completion_status(succeeded);
         block windows_lock_completion(duplicate, status)
     }
