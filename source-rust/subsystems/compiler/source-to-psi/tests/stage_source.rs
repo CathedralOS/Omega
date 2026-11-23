@@ -651,7 +651,7 @@ fn publication_checks_the_same_grammar_in_root_and_imported_files() {
 
 /// A constant computed by a call gives an array its length, and the public
 /// compiler checks that length where another machine requires a different
-/// one. `east\N` and `west\N` share a last name, so each case also fails if
+/// one. `|east|::N` and `|west|::N` share a last name, so each case also fails if
 /// an extent took the other module's value.
 ///
 /// `wiki/spec/language/constants.md`, "Evaluation": "A constant position
@@ -661,10 +661,12 @@ fn publication_checks_the_same_grammar_in_root_and_imported_files() {
 /// and `pipeline/05_prepared-typed-trees-to-lowered-program/tests/prepared_array_extents.rs`.
 #[test]
 fn a_computed_array_extent_is_refused_where_another_length_is_required() {
-    let main = r"machine pair(values: @[u8; 2]) -> u8 { values[0u64] }
+    let main = r"use east/value.omg as east;
+use west/value.omg as west;
+machine pair(values: @[u8; 2]) -> u8 { values[0u64] }
 machine triple(values: @[u8; 3]) -> u8 { values[0u64] }
-machine choose(values: @[u8; east\N]) -> u8 { pair(values) }
-machine other(values: @[u8; west\N]) -> u8 { triple(values) }";
+machine choose(values: @[u8; |east|::N]) -> u8 { pair(values) }
+machine other(values: @[u8; |west|::N]) -> u8 { triple(values) }";
     let package = PackageKeyIdentity::from_digest([0x58; 32]).unwrap();
     let publish = |east: u64, west: u64| {
         let (mut files, root) = captured(package, main);
@@ -696,8 +698,8 @@ machine other(values: @[u8; west\N]) -> u8 { triple(values) }";
         (root, compile(stage, None))
     };
 
-    // `choose` passes `east\N` bytes where two are required, and `other`
-    // passes `west\N` bytes where three are required.
+    // `choose` passes `|east|::N` bytes where two are required, and `other`
+    // passes `|west|::N` bytes where three are required.
     assert!(!publish(2, 3).1.unwrap().to_bytes().is_empty());
     for (east, west, machine, wanted, supplied) in [(3, 3, "choose", 2, 3), (2, 2, "other", 3, 2)] {
         let (root, published) = publish(east, west);

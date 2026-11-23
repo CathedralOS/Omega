@@ -10,9 +10,9 @@
 //! asserted in
 //! `04_typed-trees-to-prepared-typed-trees/tests/computed_array_extents.rs`.
 //!
-//! In the source every test uses, `east\N` is 2 and `west\N` is 3. `choose`
-//! passes an array of `east\N` bytes where two are required, and `other`
-//! passes an array of `west\N` bytes where three are required, so the program
+//! In the source every test uses, `|east|::N` is 2 and `|west|::N` is 3. `choose`
+//! passes an array of `|east|::N` bytes where two are required, and `other`
+//! passes an array of `|west|::N` bytes where three are required, so the program
 //! is valid as written.
 //!
 //! `PreparedTypedTrees` cannot be built or edited outside stage 04. Each
@@ -37,7 +37,7 @@ use terminal_check_tables::compilation::TerminalCompilation;
 use terminal_check_tables::{Refusal, RefusalReason};
 use terminal_psi::{ArrayExtent, StructuralAccess, StructuralTypeShape};
 
-/// The source every test here uses: `east\N` is 2 and `west\N` is 3.
+/// The source every test here uses: `|east|::N` is 2 and `|west|::N` is 3.
 fn fixture(initializer: Initializer) -> PreparedTypedTrees {
     prepare(2, 3, initializer, &MACHINES).program
 }
@@ -194,7 +194,7 @@ fn an_unchanged_product_lowers_every_array_at_its_prepared_length() {
 }
 
 /// The handoff this file is about. The source still says `extent()` returns
-/// 2 for `east\N`; only the value recorded on that declaration becomes 3.
+/// 2 for `|east|::N`; only the value recorded on that declaration becomes 3.
 /// `choose` now passes three bytes where `pair` requires two, and stage 05
 /// refuses it at that argument. `other` names the constant with the same last
 /// name and `plain` names none, and both lower as before.

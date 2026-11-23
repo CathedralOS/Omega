@@ -395,6 +395,23 @@ fn lower_item_with_exposure(
                 .namespace_declarations
                 .record_import(syntax_trees, *path);
         }
+        Item::Use(syntax::item::UseItem::File {
+            root,
+            components,
+            alias,
+            span,
+            only_product_operands: false,
+        }) => {
+            lowerer.namespace_declarations.record_file_import(
+                syntax_trees,
+                root.as_ref(),
+                *components,
+                alias,
+                *span,
+            );
+        }
+        // A Build import used only to name a Product entry binds no
+        // declaration the Build itself may call.
         Item::Use(syntax::item::UseItem::File { .. }) | Item::Capability(_) | Item::Package(_) => {}
     }
 
