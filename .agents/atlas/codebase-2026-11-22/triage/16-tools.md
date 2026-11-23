@@ -9,3 +9,16 @@
 | Section 5 also observes that the 300-line rule applies only to additions. | Documented scope. | The [measurement policy](../../../../wiki/drafts/measurements/README.md) explicitly describes the check on files a pull request adds. |
 
 Other area 16 findings still need individual dispositions.
+
+## Original findings still under review
+
+Sections 5 and 6 contain 67 top-level observations. The linked ranges cover each observation once in this table. Individual dispositions above apply only to their stated conditions.
+
+| Subject | Digest lines | Evidence and open work |
+| --- | --- | --- |
+| Sample gates and command selection | [108–120](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/16-tools.md#L108-L120) | 109, 110 and 177 concern sample input failures. #5287 retains standalone samples while propagating read failures. 113 and 115 are the changed-program sweep fixes. The remaining selection and run-evidence findings need separate dispositions. |
+| Repository admission | [123–132](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/16-tools.md#L123-L132) | 123 and 124 are fixed by #5276 and #5281. 125 matches the documented scope of the measurement rule. The board reader at 126 now propagates a failed fallback Git read. Other textual checks remain to trace. |
+| Stage and repository boundary checks | [135–143](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/16-tools.md#L135-L143) | Trace each skipped input or unsupported syntax against the audit’s stated coverage. |
+| Coordination and worktrees | [146–158](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/16-tools.md#L146-L158) | Distinguish reporting defaults from loss of work or failed operations presented as successful. |
+| Tools and benchmarks | [161–172](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/16-tools.md#L161-L172) | Check command status and the comparability of the underlying observations. |
+| Dropped inputs | [177–190](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/16-tools.md#L177-L190) | 177 overlaps 109–110. 185 and 186 also appear in section 5. The remaining rows include filesystem errors and repeated coordination findings. |
