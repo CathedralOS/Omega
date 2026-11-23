@@ -91,12 +91,4 @@ framework or a list of unimplemented features.
 - Cost: Every test under `source-rust/application/tests/` builds those crates, so the required lint cannot pass for any of them whatever the test contains; the check is skipped or run without `-D warnings` and a new warning in the application or its tests goes unseen. Remove the three unused imports and the two unneeded `&`, and delete or wire up the unused package-manager code.
 - Reported: 2026-11-22, Claude Code, while adding an application test for an array sized by a computed constant
 
-### Publication still links earlier source stages instead of reading their products
-
-- Category: Knowledge crossing a boundary
-- Where: [retained links](tools/xtask/src/boundary/linear_pipeline.rs), [source correspondence](source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/publication.rs), [checked publication](source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/publication.rs), [publication's accepted input](source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/accepted.rs).
-- Saw: `check-boundary` refuses a production link from one numbered source stage to another, with two retained links from publication (07) to lowering (05) and the checker (06). Publication reads their source correspondence and checked-closure types, including deferred advisory state. The source driver already runs lowering and judgment; the calls inside publication's `judge_fixture` are test-only.
-- Cost: Publication can still call its producers' implementation instead of reading independent products. Move the remaining source correspondence and checked publication data under `source-to-psi/representations/`, with checked construction at their owners, then delete the two remaining pairs from `RETAINED_SOURCE_STAGE_LINKS`. Tests that construct source through parsing, resolution and typing belong at the source driver.
-- Reported: 2026-11-22, Claude Code, while tightening the source stage dependency rule
-
 <a id="a-build-wide-flag-admits-machine-control-for-every-output"></a>

@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
 
-use crate::lowering::selection_questions::{
+use lowered_source_publication::selection_questions::{
     RawDependencyKind, RawDesignationInput, RawSelectionQuestion, RawSelectionQuestions,
     RawSelectionRole, RawSelectionTarget,
 };
@@ -175,7 +175,7 @@ struct Questions<'source> {
     >,
     requirements: HashMap<
         (MachineId, ContractId, MachineId),
-        &'source crate::lowering::Selected,
+        &'source terminal_check_tables::program::Selected,
         arena::BuildIndexHasher,
     >,
 }
@@ -1739,8 +1739,10 @@ impl<'source> Declarations<'source> {
             Some(meaning) => callable_declaration_path(&occurrence, meaning),
             None => occurrence,
         };
-        let custody = crate::lowering::selection_questions::declaration_custody(self.typed, symbol)
-            .map_err(refused)?;
+        let custody = lowered_source_publication::selection_questions::declaration_custody(
+            self.typed, symbol,
+        )
+        .map_err(refused)?;
         let purpose = self.purpose(symbol)?;
         let span = self
             .typed

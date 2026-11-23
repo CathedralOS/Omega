@@ -14,17 +14,17 @@ mod accepted;
 mod invocation_site;
 pub use invocation_site::{CheckedSourceCall, SourceInvocationSite};
 mod application;
-pub use crate::lowering::Compilation as TerminalSourceCompilation;
-pub use crate::lowering::SuppliedRequirement as TerminalSuppliedRequirement;
-pub use crate::lowering::Supply as TerminalSourceSupply;
-pub use crate::lowering::provider_selections::{
+pub use crate::source_state::trait_definition::Supply as TerminalSourceSupply;
+pub use lowered_source_publication::Compilation as TerminalSourceCompilation;
+pub use lowered_source_publication::provider_selections::{
     ProviderSelectionInput as TerminalProviderSelectionInput,
     ProviderSelections as TerminalProviderSelections,
 };
-pub use crate::lowering::{
+pub use lowered_source_publication::{
     CallingPolicySelections as TerminalCallingPolicySelections,
     ProgramEntryContractSelection as TerminalProgramEntryContractSelection,
 };
+pub use terminal_check_tables::program::SuppliedRequirement as TerminalSuppliedRequirement;
 pub use accepted::{
     AcceptedTerminalSource, ConstantRead, DeclaredBoundaryRequirement, PreparedTerminalPublication,
 };

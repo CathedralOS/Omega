@@ -2,29 +2,26 @@
 //! compilation. Source is retained before judgement; another source cannot
 //! be attached to an artifact after the route has decided it.
 
-use crate::checking::AcceptedClosure;
 use crate::source_state::FrozenTypedTrees;
+use checked_program::CheckedProgram;
 use diagnostics::Diagnostic;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct AcceptedTerminalSource {
-    source: crate::lowering::PreparedTypedTrees,
-    closure: Box<AcceptedClosure>,
-    correspondence: crate::lowering::SourceCorrespondence,
-    requirement_reviews: Vec<crate::lowering::RequirementReview>,
+    source: prepared_source::PreparedTypedTrees,
+    closure: Arc<CheckedProgram>,
+    correspondence: lowered_source_publication::SourceCorrespondence,
+    requirement_reviews: Vec<lowered_source_publication::RequirementReview>,
     publication: terminal_codec::TerminalPublication,
     pub(crate) package_review_numeric: crate::package_review::NumericReviewInventory,
-    /// What the route says about the accepted source without refusing it
-    /// (`advisories`), in the order the parts were judged.
-    advisories: DeferredAdvisories,
 }
 
 /// The checked module and the owned declarations, source locations and Build
 /// operations needed to publish it. Dropping the source producer is safe here.
 pub struct PreparedTerminalPublication {
     kind: terminal_codec::TerminalPublication,
-    module: crate::checking::CheckedPublicationModule,
+    module: checked_program::CheckedPublicationModule,
     selections: crate::production::source_selection_publication::PreparedSelections,
     provenance: psi_publication_records::TerminalMachineProvenance,
     companions: crate::production::build_companions::BuildCompanions,
@@ -144,7 +141,7 @@ pub struct ConstantRead {
 }
 
 impl ConstantRead {
-    pub fn from_preparation(prepared: &crate::lowering::PreparedTypedTrees) -> Vec<Self> {
+    pub fn from_preparation(prepared: &prepared_source::PreparedTypedTrees) -> Vec<Self> {
         let source = prepared.trees();
         prepared
             .constants()
@@ -184,7 +181,7 @@ impl AcceptedTerminalSource {
     /// use checked_program_to_psi::AcceptedTerminalSource;
     /// use lowered_program_to_checked_program::checking::judge_publication;
     /// use terminal_check_tables::compilation::{CompilationForPublication, TerminalCompilation};
-    /// use prepared_typed_trees_to_lowered_program::lowering::LoweredSourcePublication;
+    /// use lowered_source_publication::LoweredSourcePublication;
     ///
     /// struct Replacement<Source>(TerminalCompilation, Source);
     /// impl<Source> CompilationForPublication for Replacement<Source> {
@@ -193,21 +190,37 @@ impl AcceptedTerminalSource {
     /// }
     /// fn splice(input: LoweredSourcePublication, other: TerminalCompilation) {
     ///     let (_, source) = input.into_program_and_source();
-    ///     let replaced = judge_publication(Replacement(other, source), Default::default()).unwrap();
+    ///     let (replaced, _) = judge_publication(Replacement(other, source), Default::default()).unwrap();
     ///     let _ = AcceptedTerminalSource::from_judgment(replaced);
     /// }
     /// ```
+    ///
+    /// Publication cannot issue a judgment either. Only stage 06 links the
+    /// crate that supplies the capability `CheckedPublication::from_judgment`
+    /// asks for, and only stage 05 the one a lowered source publication needs:
+    ///
+    /// ```compile_fail,E0433
+    /// let _ = checked_program_issuer::CHECKER;
+    /// ```
+    ///
+    /// ```compile_fail,E0433
+    /// let _ = lowered_source_publication_issuer::LOWERING;
+    /// ```
     pub fn from_judgment(
-        judgment: crate::checking::CheckedPublication<crate::lowering::LoweredSourcePublication>,
+        judgment: checked_program::CheckedPublication<
+            lowered_source_publication::LoweredSourcePublication,
+        >,
     ) -> Result<Self, Vec<Diagnostic>> {
         Self::accept_judgment(judgment).map(|(accepted, _)| accepted)
     }
 
     pub(crate) fn accept_judgment(
-        judgment: crate::checking::CheckedPublication<crate::lowering::LoweredSourcePublication>,
+        judgment: checked_program::CheckedPublication<
+            lowered_source_publication::LoweredSourcePublication,
+        >,
     ) -> Result<(Self, Option<crate::SourceCompilationRoster>), Vec<Diagnostic>> {
-        let (mut source, closure, additional, original) = judgment.into_source_and_closures();
-        if source.correspondence.forms.len() != 1 + additional.len()
+        let (mut source, closure, further_forms) = judgment.into_source_and_program();
+        if source.correspondence.forms.len() != 1 + further_forms
             || source.correspondence.forms.iter().any(Option::is_none)
         {
             return Err(vec![Diagnostic::error(
@@ -231,7 +244,6 @@ impl AcceptedTerminalSource {
                 requirement_reviews,
                 publication: source.publication,
                 package_review_numeric: Default::default(),
-                advisories: DeferredAdvisories::new(original, additional),
             },
             source.roster,
         ))
@@ -261,14 +273,6 @@ impl AcceptedTerminalSource {
 
     pub fn emitted_source_calls(&self) -> &[crate::source_state::SourceCallCorrespondence] {
         &self.correspondence().calls
-    }
-
-    /// The advisory diagnostics of the accepted compilation: warnings and
-    /// their notes, none of which is an error. They are data on the
-    /// accepted judgment for whoever reports the compilation; nothing here
-    /// prints them and no later stage reads them.
-    pub fn advisories(&self) -> &[Diagnostic] {
-        self.advisories.get(self.closure.as_ref())
     }
 
     /// Capture the selections and source coordinates while their typed owner is
@@ -450,9 +454,9 @@ impl AcceptedTerminalSource {
         source: &FrozenTypedTrees,
         package: semantic_vocabulary::PackageKeyIdentity,
         declaration_path: &str,
-    ) -> Result<crate::lowering::Supply, Vec<Diagnostic>> {
+    ) -> Result<crate::source_state::trait_definition::Supply, Vec<Diagnostic>> {
         let selected = build_backing(source, package, declaration_path)?;
-        Ok(crate::lowering::Supply {
+        Ok(crate::source_state::trait_definition::Supply {
             slot: selected.trait_symbol,
             provider: selected.symbol,
         })
@@ -529,7 +533,7 @@ impl AcceptedTerminalSource {
 
     /// The machine of this module each chosen provider gives each
     /// requirement of the slot it supplies.
-    pub fn supplied_requirements(&self) -> &[crate::lowering::SuppliedRequirement] {
+    pub fn supplied_requirements(&self) -> &[terminal_check_tables::program::SuppliedRequirement] {
         &self.closure.elaboration().supplied
     }
 
@@ -579,11 +583,11 @@ impl AcceptedTerminalSource {
         self.source.trees()
     }
 
-    pub fn prepared(&self) -> &crate::lowering::PreparedTypedTrees {
+    pub fn prepared(&self) -> &prepared_source::PreparedTypedTrees {
         &self.source
     }
 
-    pub fn closure(&self) -> &AcceptedClosure {
+    pub fn closure(&self) -> &CheckedProgram {
         &self.closure
     }
 
@@ -592,7 +596,7 @@ impl AcceptedTerminalSource {
     pub fn requirement_review(
         &self,
         declaration: symbols::SymbolHandle,
-    ) -> Result<&crate::lowering::RequirementReviewMetadata, String> {
+    ) -> Result<&lowered_source_publication::RequirementReviewMetadata, String> {
         if self.source().trait_machine_signature(declaration).is_none() {
             return Err("requirement review names a foreign declaration".to_owned());
         }
@@ -618,7 +622,7 @@ impl AcceptedTerminalSource {
         &self.correspondence().records
     }
 
-    pub(crate) fn correspondence(&self) -> &crate::lowering::SourceFormCorrespondence {
+    pub(crate) fn correspondence(&self) -> &lowered_source_publication::SourceFormCorrespondence {
         self.correspondence.forms[0]
             .as_ref()
             .expect("judge retained every accepted source form")
@@ -627,7 +631,7 @@ impl AcceptedTerminalSource {
     pub(crate) fn selection_forms(
         &self,
     ) -> impl ExactSizeIterator<
-        Item = Option<&crate::lowering::selection_questions::RawSelectionQuestions>,
+        Item = Option<&lowered_source_publication::selection_questions::RawSelectionQuestions>,
     > {
         self.correspondence.forms.iter().map(|form| {
             form.as_ref()
@@ -648,85 +652,6 @@ impl AcceptedTerminalSource {
 
     pub fn is_invocation(&self) -> bool {
         self.publication != terminal_codec::TerminalPublication::Portable
-    }
-}
-
-/// The advisories of every accepted part: the entry closure and each
-/// generic check form. One authored machine may be judged in more than one
-/// part, and its advisory is the same in each, so an advisory already listed
-/// is not listed again.
-fn advisories<'part>(parts: impl Iterator<Item = &'part AcceptedClosure>) -> Vec<Diagnostic> {
-    let mut advisories: Vec<Diagnostic> = Vec::new();
-    for accepted in parts {
-        // A warning and the note after it are one advisory.
-        let part = accepted.advisories();
-        let mut rest = &part[..];
-        while !rest.is_empty() {
-            let length = 1 + rest[1..]
-                .iter()
-                .take_while(|diagnostic| {
-                    diagnostic.severity == diagnostics::DiagnosticSeverity::Note
-                })
-                .count();
-            let (advisory, after) = rest.split_at(length);
-            if !advisories.windows(length).any(|listed| listed == advisory) {
-                advisories.extend_from_slice(advisory);
-            }
-            rest = after;
-        }
-    }
-    advisories
-}
-
-/// Reporters request the same warnings by default. Transient source jobs use
-/// the accepted code without reporting it, so they must not start advisory
-/// proof searches just to discard the diagnostics. Keep every accepted part
-/// until the first read, then release the additional forms after aggregation.
-struct DeferredAdvisories {
-    pending: Mutex<AdvisoryParts>,
-    cached: OnceLock<Vec<Diagnostic>>,
-}
-
-#[derive(Default)]
-struct AdvisoryParts {
-    // A transformation may expose new constants. Source warnings must still
-    // describe the program as written, from its first judgment.
-    original: Option<Box<AcceptedClosure>>,
-    additional: Vec<Box<AcceptedClosure>>,
-}
-
-impl std::fmt::Debug for DeferredAdvisories {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter
-            .debug_struct("DeferredAdvisories")
-            .field("materialized", &self.cached.get().is_some())
-            .finish_non_exhaustive()
-    }
-}
-
-impl DeferredAdvisories {
-    fn new(original: Option<Box<AcceptedClosure>>, additional: Vec<Box<AcceptedClosure>>) -> Self {
-        Self {
-            pending: Mutex::new(AdvisoryParts { original, additional }),
-            cached: OnceLock::new(),
-        }
-    }
-
-    fn get(&self, primary: &AcceptedClosure) -> &[Diagnostic] {
-        self.cached.get_or_init(|| {
-            let mut pending = self
-                .pending
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            // Retain the parts if a diagnostic search panics, just as each
-            // accepted closure retains its own deferred warning inputs.
-            let result = advisories(
-                std::iter::once(pending.original.as_deref().unwrap_or(primary))
-                    .chain(pending.additional.iter().map(|part| part.as_ref())),
-            );
-            *pending = AdvisoryParts::default();
-            result
-        })
     }
 }
 
@@ -873,47 +798,5 @@ mod tests {
             publication,
         )
         .unwrap()
-    }
-
-    #[test]
-    fn authored_advisories_wait_for_read_and_release_additional_forms_once() {
-        // This kept CLI fixture has one authored contradiction and two real
-        // specializations. Its extra check forms must not multiply warnings.
-        let accepted = contract_fixture(
-            "generic_branch_contract_contradiction_exit",
-            terminal_codec::TerminalPublication::Invocation,
-        );
-        assert!(accepted.advisories.cached.get().is_none());
-        assert!(!accepted.advisories.pending.lock().unwrap().additional.is_empty());
-        let diagnostics = accepted.advisories();
-        let warnings: Vec<_> = diagnostics
-            .iter()
-            .filter(|diagnostic| {
-                diagnostic.severity == diagnostics::DiagnosticSeverity::Warning
-                    && diagnostic.message.starts_with("unreachable branch:")
-            })
-            .collect();
-        assert_eq!(warnings.len(), 1, "{diagnostics:?}");
-        assert!(warnings[0].message.contains("machine `pick`"));
-        assert!(warnings[0].source_span.is_some());
-        assert!(accepted.advisories.pending.lock().unwrap().additional.is_empty());
-        assert!(std::ptr::eq(
-            diagnostics.as_ptr(),
-            accepted.advisories().as_ptr()
-        ));
-        assert_eq!(accepted.advisories(), diagnostics);
-    }
-
-    #[test]
-    fn specialization_only_advisories_remain_quiet_after_a_lazy_read() {
-        let accepted = contract_fixture(
-            "specialized_branch_selection_quiet_exit",
-            terminal_codec::TerminalPublication::Invocation,
-        );
-        assert!(accepted.advisories.cached.get().is_none());
-        assert!(accepted.advisories().is_empty());
-        assert!(accepted.advisories.cached.get().is_some());
-        assert!(accepted.advisories.pending.lock().unwrap().additional.is_empty());
-        assert!(accepted.advisories().is_empty());
     }
 }

@@ -1,15 +1,20 @@
 //! The source driver lowers the frozen program, checks that exact input, then
-//! gives the publisher the resulting source-bound judgment.
+//! gives the publisher the resulting source-bound judgment. It keeps the
+//! checker's advisories for whoever reports the compilation.
 use crate::driver::prepare_typed_source;
 use artifacts::compile_timings::{CompileTimings, source as stages};
 use checked_program_to_psi::production;
 use checked_program_to_psi::production::{AcceptedTerminalSource, TerminalSourceCompilation};
 use diagnostics::{Diagnostic, DiagnosticStage};
-use lowered_program_to_checked_program::checking::{CheckedPublication, judge_publication};
+use lowered_program_to_checked_program::checking::{
+    AcceptedAdvisories, CheckedPublication, judge_publication,
+};
 use optimization::PsiOptimizationSelections;
-use prepared_typed_trees_to_lowered_program::lowering::source_roster::SourceCompilationRoster;
+use prepared_typed_trees_to_lowered_program::lowering::source_roster::{
+    SourceCompilationRoster, lower_roster,
+};
 use prepared_typed_trees_to_lowered_program::lowering::{
-    LoweredSourcePublication, PreparedTypedTrees,
+    LoweredSourcePublication, PreparedTypedTrees, lower_for_publication,
 };
 use typed_trees_to_prepared_typed_trees as preparation;
 
@@ -96,13 +101,19 @@ fn judge_source(
     roots: SourceRoots<'_>,
     optimizations: PsiOptimizationSelections,
     timings: &mut CompileTimings,
-) -> Result<CheckedPublication<LoweredSourcePublication>, Vec<Diagnostic>> {
+) -> Result<
+    (
+        CheckedPublication<LoweredSourcePublication>,
+        AcceptedAdvisories,
+    ),
+    Vec<Diagnostic>,
+> {
     let lowered = timings
         .record_result(stages::LOWER, || match roots {
             SourceRoots::Selected(compilation, publication) => {
-                LoweredSourcePublication::prepare(source, compilation, publication)
+                lower_for_publication(source, compilation, publication)
             }
-            SourceRoots::Product(roster) => roster.lower_for_publication(source),
+            SourceRoots::Product(roster) => lower_roster(roster, source),
         })
         .map_err(|rows| DiagnosticStage::Lowering.attribute(rows))?;
     timings
@@ -115,7 +126,8 @@ pub fn judge_terminal_source(
     compilation: TerminalSourceCompilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<AcceptedTerminalSource, Vec<Diagnostic>> {
-    let judgment = judge_source(
+    // A selected invocation is used and never reported, so its advisories are not read.
+    let (judgment, _) = judge_source(
         source,
         SourceRoots::Selected(compilation, publication),
         Default::default(),
@@ -126,12 +138,15 @@ pub fn judge_terminal_source(
 
 /// Source preparation may judge a new roster before the fixed product is published.
 #[derive(Debug)]
-pub struct SourcePublication(checked_program_to_psi::SourcePublication);
+pub struct SourcePublication {
+    publication: checked_program_to_psi::SourcePublication,
+    advisories: AcceptedAdvisories,
+}
 
 impl std::ops::Deref for SourcePublication {
     type Target = checked_program_to_psi::SourcePublication;
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.publication
     }
 }
 
@@ -142,12 +157,33 @@ impl SourcePublication {
         optimizations: PsiOptimizationSelections,
         timings: &mut CompileTimings,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let judgment = judge_source(source, SourceRoots::Product(roster), optimizations, timings)?;
-        timings
-            .record_result(stages::ACCEPT, || {
-                checked_program_to_psi::SourcePublication::from_judgment(judgment)
-            })
-            .map(Self)
+        let (judgment, advisories) =
+            judge_source(source, SourceRoots::Product(roster), optimizations, timings)?;
+        let publication = timings.record_result(stages::ACCEPT, || {
+            checked_program_to_psi::SourcePublication::from_judgment(judgment)
+        })?;
+        Ok(Self {
+            publication,
+            advisories,
+        })
+    }
+
+    /// What the checker says about the accepted source without refusing it:
+    /// warnings and their notes, in the order the parts were judged. The
+    /// checker computes them on the first read.
+    pub fn advisories(&self) -> &[Diagnostic] {
+        self.advisories.get()
+    }
+
+    /// Check the package selections against the module the source judgment owns,
+    /// then return the source judgment's advisories.
+    pub fn check(
+        &self,
+        authority: Option<&dyn declaration_scope::DeclarationSelectionAuthority>,
+        timings: &mut CompileTimings,
+    ) -> Result<Vec<Diagnostic>, Vec<Diagnostic>> {
+        self.publication.check_selections(authority, timings)?;
+        timings.record_result(stages::ADVISORIES, || Ok(self.advisories().to_vec()))
     }
 }
 

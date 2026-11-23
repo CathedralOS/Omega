@@ -2,29 +2,15 @@
 //! is released. Selection is descriptive; body refinement and permissions are
 //! separate ordinary judgments.
 
-use crate::source_state::{TypedTrees, trait_definition::TraitApplicationEnvironment};
-use arena::Handle;
 use semantic_vocabulary::compiler_evaluation::DeclarationCustody;
 use semantic_vocabulary::source_selections::CompositionMode;
 use semantic_vocabulary::{MachineId, PackageKeyIdentity};
 use symbols::SymbolHandle;
 use terminal_check_tables::Checked;
 
-#[derive(Debug, Clone)]
-pub struct ProviderSelectionInput {
-    pub target: String,
-    pub schema: TraitApplicationEnvironment,
-    pub provider: SymbolHandle,
-    pub provider_application:
-        Option<Handle<crate::source_state::product_operand::ProductOperandApplication>>,
-    pub composition_mode: CompositionMode,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct ProviderSelections<'source> {
-    pub source: &'source TypedTrees,
-    pub choices: &'source [ProviderSelectionInput],
-}
+pub use lowered_source_publication::provider_selections::{
+    ProviderSelectionInput, ProviderSelections,
+};
 
 pub(crate) struct SourceProviderSelections<'source> {
     pub(crate) source: &'source crate::source_state::TypedTrees,

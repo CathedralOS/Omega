@@ -15,6 +15,8 @@ path = "lib.rs"
 
 [dependencies]
 prepared-source = { path = "../../representations/prepared-source" }
+lowered-source-publication = { path = "../../representations/lowered-source-publication" }
+lowered-source-publication-issuer = { path = "../../representations/lowered-source-publication/issuer" }
 service-surface = { path = "../../../psi/interfaces/service-surface" }
 proof-applications = { path = "../../../psi/proofs/applications" }
 source-declarations = { path = "../../representations/symbol-resolved-trees/declarations" }

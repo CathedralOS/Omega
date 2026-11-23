@@ -1,6 +1,6 @@
 # Source pipeline representations
 
-Tokens, syntax trees, resolved trees, typed trees, prepared typed trees and the lowered program are the forms passed between source stages. The checked result keeps the exact lowered program and its evidence. Stage 07 publishes the [Psi artifact](../../psi/).
+Tokens, syntax trees, resolved trees, typed trees, prepared typed trees, the lowered program and the checked program are the forms passed between source stages. The checked program keeps the exact lowered program and its evidence. Stage 07 publishes the [Psi artifact](../../psi/).
 
 ## Program forms along the pipeline
 
@@ -13,9 +13,9 @@ shows which records its operations produce and what the next operation reads.
 | [Syntax trees](syntax-trees/syntax_trees.rs) | [Parser](../pipeline/01_tokens-to-syntax-trees/parser.rs) | [Name resolution](../pipeline/02_syntax-trees-to-symbol-resolved-trees/resolver.rs) |
 | [Resolved source](symbol-resolved-trees/symbol_resolved_trees.rs) and its [symbol table](symbol-resolved-trees/symbol-table/symbol_table.rs) | Name resolution | [Typing](../pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) |
 | [Typed source](typed-trees/typed_trees.rs) | Typing | [Stage 04 preparation](../pipeline/04_typed-trees-to-prepared-typed-trees/prepare.rs) |
-| [Prepared typed trees](../pipeline/04_typed-trees-to-prepared-typed-trees/prepare.rs) | Stage 04 runs specialization, domain preparation and record-pattern preparation | [Stage 05 lowering](../pipeline/05_prepared-typed-trees-to-lowered-program/src/compilation.rs) |
-| [Lowered program](lowered-program/lowered_program.rs) | [Stage 05 lowering](../pipeline/05_prepared-typed-trees-to-lowered-program/src/compilation.rs) | [Stage 06 judgment](../pipeline/06_lowered-program-to-checked-program/src/publication.rs) reads the root closure, demanded forms and witnesses together. |
-| [Terminal Psi](../../psi/psi.rs) | Structural lowering and the [lowered-form checker](../pipeline/06_lowered-program-to-checked-program/src/verdict.rs) | The [accepted-source factory](../pipeline/07_checked-program-to-psi/src/accepted.rs) passes its judgment to [stage 07 publication](../pipeline/07_checked-program-to-psi/src/source_publication.rs). |
+| [Prepared typed trees](prepared-source/lib.rs) | [Stage 04](../pipeline/04_typed-trees-to-prepared-typed-trees/prepare.rs) runs specialization, domain preparation and record-pattern preparation | [Stage 05 lowering](../pipeline/05_prepared-typed-trees-to-lowered-program/src/compilation.rs) |
+| [Lowered program](lowered-program/lowered_program.rs), bound to its source in a [lowered source publication](lowered-source-publication/lowered_source_publication.rs) | [Stage 05 lowering](../pipeline/05_prepared-typed-trees-to-lowered-program/src/compilation.rs) | [Stage 06 judgment](../pipeline/06_lowered-program-to-checked-program/src/publication.rs) reads the root closure, demanded forms and witnesses together. It never reads the source. |
+| [Checked program](checked-program/checked_program.rs) | The [lowered-form checker](../pipeline/06_lowered-program-to-checked-program/src/publication.rs) returns it with the source of the lowering it judged. | The [accepted-source factory](../pipeline/07_checked-program-to-psi/src/accepted.rs) takes that judgment for [stage 07 publication](../pipeline/07_checked-program-to-psi/src/source_publication.rs). |
 | [Published target providers](published-target-providers/publication.rs) | [Stage 07](../pipeline/07_checked-program-to-psi/src/provider_supply/demand.rs) binds the checked provider demand and completed Build bindings to a Psi manifest and deployment. | [Native stage 00](../../psi-to-native/pipeline/00_psi-to-admitted-native-inputs/provider-demand/demand.rs) receives them for that manifest and target. |
 
 When a dependency's Build chooses a provider or a native binding, the package stores the [declarations and arguments it selected](retained-product-selections/selections.rs). Build reads [provider choices](../../build/inputs/package/provider_selection_codec.rs) and [native bindings](../../build/inputs/package/native_output_codec.rs) from those records. The source compiler checks them against the consuming program.
@@ -25,6 +25,27 @@ program. The published program includes its operation, invocation, capability an
 defines pass selections and their identities.
 
 The shared Psi representation has companion packages for [canonical encoding](../../psi/artifact/codec/), [operation semantics](../../psi/semantics/) and [logical work bounds](../../psi/semantics/work/). The source [lowered program](lowered-program/) owns the tables consumed by stage 06.
+
+## Who can build a product
+
+Stages 04, 05 and 06 each hand the next stage a value that says a decision was
+made: the passes ran, this program was lowered from this source, the checker
+accepted it. A stage that could build such a value itself could skip the
+decision. So each of these three products has private fields and one
+constructor, and the constructor takes a capability:
+
+| Product | Constructor | Capability | Only linked by |
+| --- | --- | --- | --- |
+| [Prepared typed trees](prepared-source/lib.rs) | `PreparedTypedTrees::new` | [`PreparationIssuer`](prepared-source/issuer/issuer.rs) | stage 04 |
+| [Lowered source publication](lowered-source-publication/lowered_source_publication.rs) | `LoweredSourcePublication::from_lowering` | [`LoweringIssuer`](lowered-source-publication/issuer/issuer.rs) | stage 05 |
+| [Checked program and its judgment](checked-program/checked_program.rs) | `CheckedProgram::from_judgment`, `CheckedPublication::from_judgment` | [`CheckerIssuer`](checked-program/issuer/issuer.rs) | stage 06 |
+
+Each capability is the only item of a crate of its own. Rust lets a crate name
+only the crates its manifest lists, so a stage that does not list the issuer
+cannot write the constructor call. `mbx xtask check-boundary` refuses the
+issuer in any other manifest, including as a test dependency. The same pattern
+guards the [bound framed machine](../../psi-to-native/representations/bound-framed-machine/issuer/issuer.rs)
+in the native pipeline.
 
 ## Records and facts
 

@@ -460,8 +460,9 @@ including optional, build and target-specific edges. It checks the direction
 of numbered-stage dependencies through shared crates, the lexer and parser
 boundaries, and the source, package and interpreter dependencies reachable
 from `native-compiler`. A numbered source stage may link the representations
-it reads but no other source stage's crate; the three links that remain are
-listed beside the rule. Package dependency editing uses a scoped allowance
+it reads but no other source stage's crate. Stages 04, 05 and 06 each build
+their product through an issuer crate, which only that stage and the
+product's representation may link, as a test dependency too. Package dependency editing uses a scoped allowance
 for the Build text reader. The same command checks restricted program access
 and the reviewed field and export inventory. Run `mbx xtask check-boundary
 --ownership` to isolate package and Build invocation routing from the full

@@ -11,6 +11,7 @@ autobenches = false
 path = "lib.rs"
 
 [dependencies]
+prepared-source-issuer = { path = "issuer" }
 typed-trees = { path = "../typed-trees" }
 layout-plans = { path = "../../../psi/layouts/geometry" }
 arena = { path = "../../../../../foundation/arena" }

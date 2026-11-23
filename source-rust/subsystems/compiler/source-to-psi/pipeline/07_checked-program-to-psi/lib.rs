@@ -9,6 +9,7 @@ pub use source_publication::SourcePublication;
 pub mod provider_choice_inputs;
 #[path = "src/provider_supply/mod.rs"]
 pub mod provider_supply;
+#[cfg(test)]
 use lowered_program_to_checked_program::checking;
 pub use production::*;
 #[cfg(test)]
@@ -18,13 +19,14 @@ use source_declarations::declaration_selection;
 use source_lexer as lexing;
 #[cfg(test)]
 use source_parser as parsing;
-use prepared_typed_trees_to_lowered_program::lowering::source_roster::SourceCompilationRoster;
+use lowered_source_publication::source_roster::SourceCompilationRoster;
 use source_symbol_table::{source_inputs, source_symbols};
 #[cfg(test)]
 use symbol_resolved_trees_to_typed_trees::typing;
 #[cfg(test)]
 use syntax_trees_to_symbol_resolved_trees::resolution;
 use typed_trees::source_state;
+#[cfg(test)]
 use prepared_typed_trees_to_lowered_program::lowering;
 #[cfg(test)]
 use typed_trees_to_prepared_typed_trees as preparation;
@@ -40,6 +42,7 @@ fn judge_fixture(
     compilation: lowering::Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
-    let lowered = lowering::LoweredSourcePublication::prepare(source, compilation, publication)?;
-    AcceptedTerminalSource::from_judgment(checking::judge_publication(lowered, Default::default())?)
+    let lowered = lowering::lower_for_publication(source, compilation, publication)?;
+    let (judgment, _) = checking::judge_publication(lowered, Default::default())?;
+    AcceptedTerminalSource::from_judgment(judgment)
 }

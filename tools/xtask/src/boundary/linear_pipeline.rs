@@ -104,27 +104,54 @@ fn stage(path: &str) -> Option<Phase> {
         })
 }
 
+/// The crate that lets a source stage issue its product, the number of the
+/// stage that produces it, and the representation whose constructor asks for
+/// the capability. A product can be built only where its issuer is linked, so
+/// no other package may link one, in a test either.
+const SOURCE_PRODUCT_ISSUERS: [(&str, usize, &str); 3] = [
+    (
+        "source-rust/subsystems/compiler/source-to-psi/representations/prepared-source/issuer",
+        4,
+        "source-rust/subsystems/compiler/source-to-psi/representations/prepared-source",
+    ),
+    (
+        "source-rust/subsystems/compiler/source-to-psi/representations/lowered-source-publication/issuer",
+        5,
+        "source-rust/subsystems/compiler/source-to-psi/representations/lowered-source-publication",
+    ),
+    (
+        "source-rust/subsystems/compiler/source-to-psi/representations/checked-program/issuer",
+        6,
+        "source-rust/subsystems/compiler/source-to-psi/representations/checked-program",
+    ),
+];
+
+/// Whether `owner` may link `dependency` when that is a product issuer.
+fn may_issue(owner: &str, dependency: &str) -> bool {
+    SOURCE_PRODUCT_ISSUERS
+        .iter()
+        .find(|(issuer, ..)| *issuer == dependency)
+        .is_none_or(|(_, stage, representation)| {
+            owner == *representation || under(owner, &[PSI_STAGES[*stage]])
+        })
+}
+
 /// A source stage reads the representation an earlier stage produced. Linking
 /// that stage's crate instead lets it call the code that made the decision, so
-/// a wrong answer could come from either place. Publication still links lowering
-/// and checking for their carried records and deferred advisory state. The pairs
-/// are (owning stage, linked stage); OWNER_CODE_CONCERNS.md tracks their removal.
-/// Do not add a pair: move the type the stage reads into `representations/`.
-const RETAINED_SOURCE_STAGE_LINKS: [(usize, usize); 2] = [(7, 5), (7, 6)];
-
-/// The stage numbers of a production link from one source stage into another.
-/// The Build text reader is not a stage: it runs the lexer and parser on purpose.
-fn source_stage_link(start: &str, dependency: &str) -> Option<(usize, usize)> {
+/// a wrong answer could come from either place. Move the type the stage reads
+/// into `representations/`. The Build text reader is not a stage: it runs the
+/// lexer and parser on purpose.
+fn links_another_source_stage(start: &str, dependency: &str) -> bool {
     let number = |path: &str| PSI_STAGES.iter().position(|root| under(path, &[*root]));
-    let link = (number(start)?, number(dependency)?);
-    (start != TEXT_READER && link.0 != link.1).then_some(link)
+    start != TEXT_READER
+        && number(start)
+            .zip(number(dependency))
+            .is_some_and(|(owner, linked)| owner != linked)
 }
 
 fn forbidden_frontend(start: &str, dependency: &str) -> bool {
     let [lexer, parser, tokens, syntax] = FRONTEND;
-    if source_stage_link(start, dependency)
-        .is_some_and(|link| !RETAINED_SOURCE_STAGE_LINKS.contains(&link))
-    {
+    if links_another_source_stage(start, dependency) {
         return true;
     }
     match start {
@@ -199,7 +226,23 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
                 package.name
             ));
         }
+        let root = Path::new(&metadata.workspace_root);
+        let owner = Path::new(&package.manifest_path)
+            .parent()
+            .ok_or("manifest has no parent")?;
+        let owner = normalize_relative(root, owner)?;
         for dep in &package.dependencies {
+            // Test dependencies count: a test that links an issuer could build
+            // a product no stage produced.
+            if let Some(path) = dep.path.as_deref()
+                && normalize_relative(root, Path::new(path))
+                    .is_ok_and(|dependency| !may_issue(&owner, &dependency))
+            {
+                errors.push(format!(
+                    "{} -> {}: only the producing source stage may issue this product",
+                    package.name, dep.name
+                ));
+            }
             if dep
                 .path
                 .as_deref()
@@ -305,8 +348,6 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
                     errors.push(format!("forbidden production dependency: {chain} ({next})"));
                 } else if !scoped_reader
                     && !native_pair.is_some_and(|(owner, dependency)| dependency + 1 == owner)
-                    // A retained link ends this walk; the linked stage is checked as its own owner.
-                    && source_stage_link(start, next).is_none()
                     && visited.insert(next)
                 {
                     queue.push_back((next.as_str(), chain));
@@ -458,9 +499,9 @@ mod tests {
         }
     }
 
-    /// The typer reaching the resolver through a helper must fail, and so must
-    /// publication linking preparation directly. Lowering also cannot link
-    /// preparation for its input type; publication keeps only its two retained links.
+    /// A stage that links another stage is refused, directly or through a
+    /// helper. The fixture holds the three links V1 used to keep: lowering to
+    /// preparation, and publication to lowering and to the checker.
     #[test]
     fn a_source_stage_cannot_link_another_stages_implementation() {
         const SHARED: &str = "shared";
@@ -477,7 +518,7 @@ mod tests {
                 stage(4, &[]),
                 stage(5, &[PSI_STAGES[4]]),
                 stage(6, &[]),
-                stage(7, &[PSI_STAGES[5], PSI_STAGES[6], PSI_STAGES[4]]),
+                stage(7, &[PSI_STAGES[5], PSI_STAGES[6]]),
                 pkg(
                     SHARED,
                     SHARED,
@@ -490,29 +531,57 @@ mod tests {
             .into_iter()
             .filter(|error| error.starts_with("forbidden production dependency"))
             .collect();
-        let [typer, lowering, publication] = [3, 5, 7].map(|index| name(PSI_STAGES[index]));
+        let [typer, lowering, checker, publication] =
+            [3, 5, 6, 7].map(|index| name(PSI_STAGES[index]));
         let [resolver, preparation] = [2, 4].map(|index| name(PSI_STAGES[index]));
-        assert_eq!(errors.len(), 3, "{errors:?}");
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.contains(&format!("{typer} -> shared -> {resolver}")))
-        );
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.contains(&format!(": {publication} -> {preparation} ")))
-        );
-        assert!(
-            errors
-                .iter()
-                .any(|error| { error.contains(&format!(": {lowering} -> {preparation} ")) })
-        );
-        assert!(
-            !errors
-                .iter()
-                .any(|error| error.contains(&format!("{publication} -> {lowering}")))
-        );
+        assert_eq!(errors.len(), 4, "{errors:?}");
+        for chain in [
+            format!(": {typer} -> shared -> {resolver} "),
+            format!(": {lowering} -> {preparation} "),
+            format!(": {publication} -> {lowering} "),
+            format!(": {publication} -> {checker} "),
+        ] {
+            assert!(
+                errors.iter().any(|error| error.contains(&chain)),
+                "{chain}: {errors:?}"
+            );
+        }
+    }
+
+    /// Only the stage that produces a product, and the representation whose
+    /// constructor takes the capability, may link its issuer. A test
+    /// dependency is refused like any other.
+    #[test]
+    fn only_the_producing_stage_may_link_a_product_issuer() {
+        let name = |path: &'static str| path.rsplit('/').next().unwrap();
+        for (issuer, producer, representation) in SOURCE_PRODUCT_ISSUERS {
+            let key = |kind| [("issuer", issuer, kind)];
+            let consumer = PSI_STAGES[producer + 1];
+            let metadata = Metadata {
+                workspace_root: "/repo".into(),
+                packages: vec![
+                    pkg("issuer", issuer, &[]),
+                    pkg("product", representation, &key(None)),
+                    pkg(name(PSI_STAGES[producer]), PSI_STAGES[producer], &key(None)),
+                    pkg(name(consumer), consumer, &key(Some("dev"))),
+                    pkg("source-to-psi", SOURCE_DRIVER, &key(None)),
+                ],
+            };
+            let errors: Vec<_> = violations(&metadata)
+                .unwrap()
+                .into_iter()
+                .filter(|error| error.contains("may issue this product"))
+                .collect();
+            assert_eq!(errors.len(), 2, "{errors:?}");
+            for refused in [name(consumer), "source-to-psi"] {
+                assert!(
+                    errors
+                        .iter()
+                        .any(|error| error.starts_with(&format!("{refused} -> issuer:"))),
+                    "{refused}: {errors:?}"
+                );
+            }
+        }
     }
 
     #[test]

@@ -519,6 +519,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
+name = "checked-program"
+version = "0.1.0"
+dependencies = [
+ "checked-program-issuer",
+ "optimization",
+ "psi-publication-records",
+ "semantic-vocabulary",
+ "terminal-check-tables",
+ "terminal-codec",
+ "terminal-psi",
+ "terminal-semantics",
+]
+
+[[package]]
+name = "checked-program-issuer"
+version = "0.1.0"
+
+[[package]]
 name = "checked-program-to-psi"
 version = "0.1.0"
 dependencies = [
@@ -526,15 +544,18 @@ dependencies = [
  "arena",
  "artifacts",
  "bundled-declarations",
+ "checked-program",
  "declaration-scope",
  "diagnostics",
  "evaluation-admission",
  "evaluation-receipts",
  "language-core",
  "lowered-program-to-checked-program",
+ "lowered-source-publication",
  "numeric-literals",
  "numerics",
  "optimization",
+ "prepared-source",
  "prepared-typed-trees-to-lowered-program",
  "psi-authorization",
  "psi-provider-selections",
@@ -1349,6 +1370,8 @@ dependencies = [
  "arena",
  "bignum",
  "bundled-declarations",
+ "checked-program",
+ "checked-program-issuer",
  "diagnostics",
  "language-core",
  "numeric-literals",
@@ -1383,6 +1406,30 @@ dependencies = [
  "wire",
  "worker-budget",
 ]
+
+[[package]]
+name = "lowered-source-publication"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "diagnostics",
+ "lowered-source-publication-issuer",
+ "numerics",
+ "prepared-source",
+ "semantic-vocabulary",
+ "source-admission",
+ "source-declarations",
+ "source-provenance",
+ "symbols",
+ "terminal-check-tables",
+ "terminal-codec",
+ "terminal-psi",
+ "typed-trees",
+]
+
+[[package]]
+name = "lowered-source-publication-issuer"
+version = "0.1.0"
 
 [[package]]
 name = "machine-code"
@@ -2144,9 +2191,14 @@ dependencies = [
  "arena",
  "diagnostics",
  "layout-plans",
+ "prepared-source-issuer",
  "symbols",
  "typed-trees",
 ]
+
+[[package]]
+name = "prepared-source-issuer"
+version = "0.1.0"
 
 [[package]]
 name = "prepared-typed-trees-to-lowered-program"
@@ -2157,6 +2209,8 @@ dependencies = [
  "bignum",
  "diagnostics",
  "language-core",
+ "lowered-source-publication",
+ "lowered-source-publication-issuer",
  "numeric-literals",
  "numerics",
  "prepared-source",
@@ -3923,6 +3977,7 @@ dependencies = [
  "numeric-literals",
  "numerics",
  "prepared-source",
+ "prepared-source-issuer",
  "record-storage",
  "semantic-vocabulary",
  "source-admission",

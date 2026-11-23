@@ -35,7 +35,7 @@ pub(crate) fn publish_stage(
     let checked = product.judge(continuation, entry, accounting, &mut timings)?;
     let psi = product.publish(&checked)?;
     if let Some(advisories) = advisories {
-        advisories.extend_from_slice(checked.terminal_publication.accepted()?.advisories());
+        advisories.extend_from_slice(checked.terminal_publication.advisories());
     }
     Ok((psi, checked))
 }

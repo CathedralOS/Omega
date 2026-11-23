@@ -1278,8 +1278,10 @@ other refusal is a compiler defect and comes back as `Err`.
 
 The product producer's
 [source driver](../../driver/judge_lowered_source.rs)
-prepares the compilation, calls `judge_publication` and accepts only its checked
-closure. Tests can call `judge` on one elaborated closure directly.
+lowers the compilation, calls `judge_publication` and hands the returned
+[checked program](../../representations/checked-program/checked_program.rs) to
+stage 07. The driver keeps the advisories and reads them only when the
+compilation is reported. Tests can call `judge` on one elaborated closure directly.
 
 ## Calls that do not return
 
