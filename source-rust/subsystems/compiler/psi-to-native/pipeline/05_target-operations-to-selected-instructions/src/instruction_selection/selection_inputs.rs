@@ -2046,7 +2046,8 @@ pub(crate) mod established_view_input {
                 };
                 function.structural.as_ref()?;
                 let types = function.geometry();
-                let root = if let Some(parameter) = read_parameter(function, *source) {
+                let parameter = read_parameter(function, *source);
+                let root = if let Some(parameter) = parameter {
                     if parameter.access == A::WriteOnlyBorrow
                         || parameter.multiplicity == M::Linear
                         || !parameter.qualifications.is_empty()
@@ -2062,6 +2063,7 @@ pub(crate) mod established_view_input {
                     operation_operands::structural_stores::StructuralCopyPath::Ordinary(path) => {
                         let geometry = geometry::leaf_copy_geometry(
                             root,
+                            parameter,
                             path,
                             result.structural_type,
                             types,

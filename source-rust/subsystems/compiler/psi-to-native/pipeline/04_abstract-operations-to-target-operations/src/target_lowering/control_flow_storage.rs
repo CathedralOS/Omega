@@ -1896,8 +1896,9 @@ pub(crate) mod leaf_copy {
                 Vec::new(),
             ),
             abstract_operations::StructuralCopyPath::Ordinary(path) => {
-                crate::target_lowering::structural_layout::runtime_leaf_copy_projection(
+                crate::target_lowering::structural_layout::runtime_leaf_copy_projection_at(
                     root_type,
+                    function.arrival_parameter(source),
                     path,
                     result.structural_type,
                     types,
