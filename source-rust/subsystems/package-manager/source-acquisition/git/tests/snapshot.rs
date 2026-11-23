@@ -16,6 +16,7 @@ use super::{
     make_snapshot_read_only, make_tree_owner_writable, raw_os_bytes, resolve_materialized_source,
 };
 use crate::PrimaryGitChoices;
+use crate::test_support::{create_private_dir, create_private_dir_all};
 fn authenticated_single_file_member_tree(repository: &Path) -> (String, Vec<GitTreeEntry>) {
     let bytes = b"machine Main::main() {}\n".to_vec();
     let blob = run_test_git_with_input(repository, ["rev-parse", "HEAD:main.omg"], b"");
@@ -49,7 +50,7 @@ fn authenticated_member_snapshot_reuse_rejects_tampered_publication() {
     let (repository, _) = create_git_source("git-member-snapshot-reuse");
     let (tree, entries) = authenticated_single_file_member_tree(&repository);
     let storage_base = temp_root("git-member-snapshot-reuse-storage");
-    std::fs::create_dir_all(&storage_base).expect("create retained storage base");
+    create_private_dir_all(&storage_base).expect("create retained storage base");
     let storage = SourceResolver::for_hardened_base(&storage_base, PrimaryGitChoices::default())
         .expect("retain resolver storage");
     let executor =
@@ -105,13 +106,13 @@ fn authenticated_member_snapshot_rejects_replaced_workspace_member_lane() {
     let (repository, _) = create_git_source("git-member-snapshot-custody");
     let (tree, entries) = authenticated_single_file_member_tree(&repository);
     let storage_base = temp_root("git-member-snapshot-custody-storage");
-    std::fs::create_dir_all(&storage_base).expect("create retained storage base");
+    create_private_dir_all(&storage_base).expect("create retained storage base");
     let storage = SourceResolver::for_hardened_base(&storage_base, PrimaryGitChoices::default())
         .expect("retain resolver storage");
     let lane_path = storage.workspace_members().path().to_path_buf();
     let retained_path = lane_path.with_extension("retained");
     std::fs::rename(&lane_path, &retained_path).expect("move retained lane");
-    std::fs::create_dir(&lane_path).expect("replace lane pathname");
+    create_private_dir(&lane_path).expect("replace lane pathname");
     let executor =
         test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
 

@@ -16,7 +16,7 @@ use crate::PrimaryGitChoices;
 use crate::SourceResolver;
 use crate::local::operations::resolve_local_source_snapshot;
 use crate::snapshot::permissions::make_tree_owner_writable;
-use crate::test_support::temp_root;
+use crate::test_support::{create_private_dir_all, temp_root};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -31,6 +31,8 @@ impl Fixture {
             "local-baseline-cache-{}",
             SEQUENCE.fetch_add(1, Ordering::Relaxed)
         ));
+        // The root is the cache base's parent, so custody checks its mode.
+        create_private_dir_all(&root).unwrap();
         fs::create_dir_all(root.join("source")).unwrap();
         fs::write(root.join("source/main.omg"), "old source\n").unwrap();
         Self(fs::canonicalize(root).unwrap())

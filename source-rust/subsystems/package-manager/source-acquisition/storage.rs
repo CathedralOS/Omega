@@ -24,7 +24,7 @@ impl RetainedStorageRoot {
                 message: format!("per-user cache base `{}` is not absolute", base.display()),
             });
         }
-        std::fs::create_dir_all(base).at(base)?;
+        create_missing_private_directories(base).at(base)?;
         let canonical_base = base.canonicalize().at(base)?;
         let mut directory =
             open_absolute_directory_nofollow(&canonical_base).at(&canonical_base)?;
@@ -142,6 +142,18 @@ impl RetainedStorageLane {
             "private resolver lane pathname no longer identifies its retained directory",
         )
     }
+}
+
+// Cache custody refuses a group- or world-writable ancestor, so a cache base the
+// resolver creates must not take its mode from the user's umask: under the
+// common umask 002 an ordinary `create_dir_all` would make a base the next
+// custody check refuses. Directories that already exist keep their mode.
+fn create_missing_private_directories(base: &Path) -> std::io::Result<()> {
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+    builder.create(base)
 }
 
 #[cfg(target_os = "windows")]

@@ -53,6 +53,29 @@ fn temp_root_at(name: &str, stamp: u128) -> PathBuf {
     ))
 }
 
+/// Create a fixture directory, and any missing parents, private to the test's
+/// user. Cache custody refuses a group- or world-writable cache entry or
+/// ancestor, so a fixture that holds a cache must not take its mode from the
+/// host's umask: under umask 002 an ordinary `create_dir_all` would make the
+/// test fail on its fixture instead of the check it means to exercise.
+pub(crate) fn create_private_dir_all(path: &Path) -> std::io::Result<()> {
+    private_directory_builder(true).create(path)
+}
+
+/// Create one private fixture directory whose parent already exists, such as a
+/// replacement standing at a path a test displaced.
+pub(crate) fn create_private_dir(path: &Path) -> std::io::Result<()> {
+    private_directory_builder(false).create(path)
+}
+
+fn private_directory_builder(recursive: bool) -> std::fs::DirBuilder {
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(recursive);
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+    builder
+}
+
 pub(crate) fn remove_fixture(source_root: &Path, storage_base: &Path) {
     let _ = std::fs::remove_dir_all(source_root);
     make_tree_owner_writable(storage_base);

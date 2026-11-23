@@ -166,6 +166,27 @@ impl BoundedProcessPrepared {
         Ok(raw)
     }
 
+    /// Make every file and directory the child creates private to its user,
+    /// whatever umask the parent inherited. A resolver writing into a cache
+    /// whose custody check refuses group- or world-writable entries needs
+    /// this: under the common umask 002 its children would otherwise create
+    /// entries the next check refuses.
+    pub fn create_private_files(&mut self) -> &mut Self {
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::CommandExt;
+            // SAFETY: the pre-exec closure makes one async-signal-safe
+            // `umask` call and captures nothing.
+            unsafe {
+                self.command.pre_exec(|| {
+                    libc::umask(0o077);
+                    Ok(())
+                });
+            }
+        }
+        self
+    }
+
     #[cfg(windows)]
     /// Keep the input stream the CLI selected before it prepared the child.
     pub fn preserve_configured_stdin(&mut self) {

@@ -5,8 +5,8 @@
 use super::{
     GitWorkspaceDeclaration, GitWorkspaceDeclarationLimits, GitWorkspaceProjectionPlanner,
     GitWorkspaceSelection, LocalSourceLimits, SourceRelativePath, create_git_source,
-    fixture_storage, local_git_request, remove_fixture, resolve_git_workspace_member, run_test_git,
-    temp_root,
+    create_private_dir_all, fixture_storage, local_git_request, remove_fixture,
+    resolve_git_workspace_member, run_test_git, temp_root,
 };
 struct FixedWorkspacePlanner {
     member: SourceRelativePath,
@@ -72,7 +72,7 @@ fn selected_workspace_member_never_materializes_unrelated_repository_payloads() 
     );
 
     let storage_base = temp_root("workspace-projection-resolution-storage");
-    std::fs::create_dir_all(&storage_base).expect("create storage base");
+    create_private_dir_all(&storage_base).expect("create storage base");
     let request = local_git_request(&repository, "HEAD");
     let storage = fixture_storage(&storage_base, &request);
     let member = SourceRelativePath::parse("packages/member").expect("member path");

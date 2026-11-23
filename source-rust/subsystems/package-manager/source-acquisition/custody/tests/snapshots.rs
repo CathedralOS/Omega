@@ -8,6 +8,7 @@ use super::{
     make_tree_owner_writable, open_verified_git_repository, primed_git_cache, remove_fixture,
     temp_root, write_snapshot_file_from_open_root,
 };
+use crate::test_support::{create_private_dir, create_private_dir_all};
 use std::path::Path;
 
 #[test]
@@ -19,7 +20,7 @@ fn materialized_snapshot_writes_and_cleanup_remain_bound_to_the_open_stage() {
     let root = temp_root("retained-materialized-stage");
     let snapshots = root.join("snapshots");
     let retained_parent = root.join("retained-snapshots");
-    std::fs::create_dir_all(&snapshots).expect("create snapshot parent");
+    create_private_dir_all(&snapshots).expect("create snapshot parent");
     let pending = PendingMaterializedSnapshot::create(
         CacheCustodyKind::LocalSnapshot,
         &snapshots,
@@ -29,7 +30,7 @@ fn materialized_snapshot_writes_and_cleanup_remain_bound_to_the_open_stage() {
     let stage_name = pending.stage_name.clone();
 
     std::fs::rename(&snapshots, &retained_parent).expect("replace snapshot parent path");
-    std::fs::create_dir(&snapshots).expect("create replacement snapshot parent");
+    create_private_dir(&snapshots).expect("create replacement snapshot parent");
     write_snapshot_file_from_open_root(
         CacheCustodyKind::LocalSnapshot,
         pending.directory().expect("retain stage directory"),
@@ -118,13 +119,13 @@ fn git_snapshot_bootstrap_and_staging_remain_bound_to_the_retained_entry() {
 fn materialized_snapshot_publication_rejects_a_replaced_stage_name() {
     let root = temp_root("replaced-materialized-stage");
     let snapshots = root.join("snapshots");
-    std::fs::create_dir_all(&snapshots).expect("create snapshot parent");
+    create_private_dir_all(&snapshots).expect("create snapshot parent");
     let mut pending =
         PendingMaterializedSnapshot::create(CacheCustodyKind::Git, &snapshots, ".tree-test.stage")
             .expect("create retained materialization stage");
     let displaced = snapshots.join("displaced-stage");
     std::fs::rename(&pending.root, &displaced).expect("displace retained stage name");
-    std::fs::create_dir(&pending.root).expect("create replacement stage directory");
+    create_private_dir(&pending.root).expect("create replacement stage directory");
     let replacement = pending.root.clone();
     let publication = snapshots.join("tree-test");
 

@@ -214,12 +214,12 @@ mod tests {
     )]
     fn retained_private_root_rejects_path_replacement() {
         let base = isolated_base("replacement");
-        std::fs::create_dir_all(&base).expect("create isolated cache base");
+        crate::test_support::create_private_dir_all(&base).expect("create isolated cache base");
         let storage = SourceResolver::create_beneath(&base, PrimaryGitChoices::default())
             .expect("production private-root constructor");
         let retained = storage.root().with_extension("retained");
         std::fs::rename(storage.root(), &retained).expect("move retained root");
-        std::fs::create_dir(storage.root()).expect("replace root pathname");
+        crate::test_support::create_private_dir(storage.root()).expect("replace root pathname");
         let error = storage
             .verify_path_identity()
             .expect_err("replacement must not satisfy retained storage custody");
@@ -238,7 +238,7 @@ mod tests {
     fn retained_private_lane_rejects_path_replacement() {
         for lane_name in ["git-sources", "workspace-members", "external-local-sources"] {
             let base = isolated_base(&format!("lane-replacement-{lane_name}"));
-            std::fs::create_dir_all(&base).expect("create isolated cache base");
+            crate::test_support::create_private_dir_all(&base).expect("create isolated cache base");
             let storage = SourceResolver::create_beneath(&base, PrimaryGitChoices::default())
                 .expect("production private-root constructor");
             let lane = match lane_name {
@@ -250,7 +250,7 @@ mod tests {
             .to_path_buf();
             let retained = lane.with_extension("retained");
             std::fs::rename(&lane, &retained).expect("move retained lane");
-            std::fs::create_dir(&lane).expect("replace lane pathname");
+            crate::test_support::create_private_dir(&lane).expect("replace lane pathname");
             let error = storage
                 .verify_path_identity()
                 .expect_err("replacement must not satisfy retained lane custody");
@@ -262,5 +262,28 @@ mod tests {
             drop(storage);
             let _ = std::fs::remove_dir_all(base);
         }
+    }
+
+    // Custody refuses a group- or world-writable ancestor, so a cache base the
+    // resolver creates itself must be private whatever the host's umask. With
+    // `create_dir_all` it was 0755 under umask 022 and 0775 under umask 002,
+    // and the second made every later resolution refuse its own cache.
+    #[test]
+    #[cfg(unix)]
+    fn a_cache_base_the_resolver_creates_is_private_to_its_user() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let base = isolated_base("created-base").join("nested");
+        let storage = SourceResolver::create_beneath(&base, PrimaryGitChoices::default())
+            .expect("create a missing cache base");
+        for directory in [base.parent().expect("base parent"), base.as_path()] {
+            let mode = std::fs::metadata(directory)
+                .expect("read created base mode")
+                .permissions()
+                .mode();
+            assert_eq!(mode & 0o777, 0o700, "{}", directory.display());
+        }
+        drop(storage);
+        let _ = std::fs::remove_dir_all(base.parent().expect("base parent"));
     }
 }
