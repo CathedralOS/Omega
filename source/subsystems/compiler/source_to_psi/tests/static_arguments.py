@@ -2,6 +2,7 @@
 
 import argparse
 import re
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -11,7 +12,6 @@ PACKAGE = Path(__file__).resolve().parents[1]
 RESOLVER = "pipeline/syntax_trees_to_symbol_resolved_trees/"
 TYPER = "pipeline/symbol_resolved_trees_to_typed_trees/"
 DECLARATIONS = {
-    "representations/tokens/numeric.omg": ["IntegerSuffix"],
     "representations/syntax_trees/syntax_trees.omg": [
         "GenericParameterKind", "TypeReferenceKind", "ReferenceAccess", "IntegerLiteral",
         "static_integer_is_valid", "same_type_form",
@@ -48,8 +48,13 @@ def main():
     with tempfile.TemporaryDirectory(prefix="omega-static-arguments-") as directory:
         root = Path(directory)
         (root / "build.omg").write_bytes((fixture / "build.omg").read_bytes())
+        numeric = Path("representations/tokens/numeric.omg")
+        (root / numeric).parent.mkdir(parents=True)
+        shutil.copyfile(PACKAGE / numeric, root / numeric)
         program = root / "main.omg"
-        program.write_text("\n\n".join([*units, (fixture / "main.omg").read_text()]))
+        units.insert(0, "use representations/tokens/numeric.omg;")
+        units.append((fixture / "main.omg").read_text())
+        program.write_text("\n\n".join(units))
         result = subprocess.run(
             [args.omega.resolve(), "run", "--both", root / "build.omg"],
             text=True,
