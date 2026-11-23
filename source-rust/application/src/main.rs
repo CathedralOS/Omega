@@ -48,15 +48,8 @@ static ALLOCATOR: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 fn main() -> ExitCode {
     terminal_runtime::run_native_provider_worker_if_requested();
-    // `--verbose` belongs to every command: it says how much of a failure
-    // to print, not what to do, so it is taken out before the command reads
-    // its own arguments.
-    let (verbose, arguments): (Vec<_>, Vec<_>) = std::env::args_os()
-        .skip(1)
-        .partition(|argument| argument == "--verbose");
-    let output = diagnostic_output::DiagnosticOutput { verbose: !verbose.is_empty() };
-    let invocation = match arguments::parse(arguments.into_iter()) {
-        Ok(invocation) => invocation,
+    let (invocation, output) = match arguments::parse(std::env::args_os().skip(1)) {
+        Ok(parsed) => parsed,
         Err(error) => {
             eprintln!("{error}");
             return ExitCode::from(arguments::USAGE_ERROR_EXIT);
