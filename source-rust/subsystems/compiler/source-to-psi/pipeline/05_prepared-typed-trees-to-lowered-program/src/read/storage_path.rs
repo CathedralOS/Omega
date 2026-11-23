@@ -98,14 +98,21 @@ impl<'a, C: Borrow<Expression>> Captures<'a, C> {
     }
 }
 
+pub(super) fn root<'a, C: Borrow<Expression>>(
+    machine: MachineId,
+    place: &'a Expression,
+    subjects: &'a [(Capture, C)],
+) -> Checked<&'a Expression> {
+    let mut captures = Captures::new(machine, subjects);
+    walk(place, |capture| captures.resolve(capture), |_, _| Ok(()))
+}
+
 pub(super) fn root_slot<C: Borrow<Expression>>(
     machine: MachineId,
     place: &Expression,
     subjects: &[(Capture, C)],
 ) -> Checked<Option<usize>> {
-    let mut captures = Captures::new(machine, subjects);
-    let root = walk(place, |capture| captures.resolve(capture), |_, _| Ok(()))?;
-    Ok(match root.kind {
+    Ok(match root(machine, place, subjects)?.kind {
         ExpressionKind::Slot(slot) => Some(slot),
         _ => None,
     })

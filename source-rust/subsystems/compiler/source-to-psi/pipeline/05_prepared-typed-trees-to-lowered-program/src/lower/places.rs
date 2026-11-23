@@ -2397,7 +2397,10 @@ impl<'a> Lowering<'a> {
                 Err(self.internal("an atomic scalar event is used as structural storage"))
             }
             ExpressionKind::OwnedTemporary { .. } => {
-                Err(self.internal("a loan temporary is used outside loan formation"))
+                let (root, path, place, _) = continuing!(self.capture_place(expression));
+                // A reference into this copy can outlive the call that borrows it.
+                // Normal owned-root cleanup retires its storage.
+                Ok(Reached::Value(Located { root, place, path, record, fresh: false }))
             }
             ExpressionKind::Zero => {
                 let (root, place) = self.establish_zeroed(value_type, expression.source)?;

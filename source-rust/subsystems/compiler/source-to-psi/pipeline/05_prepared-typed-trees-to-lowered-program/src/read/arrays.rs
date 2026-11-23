@@ -304,7 +304,8 @@ impl Program<'_> {
             }
             view = actual;
         }
-        let mut base = self.expression(machine, slots, indexed.collection, None)?;
+        let backing_access = if written_access == ReferenceAccess::Mutable { Access::Write } else { Access::Borrow };
+        let mut base = self.place(machine, slots, indexed.collection, None, backing_access)?;
         if let Some((referent, _)) = self.reference_referent(
             machine,
             base.result
