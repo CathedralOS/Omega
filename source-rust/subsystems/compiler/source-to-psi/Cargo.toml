@@ -123,6 +123,11 @@ path = "pipeline/04_typed-trees-to-prepared-typed-trees/tests/prepared_value_inp
 required-features = ["test-support"]
 
 [[test]]
+name = "preparation_prepared_invocations"
+path = "pipeline/04_typed-trees-to-prepared-typed-trees/tests/prepared_invocations.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "lowering_prepared_boolean_patterns"
 path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/prepared_boolean_patterns.rs"
 required-features = ["test-support"]
