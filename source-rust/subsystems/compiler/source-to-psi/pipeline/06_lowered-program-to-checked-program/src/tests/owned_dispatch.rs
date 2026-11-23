@@ -133,7 +133,8 @@ machine apply(state: @{access}State, level: i32) {{ }}
 #[test]
 fn dispatch_requires_the_last_tag_written_to_the_selected_field() {
     let program = |second_write: &str| {
-        format!(r#"
+        format!(
+            r#"
 data Command {{ case Off; case Set(level: i32); }}
 data State {{ command: Command; other: Command; }}
 machine build_entry(state: @mutable State) {{
@@ -145,7 +146,8 @@ machine build_entry(state: @mutable State) {{
     }}
 }}
 machine consume(level: i32) requires level == 1 {{ }}
-"#)
+"#
+        )
     };
     assert_eq!(
         verdict(&program("state.other = Command::Set { level: 9 };")),
@@ -155,7 +157,11 @@ machine consume(level: i32) requires level == 1 {{ }}
     let Ok(RouteVerdict::Rejected { unproved, .. }) = result else {
         panic!("the reachable call must still establish its requirement");
     };
-    assert!(unproved.iter().any(|row| row.statement.contains("requires contract for call consume")));
+    assert!(
+        unproved
+            .iter()
+            .any(|row| row.statement.contains("requires contract for call consume"))
+    );
 }
 
 /// The controller's Dim arm also owes its contract when the caller supplies
@@ -188,7 +194,11 @@ machine consume(state: @mutable State, level: i32) requires level >= 0 && level 
     let Ok(RouteVerdict::Rejected { unproved, .. }) = judge_build(&program(11)) else {
         panic!("an eleven-step dim command can exceed one hundred");
     };
-    assert!(unproved.iter().any(|row| row.statement.contains("requires contract for call consume")));
+    assert!(
+        unproved
+            .iter()
+            .any(|row| row.statement.contains("requires contract for call consume"))
+    );
 }
 
 /// The discard on a dispatch edge is the affine judgment's to hold to its

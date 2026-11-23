@@ -561,7 +561,9 @@ pub(crate) fn premise(
             })
             .unwrap_or_else(|| String::from("a callee's guarantee")),
         Justification::BranchCondition { .. } => String::from("an earlier branch condition"),
-        Justification::ExcludedDispatchCase { .. } => String::from("the dispatch observes a different case on every arrival"),
+        Justification::ExcludedDispatchCase { .. } => {
+            String::from("the dispatch observes a different case on every arrival")
+        }
         Justification::DispatchBinding { .. } => String::from("the case a dispatch selected"),
         Justification::BlockInvariant { .. } => String::from("a block invariant"),
         Justification::FormalType => String::from("the declared type of a formal"),

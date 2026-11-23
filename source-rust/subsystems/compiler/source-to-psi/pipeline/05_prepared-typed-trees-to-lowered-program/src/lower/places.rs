@@ -1024,7 +1024,8 @@ fn statement_homes<'b>(
     homes: &mut impl FnMut(ValueType, Option<&'b String>, Option<usize>),
 ) {
     match statement {
-        Statement::Observe { value, .. } | Statement::Bind { value, .. }
+        Statement::Observe { value, .. }
+        | Statement::Bind { value, .. }
         | Statement::Decompose { subject: value }
         | Statement::Evaluate {
             expression: value, ..
@@ -3471,7 +3472,10 @@ impl<'a> Lowering<'a> {
                 if let Some(Bound::Observed(index)) = bound {
                     let at = &self.observed[index];
                     return Ok(Reached::Value((
-                        at.root, at.path.clone(), at.place, value_type,
+                        at.root,
+                        at.path.clone(),
+                        at.place,
+                        value_type,
                     )));
                 }
                 let root = match bound {

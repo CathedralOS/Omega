@@ -1082,7 +1082,8 @@ impl<'a> Lowering<'a> {
             // statement and none is reported for it.
             let first = statements.find_map(|statement| match statement {
                 Statement::Witness { .. } | Statement::ParkedBuildLocals(..) => None,
-                Statement::Observe { value, .. } | Statement::Bind { value, .. }
+                Statement::Observe { value, .. }
+                | Statement::Bind { value, .. }
                 | Statement::Decompose { subject: value }
                 | Statement::Evaluate {
                     expression: value, ..

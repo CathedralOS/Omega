@@ -542,7 +542,8 @@ fn owned_local(body: &Body, signature: &Signature, slot: usize) -> bool {
 fn statements<'body>(statements: &'body [Statement], sites: &mut BodyWalk<'body, '_>) {
     for statement in statements {
         match statement {
-            Statement::Observe { value, .. } | Statement::Bind { value, .. }
+            Statement::Observe { value, .. }
+            | Statement::Bind { value, .. }
             | Statement::Decompose { subject: value }
             | Statement::Evaluate {
                 expression: value, ..

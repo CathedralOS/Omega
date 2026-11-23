@@ -4524,12 +4524,17 @@ impl<'a> Storage<'a> {
             source,
             path,
             cases,
-        } = &block.terminator else {
+        } = &block.terminator
+        else {
             return Ok(Vec::new());
         };
         let concerns = Construct::Block(block.id);
         let subject = self.stored_at(*source, path, concerns)?;
-        if subject.segments.iter().any(|part| matches!(part, Segment::RuntimeIndex { .. })) {
+        if subject
+            .segments
+            .iter()
+            .any(|part| matches!(part, Segment::RuntimeIndex { .. }))
+        {
             return Ok(Vec::new());
         }
         let Reached::Case(selected) = self.reaching(
@@ -4539,7 +4544,8 @@ impl<'a> Storage<'a> {
             (block.id, usize::MAX),
             &mut self.budget(),
             concerns,
-        )? else {
+        )?
+        else {
             return Ok(Vec::new());
         };
         Ok(cases
