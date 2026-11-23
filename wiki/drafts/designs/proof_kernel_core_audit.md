@@ -671,6 +671,24 @@ deleted it (`f4c7a70beb^`). It is not to be restored. It is read here for
 two things: what its shape says about the old way of working, and what its
 programs say a compiler has to accept and refuse.
 
+**Reading every program in full is not worth its cost; running the rejected
+ones is the cheaper test, and today it is blocked by syntax.** Every fixture
+is indexed and its stated purpose read, about 1,600 were opened, and the
+clause forms below come from a search over every file. What reading cannot
+tell is whether today's compiler still refuses what a rejected fixture
+tests, and the probes showed that readings of the compiler were wrong about
+half the time. The corpus has 8,038 rejected fixtures. A random sample of 60
+was run through today's compiler unchanged: 55 stop on syntax the language
+has since retired (`&mut`, the old entry form, arms without commas), so
+their refusal says nothing about the rule they test; 4 reach a semantic
+error; 1 compiles. That one is `fail/data/opaque_copy_unselected`
+(`boundary data Token [copy];`, expected "cannot claim `[copy]` without an
+admitted property receipt"). Whether the spec still has that rule was not
+determined. So a mechanical run finds leads only after the fixtures are
+rewritten to current syntax, and the better use of the corpus is the one
+this audit already makes: recover the one pair a step needs, in current
+syntax, beside the test that owns it.
+
 **38% of the corpus was one matrix.** 6,438 fixtures are named
 `<feature>_through_<placement>`: 379 features, each written through the same
 nine placements, each as an accepted and a rejected program. Each placement
@@ -1086,6 +1104,13 @@ Recorded, not answered:
   on `main` without these changes, so it was not used as a check. Nothing
   was run on a target other than `linux_x86_64`, and no full-workspace test
   run was made.
+- Corpus sample (2026-11-23): 60 directories drawn at random (seed 7) from
+  the 8,038 under `fail/` at `f4c7a70beb^`; each fixture's `.omg` files
+  were copied beside a current `build.omg` that binds `main`, and checked
+  with `omega --check --target linux_x86_64`. Outcomes are grouped by the
+  first error line. The replaced `build.omg` drops any dependency the
+  fixture declared, which is one more reason a refusal here does not test
+  the fixture's rule.
 - Two reviews by other models (2026-11-23) were checked claim by claim
   against the source, and these corrections come from them: the spec does
   forbid a repeated parameter name; `ElementViewWrite` is missing from the
