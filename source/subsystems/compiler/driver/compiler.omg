@@ -1,26 +1,16 @@
-use {psi}/pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
-use {psi}/pipeline/syntax_trees_to_symbol_resolved_trees/resolver.omg;
+use {compiler_alpha}/emit.omg;
+use {psi}/pipeline/checked_trees_to_scalar_operations/lowerer.omg;
+use {psi}/pipeline/checked_trees_to_scalar_operations/scalar.omg;
+use {psi}/pipeline/source_files_to_tokens/lexer.omg;
 use {psi}/pipeline/symbol_resolved_trees_to_typed_trees/typer.omg;
 use {psi}/pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg;
-use {psi}/pipeline/checked_trees_to_scalar_operations/scalar.omg;
-use {psi}/pipeline/checked_trees_to_scalar_operations/lowerer.omg;
-use compiler_alpha\AlphaEmitter;
-use psi\pipeline\source_files_to_tokens\Lexer;
-use psi\pipeline\source_files_to_tokens\tokenize;
-use psi\pipeline\tokens_to_syntax_trees\Parser;
-use psi\pipeline\tokens_to_syntax_trees\parse;
-use psi\pipeline\tokens_to_syntax_trees\parser_initialize;
-use psi\pipeline\typed_trees_to_checked_trees\Checker;
-use psi\pipeline\typed_trees_to_checked_trees\checker_check;
-use psi\representations\lowered_program\ScalarStatus;
-use psi\representations\source_files\ModulePath;
-use psi\representations\source_files\SourceSet;
-use psi\representations\source_files\SourceSpan;
-use psi\representations\source_files\source_set_add;
-use psi\representations\source_files\source_set_clear;
-use psi\representations\source_files\span_spells;
-use psi\representations\syntax_trees\MachineItem;
-use psi\representations\syntax_trees\machine_item;
+use {psi}/pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
+use {psi}/pipeline/syntax_trees_to_symbol_resolved_trees/resolver.omg;
+use {psi}/pipeline/tokens_to_syntax_trees/parser.omg;
+use {psi}/pipeline/typed_trees_to_checked_trees/checker.omg;
+use {psi}/representations/lowered_program/scalar.omg as scalar_program;
+use {psi}/representations/source_files/source.omg;
+use {psi}/representations/syntax_trees/syntax_trees.omg;
 
 // Compilation consumes an explicit closed source set. Package acquisition and
 // public OCREQ admission are separate owners; neither is inferred from a path
@@ -40,16 +30,16 @@ public data CompilationStatus [copy] {
 }
 
 public data Compilation {
-    sources: SourceSet;
-    parser: Parser;
-    output: AlphaEmitter;
+    sources: |source|::SourceSet;
+    parser: |parser|::Parser;
+    output: |emit|::AlphaEmitter;
     status: CompilationStatus;
-    diagnostic: SourceSpan;
+    diagnostic: |source|::SourceSpan;
 }
 
 public machine compilation_clear(compilation: @mutable Compilation) {
-    source_set_clear(@mutable compilation.sources);
-    parser_initialize(@mutable compilation.parser);
+    |source|::source_set_clear(@mutable compilation.sources);
+    |parser|::parser_initialize(@mutable compilation.parser);
     compilation.output.complete = false;
     compilation.output.length = 0;
     compilation.status = CompilationStatus::Collecting;
@@ -58,41 +48,41 @@ public machine compilation_clear(compilation: @mutable Compilation) {
 // One source unit retains its bytes and source identity before parsing appends
 // declarations. A failure is sticky: no later unit or finish call can turn an
 // incomplete source set into a published artifact.
-public machine compilation_add_unit(compilation: @mutable Compilation, lexer: @mutable Lexer, package: u64 in Trapping, module_path: @ModulePath)
+public machine compilation_add_unit(compilation: @mutable Compilation, lexer: @mutable |lexer|::Lexer, package: u64 in Trapping, module_path: @|source|::ModulePath)
 crashes Trap
 {
     transition compilation.status {
         CompilationStatus::Collecting -> verify_identity(compilation, lexer, package, module_path),
         _ -> done()
     }
-    machine verify_identity(compilation: @mutable Compilation, lexer: @mutable Lexer, package: u64 in Trapping, module_path: @ModulePath) {
+    machine verify_identity(compilation: @mutable Compilation, lexer: @mutable |lexer|::Lexer, package: u64 in Trapping, module_path: @|source|::ModulePath) {
         transition (lexer.source.id.value as -Trapping) == compilation.sources.unit_count {
             true -> retain(compilation, lexer, package, module_path),
             _ -> invalid(compilation)
         }
     }
-    machine retain(compilation: @mutable Compilation, lexer: @mutable Lexer, package: u64 in Trapping, module_path: @ModulePath) {
-        let added: bool = source_set_add(@mutable compilation.sources, @lexer.source, package, module_path);
+    machine retain(compilation: @mutable Compilation, lexer: @mutable |lexer|::Lexer, package: u64 in Trapping, module_path: @|source|::ModulePath) {
+        let added: bool = |source|::source_set_add(@mutable compilation.sources, @lexer.source, package, module_path);
         transition added {
             true -> tokenize_unit(compilation, lexer),
             _ -> full(compilation)
         }
     }
-    machine tokenize_unit(compilation: @mutable Compilation, lexer: @mutable Lexer) {
-        tokenize(lexer);
+    machine tokenize_unit(compilation: @mutable Compilation, lexer: @mutable |lexer|::Lexer) {
+        |lexer|::tokenize(lexer);
         transition lexer.output.accepted {
             true -> parse_unit(compilation, lexer),
             _ -> lexical(compilation, lexer)
         }
     }
-    machine parse_unit(compilation: @mutable Compilation, lexer: @Lexer) {
-        parse(@mutable compilation.parser, lexer.source.id, lexer.source.length as +Trapping, @lexer.output);
+    machine parse_unit(compilation: @mutable Compilation, lexer: @|lexer|::Lexer) {
+        |parser|::parse(@mutable compilation.parser, lexer.source.id, lexer.source.length as +Trapping, @lexer.output);
         transition compilation.parser.output.accepted {
             true -> done(),
             _ -> parsing(compilation)
         }
     }
-    machine lexical(compilation: @mutable Compilation, lexer: @Lexer) {
+    machine lexical(compilation: @mutable Compilation, lexer: @|lexer|::Lexer) {
         compilation.status = CompilationStatus::Lexical;
         compilation.diagnostic = lexer.output.diagnostic.source_span;
     }
@@ -122,10 +112,10 @@ crashes Trap
         }
     }
     machine candidate(compilation: @mutable Compilation, entry_unit: u32, entry_name: @[u8], index: u64 in Trapping, selected: u64 in Trapping, found: bool) {
-        let item: MachineItem = machine_item(@compilation.parser.output, index);
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(@compilation.parser.output, index);
         let matches: bool = item.parent == 0
             && (item.source_span.source.value as -Trapping) == entry_unit
-            && span_spells(@compilation.sources, item.name.source_span, entry_name);
+            && |source|::span_spells(@compilation.sources, item.name.source_span, entry_name);
         transition matches {
             true -> choose(compilation, entry_unit, entry_name, index, found),
             _ -> find(compilation, entry_unit, entry_name, index + 1, selected, found)
@@ -160,24 +150,24 @@ crashes Trap
         }
     }
     machine check(compilation: @mutable Compilation, selected: u64 in Trapping, resolver: @|resolution_state|::Resolver, typer: @|typing_state|::Typer) {
-        let mutable checker: Checker;
-        checker_check(@mutable checker, @compilation.parser.output, @resolver.output, @typer.output);
+        let mutable checker: |checker|::Checker;
+        |checker|::checker_check(@mutable checker, @compilation.parser.output, @resolver.output, @typer.output);
         transition checker.output.accepted {
             true -> lower(compilation, selected, resolver, typer, @checker),
             _ -> checking_failed(compilation)
         }
     }
-    machine lower(compilation: @mutable Compilation, selected: u64 in Trapping, resolver: @|resolution_state|::Resolver, typer: @|typing_state|::Typer, checker: @Checker) {
+    machine lower(compilation: @mutable Compilation, selected: u64 in Trapping, resolver: @|resolution_state|::Resolver, typer: @|typing_state|::Typer, checker: @|checker|::Checker) {
         let mutable lowerer: |lowerer|::ScalarLowerer;
         |scalar|::scalar_lower(@mutable lowerer, @compilation.parser.output, @resolver.output, @typer.output, @checker.output, selected);
         transition lowerer.output.status {
-            ScalarStatus::Complete -> emit(compilation, @lowerer),
-            ScalarStatus::Capacity -> full(compilation),
+            |scalar_program|::ScalarStatus::Complete -> emit(compilation, @lowerer),
+            |scalar_program|::ScalarStatus::Capacity -> full(compilation),
             _ -> unsupported(compilation)
         }
     }
     machine emit(compilation: @mutable Compilation, lowerer: @|lowerer|::ScalarLowerer) {
-        compiler_alpha\alpha_emit(@mutable compilation.output, @lowerer.output);
+        |emit|::alpha_emit(@mutable compilation.output, @lowerer.output);
         transition compilation.output.complete {
             true -> complete(compilation),
             _ -> full(compilation)

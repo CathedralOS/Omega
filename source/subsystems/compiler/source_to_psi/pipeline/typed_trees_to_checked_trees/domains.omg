@@ -1,26 +1,15 @@
-use foundation\ExactInteger;
-use representations\symbol_resolved_trees\NameResolution;
-use representations\symbol_resolved_trees\ValueBinding;
-use representations\symbol_resolved_trees\value_binding;
-use representations\syntax_trees\Clause;
-use representations\syntax_trees\ClauseKind;
-use representations\syntax_trees\ConstructField;
-use representations\syntax_trees\DataCase;
-use representations\syntax_trees\DataItem;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\Statement;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\syntax_trees_clause;
-use representations\syntax_trees\syntax_trees_construct_field;
-use representations\syntax_trees\syntax_trees_data_case;
-use representations\syntax_trees\syntax_trees_data_item;
-use representations\syntax_trees\syntax_trees_expression;
-use representations\syntax_trees\syntax_trees_statement;
-use representations\typed_trees\MemberTarget;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\Typing;
-use representations\typed_trees\construct_target;
+use pipeline/typed_trees_to_checked_trees/arrivals.omg;
+use pipeline/typed_trees_to_checked_trees/contracts.omg;
+use pipeline/typed_trees_to_checked_trees/flow.omg;
+use pipeline/typed_trees_to_checked_trees/obligations.omg;
+use pipeline/typed_trees_to_checked_trees/checker.omg;
+use pipeline/typed_trees_to_checked_trees/evaluation.omg;
+use pipeline/typed_trees_to_checked_trees/places.omg;
+
+use foundation/integers.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // Default domains (wiki/spec/language/dependent_values.md#default-domains-and-zero-initialization).
 // An established value of data whose declaration carries `requires` facts
@@ -39,7 +28,7 @@ public data DomainMark [copy] {
     case Installed;
 }
 
-public machine domain_mark(checker: @Checker, index: u64 in Trapping) -> DomainMark
+public machine domain_mark(checker: @|checker|::Checker, index: u64 in Trapping) -> DomainMark
 crashes Trap
 {
     transition index < 256 {
@@ -47,10 +36,10 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(checker: @Checker, index: u64 in Trapping) -> DomainMark
+    machine read(checker: @|checker|::Checker, index: u64 in Trapping) -> DomainMark
     requires index < 256
     {
-        checker.domains[index]
+        checker.domains[index as -Trapping]
     }
 
     machine invalid() -> DomainMark {
@@ -58,7 +47,7 @@ crashes Trap
     }
 }
 
-public machine set_domain_mark(checker: @mutable Checker, index: u64 in Trapping, mark: DomainMark)
+public machine set_domain_mark(checker: @mutable |checker|::Checker, index: u64 in Trapping, mark: DomainMark)
 crashes Trap
 {
     transition index < 256 {
@@ -66,10 +55,10 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(checker: @mutable Checker, index: u64 in Trapping, mark: DomainMark)
+    machine write(checker: @mutable |checker|::Checker, index: u64 in Trapping, mark: DomainMark)
     requires index < 256
     {
-        checker.domains[index] = mark;
+        checker.domains[index as -Trapping] = mark;
     }
 
     machine invalid() {
@@ -78,7 +67,7 @@ crashes Trap
 }
 
 // A new field place (zero-based) owes the facts naming its field.
-public machine note_field(checker: @mutable Checker, index: u64 in Trapping)
+public machine note_field(checker: @mutable |checker|::Checker, index: u64 in Trapping)
 crashes Trap
 {
     set_domain_mark(checker, index, DomainMark::Pending);
@@ -86,7 +75,7 @@ crashes Trap
 }
 
 // Install every owed field's facts.
-public machine install_domains(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing)
+public machine install_domains(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing)
 crashes Trap
 {
     transition checker.domains_pending {
@@ -94,19 +83,19 @@ crashes Trap
         _ -> done()
     }
 
-    machine sweep(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing) {
+    machine sweep(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing) {
         checker.domains_pending = false;
-        transition { _ -> next(checker, syntax, resolution, typing, 0) }
+        transition { _ -> next(checker, syntax, resolution, typing, 0 as +Trapping) }
     }
 
-    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping) {
+    machine next(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping) {
         transition index < checker.place_count {
             true -> visit(checker, syntax, resolution, typing, index),
             _ -> done()
         }
     }
 
-    machine visit(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping) {
+    machine visit(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping) {
         let mark: DomainMark = domain_mark(checker, index);
         transition mark == DomainMark::Pending {
             true -> install(checker, syntax, resolution, typing, index),
@@ -114,25 +103,25 @@ crashes Trap
         }
     }
 
-    machine install(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping) {
+    machine install(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping) {
         set_domain_mark(checker, index, DomainMark::Installed);
-        let field: Place = place_at(checker, index);
+        let field: |places|::Place = |places|::place_at(checker, index);
         let established: bool = checker_established(checker, syntax, field.parent);
-        let owner: Place = place_or_absent(checker, field.parent);
-        let row: TypeRow = referent_row(typing, owner.type_handle);
-        transition established && row.kind == TypeKind::Data {
+        let owner: |places|::Place = |arrivals|::place_or_absent(checker, field.parent);
+        let row: |typed_trees|::TypeRow = |obligations|::referent_row(typing, owner.type_handle);
+        transition established && row.kind == |typed_trees|::TypeKind::Data {
             true -> facts(checker, syntax, resolution, typing, index, field, row.item),
             _ -> next(checker, syntax, resolution, typing, index + 1)
         }
     }
 
-    machine facts(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, field: Place, item_handle: u64 in Trapping) {
-        let item: DataItem = syntax_trees_data_item(syntax, item_handle);
+    machine facts(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping, field: |places|::Place, item_handle: u64 in Trapping) {
+        let item: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, item_handle);
         let parent: u64 in Trapping = checker.fields_parent;
         checker.fields_parent = field.parent;
         let assumed: bool = decide_requires_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, false);
         checker.fields_parent = parent;
-        transition { _ -> saved(checker, syntax, resolution, typing, index, field, item, 0) }
+        transition { _ -> saved(checker, syntax, resolution, typing, index, field, item, 0 as +Trapping) }
     }
 
     // The facts hold of the established value on every path: a zone saved
@@ -140,23 +129,23 @@ crashes Trap
     // transition's) takes them too, or a later join or restore would lose
     // them. The places the facts name exist by now, so assuming them there
     // enters none.
-    machine saved(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, field: Place, item: DataItem, slot: u64 in Trapping) {
+    machine saved(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping, field: |places|::Place, item: |syntax_trees|::DataItem, slot: u64 in Trapping) {
         transition slot < checker.saved_count && slot < 8 {
             true -> into_saved(checker, syntax, resolution, typing, index, field, item, slot),
             _ -> next(checker, syntax, resolution, typing, index + 1)
         }
     }
 
-    machine into_saved(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, field: Place, item: DataItem, slot: u64 in Trapping)
+    machine into_saved(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping, field: |places|::Place, item: |syntax_trees|::DataItem, slot: u64 in Trapping)
     requires slot < 8
     {
         checker.stashed = checker.zone;
-        checker.zone = checker.saved[slot];
+        checker.zone = checker.saved[slot as -Trapping];
         let parent: u64 in Trapping = checker.fields_parent;
         checker.fields_parent = field.parent;
         let assumed: bool = decide_requires_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, false);
         checker.fields_parent = parent;
-        checker.saved[slot] = checker.zone;
+        checker.saved[slot as -Trapping] = checker.zone;
         checker.zone = checker.stashed;
         transition { _ -> saved(checker, syntax, resolution, typing, index, field, item, slot + 1) }
     }
@@ -167,37 +156,37 @@ crashes Trap
 // Whether the place (one-based) belongs to an established value: its root
 // is a parameter, a pattern binder, a call's result, a construction, an
 // operand's snapshot or a local with an initializer.
-public machine checker_established(checker: @Checker, syntax: @SyntaxTrees, place: u64 in Trapping) -> bool
+public machine checker_established(checker: @|checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, place: u64 in Trapping) -> bool
 crashes Trap
 {
     transition place > 0 {
-        true -> climb(checker, syntax, place, 0),
+        true -> climb(checker, syntax, place, 0 as +Trapping),
         _ -> no()
     }
 
-    machine climb(checker: @Checker, syntax: @SyntaxTrees, current: u64 in Trapping, depth: u64 in Trapping) -> bool {
-        let entry: Place = place_at(checker, current - 1);
-        transition (entry.kind == PlaceKind::Field || entry.kind == PlaceKind::Length) && entry.parent > 0 && depth < 256 {
+    machine climb(checker: @|checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, current: u64 in Trapping, depth: u64 in Trapping) -> bool {
+        let entry: |places|::Place = |places|::place_at(checker, current - 1);
+        transition (entry.kind == |places|::PlaceKind::Field || entry.kind == |places|::PlaceKind::Length) && entry.parent > 0 && depth < 256 {
             true -> climb(checker, syntax, entry.parent, depth + 1),
             _ -> root(syntax, entry)
         }
     }
 
-    machine root(syntax: @SyntaxTrees, entry: Place) -> bool {
+    machine root(syntax: @|syntax_trees|::SyntaxTrees, entry: |places|::Place) -> bool {
         transition entry.kind {
-            PlaceKind::Parameter -> yes(),
-            PlaceKind::Binder -> yes(),
-            PlaceKind::Call -> yes(),
-            PlaceKind::View -> yes(),
-            PlaceKind::Construction -> yes(),
-            PlaceKind::Snapshot -> yes(),
-            PlaceKind::Local -> local(syntax, entry.handle),
+            |places|::PlaceKind::Parameter -> yes(),
+            |places|::PlaceKind::Binder -> yes(),
+            |places|::PlaceKind::Call -> yes(),
+            |places|::PlaceKind::View -> yes(),
+            |places|::PlaceKind::Construction -> yes(),
+            |places|::PlaceKind::Snapshot -> yes(),
+            |places|::PlaceKind::Local -> local(syntax, entry.handle),
             _ -> no()
         }
     }
 
-    machine local(syntax: @SyntaxTrees, statement: u64 in Trapping) -> bool {
-        let declaration: Statement = syntax_trees_statement(syntax, statement);
+    machine local(syntax: @|syntax_trees|::SyntaxTrees, statement: u64 in Trapping) -> bool {
+        let declaration: |syntax_trees|::Statement = |syntax_trees|::syntax_trees_statement(syntax, statement);
         declaration.has_value
     }
 
@@ -214,10 +203,10 @@ crashes Trap
 // `requires` fact of a clause run that names `field`. An untyped fact naming
 // it is not proved.
 machine decide_requires_facts(
-    checker: @mutable Checker,
-    syntax: @SyntaxTrees,
-    resolution: @NameResolution,
-    typing: @Typing,
+    checker: @mutable |checker|::Checker,
+    syntax: @|syntax_trees|::SyntaxTrees,
+    resolution: @|symbol_resolved_trees|::NameResolution,
+    typing: @|typed_trees|::Typing,
     first_clause: u64 in Trapping,
     clause_count: u64 in Trapping,
     field: u64 in Trapping,
@@ -227,25 +216,25 @@ crashes Trap
 {
     transition { _ -> next(checker, syntax, resolution, typing, first_clause, first_clause + clause_count, field, proving) }
 
-    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool) -> bool {
+    machine next(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool) -> bool {
         transition index < end {
             true -> clause(checker, syntax, resolution, typing, index, end, field, proving),
             _ -> held()
         }
     }
 
-    machine clause(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool) -> bool {
-        let clause: Clause = syntax_trees_clause(syntax, index);
-        let named: bool = clause.kind == ClauseKind::Requires && clause.has_expression;
+    machine clause(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool) -> bool {
+        let clause: |syntax_trees|::Clause = |syntax_trees|::syntax_trees_clause(syntax, index);
+        let named: bool = clause.kind == |syntax_trees|::ClauseKind::Requires && clause.has_expression;
         transition named {
             true -> fact(checker, syntax, resolution, typing, index, end, field, proving, clause),
             _ -> next(checker, syntax, resolution, typing, index + 1, end, field, proving)
         }
     }
 
-    machine fact(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool, clause: Clause) -> bool {
+    machine fact(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool, clause: |syntax_trees|::Clause) -> bool {
         let mentions: bool = mentions_field(syntax, resolution, clause.expression, field);
-        let typed: bool = typed_fact(typing, clause);
+        let typed: bool = |contracts|::typed_fact(typing, clause);
         transition mentions {
             true -> owed(checker, syntax, resolution, typing, index, end, field, proving, clause.expression, typed),
             _ -> next(checker, syntax, resolution, typing, index + 1, end, field, proving)
@@ -253,10 +242,10 @@ crashes Trap
     }
 
     machine owed(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        typing: @|typed_trees|::Typing,
         index: u64 in Trapping,
         end: u64 in Trapping,
         field: u64 in Trapping,
@@ -270,15 +259,15 @@ crashes Trap
         }
     }
 
-    machine untyped(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool) -> bool {
+    machine untyped(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool) -> bool {
         transition proving {
             true -> failed(),
             _ -> next(checker, syntax, resolution, typing, index + 1, end, field, proving)
         }
     }
 
-    machine decided(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool, root: u64 in Trapping) -> bool {
-        let holds: bool = decide_fact(checker, syntax, resolution, typing, root, proving);
+    machine decided(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, index: u64 in Trapping, end: u64 in Trapping, field: u64 in Trapping, proving: bool, root: u64 in Trapping) -> bool {
+        let holds: bool = |flow|::decide_fact(checker, syntax, resolution, typing, root, proving);
         transition holds {
             true -> next(checker, syntax, resolution, typing, index + 1, end, field, proving),
             _ -> failed()
@@ -295,28 +284,28 @@ crashes Trap
 }
 
 // Whether a fact's tree names `field` (a data fact's bare field name).
-public machine mentions_field(syntax: @SyntaxTrees, resolution: @NameResolution, root: u64 in Trapping, wanted: u64 in Trapping) -> bool
+public machine mentions_field(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, root: u64 in Trapping, wanted: u64 in Trapping) -> bool
 crashes Trap
 {
-    let tree: Expression = syntax_trees_expression(syntax, root);
+    let tree: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, root);
     transition { _ -> next(syntax, resolution, root, wanted, tree.first_row) }
 
-    machine next(syntax: @SyntaxTrees, resolution: @NameResolution, root: u64 in Trapping, wanted: u64 in Trapping, handle: u64 in Trapping) -> bool {
+    machine next(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, root: u64 in Trapping, wanted: u64 in Trapping, handle: u64 in Trapping) -> bool {
         transition handle <= root {
             true -> node(syntax, resolution, root, wanted, handle),
             _ -> absent()
         }
     }
 
-    machine node(syntax: @SyntaxTrees, resolution: @NameResolution, root: u64 in Trapping, wanted: u64 in Trapping, handle: u64 in Trapping) -> bool {
-        let binding: ValueBinding = value_binding(resolution, handle);
+    machine node(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, root: u64 in Trapping, wanted: u64 in Trapping, handle: u64 in Trapping) -> bool {
+        let binding: |symbol_resolved_trees|::ValueBinding = |symbol_resolved_trees|::value_binding(resolution, handle);
         transition binding {
-            ValueBinding::Field { field } -> named(syntax, resolution, root, wanted, handle, field),
+            |symbol_resolved_trees|::ValueBinding::Field { field } -> named(syntax, resolution, root, wanted, handle, field),
             _ -> next(syntax, resolution, root, wanted, handle + 1)
         }
     }
 
-    machine named(syntax: @SyntaxTrees, resolution: @NameResolution, root: u64 in Trapping, wanted: u64 in Trapping, handle: u64 in Trapping, found: u64 in Trapping) -> bool {
+    machine named(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, root: u64 in Trapping, wanted: u64 in Trapping, handle: u64 in Trapping, found: u64 in Trapping) -> bool {
         transition found == wanted {
             true -> present(),
             _ -> next(syntax, resolution, root, wanted, handle + 1)
@@ -334,20 +323,20 @@ crashes Trap
 
 // After a value is forgotten, the facts installed for its fields and for
 // fields inside it are owed again.
-public machine reopen_domains(checker: @mutable Checker, place: u64 in Trapping)
+public machine reopen_domains(checker: @mutable |checker|::Checker, place: u64 in Trapping)
 crashes Trap
 {
-    transition { _ -> next(checker, place, 0) }
+    transition { _ -> next(checker, place, 0 as +Trapping) }
 
-    machine next(checker: @mutable Checker, place: u64 in Trapping, index: u64 in Trapping) {
+    machine next(checker: @mutable |checker|::Checker, place: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.place_count {
             true -> visit(checker, place, index),
             _ -> done()
         }
     }
 
-    machine visit(checker: @mutable Checker, place: u64 in Trapping, index: u64 in Trapping) {
-        let within: bool = checker_within(checker, index + 1, place);
+    machine visit(checker: @mutable |checker|::Checker, place: u64 in Trapping, index: u64 in Trapping) {
+        let within: bool = |places|::checker_within(checker, index + 1, place);
         let mark: DomainMark = domain_mark(checker, index);
         transition within && mark == DomainMark::Installed {
             true -> reopened(checker, place, index),
@@ -355,7 +344,7 @@ crashes Trap
         }
     }
 
-    machine reopened(checker: @mutable Checker, place: u64 in Trapping, index: u64 in Trapping) {
+    machine reopened(checker: @mutable |checker|::Checker, place: u64 in Trapping, index: u64 in Trapping) {
         set_domain_mark(checker, index, DomainMark::Pending);
         checker.domains_pending = true;
         transition { _ -> next(checker, place, index + 1) }
@@ -367,19 +356,19 @@ crashes Trap
 // Whether storing the field place `written` (one-based) left its value's
 // domain intact: every fact naming the field holds as the value's fields
 // now are.
-public machine domain_holds(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, written: u64 in Trapping) -> bool
+public machine domain_holds(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, written: u64 in Trapping) -> bool
 crashes Trap
 {
-    let field: Place = place_or_absent(checker, written);
-    let owner: Place = place_or_absent(checker, field.parent);
-    let row: TypeRow = referent_row(typing, owner.type_handle);
-    transition row.kind == TypeKind::Data && field.parent > 0 {
+    let field: |places|::Place = |arrivals|::place_or_absent(checker, written);
+    let owner: |places|::Place = |arrivals|::place_or_absent(checker, field.parent);
+    let row: |typed_trees|::TypeRow = |obligations|::referent_row(typing, owner.type_handle);
+    transition row.kind == |typed_trees|::TypeKind::Data && field.parent > 0 {
         true -> data(checker, syntax, resolution, typing, field, row.item),
         _ -> held()
     }
 
-    machine data(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, field: Place, item_handle: u64 in Trapping) -> bool {
-        let item: DataItem = syntax_trees_data_item(syntax, item_handle);
+    machine data(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, field: |places|::Place, item_handle: u64 in Trapping) -> bool {
+        let item: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, item_handle);
         let parent: u64 in Trapping = checker.fields_parent;
         checker.fields_parent = field.parent;
         let held: bool = decide_requires_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, field.handle, true);
@@ -399,10 +388,10 @@ crashes Trap
 // left out (wiki/spec/language/dependent_values.md: construction proves the
 // domain). Common and payload fields together beyond 64 are not proved.
 public machine construction_holds(
-    checker: @mutable Checker,
-    syntax: @SyntaxTrees,
-    resolution: @NameResolution,
-    typing: @Typing,
+    checker: @mutable |checker|::Checker,
+    syntax: @|syntax_trees|::SyntaxTrees,
+    resolution: @|symbol_resolved_trees|::NameResolution,
+    typing: @|typed_trees|::Typing,
     item_handle: u64 in Trapping,
     has_case: bool,
     data_case: u64 in Trapping,
@@ -411,21 +400,21 @@ public machine construction_holds(
 ) -> bool
 crashes Trap
 {
-    let item: DataItem = syntax_trees_data_item(syntax, item_handle);
-    let selected: DataCase = selected_case(syntax, has_case, data_case);
+    let item: |syntax_trees|::DataItem = |syntax_trees|::syntax_trees_data_item(syntax, item_handle);
+    let selected: |syntax_trees|::DataCase = selected_case(syntax, has_case, data_case);
     let total: u64 in Trapping = item.field_count + selected.payload_field_count;
     transition total <= 64 {
-        true -> zero(checker, syntax, resolution, typing, item, selected, has_case, first, count, total, 0),
+        true -> zero(checker, syntax, resolution, typing, item, selected, has_case, first, count, total, 0 as +Trapping),
         _ -> unproved()
     }
 
     machine zero(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
-        typing: @Typing,
-        item: DataItem,
-        selected: DataCase,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        typing: @|typed_trees|::Typing,
+        item: |syntax_trees|::DataItem,
+        selected: |syntax_trees|::DataCase,
         has_case: bool,
         first: u64 in Trapping,
         count: u64 in Trapping,
@@ -434,35 +423,35 @@ crashes Trap
     ) -> bool {
         transition slot < total {
             true -> zeroed(checker, syntax, resolution, typing, item, selected, has_case, first, count, total, slot),
-            _ -> written(checker, syntax, resolution, typing, item, selected, has_case, first, count, total, 0)
+            _ -> written(checker, syntax, resolution, typing, item, selected, has_case, first, count, total, 0 as +Trapping)
         }
     }
 
     machine zeroed(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
-        typing: @Typing,
-        item: DataItem,
-        selected: DataCase,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        typing: @|typed_trees|::Typing,
+        item: |syntax_trees|::DataItem,
+        selected: |syntax_trees|::DataCase,
         has_case: bool,
         first: u64 in Trapping,
         count: u64 in Trapping,
         total: u64 in Trapping,
         slot: u64 in Trapping
     ) -> bool {
-        let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 });
-        set_argument(checker, slot, zero);
+        let is_zero: |evaluation|::Value = |evaluation|::value_constant(|integers|::ExactInteger { negative: false, magnitude: 0 as +Wrapping });
+        |contracts|::set_argument(checker, slot, is_zero);
         transition { _ -> zero(checker, syntax, resolution, typing, item, selected, has_case, first, count, total, slot + 1) }
     }
 
     machine written(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
-        typing: @Typing,
-        item: DataItem,
-        selected: DataCase,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        typing: @|typed_trees|::Typing,
+        item: |syntax_trees|::DataItem,
+        selected: |syntax_trees|::DataCase,
         has_case: bool,
         first: u64 in Trapping,
         count: u64 in Trapping,
@@ -476,21 +465,21 @@ crashes Trap
     }
 
     machine field(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
-        typing: @Typing,
-        item: DataItem,
-        selected: DataCase,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        typing: @|typed_trees|::Typing,
+        item: |syntax_trees|::DataItem,
+        selected: |syntax_trees|::DataCase,
         has_case: bool,
         first: u64 in Trapping,
         count: u64 in Trapping,
         total: u64 in Trapping,
         offset: u64 in Trapping
     ) -> bool {
-        let written: ConstructField = syntax_trees_construct_field(syntax, first + offset);
-        let target: MemberTarget = construct_target(typing, first + offset);
-        let value: Value = value_at(checker, written.value);
+        let was_written: |syntax_trees|::ConstructField = |syntax_trees|::syntax_trees_construct_field(syntax, first + offset);
+        let target: |typed_trees|::MemberTarget = |typed_trees|::construct_target(typing, first + offset);
+        let value: |evaluation|::Value = |evaluation|::value_at(checker, was_written.value);
         let slot: u64 in Trapping = member_slot(item, selected, target);
         transition slot < total {
             true -> stored(checker, syntax, resolution, typing, item, selected, has_case, first, count, total, offset, slot, value),
@@ -499,31 +488,31 @@ crashes Trap
     }
 
     machine stored(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
-        typing: @Typing,
-        item: DataItem,
-        selected: DataCase,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        typing: @|typed_trees|::Typing,
+        item: |syntax_trees|::DataItem,
+        selected: |syntax_trees|::DataCase,
         has_case: bool,
         first: u64 in Trapping,
         count: u64 in Trapping,
         total: u64 in Trapping,
         offset: u64 in Trapping,
         slot: u64 in Trapping,
-        value: Value
+        value: |evaluation|::Value
     ) -> bool {
-        set_argument(checker, slot, value);
+        |contracts|::set_argument(checker, slot, value);
         transition { _ -> written(checker, syntax, resolution, typing, item, selected, has_case, first, count, total, offset + 1) }
     }
 
     machine decided(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        resolution: @NameResolution,
-        typing: @Typing,
-        item: DataItem,
-        selected: DataCase,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        resolution: @|symbol_resolved_trees|::NameResolution,
+        typing: @|typed_trees|::Typing,
+        item: |syntax_trees|::DataItem,
+        selected: |syntax_trees|::DataCase,
         has_case: bool,
         total: u64 in Trapping
     ) -> bool {
@@ -533,7 +522,7 @@ crashes Trap
         checker.field_values = true;
         checker.field_first = item.first_field;
         checker.argument_count = total;
-        let required: bool = decide_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, ClauseKind::Requires, true);
+        let required: bool = |contracts|::decide_facts(checker, syntax, resolution, typing, item.first_clause, item.clause_count, |syntax_trees|::ClauseKind::Requires, true);
         checker.field_values = substituting;
         checker.field_first = field_first;
         checker.argument_count = arguments;
@@ -547,7 +536,7 @@ crashes Trap
 
 // The case a construction or arm selects, or, without one, a case with no
 // payload fields and no clauses.
-public machine selected_case(syntax: @SyntaxTrees, has_case: bool, data_case: u64 in Trapping) -> DataCase
+public machine selected_case(syntax: @|syntax_trees|::SyntaxTrees, has_case: bool, data_case: u64 in Trapping) -> |syntax_trees|::DataCase
 crashes Trap
 {
     transition has_case {
@@ -555,17 +544,17 @@ crashes Trap
         _ -> none(syntax)
     }
 
-    machine declared(syntax: @SyntaxTrees, data_case: u64 in Trapping) -> DataCase {
-        let selected: DataCase = syntax_trees_data_case(syntax, data_case);
+    machine declared(syntax: @|syntax_trees|::SyntaxTrees, data_case: u64 in Trapping) -> |syntax_trees|::DataCase {
+        let selected: |syntax_trees|::DataCase = |syntax_trees|::syntax_trees_data_case(syntax, data_case);
         selected
     }
 
-    machine none(syntax: @SyntaxTrees) -> DataCase {
-        let mutable empty: DataCase;
-        empty.first_payload_field = 0;
-        empty.payload_field_count = 0;
-        empty.first_clause = 0;
-        empty.clause_count = 0;
+    machine none(syntax: @|syntax_trees|::SyntaxTrees) -> |syntax_trees|::DataCase {
+        let mutable empty: |syntax_trees|::DataCase;
+        empty.first_payload_field = 0 as +Trapping;
+        empty.payload_field_count = 0 as +Trapping;
+        empty.first_clause = 0 as +Trapping;
+        empty.clause_count = 0 as +Trapping;
         empty
     }
 }
@@ -573,23 +562,23 @@ crashes Trap
 // The argument slot a construction's member stands in while facts are
 // decided: a common field's offset, then the selected case's payload fields
 // after every common field; `total` and beyond for none.
-public machine member_slot(item: DataItem, selected: DataCase, target: MemberTarget) -> u64 in Trapping
+public machine member_slot(item: |syntax_trees|::DataItem, selected: |syntax_trees|::DataCase, target: |typed_trees|::MemberTarget) -> u64 in Trapping
 crashes Trap
 {
     transition target {
-        MemberTarget::Common { field } -> common(item, field),
-        MemberTarget::Payload { field } -> payload(item, selected, field),
+        |typed_trees|::MemberTarget::Common { field } -> common(item, field),
+        |typed_trees|::MemberTarget::Payload { field } -> payload(item, selected, field),
         _ -> none()
     }
 
-    machine common(item: DataItem, field: u64 in Trapping) -> u64 in Trapping {
+    machine common(item: |syntax_trees|::DataItem, field: u64 in Trapping) -> u64 in Trapping {
         transition field >= item.first_field && field - item.first_field < item.field_count {
             true -> slot(field - item.first_field),
             _ -> none()
         }
     }
 
-    machine payload(item: DataItem, selected: DataCase, field: u64 in Trapping) -> u64 in Trapping {
+    machine payload(item: |syntax_trees|::DataItem, selected: |syntax_trees|::DataCase, field: u64 in Trapping) -> u64 in Trapping {
         transition field >= selected.first_payload_field && field - selected.first_payload_field < selected.payload_field_count {
             true -> slot(item.field_count + (field - selected.first_payload_field)),
             _ -> none()
@@ -601,6 +590,6 @@ crashes Trap
     }
 
     machine none() -> u64 in Trapping {
-        18446744073709551615
+        18446744073709551615 as +Trapping
     }
 }

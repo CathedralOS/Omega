@@ -1,3 +1,6 @@
+use main.omg as syntax_trees;
+use main.omg as typed_trees;
+
 // The two product traversal machines receive a small type table. One array
 // contains a reference and one contains an empty type. The latter must walk
 // back to its parent and terminate after visiting its only element.

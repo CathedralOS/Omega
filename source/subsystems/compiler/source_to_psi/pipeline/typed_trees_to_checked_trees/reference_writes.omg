@@ -1,23 +1,20 @@
-use representations\checks\CheckDiagnosticCode;
-use representations\checks\checks_reject;
-use representations\source_files\SourceSpan;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\ReferenceAccess;
-use representations\syntax_trees\Statement;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\machine_item;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\Typing;
-use representations\typed_trees\type_table_row;
+use pipeline/typed_trees_to_checked_trees/checker.omg;
+use pipeline/typed_trees_to_checked_trees/places.omg;
+use pipeline/typed_trees_to_checked_trees/reference_backings.omg;
+use pipeline/typed_trees_to_checked_trees/reference_origins.omg;
+use pipeline/typed_trees_to_checked_trees/snapshots.omg;
+
+use representations/checks/checks.omg;
+use representations/source_files/source.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // Executed calls preserve earlier operand reads before invalidating storage;
 // a universal refinement world has no executed operand history.
 public data ReferenceRelease [copy] {
     case Refinement;
-    case Invocation(expression: Expression, lender: u64 in Trapping);
-    case Assignment(source: u64 in Trapping, source_span: SourceSpan);
+    case Invocation(expression: |syntax_trees|::Expression, lender: u64 in Trapping);
+    case Assignment(source: u64 in Trapping, source_span: |source|::SourceSpan);
 }
 
 // Place-index scratch for the transitive storage a container's exclusive
@@ -36,13 +33,13 @@ data ReferenceWrites {
     view_head: u64 in Trapping;
 }
 
-public machine forget_exclusive_referents(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, root: u64 in Trapping, release: ReferenceRelease)
+public machine forget_exclusive_referents(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, root: u64 in Trapping, release: ReferenceRelease)
 crashes Trap
 {
     let mutable writes: ReferenceWrites;
-    writes.count = 0;
-    writes.view_count = 0;
-    writes.view_head = 0;
+    writes.count = 0 as +Trapping;
+    writes.view_count = 0 as +Trapping;
+    writes.view_head = 0 as +Trapping;
     writes.end = checker.place_count as +Trapping;
     open_reference_writes(@mutable writes);
     enqueue_reference_write(@mutable writes, root);
@@ -54,19 +51,19 @@ crashes Trap
 machine open_reference_writes(writes: @mutable ReferenceWrites)
 crashes Trap
 {
-    transition { _ -> next(writes, 0) }
+    transition { _ -> next(writes, 0 as +Trapping) }
     machine next(writes: @mutable ReferenceWrites, index: u64 in Trapping) {
         transition index < 256 { true -> clear(writes, index), false -> {} }
     }
     machine clear(writes: @mutable ReferenceWrites, index: u64 in Trapping)
     requires index < 256
     {
-        writes.pending[index] = 0;
-        writes.seen[index] = false;
-        writes.written[index] = false;
-        writes.contents[index] = true;
-        writes.views[index] = 0;
-        writes.views_seen[index] = false;
+        writes.pending[index as -Trapping] = 0 as +Trapping;
+        writes.seen[index as -Trapping] = false;
+        writes.written[index as -Trapping] = false;
+        writes.contents[index as -Trapping] = true;
+        writes.views[index as -Trapping] = 0 as +Trapping;
+        writes.views_seen[index as -Trapping] = false;
         transition { _ -> next(writes, index + 1) }
     }
 }
@@ -81,8 +78,9 @@ crashes Trap
     machine candidate(writes: @mutable ReferenceWrites, place: u64 in Trapping, index: u64 in Trapping)
     requires index < 256
     {
-        transition !writes.seen[index] && writes.count < 256 {
-            true -> enqueue(writes, place, index, writes.count),
+        let count: u64 in Trapping = writes.count;
+        transition !writes.seen[index as -Trapping] && count < 256 {
+            true -> enqueue(writes, place, index, count),
             false -> {}
         }
     }
@@ -90,23 +88,23 @@ crashes Trap
     requires index < 256
     requires tail < 256
     {
-        writes.seen[index] = true;
-        writes.pending[tail] = place;
+        writes.seen[index as -Trapping] = true;
+        writes.pending[tail as -Trapping] = place;
         writes.count = tail + 1;
     }
 }
 
-machine collect_reference_writes(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, writes: @mutable ReferenceWrites, release: ReferenceRelease)
+machine collect_reference_writes(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, writes: @mutable ReferenceWrites, release: ReferenceRelease)
 crashes Trap
 {
-    transition { _ -> next(checker, syntax, typing, writes, release, 0) }
-    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, writes: @mutable ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping) {
+    transition { _ -> next(checker, syntax, typing, writes, release, 0 as +Trapping) }
+    machine next(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, writes: @mutable ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping) {
         transition head < writes.count && head < 256 {
-            true -> scan(checker, syntax, typing, writes, release, head, 0),
+            true -> scan(checker, syntax, typing, writes, release, head, 0 as +Trapping),
             false -> views(checker, syntax, typing, writes, release, head)
         }
     }
-    machine scan(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, writes: @mutable ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping, index: u64 in Trapping)
+    machine scan(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, writes: @mutable ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping, index: u64 in Trapping)
     requires head < 256
     {
         transition index < writes.end && index < 256 {
@@ -114,81 +112,82 @@ crashes Trap
             false -> next(checker, syntax, typing, writes, release, head + 1)
         }
     }
-    machine inspect(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, writes: @mutable ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping, index: u64 in Trapping)
+    machine inspect(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, writes: @mutable ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping, index: u64 in Trapping)
     requires head < 256
     {
-        let root: u64 in Trapping = writes.pending[head];
+        let root: u64 in Trapping = writes.pending[head as -Trapping];
         collect_reference_descriptor(checker, syntax, typing, writes, release, root, index);
         transition { _ -> scan(checker, syntax, typing, writes, release, head, index + 1) }
     }
-    machine views(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, writes: @mutable ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping) {
-        transition writes.view_head < writes.view_count && writes.view_head < 256 {
-            true -> view(checker, syntax, typing, writes, release, head, writes.view_head),
+    machine views(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, writes: @mutable ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping) {
+        let view_head: u64 in Trapping = writes.view_head;
+        transition view_head < writes.view_count && view_head < 256 {
+            true -> view(checker, syntax, typing, writes, release, head, view_head),
             false -> {}
         }
     }
-    machine view(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, writes: @mutable ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping, index: u64 in Trapping)
+    machine view(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, writes: @mutable ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping, index: u64 in Trapping)
     requires index < 256
     {
-        let backing: u64 in Trapping = writes.views[index];
+        let backing: u64 in Trapping = writes.views[index as -Trapping];
         writes.view_head = index + 1;
         collect_reference_view(checker, syntax, writes, release, backing);
         transition { _ -> next(checker, syntax, typing, writes, release, head) }
     }
 }
 
-machine collect_reference_descriptor(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, writes: @mutable ReferenceWrites, release: ReferenceRelease, root: u64 in Trapping, index: u64 in Trapping)
+machine collect_reference_descriptor(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, writes: @mutable ReferenceWrites, release: ReferenceRelease, root: u64 in Trapping, index: u64 in Trapping)
 crashes Trap
 {
-    let entry: Place = place_at(checker, index);
-    let row: TypeRow = type_table_row(@typing.types, entry.type_handle);
-    let within: bool = index + 1 != root && checker_within(checker, index + 1, root);
-    transition within && row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared {
+    let entry: |places|::Place = |places|::place_at(checker, index);
+    let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, entry.type_handle);
+    let within: bool = index + 1 != root && |places|::checker_within(checker, index + 1, root);
+    transition within && row.kind == |typed_trees|::TypeKind::Reference && row.access != |syntax_trees|::ReferenceAccess::Shared {
         true -> origin(checker, syntax, writes, release, index + 1, entry.parent),
         false -> {}
     }
-    machine origin(checker: @mutable Checker, syntax: @SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, descriptor: u64 in Trapping, parent: u64 in Trapping) {
-        let origin: ReferenceOrigin = reference_origin(checker, descriptor);
+    machine origin(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, descriptor: u64 in Trapping, parent: u64 in Trapping) {
+        let origin: |reference_origins|::ReferenceOrigin = |reference_origins|::reference_origin(checker, descriptor);
         transition origin {
-            ReferenceOrigin::Unrecorded -> incoming(checker, syntax, writes, release, descriptor, parent),
+            |reference_origins|::ReferenceOrigin::Unrecorded -> incoming(checker, syntax, writes, release, descriptor, parent),
             _ -> recorded(checker, syntax, writes, release, origin)
         }
     }
-    machine incoming(checker: @mutable Checker, syntax: @SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, place: u64 in Trapping, parent: u64 in Trapping) {
-        transition incoming_reference_field(checker, parent) {
+    machine incoming(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, place: u64 in Trapping, parent: u64 in Trapping) {
+        transition |reference_origins|::incoming_reference_field(checker, parent) {
             true -> logical(checker, syntax, writes, release, place),
-            false -> recorded(checker, syntax, writes, release, ReferenceOrigin::Unknown)
+            false -> recorded(checker, syntax, writes, release, |reference_origins|::ReferenceOrigin::Unknown)
         }
     }
-    machine logical(checker: @mutable Checker, syntax: @SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, place: u64 in Trapping) {
-        let origin: ReferenceOrigin = exact_reference_origin(checker, place);
+    machine logical(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, place: u64 in Trapping) {
+        let origin: |reference_origins|::ReferenceOrigin = |reference_origins|::exact_reference_origin(checker, place);
         mark_reference_write(checker, syntax, writes, release, origin);
     }
-    machine recorded(checker: @mutable Checker, syntax: @SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, origin: ReferenceOrigin) {
+    machine recorded(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, origin: |reference_origins|::ReferenceOrigin) {
         mark_reference_write(checker, syntax, writes, release, origin);
     }
 }
 
-machine seed_reference_view_write(checker: @mutable Checker, syntax: @SyntaxTrees, writes: @mutable ReferenceWrites, root: u64 in Trapping, release: ReferenceRelease)
+machine seed_reference_view_write(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, writes: @mutable ReferenceWrites, root: u64 in Trapping, release: ReferenceRelease)
 crashes Trap
 {
-    let backing: u64 in Trapping = reference_view_backing(checker, root);
+    let backing: u64 in Trapping = |reference_origins|::reference_view_backing(checker, root);
     transition backing > 0 {
         true -> mark(checker, syntax, writes, release, root, backing),
         false -> {}
     }
-    machine mark(checker: @mutable Checker, syntax: @SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, place: u64 in Trapping, backing: u64 in Trapping) {
-        mark_reference_write(checker, syntax, writes, release, ReferenceOrigin::View { place: place, backing: backing });
+    machine mark(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, place: u64 in Trapping, backing: u64 in Trapping) {
+        mark_reference_write(checker, syntax, writes, release, |reference_origins|::ReferenceOrigin::View { place: place, backing: backing });
     }
 }
 
-machine mark_reference_write(checker: @mutable Checker, syntax: @SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, origin: ReferenceOrigin)
+machine mark_reference_write(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, origin: |reference_origins|::ReferenceOrigin)
 crashes Trap
 {
     transition origin {
-        ReferenceOrigin::Exact { place } -> mark(writes, place, false),
-        ReferenceOrigin::Footprint { place } -> mark(writes, place, true),
-        ReferenceOrigin::View { place, backing } -> view(checker, syntax, writes, release, place, backing),
+        |reference_origins|::ReferenceOrigin::Exact { place } -> mark(writes, place, false),
+        |reference_origins|::ReferenceOrigin::Footprint { place } -> mark(writes, place, true),
+        |reference_origins|::ReferenceOrigin::View { place, backing } -> view(checker, syntax, writes, release, place, backing),
         _ -> unknown(checker, syntax, release)
     }
     machine mark(writes: @mutable ReferenceWrites, place: u64 in Trapping, contents: bool) {
@@ -200,11 +199,11 @@ crashes Trap
     machine written(writes: @mutable ReferenceWrites, place: u64 in Trapping, index: u64 in Trapping, contents: bool)
     requires index < 256
     {
-        writes.written[index] = true;
-        writes.contents[index] = writes.contents[index] && contents;
+        writes.written[index as -Trapping] = true;
+        writes.contents[index as -Trapping] = writes.contents[index as -Trapping] && contents;
         enqueue_reference_write(writes, place);
     }
-    machine view(checker: @mutable Checker, syntax: @SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, place: u64 in Trapping, backing: u64 in Trapping) {
+    machine view(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, place: u64 in Trapping, backing: u64 in Trapping) {
         mark(writes, place, false);
         transition backing > 0 && backing <= checker.reference_view_count && backing <= 256 {
             true -> candidate(writes, backing, backing - 1),
@@ -214,8 +213,9 @@ crashes Trap
     machine candidate(writes: @mutable ReferenceWrites, backing: u64 in Trapping, index: u64 in Trapping)
     requires index < 256
     {
-        transition !writes.views_seen[index] && writes.view_count < 256 {
-            true -> enqueue(writes, backing, index, writes.view_count),
+        let view_count: u64 in Trapping = writes.view_count;
+        transition !writes.views_seen[index as -Trapping] && view_count < 256 {
+            true -> enqueue(writes, backing, index, view_count),
             false -> {}
         }
     }
@@ -223,163 +223,163 @@ crashes Trap
     requires index < 256
     requires tail < 256
     {
-        writes.views_seen[index] = true;
-        writes.views[tail] = backing;
+        writes.views_seen[index as -Trapping] = true;
+        writes.views[tail as -Trapping] = backing;
         writes.view_count = tail + 1;
     }
-    machine unknown(checker: @mutable Checker, syntax: @SyntaxTrees, release: ReferenceRelease) {
+    machine unknown(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, release: ReferenceRelease) {
         transition release {
             ReferenceRelease::Invocation { expression, lender } -> rejected(checker, expression.source_span),
             ReferenceRelease::Assignment { source, source_span } -> rejected(checker, source_span),
             ReferenceRelease::Refinement -> logical(checker, syntax)
         }
     }
-    machine logical(checker: @mutable Checker, syntax: @SyntaxTrees) {
-        let item: MachineItem = machine_item(syntax, checker.machine);
+    machine logical(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees) {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, checker.machine);
         reject_reference_release(checker, item.source_span);
     }
-    machine rejected(checker: @mutable Checker, source_span: SourceSpan) {
+    machine rejected(checker: @mutable |checker|::Checker, source_span: |source|::SourceSpan) {
         reject_reference_release(checker, source_span);
     }
 }
 
-machine collect_reference_view(checker: @mutable Checker, syntax: @SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, backing: u64 in Trapping)
+machine collect_reference_view(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, backing: u64 in Trapping)
 crashes Trap
 {
     transition backing > 0 && backing <= checker.reference_view_count && backing <= 256 {
         true -> read(checker, syntax, writes, release, backing - 1),
         false -> unknown(checker, syntax, writes, release)
     }
-    machine read(checker: @mutable Checker, syntax: @SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, index: u64 in Trapping)
+    machine read(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, index: u64 in Trapping)
     requires index < 256
     {
-        let view: ReferenceView = checker.reference_views[index];
+        let view: |reference_backings|::ReferenceView = checker.reference_views[index as -Trapping];
         transition view.count > 0 {
-            true -> next(checker, syntax, writes, release, view, 0),
+            true -> next(checker, syntax, writes, release, view, 0 as +Trapping),
             false -> unknown(checker, syntax, writes, release)
         }
     }
-    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, view: ReferenceView, offset: u64 in Trapping) {
+    machine next(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, view: |reference_backings|::ReferenceView, offset: u64 in Trapping) {
         transition offset < view.count {
             true -> edge(checker, syntax, writes, release, view, offset, view.first + offset),
             false -> {}
         }
     }
-    machine edge(checker: @mutable Checker, syntax: @SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, view: ReferenceView, offset: u64 in Trapping, index: u64 in Trapping) {
+    machine edge(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, view: |reference_backings|::ReferenceView, offset: u64 in Trapping, index: u64 in Trapping) {
         transition index < checker.reference_backing_count && index < 256 {
             true -> origin(checker, syntax, writes, release, view, offset, index),
             false -> unknown(checker, syntax, writes, release)
         }
     }
-    machine origin(checker: @mutable Checker, syntax: @SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, view: ReferenceView, offset: u64 in Trapping, index: u64 in Trapping)
+    machine origin(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease, view: |reference_backings|::ReferenceView, offset: u64 in Trapping, index: u64 in Trapping)
     requires index < 256
     {
-        let origin: ReferenceOrigin = checker.reference_backings[index];
+        let origin: |reference_origins|::ReferenceOrigin = checker.reference_backings[index as -Trapping];
         mark_reference_write(checker, syntax, writes, release, origin);
         transition { _ -> next(checker, syntax, writes, release, view, offset + 1) }
     }
-    machine unknown(checker: @mutable Checker, syntax: @SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease) {
-        mark_reference_write(checker, syntax, writes, release, ReferenceOrigin::Unknown);
+    machine unknown(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, writes: @mutable ReferenceWrites, release: ReferenceRelease) {
+        mark_reference_write(checker, syntax, writes, release, |reference_origins|::ReferenceOrigin::Unknown);
     }
 }
 
 // Snapshot every old observation before retiring any collected storage.
 // Clearing an owned descriptor is different from changing the pointee of a
 // descriptor elsewhere; the root reference's captured address survives.
-machine apply_reference_writes(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, writes: @ReferenceWrites, release: ReferenceRelease)
+machine apply_reference_writes(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, writes: @ReferenceWrites, release: ReferenceRelease)
 crashes Trap
 {
-    transition { _ -> next(checker, syntax, typing, writes, release, true, 0) }
-    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, writes: @ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping) {
+    transition { _ -> next(checker, syntax, typing, writes, release, true, 0 as +Trapping) }
+    machine next(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, writes: @ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping) {
         transition index < writes.end && index < 256 {
             true -> inspect(checker, syntax, typing, writes, release, snapshotting, index),
             false -> finished(checker, syntax, typing, writes, release, snapshotting)
         }
     }
-    machine inspect(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, writes: @ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping)
+    machine inspect(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, writes: @ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping)
     requires index < 256
     {
         apply_reference_write(checker, syntax, typing, writes, release, snapshotting, index);
         transition { _ -> next(checker, syntax, typing, writes, release, snapshotting, index + 1) }
     }
-    machine finished(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, writes: @ReferenceWrites, release: ReferenceRelease, snapshotting: bool) {
+    machine finished(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, writes: @ReferenceWrites, release: ReferenceRelease, snapshotting: bool) {
         transition snapshotting {
-            true -> next(checker, syntax, typing, writes, release, false, 0),
+            true -> next(checker, syntax, typing, writes, release, false, 0 as +Trapping),
             false -> {}
         }
     }
 }
 
-machine apply_reference_write(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, writes: @ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping)
+machine apply_reference_write(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, writes: @ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping)
 requires index < 256
 crashes Trap
 {
-    transition writes.written[index] {
+    transition writes.written[index as -Trapping] {
         true -> apply(checker, syntax, typing, writes, release, snapshotting, index),
         false -> {}
     }
-    machine apply(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, writes: @ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping)
+    machine apply(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, writes: @ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping)
     requires index < 256
     {
         transition snapshotting {
             true -> snapshot(checker, syntax, typing, release, index + 1),
-            false -> retire(checker, typing, index + 1, writes.contents[index])
+            false -> retire(checker, typing, index + 1, writes.contents[index as -Trapping])
         }
     }
-    machine snapshot(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, release: ReferenceRelease, place: u64 in Trapping) {
+    machine snapshot(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, release: ReferenceRelease, place: u64 in Trapping) {
         transition release {
             ReferenceRelease::Invocation { expression, lender } -> observed(checker, syntax, typing, expression, lender, place),
             ReferenceRelease::Refinement -> {},
             ReferenceRelease::Assignment { source, source_span } -> assigned(checker, syntax, typing, source, place)
         }
     }
-    machine assigned(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, source: u64 in Trapping, place: u64 in Trapping) {
+    machine assigned(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, source: u64 in Trapping, place: u64 in Trapping) {
         checker.write_epoch = checker.write_epoch + 1;
-        snapshot_assignment(checker, syntax, typing, source, place);
+        |snapshots|::snapshot_assignment(checker, syntax, typing, source, place);
     }
-    machine observed(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, lender: u64 in Trapping, place: u64 in Trapping) {
+    machine observed(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, lender: u64 in Trapping, place: u64 in Trapping) {
         checker.write_epoch = checker.write_epoch + 1;
-        let write: WriteFootprint = WriteFootprint { place: place, callee: 0, whole: true };
-        snapshot_operands(checker, syntax, typing, expression, lender, write);
+        let write: |snapshots|::WriteFootprint = |snapshots|::WriteFootprint { place: place, callee: 0 as +Trapping, whole: true };
+        |snapshots|::snapshot_operands(checker, syntax, typing, expression, lender, write);
     }
-    machine retire(checker: @mutable Checker, typing: @Typing, place: u64 in Trapping, contents: bool) {
-        forget_reference_descendants(checker, typing, place);
+    machine retire(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, place: u64 in Trapping, contents: bool) {
+        |reference_origins|::forget_reference_descendants(checker, typing, place);
         transition contents {
             true -> footprint(checker, typing, place),
             false -> whole(checker, typing, place)
         }
     }
-    machine footprint(checker: @mutable Checker, typing: @Typing, place: u64 in Trapping) {
-        forget_contents(checker, typing, place);
+    machine footprint(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, place: u64 in Trapping) {
+        |places|::forget_contents(checker, typing, place);
     }
-    machine whole(checker: @mutable Checker, typing: @Typing, place: u64 in Trapping) {
-        forget_place(checker, typing, place);
+    machine whole(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, place: u64 in Trapping) {
+        |places|::forget_place(checker, typing, place);
     }
 
 }
 
-machine reject_reference_release(checker: @mutable Checker, source_span: SourceSpan)
+machine reject_reference_release(checker: @mutable |checker|::Checker, source_span: |source|::SourceSpan)
 crashes Trap
 {
-    checks_reject(@mutable checker.output, CheckDiagnosticCode::UnsupportedCheck, source_span);
+    |checks|::checks_reject(@mutable checker.output, |checks|::CheckDiagnosticCode::UnsupportedCheck, source_span);
 }
 
 
 // Stores and calls use the same backing closure. The RHS is captured before
 // any possible backing loses facts; only the logical destination is rebound.
-public machine prepare_reference_store(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, statement: Statement, place: u64 in Trapping)
+public machine prepare_reference_store(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, place: u64 in Trapping)
 crashes Trap
 {
-    let backing: u64 in Trapping = reference_view_backing(checker, place);
+    let backing: u64 in Trapping = |reference_origins|::reference_view_backing(checker, place);
     transition backing > 0 {
         true -> view(checker, syntax, typing, statement, place),
         false -> ordinary(checker, syntax, typing, statement, place)
     }
-    machine view(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, statement: Statement, place: u64 in Trapping) {
+    machine view(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, place: u64 in Trapping) {
         let release: ReferenceRelease = ReferenceRelease::Assignment { source: statement.value, source_span: statement.source_span };
         forget_exclusive_referents(checker, syntax, typing, place, release);
     }
-    machine ordinary(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, statement: Statement, place: u64 in Trapping) {
-        snapshot_assignment(checker, syntax, typing, statement.value, place);
+    machine ordinary(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, place: u64 in Trapping) {
+        |snapshots|::snapshot_assignment(checker, syntax, typing, statement.value, place);
     }
 }

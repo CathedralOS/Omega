@@ -1,16 +1,16 @@
-use representations\checks\CheckDiagnosticCode;
-use representations\checks\checks_reject;
-use representations\source_files\SourceSpan;
-use representations\symbol_resolved_trees\NameResolution;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\SyntaxTrees;
-use representations\typed_trees\Adaptation;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\Typing;
-use representations\typed_trees\type_table_row;
-use representations\typed_trees\typing_adaptation;
-use representations\typed_trees\typing_expression_type;
+use pipeline/typed_trees_to_checked_trees/loans.omg;
+use pipeline/typed_trees_to_checked_trees/obligations.omg;
+use pipeline/typed_trees_to_checked_trees/references.omg;
+use pipeline/typed_trees_to_checked_trees/checker.omg;
+use pipeline/typed_trees_to_checked_trees/evaluation.omg;
+use pipeline/typed_trees_to_checked_trees/places.omg;
+use pipeline/typed_trees_to_checked_trees/reference_origins.omg;
+
+use representations/checks/checks.omg;
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // A result's possible backing is separate from its logical proof subject.
 // Groups and their edge spans are immutable after publication. Transporting
@@ -22,179 +22,181 @@ public data ReferenceView [copy] {
 
 // Publish once at the common call boundary, before any actual is released.
 // A roster is may-alias evidence, never equality or borrowing permission.
-public machine publish_reference_backings(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, node: u64 in Trapping, expression: Expression)
+public machine publish_reference_backings(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, node: u64 in Trapping, expression: |syntax_trees|::Expression)
 crashes Trap
 {
-    let type_handle: u64 in Trapping = typing_expression_type(typing, node);
-    let retained: bool = holds_references(syntax, typing, type_handle);
+    let type_handle: u64 in Trapping = |typed_trees|::typing_expression_type(typing, node);
+    let retained: bool = |loans|::holds_references(syntax, typing, type_handle);
     transition retained {
         true -> opened(checker, syntax, resolution, typing, node, expression, type_handle),
         false -> {}
     }
-    machine opened(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, node: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping) {
-        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::Call, node, 0, type_handle);
-        transition place > 0 && place <= 256 && checker.reference_view_count < 256 {
-            true -> group(checker, syntax, resolution, typing, expression, place, checker.reference_view_count),
+    machine opened(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, node: u64 in Trapping, expression: |syntax_trees|::Expression, type_handle: u64 in Trapping) {
+        let place: u64 in Trapping = |places|::checker_place(checker, typing, |places|::PlaceKind::Call, node, 0 as +Trapping, type_handle);
+        let reference_view_count: u64 in Trapping = checker.reference_view_count;
+        transition place > 0 && place <= 256 && reference_view_count < 256 {
+            true -> group(checker, syntax, resolution, typing, expression, place, reference_view_count),
             false -> full(checker, expression.source_span)
         }
     }
-    machine group(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, place: u64 in Trapping, index: u64 in Trapping)
+    machine group(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, place: u64 in Trapping, index: u64 in Trapping)
     requires index < 256
     requires place > 0
     requires place <= 256
     {
-        checker.reference_views[index] = ReferenceView { first: checker.reference_backing_count, count: 0 };
+        checker.reference_views[index as -Trapping] = ReferenceView { first: checker.reference_backing_count, count: 0 as +Trapping };
         checker.reference_view_count = index + 1;
-        transition { _ -> next(checker, syntax, resolution, typing, expression, place, index, 0) }
+        transition { _ -> next(checker, syntax, resolution, typing, expression, place, index, 0 as +Trapping) }
     }
-    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, place: u64 in Trapping, group: u64 in Trapping, offset: u64 in Trapping)
+    machine next(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, place: u64 in Trapping, group: u64 in Trapping, offset: u64 in Trapping)
     requires group < 256
     requires place > 0
     requires place <= 256
     {
-        let count: u64 in Trapping = operand_count(expression);
+        let count: u64 in Trapping = |obligations|::operand_count(expression);
         transition offset < count {
             true -> argument(checker, syntax, resolution, typing, expression, place, group, offset),
             false -> home(checker, typing, expression, place, group + 1)
         }
     }
-    machine argument(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, place: u64 in Trapping, group: u64 in Trapping, offset: u64 in Trapping)
+    machine argument(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, place: u64 in Trapping, group: u64 in Trapping, offset: u64 in Trapping)
     requires group < 256
     requires place > 0
     requires place <= 256
     {
-        let handle: u64 in Trapping = checker_operand(syntax, expression, offset);
+        let handle: u64 in Trapping = |obligations|::checker_operand(syntax, expression, offset);
         append_argument_backing(checker, syntax, resolution, typing, expression, group, handle);
         transition { _ -> next(checker, syntax, resolution, typing, expression, place, group, offset + 1) }
     }
-    machine home(checker: @mutable Checker, typing: @Typing, expression: Expression, place: u64 in Trapping, backing: u64 in Trapping)
+    machine home(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, place: u64 in Trapping, backing: u64 in Trapping)
     requires place > 0
     requires place <= 256
     {
-        let entry: Place = place_at(checker, place - 1);
-        let home: u64 in Trapping = checker_place(checker, typing, PlaceKind::View, backing, 0, entry.type_handle);
+        let entry: |places|::Place = |places|::place_at(checker, place - 1);
+        let home: u64 in Trapping = |places|::checker_place(checker, typing, |places|::PlaceKind::View, backing, 0 as +Trapping, entry.type_handle);
         transition home > 0 && home <= 256 {
             true -> publish(checker, place - 1, home - 1, backing),
             false -> full(checker, expression.source_span)
         }
     }
-    machine publish(checker: @mutable Checker, index: u64 in Trapping, home: u64 in Trapping, backing: u64 in Trapping)
+    machine publish(checker: @mutable |checker|::Checker, index: u64 in Trapping, home: u64 in Trapping, backing: u64 in Trapping)
     requires index < 256
     requires home < 256
     {
-        let origin: ReferenceOrigin = ReferenceOrigin::View { place: home + 1, backing: backing };
+        let origin: |reference_origins|::ReferenceOrigin = |reference_origins|::ReferenceOrigin::View { place: home + 1, backing: backing };
         // The call selects its newest publication; captured aliases name
         // the separate immutable home, not this mutable call-site record.
-        checker.reference_origins[index] = origin;
-        checker.reference_origins[home] = origin;
+        checker.reference_origins[index as -Trapping] = origin;
+        checker.reference_origins[home as -Trapping] = origin;
     }
-    machine full(checker: @mutable Checker, source_span: SourceSpan) {
-        checks_reject(@mutable checker.output, CheckDiagnosticCode::CheckCapacityExceeded, source_span);
+    machine full(checker: @mutable |checker|::Checker, source_span: |source|::SourceSpan) {
+        |checks|::checks_reject(@mutable checker.output, |checks|::CheckDiagnosticCode::CheckCapacityExceeded, source_span);
     }
 }
 
-machine append_argument_backing(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, call: Expression, group: u64 in Trapping, handle: u64 in Trapping)
+machine append_argument_backing(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, call: |syntax_trees|::Expression, group: u64 in Trapping, handle: u64 in Trapping)
 requires group < 256
 crashes Trap
 {
-    let adaptation: Adaptation = typing_adaptation(typing, handle);
-    transition adaptation == Adaptation::Read {
+    let adaptation: |typed_trees|::Adaptation = |typed_trees|::typing_adaptation(typing, handle);
+    transition adaptation == |typed_trees|::Adaptation::Read {
         true -> {},
         false -> typed(checker, syntax, resolution, typing, call, group, handle)
     }
-    machine typed(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, call: Expression, group: u64 in Trapping, handle: u64 in Trapping)
+    machine typed(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, call: |syntax_trees|::Expression, group: u64 in Trapping, handle: u64 in Trapping)
     requires group < 256
     {
-        let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
-        let row: TypeRow = type_table_row(@typing.types, type_handle);
-        transition row.kind == TypeKind::Reference || typing_adaptation(typing, handle) == Adaptation::SharedLend {
+        let type_handle: u64 in Trapping = |typed_trees|::typing_expression_type(typing, handle);
+        let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, type_handle);
+        transition row.kind == |typed_trees|::TypeKind::Reference || |typed_trees|::typing_adaptation(typing, handle) == |typed_trees|::Adaptation::SharedLend {
             true -> reference(checker, syntax, resolution, typing, call, group, handle),
             false -> carrier(checker, syntax, typing, call, group, handle, type_handle)
         }
     }
-    machine reference(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, call: Expression, group: u64 in Trapping, handle: u64 in Trapping)
+    machine reference(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, call: |syntax_trees|::Expression, group: u64 in Trapping, handle: u64 in Trapping)
     requires group < 256
     {
-        let value: Value = value_at(checker, handle);
+        let value: |evaluation|::Value = |evaluation|::value_at(checker, handle);
         transition value.place > 0 {
             true -> placed(checker, call, group, value.place),
             false -> footprint(checker, syntax, resolution, typing, call, group, handle)
         }
     }
-    machine placed(checker: @mutable Checker, call: Expression, group: u64 in Trapping, place: u64 in Trapping)
+    machine placed(checker: @mutable |checker|::Checker, call: |syntax_trees|::Expression, group: u64 in Trapping, place: u64 in Trapping)
     requires group < 256
     {
-        let origin: ReferenceOrigin = exact_reference_origin(checker, place);
+        let origin: |reference_origins|::ReferenceOrigin = |reference_origins|::exact_reference_origin(checker, place);
         append_reference_backing(checker, group, origin, call.source_span);
     }
-    machine footprint(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, call: Expression, group: u64 in Trapping, handle: u64 in Trapping)
+    machine footprint(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, call: |syntax_trees|::Expression, group: u64 in Trapping, handle: u64 in Trapping)
     requires group < 256
     {
-        let place: u64 in Trapping = written_origin(checker, syntax, resolution, typing, handle);
+        let place: u64 in Trapping = |references|::written_origin(checker, syntax, resolution, typing, handle);
         transition place > 0 {
             true -> located(checker, call, group, place),
             false -> unknown(checker, call, group)
         }
     }
-    machine located(checker: @mutable Checker, call: Expression, group: u64 in Trapping, place: u64 in Trapping)
+    machine located(checker: @mutable |checker|::Checker, call: |syntax_trees|::Expression, group: u64 in Trapping, place: u64 in Trapping)
     requires group < 256
     {
-        append_reference_backing(checker, group, ReferenceOrigin::Footprint { place: place }, call.source_span);
+        append_reference_backing(checker, group, |reference_origins|::ReferenceOrigin::Footprint { place: place }, call.source_span);
     }
-    machine carrier(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, call: Expression, group: u64 in Trapping, handle: u64 in Trapping, type_handle: u64 in Trapping)
+    machine carrier(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, call: |syntax_trees|::Expression, group: u64 in Trapping, handle: u64 in Trapping, type_handle: u64 in Trapping)
     requires group < 256
     {
-        let retained: bool = holds_references(syntax, typing, type_handle);
+        let retained: bool = |loans|::holds_references(syntax, typing, type_handle);
         transition retained {
             true -> carried(checker, call, group, handle),
             false -> {}
         }
     }
-    machine carried(checker: @mutable Checker, call: Expression, group: u64 in Trapping, handle: u64 in Trapping)
+    machine carried(checker: @mutable |checker|::Checker, call: |syntax_trees|::Expression, group: u64 in Trapping, handle: u64 in Trapping)
     requires group < 256
     {
-        let value: Value = value_at(checker, handle);
-        let backing: u64 in Trapping = reference_view_backing(checker, value.place);
+        let value: |evaluation|::Value = |evaluation|::value_at(checker, handle);
+        let backing: u64 in Trapping = |reference_origins|::reference_view_backing(checker, value.place);
         transition backing > 0 {
             true -> inherited(checker, call, group, value.place, backing),
             false -> unknown(checker, call, group)
         }
     }
-    machine inherited(checker: @mutable Checker, call: Expression, group: u64 in Trapping, place: u64 in Trapping, backing: u64 in Trapping)
+    machine inherited(checker: @mutable |checker|::Checker, call: |syntax_trees|::Expression, group: u64 in Trapping, place: u64 in Trapping, backing: u64 in Trapping)
     requires group < 256
     {
-        append_reference_backing(checker, group, ReferenceOrigin::View { place: place, backing: backing }, call.source_span);
+        append_reference_backing(checker, group, |reference_origins|::ReferenceOrigin::View { place: place, backing: backing }, call.source_span);
     }
     // An owned carrier without a complete published roster may contain
     // unmaterialized reference fields/elements. Existing visible paths are
     // not evidence that those are all its backing. Reads remain logical;
     // a later write through this result must refuse incomplete backing.
-    machine unknown(checker: @mutable Checker, call: Expression, group: u64 in Trapping)
+    machine unknown(checker: @mutable |checker|::Checker, call: |syntax_trees|::Expression, group: u64 in Trapping)
     requires group < 256
     {
-        append_reference_backing(checker, group, ReferenceOrigin::Unknown, call.source_span);
+        append_reference_backing(checker, group, |reference_origins|::ReferenceOrigin::Unknown, call.source_span);
     }
 }
 
-machine append_reference_backing(checker: @mutable Checker, group: u64 in Trapping, origin: ReferenceOrigin, source_span: SourceSpan)
+machine append_reference_backing(checker: @mutable |checker|::Checker, group: u64 in Trapping, origin: |reference_origins|::ReferenceOrigin, source_span: |source|::SourceSpan)
 requires group < 256
 crashes Trap
 {
-    transition checker.reference_backing_count < 256 {
-        true -> write(checker, group, origin, checker.reference_backing_count),
+    let reference_backing_count: u64 in Trapping = checker.reference_backing_count;
+    transition reference_backing_count < 256 {
+        true -> write(checker, group, origin, reference_backing_count),
         false -> full(checker, source_span)
     }
-    machine write(checker: @mutable Checker, group: u64 in Trapping, origin: ReferenceOrigin, index: u64 in Trapping)
+    machine write(checker: @mutable |checker|::Checker, group: u64 in Trapping, origin: |reference_origins|::ReferenceOrigin, index: u64 in Trapping)
     requires group < 256
     requires index < 256
     {
-        checker.reference_backings[index] = origin;
+        checker.reference_backings[index as -Trapping] = origin;
         checker.reference_backing_count = index + 1;
-        let mutable view: ReferenceView = checker.reference_views[group];
+        let mutable view: ReferenceView = checker.reference_views[group as -Trapping];
         view.count = view.count + 1;
-        checker.reference_views[group] = view;
+        checker.reference_views[group as -Trapping] = view;
     }
-    machine full(checker: @mutable Checker, source_span: SourceSpan) {
-        checks_reject(@mutable checker.output, CheckDiagnosticCode::CheckCapacityExceeded, source_span);
+    machine full(checker: @mutable |checker|::Checker, source_span: |source|::SourceSpan) {
+        |checks|::checks_reject(@mutable checker.output, |checks|::CheckDiagnosticCode::CheckCapacityExceeded, source_span);
     }
 }

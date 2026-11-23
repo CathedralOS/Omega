@@ -1,22 +1,13 @@
-use foundation\ExactInteger;
-use foundation\is_carrier;
-use representations\symbol_resolved_trees\BytePredicate;
-use representations\symbol_resolved_trees\NameResolution;
-use representations\symbol_resolved_trees\ValueBinding;
-use representations\symbol_resolved_trees\value_binding;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\ExpressionKind;
-use representations\syntax_trees\OperatorKind;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\syntax_trees_argument;
-use representations\syntax_trees\syntax_trees_expression;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\Typing;
-use representations\typed_trees\type_table_row;
-use representations\typed_trees\typing_expression_type;
-use representations\typed_trees\typing_landed_integer;
-use representations\typed_trees\typing_value;
+use pipeline/typed_trees_to_checked_trees/arithmetic.omg;
+use pipeline/typed_trees_to_checked_trees/obligations.omg;
+use pipeline/typed_trees_to_checked_trees/places.omg;
+use pipeline/typed_trees_to_checked_trees/checker.omg;
+use pipeline/typed_trees_to_checked_trees/evaluation.omg;
+
+use foundation/integers.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // The values of a fact tree's nodes, children before parents. A fact
 // (`requires`) is a proof expression, not executed code: its nodes
@@ -28,10 +19,10 @@ use representations\typed_trees\typing_value;
 // apart from the body's also keeps deciding a callee's facts from re-entering
 // the walk of the call that owes them.
 public machine evaluate_fact_run(
-    checker: @mutable Checker,
-    syntax: @SyntaxTrees,
-    resolution: @NameResolution,
-    typing: @Typing,
+    checker: @mutable |checker|::Checker,
+    syntax: @|syntax_trees|::SyntaxTrees,
+    resolution: @|symbol_resolved_trees|::NameResolution,
+    typing: @|typed_trees|::Typing,
     root: u64 in Trapping,
     low: u64 in Trapping
 )
@@ -39,140 +30,140 @@ crashes Trap
 {
     transition { _ -> node(checker, syntax, resolution, typing, root, low) }
 
-    machine node(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, root: u64 in Trapping, handle: u64 in Trapping) {
+    machine node(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, root: u64 in Trapping, handle: u64 in Trapping) {
         transition handle <= root {
             true -> evaluated(checker, syntax, resolution, typing, root, handle),
             _ -> done()
         }
     }
 
-    machine evaluated(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, root: u64 in Trapping, handle: u64 in Trapping) {
-        let value: Value = fact_value(checker, syntax, resolution, typing, handle);
-        checker_set_value(checker, handle, value);
+    machine evaluated(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, root: u64 in Trapping, handle: u64 in Trapping) {
+        let value: |evaluation|::Value = fact_value(checker, syntax, resolution, typing, handle);
+        |evaluation|::checker_set_value(checker, handle, value);
         transition { _ -> node(checker, syntax, resolution, typing, root, handle + 1) }
     }
 
     machine done() {}
 }
 
-machine fact_value(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping) -> Value
+machine fact_value(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping) -> |evaluation|::Value
 crashes Trap
 {
-    let expression: Expression = syntax_trees_expression(syntax, handle);
-    let type_handle: u64 in Trapping = typing_expression_type(typing, handle);
-    let row: TypeRow = type_table_row(@typing.types, type_handle);
-    let integer: bool = row.kind == TypeKind::Builtin && is_carrier(row.builtin);
-    let landed: bool = typing_landed_integer(typing, handle, expression);
+    let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, handle);
+    let type_handle: u64 in Trapping = |typed_trees|::typing_expression_type(typing, handle);
+    let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, type_handle);
+    let integer: bool = row.kind == |typed_trees|::TypeKind::Builtin && |integers|::is_carrier(row.builtin);
+    let landed: bool = |typed_trees|::typing_landed_integer(typing, handle, expression);
     transition landed {
         true -> literal(typing, handle),
         _ -> form(checker, syntax, resolution, typing, handle, expression, type_handle, row, integer)
     }
 
-    machine form(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping, row: TypeRow, integer: bool) -> Value {
+    machine form(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression, type_handle: u64 in Trapping, row: |typed_trees|::TypeRow, integer: bool) -> |evaluation|::Value {
         transition expression.kind {
-            ExpressionKind::Name -> name(checker, syntax, resolution, typing, handle, type_handle),
-            ExpressionKind::Path -> path(syntax, resolution, typing, handle, type_handle, row),
-            ExpressionKind::Integer -> literal(typing, handle),
-            ExpressionKind::Boolean -> boolean(expression),
-            ExpressionKind::Field -> field(checker, typing, handle, expression, type_handle),
-            ExpressionKind::Unary -> unary(checker, expression, row, integer),
-            ExpressionKind::Binary -> binary(checker, expression, row, integer),
-            ExpressionKind::Cast -> cast(checker, typing, expression, row, integer),
-            ExpressionKind::Call -> call(checker, syntax, resolution, typing, expression, row),
+            |syntax_trees|::ExpressionKind::Name -> name(checker, syntax, resolution, typing, handle, type_handle),
+            |syntax_trees|::ExpressionKind::Path -> path(syntax, resolution, typing, handle, type_handle, row),
+            |syntax_trees|::ExpressionKind::Integer -> literal(typing, handle),
+            |syntax_trees|::ExpressionKind::Boolean -> boolean(expression),
+            |syntax_trees|::ExpressionKind::Field -> field(checker, typing, handle, expression, type_handle),
+            |syntax_trees|::ExpressionKind::Unary -> unary(checker, expression, row, integer),
+            |syntax_trees|::ExpressionKind::Binary -> binary(checker, expression, row, integer),
+            |syntax_trees|::ExpressionKind::Cast -> cast(checker, typing, expression, row, integer),
+            |syntax_trees|::ExpressionKind::Call -> call(checker, syntax, resolution, typing, expression, row),
             _ -> typed(row)
         }
     }
 
-    machine call(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, row: TypeRow) -> Value {
-        let binding: ValueBinding = value_binding(resolution, expression.left);
+    machine call(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow) -> |evaluation|::Value {
+        let binding: |symbol_resolved_trees|::ValueBinding = |symbol_resolved_trees|::value_binding(resolution, expression.left);
         transition binding {
-            ValueBinding::BytePredicate { predicate } -> predicated(checker, syntax, resolution, typing, expression, predicate),
+            |symbol_resolved_trees|::ValueBinding::BytePredicate { predicate } -> predicated(checker, syntax, resolution, typing, expression, predicate),
             _ -> typed(row)
         }
     }
 
-    machine predicated(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, expression: Expression, predicate: BytePredicate) -> Value {
-        let argument: u64 in Trapping = syntax_trees_argument(syntax, expression.first);
-        let value: Value = predicate_value(checker, syntax, resolution, typing, argument, predicate);
+    machine predicated(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, predicate: |symbol_resolved_trees|::BytePredicate) -> |evaluation|::Value {
+        let argument: u64 in Trapping = |syntax_trees|::syntax_trees_argument(syntax, expression.first);
+        let value: |evaluation|::Value = |obligations|::predicate_value(checker, syntax, resolution, typing, argument, predicate);
         value
     }
 
-    machine name(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
-        let value: Value = name_value(checker, syntax, resolution, typing, handle, type_handle);
+    machine name(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, type_handle: u64 in Trapping) -> |evaluation|::Value {
+        let value: |evaluation|::Value = |places|::name_value(checker, syntax, resolution, typing, handle, type_handle);
         value
     }
 
     // A path to a constant is its value; any other path, its type's.
-    machine path(syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, handle: u64 in Trapping, type_handle: u64 in Trapping, row: TypeRow) -> Value {
-        let binding: ValueBinding = value_binding(resolution, handle);
+    machine path(syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, handle: u64 in Trapping, type_handle: u64 in Trapping, row: |typed_trees|::TypeRow) -> |evaluation|::Value {
+        let binding: |symbol_resolved_trees|::ValueBinding = |symbol_resolved_trees|::value_binding(resolution, handle);
         transition binding {
-            ValueBinding::Constant { constant } -> constant(syntax, typing, constant, type_handle),
+            |symbol_resolved_trees|::ValueBinding::Constant { constant as selected_constant } -> constant(syntax, typing, selected_constant, type_handle),
             _ -> typed(row)
         }
     }
 
-    machine constant(syntax: @SyntaxTrees, typing: @Typing, constant: u64 in Trapping, type_handle: u64 in Trapping) -> Value {
-        let value: Value = checker_constant_value(syntax, typing, constant, type_handle);
+    machine constant(syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, constant: u64 in Trapping, type_handle: u64 in Trapping) -> |evaluation|::Value {
+        let value: |evaluation|::Value = |places|::checker_constant_value(syntax, typing, constant, type_handle);
         value
     }
 
-    machine literal(typing: @Typing, handle: u64 in Trapping) -> Value {
-        let literal: ExactInteger = typing_value(typing, handle);
-        let value: Value = value_constant(literal);
+    machine literal(typing: @|typed_trees|::Typing, handle: u64 in Trapping) -> |evaluation|::Value {
+        let literal: |integers|::ExactInteger = |typed_trees|::typing_value(typing, handle);
+        let value: |evaluation|::Value = |evaluation|::value_constant(literal);
         value
     }
 
-    machine boolean(expression: Expression) -> Value {
-        let value: Value = value_truth(expression.flag);
+    machine boolean(expression: |syntax_trees|::Expression) -> |evaluation|::Value {
+        let value: |evaluation|::Value = |evaluation|::value_truth(expression.flag);
         value
     }
 
-    machine field(checker: @mutable Checker, typing: @Typing, handle: u64 in Trapping, expression: Expression, type_handle: u64 in Trapping) -> Value {
-        let value: Value = member_value(checker, typing, handle, expression, type_handle);
+    machine field(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, handle: u64 in Trapping, expression: |syntax_trees|::Expression, type_handle: u64 in Trapping) -> |evaluation|::Value {
+        let value: |evaluation|::Value = |places|::member_value(checker, typing, handle, expression, type_handle);
         value
     }
 
-    machine unary(checker: @mutable Checker, expression: Expression, row: TypeRow, integer: bool) -> Value {
+    machine unary(checker: @mutable |checker|::Checker, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow, integer: bool) -> |evaluation|::Value {
         transition expression.operator {
-            OperatorKind::Borrow -> borrowed(checker, expression),
-            OperatorKind::BorrowMutable -> borrowed(checker, expression),
-            OperatorKind::BorrowWrite -> borrowed(checker, expression),
-            OperatorKind::Negate -> negated(checker, expression, row, integer),
+            |syntax_trees|::OperatorKind::Borrow -> borrowed(checker, expression),
+            |syntax_trees|::OperatorKind::BorrowMutable -> borrowed(checker, expression),
+            |syntax_trees|::OperatorKind::BorrowWrite -> borrowed(checker, expression),
+            |syntax_trees|::OperatorKind::Negate -> negated(checker, expression, row, integer),
             _ -> typed(row)
         }
     }
 
-    machine borrowed(checker: @Checker, expression: Expression) -> Value {
-        let operand: Value = value_at(checker, expression.left);
-        let value: Value = at_place(operand.place);
+    machine borrowed(checker: @|checker|::Checker, expression: |syntax_trees|::Expression) -> |evaluation|::Value {
+        let operand: |evaluation|::Value = |evaluation|::value_at(checker, expression.left);
+        let value: |evaluation|::Value = |evaluation|::at_place(operand.place);
         value
     }
 
-    machine negated(checker: @mutable Checker, expression: Expression, row: TypeRow, integer: bool) -> Value {
+    machine negated(checker: @mutable |checker|::Checker, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow, integer: bool) -> |evaluation|::Value {
         transition integer {
             true -> negation(checker, expression, row),
             _ -> typed(row)
         }
     }
 
-    machine negation(checker: @mutable Checker, expression: Expression, row: TypeRow) -> Value {
-        let value: Value = negation_value(checker, expression, row, false);
+    machine negation(checker: @mutable |checker|::Checker, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow) -> |evaluation|::Value {
+        let value: |evaluation|::Value = |arithmetic|::negation_value(checker, expression, row, false);
         value
     }
 
-    machine binary(checker: @mutable Checker, expression: Expression, row: TypeRow, integer: bool) -> Value {
+    machine binary(checker: @mutable |checker|::Checker, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow, integer: bool) -> |evaluation|::Value {
         transition integer {
             true -> arithmetic(checker, expression, row),
             _ -> typed(row)
         }
     }
 
-    machine arithmetic(checker: @mutable Checker, expression: Expression, row: TypeRow) -> Value {
-        let value: Value = binary_value(checker, expression, row, false);
+    machine arithmetic(checker: @mutable |checker|::Checker, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow) -> |evaluation|::Value {
+        let value: |evaluation|::Value = |arithmetic|::binary_value(checker, expression, row, false);
         value
     }
 
-    machine cast(checker: @mutable Checker, typing: @Typing, expression: Expression, row: TypeRow, integer: bool) -> Value {
+    machine cast(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow, integer: bool) -> |evaluation|::Value {
         transition integer {
             true -> conversion(checker, typing, expression, row),
             _ -> recast(checker, expression, row)
@@ -184,20 +175,20 @@ crashes Trap
     // as a borrow's is. The storage keeps its facts under its own carrier;
     // a view of another carrier reads it as unknown and its writes forget
     // it (references.omg, flow.omg).
-    machine recast(checker: @Checker, expression: Expression, row: TypeRow) -> Value {
-        transition row.kind == TypeKind::Reference {
+    machine recast(checker: @|checker|::Checker, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow) -> |evaluation|::Value {
+        transition row.kind == |typed_trees|::TypeKind::Reference {
             true -> borrowed(checker, expression),
             _ -> typed(row)
         }
     }
 
-    machine conversion(checker: @mutable Checker, typing: @Typing, expression: Expression, row: TypeRow) -> Value {
-        let value: Value = conversion_value(checker, typing, expression, row, false);
+    machine conversion(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow) -> |evaluation|::Value {
+        let value: |evaluation|::Value = |arithmetic|::conversion_value(checker, typing, expression, row, false);
         value
     }
 
-    machine typed(row: TypeRow) -> Value {
-        let value: Value = value_typed(row);
+    machine typed(row: |typed_trees|::TypeRow) -> |evaluation|::Value {
+        let value: |evaluation|::Value = |evaluation|::value_typed(row);
         value
     }
 }

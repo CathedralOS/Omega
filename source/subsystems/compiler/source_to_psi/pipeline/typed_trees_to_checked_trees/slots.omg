@@ -1,18 +1,9 @@
-use representations\checks\SlotOriginKind;
-use representations\checks\push_slot_origin;
-use representations\checks\push_slot_qualification;
-use representations\symbol_resolved_trees\DomainBinding;
-use representations\syntax_trees\MachineContainer;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\Parameter;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\syntax_trees_parameter;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\Typing;
-use representations\typed_trees\reference_type;
-use representations\typed_trees\type_table_row;
+use pipeline/typed_trees_to_checked_trees/checker.omg;
+
+use representations/checks/checks.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // Public slot records for a trait requirement. The requirement's signature is
 // the slot: each reference parameter's declared domain is a qualification
@@ -20,60 +11,60 @@ use representations\typed_trees\type_table_row;
 // parameter as its returned-borrow origin. The index counts reference
 // parameters only, in authored order.
 
-public machine project_slots(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing)
+public machine project_slots(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing)
 crashes Trap
 {
-    transition { _ -> next_machine(checker, syntax, typing, 0) }
+    transition { _ -> next_machine(checker, syntax, typing, 0 as +Trapping) }
 
-    machine next_machine(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, index: u64 in Trapping) {
+    machine next_machine(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, index: u64 in Trapping) {
         transition index < syntax.machine_count {
             true -> one(checker, syntax, typing, index),
             _ -> done()
         }
     }
 
-    machine one(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, index: u64 in Trapping) {
-        let item: MachineItem = machine_item(syntax, index);
-        transition item.container == MachineContainer::Trait {
+    machine one(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, index: u64 in Trapping) {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
+        transition item.container == |syntax_trees|::MachineContainer::Trait {
             true -> requirement(checker, syntax, typing, index, item),
             _ -> next_machine(checker, syntax, typing, index + 1)
         }
     }
 
     machine requirement(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
         index: u64 in Trapping,
-        item: MachineItem
+        item: |syntax_trees|::MachineItem
     ) {
         transition item.has_return_type {
             true -> typed_return(checker, syntax, typing, index, item),
-            _ -> parameters(checker, syntax, typing, index, item, 0, 0, 0, false, false, 0)
+            _ -> parameters(checker, syntax, typing, index, item, 0 as +Trapping, 0 as +Trapping, 0 as +Trapping, false, false, 0 as +Trapping)
         }
     }
 
     machine typed_return(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
         index: u64 in Trapping,
-        item: MachineItem
+        item: |syntax_trees|::MachineItem
     ) {
-        let handle: u64 in Trapping = reference_type(typing, item.return_type);
-        let row: TypeRow = type_table_row(@typing.types, handle);
-        transition row.kind == TypeKind::Reference {
-            true -> parameters(checker, syntax, typing, index, item, 0, 0, 0, false, true, row.inner),
-            _ -> parameters(checker, syntax, typing, index, item, 0, 0, 0, false, false, 0)
+        let handle: u64 in Trapping = |typed_trees|::reference_type(typing, item.return_type);
+        let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, handle);
+        transition row.kind == |typed_trees|::TypeKind::Reference {
+            true -> parameters(checker, syntax, typing, index, item, 0 as +Trapping, 0 as +Trapping, 0 as +Trapping, false, true, row.inner),
+            _ -> parameters(checker, syntax, typing, index, item, 0 as +Trapping, 0 as +Trapping, 0 as +Trapping, false, false, 0 as +Trapping)
         }
     }
 
     machine parameters(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
         index: u64 in Trapping,
-        item: MachineItem,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         structural: u64 in Trapping,
         matched: u64 in Trapping,
@@ -88,11 +79,11 @@ crashes Trap
     }
 
     machine one_parameter(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
         index: u64 in Trapping,
-        item: MachineItem,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         structural: u64 in Trapping,
         matched: u64 in Trapping,
@@ -100,21 +91,21 @@ crashes Trap
         returns_reference: bool,
         return_inner: u64 in Trapping
     ) {
-        let parameter: Parameter = syntax_trees_parameter(syntax, item.first_parameter + offset);
-        let handle: u64 in Trapping = reference_type(typing, parameter.type_reference);
-        let row: TypeRow = type_table_row(@typing.types, handle);
-        transition row.kind == TypeKind::Reference {
+        let parameter: |syntax_trees|::Parameter = |syntax_trees|::syntax_trees_parameter(syntax, item.first_parameter + offset);
+        let handle: u64 in Trapping = |typed_trees|::reference_type(typing, parameter.type_reference);
+        let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, handle);
+        transition row.kind == |typed_trees|::TypeKind::Reference {
             true -> reference_parameter(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, row.inner),
             _ -> parameters(checker, syntax, typing, index, item, offset + 1, structural, matched, found, returns_reference, return_inner)
         }
     }
 
     machine reference_parameter(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
         index: u64 in Trapping,
-        item: MachineItem,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         structural: u64 in Trapping,
         matched: u64 in Trapping,
@@ -123,20 +114,20 @@ crashes Trap
         return_inner: u64 in Trapping,
         inner_handle: u64 in Trapping
     ) {
-        let inner: TypeRow = type_table_row(@typing.types, inner_handle);
+        let inner: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, inner_handle);
         let same: bool = returns_reference && inner_handle == return_inner;
-        transition inner.domain == DomainBinding::Declared {
+        transition inner.domain == |symbol_resolved_trees|::DomainBinding::Declared {
             true -> qualify(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, same, inner.domain_item),
             _ -> advance(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, same)
         }
     }
 
     machine qualify(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
         index: u64 in Trapping,
-        item: MachineItem,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         structural: u64 in Trapping,
         matched: u64 in Trapping,
@@ -146,16 +137,16 @@ crashes Trap
         same: bool,
         domain_item: u64 in Trapping
     ) {
-        let recorded: bool = push_slot_qualification(@mutable checker.output, structural, domain_item);
+        let recorded: bool = |checks|::push_slot_qualification(@mutable checker.output, structural, domain_item);
         transition { _ -> advance(checker, syntax, typing, index, item, offset, structural, matched, found, returns_reference, return_inner, same && recorded) }
     }
 
     machine advance(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
         index: u64 in Trapping,
-        item: MachineItem,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         structural: u64 in Trapping,
         matched: u64 in Trapping,
@@ -171,11 +162,11 @@ crashes Trap
     }
 
     machine taken(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
         index: u64 in Trapping,
-        item: MachineItem,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         structural: u64 in Trapping,
         returns_reference: bool,
@@ -185,9 +176,9 @@ crashes Trap
     }
 
     machine finish(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
         index: u64 in Trapping,
         found: bool,
         matched: u64 in Trapping
@@ -199,13 +190,13 @@ crashes Trap
     }
 
     machine record_origin(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
         index: u64 in Trapping,
         matched: u64 in Trapping
     ) {
-        let recorded: bool = push_slot_origin(@mutable checker.output, SlotOriginKind::Parameter, matched);
+        let recorded: bool = |checks|::push_slot_origin(@mutable checker.output, |checks|::SlotOriginKind::Parameter, matched);
         transition recorded {
             true -> next_machine(checker, syntax, typing, index + 1),
             _ -> next_machine(checker, syntax, typing, index + 1)

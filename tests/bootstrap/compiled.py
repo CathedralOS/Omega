@@ -440,7 +440,8 @@ def omega_utf8_customer(work, timeout, batch=None):
         0: program,
         13: digits[start:end] + b"\n" + (gate / "hex_digit_controls.omg").read_bytes(),
         15: (gate / "fixed_array_loans.omg").read_bytes(),
-        16: loans[entry:end_traversal] + b"\n" + (gate / "loan_traversal_setup.omg").read_bytes(),
+        # Batch 16 assigns the test file this logical path before compiling it.
+        16: b"main.omg" + (gate / "loan_traversal_setup.omg").read_bytes() + b"\n" + loans[entry:end_traversal],
     }
     # Each refusal batch runs positives before and after the refusals on the same compiler.
     expected_batches = (

@@ -25,6 +25,7 @@ def main():
     args = parser.parse_args()
     fixture = PACKAGE / "tests/fixtures/facts/run/goal_stack"
     units = []
+    facts = []
     for filename, names in DECLARATIONS.items():
         source = (PACKAGE / filename).read_text()
         for name in names:
@@ -33,11 +34,16 @@ def main():
             match = re.search(rf"^(?:public )?(?:data|machine) {name}\b.*?^}}", source, re.M | re.S)
             if not match:
                 raise ValueError(f"missing declaration {name} in {filename}")
-            units.append(match[0])
+            if filename.startswith(CHECKER):
+                facts.append(match[0])
+            else:
+                units.append(match[0])
 
     with tempfile.TemporaryDirectory(prefix="omega-goal-stack-") as directory:
         root = Path(directory)
         (root / "build.omg").write_bytes((fixture / "build.omg").read_bytes())
+        inputs = (fixture / "facts.omg").read_text()
+        (root / "facts.omg").write_text("\n\n".join([inputs, *facts]) + "\n")
         program = root / "main.omg"
         program.write_text("\n\n".join([*units, (fixture / "main.omg").read_text()]))
         result = subprocess.run(

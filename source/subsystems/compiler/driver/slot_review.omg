@@ -1,15 +1,15 @@
-use psi\representations\checks\Checks;
-use psi\pipeline\typed_trees_to_checked_trees\SlotReview;
+use {psi}/pipeline/typed_trees_to_checked_trees/slot_review.omg as slot_records;
+use {psi}/representations/checks/checks.omg;
 
 // Review the slot records published by Psi checking.
 public data OmegaSlotReview {}
 
 public machine prepare(review: @mutable OmegaSlotReview) {}
 
-public machine admits(review: @OmegaSlotReview, checks: @Checks) -> bool
+public machine admits(review: @OmegaSlotReview, checks: @|checks|::Checks) -> bool
 crashes Trap
 {
-    let mutable admission: SlotReview;
-    psi\pipeline\typed_trees_to_checked_trees\prepare(@mutable admission);
-    psi\pipeline\typed_trees_to_checked_trees\admits(@admission, checks)
+    let mutable admission: |slot_records|::SlotReview;
+    |slot_records|::prepare(@mutable admission);
+    |slot_records|::admits(@admission, checks)
 }

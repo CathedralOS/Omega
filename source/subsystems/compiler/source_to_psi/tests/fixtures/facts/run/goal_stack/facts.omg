@@ -1,0 +1,9 @@
+use main.omg as checker;
+use main.omg as syntax_trees;
+
+machine proves_atom(checker: @|checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, handle: u64 in Trapping, holds: bool) -> bool
+crashes Trap
+{
+    let expression: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, handle);
+    expression.kind == |syntax_trees|::ExpressionKind::Boolean && expression.flag == holds
+}

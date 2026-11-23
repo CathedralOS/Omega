@@ -1,21 +1,24 @@
-machine bounded(result: Value, maximum: u64 in Wrapping) -> bool {
+use evaluation.omg;
+use integers.omg;
+
+machine bounded(result: |evaluation|::Value, maximum: u64 in Wrapping) -> bool {
     result.floor.finite && !result.floor.value.negative && result.floor.value.magnitude == 0
         && result.ceiling.finite && !result.ceiling.value.negative && result.ceiling.value.magnitude == maximum
 }
 machine main() -> u8 {
-    let unknown: Value = value_unknown();
-    let negative: Value = value_constant(ExactInteger { negative: true, magnitude: 1 as +Wrapping });
-    let mask: Value = value_constant(ExactInteger { negative: false, magnitude: 255 as +Wrapping });
-    let small: Value = value_constant(ExactInteger { negative: false, magnitude: 15 as +Wrapping });
-    let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 as +Wrapping });
-    let unknown_result: Value = value_conjunction(negative, unknown);
-    transition bounded(value_conjunction(unknown, mask), 255 as +Wrapping)
-        && bounded(value_conjunction(mask, unknown), 255 as +Wrapping)
-        && bounded(value_conjunction(negative, mask), 255 as +Wrapping)
-        && bounded(value_conjunction(mask, negative), 255 as +Wrapping)
-        && bounded(value_conjunction(mask, small), 15 as +Wrapping)
-        && bounded(value_conjunction(small, mask), 15 as +Wrapping)
-        && bounded(value_conjunction(zero, unknown), 0 as +Wrapping)
+    let unknown: |evaluation|::Value = |evaluation|::value_unknown();
+    let negative: |evaluation|::Value = |evaluation|::value_constant(|integers|::ExactInteger { negative: true, magnitude: 1 as +Wrapping });
+    let mask: |evaluation|::Value = |evaluation|::value_constant(|integers|::ExactInteger { negative: false, magnitude: 255 as +Wrapping });
+    let small: |evaluation|::Value = |evaluation|::value_constant(|integers|::ExactInteger { negative: false, magnitude: 15 as +Wrapping });
+    let zero: |evaluation|::Value = |evaluation|::value_constant(|integers|::ExactInteger { negative: false, magnitude: 0 as +Wrapping });
+    let unknown_result: |evaluation|::Value = |evaluation|::value_conjunction(negative, unknown);
+    transition bounded(|evaluation|::value_conjunction(unknown, mask), 255 as +Wrapping)
+        && bounded(|evaluation|::value_conjunction(mask, unknown), 255 as +Wrapping)
+        && bounded(|evaluation|::value_conjunction(negative, mask), 255 as +Wrapping)
+        && bounded(|evaluation|::value_conjunction(mask, negative), 255 as +Wrapping)
+        && bounded(|evaluation|::value_conjunction(mask, small), 15 as +Wrapping)
+        && bounded(|evaluation|::value_conjunction(small, mask), 15 as +Wrapping)
+        && bounded(|evaluation|::value_conjunction(zero, unknown), 0 as +Wrapping)
         && !unknown_result.floor.finite && !unknown_result.ceiling.finite {
         true -> yes(),
         _ -> no()

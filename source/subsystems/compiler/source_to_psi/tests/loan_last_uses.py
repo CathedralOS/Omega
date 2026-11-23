@@ -26,7 +26,11 @@ def main():
     with tempfile.TemporaryDirectory(prefix="omega-loan-last-uses-") as directory:
         root = Path(directory)
         shutil.copyfile(fixture / "build.omg", root / "build.omg")
-        (root / "main.omg").write_text("\n\n".join([*declarations, (fixture / "main.omg").read_text()]))
+        # Each imported file in the product has a small table or lookup in
+        # the fixture. Keep the product machines and their qualifiers intact.
+        imports = [f"use main.omg as {alias};" for alias in ("checker", "checks", "ownership", "symbol_resolved_trees", "syntax_trees")]
+        (root / "loans.omg").write_text("\n".join(imports) + "\n\n" + "\n\n".join(declarations) + "\n")
+        shutil.copyfile(fixture / "main.omg", root / "main.omg")
         subprocess.run([cli, "run", "--both", "build.omg"], cwd=root, check=True)
 
 

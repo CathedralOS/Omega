@@ -1,8 +1,10 @@
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\syntax_trees_argument;
-use representations\typed_trees\Typing;
+use pipeline/typed_trees_to_checked_trees/constructions.omg;
+use pipeline/typed_trees_to_checked_trees/checker.omg;
+use pipeline/typed_trees_to_checked_trees/evaluation.omg;
+use pipeline/typed_trees_to_checked_trees/places.omg;
+
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // Field paths an arrival carries. Besides a state's integer and Boolean
 // parameters, a jump projects the subject places it knows below an argument
@@ -50,7 +52,7 @@ crashes Trap
 {
     let mutable ordered: ArrivalPath = path;
     ordered.depth = count;
-    transition { _ -> swap(ordered, 0, count) }
+    transition { _ -> swap(ordered, 0 as +Trapping, count) }
 
     machine swap(path: ArrivalPath, low: u64 in Trapping, count: u64 in Trapping) -> ArrivalPath {
         transition low * 2 + 1 < count {
@@ -106,7 +108,7 @@ public machine with_step(path: ArrivalPath, index: u64 in Trapping, step: Arriva
     }
 }
 
-public machine path_count(checker: @Checker, offset: u64 in Trapping) -> u64 in Trapping
+public machine path_count(checker: @|checker|::Checker, offset: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
     transition offset < 128 {
@@ -114,10 +116,10 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine read(checker: @Checker, offset: u64 in Trapping) -> u64 in Trapping
+    machine read(checker: @|checker|::Checker, offset: u64 in Trapping) -> u64 in Trapping
     requires offset < 128
     {
-        checker.path_counts[offset] as +Trapping
+        checker.path_counts[offset as -Trapping] as +Trapping
     }
 
     machine invalid() -> u64 in Trapping {
@@ -125,7 +127,7 @@ crashes Trap
     }
 }
 
-public machine set_path_count(checker: @mutable Checker, offset: u64 in Trapping, count: u64 in Trapping)
+public machine set_path_count(checker: @mutable |checker|::Checker, offset: u64 in Trapping, count: u64 in Trapping)
 crashes Trap
 {
     transition offset < 128 {
@@ -133,10 +135,10 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine write(checker: @mutable Checker, offset: u64 in Trapping, count: u64 in Trapping)
+    machine write(checker: @mutable |checker|::Checker, offset: u64 in Trapping, count: u64 in Trapping)
     requires offset < 128
     {
-        checker.path_counts[offset] = count as u64;
+        checker.path_counts[offset as -Trapping] = count as u64;
     }
 
     machine invalid() {
@@ -144,7 +146,7 @@ crashes Trap
     }
 }
 
-public machine arrival_path(checker: @Checker, offset: u64 in Trapping, index: u64 in Trapping) -> ArrivalPath
+public machine arrival_path(checker: @|checker|::Checker, offset: u64 in Trapping, index: u64 in Trapping) -> ArrivalPath
 crashes Trap
 {
     transition offset < 128 && index < 40 {
@@ -152,17 +154,17 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine slot(checker: @Checker, slot: u64 in Trapping) -> ArrivalPath {
+    machine slot(checker: @|checker|::Checker, slot: u64 in Trapping) -> ArrivalPath {
         transition slot < 5120 {
             true -> read(checker, slot),
             _ -> invalid()
         }
     }
 
-    machine read(checker: @Checker, slot: u64 in Trapping) -> ArrivalPath
+    machine read(checker: @|checker|::Checker, slot: u64 in Trapping) -> ArrivalPath
     requires slot < 5120
     {
-        checker.paths[slot]
+        checker.paths[slot as -Trapping]
     }
 
     machine invalid() -> ArrivalPath {
@@ -170,7 +172,7 @@ crashes Trap
     }
 }
 
-machine store_arrival_path(checker: @mutable Checker, offset: u64 in Trapping, index: u64 in Trapping, path: ArrivalPath)
+machine store_arrival_path(checker: @mutable |checker|::Checker, offset: u64 in Trapping, index: u64 in Trapping, path: ArrivalPath)
 crashes Trap
 {
     transition offset < 128 && index < 40 {
@@ -178,17 +180,17 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine slot(checker: @mutable Checker, slot: u64 in Trapping, path: ArrivalPath) {
+    machine slot(checker: @mutable |checker|::Checker, slot: u64 in Trapping, path: ArrivalPath) {
         transition slot < 5120 {
             true -> write(checker, slot, path),
             _ -> invalid()
         }
     }
 
-    machine write(checker: @mutable Checker, slot: u64 in Trapping, path: ArrivalPath)
+    machine write(checker: @mutable |checker|::Checker, slot: u64 in Trapping, path: ArrivalPath)
     requires slot < 5120
     {
-        checker.paths[slot] = path;
+        checker.paths[slot as -Trapping] = path;
     }
 
     machine invalid() {
@@ -199,34 +201,34 @@ crashes Trap
 // The path from place `outer` (one-based) down to place `inner`, when
 // `inner` lies strictly within it by at most four field or `.length` steps;
 // depth zero otherwise.
-public machine path_below(checker: @Checker, outer: u64 in Trapping, inner: u64 in Trapping, parameter: u64 in Trapping) -> ArrivalPath
+public machine path_below(checker: @|checker|::Checker, outer: u64 in Trapping, inner: u64 in Trapping, parameter: u64 in Trapping) -> ArrivalPath
 crashes Trap
 {
-    let empty: ArrivalStep = ArrivalStep { length: false, field: 0, type_handle: 0 };
-    let none: ArrivalPath = ArrivalPath { parameter: parameter, depth: 0, step0: empty, step1: empty, step2: empty, step3: empty };
-    transition { _ -> climb(checker, outer, inner, none, 0) }
+    let empty: ArrivalStep = ArrivalStep { length: false, field: 0 as +Trapping, type_handle: 0 as +Trapping };
+    let none: ArrivalPath = ArrivalPath { parameter: parameter, depth: 0 as +Trapping, step0: empty, step1: empty, step2: empty, step3: empty };
+    transition { _ -> climb(checker, outer, inner, none, 0 as +Trapping) }
 
     // Collect steps upward from `current`, deepest last: the step at
     // `count` from the bottom is written at index `count` and reversed at
     // the end.
-    machine climb(checker: @Checker, outer: u64 in Trapping, current: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
+    machine climb(checker: @|checker|::Checker, outer: u64 in Trapping, current: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
         transition current == outer && count > 0 {
             true -> reversed(path, count),
             _ -> step(checker, outer, current, path, count)
         }
     }
 
-    machine step(checker: @Checker, outer: u64 in Trapping, current: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
-        let place: Place = place_at(checker, current - 1);
-        let projection: bool = place.kind == PlaceKind::Field || place.kind == PlaceKind::Length;
+    machine step(checker: @|checker|::Checker, outer: u64 in Trapping, current: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
+        let place: |places|::Place = |places|::place_at(checker, current - 1);
+        let projection: bool = place.kind == |places|::PlaceKind::Field || place.kind == |places|::PlaceKind::Length;
         transition projection && place.parent > 0 && count < 4 {
             true -> recorded(checker, outer, place, path, count),
             _ -> outside(path)
         }
     }
 
-    machine recorded(checker: @Checker, outer: u64 in Trapping, place: Place, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
-        let step: ArrivalStep = ArrivalStep { length: place.kind == PlaceKind::Length, field: place.handle, type_handle: place.type_handle };
+    machine recorded(checker: @|checker|::Checker, outer: u64 in Trapping, place: |places|::Place, path: ArrivalPath, count: u64 in Trapping) -> ArrivalPath {
+        let step: ArrivalStep = ArrivalStep { length: place.kind == |places|::PlaceKind::Length, field: place.handle, type_handle: place.type_handle };
         let extended: ArrivalPath = with_step(path, count, step);
         transition { _ -> climb(checker, outer, place.parent, extended, count + 1) }
     }
@@ -238,7 +240,7 @@ crashes Trap
 
     machine outside(path: ArrivalPath) -> ArrivalPath {
         let mutable none: ArrivalPath = path;
-        none.depth = 0;
+        none.depth = 0 as +Trapping;
         none
     }
 }
@@ -246,7 +248,7 @@ crashes Trap
 // Whether two paths name the same place below the same parameter.
 machine same_path(first: ArrivalPath, second: ArrivalPath) -> bool {
     transition first.parameter == second.parameter && first.depth == second.depth {
-        true -> steps(first, second, 0),
+        true -> steps(first, second, 0 as +Trapping),
         _ -> no()
     }
 
@@ -277,20 +279,20 @@ machine same_path(first: ArrivalPath, second: ArrivalPath) -> bool {
 
 // The index of `path` among state `offset`'s paths, the ones its demand
 // derived (demand.omg); 40 when it has none.
-public machine path_index(checker: @Checker, offset: u64 in Trapping, path: ArrivalPath) -> u64 in Trapping
+public machine path_index(checker: @|checker|::Checker, offset: u64 in Trapping, path: ArrivalPath) -> u64 in Trapping
 crashes Trap
 {
     let count: u64 in Trapping = path_count(checker, offset);
-    transition { _ -> search(checker, offset, path, count, 0) }
+    transition { _ -> search(checker, offset, path, count, 0 as +Trapping) }
 
-    machine search(checker: @Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+    machine search(checker: @|checker|::Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         transition index < count && index < 40 {
             true -> compare(checker, offset, path, count, index),
-            _ -> found(40)
+            _ -> found(40 as +Trapping)
         }
     }
 
-    machine compare(checker: @Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
+    machine compare(checker: @|checker|::Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
         let existing: ArrivalPath = arrival_path(checker, offset, index);
         let same: bool = same_path(existing, path);
         transition same {
@@ -306,7 +308,7 @@ crashes Trap
 
 // Add `path` to state `offset`'s paths when it is new and there is room.
 // Whether it was added.
-public machine add_arrival_path(checker: @mutable Checker, offset: u64 in Trapping, path: ArrivalPath) -> bool
+public machine add_arrival_path(checker: @mutable |checker|::Checker, offset: u64 in Trapping, path: ArrivalPath) -> bool
 crashes Trap
 {
     let index: u64 in Trapping = path_index(checker, offset, path);
@@ -316,7 +318,7 @@ crashes Trap
         _ -> unchanged()
     }
 
-    machine appended(checker: @mutable Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> bool {
+    machine appended(checker: @mutable |checker|::Checker, offset: u64 in Trapping, path: ArrivalPath, count: u64 in Trapping) -> bool {
         store_arrival_path(checker, offset, count, path);
         set_path_count(checker, offset, count + 1);
         true
@@ -329,25 +331,25 @@ crashes Trap
 
 // Enter state `offset`'s paths as places below its parameters, in order.
 // Whether every path's place took the subject its arrival numbers it with.
-public machine enter_paths(checker: @mutable Checker, typing: @Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping) -> bool
+public machine enter_paths(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping) -> bool
 crashes Trap
 {
     let count: u64 in Trapping = path_count(checker, offset);
-    transition { _ -> next(checker, typing, offset, first_parameter, count, 0, true) }
+    transition { _ -> next(checker, typing, offset, first_parameter, count, 0 as +Trapping, true) }
 
-    machine next(checker: @mutable Checker, typing: @Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, matched: bool) -> bool {
+    machine next(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, matched: bool) -> bool {
         transition index < count && index < 40 {
             true -> path(checker, typing, offset, first_parameter, count, index, matched),
             _ -> finished(matched)
         }
     }
 
-    machine path(checker: @mutable Checker, typing: @Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, matched: bool) -> bool {
+    machine path(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, offset: u64 in Trapping, first_parameter: u64 in Trapping, count: u64 in Trapping, index: u64 in Trapping, matched: bool) -> bool {
         let path: ArrivalPath = arrival_path(checker, offset, index);
         let expected: u64 in Trapping = checker.subject_count as +Trapping;
-        let root: u64 in Trapping = find_place(checker, PlaceKind::Parameter, first_parameter + path.parameter, 0);
+        let root: u64 in Trapping = |places|::find_place(checker, |places|::PlaceKind::Parameter, first_parameter + path.parameter, 0 as +Trapping);
         let place: u64 in Trapping = enter_path(checker, typing, root, path);
-        let entry: Place = place_or_absent(checker, place);
+        let entry: |places|::Place = place_or_absent(checker, place);
         let numbered: bool = place > 0 && entry.subject == expected;
         transition { _ -> next(checker, typing, offset, first_parameter, count, index + 1, matched && numbered) }
     }
@@ -359,22 +361,22 @@ crashes Trap
 
 // The places of `path` below `root` (one-based), entered as needed; the
 // last one, or zero when `root` is absent.
-public machine enter_path(checker: @mutable Checker, typing: @Typing, root: u64 in Trapping, path: ArrivalPath) -> u64 in Trapping
+public machine enter_path(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, root: u64 in Trapping, path: ArrivalPath) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> step(checker, typing, root, path, 0) }
+    transition { _ -> step(checker, typing, root, path, 0 as +Trapping) }
 
-    machine step(checker: @mutable Checker, typing: @Typing, current: u64 in Trapping, path: ArrivalPath, index: u64 in Trapping) -> u64 in Trapping {
+    machine step(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, current: u64 in Trapping, path: ArrivalPath, index: u64 in Trapping) -> u64 in Trapping {
         transition current > 0 && index < path.depth && index < 4 {
             true -> entered(checker, typing, current, path, index),
             _ -> finished(current)
         }
     }
 
-    machine entered(checker: @mutable Checker, typing: @Typing, current: u64 in Trapping, path: ArrivalPath, index: u64 in Trapping) -> u64 in Trapping {
+    machine entered(checker: @mutable |checker|::Checker, typing: @|typed_trees|::Typing, current: u64 in Trapping, path: ArrivalPath, index: u64 in Trapping) -> u64 in Trapping {
         let projection: ArrivalStep = arrival_path_step(path, index);
-        let kind: PlaceKind = step_kind(projection.length);
-        let place: u64 in Trapping = checker_place(checker, typing, kind, projection.field, current, projection.type_handle);
+        let kind: |places|::PlaceKind = step_kind(projection.length);
+        let place: u64 in Trapping = |places|::checker_place(checker, typing, kind, projection.field, current, projection.type_handle);
         transition { _ -> step(checker, typing, place, path, index + 1) }
     }
 
@@ -383,19 +385,19 @@ crashes Trap
     }
 }
 
-machine step_kind(length: bool) -> PlaceKind {
+machine step_kind(length: bool) -> |places|::PlaceKind {
     transition length {
-        true -> chosen(PlaceKind::Length),
-        _ -> chosen(PlaceKind::Field)
+        true -> chosen(|places|::PlaceKind::Length),
+        _ -> chosen(|places|::PlaceKind::Field)
     }
 
-    machine chosen(kind: PlaceKind) -> PlaceKind {
+    machine chosen(kind: |places|::PlaceKind) -> |places|::PlaceKind {
         kind
     }
 }
 
 // A place (one-based) or, for zero, a place with no subject.
-public machine place_or_absent(checker: @Checker, place: u64 in Trapping) -> Place
+public machine place_or_absent(checker: @|checker|::Checker, place: u64 in Trapping) -> |places|::Place
 crashes Trap
 {
     transition place > 0 {
@@ -403,13 +405,13 @@ crashes Trap
         _ -> absent()
     }
 
-    machine entry(checker: @Checker, place: u64 in Trapping) -> Place {
-        let entry: Place = place_at(checker, place - 1);
+    machine entry(checker: @|checker|::Checker, place: u64 in Trapping) -> |places|::Place {
+        let entry: |places|::Place = |places|::place_at(checker, place - 1);
         entry
     }
 
-    machine absent() -> Place {
-        Place { kind: PlaceKind::Parameter, handle: 0, parent: 0, type_handle: 0, subject: 0 }
+    machine absent() -> |places|::Place {
+        |places|::Place { kind: |places|::PlaceKind::Parameter, handle: 0 as +Trapping, parent: 0 as +Trapping, type_handle: 0 as +Trapping, subject: 0 as +Trapping }
     }
 }
 
@@ -418,55 +420,55 @@ crashes Trap
 // integer-parameter subjects. Slots this jump does not reach are unknown.
 // The number of projected subjects, the zero subject included.
 public machine project_paths(
-    checker: @mutable Checker,
-    syntax: @SyntaxTrees,
-    typing: @Typing,
-    expression: Expression,
-    item: MachineItem,
+    checker: @mutable |checker|::Checker,
+    syntax: @|syntax_trees|::SyntaxTrees,
+    typing: @|typed_trees|::Typing,
+    expression: |syntax_trees|::Expression,
+    item: |syntax_trees|::MachineItem,
     offset: u64 in Trapping,
     first_subject: u64 in Trapping
 ) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> clear(checker, syntax, typing, expression, item, offset, first_subject, 0) }
+    transition { _ -> clear(checker, syntax, typing, expression, item, offset, first_subject, 0 as +Trapping) }
 
     machine clear(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
-        expression: Expression,
-        item: MachineItem,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
+        expression: |syntax_trees|::Expression,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         first_subject: u64 in Trapping,
         slot: u64 in Trapping
     ) -> u64 in Trapping {
         transition slot < 40 && first_subject + slot < 64 {
             true -> cleared(checker, syntax, typing, expression, item, offset, first_subject, slot),
-            _ -> parameter(checker, syntax, typing, expression, item, offset, first_subject, 0)
+            _ -> parameter(checker, syntax, typing, expression, item, offset, first_subject, 0 as +Trapping)
         }
     }
 
     machine cleared(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
-        expression: Expression,
-        item: MachineItem,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
+        expression: |syntax_trees|::Expression,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         first_subject: u64 in Trapping,
         slot: u64 in Trapping
     ) -> u64 in Trapping {
-        let unknown: Value = value_unknown();
-        set_projection(checker, first_subject + slot, unknown);
+        let unknown: |evaluation|::Value = |evaluation|::value_unknown();
+        |checker|::set_projection(checker, first_subject + slot, unknown);
         transition { _ -> clear(checker, syntax, typing, expression, item, offset, first_subject, slot + 1) }
     }
 
     machine parameter(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
-        expression: Expression,
-        item: MachineItem,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
+        expression: |syntax_trees|::Expression,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         first_subject: u64 in Trapping,
         index: u64 in Trapping
@@ -478,17 +480,17 @@ crashes Trap
     }
 
     machine argument(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
-        expression: Expression,
-        item: MachineItem,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
+        expression: |syntax_trees|::Expression,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         first_subject: u64 in Trapping,
         index: u64 in Trapping
     ) -> u64 in Trapping {
-        let handle: u64 in Trapping = syntax_trees_argument(syntax, expression.first + index);
-        let value: Value = value_at(checker, handle);
+        let handle: u64 in Trapping = |syntax_trees|::syntax_trees_argument(syntax, expression.first + index);
+        let value: |evaluation|::Value = |evaluation|::value_at(checker, handle);
         transition value.place > 0 && value.subject == 0 {
             true -> settled(checker, syntax, typing, expression, item, offset, first_subject, index, value.place),
             _ -> parameter(checker, syntax, typing, expression, item, offset, first_subject, index + 1)
@@ -497,27 +499,27 @@ crashes Trap
 
     // Fields a construction wrote below the argument become its places.
     machine settled(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
-        expression: Expression,
-        item: MachineItem,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
+        expression: |syntax_trees|::Expression,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         first_subject: u64 in Trapping,
         index: u64 in Trapping,
         root: u64 in Trapping
     ) -> u64 in Trapping {
-        settle_pending(checker, typing, root);
-        transition { _ -> place(checker, syntax, typing, expression, item, offset, first_subject, index, root, 0) }
+        |constructions|::settle_pending(checker, typing, root);
+        transition { _ -> place(checker, syntax, typing, expression, item, offset, first_subject, index, root, 0 as +Trapping) }
     }
 
     // Each subject place of the body below the argument's place.
     machine place(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
-        expression: Expression,
-        item: MachineItem,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
+        expression: |syntax_trees|::Expression,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         first_subject: u64 in Trapping,
         index: u64 in Trapping,
@@ -531,18 +533,18 @@ crashes Trap
     }
 
     machine below(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
-        expression: Expression,
-        item: MachineItem,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
+        expression: |syntax_trees|::Expression,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         first_subject: u64 in Trapping,
         index: u64 in Trapping,
         root: u64 in Trapping,
         candidate: u64 in Trapping
     ) -> u64 in Trapping {
-        let entry: Place = place_at(checker, candidate);
+        let entry: |places|::Place = |places|::place_at(checker, candidate);
         let path: ArrivalPath = path_below(checker, root, candidate + 1, index);
         transition entry.subject > 0 && path.depth > 0 {
             true -> projected(checker, syntax, typing, expression, item, offset, first_subject, index, root, candidate, path),
@@ -551,11 +553,11 @@ crashes Trap
     }
 
     machine projected(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
-        expression: Expression,
-        item: MachineItem,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
+        expression: |syntax_trees|::Expression,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         first_subject: u64 in Trapping,
         index: u64 in Trapping,
@@ -564,7 +566,7 @@ crashes Trap
         path: ArrivalPath
     ) -> u64 in Trapping {
         let slot: u64 in Trapping = path_index(checker, offset, path);
-        let value: Value = place_value(checker, candidate + 1);
+        let value: |evaluation|::Value = |places|::place_value(checker, candidate + 1);
         transition slot < 40 && first_subject + slot < 64 {
             true -> stored(checker, syntax, typing, expression, item, offset, first_subject, index, root, candidate, first_subject + slot, value),
             _ -> place(checker, syntax, typing, expression, item, offset, first_subject, index, root, candidate + 1)
@@ -572,29 +574,29 @@ crashes Trap
     }
 
     machine stored(
-        checker: @mutable Checker,
-        syntax: @SyntaxTrees,
-        typing: @Typing,
-        expression: Expression,
-        item: MachineItem,
+        checker: @mutable |checker|::Checker,
+        syntax: @|syntax_trees|::SyntaxTrees,
+        typing: @|typed_trees|::Typing,
+        expression: |syntax_trees|::Expression,
+        item: |syntax_trees|::MachineItem,
         offset: u64 in Trapping,
         first_subject: u64 in Trapping,
         index: u64 in Trapping,
         root: u64 in Trapping,
         candidate: u64 in Trapping,
         subject: u64 in Trapping,
-        value: Value
+        value: |evaluation|::Value
     ) -> u64 in Trapping {
-        set_projection(checker, subject, value);
+        |checker|::set_projection(checker, subject, value);
         transition { _ -> place(checker, syntax, typing, expression, item, offset, first_subject, index, root, candidate + 1) }
     }
 
-    machine counted(checker: @mutable Checker, offset: u64 in Trapping, first_subject: u64 in Trapping) -> u64 in Trapping {
+    machine counted(checker: @mutable |checker|::Checker, offset: u64 in Trapping, first_subject: u64 in Trapping) -> u64 in Trapping {
         let paths: u64 in Trapping = path_count(checker, offset);
         let count: u64 in Trapping = first_subject + paths;
         transition count <= 64 {
             true -> total(count),
-            _ -> total(64)
+            _ -> total(64 as +Trapping)
         }
     }
 

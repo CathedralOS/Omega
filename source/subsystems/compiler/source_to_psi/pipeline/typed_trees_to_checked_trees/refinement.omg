@@ -1,17 +1,19 @@
-use representations\symbol_resolved_trees\NameResolution;
-use representations\syntax_trees\ClauseKind;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\Parameter;
-use representations\syntax_trees\ReferenceAccess;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\syntax_trees_parameter;
-use representations\typed_trees\Selection;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\Typing;
-use representations\typed_trees\reference_type;
-use representations\typed_trees\type_table_row;
+use pipeline/typed_trees_to_checked_trees/callable_effects.omg;
+use pipeline/typed_trees_to_checked_trees/domains.omg;
+use pipeline/typed_trees_to_checked_trees/frames.omg;
+use pipeline/typed_trees_to_checked_trees/qualification.omg;
+use pipeline/typed_trees_to_checked_trees/reference_origins.omg;
+use pipeline/typed_trees_to_checked_trees/references.omg;
+use pipeline/typed_trees_to_checked_trees/call_bindings.omg;
+use pipeline/typed_trees_to_checked_trees/checker.omg;
+use pipeline/typed_trees_to_checked_trees/contracts.omg;
+use pipeline/typed_trees_to_checked_trees/evaluation.omg;
+use pipeline/typed_trees_to_checked_trees/places.omg;
+use pipeline/typed_trees_to_checked_trees/reference_writes.omg;
+
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // Universal public-contract implication is a post-settlement operation:
 // check_supply runs after every ordinary body, before project_slots
@@ -20,51 +22,51 @@ use representations\typed_trees\type_table_row;
 // completion summaries and write frames are never restored or erased here.
 // This owner does not execute a supplier or borrow caller argument facts.
 public machine callable_facts_refine(
-    checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution,
-    typing: @Typing, owner: u64 in Trapping, required: CallClauses,
-    given: CallClauses, selected: Selection
+    checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution,
+    typing: @|typed_trees|::Typing, owner: u64 in Trapping, required: |contracts|::CallClauses,
+    given: |contracts|::CallClauses, selected: |typed_trees|::Selection
 ) -> bool
 crashes Trap
 {
-    let premises: bool = callable_has_clause(syntax, given, ClauseKind::Requires);
-    let guarantees: bool = callable_has_clause(syntax, required, ClauseKind::Ensures);
+    let premises: bool = |callable_effects|::callable_has_clause(syntax, given, |syntax_trees|::ClauseKind::Requires);
+    let guarantees: bool = |callable_effects|::callable_has_clause(syntax, required, |syntax_trees|::ClauseKind::Ensures);
     // Empty implications need no arbitrary value construction. In particular,
     // a signature-only higher-order binder does not require a scalar result.
     transition premises || guarantees {
         true -> entry(checker, syntax, resolution, typing, owner, required, given, selected, guarantees),
         false -> true
     }
-    machine entry(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, owner: u64 in Trapping, required: CallClauses, given: CallClauses, selected: Selection, guarantees: bool) -> bool {
+    machine entry(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, owner: u64 in Trapping, required: |contracts|::CallClauses, given: |contracts|::CallClauses, selected: |typed_trees|::Selection, guarantees: bool) -> bool {
         let held: bool = refinement_entry(checker, syntax, resolution, typing, owner, required, given);
         transition held && guarantees {
             true -> post(checker, syntax, resolution, typing, owner, required, given, selected),
             false -> finished(checker, syntax, owner, held)
         }
     }
-    machine post(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, owner: u64 in Trapping, required: CallClauses, given: CallClauses, selected: Selection) -> bool {
+    machine post(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, owner: u64 in Trapping, required: |contracts|::CallClauses, given: |contracts|::CallClauses, selected: |typed_trees|::Selection) -> bool {
         let held: bool = refinement_post(checker, syntax, resolution, typing, owner, required, given, selected);
         transition { _ -> finished(checker, syntax, owner, held) }
     }
-    machine finished(checker: @mutable Checker, syntax: @SyntaxTrees, owner: u64 in Trapping, held: bool) -> bool {
+    machine finished(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, owner: u64 in Trapping, held: bool) -> bool {
         clear_refinement_world(checker, syntax, owner);
         held
     }
 }
 
-machine refinement_entry(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, owner: u64 in Trapping, required: CallClauses, given: CallClauses) -> bool
+machine refinement_entry(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, owner: u64 in Trapping, required: |contracts|::CallClauses, given: |contracts|::CallClauses) -> bool
 crashes Trap
 {
-    let mutable arguments: ArgumentValues;
+    let mutable arguments: |call_bindings|::ArgumentValues;
     open_refinement_world(checker, syntax, resolution, typing, owner, required, @mutable arguments);
-    decide_bound_facts(checker, syntax, resolution, typing, given, @arguments, ClauseKind::Requires, true)
+    |call_bindings|::decide_bound_facts(checker, syntax, resolution, typing, given, @arguments, |syntax_trees|::ClauseKind::Requires, true)
 }
 
-machine refinement_post(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, owner: u64 in Trapping, required: CallClauses, given: CallClauses, selected: Selection) -> bool
+machine refinement_post(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, owner: u64 in Trapping, required: |contracts|::CallClauses, given: |contracts|::CallClauses, selected: |typed_trees|::Selection) -> bool
 crashes Trap
 {
     // Rebuild from the requirement's premises alone. No provisional entry
     // query or caller observation is an additional postcondition premise.
-    let mutable arguments: ArgumentValues;
+    let mutable arguments: |call_bindings|::ArgumentValues;
     open_refinement_world(checker, syntax, resolution, typing, owner, required, @mutable arguments);
     retire_refinement_arguments(checker, syntax, typing, required, given, selected, @arguments);
     let result_type: u64 in Trapping = contract_result_type(typing, given);
@@ -72,100 +74,100 @@ crashes Trap
         true -> result(checker, syntax, resolution, typing, required, given, @arguments, result_type),
         _ -> false
     }
-    machine result(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, required: CallClauses, given: CallClauses, arguments: @ArgumentValues, result_type: u64 in Trapping) -> bool {
+    machine result(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, required: |contracts|::CallClauses, given: |contracts|::CallClauses, arguments: @|call_bindings|::ArgumentValues, result_type: u64 in Trapping) -> bool {
         // One arbitrary complete value of the actual public result type.
         // Both contracts describe it; neither its body nor a caller value
         // supplies a stronger equation. The namespace exists only here.
-        let place: u64 in Trapping = checker_place(checker, typing, PlaceKind::ContractResult, 0, 0, result_type);
-        checker.returned = reference_value(checker, typing, place);
+        let place: u64 in Trapping = |places|::checker_place(checker, typing, |places|::PlaceKind::ContractResult, 0 as +Trapping, 0 as +Trapping, result_type);
+        checker.returned = |references|::reference_value(checker, typing, place);
         checker.returning = true;
-        let assumed: bool = decide_bound_facts(checker, syntax, resolution, typing, given, arguments, ClauseKind::Ensures, false);
-        let held: bool = assumed && decide_bound_facts(checker, syntax, resolution, typing, required, arguments, ClauseKind::Ensures, true);
+        let assumed: bool = |call_bindings|::decide_bound_facts(checker, syntax, resolution, typing, given, arguments, |syntax_trees|::ClauseKind::Ensures, false);
+        let held: bool = assumed && |call_bindings|::decide_bound_facts(checker, syntax, resolution, typing, required, arguments, |syntax_trees|::ClauseKind::Ensures, true);
         held && !checker.overflowed
     }
 }
 
-machine contract_result_type(typing: @Typing, clauses: CallClauses) -> u64 in Trapping
+machine contract_result_type(typing: @|typed_trees|::Typing, clauses: |contracts|::CallClauses) -> u64 in Trapping
 crashes Trap
 {
     transition clauses.has_return_type {
-        true -> reference_type(typing, clauses.return_type),
+        true -> |typed_trees|::reference_type(typing, clauses.return_type),
         _ -> typing.unit
     }
 }
 
-machine open_refinement_world(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, owner: u64 in Trapping, required: CallClauses, arguments: @mutable ArgumentValues)
+machine open_refinement_world(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, owner: u64 in Trapping, required: |contracts|::CallClauses, arguments: @mutable |call_bindings|::ArgumentValues)
 crashes Trap
 {
     clear_refinement_world(checker, syntax, owner);
-    argument_values_empty(arguments);
+    |call_bindings|::argument_values_empty(arguments);
     arguments.count = required.parameter_count;
     arguments.valid = required.parameter_count <= 64;
     transition arguments.valid {
-        true -> parameters(checker, syntax, resolution, typing, required, arguments, 0),
+        true -> parameters(checker, syntax, resolution, typing, required, arguments, 0 as +Trapping),
         _ -> {}
     }
-    machine parameters(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, required: CallClauses, arguments: @mutable ArgumentValues, offset: u64 in Trapping) {
+    machine parameters(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, required: |contracts|::CallClauses, arguments: @mutable |call_bindings|::ArgumentValues, offset: u64 in Trapping) {
         transition offset < required.parameter_count && offset < 64 {
             true -> parameter(checker, syntax, resolution, typing, required, arguments, offset),
             _ -> qualified(checker, syntax, resolution, typing, required, arguments)
         }
     }
-    machine parameter(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, required: CallClauses, arguments: @mutable ArgumentValues, offset: u64 in Trapping)
+    machine parameter(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, required: |contracts|::CallClauses, arguments: @mutable |call_bindings|::ArgumentValues, offset: u64 in Trapping)
     requires offset < 64
     {
         let coordinate: u64 in Trapping = required.first_parameter + offset;
-        let declared: Parameter = syntax_trees_parameter(syntax, coordinate);
-        let type_handle: u64 in Trapping = reference_type(typing, declared.type_reference);
-        let place: u64 in Trapping = parameter_place(checker, syntax, typing, coordinate);
-        let value: Value = reference_value(checker, typing, place);
-        arguments.values[offset] = value;
+        let declared: |syntax_trees|::Parameter = |syntax_trees|::syntax_trees_parameter(syntax, coordinate);
+        let type_handle: u64 in Trapping = |typed_trees|::reference_type(typing, declared.type_reference);
+        let place: u64 in Trapping = |checker|::parameter_place(checker, syntax, typing, coordinate);
+        let value: |evaluation|::Value = |references|::reference_value(checker, typing, place);
+        arguments.values[offset as -Trapping] = value;
         arguments.valid = arguments.valid && type_handle > 0 && place > 0 && value.place > 0;
         transition { _ -> parameters(checker, syntax, resolution, typing, required, arguments, offset + 1) }
     }
-    machine qualified(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, typing: @Typing, required: CallClauses, arguments: @mutable ArgumentValues) {
-        assume_parameter_qualifications(checker, syntax, resolution, typing, required.first_parameter, required.parameter_count);
-        assume_requirements(checker, syntax, resolution, typing, required.first_clause, required.clause_count);
-        install_domains(checker, syntax, resolution, typing);
+    machine qualified(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, required: |contracts|::CallClauses, arguments: @mutable |call_bindings|::ArgumentValues) {
+        |qualification|::assume_parameter_qualifications(checker, syntax, resolution, typing, required.first_parameter, required.parameter_count);
+        |contracts|::assume_requirements(checker, syntax, resolution, typing, required.first_clause, required.clause_count);
+        |domains|::install_domains(checker, syntax, resolution, typing);
         arguments.valid = arguments.valid && !checker.overflowed;
     }
 }
 
-machine clear_refinement_world(checker: @mutable Checker, syntax: @SyntaxTrees, owner: u64 in Trapping)
+machine clear_refinement_world(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, owner: u64 in Trapping)
 crashes Trap
 {
-    let item: MachineItem = machine_item(syntax, owner);
-    prepare_body(checker, item, owner);
-    open_places(checker);
+    let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, owner);
+    |checker|::prepare_body(checker, item, owner);
+    |places|::open_places(checker);
     checker.exact_body = false;
     checker.walking = 0;
     checker.assumption_count = 0;
-    checker.tree_base = 0;
-    checker.tree_low = 0;
-    checker.tree_size = 0;
+    checker.tree_base = 0 as +Trapping;
+    checker.tree_low = 0 as +Trapping;
+    checker.tree_size = 0 as +Trapping;
     checker.context_first = 0;
-    checker.argument_first = 0;
-    checker.argument_count = 0;
-    checker.field_first = 0;
-    checker.returned = value_unknown();
-    checker.subject = value_unknown();
-    checker.subject_roster = 0;
+    checker.argument_first = 0 as +Trapping;
+    checker.argument_count = 0 as +Trapping;
+    checker.field_first = 0 as +Trapping;
+    checker.returned = |evaluation|::value_unknown();
+    checker.subject = |evaluation|::value_unknown();
+    checker.subject_roster = 0 as +Trapping;
     checker.collecting_completion = false;
     checker.completion_seen = false;
-    checker.completion_value = value_unknown();
+    checker.completion_value = |evaluation|::value_unknown();
     checker.trap_route = false;
     checker.abort_route = false;
-    transition { _ -> next(checker, 0) }
-    machine next(checker: @mutable Checker, offset: u64 in Trapping) {
+    transition { _ -> next(checker, 0 as +Trapping) }
+    machine next(checker: @mutable |checker|::Checker, offset: u64 in Trapping) {
         transition offset < 4096 {
             true -> clear(checker, offset),
             _ -> {}
         }
     }
-    machine clear(checker: @mutable Checker, offset: u64 in Trapping)
+    machine clear(checker: @mutable |checker|::Checker, offset: u64 in Trapping)
     requires offset < 4096
     {
-        checker.values[offset] = value_unknown();
+        checker.values[offset as -Trapping] = |evaluation|::value_unknown();
         transition { _ -> next(checker, offset + 1) }
     }
 }
@@ -173,60 +175,60 @@ crashes Trap
 // Retire live mutable subjects through the same settled write-frame owners
 // as ordinary calls. Owned scalar fields remain immutable snapshots;
 // an opaque forwarded supplier can change each exclusive referent whole.
-machine retire_refinement_arguments(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, required: CallClauses, given: CallClauses, selected: Selection, arguments: @ArgumentValues)
+machine retire_refinement_arguments(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, required: |contracts|::CallClauses, given: |contracts|::CallClauses, selected: |typed_trees|::Selection, arguments: @|call_bindings|::ArgumentValues)
 crashes Trap
 {
-    transition { _ -> next(checker, syntax, typing, required, given, selected, arguments, 0) }
-    machine next(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, required: CallClauses, given: CallClauses, selected: Selection, arguments: @ArgumentValues, offset: u64 in Trapping) {
+    transition { _ -> next(checker, syntax, typing, required, given, selected, arguments, 0 as +Trapping) }
+    machine next(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, required: |contracts|::CallClauses, given: |contracts|::CallClauses, selected: |typed_trees|::Selection, arguments: @|call_bindings|::ArgumentValues, offset: u64 in Trapping) {
         transition arguments.valid && offset < arguments.count && offset < 64 {
             true -> parameter(checker, syntax, typing, required, given, selected, arguments, offset),
             _ -> {}
         }
     }
-    machine parameter(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, required: CallClauses, given: CallClauses, selected: Selection, arguments: @ArgumentValues, offset: u64 in Trapping)
+    machine parameter(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, required: |contracts|::CallClauses, given: |contracts|::CallClauses, selected: |typed_trees|::Selection, arguments: @|call_bindings|::ArgumentValues, offset: u64 in Trapping)
     requires offset < 64
     {
-        let declared: Parameter = syntax_trees_parameter(syntax, required.first_parameter + offset);
-        let handle: u64 in Trapping = reference_type(typing, declared.type_reference);
-        let row: TypeRow = type_table_row(@typing.types, handle);
-        let value: Value = arguments.values[offset];
-        transition row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared && value.place > 0 {
+        let declared: |syntax_trees|::Parameter = |syntax_trees|::syntax_trees_parameter(syntax, required.first_parameter + offset);
+        let handle: u64 in Trapping = |typed_trees|::reference_type(typing, declared.type_reference);
+        let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, handle);
+        let value: |evaluation|::Value = arguments.values[offset as -Trapping];
+        transition row.kind == |typed_trees|::TypeKind::Reference && row.access != |syntax_trees|::ReferenceAccess::Shared && value.place > 0 {
             true -> exclusive(checker, syntax, typing, required, given, selected, arguments, offset, value.place),
             _ -> embedded(checker, syntax, typing, required, given, selected, arguments, offset, value.place)
         }
     }
-    machine embedded(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, required: CallClauses, given: CallClauses, selected: Selection, arguments: @ArgumentValues, offset: u64 in Trapping, place: u64 in Trapping) {
-        forget_exclusive_referents(checker, syntax, typing, place, ReferenceRelease::Refinement);
+    machine embedded(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, required: |contracts|::CallClauses, given: |contracts|::CallClauses, selected: |typed_trees|::Selection, arguments: @|call_bindings|::ArgumentValues, offset: u64 in Trapping, place: u64 in Trapping) {
+        |reference_writes|::forget_exclusive_referents(checker, syntax, typing, place, |reference_writes|::ReferenceRelease::Refinement);
         transition { _ -> next(checker, syntax, typing, required, given, selected, arguments, offset + 1) }
     }
-    machine exclusive(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, required: CallClauses, given: CallClauses, selected: Selection, arguments: @ArgumentValues, offset: u64 in Trapping, place: u64 in Trapping) {
+    machine exclusive(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, required: |contracts|::CallClauses, given: |contracts|::CallClauses, selected: |typed_trees|::Selection, arguments: @|call_bindings|::ArgumentValues, offset: u64 in Trapping, place: u64 in Trapping) {
         retire_refinement_value(checker, syntax, typing, given, selected, offset, place);
         transition { _ -> next(checker, syntax, typing, required, given, selected, arguments, offset + 1) }
     }
 }
 
-machine retire_refinement_value(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, given: CallClauses, target: Selection, offset: u64 in Trapping, place: u64 in Trapping)
+machine retire_refinement_value(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, given: |contracts|::CallClauses, target: |typed_trees|::Selection, offset: u64 in Trapping, place: u64 in Trapping)
 crashes Trap
 {
     transition target {
-        Selection::Machine { handle } -> declared(checker, syntax, typing, given, offset, place, handle),
+        |typed_trees|::Selection::Machine { handle } -> declared(checker, syntax, typing, given, offset, place, handle),
         _ -> whole(checker, syntax, typing, place)
     }
-    machine declared(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, given: CallClauses, offset: u64 in Trapping, place: u64 in Trapping, machine: u64 in Trapping) {
-        let unknown: bool = writes_unknown(checker, machine);
-        let entire: bool = writes_whole(checker, given.first_parameter + offset);
+    machine declared(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, given: |contracts|::CallClauses, offset: u64 in Trapping, place: u64 in Trapping, machine: u64 in Trapping) {
+        let unknown: bool = |frames|::writes_unknown(checker, machine);
+        let entire: bool = |frames|::writes_whole(checker, given.first_parameter + offset);
         transition unknown || entire {
             true -> whole(checker, syntax, typing, place),
             _ -> fields(checker, syntax, typing, place, machine)
         }
     }
-    machine fields(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, place: u64 in Trapping, machine: u64 in Trapping) {
-        forget_exclusive_referents(checker, syntax, typing, place, ReferenceRelease::Refinement);
-        forget_written_fields(checker, typing, place, machine);
+    machine fields(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, place: u64 in Trapping, machine: u64 in Trapping) {
+        |reference_writes|::forget_exclusive_referents(checker, syntax, typing, place, |reference_writes|::ReferenceRelease::Refinement);
+        |checker|::forget_written_fields(checker, typing, place, machine);
     }
-    machine whole(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, place: u64 in Trapping) {
-        forget_exclusive_referents(checker, syntax, typing, place, ReferenceRelease::Refinement);
-        forget_reference_origins(checker, typing, place);
-        forget_place(checker, typing, place);
+    machine whole(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, place: u64 in Trapping) {
+        |reference_writes|::forget_exclusive_referents(checker, syntax, typing, place, |reference_writes|::ReferenceRelease::Refinement);
+        |reference_origins|::forget_reference_origins(checker, typing, place);
+        |places|::forget_place(checker, typing, place);
     }
 }

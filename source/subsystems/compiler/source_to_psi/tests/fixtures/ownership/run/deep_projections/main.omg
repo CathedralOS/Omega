@@ -1,3 +1,5 @@
+use owned_places.omg;
+
 // Handles 1 through 65 project from the preceding row. Handle 66 selects a
 // different field of row 64. In the index fixture, each row indexes the previous one.
 public data SyntaxTrees { expression_count: u64; indexes: bool; }
@@ -12,7 +14,6 @@ public data ReferenceAccess [copy] { case WriteOnly; case Shared; }
 public data TypeRow [copy] { kind: TypeKind; access: ReferenceAccess; }
 public data Typing { types: TypeRow; }
 public data ExactInteger [copy] { value: u64 in Trapping; }
-public data PlaceRelation [copy] { case Apart; case Inside; case Encloses; }
 
 machine syntax_trees_expression(syntax: @SyntaxTrees, node: u64 in Trapping) -> Expression crashes Trap {
     transition {
@@ -48,18 +49,18 @@ machine start() crashes Trap {
     let root: u64 in Trapping = 0 as +Trapping;
     let short: u64 in Trapping = 64 as +Trapping;
     let deep: u64 in Trapping = 65 as +Trapping;
-    let at_limit: PlaceRelation = path_relation(@syntax, @resolution, @typing, short, root, false);
-    let past_limit: PlaceRelation = path_relation(@syntax, @resolution, @typing, deep, root, false);
-    let identical: PlaceRelation = path_relation(@syntax, @resolution, @typing, deep, deep, false);
-    let sibling: PlaceRelation = path_relation(@syntax, @resolution, @typing, deep, 66 as +Trapping, false);
-    let encloses: PlaceRelation = path_relation(@syntax, @resolution, @typing, root, deep, false);
-    let indices: u64 in Trapping = index_steps(@indexes, deep);
-    let unindexed: u64 in Trapping = skip_indexes(@indexes, deep);
-    let via_write_only: bool = through_write_only(@syntax, @borrowed, deep);
-    let via_borrow: bool = borrowed_place(@syntax, @borrowed, deep);
-    let plain: bool = through_write_only(@syntax, @typing, deep) || borrowed_place(@syntax, @typing, deep);
-    transition via_write_only && via_borrow && !plain && sibling == PlaceRelation::Apart && encloses == PlaceRelation::Encloses && indices == 65 && unindexed == root
-        && at_limit == PlaceRelation::Inside && past_limit == PlaceRelation::Inside && identical == PlaceRelation::Inside {
+    let at_limit: |owned_places|::PlaceRelation = |owned_places|::path_relation(@syntax, @resolution, @typing, short, root, false);
+    let past_limit: |owned_places|::PlaceRelation = |owned_places|::path_relation(@syntax, @resolution, @typing, deep, root, false);
+    let identical: |owned_places|::PlaceRelation = |owned_places|::path_relation(@syntax, @resolution, @typing, deep, deep, false);
+    let sibling: |owned_places|::PlaceRelation = |owned_places|::path_relation(@syntax, @resolution, @typing, deep, 66 as +Trapping, false);
+    let encloses: |owned_places|::PlaceRelation = |owned_places|::path_relation(@syntax, @resolution, @typing, root, deep, false);
+    let indices: u64 in Trapping = |owned_places|::index_steps(@indexes, deep);
+    let unindexed: u64 in Trapping = |owned_places|::skip_indexes(@indexes, deep);
+    let via_write_only: bool = |owned_places|::through_write_only(@syntax, @borrowed, deep);
+    let via_borrow: bool = |owned_places|::borrowed_place(@syntax, @borrowed, deep);
+    let plain: bool = |owned_places|::through_write_only(@syntax, @typing, deep) || |owned_places|::borrowed_place(@syntax, @typing, deep);
+    transition via_write_only && via_borrow && !plain && sibling == |owned_places|::PlaceRelation::Apart && encloses == |owned_places|::PlaceRelation::Encloses && indices == 65 && unindexed == root
+        && at_limit == |owned_places|::PlaceRelation::Inside && past_limit == |owned_places|::PlaceRelation::Inside && identical == |owned_places|::PlaceRelation::Inside {
         true -> done(), _ -> wrong()
     }
     machine done() {}

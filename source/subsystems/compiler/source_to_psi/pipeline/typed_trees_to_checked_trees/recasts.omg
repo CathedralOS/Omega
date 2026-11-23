@@ -1,16 +1,12 @@
-use foundation\ExactInteger;
-use representations\checks\CheckDiagnosticCode;
-use representations\checks\checks_reject;
-use representations\symbol_resolved_trees\BuiltinType;
-use representations\symbol_resolved_trees\DomainBinding;
-use representations\syntax_trees\Expression;
-use representations\syntax_trees\ReferenceAccess;
-use representations\syntax_trees\SyntaxTrees;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\Typing;
-use representations\typed_trees\type_table_row;
-use representations\typed_trees\typing_expression_type;
+use pipeline/typed_trees_to_checked_trees/places.omg;
+use pipeline/typed_trees_to_checked_trees/checker.omg;
+use pipeline/typed_trees_to_checked_trees/evaluation.omg;
+
+use foundation/integers.omg;
+use representations/checks/checks.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
 
 // A recast `reference as @T` views the operand's storage under `T`
 // (wiki/spec/layouts/recasts.md#shared-and-mutable-views): a shared view
@@ -27,50 +23,50 @@ use representations\typed_trees\typing_expression_type;
 // shared but not mutably; a qualified target asks for predicates checking
 // does not compare and is unsupported unless both referents are the one
 // type.
-public machine check_recast(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, row: TypeRow, checking: bool)
+public machine check_recast(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow, checking: bool)
 crashes Trap
 {
-    let source_type: u64 in Trapping = typing_expression_type(typing, expression.left);
-    let given: TypeRow = type_table_row(@typing.types, source_type);
-    transition checking && given.kind == TypeKind::Reference && given.inner != row.inner {
+    let source_type: u64 in Trapping = |typed_trees|::typing_expression_type(typing, expression.left);
+    let given: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, source_type);
+    transition checking && given.kind == |typed_trees|::TypeKind::Reference && given.inner != row.inner {
         true -> referents(checker, syntax, typing, expression, row, given),
         _ -> done()
     }
 
-    machine referents(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, row: TypeRow, given: TypeRow) {
-        let source: TypeRow = type_table_row(@typing.types, given.inner);
-        let target: TypeRow = type_table_row(@typing.types, row.inner);
-        let is_exclusive: bool = row.access != ReferenceAccess::Shared;
-        let source_boolean: bool = source.kind == TypeKind::Builtin && source.builtin == BuiltinType::Bool;
-        let target_boolean: bool = target.kind == TypeKind::Builtin && target.builtin == BuiltinType::Bool;
-        transition target.domain == DomainBinding::Declared {
+    machine referents(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, row: |typed_trees|::TypeRow, given: |typed_trees|::TypeRow) {
+        let source: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, given.inner);
+        let target: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, row.inner);
+        let is_exclusive: bool = row.access != |syntax_trees|::ReferenceAccess::Shared;
+        let source_boolean: bool = source.kind == |typed_trees|::TypeKind::Builtin && source.builtin == |symbol_resolved_trees|::BuiltinType::Bool;
+        let target_boolean: bool = target.kind == |typed_trees|::TypeKind::Builtin && target.builtin == |symbol_resolved_trees|::BuiltinType::Bool;
+        transition target.domain == |symbol_resolved_trees|::DomainBinding::Declared {
             true -> fenced(checker, expression),
-            _ -> source_domain(checker, syntax, typing, expression, source.domain == DomainBinding::Declared, is_exclusive, source_boolean, target_boolean)
+            _ -> source_domain(checker, syntax, typing, expression, source.domain == |symbol_resolved_trees|::DomainBinding::Declared, is_exclusive, source_boolean, target_boolean)
         }
     }
 
-    machine source_domain(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, qualified: bool, is_exclusive: bool, source_boolean: bool, target_boolean: bool) {
+    machine source_domain(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, qualified: bool, is_exclusive: bool, source_boolean: bool, target_boolean: bool) {
         transition qualified && is_exclusive {
             true -> unproven(checker, expression),
             _ -> shapes(checker, syntax, typing, expression, is_exclusive, source_boolean, target_boolean)
         }
     }
 
-    machine shapes(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, is_exclusive: bool, source_boolean: bool, target_boolean: bool) {
+    machine shapes(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, is_exclusive: bool, source_boolean: bool, target_boolean: bool) {
         transition source_boolean == target_boolean {
             true -> done(),
             _ -> mixed(checker, syntax, typing, expression, is_exclusive, target_boolean)
         }
     }
 
-    machine mixed(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression, is_exclusive: bool, target_boolean: bool) {
+    machine mixed(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression, is_exclusive: bool, target_boolean: bool) {
         transition target_boolean {
             true -> bounded_field(checker, syntax, typing, expression),
             _ -> boolean_source(checker, expression, is_exclusive)
         }
     }
 
-    machine boolean_source(checker: @mutable Checker, expression: Expression, is_exclusive: bool) {
+    machine boolean_source(checker: @mutable |checker|::Checker, expression: |syntax_trees|::Expression, is_exclusive: bool) {
         transition is_exclusive {
             true -> unproven(checker, expression),
             _ -> done()
@@ -79,33 +75,33 @@ crashes Trap
 
     // The borrowed place must be a field of data carrying `requires` facts,
     // and those facts must bound it to zero or one.
-    machine bounded_field(checker: @mutable Checker, syntax: @SyntaxTrees, typing: @Typing, expression: Expression) {
-        let operand: Value = value_at(checker, expression.left);
-        let owner: u64 in Trapping = window_owner(checker, syntax, typing, operand.place);
+    machine bounded_field(checker: @mutable |checker|::Checker, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, expression: |syntax_trees|::Expression) {
+        let operand: |evaluation|::Value = |evaluation|::value_at(checker, expression.left);
+        let owner: u64 in Trapping = |places|::window_owner(checker, syntax, typing, operand.place);
         transition owner > 0 {
             true -> proved(checker, expression, operand.place),
             _ -> unproven(checker, expression)
         }
     }
 
-    machine proved(checker: @mutable Checker, expression: Expression, place: u64 in Trapping) {
-        let referent: Value = place_value(checker, place);
-        let zero: Value = value_constant(ExactInteger { negative: false, magnitude: 0 });
-        let one: Value = value_constant(ExactInteger { negative: false, magnitude: 1 });
-        let at_least_zero: bool = proves_at_most(checker, zero, referent);
-        let at_most_one: bool = proves_at_most(checker, referent, one);
+    machine proved(checker: @mutable |checker|::Checker, expression: |syntax_trees|::Expression, place: u64 in Trapping) {
+        let referent: |evaluation|::Value = |places|::place_value(checker, place);
+        let zero: |evaluation|::Value = |evaluation|::value_constant(|integers|::ExactInteger { negative: false, magnitude: 0 as +Wrapping });
+        let one: |evaluation|::Value = |evaluation|::value_constant(|integers|::ExactInteger { negative: false, magnitude: 1 as +Wrapping });
+        let at_least_zero: bool = |evaluation|::proves_at_most(checker, zero, referent);
+        let at_most_one: bool = |evaluation|::proves_at_most(checker, referent, one);
         transition at_least_zero && at_most_one {
             true -> done(),
             _ -> unproven(checker, expression)
         }
     }
 
-    machine fenced(checker: @mutable Checker, expression: Expression) {
-        checks_reject(@mutable checker.output, CheckDiagnosticCode::UnsupportedCheck, expression.source_span);
+    machine fenced(checker: @mutable |checker|::Checker, expression: |syntax_trees|::Expression) {
+        |checks|::checks_reject(@mutable checker.output, |checks|::CheckDiagnosticCode::UnsupportedCheck, expression.source_span);
     }
 
-    machine unproven(checker: @mutable Checker, expression: Expression) {
-        checks_reject(@mutable checker.output, CheckDiagnosticCode::RepresentationUnproven, expression.source_span);
+    machine unproven(checker: @mutable |checker|::Checker, expression: |syntax_trees|::Expression) {
+        |checks|::checks_reject(@mutable checker.output, |checks|::CheckDiagnosticCode::RepresentationUnproven, expression.source_span);
     }
 
     machine done() {}

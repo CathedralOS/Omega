@@ -45,17 +45,21 @@ def signed_mask_checker_input(encode):
     compiler = ROOT / "source/subsystems/compiler/source_to_psi"
     checker = compiler / "pipeline/typed_trees_to_checked_trees"
     files = [
-        (compiler / "foundation/integers.omg",
+        (compiler / "foundation/integers.omg", b"",
          ("public data ExactInteger ", "public machine exact_integer_negate(", "public machine exact_integer_at_most(")),
-        (checker / "zone.omg", ("public data Bound ", "public machine bound_at_most(")),
-        (checker / "evaluation.omg",
+        (checker / "zone.omg", b"use integers.omg;",
+         ("public data Bound ", "public machine bound_at_most(")),
+        (checker / "evaluation.omg", b"use integers.omg;\nuse zone.omg;",
          ("public data Value ", "public machine value_unknown(", "public machine value_constant(",
           "public machine value_nonnegative(", "machine pick(", "public machine value_conjunction(")),
     ]
-    units = [unit for file, signatures in files for unit in declarations(file, signatures)]
     cases = ROOT / "tests/bootstrap/independent/fixtures/interval/signed_mask.omg"
-    source = b"\n".join(units) + b"\n\n" + cases.read_bytes()
-    return encode([("app", 0)], [], [(0, source)], 0, b"main", paths=["main.omg"])[0]
+    sources = [(0, cases.read_bytes())]
+    paths = ["main.omg"]
+    for file, imports, signatures in files:
+        sources.append((0, b"\n".join((imports, *declarations(file, signatures)))))
+        paths.append(file.name)
+    return encode([("app", 0)], [], sources, 0, b"main", paths=paths)[0]
 
 
 def core_low_bytes_input(encode):
