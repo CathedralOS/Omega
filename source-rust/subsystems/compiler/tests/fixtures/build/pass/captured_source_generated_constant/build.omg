@@ -11,7 +11,7 @@ machine build(builder: @mutable Build) {
     let writer: i32 = BuildOutput::create(@mutable builder.output, generated, 0);
     _ = BuildOutput::write(@mutable builder.output, writer, @bytes[..]);
     _ = BuildOutput::close(@mutable builder.output, writer);
-    BuildOutput::include_source(@mutable builder.output, generated);
+    Build::include_source(builder, "generated.omg", @bytes[..]);
     let completion: OutputCompletion = BuildOutput::complete(@mutable builder.output, obligation, generated);
     settle(builder, completion);
 }

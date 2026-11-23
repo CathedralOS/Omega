@@ -10,7 +10,6 @@ public boundary trait BuildFilesystemOperations {
     machine create(output: @mutable BuildOutput, path: BuildPath, mode: i32) -> i32 reaches none crashes none;
     machine write(output: @mutable BuildOutput, descriptor: i32, bytes: @[u8]) -> i64 reaches none crashes none;
     machine close_output(output: @mutable BuildOutput, descriptor: i32) -> i32 reaches none crashes none;
-    machine include_source(output: @mutable BuildOutput, generated: BuildPath) reaches none crashes none;
     machine require(output: @mutable BuildOutput, name: @[u8]) -> RequiredOutput reaches none crashes none;
     machine can_complete(output: @BuildOutput, obligation: @RequiredOutput, file: BuildPath) -> bool reaches none crashes none;
     machine complete(output: @mutable BuildOutput, obligation: RequiredOutput, file: BuildPath) -> OutputReceipt reaches none crashes none;

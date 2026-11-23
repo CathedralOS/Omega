@@ -2,8 +2,8 @@
 
 Sibling pooled-check probe: three sibling packages are checked as one
 occurrence batch, and each sibling's build consults the same `shared`
-package through a nested build edge before staging its own generated
-product source through the required-output obligation flow. The shared
+package through a nested build edge. Each sibling publishes its own captured
+source bytes and also promises an output file with those bytes. The shared
 build must evaluate once across the sibling batch and across every
 requested target, while each sibling still seals and settles its own
 obligation. Each sibling's generated `*_value()` forwards to its authored `*_seed()`

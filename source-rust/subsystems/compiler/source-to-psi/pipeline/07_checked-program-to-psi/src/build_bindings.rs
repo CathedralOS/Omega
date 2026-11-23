@@ -221,8 +221,7 @@ fn validate_sites(
 
 pub(crate) mod build_filesystem {
     #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub enum TerminalBuildFilesystemOperation {
-        ResolveSource,
+    pub enum TerminalBuildFilesystemOperation {        ResolveSource,
         ResolveOutput,
         NamedInput,
         Open,
@@ -231,7 +230,8 @@ pub(crate) mod build_filesystem {
         Create,
         Write,
         CloseOutput,
-        IncludeSource,
+        // Record stores operation tags by position. Tag 9 was the old filesystem handoff.
+        RetiredSourcePublication,
         Require,
         CanComplete,
         Complete,

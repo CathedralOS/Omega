@@ -1,3 +1,1 @@
-public machine value() -> i32 {
-    generated_value()
-}
+public machine value() -> i32 { 7 }

@@ -4,9 +4,9 @@ Build-activation custody probe: one dependency package serves the root
 through both a Build scope edge (`Build::build_dependency` aliased `"kit"`) and a Product
 scope edge (`Build::dependency` aliased `"product_kit"`) in a single request. The dependency's
 own build consults a nested `generator` package through a third build edge,
-reads `template.txt` through the captured source inventory, and stages a
-generated product source through the required-output obligation flow —
-`require` → `create` → `write` → `close` → `include_source` → `complete`.
+reads `template.txt` from the captured source inventory, and passes its bytes to
+`Build::include_source` under the name `generated.omg`. The same Build also
+writes those bytes to a promised output file and settles that obligation.
 
 `sample.json` includes both `dependency/` and `generator/` in the caller's
 explicit source inventory. Their own project descriptors give them separate
