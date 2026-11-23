@@ -1,3 +1,4 @@
+use targets/windows_x86_64/windows_filesystem_private_handles.omg as private_handle;
 // One metadata query, not an arbitrary DeviceIoControl escape. A fresh private
 // synchronous no-follow object owns the output loan through terminal completion.
 // MAXIMUM_REPARSE_DATA_BUFFER_SIZE is 16384, including the common header.
@@ -21,10 +22,10 @@ data WindowsNativeReparseData {
 }
 
 boundary trait WindowsFilesystemReparseIo {
-    machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, control: u32, input: u64,
+    machine query(handle: i64 in |private_handle|::WindowsPrivateNonalertFileOrAbsent, control: u32, input: u64,
         input_size: u32, output: @mutable WindowsNativeReparseData, capacity: u32,
         returned: @mutable u32, overlapped: u64) -> i32
-    requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && control == 589992 && input == 0 && input_size == 0
+    requires (handle as - |private_handle|::WindowsPrivateNonalertFileOrAbsent) != 0 && control == 589992 && input == 0 && input_size == 0
         && capacity == 16384 && overlapped == 0
     reaches FilesystemMetadataQuery blocks
     crashes none;
