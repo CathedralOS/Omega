@@ -236,14 +236,20 @@ fn scalar_value(
             ScalarType::Integer(raw),
             ClosedScalarType::Integer(integer),
             BuildTimeValue::Int(value),
-        ) if integer.bits() <= 64 => TerminalScalarValue::Integer {
-            scalar_type: raw,
-            value: if integer.sign() == semantic_vocabulary::IntegerSign::Signed {
+        ) if integer.bits() <= 64 => {
+            let value = if integer.sign() == semantic_vocabulary::IntegerSign::Signed {
                 IntegerValue::Signed(i128::from(*value))
             } else {
                 IntegerValue::Unsigned(u128::from(*value as u64))
-            },
-        },
+            };
+            if !raw.admits(value) {
+                return Err("Terminal input integer exceeds its declared range".into());
+            }
+            TerminalScalarValue::Integer {
+                scalar_type: raw,
+                value,
+            }
+        }
         _ => return Err("Terminal input scalar differs from its declared logical type".into()),
     })
 }
@@ -293,11 +299,9 @@ fn write_scalar(
     values: &mut Vec<TerminalBoundaryStorageValue>,
 ) -> Result<(), String> {
     let owner = closed_types(program)?;
-    owner
-        .scalar(stored_scalar)
-        .map_err(|error| {
-            format!("Terminal stored scalar is not in its published type owner: {error:?}")
-        })?;
+    owner.scalar(stored_scalar).map_err(|error| {
+        format!("Terminal stored scalar is not in its published type owner: {error:?}")
+    })?;
     let value = scalar_value(owner, scalar, value)?;
     values.push(TerminalBoundaryStorageValue {
         path: path.to_vec(),
@@ -478,5 +482,75 @@ fn read_leaf(instance: &TerminalInstance<'_, '_>, path: &[Path]) -> Result<Build
             value, ..
         }) => scalar_result(instance.program(), value),
         _ => Err("Terminal result leaf is outside the compiler-owned vocabulary".into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{IntegerSign, IntegerType};
+    use terminal_psi::{
+        StructuralMultiplicity, StructuralTypeDeclaration, TerminalIdentityTableBuilder,
+        TerminalModule,
+    };
+
+    fn integer_formal(
+        sign: IntegerSign,
+        bits: u16,
+    ) -> (TerminalProgram<'static>, StructuralTypeId) {
+        let integer = IntegerType::new(sign, bits).unwrap();
+        let mut identities = TerminalIdentityTableBuilder::default();
+        let identity = identities.intern("integer_input");
+        let id = StructuralTypeId::new(1).unwrap();
+        let mut module = TerminalModule::declarations();
+        module.identities = identities.build();
+        module
+            .types
+            .structural_types
+            .push(StructuralTypeDeclaration {
+                declaration_identity: Default::default(),
+                quotient_carrier: None,
+                id,
+                identity,
+                owns_linear_claim: false,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                nominal_cleanup: None,
+                shape: StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)),
+                scalar_restriction: None,
+                requires: Vec::new(),
+            });
+        let closed = terminal_codec::ClosedTerminalModule::new(module).unwrap();
+        (TerminalProgram::load(closed.semantic_bytes()).unwrap(), id)
+    }
+
+    #[test]
+    fn projected_integer_inputs_respect_the_published_width() {
+        use IntegerSign::{Signed, Unsigned};
+        for (sign, low, high, under, over) in
+            [(Signed, -128, 127, -129, 128), (Unsigned, 0, 255, -1, 256)]
+        {
+            let (program, id) = integer_formal(sign, 8);
+            for input in [low, high] {
+                input_contents(&program, 0, id, &BuildTimeValue::Int(input)).unwrap();
+            }
+            for input in [under, over] {
+                assert!(
+                    input_contents(&program, 0, id, &BuildTimeValue::Int(input)).is_err(),
+                    "{sign:?} 8-bit formal accepted {input}"
+                );
+            }
+        }
+        // Build integers carry the full unsigned 64-bit result in an i64.
+        let (program, id) = integer_formal(Unsigned, 64);
+        let contents = input_contents(&program, 0, id, &BuildTimeValue::Int(-1)).unwrap();
+        assert!(
+            matches!(&contents.values[..], [TerminalBoundaryStorageValue {
+            contents: TerminalStorageContents::Scalar {
+                value: TerminalScalarValue::Integer { value: IntegerValue::Unsigned(bits), .. }, ..
+            }, ..
+        }] if *bits == u128::from(u64::MAX))
+        );
     }
 }
