@@ -266,6 +266,7 @@ pub mod const_integer {
                 operator,
                 right,
                 policy: ArithmeticDomain::Exact,
+                negation: false,
             }));
             closed_literal(&expressions, root).map(|literal| {
                 (
@@ -1317,6 +1318,7 @@ pub mod expression {
                 let child = source.insert(ExpressionNode::Boolean(true));
                 let root = source.insert(ExpressionNode::Binary(TableBinaryExpression {
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                     left: child,
                     operator: BinaryOperator::And,
                     right: child,
@@ -2065,6 +2067,7 @@ pub mod expression {
                         );
                         self.insert(ExpressionNode::Binary(TableBinaryExpression {
                             policy: binary.policy,
+                            negation: binary.negation,
                             left,
                             operator: binary.operator,
                             right,
@@ -2613,6 +2616,7 @@ pub mod expression {
                 let expected = table.insert(ExpressionNode::Boolean(true));
                 let equality = table.insert(ExpressionNode::Binary(TableBinaryExpression {
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                     left: observed,
                     operator: BinaryOperator::Equal,
                     right: expected,
@@ -2620,6 +2624,7 @@ pub mod expression {
                 let guard = table.insert(ExpressionNode::Boolean(true));
                 let condition = table.insert(ExpressionNode::Binary(TableBinaryExpression {
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                     left: equality,
                     operator: BinaryOperator::And,
                     right: guard,
@@ -3066,6 +3071,7 @@ pub mod expression {
                         let right = self.insert_tree(&binary.right);
                         self.insert(ExpressionNode::Binary(TableBinaryExpression {
                             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                            negation: false,
                             left,
                             operator: binary.operator,
                             right,
@@ -4917,6 +4923,11 @@ pub mod expression {
         /// recipe needs a complete selected operation identity, including its
         /// carrier, and refuses until that representation is available.
         pub policy: numerics::arithmetic::ArithmeticDomain,
+        /// `true` when the parser formed this subtraction from prefix negation
+        /// `-right`; `left` is then the implied zero. Operator selection reads
+        /// it to select a declared one-operand `-` (expressions.md, "Operator
+        /// families"); with no such declaration the meaning stays `0 - right`.
+        pub negation: bool,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq)]

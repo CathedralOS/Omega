@@ -154,6 +154,7 @@ fn rewrite_expression(
         }
         ExpressionNode::Binary(binary) => ExpressionNode::Binary(TableBinaryExpression {
             policy: binary.policy,
+            negation: binary.negation,
             left: rewrite_expression(syntax_trees, binary.left, subject, fields, captures),
             operator: binary.operator,
             right: rewrite_expression(syntax_trees, binary.right, subject, fields, captures),

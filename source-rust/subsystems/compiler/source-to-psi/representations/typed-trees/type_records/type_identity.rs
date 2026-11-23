@@ -5063,6 +5063,7 @@ pub(crate) mod package_policy_reading_tests {
             ) -> ExpressionHandle {
                 self.expression(ExpressionNode::Binary(TableBinaryExpression {
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                     left,
                     operator,
                     right,
@@ -11472,6 +11473,7 @@ mod declared_array_extent_tests {
                         right,
                         operator: BinaryOperator::Add,
                         policy,
+                        negation: false,
                     }));
                 let expression = fixture.index(expression);
                 let array = fixture.array(FixedArrayLength::Expression(expression));
@@ -11490,6 +11492,7 @@ mod declared_array_extent_tests {
             right,
             operator: BinaryOperator::Add,
             policy: ArithmeticDomain::Exact,
+            negation: false,
         }));
         let overflow = fixture.index(overflow);
         let overflow = fixture.array(FixedArrayLength::Expression(overflow));

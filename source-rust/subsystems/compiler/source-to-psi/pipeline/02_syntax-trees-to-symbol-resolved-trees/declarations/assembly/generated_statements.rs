@@ -91,6 +91,7 @@ fn modular_binary(
         .expressions
         .insert(ExpressionNode::Binary(TableBinaryExpression {
             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
             left,
             operator,
             right,
@@ -107,6 +108,7 @@ pub(crate) fn zero_flag(trees: &mut SyntaxTrees, destination: ExpressionHandle) 
         .expressions
         .insert(ExpressionNode::Binary(TableBinaryExpression {
             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
             left: destination,
             operator: BinaryOperator::Equal,
             right: zero,
@@ -220,6 +222,7 @@ fn binary(
         .expressions
         .insert(ExpressionNode::Binary(TableBinaryExpression {
             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
             left,
             operator,
             right,

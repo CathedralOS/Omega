@@ -188,6 +188,7 @@ fn parse_statement_handle<'tokens, 'source>(
                 .expressions
                 .insert(ExpressionNode::Binary(TableBinaryExpression {
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                     left: read_target,
                     operator,
                     right,

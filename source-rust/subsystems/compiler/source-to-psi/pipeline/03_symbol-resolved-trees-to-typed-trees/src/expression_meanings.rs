@@ -13,7 +13,7 @@ pub(crate) fn prepare(
 ) -> Result<(), diagnostics::Diagnostic> {
     enum Meaning {
         Cast(usize),
-        Operator(crate::source_state::expression::TableBinaryExpression),
+        Operator,
         Member(crate::source_state::expression::TableMemberExpression),
         Range,
         Local(
@@ -29,7 +29,7 @@ pub(crate) fn prepare(
     sites.extend(
         crate::typing::operator_calls::sites(program, frontier)
             .into_iter()
-            .map(|(handle, binary)| (handle, Meaning::Operator(binary))),
+            .map(|handle| (handle, Meaning::Operator)),
     );
     sites.extend(
         program
@@ -122,9 +122,15 @@ pub(crate) fn prepare(
             Meaning::Member(member) => {
                 prepare_member(program, &owners, &mut types, handle, &member)?;
             }
-            Meaning::Operator(binary) => crate::typing::operator_calls::prepare_site(
-                program, &owners, &mut types, handle, binary,
-            )?,
+            Meaning::Operator => {
+                crate::typing::operator_calls::prepare_site(program, &owners, &mut types, handle)?
+            }
+            // A range a declared `[..]` selected is already its call.
+            Meaning::Range
+                if !matches!(
+                    program.expression_table.expression(handle),
+                    crate::source_state::expression::ExpressionNode::Indexed(_)
+                ) => {}
             Meaning::Range => {
                 crate::typing::constructor_applications::retain_indexed_operand_type(
                     program, &owners, &mut types, handle,

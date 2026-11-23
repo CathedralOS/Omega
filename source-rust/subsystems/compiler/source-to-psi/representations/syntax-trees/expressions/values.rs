@@ -371,6 +371,11 @@ pub struct TableBinaryExpression {
     /// The policy an operator suffix chose for this one operation
     /// (`+%`, `+|`, `+!`); `Exact` for the bare operator.
     pub policy: numerics::arithmetic::ArithmeticDomain,
+    /// `true` when the parser formed this subtraction from prefix negation
+    /// `-right`; `left` is then the implied zero. Operator selection reads
+    /// it to select a declared one-operand `-` (expressions.md, "Operator
+    /// families"); with no such declaration the meaning stays `0 - right`.
+    pub negation: bool,
 }
 
 #[derive(

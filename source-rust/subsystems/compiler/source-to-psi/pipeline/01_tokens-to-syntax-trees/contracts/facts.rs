@@ -171,6 +171,7 @@ fn parse_fact_list<'tokens, 'source>(
                     chain_expression = syntax_trees.expressions.insert(ExpressionNode::Binary(
                         TableBinaryExpression {
                             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                            negation: false,
                             left: chain_expression,
                             operator,
                             right: membership,
@@ -294,6 +295,7 @@ fn range_membership_expression(
         .expressions
         .insert(ExpressionNode::Binary(TableBinaryExpression {
             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
             left: value,
             operator: BinaryOperator::GreaterOrEqual,
             right: start,
@@ -302,6 +304,7 @@ fn range_membership_expression(
         .expressions
         .insert(ExpressionNode::Binary(TableBinaryExpression {
             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
             left: value,
             operator: if end_inclusive {
                 BinaryOperator::LessOrEqual
@@ -314,6 +317,7 @@ fn range_membership_expression(
         .expressions
         .insert(ExpressionNode::Binary(TableBinaryExpression {
             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
             left: lower,
             operator: BinaryOperator::And,
             right: upper,

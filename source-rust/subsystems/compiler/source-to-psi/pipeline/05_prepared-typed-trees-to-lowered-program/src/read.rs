@@ -1426,6 +1426,7 @@ mod tests {
             .insert(ExpressionNode::Boolean(false));
         let node = ExpressionNode::Binary(TableBinaryExpression {
             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
             left,
             operator: BinaryOperator::CaseMembership,
             right,
@@ -1455,6 +1456,7 @@ mod tests {
                 .expression_table
                 .insert(ExpressionNode::Binary(TableBinaryExpression {
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                     left,
                     operator,
                     right,
@@ -1848,6 +1850,7 @@ mod tests {
                     operator: BinaryOperator::Add,
                     right: literal,
                     policy: numerics::arithmetic::ArithmeticDomain::Wrapping,
+                    negation: false,
                 }))
         };
         let computed = wrapped_sum(&mut typed, named);
@@ -1885,6 +1888,7 @@ mod tests {
                     operator: BinaryOperator::Equal,
                     right: named,
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                 }));
         let completion = crate::source_state::signature::SignatureContract {
             kind: crate::source_state::signature::SignatureContractKind::Ensures,
@@ -2853,6 +2857,7 @@ mod tests {
                 operator: crate::source_state::expression::BinaryOperator::Subtract,
                 right: initial,
                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                negation: false,
             },
         ));
         let borrowed = [Slot {
@@ -3165,6 +3170,7 @@ mod tests {
                 .expression_table
                 .insert(ExpressionNode::Binary(TableBinaryExpression {
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                     left,
                     operator,
                     right,

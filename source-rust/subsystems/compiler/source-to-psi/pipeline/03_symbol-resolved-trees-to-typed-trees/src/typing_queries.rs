@@ -1644,6 +1644,55 @@ impl DeclaredExpressionTypes {
         result
     }
 
+    /// Selection supplies the exact declared return type of an operator
+    /// declaration that needs no static application, before an enclosing cast
+    /// is accounted. No contract or membership evidence is inferred.
+    fn selected_operator_result(
+        &mut self,
+        program: &TypedTrees,
+        owner: SymbolHandle,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        let span = program.expression_table.source_span(expression);
+        for form in crate::typing::operator_calls::forms(program, expression)
+            .into_iter()
+            .flatten()
+        {
+            let mut operands = Vec::with_capacity(form.operands().len());
+            for operand in form.operands() {
+                operands.push(
+                    if crate::source_state::closed_numeric::has_anonymous_numeric_results(
+                        program, *operand,
+                    ) {
+                        None
+                    } else {
+                        Some(self.get(program, owner, *operand)?)
+                    },
+                );
+            }
+            let Some(target) = crate::typing::operator_calls::selection_for_operands(
+                program, form, &operands, span,
+            )
+            .ok()
+            .flatten() else {
+                continue;
+            };
+            if !target.arguments.is_empty() {
+                return None;
+            }
+            return program
+                .machine_by_symbol(target.target)
+                .and_then(|machine| program.machine_states(machine).first())
+                .map(|state| state.return_type)
+                .filter(|reference| {
+                    program
+                        .type_reference_table
+                        .contains_type_reference(*reference)
+                });
+        }
+        None
+    }
+
     fn read(
         &mut self,
         program: &TypedTrees,
@@ -1740,6 +1789,11 @@ impl DeclaredExpressionTypes {
                 }
                 joined
             }
+            ExpressionNode::Indexed(_)
+                if let Some(result) = self.selected_operator_result(program, owner, expression) =>
+            {
+                Some(result)
+            }
             ExpressionNode::Integer(_)
             | ExpressionNode::Float(_)
             | ExpressionNode::Boolean(_)
@@ -1789,28 +1843,8 @@ impl DeclaredExpressionTypes {
                         },
                     );
                 }
-                if binary.policy == ArithmeticDomain::Exact
-                    && let Some(spelling) =
-                        crate::source_state::operator::binary_operator_spelling(binary.operator)
-                    && let Some(target) = crate::typing::operator_calls::selection_for_operands(
-                        program,
-                        spelling,
-                        &operands,
-                        table.source_span(expression),
-                    )
-                    .ok()
-                    .flatten()
-                    && target.arguments.is_empty()
-                {
-                    return program
-                        .machine_by_symbol(target.target)
-                        .and_then(|machine| program.machine_states(machine).first())
-                        .map(|state| state.return_type)
-                        .filter(|reference| {
-                            program
-                                .type_reference_table
-                                .contains_type_reference(*reference)
-                        });
+                if let Some(result) = self.selected_operator_result(program, owner, expression) {
+                    return Some(result);
                 }
                 let [left, right] = operands.as_slice() else {
                     unreachable!("binary operator has two operands")

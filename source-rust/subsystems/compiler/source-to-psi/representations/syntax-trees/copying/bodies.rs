@@ -978,6 +978,7 @@ impl SyntaxCopy<'_> {
             }),
             ExpressionNode::Binary(binary) => ExpressionNode::Binary(TableBinaryExpression {
                 policy: binary.policy,
+                negation: binary.negation,
                 left: self.copy_expression_handle(other, binary.left),
                 operator: binary.operator,
                 right: self.copy_expression_handle(other, binary.right),
