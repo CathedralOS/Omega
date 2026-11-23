@@ -1019,25 +1019,19 @@ fn infer(
         }),
         ExpressionNode::Boolean(_) => builtin(program, BuiltinTypeAtom::Bool),
         ExpressionNode::Name(path) => {
-            let binder = path.resolved_symbol();
-            binder.and_then(|binder| {
-                let owner = program.symbols.get(binder).parent;
-                let state = program.state_by_symbol(owner).or_else(|| {
-                    program
-                        .machine_by_symbol(owner)
-                        .and_then(|machine| program.machine_states(machine).first())
-                });
-                state
-                    .and_then(|state| {
-                        crate::typing::typing_queries::declared_place_type(program, state, value)
-                            .ok()
-                    })
-                    .or_else(|| {
+            if let Some(constant) = program.named_const_declaration(&path) {
+                Some(constant.declared_type)
+            } else {
+                path.resolved_symbol().and_then(|binder| {
+                    let owner = program.symbols.get(binder).parent;
+                    let state = program.state_by_symbol(owner).or_else(|| {
                         program
-                            .const_declaration_by_symbol(binder)
-                            .map(|declaration| declaration.declared_type)
-                    })
-            })
+                            .machine_by_symbol(owner)
+                            .and_then(|machine| program.machine_states(machine).first())
+                    })?;
+                    crate::typing::typing_queries::declared_place_type(program, state, value).ok()
+                })
+            }
         }
         ExpressionNode::Call(call) => call_result(program, &call)?,
         ExpressionNode::ZeroValue(reference) | ExpressionNode::TypeExpression(reference) => {
@@ -1907,6 +1901,48 @@ mod tests {
             panic!("one authored call in {owner}; found {}", calls.len())
         };
         *call
+    }
+
+    #[test]
+    fn qualified_constant_supplies_its_declared_type_to_overload_selection() {
+        let program = checked(&[(
+            "main.omg",
+            r#"
+                public data Format [copy] { bits: u32; }
+                public const Format::BINARY: Format = Format { bits: 64u32 };
+                machine Meaning::read(format: Format, value: u16) -> u32 { 16u32 }
+                machine Meaning::read(format: Format, value: u32) -> u32 { value }
+                machine matching(value: u32) -> u32 { Meaning::read(Format::BINARY, value) }
+                machine incompatible(value: bool) -> u32 { Meaning::read(Format::BINARY, value) }
+            "#,
+        )])
+        .unwrap();
+        let (target, occurrence) = owned_call(&program, "matching");
+        let machine = program.machine_by_own_or_state_symbol(target).unwrap();
+        let state = &program.machine_states(machine)[0];
+        let formal = &program.state_parameters(state)[1];
+        assert_eq!(
+            program.normalized_type_identity(formal.type_reference),
+            program.normalized_type_identity(state.return_type),
+            "the u32 operand selects the u32 overload"
+        );
+        let choice = |occurrence| {
+            program
+                .authored_declaration_selections()
+                .get(occurrence)
+                .unwrap()
+                .target()
+        };
+        assert_eq!(
+            choice(occurrence.unwrap())
+                .as_resolved()
+                .unwrap()
+                .selected_symbol(),
+            target
+        );
+        let (target, occurrence) = owned_call(&program, "incompatible");
+        assert!(!target.is_valid());
+        assert!(choice(occurrence.unwrap()).as_resolved().is_none());
     }
 
     // These are real source calls, including their original selection rows.
