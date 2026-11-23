@@ -1547,7 +1547,7 @@ impl Program<'_> {
                 let Some(ScalarType::IeeeFloat(format)) = expected else {
                     unreachable!("float landing selected this arm")
                 };
-                let value = self.anonymous_float(id, expression, format)?;
+                let (value, _) = self.anonymous_float(id, expression, format)?;
                 Ok((
                     ScalarTerm::IeeeFloatLiteral(value),
                     ValueType::plain(ScalarType::IeeeFloat(format)),
@@ -1577,7 +1577,11 @@ impl Program<'_> {
                 let Some(ScalarType::IeeeFloat(format)) = expected else {
                     unreachable!("float landing selected this arm")
                 };
-                let value = self.anonymous_float(id, expression, format)?;
+                let (value, operators) = self.anonymous_float(id, expression, format)?;
+                if !operators.is_empty() {
+                    let owner = self.contract_operator_owner(id, scope)?;
+                    self.complete_anonymous_operators(id, owner, &operators)?;
+                }
                 Ok((
                     ScalarTerm::IeeeFloatLiteral(value),
                     ValueType::plain(ScalarType::IeeeFloat(format)),

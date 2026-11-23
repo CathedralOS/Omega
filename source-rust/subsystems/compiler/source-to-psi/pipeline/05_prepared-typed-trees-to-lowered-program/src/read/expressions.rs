@@ -427,7 +427,7 @@ impl<'t> Program<'t> {
                 let Some(ScalarType::IeeeFloat(format)) = expected_scalar else {
                     unreachable!("float destination selected this landing");
                 };
-                let value = self.anonymous_float(id, handle, format)?;
+                let (value, _) = self.anonymous_float(id, handle, format)?;
                 (ExpressionKind::Float(value), ScalarType::IeeeFloat(format))
             }
             ExpressionNode::Integer(literal) => {
@@ -551,7 +551,11 @@ impl<'t> Program<'t> {
                 let Some(ScalarType::IeeeFloat(format)) = expected_scalar else {
                     unreachable!("float destination selected this landing");
                 };
-                let value = self.anonymous_float(id, handle, format)?;
+                let (value, operators) = self.anonymous_float(id, handle, format)?;
+                if !operators.is_empty() {
+                    let owner = self.symbols.get(id).copied().unwrap_or_default();
+                    self.complete_anonymous_operators(id, owner, &operators)?;
+                }
                 (ExpressionKind::Float(value), ScalarType::IeeeFloat(format))
             }
             // A decimal literal is an exact rational, so `1.0e0` lands in an

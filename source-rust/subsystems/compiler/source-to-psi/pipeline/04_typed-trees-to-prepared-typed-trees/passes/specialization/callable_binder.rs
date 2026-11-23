@@ -37,6 +37,13 @@ pub(super) fn satisfies_binder(
     bound: &[(SymbolHandle, Bound)],
     applications: Option<&[TypeReferenceHandle]>,
 ) -> Served<()> {
+    // Reflection asks for a complete judgment here. Ordinary specialization
+    // compares invocation ceilings in the closed callback conformance.
+    if !binder.invokes.is_empty() {
+        return Err(unserved(
+            "a callback binder needs a refinement proof for its full interface",
+        ));
+    }
     let substitutions = binder_shape(
         program,
         binder,
@@ -138,7 +145,6 @@ pub(super) fn binder_shape(
     let required_parameters = program.state_signature_type_parameters(binder);
     let supplied_parameters = program.machine_callable_parameters(machine);
     if !binder.conformance_bounds.is_empty()
-        || !binder.invokes.is_empty()
         || !binder.native_callback_parameters.is_empty()
         || required_parameters
             .iter()
