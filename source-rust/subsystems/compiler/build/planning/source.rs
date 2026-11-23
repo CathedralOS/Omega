@@ -432,22 +432,27 @@ impl PlanningSource {
                 .configuration
                 .selected_build_declaration()
                 .ok_or_else(|| refusal("rejoined Build source lost its issued entry".into()))?;
-            let (typed, entry) = source.build_stage_source()?.rejoin_build_entry(
-                &self.preparation,
-                self.profile.target_name(),
-                authority,
-                inputs.map(|inputs| inputs.root()),
-                declaration,
-            )?;
-            let spent = settle_rejoined_build_slice(
-                &evaluated.constants,
-                &typed,
-                entry,
-                inputs,
-                source.anonymous_owner.as_ref(),
-                evaluated.subject_validation,
-                &mut self.timings,
-            )?;
+            // Checking the rejoined subject can refuse any declaration in the
+            // Product's files, so its refusals name their file, line and column.
+            let checked = (|| {
+                let (typed, entry) = source.build_stage_source()?.rejoin_build_entry(
+                    &self.preparation,
+                    self.profile.target_name(),
+                    authority,
+                    inputs.map(|inputs| inputs.root()),
+                    declaration,
+                )?;
+                settle_rejoined_build_slice(
+                    &evaluated.constants,
+                    &typed,
+                    entry,
+                    inputs,
+                    source.anonymous_owner.as_ref(),
+                    evaluated.subject_validation,
+                    &mut self.timings,
+                )
+            })();
+            let spent = checked.map_err(|failure| locate_failure(failure, &source, inputs))?;
             evaluated.source_completion_accounting.append(spent);
             if awaiting_owner {
                 evaluated.subject_validation = BuildSubjectValidation::Checked;
