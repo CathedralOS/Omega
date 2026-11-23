@@ -3,6 +3,7 @@
 
 pub use equality::SyntaxEquivalent;
 pub use float_spelling::FloatSpelling;
+pub use item_copies::SuppliedSyntaxArgument;
 pub use language_core::operator_spelling;
 pub use relocation::{PageRelocation, SyntaxRelocate};
 pub use snapshot::SyntaxTreesSnapshot;

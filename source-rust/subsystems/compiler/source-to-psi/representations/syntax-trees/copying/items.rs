@@ -1,5 +1,6 @@
 use crate::SyntaxTrees;
 use crate::expression::{ExpressionHandle, StaticMachineArgument};
+use crate::identifier::Identifier;
 use crate::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
     CapabilityMember, CapabilityState, ConformanceItem, ConformanceMember, ConstDefinition,
@@ -7,15 +8,22 @@ use crate::item::{
     DataField, DataMember, DataVariant, DomainAliasDefinition, DomainDefinition,
     GenericConformanceBound, Item, Machine, MachineParameterContract, MathematicalDefinition,
     MathematicalDefinitionBody, MathematicalParameterNode, MathematicalTypeHandle,
-    MathematicalTypeNode, MeasureDefinition,  OperatorDefinition,
-    PackageDeclaration, ProofFact, ProofMembershipFact, PropositionBody, PropositionDefinition,
-    PropositionParameterSignature, QuotientDefinition, QuotientEquivalenceSelection,
-    SatisfiesClause, StateParameterHandle, StateParameterNode, StateSignature, TraitDefinition,
-    TraitRefinementClause, TypeParameter, TypeParameterKind, UseItem,
+    MathematicalTypeNode, MeasureDefinition, OperatorDefinition, PackageDeclaration, ProofFact,
+    ProofMembershipFact, PropositionBody, PropositionDefinition, PropositionParameterSignature,
+    QuotientDefinition, QuotientEquivalenceSelection, SatisfiesClause, StateParameterHandle,
+    StateParameterNode, StateSignature, TraitDefinition, TraitRefinementClause, TypeParameter,
+    TypeParameterKind, UseItem,
 };
 use crate::types::TypeReferenceHandle;
 use arena::{Handle, HandleSpan};
 use std::ops::{Deref, DerefMut};
+
+/// The supplied occurrence belongs to the destination tree and retains its declaring scope.
+#[derive(Clone)]
+pub struct SuppliedSyntaxArgument {
+    pub binder: String,
+    pub ty: TypeReferenceHandle,
+}
 
 pub(crate) struct SyntaxCopy<'destination> {
     destination: &'destination mut SyntaxTrees,
@@ -32,6 +40,7 @@ pub(crate) struct SyntaxCopy<'destination> {
         String,
         crate::identifier::Identifier,
     )>,
+    pub(crate) scoped_arguments: Vec<SuppliedSyntaxArgument>,
     pub(crate) scoped_lifetimes: Vec<(String, crate::identifier::Identifier)>,
     pub(crate) array_length_substitutions: Vec<(
         source_text::SourceSpan,
@@ -55,6 +64,7 @@ impl<'destination> SyntaxCopy<'destination> {
             supplied_type_copies: Vec::new(),
             retain_alias_header_role: true,
             lifetime_substitutions: Vec::new(),
+            scoped_arguments: Vec::new(),
             scoped_lifetimes: Vec::new(),
             array_length_substitutions: Vec::new(),
             match_subject_copies: Vec::new(),
@@ -129,26 +139,30 @@ impl SyntaxTrees {
         SyntaxCopy::new(self, other).copy_state_signature(other, signature)
     }
 
-    /// Copy a selected trait requirement under its enclosing lifetime bindings.
-    /// The requirement's own telescope shadows the enclosing trait telescope.
-    pub fn copy_state_signature_in_lifetime_scope(
+    pub fn copy_type_arguments_with_bindings(
+        &mut self,
+        other: &SyntaxTrees,
+        types: &[TypeReferenceHandle],
+        arguments: Vec<SuppliedSyntaxArgument>,
+    ) -> Vec<TypeReferenceHandle> {
+        let mut copy = SyntaxCopy::new(self, other);
+        copy.scoped_arguments = arguments;
+        types
+            .iter()
+            .map(|ty| copy.copy_type_reference_handle(other, *ty))
+            .collect()
+    }
+
+    pub fn copy_state_signature_with_arguments(
         &mut self,
         other: &SyntaxTrees,
         signature: &StateSignature,
-        lifetimes: &[(String, crate::identifier::Identifier)],
+        arguments: Vec<SuppliedSyntaxArgument>,
+        lifetimes: &[(String, Identifier)],
     ) -> StateSignature {
         let mut copy = SyntaxCopy::new(self, other);
-        copy.scoped_lifetimes.extend(
-            lifetimes
-                .iter()
-                .filter(|(name, _)| {
-                    !signature
-                        .lifetime_parameters
-                        .iter()
-                        .any(|local| local.as_str(other) == name)
-                })
-                .cloned(),
-        );
+        copy.scoped_arguments = arguments;
+        copy.scoped_lifetimes = lifetimes.to_vec();
         copy.copy_state_signature(other, signature)
     }
 
@@ -649,17 +663,65 @@ impl SyntaxCopy<'_> {
         )
     }
 
-    fn copy_machine(&mut self, other: &SyntaxTrees, machine: &Machine) -> Machine {
-        let children = machine
-            .nested_machines
-            .handles()
-            .map(|handle| self.copy_item(other, other.items.item(handle)))
-            .collect::<Vec<_>>();
-        let mut nested_machines = HandleSpan::empty();
-        for child in children {
-            let handle = self.items.append_item(child);
-            nested_machines.push_contiguous(handle);
+    /// Both a machine declaration and a callable signature introduce a lexical telescope.
+    pub(crate) fn with_binders<T>(
+        &mut self,
+        other: &SyntaxTrees,
+        parameters: HandleSpan<TypeParameter>,
+        lifetimes: &[Identifier],
+        copy: impl FnOnce(&mut Self) -> T,
+    ) -> T {
+        if self.scoped_arguments.is_empty() && self.scoped_lifetimes.is_empty() {
+            return copy(self);
         }
+        let arguments = std::mem::take(&mut self.scoped_arguments);
+        let regions = std::mem::take(&mut self.scoped_lifetimes);
+        self.scoped_arguments.extend(
+            arguments
+                .iter()
+                .filter(|argument| {
+                    !other
+                        .items
+                        .type_parameters(parameters)
+                        .iter()
+                        .any(|p| p.name.as_str(other) == argument.binder)
+                })
+                .cloned(),
+        );
+        self.scoped_lifetimes.extend(
+            regions
+                .iter()
+                .filter(|(name, _)| !lifetimes.iter().any(|region| region.as_str(other) == name))
+                .cloned(),
+        );
+        let result = copy(self);
+        self.scoped_arguments = arguments;
+        self.scoped_lifetimes = regions;
+        result
+    }
+
+    pub(crate) fn copy_nested_machines(
+        &mut self,
+        other: &SyntaxTrees,
+        children: HandleSpan<Item>,
+    ) -> HandleSpan<Item> {
+        self.copy_mapped_span(
+            children.handles(),
+            |this, handle| this.copy_item(other, other.items.item(handle)),
+            |this, child| this.items.append_item(child),
+        )
+    }
+
+    fn copy_machine(&mut self, other: &SyntaxTrees, machine: &Machine) -> Machine {
+        self.with_binders(
+            other,
+            machine.type_parameters,
+            &machine.lifetime_parameters,
+            |scope| scope.copy_machine_fields(other, machine),
+        )
+    }
+
+    fn copy_machine_fields(&mut self, other: &SyntaxTrees, machine: &Machine) -> Machine {
         Machine {
             target_family_interface: machine.target_family_interface,
             name: machine.name.clone(),
@@ -676,15 +738,15 @@ impl SyntaxCopy<'_> {
             type_parameters: self.copy_type_parameter_span(other, machine.type_parameters),
             satisfies: self.copy_mapped_span(
                 other.items.satisfies_clauses(machine.satisfies).to_vec(),
-                |this, clause| SatisfiesClause {
+                |scope, clause| SatisfiesClause {
                     trait_name: clause.trait_name,
-                    lifetime_arguments: clause.lifetime_arguments,
-                    arguments: this.copy_type_reference_handle_span(other, clause.arguments),
+                    lifetime_arguments: clause.lifetime_arguments.iter().map(|name| scope.copied_lifetime(other, name)).collect(),
+                    arguments: scope.copy_type_reference_handle_span(other, clause.arguments),
                     requirement: clause.requirement,
                     alias: clause.alias,
                     via: clause.via,
                     via_expression: if clause.via_expression.is_valid() {
-                        this.copy_expression_handle(other, clause.via_expression)
+                        scope.copy_expression_handle(other, clause.via_expression)
                     } else {
                         ExpressionHandle::invalid()
                     },
@@ -698,7 +760,7 @@ impl SyntaxCopy<'_> {
                 .map(|bound| GenericConformanceBound {
                     binder: bound.binder.clone(),
                     trait_name: bound.trait_name.clone(),
-                    lifetime_arguments: bound.lifetime_arguments.clone(),
+                    lifetime_arguments: bound.lifetime_arguments.iter().map(|name| self.copied_lifetime(other, name)).collect(),
                     arguments: self.copy_type_reference_handle_span(other, bound.arguments),
                 })
                 .collect(),
@@ -724,7 +786,7 @@ impl SyntaxCopy<'_> {
             declares_no_crash_route: machine.declares_no_crash_route,
             contracts: self.copy_capability_contract_span(other, machine.contracts),
             states: self.copy_state_handle_span(other, machine.states),
-            nested_machines,
+            nested_machines: self.copy_nested_machines(other, machine.nested_machines),
         }
     }
 

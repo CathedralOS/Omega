@@ -112,17 +112,22 @@ pub(crate) fn normalize_closed_conformance_blocks(
                 .filter(|symbol| symbol.is_valid())
         })
         .collect::<Vec<_>>();
+    let discarded_roots: std::collections::HashSet<_> = synthesized_default_candidates
+        .into_iter()
+        .filter(|symbol| !selected_realizations.contains(symbol))
+        .collect();
+    let discarded: std::collections::HashSet<_> = program
+        .machines
+        .iter()
+        .filter(|machine| discarded_roots.contains(&machine.lexical_root(&program.machines).symbol))
+        .map(|machine| machine.symbol)
+        .collect();
     let mut ordinals = Vec::with_capacity(program.machines.len());
-    let mut discarded = Vec::new();
     let mut retained_count = 0;
     program.machines.retain(|machine| {
-        let retain = !synthesized_default_candidates.contains(&machine.symbol)
-            || selected_realizations.contains(&machine.symbol);
+        let retain = !discarded.contains(&machine.symbol);
         ordinals.push(retain.then_some(retained_count));
         retained_count += usize::from(retain);
-        if !retain {
-            discarded.push(machine.symbol);
-        }
         retain
     });
     for declaration in discarded {
@@ -141,7 +146,6 @@ pub(crate) fn normalize_closed_conformance_blocks(
 #[derive(Clone)]
 struct RequirementRoute {
     requirement: SymbolHandle,
-    requirement_name: DiagnosticName,
     realization_state: SymbolHandle,
     /*
         The requirement's authored formals. A call passing one operand more
@@ -155,12 +159,6 @@ struct RequirementRoute {
 struct ConformanceRoutingPlan {
     machine: SymbolHandle,
     routes: Vec<RequirementRoute>,
-    /*
-        Whether a bare name may select a row by spelling. Only an inline
-        member is lexically inside the block whose rows it names; a default
-        body's names were already bound to its authoring trait's requirements.
-    */
-    routes_by_name: bool,
     /* Present when `machine` instantiates a trait default body. */
     default_body: Option<DefaultBodyScope>,
 }
@@ -455,13 +453,11 @@ fn named_requirement<'name>(
     that conformance's exact rows, never an ambient attached machine that
     happens to share the leaf name.
 
-    An inline member is lexically part of one closed block, so its bare names
-    select the block's rows by spelling. A trait default body is lexically part
-    of its authoring trait instead: symbol assignment already bound its bare
-    names to that trait's exact requirements (`LexicalRequirements` in the
-    symbols scope), so every instantiation re-points those requirements to its
-    own implementation's rows. A default body that names a row outside its
-    trait's surface is rejected here, where that implementation is known: the
+    An inline member sees the implemented trait. A default sees the trait
+    where it was declared. Name resolution selects a requirement or a nearer
+    lexical declaration before this pass. Only requirement symbols can select
+    a row. A default that names a row outside its trait's surface is rejected
+    here, where that implementation is known: the
     trait author cannot see what a particular implementation adds.
     A machine named by a selection row remains that ordinary machine: it has no
     enclosing conformance context and may be shared by several blocks.
@@ -477,14 +473,23 @@ pub(crate) fn route_conformance_requirement_calls(
         .flat_map(|conformance| {
             conformance_routing_plans(program, conformance, &conformance.rows, &trait_catalog)
         })
+        .map(|plan| (plan.machine, plan))
+        .collect::<std::collections::HashMap<_, _>>();
+    let bodies = program
+        .machines
+        .iter()
+        .filter_map(|machine| {
+            let owner = machine.lexical_root(&program.machines).symbol;
+            Some((machine.symbol, plans.get(&owner)?))
+        })
         .collect::<Vec<_>>();
 
     let mut hidden_calls = Vec::new();
-    for plan in plans {
+    for (machine, plan) in bodies {
         retarget_machine_calls(
             program,
-            plan.machine,
-            work.contains(&plan.machine),
+            machine,
+            work.contains(&machine),
             &mut |site| {
                 let routed = plan.binding(site).map(|binding| binding.selected);
                 if routed.is_none()
@@ -547,13 +552,14 @@ impl ConformanceRoutingPlan {
         if site.requirement_application.is_valid() {
             return None;
         }
-        routed_binding(
-            site.target_symbol,
-            site.member,
-            site.argument_count,
-            self.routes_by_name && site.local_receiver,
-            &self.routes,
-        )
+        let route = self.routes.iter().find(|route| {
+            route.requirement == site.target_symbol
+                && site.argument_count != route.parameter_count + 1
+        })?;
+        Some(ResolvedAuthoredCallBinding {
+            selected: route.realization_state,
+            original: route.requirement,
+        })
     }
 }
 
@@ -575,7 +581,6 @@ fn conformance_routing_plans(
         .filter(|row| row.realization_state.is_valid())
         .map(|row| RequirementRoute {
             requirement: row.requirement,
-            requirement_name: row.requirement_name.clone(),
             realization_state: row.realization_state,
             parameter_count: parameter_count(row.requirement),
         })
@@ -591,7 +596,6 @@ fn conformance_routing_plans(
             ConformanceRoutingPlan {
                 machine: row.realization_machine,
                 routes: routes.clone(),
-                routes_by_name: row.source == ConformanceRowSource::Inline,
                 default_body: declaring_trait.is_valid().then(|| {
                     DefaultBodyScope::new(
                         declaring_trait,
@@ -642,6 +646,9 @@ impl<'program> ProvisionalBodyCallRouting<'program> {
         machine: SymbolHandle,
         site: &super::body_calls::CallSite<'_>,
     ) -> Result<Option<ResolvedAuthoredCallBinding>, String> {
+        let machine = self.program.machine(machine).map_or(machine, |body| {
+            body.lexical_root(&self.program.machines).symbol
+        });
         let namespace = if let Some((_, namespace)) = self
             .owner_namespaces
             .iter()
@@ -795,41 +802,6 @@ impl<'program> ProvisionalBodyCallRouting<'program> {
         });
         Ok(())
     }
-}
-
-fn routed_binding(
-    current: SymbolHandle,
-    target_name: &DiagnosticName,
-    argument_count: usize,
-    routes_by_name: bool,
-    routes: &[RequirementRoute],
-) -> Option<ResolvedAuthoredCallBinding> {
-    let static_routes = || {
-        routes
-            .iter()
-            .filter(move |route| argument_count != route.parameter_count + 1)
-    };
-    if current.is_valid()
-        && let Some(route) = static_routes().find(|route| route.requirement == current)
-    {
-        return Some(ResolvedAuthoredCallBinding {
-            selected: route.realization_state,
-            original: current,
-        });
-    }
-    if !routes_by_name {
-        return None;
-    }
-    let mut matching =
-        static_routes().filter(|route| route.requirement_name.as_str() == target_name.as_str());
-    let route = matching.next()?;
-    matching
-        .next()
-        .is_none()
-        .then_some(ResolvedAuthoredCallBinding {
-            selected: route.realization_state,
-            original: route.realization_state,
-        })
 }
 
 fn build_trait_catalog(program: &SymbolResolvedTrees) -> Vec<TraitCatalogEntry> {

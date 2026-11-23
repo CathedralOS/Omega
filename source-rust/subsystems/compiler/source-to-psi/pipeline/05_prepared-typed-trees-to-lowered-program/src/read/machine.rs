@@ -2994,7 +2994,7 @@ impl<'t> Program<'t> {
     ) -> Checked<Signature> {
         if (!abstract_schema && !signature.type_parameters.is_empty())
             || !signature.conformance_bounds.is_empty()
-            || signature.is_default
+            || (is_boundary && signature.is_default)
             || !signature.native_callback_parameters.is_empty()
             || signature.spelling.is_some()
         {
@@ -3266,7 +3266,13 @@ impl<'t> Program<'t> {
                 Vec::new(),
             ),
         };
-        if requirement.is_default || !requirement.native_callback_parameters.is_empty() {
+        if !requirement.native_callback_parameters.is_empty()
+            || (requirement.is_default
+                && !self
+                    .typed
+                    .trait_machine_signature(requirement.symbol)
+                    .is_some_and(|(owner, _)| !owner.is_boundary))
+        {
             return unserved("default or native-callback requirement");
         }
         // A rigid reading keeps each `const` binder as this machine's input,

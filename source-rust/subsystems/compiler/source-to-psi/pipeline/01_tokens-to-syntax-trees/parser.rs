@@ -261,10 +261,7 @@ fn parse_recorded_source(
     })
 }
 
-mod machine_bodies {
-    pub(crate) mod defaults;
-    pub(crate) mod states;
-}
+mod machine_bodies;
 mod statements {
     pub(crate) mod destructuring;
     pub(crate) mod expressions;

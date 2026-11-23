@@ -745,6 +745,11 @@ impl<'program> Program<'program> {
                         "implementation row repeats or changes an exact declaring requirement",
                     )
                 })?;
+            if row.source == crate::source_state::trait_definition::ConformanceRowSource::TraitDefault
+                && !required.is_default
+            {
+                return Err(services::unavailable(context, "selected requirement has no default body"));
+            }
             let application_identity = application
                 .portable_application_identity(typed)
                 .and_then(|identity| typed.type_identity_text(identity))

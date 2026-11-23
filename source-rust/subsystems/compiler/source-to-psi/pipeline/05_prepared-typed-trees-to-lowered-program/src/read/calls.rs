@@ -19,6 +19,7 @@ use crate::source_state::expression::{
 use crate::source_state::references::StaticArgumentCall;
 use crate::source_state::statement::TableCall;
 use crate::source_state::static_applications::StaticMachineApplicationHandle;
+use crate::source_state::trait_definition::ConformanceCallMember;
 use crate::source_state::types::TypeReferenceHandle;
 use language_core::ReferenceAccess;
 use semantic_vocabulary::MachineId;
@@ -48,9 +49,17 @@ struct StaticInvocation<'a> {
     receiver: Option<SymbolHandle>,
 }
 
-enum CallBinding {
+enum CallBinding<'a> {
     Generic(Expression),
-    Closed(Option<StaticMachineTarget>),
+    Closed {
+        reach: Option<StaticMachineTarget>,
+        named: Option<NamedCallTarget<'a>>,
+    },
+}
+
+struct NamedCallTarget<'a> {
+    body: SymbolHandle,
+    member: ConformanceCallMember<'a>,
 }
 
 /// The binder receipt authenticates the target; the retained occurrence
@@ -351,55 +360,21 @@ impl<'t> Program<'t> {
     fn named_call_target(
         &self,
         id: MachineId,
-        namespace: SymbolHandle,
-        requirement: SymbolHandle,
-    ) -> Checked<
-        Option<(
-            SymbolHandle,
-            &'t crate::source_state::trait_definition::Conformance,
-            &'t crate::source_state::trait_definition::ConformanceRow,
-            &'t crate::source_state::signature::StateSignature,
-        )>,
-    > {
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
-        let Some((owner, row, required)) = self
-            .typed
-            .named_conformance_member(namespace, requirement)
-            .map_err(unserved)?
-        else {
-            return Ok(None);
-        };
-        self.visible_to(id, requirement)?;
-        self.visible_declaration_to(id, owner.symbol, owner.is_public)?;
-        Ok(Some((row.realization_machine, owner, row, required)))
-    }
-
-    fn named_expression_target(
-        &self,
-        id: MachineId,
-        call: &TableCallExpression,
-    ) -> Checked<
-        Option<(
-            SymbolHandle,
-            &'t crate::source_state::trait_definition::Conformance,
-            &'t crate::source_state::trait_definition::ConformanceRow,
-            &'t crate::source_state::signature::StateSignature,
-        )>,
-    > {
-        let Some((owner, row, required)) = self
-            .typed
-            .named_conformance_call_member(call)
-            .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?
-        else {
-            return Ok(None);
-        };
-        self.visible_to(id, call.target_symbol)?;
+        call: StaticArgumentCall<'_>,
+        member: ConformanceCallMember<'t>,
+    ) -> Checked<NamedCallTarget<'t>> {
+        let owner = member.implementation;
+        let row = member.row;
+        self.visible_to(id, row.requirement)?;
         self.visible_declaration_to(id, owner.symbol, owner.is_public)?;
         let template = row.realization_machine;
         if owner.type_parameters.is_empty() {
-            return Ok(Some((template, owner, row, required)));
+            return Ok(NamedCallTarget { body: template, member });
         }
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
+        let StaticArgumentCall::Expression(_, call) = call else {
+            return Err(unserved("named map call lost its supplied application"));
+        };
         let source = self
             .typed
             .expression_table
@@ -459,7 +434,10 @@ impl<'t> Program<'t> {
                 "named capture supplies another requirement application",
             ));
         }
-        Ok(Some((capture.instance, owner, row, required)))
+        Ok(NamedCallTarget {
+            body: capture.instance,
+            member,
+        })
     }
 
     /// A call is direct only when its authored selection, if recorded,
@@ -642,17 +620,16 @@ impl<'t> Program<'t> {
         if call.installed_interrupt_operation.is_some() || call.reflected_field_origin.is_some() {
             return unserved("interrupt, requirement dispatch or reflected call");
         }
-        let static_reach_binding =
+        let (static_reach_binding, named) =
             match self.call_binding(id, slots, StaticArgumentCall::Statement(call), source)? {
                 CallBinding::Generic(call) => return Ok(call),
-                CallBinding::Closed(binding) => binding,
+                CallBinding::Closed { reach, named } => (reach, named),
             };
         // A boundary qualifier names a requirement without supplying a
         // receiver. An actual value outside the argument list is refused.
         let receiver = call.receiver_root_symbol.is_valid()
             || call.receiver_symbol.is_valid()
             || !call.receiver.is_empty();
-        let named = self.named_call_target(id, call.receiver_symbol, call.target_symbol)?;
         let qualified = named.is_some()
             || (call.receiver_root_symbol == call.receiver_symbol
                 && call.receiver.len() == 1
@@ -774,14 +751,14 @@ impl<'t> Program<'t> {
                 source,
             );
         }
-        let static_reach_binding = match self.call_binding(
+        let (static_reach_binding, named) = match self.call_binding(
             id,
             slots,
             StaticArgumentCall::Expression(handle, call),
             source,
         )? {
             CallBinding::Generic(call) => return Ok(call),
-            CallBinding::Closed(binding) => binding,
+            CallBinding::Closed { reach, named } => (reach, named),
         };
         if let Some(operation) = &call.private_layout_operation {
             let symbols = &self.typed.symbols;
@@ -827,7 +804,6 @@ impl<'t> Program<'t> {
         // Qualification names a declaration without supplying an extra
         // runtime argument. Typing owns that distinction for named operators
         // and machines; trait requirements retain their exact owner relation.
-        let named = self.named_expression_target(id, call)?;
         let qualified = named.is_some()
             || self.typed.call_has_no_runtime_receiver_for_target(call)
             || (call.receiver.is_valid()
@@ -1654,15 +1630,16 @@ impl<'t> Program<'t> {
         &mut self,
         id: MachineId,
         slots: &[Slot],
-        (body, owner, row, required): (
-            SymbolHandle,
-            &'t crate::source_state::trait_definition::Conformance,
-            &'t crate::source_state::trait_definition::ConformanceRow,
-            &'t crate::source_state::signature::StateSignature,
-        ),
+        target: NamedCallTarget<'t>,
         call: StaticArgumentCall<'_>,
         (arguments, source, expected): (&[ExpressionHandle], SourceOrigin, Option<ValueType>),
     ) -> Checked<Expression> {
+        let NamedCallTarget { body, member } = target;
+        let ConformanceCallMember {
+            implementation: owner,
+            row,
+            signature: required,
+        } = member;
         let machine = self.typed.machine_by_symbol(body).ok_or_else(|| {
             refuse(
                 id,
@@ -2132,7 +2109,7 @@ impl<'t> Program<'t> {
         slots: &[Slot],
         call: StaticArgumentCall<'_>,
         source: SourceOrigin,
-    ) -> Checked<CallBinding> {
+    ) -> Checked<CallBinding<'t>> {
         let invocation = self.static_invocation(call);
         let build_selection = matches!(call, StaticArgumentCall::Expression(_, expression)
             if expression.build_selection.is_valid());
@@ -2158,8 +2135,22 @@ impl<'t> Program<'t> {
         )?;
         let (authored, binding) =
             self.static_machine_target(id, invocation.target, invocation.binder)?;
-        self.direct_selection(id, authored, invocation.selection, invocation.binding)?;
-        Ok(CallBinding::Closed(binding))
+        let caller = self.symbols.get(id).copied().unwrap_or_default();
+        let member = self
+            .typed
+            .source_conformance_call_member(caller, call)
+            .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
+        let declaration = member
+            .filter(|selected| selected.row.realization_state == authored)
+            .map_or(authored, |selected| selected.row.requirement);
+        self.direct_selection(id, declaration, invocation.selection, invocation.binding)?;
+        let named = member
+            .map(|selected| self.named_call_target(id, call, selected))
+            .transpose()?;
+        Ok(CallBinding::Closed {
+            reach: binding,
+            named,
+        })
     }
 
     /// Both source call forms expose one retained static application and the

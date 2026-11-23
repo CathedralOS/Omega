@@ -63,7 +63,7 @@ pub(crate) fn lower_trait_definition(
                 parameters: clause_signature.parameters,
                 native_callback_parameters: &clause_signature.native_callback_parameters,
                 return_type_handle: clause_signature.return_type,
-                is_default: clause_signature.is_default,
+                is_default: clause_signature.default_body.is_some(),
                 service_reach_is_installation_bound: clause_signature
                     .service_reach_is_installation_bound,
                 service_reach_keyword_source_spans: &clause_signature

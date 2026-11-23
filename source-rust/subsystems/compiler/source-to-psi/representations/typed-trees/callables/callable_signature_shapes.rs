@@ -2,7 +2,9 @@
 //! Declaration matching checks exact static binders and types; bound callers
 //! supply their own substitutions. Neither lowers a type to compare it.
 
+use crate::source_state::references::StaticArgumentCall;
 use crate::source_state::signature::StateParameter;
+use crate::source_state::trait_definition::ConformanceCallMember;
 use crate::source_state::types::TypeReferenceHandle;
 use source_admission::RetainedDeclaration;
 use symbols::SymbolHandle;
@@ -311,6 +313,93 @@ impl crate::source_state::TypedTrees {
             .unwrap_or(source))
     }
 
+    /// A bare call inside an implementation can name a sibling requirement.
+    /// Its authored occurrence owns the requirement, its lexical declaration
+    /// owns the map, and the resolved target must be that map's exact row.
+    fn lexical_conformance_call(
+        &self,
+        owner: SymbolHandle,
+        call: crate::source_state::references::StaticArgumentCall<'_>,
+    ) -> Result<Option<ConformanceCallMember<'_>>, &'static str> {
+        let (target, selection) = match call {
+            StaticArgumentCall::Expression(_, call)
+                if !call.receiver.is_valid()
+                    && !call.requirement_application.is_valid()
+                    && call.static_requirement_dispatch.is_none() =>
+            {
+                (call.target_symbol, call.authored_call_selection)
+            }
+            StaticArgumentCall::Statement(call)
+                if call.receiver.is_empty()
+                    && !call.receiver_symbol.is_valid()
+                    && !call.receiver_root_symbol.is_valid()
+                    && call.static_requirement_dispatch.is_none() =>
+            {
+                (call.target_symbol, call.authored_call_selection)
+            }
+            _ => return Ok(None),
+        };
+        let Some(required) = selection
+            .and_then(|id| self.authored_declaration_selections().get(id))
+            .and_then(|selection| {
+                selection
+                    .target()
+                    .as_resolved()
+                    .map(|selected| selected.selected_symbol())
+            })
+        else {
+            return Ok(None);
+        };
+        if target == required || self.trait_machine_signature(required).is_none() {
+            return Ok(None);
+        }
+        let Some(caller) = self.machine_by_own_or_state_symbol(owner) else {
+            return Ok(None);
+        };
+        for machine in std::iter::once(caller).chain(self.enclosing_machines(caller.symbol)) {
+            if let Some((implementation, _)) = self.lexical_conformance_scope(machine.symbol) {
+                let (_, row, signature) = self
+                    .named_conformance_member(implementation.symbol, required)?
+                    .ok_or("lexical requirement call lost its implementation row")?;
+                if row.realization_state != target {
+                    return Err(
+                        "lexical requirement call selected a different implementation entry",
+                    );
+                }
+                return Ok(Some(ConformanceCallMember {
+                    implementation,
+                    row,
+                    signature,
+                }));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Explicit and lexical calls expose the same selected public contract.
+    pub fn source_conformance_call_member(
+        &self,
+        caller: SymbolHandle,
+        call: StaticArgumentCall<'_>,
+    ) -> Result<Option<ConformanceCallMember<'_>>, &'static str> {
+        let named = match call {
+            StaticArgumentCall::Expression(_, expression) => {
+                self.named_conformance_call_member(expression)?
+            }
+            StaticArgumentCall::Statement(statement) => {
+                self.named_conformance_member(statement.receiver_symbol, statement.target_symbol)?
+            }
+        };
+        match named {
+            Some((implementation, row, signature)) => Ok(Some(ConformanceCallMember {
+                implementation,
+                row,
+                signature,
+            })),
+            None => self.lexical_conformance_call(caller, call),
+        }
+    }
+
     fn source_call_requirement_declaration<'source>(
         &'source self,
         owner: SymbolHandle,
@@ -324,19 +413,14 @@ impl crate::source_state::TypedTrees {
                 return Err("public call has a stale source application".into());
             }
         }
-        let (target, namespace, dispatch, authored_binding) = match call {
-            crate::source_state::references::StaticArgumentCall::Expression(_, call) => (
+        let (target, dispatch, authored_binding) = match call {
+            StaticArgumentCall::Expression(_, call) => (
                 call.target_symbol,
-                self.expression_table
-                    .name_path_node(call.receiver)
-                    .map(|path| path.symbol)
-                    .unwrap_or_default(),
                 call.static_requirement_dispatch.as_ref(),
                 call.authored_call_binding,
             ),
-            crate::source_state::references::StaticArgumentCall::Statement(call) => (
+            StaticArgumentCall::Statement(call) => (
                 call.target_symbol,
-                call.receiver_symbol,
                 call.static_requirement_dispatch.as_ref(),
                 None,
             ),
@@ -375,16 +459,8 @@ impl crate::source_state::TypedTrees {
                 })
                 .ok_or_else(|| "public call has no complete applied requirement signature".into());
         }
-        let named = match call {
-            crate::source_state::references::StaticArgumentCall::Expression(_, call) => {
-                self.named_conformance_call_member(call)?
-            }
-            crate::source_state::references::StaticArgumentCall::Statement(_) => {
-                self.named_conformance_member(namespace, target)?
-            }
-        };
-        if let Some((_, _, signature)) = named {
-            return Ok(signature);
+        if let Some(member) = self.source_conformance_call_member(owner, call)? {
+            return Ok(member.signature);
         }
         if let Some(application) = self.closed_requirement_application(target) {
             return Ok(application.signature);
@@ -414,16 +490,12 @@ impl crate::source_state::TypedTrees {
     > {
         use crate::source_state::expression::StaticMachineArgument;
         use crate::source_state::references::StaticArgumentCall;
-        let (namespace, dispatch, receiver) = match call {
+        let (dispatch, receiver) = match call {
             StaticArgumentCall::Expression(_, call) => (
-                self.expression_table
-                    .name_path_node(call.receiver)
-                    .map_or_else(SymbolHandle::invalid, |path| path.symbol),
                 call.static_requirement_dispatch.as_ref(),
-                Some(call.receiver),
+                call.receiver.is_valid().then_some(call.receiver),
             ),
             StaticArgumentCall::Statement(call) => (
-                call.receiver_symbol,
                 call.static_requirement_dispatch.as_ref(),
                 None,
             ),
@@ -443,15 +515,10 @@ impl crate::source_state::TypedTrees {
             self.static_operand_region_supplier(operand, supplying)?;
             return Ok((std::borrow::Cow::Borrowed(operand), supplying));
         }
-        let target = match call {
-            StaticArgumentCall::Expression(_, call) => call.target_symbol,
-            StaticArgumentCall::Statement(call) => call.target_symbol,
-        };
-        let member = match call {
-            StaticArgumentCall::Expression(_, call) => self.named_conformance_call_member(call)?,
-            StaticArgumentCall::Statement(_) => self.named_conformance_member(namespace, target)?,
-        };
-        member.ok_or("selected call lost its exact named requirement row")?;
+        let member = self
+            .source_conformance_call_member(owner, call)?
+            .ok_or("selected call lost its exact named requirement row")?;
+        let namespace = member.implementation.symbol;
         let operand = if let StaticArgumentCall::Expression(_, call) = call
             && call.requirement_application.is_valid()
         {

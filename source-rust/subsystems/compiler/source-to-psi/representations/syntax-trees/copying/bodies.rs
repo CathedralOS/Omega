@@ -42,7 +42,6 @@ macro_rules! copied_state_signature {
                     arguments: $self.copy_type_reference_handle_span($other, bound.arguments),
                 })
                 .collect(),
-            is_default: $signature.is_default,
             parameters: $self.copy_state_parameter_handle_span($other, $signature.parameters),
             native_callback_parameters: $signature.native_callback_parameters.clone(),
             return_type: $self.copy_type_reference_handle($other, $signature.return_type),
@@ -57,7 +56,10 @@ macro_rules! copied_state_signature {
             suspends: $signature.suspends,
             blocks: $signature.blocks,
             contracts: $self.copy_capability_contract_span($other, $signature.contracts),
-            default_body: $self.copy_statement_handle_span($other, $signature.default_body),
+            default_body: $signature.default_body.map(|body| crate::item::MachineBody {
+                statements: $self.copy_statement_handle_span($other, body.statements),
+                nested_machines: $self.copy_nested_machines($other, body.nested_machines),
+            }),
             terminates_guarantee: $signature.terminates_guarantee,
             declares_no_crash_route: $signature.declares_no_crash_route,
         }
@@ -65,6 +67,58 @@ macro_rules! copied_state_signature {
 }
 
 impl SyntaxCopy<'_> {
+    /// A declaration operand keeps its name and telescope. A structural type or
+    /// computed constant keeps its type-reference node, as it does at a written call.
+    fn static_argument_for_actual(&self, actual: TypeReferenceHandle) -> StaticMachineArgument {
+        let reference = || StaticMachineArgument {
+            type_reference: actual,
+            ..Default::default()
+        };
+        match self.type_references.type_reference(actual) {
+            TypeReferenceNode::Named(name) => StaticMachineArgument {
+                path: Box::new([name.clone()]),
+                ..Default::default()
+            },
+            TypeReferenceNode::Generic {
+                base_name,
+                lifetime_arguments,
+                arguments,
+            } => StaticMachineArgument {
+                path: Box::new([base_name.clone()]),
+                application: Some(Box::new(crate::expression::StaticSymbolApplication {
+                    member: arena::Handle::invalid(),
+                    lifetime_arguments: lifetime_arguments.clone().into_boxed_slice(),
+                    arguments: self
+                        .type_references
+                        .type_reference_handles(*arguments)
+                        .iter()
+                        .map(|argument| self.static_argument_for_actual(*argument))
+                        .collect(),
+                })),
+                ..Default::default()
+            },
+            TypeReferenceNode::StaticSelection(argument) => argument.clone(),
+            TypeReferenceNode::ConstExpression(expression) => {
+                match self.expressions.expression(*expression) {
+                    ExpressionNode::Integer(literal) => StaticMachineArgument {
+                        const_literal: Some(literal.clone()),
+                        ..Default::default()
+                    },
+                    ExpressionNode::Name {
+                        members,
+                        application,
+                    } => StaticMachineArgument {
+                        path: self.expressions.identifier_path_members(*members).into(),
+                        application: application.clone(),
+                        ..Default::default()
+                    },
+                    _ => reference(),
+                }
+            }
+            _ => reference(),
+        }
+    }
+
     pub fn copy_static_machine_argument(
         &mut self,
         other: &SyntaxTrees,
@@ -80,8 +134,25 @@ impl SyntaxCopy<'_> {
         other: &SyntaxTrees,
         argument: &mut StaticMachineArgument,
     ) {
+        if !self.scoped_arguments.is_empty()
+            && !argument.type_reference.is_valid()
+            && argument.application.is_none()
+            && argument.const_literal.is_none()
+            && argument.evidence_projection.is_none()
+            && let [name] = argument.path.as_ref()
+            && let Some(actual) = self
+                .scoped_arguments
+                .iter()
+                .find(|arg| arg.binder == name.as_str(other))
+        {
+            *argument = self.static_argument_for_actual(actual.ty);
+            return;
+        }
         argument.type_reference = self.copy_type_reference_handle(other, argument.type_reference);
         if let Some(application) = &mut argument.application {
+            for name in &mut application.lifetime_arguments {
+                *name = self.copied_lifetime(other, name);
+            }
             for nested in application.arguments.iter_mut() {
                 self.remap_static_machine_argument(other, nested);
             }
@@ -142,16 +213,12 @@ impl SyntaxCopy<'_> {
         other: &SyntaxTrees,
         signature: &StateSignature,
     ) -> StateSignature {
-        let enclosing = self.scoped_lifetimes.clone();
-        self.scoped_lifetimes.retain(|(name, _)| {
-            !signature
-                .lifetime_parameters
-                .iter()
-                .any(|local| local.as_str(other) == name)
-        });
-        let copied = copied_state_signature!(self, other, signature);
-        self.scoped_lifetimes = enclosing;
-        copied
+        self.with_binders(
+            other,
+            signature.type_parameters,
+            &signature.lifetime_parameters,
+            |scope| copied_state_signature!(scope, other, signature),
+        )
     }
 
     pub(crate) fn copy_state_parameter_handle_span(
@@ -490,17 +557,27 @@ impl SyntaxCopy<'_> {
             return TypeReferenceHandle::invalid();
         }
 
-        if let Some(actual) = self
+        let supplied = self
             .type_substitutions
             .iter()
-            .find_map(|(source, actual)| (*source == handle).then_some(*actual))
+            .find_map(|(source, actual)| (*source == handle).then_some(*actual));
+        let lexical = if !self.scoped_arguments.is_empty()
+            && let TypeReferenceNode::Named(name) = other.type_references.type_reference(handle)
         {
+            self.scoped_arguments
+                .iter()
+                .find(|arg| arg.binder == name.as_str(other))
+                .map(|arg| arg.ty)
+        } else {
+            None
+        };
+        if let Some(actual) = supplied.or(lexical) {
             let origins = other
                 .type_references
                 .type_alias_applications(handle)
                 .cloned()
                 .collect::<Vec<_>>();
-            if origins.is_empty() {
+            if origins.is_empty() && lexical.is_none() {
                 self.supplied_type_copies.push(actual);
                 return actual;
             }
@@ -559,6 +636,16 @@ impl SyntaxCopy<'_> {
                         .find_map(|(span, spelling, actual)| {
                             (*span == name.source_span() && spelling == name.as_str(other))
                                 .then_some(crate::types::FixedArrayLength::Expression(*actual))
+                        })
+                        .or_else(|| {
+                            let actual = self.scoped_arguments.iter()
+                                .find(|argument| argument.binder == name.as_str(other))?.ty;
+                            if let TypeReferenceNode::Named(value) = self.type_references.type_reference(actual)
+                                && let Ok(length) = value.as_str(&**self).parse()
+                            {
+                                return Some(crate::types::FixedArrayLength::Literal(length));
+                            }
+                            Some(crate::types::FixedArrayLength::Expression(actual))
                         })
                         .unwrap_or_else(|| length.clone()),
                     length => length.clone(),

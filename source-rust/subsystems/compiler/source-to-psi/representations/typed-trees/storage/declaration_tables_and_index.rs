@@ -1516,6 +1516,26 @@ pub mod declaration_index {
             self.tables.machines.retained_declaration(symbol)
         }
 
+        /// Follow the authored machine nesting, including for a specialized body
+        /// whose executable symbol lives outside its template's lexical scope.
+        pub fn enclosing_machines(
+            &self,
+            caller: symbols::SymbolHandle,
+        ) -> impl Iterator<Item = &machine::Machine> {
+            let mut owner = caller;
+            let mut visited = vec![owner];
+            std::iter::from_fn(move || {
+                owner = self.declaration_scope_parent(owner);
+                if !owner.is_valid() || visited.contains(&owner) {
+                    return None;
+                }
+                let declaration = self.machine_declaration_for_lexical_scope(owner)?;
+                visited.push(owner);
+                Some(declaration)
+            })
+            .fuse()
+        }
+
         pub fn state_position_by_symbol(
             &self,
             machine: SymbolHandle,

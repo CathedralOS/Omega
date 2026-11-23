@@ -193,6 +193,18 @@ pub mod control_flow {
         }
 
         impl Machine {
+            /// The declaration that owns this lexical tree and its selected implementation.
+            pub fn lexical_root<'a>(
+                &'a self,
+                machines: &'a arena::OrderedRootArena<Self>,
+            ) -> &'a Self {
+                let mut declaration = self;
+                while declaration.lexical_parent.is_valid() {
+                    declaration = machines.get(declaration.lexical_parent);
+                }
+                declaration
+            }
+
             pub fn symbol_spelling(&self) -> &str {
                 if self.target.is_some() {
                     self.target_symbol_name.as_str()

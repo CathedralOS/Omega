@@ -405,9 +405,9 @@ impl ItemTable {
                 self.state_storage
                     .signatures
                     .iter()
-                    .filter(|(_, signature)| !signature.default_body.is_empty())
-                    .map(|(owner, signature)| {
-                        (StatementBody::TraitDefault(owner), signature.default_body)
+                    .filter_map(|(owner, signature)| {
+                        let body = signature.default_body?;
+                        Some((StatementBody::TraitDefault(owner), body.statements))
                     }),
             )
     }
@@ -418,7 +418,8 @@ impl ItemTable {
                 self.state_storage.states.get_mut(owner).statements = body
             }
             StatementBody::TraitDefault(owner) => {
-                self.state_storage.signatures.get_mut(owner).default_body = body
+                self.state_storage.signatures.get_mut(owner)
+                    .default_body.as_mut().expect("selected trait default").statements = body
             }
         }
     }

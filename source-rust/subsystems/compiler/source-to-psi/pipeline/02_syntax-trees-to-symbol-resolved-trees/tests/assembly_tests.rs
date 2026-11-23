@@ -264,7 +264,7 @@ fn prepares_multi_instruction_asm_in_nested_machines_and_trait_defaults() {
     assert_eq!(
         instruction_statements(
             &parsed,
-            parsed.items.statements(default_signature.default_body)
+            parsed.items.statements(default_signature.default_body.unwrap().statements)
         )
         .len(),
         2,

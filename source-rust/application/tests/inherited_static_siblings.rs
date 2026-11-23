@@ -5,12 +5,12 @@ mod support;
 use platform_custody::temporary_directory::TemporaryDirectory;
 use std::process::{Command, Output, Stdio};
 
-fn invoke(tier: &str) -> (Output, String) {
+fn invoke(tier: &str, fixture_name: &str) -> (Output, String) {
     let fixture = support::repository_root()
         .join("source-rust/application/tests/fixtures/calls")
         .join(tier)
-        .join("inherited_static_siblings");
-    let scratch = TemporaryDirectory::create("inherited-static-siblings", false).unwrap();
+        .join(fixture_name);
+    let scratch = TemporaryDirectory::create(fixture_name, false).unwrap();
     for name in ["main.omg", "build.omg"] {
         std::fs::copy(fixture.join(name), scratch.path().join(name)).unwrap();
     }
@@ -39,7 +39,16 @@ fn invoke(tier: &str) -> (Output, String) {
 
 #[test]
 fn inherited_static_siblings_run_in_both_engines() {
-    let (output, report) = invoke("run");
+    assert_runs_in_both_engines("inherited_static_siblings");
+}
+
+#[test]
+fn selected_trait_defaults_keep_their_lexical_helpers() {
+    assert_runs_in_both_engines("trait_default_helpers");
+}
+
+fn assert_runs_in_both_engines(fixture: &str) {
+    let (output, report) = invoke("run", fixture);
     assert!(output.status.success(), "{report}");
     assert!(output.stdout.is_empty(), "{report}");
     for receipt in ["native exit 0", "interp exit: 0"] {
@@ -49,11 +58,21 @@ fn inherited_static_siblings_run_in_both_engines() {
 
 #[test]
 fn a_const_argument_still_owes_its_declared_requirement() {
-    let (output, report) = invoke("fail");
+    let (output, report) = invoke("fail", "inherited_static_siblings");
     assert!(!output.status.success(), "{report}");
     assert!(
         report.contains("cannot prove requires contract for call forward from main")
             && !report.contains("not supported yet"),
+        "{report}"
+    );
+}
+
+#[test]
+fn default_helpers_cannot_capture_an_enclosing_value() {
+    let (output, report) = invoke("fail", "trait_default_helpers");
+    assert!(!output.status.success(), "{report}");
+    assert!(
+        report.contains("cannot capture enclosing runtime binding `value`"),
         "{report}"
     );
 }

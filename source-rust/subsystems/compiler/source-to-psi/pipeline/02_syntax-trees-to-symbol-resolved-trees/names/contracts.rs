@@ -102,7 +102,7 @@ pub(super) fn assign_contract_reference_symbols(
         );
         let scope = scope_context.scope(
             machine.symbol,
-            trait_scopes.requirements_of(machine.trait_default_origin.declaring_trait),
+            trait_scopes.machine_requirements(machine.symbol),
             &lexical_scope,
             machine.attached_data_symbol,
             data_definition.map(|definition| data_members.span_or_empty(definition.members)),

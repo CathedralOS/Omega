@@ -15,6 +15,14 @@ use crate::source_state::signature::StateSignature;
 use arena::HandleSpan;
 use symbols::SymbolHandle;
 
+/// The implementation and exact requirement selected by a source call.
+#[derive(Clone, Copy)]
+pub struct ConformanceCallMember<'a> {
+    pub implementation: &'a Conformance,
+    pub row: &'a ConformanceRow,
+    pub signature: &'a StateSignature,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
 pub struct TraitDefinition {
     pub symbol: SymbolHandle,

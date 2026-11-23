@@ -162,7 +162,9 @@ fn trait_defaults_keep_the_authored_member_call() {
     let signature = parsed
         .items
         .state_signature(parsed.items.state_signatures(definition.machines)[0]);
-    let statements = parsed.items.statements(signature.default_body);
+    let statements = parsed
+        .items
+        .statements(signature.default_body.unwrap().statements);
     assert_eq!(statements.len(), 1);
     assert!(matches!(
         parsed.statements.statement(statements[0]),

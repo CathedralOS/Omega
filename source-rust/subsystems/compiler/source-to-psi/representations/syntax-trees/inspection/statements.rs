@@ -50,6 +50,8 @@ pub struct StateSignatureSnapshot {
     pub blocks: bool,
     pub contracts: Vec<CapabilityContractSnapshot>,
     pub default_body: Vec<StatementSnapshot>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub nested_machines: Vec<crate::snapshot::item_snapshots::ItemSnapshot>,
     pub terminates_guarantee: bool,
 }
 
@@ -255,7 +257,7 @@ macro_rules! state_signature_snapshot {
                 .iter()
                 .map(|bound| snapshot_generic_conformance_bound($syntax_trees, bound))
                 .collect(),
-            is_default: $signature.is_default,
+            is_default: $signature.default_body.is_some(),
             parameters: snapshot_state_parameters($syntax_trees, $signature.parameters),
             native_callback_parameters: $signature
                 .native_callback_parameters
@@ -273,7 +275,9 @@ macro_rules! state_signature_snapshot {
             suspends: $signature.suspends,
             blocks: $signature.blocks,
             contracts: snapshot_capability_contracts($syntax_trees, $signature.contracts),
-            default_body: snapshot_statements($syntax_trees, $signature.default_body),
+            default_body: snapshot_statements($syntax_trees, $signature.default_body.unwrap_or_default().statements),
+            nested_machines: $signature.default_body.unwrap_or_default().nested_machines.handles()
+                .map(|handle| crate::snapshot::item_snapshots::snapshot_item($syntax_trees, $syntax_trees.items.item(handle))).collect(),
             terminates_guarantee: $signature.terminates_guarantee,
         }
     };

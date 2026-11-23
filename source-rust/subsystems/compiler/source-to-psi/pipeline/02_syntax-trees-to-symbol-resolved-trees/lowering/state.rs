@@ -340,7 +340,7 @@ pub(crate) fn lower_state_signature_node(
             parameters: signature.parameters,
             native_callback_parameters: &signature.native_callback_parameters,
             return_type_handle: signature.return_type,
-            is_default: signature.is_default,
+            is_default: signature.default_body.is_some(),
             service_reach_is_installation_bound: signature.service_reach_is_installation_bound,
             service_reach_keyword_source_spans: &signature.service_reach_keyword_source_spans,
             service_reaches: signature.service_reaches,

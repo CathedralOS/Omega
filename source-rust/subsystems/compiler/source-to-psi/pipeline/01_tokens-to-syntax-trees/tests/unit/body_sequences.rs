@@ -94,9 +94,11 @@ fn nested_machine_layout_rejects_resumed_statements_and_package_exports() {
             "cannot be package-exported",
         ),
     ] {
-        let tokens = Lexer::new(source).tokenize().unwrap();
-        let error = parse_syntax_trees(&tokens).unwrap_err();
-        assert!(error.message.contains(expected), "{}", error.message);
+        for declaration in [source.to_owned(), format!("trait Parent {{ {source} }}")] {
+            let tokens = Lexer::new(&declaration).tokenize().unwrap();
+            let error = parse_syntax_trees(&tokens).unwrap_err();
+            assert!(error.message.contains(expected), "{}", error.message);
+        }
     }
 }
 

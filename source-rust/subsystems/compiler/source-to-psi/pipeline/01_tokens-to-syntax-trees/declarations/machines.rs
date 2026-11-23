@@ -1,5 +1,5 @@
 use crate::declarations::operators::parse_operator_spelling;
-use crate::machine_bodies::states;
+use crate::machine_bodies::parse_body;
 use crate::parameters::callable::{parse_optional_parameters, parse_optional_return_type};
 use crate::parameters::generics::GenericParameterSyntax;
 use crate::parameters::generics::parse_generic_parameters;
@@ -7,7 +7,7 @@ use crate::token_input::cursor::{Input, ParseResult, parse_path_handle_span};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::identifier::Identifier;
-use syntax_trees::item::Machine;
+use syntax_trees::item::{Machine, State};
 use tokens::PunctuationKind;
 
 use crate::contracts::clauses::parse_machine_clauses;
@@ -70,20 +70,18 @@ pub(crate) fn parse_machine<'tokens, 'source>(
         entry_name,
     } = split_machine_path(syntax_trees, path);
 
-    let (
-        states::ParsedMachineBody {
-            states,
-            nested_machines,
-            bodyless,
-        },
-        input,
-    ) = states::parse_body(
-        syntax_trees,
-        input,
-        entry_name.clone(),
-        machine_parameters,
-        machine_return_type,
-    )?;
+    let (body, input) = parse_body(syntax_trees, input, machine_return_type.is_valid())?;
+    let bodyless = body.is_none();
+    let body = body.unwrap_or_default();
+    let entry = State {
+        name: entry_name.unwrap_or_else(|| Identifier::generated("entry")),
+        parameters: machine_parameters,
+        return_type: machine_return_type,
+        contracts: HandleSpan::empty(),
+        statements: body.statements,
+    };
+    let state = syntax_trees.items.insert_state(&entry);
+    let state = syntax_trees.items.append_state_handle(state);
     if clauses.admitted_same_stack_bytes != 0 {
         let span = clauses
             .same_stack_clause_span
@@ -139,8 +137,8 @@ pub(crate) fn parse_machine<'tokens, 'source>(
             admitted_same_stack_bytes: clauses.admitted_same_stack_bytes,
             declares_no_crash_route: clauses.declares_no_crash_route,
             contracts: clauses.contracts,
-            states,
-            nested_machines,
+            states: HandleSpan::from_parts(state, 1),
+            nested_machines: body.nested_machines,
         },
         input,
     ))

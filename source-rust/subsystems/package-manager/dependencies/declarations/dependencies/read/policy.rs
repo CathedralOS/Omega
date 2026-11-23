@@ -3,11 +3,14 @@
 
 use super::error::DependencyProjectionError;
 use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME, constructor_parts};
-use build_declarations::{BUILD_TYPE_NAME};
-use crate::declarations::editable_build::{DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_HELPER_OWNER, is_dependency_call, package_authored_type_name};
+use crate::declarations::editable_build::{
+    DEPENDENCY_DESCRIPTION_TYPE_NAME, DEPENDENCY_HELPER_OWNER, is_dependency_call,
+    package_authored_type_name,
+};
+use build_declarations::BUILD_TYPE_NAME;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
-use syntax_trees::item::{CapabilityMember, ConformanceMember, Item};
+use syntax_trees::item::Item;
 use syntax_trees::statement::{StatementHandle, StatementNode};
 
 pub(super) fn reject_authored_toolchain_vocabulary(
@@ -77,51 +80,12 @@ pub(super) fn reject_unprojected_dependency_syntax(
         }
     }
 
-    for item in syntax_trees.root_items() {
-        match item {
-            Item::Machine(machine) => {
-                reject_machine_dependency_statements(syntax_trees, machine, accepted_statements)?;
-            }
-            Item::Trait(definition) => {
-                for signature_handle in syntax_trees.items.state_signatures(definition.machines) {
-                    let signature = syntax_trees.items.state_signature(*signature_handle);
-                    reject_dependency_statements(
-                        syntax_trees,
-                        syntax_trees.items.statements(signature.default_body),
-                        accepted_statements,
-                    )?;
-                }
-            }
-            Item::Conformance(conformance) => {
-                for member in syntax_trees.items.conformance_members(conformance.members) {
-                    match member {
-                        ConformanceMember::Machine(machine)
-                        | ConformanceMember::Synthesized(machine)
-                        | ConformanceMember::TraitDefault { machine, .. } => {
-                            reject_machine_dependency_statements(
-                                syntax_trees,
-                                machine,
-                                accepted_statements,
-                            )?;
-                        }
-                        // A selection row names an existing machine and has no body.
-                        ConformanceMember::Selection { .. } => {}
-                    }
-                }
-            }
-            Item::Capability(capability) => {
-                for member in syntax_trees.items.capability_members(capability.members) {
-                    if let CapabilityMember::State(state) = member {
-                        reject_dependency_statements(
-                            syntax_trees,
-                            syntax_trees.items.statements(state.signature.default_body),
-                            accepted_statements,
-                        )?;
-                    }
-                }
-            }
-            _ => {}
-        }
+    for (_, statements) in syntax_trees.items.statement_bodies() {
+        reject_dependency_statements(
+            syntax_trees,
+            syntax_trees.items.statements(statements),
+            accepted_statements,
+        )?;
     }
 
     for (expression_handle, expression) in syntax_trees.expressions.iter_expressions() {
@@ -156,22 +120,6 @@ pub(super) fn reject_unprojected_dependency_syntax(
             }
             _ => {}
         }
-    }
-    Ok(())
-}
-
-fn reject_machine_dependency_statements(
-    syntax_trees: &SyntaxTrees,
-    machine: &syntax_trees::item::Machine,
-    accepted_statements: &[StatementHandle],
-) -> Result<(), DependencyProjectionError> {
-    for state_handle in syntax_trees.items.state_handles(machine.states) {
-        let state = syntax_trees.items.state(*state_handle);
-        reject_dependency_statements(
-            syntax_trees,
-            syntax_trees.items.statements(state.statements),
-            accepted_statements,
-        )?;
     }
     Ok(())
 }

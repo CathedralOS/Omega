@@ -1347,8 +1347,12 @@ impl Expansion<'_, '_> {
         );
         Self::retain_contract_bindings(syntax, signature.contracts, &mut expression_bound);
         self.contract_static_operands(syntax, signature.contracts, &expression_bound)?;
-        let statements = syntax.items.statements(signature.default_body).to_vec();
-        self.statements(syntax, &statements, &expression_bound)
+        if let Some(body) = signature.default_body {
+            let statements = syntax.items.statements(body.statements).to_vec();
+            self.statements(syntax, &statements, &expression_bound)?;
+            self.nested_machines(syntax, body.nested_machines, &bound)?;
+        }
+        Ok(())
     }
 
     fn statements(
@@ -1456,12 +1460,18 @@ impl Expansion<'_, '_> {
             let statements = syntax.items.statements(state.statements).to_vec();
             self.statements(syntax, &statements, &expression_bound)?;
         }
-        for position in 0..machine.nested_machines.count() {
-            let item = syntax
-                .items
-                .item(machine.nested_machines.handle_at(position))
-                .clone();
-            self.item(syntax, &item, &bound)?;
+        self.nested_machines(syntax, machine.nested_machines, &bound)
+    }
+
+    fn nested_machines(
+        &mut self,
+        syntax: &mut SyntaxTrees,
+        children: arena::HandleSpan<Item>,
+        bound: &[String],
+    ) -> Result<(), Diagnostic> {
+        for child in children.handles() {
+            let item = syntax.items.item(child).clone();
+            self.item(syntax, &item, bound)?;
         }
         Ok(())
     }

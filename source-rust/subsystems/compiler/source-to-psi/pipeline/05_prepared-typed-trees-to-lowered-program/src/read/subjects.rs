@@ -1138,8 +1138,9 @@ fn served_trait_parameters(
 ///   inherit a boundary parent);
 /// - each implementation argument names an implementation of the binder's
 ///   bound (`Calling<DarwinArm64ByteViewCalling>` names a `CallingPolicy`);
-/// - a boundary parent keeps its method contracts in its own applied schema.
-///   An ordinary policy parent with substituted methods needs its own reader.
+/// - inherited formals and results use the parent's supplied arguments.
+///   The declaring schema checks the contract and each implementation checks
+///   its selected body against that applied requirement.
 fn served_parent(
     typed: &crate::source_state::TypedTrees,
     child: &crate::source_state::trait_definition::TraitDefinition,
@@ -1152,11 +1153,12 @@ fn served_parent(
     }
     served_trait_parameters(typed, declaration)?;
     let parameters = typed.trait_type_parameters(declaration);
-    if !declaration.is_boundary
-        && !parameters.is_empty()
-        && !typed.trait_machine_signatures(declaration).is_empty()
-    {
-        return Err("ordinary parent application whose requirements are substituted");
+    if !declaration.is_boundary && !parameters.is_empty() {
+        for required in typed.trait_machine_signatures(declaration) {
+            typed
+                .requirement_definition_types(parent, required)
+                .ok_or("inherited requirement lost its applied parameter or result type")?;
+        }
     }
     for parameter in parameters {
         if parameter.kind == TypeParameterKind::Implementation {

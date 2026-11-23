@@ -324,7 +324,8 @@ fn lower_lexical_machine_parts(
         )?;
     }
     let compiler_selection_partition = compiler_selection_partition(
-        lowerer.symbol_resolved_trees.machines.len(),
+        &lowerer.symbol_resolved_trees.machines,
+        lexical_parent,
         syntax_trees,
         machine,
     );
@@ -685,14 +686,25 @@ fn with_pending_machine_scope<T>(
 }
 
 fn compiler_selection_partition(
-    machine_ordinal: usize,
+    machines: &arena::OrderedRootArena<Machine>,
+    parent: Handle<Machine>,
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> Option<CompilerDerivedSelectionPartition> {
+    if parent.is_valid()
+        && let Some(partition) = machines.get(parent).compiler_selection_partition
+    {
+        return Some(partition);
+    }
+    let ordinal = u64::try_from(machines.len()).ok()?;
+    if !machine.default_body_trait.as_str(syntax_trees).is_empty() {
+        return Some(CompilerDerivedSelectionPartition::from_compiler_ordinal(
+            ordinal,
+        ));
+    }
     if machine.name.is_source_backed() {
         return None;
     }
-    let ordinal = u64::try_from(machine_ordinal).ok()?;
     let [requirement] = syntax_trees.items.satisfies_clauses(machine.satisfies) else {
         return machine
             .attached_data

@@ -970,7 +970,6 @@ fn syntax_signature_copy_preserves_operational_keyword_sources() {
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
         conformance_bounds: Vec::new(),
-        is_default: true,
         parameters: HandleSpan::empty(),
         native_callback_parameters: Vec::new(),
         return_type: TypeReferenceHandle::invalid(),
@@ -983,7 +982,7 @@ fn syntax_signature_copy_preserves_operational_keyword_sources() {
         suspends: true,
         blocks: true,
         contracts: HandleSpan::empty(),
-        default_body: HandleSpan::empty(),
+        default_body: Some(Default::default()),
         terminates_guarantee: false,
         declares_no_crash_route: false,
     });

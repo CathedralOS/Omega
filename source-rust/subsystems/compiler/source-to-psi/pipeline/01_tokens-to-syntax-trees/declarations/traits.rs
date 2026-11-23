@@ -1,6 +1,6 @@
 use crate::contracts::signatures::parse_signature_clauses;
 use crate::declarations::operators::parse_operator_spelling;
-use crate::machine_bodies::defaults::parse_trait_default_machine_body;
+use crate::machine_bodies::parse_body;
 use crate::parameters::callable::{
     parse_optional_parameters, parse_optional_return_type, parse_parameter,
 };
@@ -155,7 +155,6 @@ pub(crate) fn parse_trait_definition<'tokens, 'source>(
                 "`native callback ... from ...` is permitted only on a bodyless boundary-trait requirement",
             ));
         }
-        signature.is_default = is_default;
         if is_boundary && clauses.service_reach_keyword_source_spans.is_empty() {
             return Err(rest.error_here(format!(
                 "boundary-trait machine requirement `{}::{}` must declare an explicit `reaches` ceiling; write `reaches none` for empty reach",
@@ -189,14 +188,7 @@ pub(crate) fn parse_trait_definition<'tokens, 'source>(
         signature.contracts = clauses.contracts;
         signature.terminates_guarantee = clauses.terminates_guarantee;
         signature.declares_no_crash_route = clauses.declares_no_crash_route;
-        let (default_body, next) = if is_default {
-            parse_trait_default_machine_body(syntax_trees, rest)?
-        } else {
-            (
-                HandleSpan::empty(),
-                rest.take_punctuation(PunctuationKind::Semicolon, ";")?,
-            )
-        };
+        let (default_body, next) = parse_body(syntax_trees, rest, signature.return_type.is_valid())?;
         signature.default_body = default_body;
         let handle = syntax_trees.items.insert_state_signature(&signature);
         let handle = syntax_trees.items.append_state_signature_handle(handle);

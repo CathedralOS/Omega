@@ -98,6 +98,21 @@ pub struct TraitRefinementClause {
     pub signature: StateSignature,
 }
 
+/// Executable statements followed by the declarations visible within this body.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    syntax_trees_derive::SyntaxEquivalent,
+    syntax_trees_derive::SyntaxRelocate,
+    record_storage::Record,
+)]
+pub struct MachineBody {
+    pub statements: HandleSpan<crate::statement::StatementHandle>,
+    pub nested_machines: HandleSpan<Item>,
+}
+
 #[derive(
     Debug,
     Clone,
@@ -112,7 +127,6 @@ pub struct StateSignature {
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub conformance_bounds: Vec<GenericConformanceBound>,
-    pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub native_callback_parameters: Vec<NativeCallbackParameterNode>,
     pub return_type: crate::types::TypeReferenceHandle,
@@ -125,7 +139,7 @@ pub struct StateSignature {
     pub suspends: bool,
     pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,
-    pub default_body: HandleSpan<crate::statement::StatementHandle>,
+    pub default_body: Option<MachineBody>,
     pub terminates_guarantee: bool,
     /// The requirement wrote `crashes none`. That clause publishes no
     /// contract row, so this is the only record that the empty crash

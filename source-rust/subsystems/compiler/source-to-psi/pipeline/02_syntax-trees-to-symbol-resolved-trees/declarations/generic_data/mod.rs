@@ -42,7 +42,6 @@ mod work_domain;
 pub(crate) use uses::statement_type_inputs;
 pub(super) use uses::{
     collect_expression_handles, collect_statement_expression_handles, visit_expression_type_inputs,
-    visit_static_argument_type_inputs,
 };
 
 pub(crate) use arguments::{
