@@ -198,3 +198,96 @@ fn package_review_recovers_a_native_bindings_caller_chosen_result() {
     assert!(callable.parameters.is_empty());
     assert_eq!(callable.return_type.as_ref(), Some(result));
 }
+
+#[test]
+fn selected_provider_preserves_the_domains_of_each_record_field() {
+    use review_evidence::record::PackageReviewDataMember;
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "provider-field-domains",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path();
+    std::fs::write(
+        root.join("build.omg"),
+        r#"
+        machine build(builder: @mutable Build) {
+            Build::package(builder, "reading");
+            Build::select_provider::<Reading, Provider>(builder, linux_x86_64);
+        }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        r#"
+        public data Ticket [copy] { number: u32; }
+        public domain Ticket::Stamped;
+        public domain Ticket::Other;
+        public data Envelope [copy] { left: Ticket in Stamped; right: Ticket in Other; }
+        public data Swapped [copy] { left: Ticket in Other; right: Ticket in Stamped; }
+        public boundary trait Reading {
+            machine read(first: Envelope, second: Swapped) -> u32 reaches none crashes none;
+        }
+        public machine run(first: Envelope, second: Swapped) -> u32 reaches Reading {
+            Reading::read(first, second)
+        }
+        Provider satisfies Reading {
+            machine read(first: Envelope, second: Swapped) -> u32 { 1u32 }
+        }
+    "#,
+    )
+    .unwrap();
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&root.join("build.omg"), &[target]);
+    let product = returned
+        .settle_dependency(inputs.clone())
+        .unwrap()
+        .open_product(inputs)
+        .unwrap();
+    let policy = product
+        .product_stage(&[target])
+        .unwrap()
+        .review_policy(target)
+        .unwrap()
+        .policy;
+    let recovered = PackagePolicyBaseline::recover_canonical(
+        &policy.canonical_bytes().unwrap(),
+        Default::default(),
+    )
+    .unwrap();
+    let method = &recovered.selected_providers.plans[0].methods[0];
+    assert!(
+        method.signature.parameters[0]
+            .type_identity
+            .canonical
+            .contains("Envelope")
+    );
+    assert!(
+        method.signature.parameters[1]
+            .type_identity
+            .canonical
+            .contains("Swapped")
+    );
+    for (name, left, right) in [
+        ("Envelope", "Stamped", "Other"),
+        ("Swapped", "Other", "Stamped"),
+    ] {
+        let record = recovered
+            .public_api
+            .data
+            .iter()
+            .find(|row| row.identity.path.ends_with(&format!("::{name}")))
+            .unwrap();
+        let [
+            PackageReviewDataMember::Field(a),
+            PackageReviewDataMember::Field(b),
+        ] = record.members.as_slice()
+        else {
+            panic!("expected both fields of {name}");
+        };
+        assert_eq!(a.name, "left");
+        assert_eq!(b.name, "right");
+        assert!(a.type_identity.canonical.contains(left), "{a:?}");
+        assert!(b.type_identity.canonical.contains(right), "{b:?}");
+    }
+}
