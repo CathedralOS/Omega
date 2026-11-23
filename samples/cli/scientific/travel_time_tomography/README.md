@@ -97,9 +97,9 @@ native product. It never accepts packages, replays source, supplies expected
 result callbacks, or substitutes a checked-tree interpreter. The application
 and all tomography algorithms remain Omega.
 
-Only Linux x86_64 is selected in the current build metadata. `--both` compares
-native and Terminal termination on the same produced artifact. The CLI does
-not compare their stdout; the verifier separately checks captured native output.
+Only Linux x86_64 is selected in the current build metadata. The CLI runs native and Psi on
+the same artifact and compares termination, stdout and
+stderr. The verifier separately checks the forwarded native output.
 An unsupported Terminal comparison must be reported as DECLINED, never agreement.
 
 The separate complete intended-invalid project is

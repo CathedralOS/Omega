@@ -32,12 +32,11 @@ only `--target` compiles without running the image. The Psi engine keeps the
 target but runs through its admitted host adapters. Host
 execution returns raw stdout/stderr bytes and process status. `--both` agrees
 only when both runs finish the same way and write the same stdout and stderr
-bytes; a divergence names the stream and its first differing line. A program
-the interpreter cannot run is a decline, not an agreement.
+bytes. A mismatch names the stream and its first differing line, and exits 201.
+A Psi run that exhausts its work budget declines the comparison.
 
-The current `omega run --both` compares process termination. In single-run
-mode it also compares observed entry RAM. Different stdout or stderr bytes can
-still yield agreement. **BUILD-TEST-COMPARISON** in [TASKS.md](../../TASKS.md#requirement-based-tests)
+A single run also compares the observed bytes of any requested entry RAM.
+**BUILD-TEST-COMPARISON** in [TASKS.md](../../TASKS.md#requirement-based-tests)
 tracks its replacement by [Build test comparison](../../wiki/spec/build/testing.md#comparing-native-and-psi-tests).
 
 Comparisons accept `--both --psi-work-budget <positive-u64>`. Each interpreter
@@ -67,7 +66,8 @@ publication. Each case writes `<case>.stdout` and `<case>.stderr`, plus
 `<case>.terminal.stdout` and `<case>.terminal.stderr` when interpreted, and
 `results.tsv` lists each case's native status, comparison verdict and
 interpreter status. The command exits 201 when any case diverges or fails to
-interpret, otherwise 0; the programs' own statuses are in `results.tsv`. Validations that compiled once per
+interpret, 204 if any comparison was declined and none failed, and 0 otherwise.
+The programs' own statuses are in `results.tsv`. Validations that compiled once per
 input, or linked their own capture program, use this.
 A run with `--target` does not read stdin. The command holds stdout/stderr until
 native execution ends, then forwards the original bytes without UTF-8 decoding,
@@ -102,10 +102,8 @@ status. A large transfer is limited to the selected kernel page size, not an
 impossible full-count write.
 
 Descriptor-backed or unbounded waits, CPU clocks and other missing imports
-decline; there is no tree fallback. The CLI compares only the
-termination the host presents, not stdout/stderr or full semantic traces. A
-typed `Trap` is compared with the executing host's architectural trap
-presentation, never with an arbitrary signal death or a numeric exit code.
+decline without a tree fallback. For termination, a typed `Trap` must match
+the executing host's architectural trap presentation.
 Other unmapped crashes and running out of the sponsor's work budget decline
 explicitly. A Windows exception status can share its bits with an authored exit
 code, so matching presentation does not prove the same cause.

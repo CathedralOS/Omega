@@ -92,9 +92,8 @@ the validated Linux x86-64 entry; other target routes are not advertised.
 Generated output belongs under ignored `build/`; validation records include
 actual commands, exits, output hashes, and explicit Terminal declines.
 
-Validation via `omega run --both` establishes exact **native stdout** and
-Terminal **exit agreement**. The CLI forwards native stdout and compares only
-exit status; this sample makes no claim of exact Terminal stream parity.
+The CLI forwards native stdout and compares termination, stdout and stderr with the
+Psi run. The validator checks native stdout against the expected bytes.
 
 Compiler regression boundaries
 ------------------------------

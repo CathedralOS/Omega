@@ -79,8 +79,8 @@ From the repository root, using an exact verified compiler binary `OMEGA`:
 ```
 
 `build/validation/` holds captured commands, statuses, stdout/stderr and hashes.
-`--both` verifies native/Terminal termination agreement; the CLI currently does
-not compare streams. The validation runner separately checks emitted native
+`omega run --both` compares termination and the exact stdout and stderr bytes from
+both engines. The validation runner separately checks emitted native
 stdout byte-for-byte against the frozen oracle and requires actual Terminal
 agreement rather than a declined comparison. It retains compiler-produced
 artifacts using `--keep`. Runs are serial; do not execute concurrent Omega

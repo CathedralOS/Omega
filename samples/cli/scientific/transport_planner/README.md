@@ -68,8 +68,9 @@ Terminal stdout is checked independently by the validation-only Rust consumer
 in `validation/terminal_probe`. It prepares the accepted project, produces one
 native report, and executes that report's exact retained Terminal artifact with
 private replay stdin and buffered stdout/stderr. It uses the stable compiler
-runtime API and never calculates shipments on the host. `omega run --both`
-checks exit agreement; this additional consumer checks exact Terminal output.
+runtime API and never calculates shipments on the host. The CLI compares termination and both
+output streams. This additional consumer checks
+the Psi output against the expected bytes.
 The portable Cargo templates materialize a private validation workspace under
 ignored `build/`; it does not join the product's Rust workspace. Build and
 execute it sequentially:

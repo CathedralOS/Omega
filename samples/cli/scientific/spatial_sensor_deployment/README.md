@@ -61,7 +61,8 @@ omega --check --target linux_x86_64 samples/cli/independent/spatial_sensor_deplo
 printf 0 | omega run --both --keep samples/cli/independent/spatial_sensor_deployment/main.omg
 ```
 
-The CLI `--both` route compares exit status only. The corpus harness normalizes
+`omega run --both` compares termination and the exact stdout and stderr bytes from
+both engines. The corpus harness normalizes
 line endings; numeric tolerance is zero. Its per-engine stdout facts and
 pre-execution fixture hashes are retained in `build/terminal-validation/`;
 temporary corpus fixture directories are removed. It records stdout, stderr,

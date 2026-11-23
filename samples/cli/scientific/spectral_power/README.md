@@ -43,8 +43,8 @@ execution. Fixtures include all four FFT sizes, rectangular and periodic Hann
 windows, overlapping segments, calibration gain/offset, DC, Nyquist, silence and
 incomplete trailing segments. `validation/` uses normal package preparation and
 native compilation, then executes the exact retained Terminal artifact and the
-published native product. It captures both outputs; `omega run --both` alone
-compares only termination. The harness grants domain exit only to its isolated
+published native product. It captures each engine’s output for comparison with the frozen DFT
+results. The harness grants domain exit only to its isolated
 containing domain, as the normal CLI does; package and root authority admission
 remain intact.
 
