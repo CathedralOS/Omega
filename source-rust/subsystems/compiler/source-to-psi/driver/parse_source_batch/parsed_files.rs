@@ -137,7 +137,7 @@ pub struct SourceImport {
     pub target: SourceImportTarget,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, record_storage::Record)]
 pub enum SourceImportTarget {
     Namespace(Vec<String>),
     File {
@@ -146,6 +146,20 @@ pub enum SourceImportTarget {
         path: String,
         alias: String,
     },
+}
+
+impl std::fmt::Display for SourceImportTarget {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Namespace(members) => f.write_str(&members.join("::")),
+            Self::File { root, path, alias } => {
+                if let Some(root) = root {
+                    write!(f, "{{{root}}}/")?;
+                }
+                write!(f, "{path} as {alias}")
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
