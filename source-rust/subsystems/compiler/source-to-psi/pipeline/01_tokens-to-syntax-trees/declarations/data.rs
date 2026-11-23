@@ -13,22 +13,71 @@ use crate::types::references::{
 use arena::HandleSpan;
 use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
+use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{
     DataDefinition, DataField, DataMember, DataVariant, Item, QuotientDefinition,
     QuotientEquivalenceSelection, TypeAliasDefinition,
 };
+use syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use tokens::PunctuationKind;
 
-pub(crate) fn parse_data_definition<'tokens, 'source>(
+/*
+    A data declaration and the data declarations nested in its body.
+
+    `wiki/spec/language/data_and_literals.md`, "Records, sums and nested
+    declarations": a nested declaration "introduces a name and nothing else"
+    and is named `Owner::Name` elsewhere. The parser hoists each nested
+    declaration to its own root item under that whole name, the way
+    `domain Signal::Ready` is named, so every later stage sees an ordinary
+    declaration. The owner comes first in the returned items.
+
+    Inside the owner a nested name is visible on its own, "including before
+    its text". Once an owner's text is parsed, each type name in it whose
+    first segment names one of that owner's nested declarations is rewritten
+    to the qualified name. Inner owners finish first, so the innermost
+    declaration of a name wins, and a name an inner owner qualified is not
+    qualified again by an enclosing one.
+*/
+pub(crate) fn parse_data_family<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, Vec<Item>> {
+    let mut family = NestedData::default();
+    let (owner, rest) = parse_data_definition(syntax_trees, input, None, &mut family)?;
+    let mut items = Vec::with_capacity(family.declarations.len() + 1);
+    items.push(owner);
+    items.extend(family.declarations);
+    Ok((items, rest))
+}
+
+/// The declarations nested anywhere in one top-level data declaration.
+#[derive(Default)]
+struct NestedData {
+    declarations: Vec<Item>,
+    /// Type names already given a nested declaration's qualified name.
+    qualified: Vec<TypeReferenceHandle>,
+}
+
+fn parse_data_definition<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    owner: Option<&str>,
+    family: &mut NestedData,
 ) -> ParseResult<'tokens, 'source, Item> {
-    let (name, mut input) = input.take_identifier()?;
-    if name.as_str(syntax_trees) == "Slice" {
+    let (leaf, mut input) = input.take_identifier()?;
+    if leaf.as_str(syntax_trees) == "Slice" {
         return Err(input.error_here(
             "data name `Slice` is reserved: `Slice<T>` is the slice type (alias of `[T]`)",
         ));
     }
+    let name = match owner {
+        Some(owner) => Identifier::new(
+            format!("{owner}::{}", leaf.as_str(syntax_trees)),
+            leaf.source_span(),
+        ),
+        None => leaf,
+    };
+    let text_start = syntax_trees.type_references.node_count();
     let (generic_parameters, next) =
         parse_generic_parameters(syntax_trees, input, GenericParameterSyntax::DataDeclaration)?;
     input = next;
@@ -172,8 +221,35 @@ pub(crate) fn parse_data_definition<'tokens, 'source>(
         ));
     }
 
-    let (members, input) = parse_data_members(syntax_trees, input)?;
+    let qualified_name = name.as_str(syntax_trees).to_owned();
+    let mut nested_names = Vec::new();
+    let body = input;
+    let (members, input) = parse_data_members(
+        syntax_trees,
+        input,
+        &qualified_name,
+        &mut nested_names,
+        family,
+    )?;
+    // A nested declaration takes its owner's static parameters into its
+    // identity, `Envelope<u32>::Body` (data_and_literals.md, "Generic
+    // context"). Hoisting it under the bare owner name would give
+    // `Envelope<u32>::Body` and `Envelope<bool>::Body` one identity.
+    if !nested_names.is_empty() && (!type_parameters.is_empty() || !lifetime_parameters.is_empty())
+    {
+        return Err(body.error_here(
+            "not supported yet: a data declaration nested in an owner with static parameters; \
+             declare it at module scope and pass the parameters it uses",
+        ));
+    }
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
+    qualify_nested_names(
+        syntax_trees,
+        text_start,
+        &qualified_name,
+        &nested_names,
+        family,
+    );
 
     Ok((
         Item::Data(DataDefinition {
@@ -253,21 +329,165 @@ fn take_retired_identity<'tokens, 'source>(
     Ok((Some(identity), rest))
 }
 
+/*
+    Rewrite the owner's type names that select one of its nested
+    declarations. `text_start` is the type-reference frontier at the owner's
+    name, so the scan covers its parameters, requirements and body, nested
+    declarations included.
+*/
+fn qualify_nested_names(
+    syntax_trees: &mut SyntaxTrees,
+    text_start: syntax_trees::types::TypeReferenceFrontier,
+    owner: &str,
+    nested_names: &[Identifier],
+    family: &mut NestedData,
+) {
+    if nested_names.is_empty() {
+        return;
+    }
+    let nested: Vec<&str> = nested_names
+        .iter()
+        .map(|name| name.as_str(syntax_trees))
+        .collect();
+    let mut rewrites = Vec::new();
+    for (handle, node) in syntax_trees.type_references.iter_type_references() {
+        if !text_start.contains(handle) || family.qualified.contains(&handle) {
+            continue;
+        }
+        let name = match node {
+            TypeReferenceNode::Named(name) => name,
+            TypeReferenceNode::Generic { base_name, .. } => base_name,
+            _ => continue,
+        };
+        let spelled = name.as_str(syntax_trees);
+        let head = spelled.split("::").next().unwrap_or(spelled);
+        if !nested.contains(&head) {
+            continue;
+        }
+        let qualified = Identifier::new(format!("{owner}::{spelled}"), name.source_span());
+        let node = match node.clone() {
+            TypeReferenceNode::Generic {
+                lifetime_arguments,
+                arguments,
+                ..
+            } => TypeReferenceNode::Generic {
+                base_name: qualified,
+                lifetime_arguments,
+                arguments,
+            },
+            _ => TypeReferenceNode::Named(qualified),
+        };
+        rewrites.push((handle, node));
+    }
+    for (handle, node) in rewrites {
+        syntax_trees
+            .type_references
+            .replace_type_reference(handle, node);
+        family.qualified.push(handle);
+    }
+}
+
 fn parse_data_members<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
+    owner: &str,
+    nested_names: &mut Vec<Identifier>,
+    family: &mut NestedData,
 ) -> ParseResult<'tokens, 'source, HandleSpan<DataMember>> {
-    let mut members = arena::HandleSpan::empty();
+    // A nested declaration appends its own members while this body is
+    // parsed, so this body's members are appended together at its end.
+    let mut parsed = Vec::new();
+    let mut after_nested_declaration = false;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
-        let (member, next) = parse_data_member(syntax_trees, input)?;
+        if input.at_keyword(tokens::KeywordKind::Public)
+            && input
+                .take_keyword(tokens::KeywordKind::Public, "public")?
+                .at_keyword(tokens::KeywordKind::Data)
+        {
+            return Err(input.error_here(
+                "a nested data declaration inherits its owner's visibility and takes no `public` of its own",
+            ));
+        }
+        if input.at_keyword(tokens::KeywordKind::Data) {
+            let after_data = input.take_keyword(tokens::KeywordKind::Data, "data")?;
+            let (_, next) =
+                parse_nested_data(syntax_trees, after_data, owner, nested_names, family)?;
+            after_nested_declaration = true;
+            input = next;
+            continue;
+        }
+        // The spec writes nested declarations after the fields or cases.
+        if after_nested_declaration {
+            return Err(input.error_here(
+                "a data member follows a nested data declaration; declare nested data after the fields or cases",
+            ));
+        }
+        let (member, next) = parse_data_member(syntax_trees, input, owner, nested_names, family)?;
         input = next;
+        parsed.push(member);
+    }
+    let mut members = arena::HandleSpan::empty();
+    for member in parsed {
         members.push_contiguous(syntax_trees.items.append_data_member(member));
     }
 
     let members = members;
     validate_data_identity_modes(syntax_trees.items.data_members(members), input)?;
     Ok((members, input))
+}
+
+/// Parse a nested `data` declaration after its keyword and hoist it.
+/// Returns the declaration's qualified name.
+fn parse_nested_data<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    owner: &str,
+    nested_names: &mut Vec<Identifier>,
+    family: &mut NestedData,
+) -> ParseResult<'tokens, 'source, Identifier> {
+    let (leaf, _) = input.take_identifier()?;
+    let (item, rest) = parse_data_definition(syntax_trees, input, Some(owner), family)?;
+    let name = match &item {
+        Item::Data(data) => data.name.clone(),
+        Item::TypeAlias(alias) => alias.name.clone(),
+        _ => unreachable!("a data declaration parses to data or a type alias"),
+    };
+    nested_names.push(leaf);
+    family.declarations.push(item);
+    Ok((name, rest))
+}
+
+/*
+    `name: data Type { ... }` in a field or case-payload position is the
+    member `name: Type` together with the nested declaration of `Type`.
+    The inline form introduces no parameters of its own.
+*/
+fn parse_inline_nested_data<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+    owner: &str,
+    nested_names: &mut Vec<Identifier>,
+    family: &mut NestedData,
+) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
+    let declaration = input.take_keyword(tokens::KeywordKind::Data, "data")?;
+    let (name, rest) = parse_nested_data(syntax_trees, declaration, owner, nested_names, family)?;
+    let introduces_parameters = match family.declarations.last() {
+        Some(Item::Data(data)) => {
+            data.quotient.is_some()
+                || !data.type_parameters.is_empty()
+                || !data.lifetime_parameters.is_empty()
+        }
+        _ => true,
+    };
+    if introduces_parameters {
+        return Err(declaration.error_here(
+            "a type declared with its field takes no parameters and has a `{ ... }` body; declare it separately and apply it at the field",
+        ));
+    }
+    let reference = syntax_trees.type_references.insert_named(name);
+    family.qualified.push(reference);
+    Ok((reference, rest))
 }
 
 fn validate_data_identity_modes(
@@ -368,6 +588,9 @@ fn take_optional_identity<'tokens, 'source>(
 fn parse_data_member<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
+    owner: &str,
+    nested_names: &mut Vec<Identifier>,
+    family: &mut NestedData,
 ) -> ParseResult<'tokens, 'source, DataMember> {
     let (retired, after_retired) = take_retired_identity(input)?;
     if let Some(identity) = retired {
@@ -409,7 +632,14 @@ fn parse_data_member<'tokens, 'source>(
             ));
         }
         if after_case.at_name_like() {
-            return parse_case_member(syntax_trees, after_case, identity);
+            return parse_case_member(
+                syntax_trees,
+                after_case,
+                identity,
+                owner,
+                nested_names,
+                family,
+            );
         }
     }
 
@@ -419,8 +649,11 @@ fn parse_data_member<'tokens, 'source>(
 
     if input.at_punctuation(PunctuationKind::Colon) {
         input = input.take_punctuation(PunctuationKind::Colon, ":")?;
-        let (type_reference, next) =
-            parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
+        let (type_reference, next) = if input.at_keyword(tokens::KeywordKind::Data) {
+            parse_inline_nested_data(syntax_trees, input, owner, nested_names, family)?
+        } else {
+            parse_type_reference_handle_allowing_borrow(syntax_trees, input)?
+        };
         input = next;
         if input.at_punctuation(PunctuationKind::Equal) {
             return Err(input.error_here(format!(
@@ -458,12 +691,16 @@ fn parse_case_member<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
     identity: Option<u64>,
+    owner: &str,
+    nested_names: &mut Vec<Identifier>,
+    family: &mut NestedData,
 ) -> ParseResult<'tokens, 'source, DataMember> {
     let (case_name, mut input) = input.take_identifier()?;
 
     let (payload, retired_payload_identities) = if input.at_punctuation(PunctuationKind::LeftParen)
     {
-        let (payload, next) = parse_case_payload_fields(syntax_trees, input)?;
+        let (payload, next) =
+            parse_case_payload_fields(syntax_trees, input, owner, nested_names, family)?;
         input = next;
         payload
     } else {
@@ -497,9 +734,14 @@ fn parse_case_member<'tokens, 'source>(
 fn parse_case_payload_fields<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
+    owner: &str,
+    nested_names: &mut Vec<Identifier>,
+    family: &mut NestedData,
 ) -> ParseResult<'tokens, 'source, (HandleSpan<DataField>, Vec<u64>)> {
     let mut input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
-    let mut payload = arena::HandleSpan::empty();
+    // An inline nested declaration appends its own payload fields, so this
+    // payload's fields are appended together at its end.
+    let mut fields = Vec::new();
 
     let mut retired_identities = Vec::new();
     while !input.at_punctuation(PunctuationKind::RightParen) {
@@ -517,17 +759,21 @@ fn parse_case_payload_fields<'tokens, 'source>(
         let (field_name, next) = after_identity.take_identifier()?;
         let (relevance, next) = parse_binding_relevance_brackets(next, "data-field")?;
         input = next.take_punctuation(PunctuationKind::Colon, ":")?;
-        let (type_reference, next) =
-            parse_type_reference_handle_allowing_borrow(syntax_trees, input)?;
+        // A type declared in a case payload is named under the enclosing
+        // data; a case is not a scope.
+        let (type_reference, next) = if input.at_keyword(tokens::KeywordKind::Data) {
+            parse_inline_nested_data(syntax_trees, input, owner, nested_names, family)?
+        } else {
+            parse_type_reference_handle_allowing_borrow(syntax_trees, input)?
+        };
         input = next;
 
-        let handle = syntax_trees.items.append_data_payload_field(DataField {
+        fields.push(DataField {
             identity,
             name: field_name,
             relevance,
             type_reference,
         });
-        payload.push_contiguous(handle);
 
         if input.at_punctuation(PunctuationKind::Comma) {
             input = input.take_punctuation(PunctuationKind::Comma, ",")?;
@@ -537,7 +783,10 @@ fn parse_case_payload_fields<'tokens, 'source>(
     }
 
     let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
-    let payload = payload;
+    let mut payload = arena::HandleSpan::empty();
+    for field in fields {
+        payload.push_contiguous(syntax_trees.items.append_data_payload_field(field));
+    }
     let identities: Vec<Option<u64>> = syntax_trees
         .items
         .data_payload_fields(payload)

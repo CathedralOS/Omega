@@ -2,6 +2,7 @@ mod assembly_tests;
 mod call_result_selection_tests;
 mod constant_use_tests;
 mod domain_lookup_tests;
+mod nested_data_tests;
 mod pattern_binding_name_tests;
 mod resolved_name_handoff;
 mod primitive_family_binding_tests;

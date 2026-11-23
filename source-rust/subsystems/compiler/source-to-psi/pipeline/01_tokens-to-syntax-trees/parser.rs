@@ -75,6 +75,11 @@ pub fn parse_into(
                 }
                 roots.items.push(syntax_trees.push_root_item(item));
             }
+            ParsedDeclaration::DataFamily(items) => {
+                for item in items {
+                    roots.items.push(syntax_trees.push_root_item(item));
+                }
+            }
             ParsedDeclaration::Mathematical(definition) => {
                 syntax_trees.push_root_mathematical_definition(definition);
             }

@@ -174,7 +174,14 @@ pub(super) fn resolve_state_scoped_table_path_member_symbols(
         return Vec::new();
     }
     let suffix = resolve_path_members_from_head(symbols, head, &members[prefix_length..]);
-    let mut resolved = vec![SymbolHandle::invalid(); prefix_length - 1];
+    // A nested data head keeps each owner's declaration on its own segment.
+    let mut resolved = nested_data_owners(
+        symbols,
+        machine_symbol,
+        state_symbol,
+        &members[..prefix_length],
+    )
+    .unwrap_or_else(|| vec![SymbolHandle::invalid(); prefix_length - 1]);
     resolved.extend(suffix);
 
     if resolved.len() == members.len() {
@@ -357,7 +364,10 @@ fn resolve_path_head_lookup(
     members: &[crate::source_resolved::name::DiagnosticName],
 ) -> (SymbolLookup, usize) {
     match base::resolve_base_lookup(symbols, machine_symbol, state_symbol, &members[0]) {
-        lookup @ (SymbolLookup::Unique(_) | SymbolLookup::Ambiguous { .. }) => {
+        SymbolLookup::Unique(head) => {
+            return nested_data_head(symbols, machine_symbol, state_symbol, members, head);
+        }
+        lookup @ SymbolLookup::Ambiguous { .. } => {
             return (lookup, 1);
         }
         SymbolLookup::NotFound => {}
@@ -376,6 +386,66 @@ fn resolve_path_head_lookup(
         }
     }
     (SymbolLookup::NotFound, 1)
+}
+
+/*
+    A data declaration nested in `Owner` is the declaration named
+    `Owner::Name`, not a child of `Owner`'s symbol
+    (`data_and_literals.md`, "Records, sums and nested declarations").
+    `Command::Operation::GetUser` therefore selects the case `GetUser` of
+    the data `Command::Operation`: while the head is data and the next
+    segment extends it to another data declaration's whole name, that
+    declaration becomes the head. A nested name and a case of its owner
+    collide in one member namespace, so the extension never hides a case.
+*/
+fn nested_data_head(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    members: &[crate::source_resolved::name::DiagnosticName],
+    mut head: SymbolHandle,
+) -> (SymbolLookup, usize) {
+    let mut prefix_length = 1;
+    while prefix_length < members.len() && symbols.get(head).kind == SymbolKind::Data {
+        let prefix = &members[..=prefix_length];
+        let name = crate::source_resolved::name::DiagnosticName::new(
+            prefix.joined_path(),
+            super::lookup::diagnostic_path_source_span(prefix),
+        );
+        match base::resolve_base_lookup(symbols, machine_symbol, state_symbol, &name) {
+            SymbolLookup::Unique(nested) if symbols.get(nested).kind == SymbolKind::Data => {
+                head = nested;
+                prefix_length += 1;
+            }
+            _ => break,
+        }
+    }
+    (SymbolLookup::Unique(head), prefix_length)
+}
+
+/// The data declarations `Owner`, `Owner::Inner`, ... that the segments
+/// before a nested data head select, or `None` when the head is not nested.
+fn nested_data_owners(
+    symbols: &SymbolTable,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    prefix: &[crate::source_resolved::name::DiagnosticName],
+) -> Option<Vec<SymbolHandle>> {
+    (1..prefix.len())
+        .map(|length| {
+            let owner = &prefix[..length];
+            let name = crate::source_resolved::name::DiagnosticName::new(
+                owner.joined_path(),
+                super::lookup::diagnostic_path_source_span(owner),
+            );
+            match base::resolve_base_lookup(symbols, machine_symbol, state_symbol, &name) {
+                SymbolLookup::Unique(owner) if symbols.get(owner).kind == SymbolKind::Data => {
+                    Some(owner)
+                }
+                _ => None,
+            }
+        })
+        .collect()
 }
 
 /// Preserve the ordinary lookup's absence or ambiguity while its exact source

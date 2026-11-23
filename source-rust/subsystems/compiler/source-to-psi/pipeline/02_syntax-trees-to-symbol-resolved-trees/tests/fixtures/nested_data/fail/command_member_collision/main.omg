@@ -1,0 +1,39 @@
+// Expected: refused in name resolution: "`Command::Operation::CountUsers` is
+// declared twice". The `run/command` twin with the nested record named like
+// a case of its owner: both share the owner's one member namespace.
+// The spec's `Command` example (data_and_literals.md, "Records, sums and
+// nested declarations") with one more level: `op: Operation` names the
+// nested sum, `user: Account` the record nested in it, and outside the
+// owner they are `Command::Operation` and `Command::Operation::Account`.
+// A wrong selection reaches `bad` and traps.
+data Command {
+    command_id: u64;
+    op: Operation;
+
+    data Operation {
+        case GetUser(user: CountUsers);
+        case CountUsers;
+
+        data CountUsers { id: u64; }
+    }
+}
+
+machine targets_one_user(op: @Command::Operation) -> bool {
+    match op {
+        Command::Operation::GetUser { user } -> user.id == 42,
+        Command::Operation::CountUsers -> false,
+    }
+}
+
+machine main() crashes Trap {
+    let command = Command {
+        command_id: 17,
+        op: Command::Operation::GetUser { user: Command::Operation::CountUsers { id: 42 } },
+    };
+    transition targets_one_user(@command.op) && command.command_id == 17 {
+        true -> done(),
+        false -> bad(),
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
