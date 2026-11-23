@@ -203,6 +203,7 @@ impl<'module> AcceptedDeclarations<'module> {
         signature: &StateSignature,
         requirement: &PackageReviewNominalIdentity,
         boundary: &BoundaryMachineDeclaration,
+        contracts: &[review_evidence::record::PackageReviewCallableContract],
     ) -> Result<(), Vec<Diagnostic>> {
         use terminal_psi::{BoundaryParameterKind, StructuralDomainRequirement};
         use terminal_semantics::scalar_qualifications::{
@@ -256,13 +257,20 @@ impl<'module> AcceptedDeclarations<'module> {
                 actual.push((position, scalar_source(id)?));
             }
         }
-        let source = match self.accepted.requirement_review(signature.symbol) {
-            Ok(metadata) => metadata,
-            // Open declaration templates can lack an applied review. No physical
-            // membership may rely on that missing declaration.
-            Err(_) if actual.is_empty() => return Ok(()),
-            Err(reason) => return Err(unavailable(reason)),
-        };
+        use review_evidence::record::{PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind};
+        let declared_membership = contracts.iter().any(|clause| {
+            clause.kind == PackageReviewContractKind::Requires && matches!(
+                &clause.fact,
+                PackageReviewContractFact::Membership { value: PackageReviewContractExpression::Parameter(_), .. }
+            )
+        });
+        // Typing records each domain-qualified formal as a required membership.
+        // If both sides have empty roots, unrelated unavailable metadata (for
+        // example a generic result) is outside this comparison.
+        if actual.is_empty() && !declared_membership {
+            return Ok(());
+        }
+        let source = self.accepted.requirement_review(signature.symbol).map_err(unavailable)?;
         actual.sort_unstable_by_key(|(position, domain)| (*position, domain.coordinates()));
         if boundary.parameter_order.len() != source.parameter_types.len()
             || !structural_positions.iter().copied().eq(source
@@ -1364,7 +1372,7 @@ impl PolicySource<'_> {
         let authored_routes = source.state_signature_contracts(signature).iter().any(|clause| {
             matches!(clause.kind, source_compiler::representations::source_state::signature::SignatureContractKind::Crashes { .. })
         });
-        declarations.validate_parameter_domains(signature, &requirement, boundary)?;
+        declarations.validate_parameter_domains(signature, &requirement, boundary, &contracts)?;
         if !signature.lifetime_parameters.is_empty()
             || !signature.conformance_bounds.is_empty()
             || signature.spelling.is_some()
