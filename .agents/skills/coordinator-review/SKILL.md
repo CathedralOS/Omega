@@ -65,8 +65,8 @@ the file and line:
   (e.g. handling only a bare `ExpressionNode::Name` when the operand could
   also be a field access, cast or call result).
 - **Carried to the native program:** Whatever the lowered-form checker now
-  accepts must also run in the Psi interpreter and natively
-  (`omega run --both`), not just under `--check`.
+  accepts must also produce its expected observations in the Psi interpreter
+  and natively.
 - **Send back a correct fix in the wrong place:** Correct is not enough.
   Return a PR that adds a second data structure, an extra case or a
   per-location branch where a shared operation could serve, even if every
@@ -99,7 +99,7 @@ the file and line:
   (`transition x == 100`), changing the bound or operation, or simplifying the
   construct under test. Positive programs that run must bind `ProgramEntry` for
   all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and
-  pass `omega run --both` with their authored exit.
+  produce their authored exit and expected outputs on both engines.
 - **Twins differ in one thing:** Each positive program and its negative twin
   (`pass/...` vs. `fail/...` under the kept fixtures) must differ **only** in
   the fact, value range or contract the construct breaks, never in a caller

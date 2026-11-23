@@ -130,12 +130,10 @@ Named decision: `explicit-execution-engine`, ratified 2026-11-02.
 
 The CLI exposes one execution axis: `omega run --engine native|psi`.
 Omission selects `native`; `psi` executes Psi without emitting or
-launching a native program image. `--both` remains a comparison request, not an
-engine name, and is mutually exclusive with an explicit `--engine` selection.
-Without `--target`, `--both` compares independent native and Psi executions
-under the same selected program/provider configuration. With `--target`, the
-native default, `--engine native`, and `--both` emit artifacts without running
-the program, even when the explicit target matches the host.
+launching a native program image. With `--target`, the native default and
+`--engine native` emit artifacts without running the program, even when the
+explicit target matches the host. Build owns [comparison of registered
+tests](testing.md#comparing-native-and-psi-tests).
 
 With `--engine psi`, `--target` selects the environment for Psi execution.
 A Psi run retains its explicit or default target environment, exact provider

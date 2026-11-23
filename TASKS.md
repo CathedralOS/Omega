@@ -81,7 +81,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   Acceptance: `via` is removed.
 
 - **TOP-LEVEL-BOUNDARY-REQUIREMENTS.** Qualify [machine-supplied boundary operations](wiki/spec/language/machines.md#supply) through the Windows GUI provider.
-  - Run the [window demo](samples/gui/window_demo/README.md) on Windows with `omega run --both`. Both executions must draw 60 frames, release the window, print `PASS: 60 frames blitted (exit 0)` and exit successfully.
+  - Run the [window demo](samples/gui/window_demo/README.md) on Windows under native and Psi execution. Both executions must draw 60 frames, release the window, print `PASS: 60 frames blitted (exit 0)` and exit successfully.
 
 - **OPERATOR-MACHINE-SUPPLY.** Run declared operations/premises; implement [identity](wiki/drafts/designs/index_identity.md) and [integer arithmetic](wiki/drafts/designs/computational_and_mathematical_integers.md).
   - Separate fixed identity from budgeted algebra proofs; carry generic evidence through specialization.
@@ -295,6 +295,8 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Distinguish dormant bodies from selected callbacks, semantic service calls from physical effects and a stale replacement from the accepted installation. Check a saved publication independently before accepting its exclusions.
 
 ## Requirement-based tests
+
+- **BUILD-TEST-COMPARISON.** Implement `omega build --compare-tests` in the [registered test runner](wiki/spec/build/testing.md#comparing-native-and-psi-tests). Report each engine's result and compare termination, stdout, stderr and declared outputs using isolated copies of the same inputs. Exercise equal exits with different output, identical wrong output, and an unavailable comparison. Migrate callers, sample commands and repository-only program comparisons before removing `omega run --both`.
 
 - **TEST-GROUP-FILESYSTEM-TARGETS.** Provide [delegated filesystem backing for test groups](wiki/spec/build/testing.md#test-runner-filesystem-slot) through their ordinary provider selection and [test planning](source-rust/subsystems/compiler/build/planning/registered_tests.rs). Retire `tests.service<Group, Slot>()`, its Build operands and the filesystem-specific switch.
   - Exercise canonicalization, metadata, directories and file I/O on the hosted targets. Include the Linux libc `realpath` case and report unavailable engines explicitly.

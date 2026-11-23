@@ -199,6 +199,43 @@ fallback or engine-specific weakening of the test oracle. Report each engine's
 outcome separately; deterministic comparison observations must agree. Neither
 engine executes merely because its compilation succeeded.
 
+### Comparing native and Psi tests
+
+`omega build --compare-tests <root.omg>` asks the Build test runner to compare
+native and Psi execution for each selected, enabled test on its selected
+target. The owner ratified `build-test-comparison` on 2026-11-22. The unit of
+comparison is a registered test. The runner executes an application entry only
+when the test explicitly exercises it. A project with no selected tests has
+zero comparisons.
+
+Run each test twice with the same arguments, stdin bytes, initial files and
+configured service inputs. Give each execution its own copy of mutable fixture
+state so a write in the first run cannot affect the second. The runner compares
+three kinds of observation for the named test and target.
+
+- **Termination.** Compare normal return, exact process exit status, or crash
+  as appropriate for the invocation. If the host loses information needed to
+  decide, as with a truncated exit status, report the comparison as unavailable.
+- **Standard streams.** Compare stdout with stdout and stderr with stderr,
+  byte for byte. Preserve the two streams separately.
+- **Declared outputs.** Compare each additional observation the test declares,
+  such as the bytes of `disk.img`, a returned value, or the final value of an
+  observed field. File presence is observable too. A missing file differs
+  from an empty file.
+
+Report each engine's result against the test's expectations and report the
+comparison separately. If both exit zero but print different bytes, report
+the first differing stream and byte offset. If the observations match but both
+print `99` when the test expects `42`, the runs agree and the test fails. Agreement covers only
+the inputs and observations compared.
+
+An explicit comparison requires both executions. A mismatch fails validation.
+If an engine cannot run on the selected target, or the runner cannot obtain
+comparable inputs or a required observation, report the reason and leave
+validation incomplete. Compiling an artifact earns no comparison credit.
+Build can report a successful requested comparison only after every required
+pair agrees and each invocation passes its own test.
+
 ## Scheduling, execution, and outcomes
 
 Automatic build-time tests cannot execute
@@ -312,8 +349,10 @@ package kept under `tests/fixtures/<tier>/<group>/<name>/`: a `pass` case must
 check, a `fail` case must reject with its expected diagnostic fragment, and a
 runnable case (the `run` tier and `*_exit` pass cases) has an ordinary program
 entry whose exit status and output are its result. Where a runnable case
-executes natively and on the interpreter (`omega run --both`), the native exit
-status must equal the interpreted one; a disagreement is a compiler defect.
+executes natively and on the interpreter, the repository harness compares
+[the same observations](#comparing-native-and-psi-tests) and checks the case's
+expected result. This also allows one-off program comparisons in development
+tooling without treating every application entry as a registered test.
 Native execution on the host proves nothing about another target, so a
 target-specific result belongs to a case built for that target.
 

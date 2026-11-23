@@ -197,8 +197,12 @@ are the one looking at it, it is yours: finish it or close it.
    `a.y`.
 4. **Carry every fix all the way to machine code:** A fix to what a program
    means must work in each later stage: the lowered-form checker, Terminal Psi,
-   and the native program. Prove it with `omega run --both`, which runs the
-   program in the Psi interpreter and natively and requires both to exit 0.
+   and the native program. Check the expected result independently on each
+   engine, then compare termination, stdout, stderr and any outputs the test
+   declares. Honor the required exit of the original program. The current
+   `omega run --both` can report agreement for different
+   streams. Until **BUILD-TEST-COMPARISON** lands, check the captured bytes
+   explicitly. [Comparison contract](wiki/spec/build/testing.md#comparing-native-and-psi-tests)
 5. **Board closure:** Delete completed bullets from `TASKS.md` outright (never
    rewrite into `"preserving / keeping / now passes"` history prose).
 6. **Generalize instead of adding special cases:** If your fix needs a second
@@ -282,7 +286,7 @@ and [the compiler ownership map](source-rust/README.md#where-code-belongs):
   affine cleanup, restoration windows, crash routes, and ranking edges.
 - **Native realization & execution:** Lower Terminal Psi through ABI calling
   plans, instruction selection, and ELF/Mach-O/PE emission so native execution
-  agrees with Psi (`omega run --both`).
+  agrees with Psi on the tested observations.
 
 ## Commands
 

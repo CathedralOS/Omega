@@ -33,6 +33,11 @@ target but runs through its admitted host adapters. Host
 execution returns raw stdout/stderr bytes and process status; a program the
 interpreter cannot run is a decline, not an agreement.
 
+The current `omega run --both` compares process termination. In single-run
+mode it also compares observed entry RAM. Different stdout or stderr bytes can
+still yield agreement. **BUILD-TEST-COMPARISON** in [TASKS.md](../../TASKS.md#requirement-based-tests)
+tracks its replacement by [Build test comparison](../../wiki/spec/build/testing.md#comparing-native-and-psi-tests).
+
 Comparisons accept `--both --psi-work-budget <positive-u64>`. Each interpreter
 invocation, including each input case and stdin replay, gets the full budget
 (default 10,000,000 logical work units). The flag needs

@@ -571,8 +571,8 @@ trusted compiler made on that exact artifact; the interpreter enforces
 operation safety and installed host permissions. When an artifact may run, and
 what future untrusted interpretation requires, are defined in the
 [product contract](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption).
-Development tests compare
-native execution with the Psi interpreter using `omega run --both`.
+The [Build test comparison contract](wiki/spec/build/testing.md#comparing-native-and-psi-tests)
+covers termination, stdout, stderr and outputs declared by the test.
 The compiler's transformations are still trusted; native/Psi agreement covers
 only the tested inputs and observations.
 [Follow the pipeline →](source-rust/subsystems/compiler/README.md)
