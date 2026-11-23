@@ -273,6 +273,28 @@ fn invocation_ceiling_follows_callable_parameter_aliases() {
 }
 
 #[test]
+fn a_transition_calls_the_lexical_value_with_its_declared_arguments() {
+    let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
+    let check = |kind: &str, body: &str| {
+        let source = format!(
+            "data Read = machine(value: u8) -> u8 reaches none crashes none;
+             machine read(value: bool) -> u8 {{ 0u8 }}
+             machine probe(read: {kind}) -> u8 {{ {body} }}"
+        );
+        let (files, root) = captured(package, &source);
+        compile(product(files, root, package, &[]).unwrap(), None)
+    };
+    check("Read", "transition true { true -> read(7u8), _ -> 0u8 }").unwrap();
+    for (kind, argument) in [("Read", "true"), ("u8", "7u8")] {
+        let call = format!("read({argument})");
+        let expression = check(kind, &call).unwrap_err();
+        let arm = check(kind, &format!("transition true {{ true -> {call}, _ -> 0u8 }}"))
+            .unwrap_err();
+        assert_eq!(arm[0].message, expression[0].message);
+    }
+}
+
+#[test]
 fn selected_members_keep_the_callable_type_they_share() {
     let package = PackageKeyIdentity::from_digest([0x61; 32]).unwrap();
     let (files, root) = captured(
