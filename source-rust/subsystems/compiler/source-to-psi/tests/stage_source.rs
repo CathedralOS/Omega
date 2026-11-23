@@ -737,3 +737,182 @@ fn parser_output_must_cover_the_exact_captured_files() {
         "{errors:?}"
     );
 }
+
+#[test]
+fn a_file_qualifier_selects_its_own_sources_declarations() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    let (mut files, root) = captured(package, "machine value() -> u8 { |cell|::read() }");
+    let bytes = capture_file(
+        &mut files,
+        "product",
+        package,
+        "source-files/bytes.omg",
+        "machine read() -> u8 { 7u8 }",
+    );
+    let flags = capture_file(
+        &mut files,
+        "product",
+        package,
+        "source-files/flags.omg",
+        "machine read() -> bool { true }",
+    );
+    let make = |selected: Option<SourceId>| {
+        let mut stage = product(files.clone(), root, package, &[]).unwrap();
+        stage.parsed.roots.extend([bytes, flags]);
+        stage.parsed.imports.extend(
+            selected.map(|source| SourceScopedTopLevelBinding::file_import(root, source, "cell")),
+        );
+        compile(stage, None)
+    };
+    make(Some(bytes)).expect("the selected file returns a byte");
+    let wrong = make(Some(flags)).unwrap_err();
+    assert!(
+        wrong.iter().any(|d| d.message.contains("bool")),
+        "{wrong:?}"
+    );
+    let missing = make(None).unwrap_err();
+    assert!(
+        missing.iter().any(|d| d.message.contains("read")),
+        "{missing:?}"
+    );
+}
+
+#[test]
+fn file_imports_neither_bind_bare_names_nor_reexport_imports() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    for (call, wants_alias) in [
+        ("read()", false),
+        ("read()", true),
+        ("|middle|::read()", true),
+    ] {
+        let (mut files, root) = captured(package, &format!("machine value() -> u8 {{ {call} }}"));
+        let helper = capture_file(
+            &mut files,
+            "product",
+            package,
+            "helper.omg",
+            "machine read() -> u8 { 7u8 }",
+        );
+        let middle = capture_file(
+            &mut files,
+            "product",
+            package,
+            "middle.omg",
+            "machine relay() -> u8 { |leaf|::read() }",
+        );
+        let mut stage = product(files, root, package, &[]).unwrap();
+        stage.parsed.roots.extend([helper, middle]);
+        stage
+            .parsed
+            .imports
+            .push(SourceScopedTopLevelBinding::file_import(
+                middle, helper, "leaf",
+            ));
+        if wants_alias {
+            let imported = if call.starts_with('|') {
+                middle
+            } else {
+                helper
+            };
+            stage
+                .parsed
+                .imports
+                .push(SourceScopedTopLevelBinding::file_import(
+                    root, imported, "middle",
+                ));
+        }
+        let errors = compile(stage, None).expect_err("read is outside the selected file");
+        assert!(
+            errors.iter().any(|d| d.message.contains("read")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn file_qualifiers_respect_foreign_declaration_visibility() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    let dependency = PackageKeyIdentity::from_digest([0x64; 32]).unwrap();
+    for (source, direct, refusal) in [
+        ("public machine read() -> u8 { 7u8 }", true, None),
+        ("public machine read() -> u8 { 7u8 }", false, Some("direct")),
+        ("machine read() -> u8 { 7u8 }", true, Some("private")),
+    ] {
+        let (mut files, root) = captured(package, "machine value() -> u8 { |leaf|::read() }");
+        let helper = capture_file(&mut files, "dependency", dependency, "helper.omg", source);
+        let mut stage = product(files, root, package, &[]).unwrap();
+        stage.product.declaration_scope =
+            Some(Arc::new(ProductDeclarationScope::from_direct_dependencies(
+                &[package, dependency],
+                direct.then_some((package, dependency)),
+            )));
+        stage.parsed.roots.push(helper);
+        stage
+            .parsed
+            .imports
+            .push(SourceScopedTopLevelBinding::file_import(
+                root, helper, "leaf",
+            ));
+        let actual = compile(stage, None);
+        if let Some(refusal) = refusal {
+            let errors = actual.expect_err("loading a file cannot grant extra authority");
+            assert!(
+                errors.iter().any(|d| d.message.contains(refusal)),
+                "{errors:?}"
+            );
+        } else {
+            actual.expect("the direct dependency exposes its public machine");
+        }
+    }
+}
+
+#[test]
+fn a_static_case_in_a_file_uses_the_type_even_when_a_parameter_has_its_name() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    for (second, complete) in [(", cell::Supplied -> 9u8", true), ("", false)] {
+        let source = format!(
+            "data cell {{ case Stored; case Supplied; }}
+            machine value(cell: u8, kind: cell) -> u8 {{
+                transition kind {{ cell::Stored -> cell{second} }}
+            }}"
+        );
+        let (files, root) = captured(package, &source);
+        let result = compile(product(files, root, package, &[]).unwrap(), None);
+        if complete {
+            result.expect("the declared cases exhaust the type");
+        } else {
+            let errors = result.expect_err("Supplied remains possible");
+            assert!(
+                errors.iter().any(|d| d.message.contains("cell::Supplied")),
+                "{errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_file_qualified_domain_still_requires_its_declared_carrier() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    for (domains, accepts_byte) in [
+        ("domain u16::Tag; domain u8::Tag;", true),
+        ("domain u16::Tag;", false),
+    ] {
+        let (mut files, root) = captured(
+            package,
+            "machine value() -> u8 in |units|::Tag { 7u8 as + |units|::Tag }",
+        );
+        let units = capture_file(
+            &mut files, "product", package, "units.omg", domains,
+        );
+        let mut stage = product(files, root, package, &[]).unwrap();
+        stage.parsed.roots.push(units);
+        stage.parsed.imports.push(SourceScopedTopLevelBinding::file_import(root, units, "units"));
+        let result = compile(stage, None);
+        if accepts_byte {
+            result.expect("the selected file declares Tag on the operand type");
+        } else {
+            let errors = result.expect_err("a domain on u16 cannot qualify a u8");
+            assert!(errors.iter().any(|error| error.message.contains("Tag")), "{errors:?}");
+        }
+    }
+}

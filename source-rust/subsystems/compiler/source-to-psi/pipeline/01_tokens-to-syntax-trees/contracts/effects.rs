@@ -53,7 +53,7 @@ pub(crate) fn parse_effect_reference<'tokens, 'source>(
     'source,
     syntax_trees::types::TypeReferenceHandle,
 > {
-    let (name, rest) = input.take_identifier()?;
+    let (name, rest) = input.take_path_head()?;
     crate::types::references::parse_named_type_reference(trees, name, rest, false)
 }
 
@@ -63,7 +63,7 @@ fn take_service_reach_row_member<'tokens, 'source>(
     service_reaches: &mut Vec<syntax_trees::types::TypeReferenceHandle>,
 ) -> Result<crate::token_input::cursor::Input<'tokens, 'source>, ParseError> {
     use tokens::PunctuationKind;
-    let (service, rest) = input.take_identifier()?;
+    let (service, rest) = input.take_path_head()?;
     reject_retired_operational_reach(&service, rest)?;
     let (reference, mut input) =
         crate::types::references::parse_named_type_reference(trees, service, rest, false)?;

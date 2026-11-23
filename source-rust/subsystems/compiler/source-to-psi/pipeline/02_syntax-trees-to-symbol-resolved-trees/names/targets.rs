@@ -830,8 +830,13 @@ mod calls {
         let reference = member.source_span();
         let head_reference = head.source_span();
         let mut found = symbols
-            .root_children_named(head.as_str())
-            .filter(|root| symbols.source_reference_may_select_symbol(head_reference, *root))
+            .top_level_candidates_from_source(
+                head.as_str(),
+                &[SymbolKind::Data, SymbolKind::Machine, SymbolKind::Trait, SymbolKind::Conformance,
+                  SymbolKind::TypeAlias, SymbolKind::Module],
+                head_reference,
+            )
+            .into_iter()
             .filter_map(|root| {
                 symbols.find_descendant_by_path(
                     root,

@@ -69,7 +69,7 @@ fn refusal(report: &str) -> String {
         .map(|line| match line.find("main.omg") {
             Some(at) => {
                 let start = line[..at]
-                    .rfind(|character: char| character == ' ' || character == '\t')
+                    .rfind([' ', '\t'])
                     .map_or(0, |space| space + 1);
                 format!("{}{}", &line[..start], &line[at..])
             }

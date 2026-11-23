@@ -1,16 +1,13 @@
-// Import occurrence custody (`ImportOccurrence`, `ResolvedSourceImport`, `PendingPackageImport`)
-// and I/O-free joining to the loaded source frontier (`retain_module_import_bindings`).
-//
-// Join only selected source instances in the importer's checked scope. Several
-// acquired files can contribute to one logical module, but one exact package
-// anchor suffices: semantic lookup validates the whole selected declaration roster.
+//! Connect each import to the admitted source it selected. Build and Product
+//! can load the same path with different permissions. Keep both the importing
+//! file and its selected target when handing the names to the compiler.
 
 use super::ReconciledPackageImportRequest;
 use super::SourceStorage;
 use super::paths::identifier_path_text;
 use crate::PackageCompilationInputs;
-use source_provenance::DependencyScope;
 use diagnostics::Diagnostic;
+use source_provenance::DependencyScope;
 use source_text::SourceId;
 use std::path::PathBuf;
 
@@ -19,16 +16,40 @@ pub(super) struct ImportOccurrence {
     source: SourceId,
     ordinal: usize,
     authored_path: String,
-    package_prefix_members: usize,
+    binding: ImportBinding,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+enum ImportBinding {
+    Namespace { package_prefix_members: usize },
+    File { alias: String },
 }
 
 impl ImportOccurrence {
+    pub(super) fn file(
+        source: SourceId,
+        ordinal: usize,
+        authored_path: String,
+        alias: &str,
+    ) -> Self {
+        Self {
+            source,
+            ordinal,
+            authored_path,
+            binding: ImportBinding::File {
+                alias: alias.into(),
+            },
+        }
+    }
+
     pub(super) fn new(source: SourceId, ordinal: usize, members: &[String], prefix: usize) -> Self {
         Self {
             source,
             ordinal,
             authored_path: identifier_path_text(members),
-            package_prefix_members: prefix,
+            binding: ImportBinding::Namespace {
+                package_prefix_members: prefix,
+            },
         }
     }
 }
@@ -56,6 +77,9 @@ impl PendingPackageImport {
         packages: &PackageCompilationInputs,
         discovery: &mut impl super::LogicalSourceDiscovery,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
+        if matches!(self.occurrence.binding, ImportBinding::File { .. }) {
+            return Ok(self.request.exact_file(packages)?.into_iter().collect());
+        }
         self.request
             .logical_sources(packages, discovery, self.scope)
     }
@@ -65,26 +89,64 @@ impl PendingPackageImport {
         packages: &PackageCompilationInputs,
         discovery: &mut impl super::LogicalSourceDiscovery,
     ) -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
+        self.resolve_with_prepared_build(packages, discovery, None)
+    }
+
+    pub(super) fn resolve_with_prepared_build(
+        &self,
+        packages: &PackageCompilationInputs,
+        discovery: &mut impl super::LogicalSourceDiscovery,
+        prepared: Option<&crate::PackageBuildHandoff>,
+    ) -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
         let mut paths = self.physical_sources(packages, discovery)?;
-        // Dependency-generated units have already been admitted under their
-        // issued handoff. One such unit can anchor package custody when the
-        // package has no authored unit in the selected logical namespace.
-        if paths.is_empty() {
-            for (purpose, bundle) in packages.dependency_build_handoff_instances() {
-                let scope = match purpose {
-                    build_declarations::DependencyPurpose::Product => DependencyScope::Product,
-                    build_declarations::DependencyPurpose::Build => DependencyScope::Build,
+        let exact_file = matches!(self.occurrence.binding, ImportBinding::File { .. });
+        if exact_file || paths.is_empty() {
+            let purpose = match self.scope {
+                DependencyScope::Product => build_declarations::DependencyPurpose::Product,
+                DependencyScope::Build => build_declarations::DependencyPurpose::Build,
+            };
+            let admitted = packages
+                .dependency_build_handoff_instances()
+                .filter(|(scope, bundle)| {
+                    *scope == purpose && bundle.package() == self.request.package
+                })
+                .map(|(_, bundle)| bundle);
+            // A prepared Build can supply its own output separately from the
+            // package graph. If both retain it, they name one issued handoff.
+            for bundle in admitted
+                .filter(|bundle| Some(*bundle) != prepared)
+                .chain(prepared)
+            {
+                if bundle.package() != self.request.package {
+                    continue;
+                }
+                let unit = if exact_file {
+                    bundle
+                        .generated_source(std::slice::from_ref(&self.request.relative_path))
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?
+                } else {
+                    bundle.sources().first()
                 };
-                if bundle.package() == self.request.package
-                    && scope == self.scope
-                    && let Some(unit) = bundle.sources().first()
-                {
+                if let Some(unit) = unit {
                     paths.push(super::generated::dependency_generated_source_logical_path(
                         &self.request.expected_root,
                         unit,
                     )?);
                 }
             }
+        }
+        if exact_file && paths.len() != 1 {
+            return Err(vec![Diagnostic::error(if paths.is_empty() {
+                format!(
+                    "no admitted logical file `{}`",
+                    self.occurrence.authored_path
+                )
+            } else {
+                format!(
+                    "more than one source was admitted as logical file `{}`",
+                    self.occurrence.authored_path
+                )
+            })]);
         }
         if paths.is_empty() {
             if self.request.defers_in(self.scope) {
@@ -129,21 +191,25 @@ pub(crate) fn pending_build_imports(
                 pending.push(source_compiler::PendingBuildImport {
                     source: roots.source_id,
                     span: import.span,
-                    path: identifier_path_text(&import.members),
+                    target: import.target.clone(),
                 });
             }
         }
     }
-    pending.sort_unstable_by(|a, b| (a.source.0, &a.path).cmp(&(b.source.0, &b.path)));
-    pending.dedup_by(|a, b| a.source == b.source && a.path == b.path);
+    pending.sort_unstable_by(|a, b| (a.source.0, &a.target).cmp(&(b.source.0, &b.target)));
+    pending.dedup_by(|a, b| a.source == b.source && a.target == b.target);
     pending
 }
 
-pub(crate) fn retain_module_import_bindings(
+pub(crate) fn retain_import_bindings(
     storage: &SourceStorage,
-) -> Result<Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
+) -> Result<
+    Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>,
+    Vec<Diagnostic>,
+> {
+    let mut bindings = super::files::build_product_file_imports(storage)?;
     if storage.resolved_imports.is_empty() {
-        return Ok(Vec::new());
+        return Ok(bindings);
     }
     let mut sources = storage
         .source_roots
@@ -171,7 +237,7 @@ pub(crate) fn retain_module_import_bindings(
         .filter(|import| storage.sources.source_is_selected(import.occurrence.source))
         .collect::<Vec<_>>();
     imports.sort_by_key(|import| (import.occurrence.source.0, import.occurrence.ordinal));
-    let mut bindings = Vec::with_capacity(imports.len());
+    bindings.reserve(imports.len());
     let mut previous: Option<(&ImportOccurrence, &source_admission::SourceFile)> = None;
     for import in imports {
         let occurrence = &import.occurrence;
@@ -205,27 +271,38 @@ pub(crate) fn retain_module_import_bindings(
             && prior.source == occurrence.source
             && prior.ordinal == occurrence.ordinal
         {
-            if prior != occurrence
-                || !storage.sources.same_checked_instance(
+            let same_target = if matches!(occurrence.binding, ImportBinding::File { .. }) {
+                anchor.source_id == declaration.source_id
+            } else {
+                storage.sources.same_checked_instance(
                     anchor.source_span(source_text::Span::default()),
                     declaration.source_span(source_text::Span::default()),
                 )
-            {
+            };
+            if prior != occurrence || !same_target {
                 return Err(vec![Diagnostic::error(format!(
-                    "import `{}` acquired more than one checked package namespace",
+                    "import `{}` acquired more than one checked import target",
                     occurrence.authored_path,
                 ))]);
             }
             continue;
         }
-        bindings.push(
-            source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
+        use source_compiler::representations::source_symbols::SourceScopedTopLevelBinding;
+        bindings.push(match &occurrence.binding {
+            ImportBinding::File { alias } => SourceScopedTopLevelBinding::file_import(
+                occurrence.source,
+                declaration.source_id,
+                alias.as_str(),
+            ),
+            ImportBinding::Namespace {
+                package_prefix_members,
+            } => SourceScopedTopLevelBinding::logical_module_import(
                 occurrence.source,
                 declaration.source_id,
                 &occurrence.authored_path,
-                occurrence.package_prefix_members,
+                *package_prefix_members,
             ),
-        );
+        });
         previous = Some((occurrence, declaration));
     }
     Ok(bindings)
@@ -266,7 +343,9 @@ mod tests {
                 source,
                 ordinal: 0,
                 authored_path: "dep::Thing".into(),
-                package_prefix_members: 1,
+                binding: ImportBinding::Namespace {
+                    package_prefix_members: 1,
+                },
             },
             path: path.into(),
         }
@@ -310,7 +389,7 @@ mod tests {
             import(importer, "/dep/b.omg"),
         ];
         assert_eq!(
-            retain_module_import_bindings(&storage).unwrap(),
+            retain_import_bindings(&storage).unwrap(),
             [
                 source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
                     importer,
@@ -318,6 +397,79 @@ mod tests {
                     "dep::Thing",
                     1
                 )
+            ]
+        );
+    }
+
+    #[test]
+    fn a_build_file_alias_selects_separate_build_and_product_dependencies() {
+        use semantic_vocabulary::PackageKeyIdentity;
+        use source_compiler::representations::source_symbols::SourceScopedTopLevelBinding;
+        use source_compiler::{SourceImport, SourceImportTarget};
+
+        let [app, build, product] =
+            [41, 42, 43].map(|byte| PackageKeyIdentity::from_digest([byte; 32]).unwrap());
+        let mut storage = SourceStorage::default();
+        let mut add = |path: &str, root: &str, key, scope| {
+            storage
+                .sources
+                .add_checked_instance(
+                    path.into(),
+                    "",
+                    root.into(),
+                    Some(key),
+                    SourceOrigin::User,
+                    SourceResolutionStratum::Base,
+                    scope,
+                )
+                .source_id
+        };
+        let author = add("/app/build.omg", "/app", app, DependencyScope::Build);
+        let build_target = add("/build/api.omg", "/build", build, DependencyScope::Build);
+        let product_target = add(
+            "/product/api.omg",
+            "/product",
+            product,
+            DependencyScope::Product,
+        );
+        let import = SourceImport {
+            ordinal: 0,
+            span: Default::default(),
+            target: SourceImportTarget::File {
+                root: Some("kit".into()),
+                path: "api.omg".into(),
+                alias: "chosen".into(),
+            },
+        };
+        for source_id in [author, build_target, product_target] {
+            storage.source_roots.append(SourceRoots {
+                source_id,
+                root_items: Default::default(),
+                build_imports: if source_id == author {
+                    vec![import.clone()]
+                } else {
+                    Vec::new()
+                },
+            });
+        }
+        storage.resolved_imports.push(ResolvedSourceImport {
+            occurrence: ImportOccurrence::file(author, 0, "{kit}/api.omg".into(), "chosen"),
+            path: "/build/api.omg".into(),
+        });
+        let build_binding =
+            SourceScopedTopLevelBinding::file_import(author, build_target, "chosen");
+        assert_eq!(
+            retain_import_bindings(&storage).unwrap(),
+            std::slice::from_ref(&build_binding)
+        );
+        storage
+            .sources
+            .retain_product_dependency_scope([(app, "kit", product)]);
+        assert_eq!(
+            retain_import_bindings(&storage).unwrap(),
+            [
+                SourceScopedTopLevelBinding::product_file_import(author, product_target, "chosen"),
+                build_binding,
             ]
         );
     }
@@ -342,7 +494,7 @@ mod tests {
             });
         }
         storage.resolved_imports = vec![import(SourceId(0), "/dep/a.omg")];
-        assert!(retain_module_import_bindings(&storage).is_err());
+        assert!(retain_import_bindings(&storage).is_err());
     }
 
     #[test]
@@ -368,6 +520,6 @@ mod tests {
             import(SourceId(0), "/dep/a.omg"),
             import(SourceId(0), "/other/b.omg"),
         ];
-        assert!(retain_module_import_bindings(&storage).is_err());
+        assert!(retain_import_bindings(&storage).is_err());
     }
 }

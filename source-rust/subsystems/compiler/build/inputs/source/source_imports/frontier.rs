@@ -182,20 +182,13 @@ impl SourceStorage {
         Ok(paths)
     }
 
-    /// Ordinary Product units share declarations with their authored module's
-    /// siblings. Build roots stay on their staged import continuation; compiler-
-    /// issued contract roots share only their own logical module cohort.
-    pub(crate) fn logical_siblings(
+    /// Operator families belong to the owning package. An ordinary declaration
+    /// in a different file enters through its own import.
+    pub(crate) fn operator_family_sources(
         &mut self,
         path: &Path,
         scope: source_provenance::DependencyScope,
-    ) -> Result<
-        Vec<(
-            PathBuf,
-            source_provenance::DependencyScope,
-        )>,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<Vec<(PathBuf, source_provenance::DependencyScope)>, Vec<Diagnostic>> {
         if scope != source_provenance::DependencyScope::Product {
             return Ok(Vec::new());
         }
@@ -210,7 +203,7 @@ impl SourceStorage {
             .map(|package| package.root.clone())
             .collect();
         self.package_roots
-            .siblings(&root, path, &self.filesystem, excluded)
+            .operator_family_sources(&root, path, &self.filesystem, excluded)
             .map(|paths| paths.into_iter().map(|path| (path, scope)).collect())
     }
 
@@ -993,7 +986,7 @@ mod tests {
     }
 
     #[test]
-    fn issued_contract_roots_keep_their_role_and_only_expand_product_siblings() {
+    fn issued_contract_files_keep_their_role_without_loading_unimported_siblings() {
         use source_capture::{CapturedSourceNode, CapturedSourceTree, SourceFileSystem};
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("contract-test-capture");
         let entry = root.join("entry.omg");
@@ -1039,18 +1032,15 @@ mod tests {
         );
         assert!(
             storage
-                .logical_siblings(&entry, DependencyScope::Build)
+                .operator_family_sources(&entry, DependencyScope::Build)
                 .unwrap()
                 .is_empty()
         );
-        assert_eq!(
+        assert!(
             storage
-                .logical_siblings(&entry, DependencyScope::Product)
-                .unwrap(),
-            vec![
-                (entry, DependencyScope::Product),
-                (root.join("sibling.omg"), DependencyScope::Product),
-            ]
+                .operator_family_sources(&entry, DependencyScope::Product)
+                .unwrap()
+                .is_empty()
         );
     }
 

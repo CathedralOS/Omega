@@ -82,7 +82,13 @@ fn judged(
 }
 
 fn verdict(text: &str, roots: &[&str]) -> String {
-    let parts: Vec<String> = judged(text, roots)
+    describe_verdicts(judged(text, roots))
+}
+
+fn describe_verdicts(
+    verdicts: Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>>,
+) -> String {
+    let parts: Vec<String> = verdicts
         .into_iter()
         .map(|verdict| match verdict {
             Err(crate::checking::CompilationRefusal::Elaboration(refusal))
@@ -91,7 +97,7 @@ fn verdict(text: &str, roots: &[&str]) -> String {
                 Ok(_) => "accepted".to_owned(),
                 Err(error) => format!("accepted and not published: {error:?}"),
             },
-            Ok(RouteVerdict::Rejected { unproved, .. }) => unproved
+            Ok(RouteVerdict::Rejected { unproved, .. }) if !unproved.is_empty() => unproved
                 .iter()
                 .map(|entry| format!("{}: {}", entry.statement, entry.detail))
                 .collect::<Vec<_>>()
@@ -100,6 +106,59 @@ fn verdict(text: &str, roots: &[&str]) -> String {
         })
         .collect();
     parts.join("; ")
+}
+
+fn typed_hosted_policy(policy: &str) -> crate::source_state::TypedTrees {
+    use crate::frontend_fixture::{Lexer, parse};
+    use crate::source_symbols::SourceScopedTopLevelBinding;
+    use std::sync::Arc;
+
+    let mut sources = crate::source_inputs::SourceMap::default();
+    let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xbc; 32]).unwrap();
+    let mut syntax = syntax_trees::SyntaxTrees::default();
+    let mut add_file = |root: &std::path::Path, name: &str, text: &str, owner, origin| {
+        let id = sources
+            .add_checked_instance(
+                root.join(name),
+                text,
+                root.into(),
+                owner,
+                origin,
+                source_admission::SourceResolutionStratum::Base,
+                source_provenance::DependencyScope::Product,
+            )
+            .source_id;
+        let tokens = Lexer::new(text).tokenize().unwrap();
+        parse(&mut syntax, id, &tokens).unwrap();
+        id
+    };
+    let library = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../../source/library");
+    let observations = add_file(
+        &library.join("core"), "byte_observation/byte_observation.omg",
+        include_str!("../../../../../../../../source/library/core/byte_observation/byte_observation.omg"),
+        None, source_admission::SourceOrigin::Toolchain,
+    );
+    let mut add_std = |name, text| add_file(
+        std::path::Path::new("std"), name, text, Some(package), source_admission::SourceOrigin::User,
+    );
+    let abi = add_std("calling.omg", VOCABULARY);
+    let shapes = add_std("entry_shapes.omg", SHAPES);
+    let entry = add_std("entry.omg", policy);
+    let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
+        syntax,
+        sources: Some(Arc::new(sources)),
+        top_level_bindings: vec![
+            SourceScopedTopLevelBinding::logical_module_import(
+                abi, observations, "omega::language::core::byte_observation", 3,
+            ),
+            SourceScopedTopLevelBinding::file_import(shapes, abi, "abi"),
+            SourceScopedTopLevelBinding::file_import(entry, abi, "abi"),
+            SourceScopedTopLevelBinding::file_import(entry, shapes, "shapes"),
+        ],
+        retained_base: None,
+    })
+    .unwrap();
+    crate::typing::lower_symbol_resolved_trees(&resolved).unwrap()
 }
 
 /// Each hosted target's policy as the library declares it, less the lines
@@ -113,7 +172,7 @@ fn each_hosted_calling_policy_is_judged() {
     let mut verdicts = Vec::new();
     for (policy, plan, source) in TARGETS {
         let start = source
-            .find(&format!("{policy}CallingPolicy satisfies CallingPolicy"))
+            .find(&format!("{policy}CallingPolicy satisfies |abi|::CallingPolicy"))
             .unwrap();
         let end = source[start..]
             .find(
@@ -122,13 +181,9 @@ boundary trait ",
             )
             .unwrap()
             + start;
-        let text = format!(
-            "{VOCABULARY}
-{SHAPES}
-{}",
-            &source[start..end]
-        );
-        verdicts.push((policy, verdict(&text, &[plan])));
+        let typed = typed_hosted_policy(&source[start..end]);
+        let program = prepared(typed, &[plan], terminal_codec::TerminalPublication::Invocation);
+        verdicts.push((policy, describe_verdicts(crate::checking::judge_compilation(program))));
     }
     for (policy, verdict) in &verdicts {
         let (closure, witness) = verdict.split_once("; ").unwrap_or((verdict, ""));

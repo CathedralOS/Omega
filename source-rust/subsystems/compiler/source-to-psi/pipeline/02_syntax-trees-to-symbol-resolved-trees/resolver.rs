@@ -91,6 +91,11 @@ impl ResolutionRequest {
 pub fn resolve_deferred(
     request: ResolutionRequest,
 ) -> Result<DeferredResolvedFrontier, Vec<Diagnostic>> {
+    if let Some(sources) = request.sources.as_deref() {
+        sources
+            .validate_logical_filenames()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    }
     let base = request.retained_base.clone();
     let sources = request.sources.clone();
     let bindings = request.top_level_bindings.clone();

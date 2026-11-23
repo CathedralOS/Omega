@@ -16,7 +16,7 @@ pub(crate) const INLINE_CALLABLE_TYPE_ERROR: &str =
 pub(crate) fn parse_static_name<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, Identifier> {
-    let (first, mut input) = input.take_identifier()?;
+    let (first, mut input) = input.take_path_head()?;
     if !input.at_path_member() {
         return Ok((first, input));
     }

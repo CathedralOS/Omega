@@ -221,7 +221,7 @@ fn checked_build_receives_the_import_which_waits_for_its_registration() {
         source
             .pending_imports
             .iter()
-            .any(|item| item.path == "kit" && item.source == source.entry.source_id),
+            .any(|item| matches!(&item.target, source_compiler::SourceImportTarget::Namespace(path) if path == &["kit"]) && item.source == source.entry.source_id),
         "expected the selected Build's kit import among {:?}",
         source.pending_imports
     );

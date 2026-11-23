@@ -357,7 +357,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     subject: ExpressionHandle,
 ) -> Result<Option<(DispatchPattern, DestructureBindings)>, ParseError> {
     let positional = crate::patterns::positional::starts_positional_arm(input);
-    if !positional && !input.at_name_like() {
+    if !positional && !input.at_path_head() {
         return Ok(None);
     }
 

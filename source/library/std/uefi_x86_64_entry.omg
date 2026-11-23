@@ -1,5 +1,6 @@
-use omega\language\core\ProgramStorageEntry;
-use omega\language\core\ProgramImage;
+use calling.omg as abi;
+use {omega}/language/core/extent.omg as storage;
+use {omega}/language/core/program_image.omg as image;
 
 // Target-owned UEFI x86-64 physical contract. Source-owned firmware calls
 // obtain Loaded Image geometry; an application explicitly selects its checked
@@ -24,28 +25,28 @@ public boundary trait UefiPhysicalEntry {
         image_handle: EfiImageHandle,
         system_table: @EfiSystemTable
     ) -> EfiStatus
-        reaches ProgramImage
-        invokes ProgramImage
+        reaches |image|::ProgramImage
+        invokes |image|::ProgramImage
         crashes Trap crashes Abort;
 }
 
-UefiX86_64CallingPolicy satisfies CallingPolicy {
-    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+UefiX86_64CallingPolicy satisfies |abi|::CallingPolicy {
+    machine plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
         uefi_x86_64_plan(signature)
     }
 }
 
 machine uefi_x86_64_plan(
-    signature: BoundarySignature
-) -> BoundaryPlanResult
-    satisfies CallingPolicy::plan
+    signature: |abi|::BoundarySignature
+) -> |abi|::BoundaryPlanResult
+    satisfies |abi|::CallingPolicy::plan
 {
     transition signature.parameter_count == 2 {
         true -> select_surface(signature),
         _ -> reject()
     }
 
-    machine select_surface(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine select_surface(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
         transition signature.has_result {
             true -> accept_physical(
                 signature,
@@ -62,10 +63,10 @@ machine uefi_x86_64_plan(
     }
 
     machine accept_semantic(
-        signature: BoundarySignature,
+        signature: |abi|::BoundarySignature,
         image: u64,
         initial_storage: u64
-    ) -> BoundaryPlanResult {
+    ) -> |abi|::BoundaryPlanResult {
         transition image < 256 && initial_storage < 256 {
             true -> build(signature, image, initial_storage),
             _ -> reject()
@@ -73,22 +74,22 @@ machine uefi_x86_64_plan(
     }
 
     machine build(
-        signature: BoundarySignature,
+        signature: |abi|::BoundarySignature,
         image: u64,
         initial_storage: u64
-    ) -> BoundaryPlanResult
+    ) -> |abi|::BoundaryPlanResult
     requires image < 256 && initial_storage < 256 {
-        let mutable output: BoundaryEntryPlan;
-        output.call.convention = CallingConvention::MicrosoftX64;
+        let mutable output: |abi|::BoundaryEntryPlan;
+        output.call.convention = |abi|::CallingConvention::MicrosoftX64;
         output.call.parameter_count = 2;
 
-        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.class = |abi|::AbiValueClass::Integer;
         output.call.parameters[0].shape.byte_size = signature.shapes[image].byte_size;
         output.call.parameters[0].shape.alignment = signature.shapes[image].alignment;
         output.call.parameters[0].location_count = 1;
-        output.call.parameters[0].locations[0] = ValueLocation::Indirect {
-            pointer: IndirectPointerLocation::Register {
-                register: MachineRegister::X86Rcx,
+        output.call.parameters[0].locations[0] = |abi|::ValueLocation::Indirect {
+            pointer: |abi|::IndirectPointerLocation::Register {
+                register: |abi|::MachineRegister::X86Rcx,
             },
             has_copy: true,
             copy_stack_byte_offset: 32,
@@ -96,13 +97,13 @@ machine uefi_x86_64_plan(
             alignment: signature.shapes[image].alignment,
         };
 
-        output.call.parameters[1].shape.class = AbiValueClass::Integer;
+        output.call.parameters[1].shape.class = |abi|::AbiValueClass::Integer;
         output.call.parameters[1].shape.byte_size = signature.shapes[initial_storage].byte_size;
         output.call.parameters[1].shape.alignment = signature.shapes[initial_storage].alignment;
         output.call.parameters[1].location_count = 1;
-        output.call.parameters[1].locations[0] = ValueLocation::Indirect {
-            pointer: IndirectPointerLocation::Register {
-                register: MachineRegister::X86Rdx,
+        output.call.parameters[1].locations[0] = |abi|::ValueLocation::Indirect {
+            pointer: |abi|::IndirectPointerLocation::Register {
+                register: |abi|::MachineRegister::X86Rdx,
             },
             has_copy: true,
             copy_stack_byte_offset: 48,
@@ -111,18 +112,18 @@ machine uefi_x86_64_plan(
         };
 
         output.call.ordinary_clobbers.register_count = 7;
-        output.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
-        output.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
-        output.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
-        output.call.ordinary_clobbers.registers[3] = MachineRegister::X86R8;
-        output.call.ordinary_clobbers.registers[4] = MachineRegister::X86R9;
-        output.call.ordinary_clobbers.registers[5] = MachineRegister::X86R10;
-        output.call.ordinary_clobbers.registers[6] = MachineRegister::X86R11;
+        output.call.ordinary_clobbers.registers[0] = |abi|::MachineRegister::X86Rax;
+        output.call.ordinary_clobbers.registers[1] = |abi|::MachineRegister::X86Rcx;
+        output.call.ordinary_clobbers.registers[2] = |abi|::MachineRegister::X86Rdx;
+        output.call.ordinary_clobbers.registers[3] = |abi|::MachineRegister::X86R8;
+        output.call.ordinary_clobbers.registers[4] = |abi|::MachineRegister::X86R9;
+        output.call.ordinary_clobbers.registers[5] = |abi|::MachineRegister::X86R10;
+        output.call.ordinary_clobbers.registers[6] = |abi|::MachineRegister::X86R11;
         output.call.stack_alignment = 16;
         output.call.shadow_bytes = 32;
-        output.call.entry_control = EntryControl::CallReturn;
+        output.call.entry_control = |abi|::EntryControl::CallReturn;
 
-        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.initial_regime = |abi|::MachineRegime::X86Long64;
         output.state.permitted_transitive_use.general_registers = true;
         // The bridge preserves inbound XMM registers while calling the ordinary body.
         output.state.permitted_transitive_use.vector_registers = true;
@@ -132,17 +133,17 @@ machine uefi_x86_64_plan(
         // Firmware entry may establish descriptor tables and kernel segments.
         output.state.permitted_transitive_use.control_state = true;
         output.state.permitted_transitive_use.segment_state = true;
-        output.state.stack = EntryStack::ProviderSelected;
-        output.state.preemption = Preemption::NotApplicable;
-        BoundaryPlanResult::Accepted { plan: output }
+        output.state.stack = |abi|::EntryStack::ProviderSelected;
+        output.state.preemption = |abi|::Preemption::NotApplicable;
+        |abi|::BoundaryPlanResult::Accepted { plan: output }
     }
 
     machine accept_physical(
-        signature: BoundarySignature,
+        signature: |abi|::BoundarySignature,
         image_handle: u64,
         system_table: u64,
         status: u64
-    ) -> BoundaryPlanResult {
+    ) -> |abi|::BoundaryPlanResult {
         transition image_handle < 256 && system_table < 256 && status < 256 {
             true -> build_physical(signature, image_handle, system_table, status),
             _ -> reject()
@@ -150,60 +151,60 @@ machine uefi_x86_64_plan(
     }
 
     machine build_physical(
-        signature: BoundarySignature,
+        signature: |abi|::BoundarySignature,
         image_handle: u64,
         system_table: u64,
         status: u64
-    ) -> BoundaryPlanResult
+    ) -> |abi|::BoundaryPlanResult
     requires image_handle < 256 && system_table < 256 && status < 256 {
-        let mutable output: BoundaryEntryPlan;
-        output.call.convention = CallingConvention::MicrosoftX64;
+        let mutable output: |abi|::BoundaryEntryPlan;
+        output.call.convention = |abi|::CallingConvention::MicrosoftX64;
         output.call.parameter_count = 2;
 
-        output.call.parameters[0].shape.class = AbiValueClass::Integer;
+        output.call.parameters[0].shape.class = |abi|::AbiValueClass::Integer;
         output.call.parameters[0].shape.byte_size = signature.shapes[image_handle].byte_size;
         output.call.parameters[0].shape.alignment = signature.shapes[image_handle].alignment;
         output.call.parameters[0].location_count = 1;
-        output.call.parameters[0].locations[0] = ValueLocation::Register {
-            register: MachineRegister::X86Rcx,
+        output.call.parameters[0].locations[0] = |abi|::ValueLocation::Register {
+            register: |abi|::MachineRegister::X86Rcx,
             value_byte_offset: 0,
             byte_size: signature.shapes[image_handle].byte_size,
         };
 
-        output.call.parameters[1].shape.class = AbiValueClass::Integer;
+        output.call.parameters[1].shape.class = |abi|::AbiValueClass::Integer;
         output.call.parameters[1].shape.byte_size = signature.shapes[system_table].byte_size;
         output.call.parameters[1].shape.alignment = signature.shapes[system_table].alignment;
         output.call.parameters[1].location_count = 1;
-        output.call.parameters[1].locations[0] = ValueLocation::Register {
-            register: MachineRegister::X86Rdx,
+        output.call.parameters[1].locations[0] = |abi|::ValueLocation::Register {
+            register: |abi|::MachineRegister::X86Rdx,
             value_byte_offset: 0,
             byte_size: signature.shapes[system_table].byte_size,
         };
 
         output.call.has_result = true;
-        output.call.result.shape.class = AbiValueClass::Integer;
+        output.call.result.shape.class = |abi|::AbiValueClass::Integer;
         output.call.result.shape.byte_size = signature.shapes[status].byte_size;
         output.call.result.shape.alignment = signature.shapes[status].alignment;
         output.call.result.location_count = 1;
-        output.call.result.locations[0] = ValueLocation::Register {
-            register: MachineRegister::X86Rax,
+        output.call.result.locations[0] = |abi|::ValueLocation::Register {
+            register: |abi|::MachineRegister::X86Rax,
             value_byte_offset: 0,
             byte_size: signature.shapes[status].byte_size,
         };
 
         output.call.ordinary_clobbers.register_count = 7;
-        output.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
-        output.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
-        output.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
-        output.call.ordinary_clobbers.registers[3] = MachineRegister::X86R8;
-        output.call.ordinary_clobbers.registers[4] = MachineRegister::X86R9;
-        output.call.ordinary_clobbers.registers[5] = MachineRegister::X86R10;
-        output.call.ordinary_clobbers.registers[6] = MachineRegister::X86R11;
+        output.call.ordinary_clobbers.registers[0] = |abi|::MachineRegister::X86Rax;
+        output.call.ordinary_clobbers.registers[1] = |abi|::MachineRegister::X86Rcx;
+        output.call.ordinary_clobbers.registers[2] = |abi|::MachineRegister::X86Rdx;
+        output.call.ordinary_clobbers.registers[3] = |abi|::MachineRegister::X86R8;
+        output.call.ordinary_clobbers.registers[4] = |abi|::MachineRegister::X86R9;
+        output.call.ordinary_clobbers.registers[5] = |abi|::MachineRegister::X86R10;
+        output.call.ordinary_clobbers.registers[6] = |abi|::MachineRegister::X86R11;
         output.call.stack_alignment = 16;
         output.call.shadow_bytes = 32;
-        output.call.entry_control = EntryControl::CallReturn;
+        output.call.entry_control = |abi|::EntryControl::CallReturn;
 
-        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.initial_regime = |abi|::MachineRegime::X86Long64;
         output.state.permitted_transitive_use.general_registers = true;
         // The bridge preserves inbound XMM registers while calling the ordinary body.
         output.state.permitted_transitive_use.vector_registers = true;
@@ -213,19 +214,19 @@ machine uefi_x86_64_plan(
         // Firmware entry may establish descriptor tables and kernel segments.
         output.state.permitted_transitive_use.control_state = true;
         output.state.permitted_transitive_use.segment_state = true;
-        output.state.stack = EntryStack::ProviderSelected;
-        output.state.preemption = Preemption::NotApplicable;
-        BoundaryPlanResult::Accepted { plan: output }
+        output.state.stack = |abi|::EntryStack::ProviderSelected;
+        output.state.preemption = |abi|::Preemption::NotApplicable;
+        |abi|::BoundaryPlanResult::Accepted { plan: output }
     }
 
-    machine reject() -> BoundaryPlanResult {
-        BoundaryPlanResult::Rejected {
-            reason: CallingPolicyRejection {
-                reason: "UefiApplication requires two program-storage roots" as +Utf8,
+    machine reject() -> |abi|::BoundaryPlanResult {
+        |abi|::BoundaryPlanResult::Rejected {
+            reason: |abi|::CallingPolicyRejection {
+                reason: "UefiApplication requires two program-storage roots" as + |abi|::Utf8,
             },
         }
     }
 }
 
-boundary trait UefiApplication: ProgramStorageEntry + UefiPhysicalEntry + Calling<UefiX86_64CallingPolicy> {
+boundary trait UefiApplication: |storage|::ProgramStorageEntry + UefiPhysicalEntry + |abi|::Calling<UefiX86_64CallingPolicy> {
 }

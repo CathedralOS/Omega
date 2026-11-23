@@ -203,6 +203,31 @@ impl SourceMap {
         }
     }
 
+    /// Each source selected for this compilation needs its own filename within its
+    /// package and dependency scope, even when no import refers to it.
+    pub fn validate_logical_filenames(&self) -> Result<(), String> {
+        let mut names = std::collections::HashSet::new();
+        for file in self.selected_files() {
+            // The compiler's in-memory Build prelude and default Build use the root
+            // itself as a source coordinate. Neither is a file in a package.
+            if file.origin.is_toolchain() && file.path == file.package_root {
+                continue;
+            }
+            let name = file.logical_filename()?;
+            let unnamed = file
+                .package_identity
+                .is_none()
+                .then_some((file.package_root.as_path(), file.origin));
+            if !names.insert((file.package_identity, unnamed, file.dependency_scope, name)) {
+                return Err(format!(
+                    "more than one source was admitted as logical file `{}` in the same package and source context",
+                    file.logical_filename()?
+                ));
+            }
+        }
+        Ok(())
+    }
+
     pub fn source_is_selected(&self, source: SourceId) -> bool {
         source.0 < self.files.len() && self.selection.includes(source)
     }
@@ -391,14 +416,21 @@ impl SourceMap {
         occurrence: SourceSpan,
         alias: &str,
     ) -> Option<PackageKeyIdentity> {
+        self.product_dependencies_at(occurrence)?
+            .get(alias)
+            .copied()
+    }
+
+    pub(super) fn product_dependencies_at(
+        &self,
+        occurrence: SourceSpan,
+    ) -> Option<&BTreeMap<String, PackageKeyIdentity>> {
         let file = self.file_at(occurrence)?;
         if let Some(owner) = file.package_identity {
-            return self.product_dependency_target(owner, alias);
+            return self.product_dependencies.get(&owner);
         }
         let (root, dependencies) = self.query_dependencies.as_ref()?;
-        (file.origin == SourceOrigin::User && file.package_root == *root)
-            .then(|| dependencies.get(alias).copied())
-            .flatten()
+        (file.origin == SourceOrigin::User && file.package_root == *root).then_some(dependencies)
     }
 
     pub fn add(&mut self, path: PathBuf, source: String) -> &SourceFile {
@@ -650,6 +682,60 @@ mod tests {
         SourceSpan,
     };
     use source_provenance::PackageKeyIdentity;
+
+    #[test]
+    fn two_files_cannot_claim_the_same_logical_filename_without_an_import() {
+        let mut sources = SourceMap::default();
+        let root = PathBuf::from("package");
+        let other = PathBuf::from("other");
+        let key = PackageKeyIdentity::from_digest([41; 32]).unwrap();
+        let mut add = |root: &PathBuf, path: &str, owner, stratum, scope| {
+            sources.add_checked_instance(
+                root.join(path),
+                "",
+                root.clone(),
+                owner,
+                SourceOrigin::User,
+                stratum,
+                scope,
+            );
+        };
+        use SourceResolutionStratum::{Base, DependencyActivationExtension};
+        add(
+            &root,
+            "api/value.omg",
+            Some(key),
+            Base,
+            DependencyScope::Product,
+        );
+        add(
+            &root,
+            "api/value.omg",
+            Some(key),
+            Base,
+            DependencyScope::Build,
+        );
+        add(
+            &other,
+            "api/value.omg",
+            None,
+            Base,
+            DependencyScope::Product,
+        );
+        add(
+            &root,
+            ".omega/generated/api/value.omg",
+            Some(key),
+            DependencyActivationExtension,
+            DependencyScope::Product,
+        );
+        assert_eq!(
+            sources.validate_logical_filenames().unwrap_err(),
+            "more than one source was admitted as logical file `api/value.omg` in the same package and source context"
+        );
+        sources.retain_selected_sources(|file| file.resolution_stratum == Base);
+        sources.validate_logical_filenames().unwrap();
+    }
 
     #[test]
     fn source_span_carries_source_identity() {

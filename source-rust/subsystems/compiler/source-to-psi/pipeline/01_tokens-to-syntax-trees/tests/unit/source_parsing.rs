@@ -313,3 +313,80 @@ fn float_spellings_share_forest_custody_and_survive_cross_forest_copy() {
         assert_eq!(copied.expressions.source_span(handle), span);
     }
 }
+
+#[test]
+fn file_imports_keep_their_roots_filenames_and_local_aliases() {
+    use syntax_trees::item::UseItem;
+    let text = "use math/vector.omg; use {geometry}/math/value-cell.omg as chosen;";
+    let mut trees = SyntaxTrees::new(SourceId(1));
+    let tokens = Lexer::new(text).tokenize().unwrap();
+    let roots = parse(&mut trees, SourceId(1), &tokens).unwrap();
+    let targets = roots
+        .items
+        .iter()
+        .map(|item| {
+            let Item::Use(UseItem::File {
+                root,
+                components,
+                alias,
+                ..
+            }) = trees.root_item(*item)
+            else {
+                panic!("expected a file import");
+            };
+            (
+                root.as_ref().map(|root| root.as_str(&trees)),
+                trees
+                    .items
+                    .identifier_path_members(*components)
+                    .iter()
+                    .map(|name| name.as_str(&trees))
+                    .collect::<Vec<_>>(),
+                alias.as_str(&trees),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        targets,
+        [
+            (None, vec!["math", "vector"], "vector"),
+            (Some("geometry"), vec!["math", "value-cell"], "chosen"),
+        ]
+    );
+}
+
+#[test]
+fn invalid_file_paths_and_aliases_are_refused_at_the_import() {
+    let parse_error = |text: &str| {
+        let tokens = Lexer::new(text).tokenize().unwrap();
+        parse(&mut SyntaxTrees::new(SourceId(1)), SourceId(1), &tokens).unwrap_err()
+    };
+    for text in ["use missing/u8.omg;", "use missing/value.omg as u8;"] {
+        assert_eq!(
+            parse_error(text).message,
+            "file alias `u8` names a builtin type"
+        );
+    }
+    let duplicate = parse_error("use audio/text.omg;\nuse {dep}/text.omg;");
+    assert!(
+        duplicate
+            .message
+            .contains("duplicate file import alias `text`, first imported at line 1, column 11"),
+        "{}",
+        duplicate.message
+    );
+    assert_eq!(duplicate.source_span.span.start, 30);
+    for text in [
+        "use dir/value-cell.omg;",
+        "use dir/value.omg as value-cell;",
+        "use /a.omg;",
+        "use ./a.omg;",
+        "use ../a.omg;",
+        "use a/../b.omg;",
+        "use dir/a;",
+        "use dir/a.txt;",
+        "use {dep}//x.omg;",
+    ] {
+        parse_error(text);
+    }
+}

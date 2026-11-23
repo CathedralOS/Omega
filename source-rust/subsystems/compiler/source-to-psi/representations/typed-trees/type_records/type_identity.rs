@@ -2598,6 +2598,15 @@ pub(crate) mod identity_context {
                 }
                 PackageQualifiedNominalOwner::Unresolved
             };
+            let path = match program.file_declaration_path(symbol, path) {
+                Ok(path) => path,
+                Err(reason) => {
+                    if let Some(missing) = self.missing_exact_nominal_owner {
+                        missing.set(true);
+                    }
+                    return atom(NameForm::InvalidDerivedOrigin, &reason);
+                }
+            };
             package_qualified_nominal_name(owner, &path)
         }
     }
@@ -9736,6 +9745,25 @@ impl TypedTrees {
         Err("a field declaration has a cyclic specialization origin".to_owned())
     }
 
+    /// Source declarations are owned by a file. The directory namespace is still
+    /// useful for diagnostics while older import spellings are being migrated.
+    fn file_declaration_path(&self, symbol: SymbolHandle, path: String) -> Result<String, String> {
+        let Some(source) = self
+            .symbols
+            .symbol_provenance_source_span(symbol)
+            .and_then(|span| self.symbols.source_file(span))
+        else {
+            return Ok(path);
+        };
+        // Installed declarations have a separate, revision-checked catalog.
+        if source.origin.is_toolchain() {
+            return Ok(path);
+        }
+        let filename = source.logical_filename()?;
+        let local = self.symbols.file_member_path(symbol, &path);
+        Ok(format!("{filename}::{local}"))
+    }
+
     pub fn normalized_hermetic_symbol_identity(
         &self,
         symbol: SymbolHandle,
@@ -9763,7 +9791,7 @@ impl TypedTrees {
         {
             return Ok(identity);
         }
-        let path = self.symbols.display_path(symbol, "::");
+        let path = self.file_declaration_path(symbol, self.symbols.display_path(symbol, "::"))?;
         // Overloads share a source path but are different declarations. Keep
         // the existing callable signature with that path, so selecting one
         // overload cannot name another declaration with different parameters.

@@ -136,7 +136,7 @@ impl DeferredProductSources {
             timings,
             catalogue,
         )?;
-        bindings.extend(crate::source::source_imports::retain_module_import_bindings(&storage)?);
+        bindings.extend(crate::source::source_imports::retain_import_bindings(&storage)?);
         let root_sources = storage.root_sources();
         let build_scope_sources = storage
             .sources
@@ -230,7 +230,7 @@ impl DeferredProductSources {
             timings,
             catalogue,
         )?;
-        bindings.extend(crate::source::source_imports::retain_module_import_bindings(&storage)?);
+        bindings.extend(crate::source::source_imports::retain_import_bindings(&storage)?);
         let root_sources = storage.root_sources();
         let source_file_count = storage.file_count();
         let pending_build_imports = crate::source::source_imports::pending_build_imports(&storage);

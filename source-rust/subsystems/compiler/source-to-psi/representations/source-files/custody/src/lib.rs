@@ -29,24 +29,12 @@ pub fn directory_namespace<'a>(
                 path.display()
             ));
         };
-        let valid = directory.to_str().filter(|name| {
-            let mut bytes = name.bytes();
-            bytes
-                .next()
-                .is_some_and(|first| first == b'_' || first.is_ascii_alphabetic())
-                && bytes.all(|byte| byte == b'_' || byte.is_ascii_alphanumeric())
-        });
-        let name = valid.ok_or_else(|| format!(
-            "directory `{}` in source `{}` cannot name an Omega namespace; expected an ASCII identifier",
+        let name = directory.to_str().filter(|name| {
+            name.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '-'))
+        }).ok_or_else(|| format!(
+            "directory `{}` in source `{}` is not a logical filename component",
             directory.to_string_lossy(), path.display()
         ))?;
-        // The parser admits contextual keyword spellings in paths, except for the receiver.
-        if name == "self" {
-            return Err(format!("directory `self` in source `{}` cannot name an Omega namespace", path.display()));
-        }
-        if symbols::BuiltinTypeAtom::is_builtin_type_spelling(name) {
-            return Err(format!("module `{name}` is spelled like the builtin type `{name}`; choose another directory name in source `{}`", path.display()));
-        }
         namespace.push(name);
     }
     Ok(namespace)
@@ -104,8 +92,31 @@ impl SourceFile {
             && self.source == earlier.source
     }
 
+    /// The admitted filename relative to its source root, independent of the host checkout.
+    pub fn logical_filename(&self) -> Result<String, String> {
+        let mut relative = self.path.strip_prefix(&self.package_root).map_err(|_| {
+            format!(
+                "source `{}` is outside its owning root",
+                self.path.display()
+            )
+        })?;
+        if self.resolution_stratum != SourceResolutionStratum::Base {
+            relative = relative
+                .strip_prefix(GENERATED_SOURCE_DIRECTORY)
+                .map_err(|_| {
+                    format!(
+                        "generated source `{}` is outside its store",
+                        self.path.display()
+                    )
+                })?;
+        }
+        let components = source_identity::canonical_path_components(relative, &self.path)?;
+        Ok(components.join("/"))
+    }
+
     pub fn directory_namespace(&self) -> Result<Vec<&str>, String> {
-        self.resolution_stratum.directory_namespace(&self.path, &self.package_root)
+        self.resolution_stratum
+            .directory_namespace(&self.path, &self.package_root)
     }
 
     pub fn source_span(&self, span: Span) -> SourceSpan {
@@ -402,14 +413,11 @@ mod directory_tests {
                     .unwrap()
                     .is_empty()
             );
-            assert!(
-                directory_namespace(&root.join("bad-name/program.omg"), root)
-                    .unwrap_err()
-                    .contains("bad-name")
+            assert_eq!(
+                directory_namespace(&root.join("bad-name/self/u32/program.omg"), root).unwrap(),
+                ["bad-name", "self", "u32"]
             );
-            assert!(directory_namespace(&root.join("self/program.omg"), root).is_err());
             assert!(directory_namespace(Path::new("/elsewhere/program.omg"), root).is_err());
-            assert!(directory_namespace(&root.join("u32/program.omg"), root).unwrap_err().contains("builtin type `u32`"));
         }
     }
 }

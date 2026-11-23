@@ -71,7 +71,38 @@ impl MissingDependencyEdge {
 }
 
 impl ReconciledPackageImportRequest {
-    /// Whether this import names the importing package's own sources and
+    pub(super) fn file(
+        package: semantic_vocabulary::PackageKeyIdentity,
+        root: &Path,
+        relative: &str,
+        requester: &Path,
+        foreign: bool,
+    ) -> Self {
+        Self {
+            package,
+            expected_root: root.to_owned(),
+            relative_path: relative.into(),
+            dependency_build_forbidden: foreign,
+            requesting_source: requester.to_owned(),
+            missing_edge: None,
+        }
+    }
+
+    pub(super) fn exact_file(
+        &self,
+        packages: &PackageCompilationInputs,
+    ) -> Result<Option<PathBuf>, Vec<Diagnostic>> {
+        let selected = self.expected_root.join(&self.relative_path);
+        self.reject_dependency_build_import(&selected)?;
+        self.reject_foreign_source_owner(&selected, packages)?;
+        super::files::captured_file(
+            &self.expected_root,
+            &self.relative_path,
+            packages.source_filesystem(),
+        )
+    }
+
+/// Whether this import names the importing package's own sources and
     /// was written in a Build source. Such an import selects only what
     /// declares its name, and may select nothing: a Build import of a
     /// dependency stays deferred until a stage prepares that dependency
@@ -159,7 +190,7 @@ impl ReconciledPackageImportRequest {
     }
 }
 
-fn other_purpose(purpose: DependencyPurpose) -> DependencyPurpose {
+pub(super) fn other_purpose(purpose: DependencyPurpose) -> DependencyPurpose {
     match purpose {
         DependencyPurpose::Product => DependencyPurpose::Build,
         DependencyPurpose::Build => DependencyPurpose::Product,
@@ -388,7 +419,10 @@ mod tests {
         .append(&mut syntax, &mut CompileTimings::default())
         .unwrap();
         let unit = &parsed.sources.span_or_empty(parsed.batch)[0];
-        let members = &unit.imports[0].members;
+        let source_compiler::SourceImportTarget::Namespace(members) = &unit.imports[0].target
+        else {
+            panic!("expected a namespace import")
+        };
         let core = super::super::bundled_core_root().unwrap();
         let path = core.join("nested/unit.omg");
         let relative = reconciled_package_import(

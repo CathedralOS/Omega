@@ -48,6 +48,18 @@ impl ProductQueryInputs {
                     "Product query author lost its admitted source correspondence",
                 )]
             })?;
+        if let Some(alias) = lookup
+            .alias
+            .strip_prefix('|')
+            .and_then(|name| name.strip_suffix('|'))
+        {
+            return super::super::files::product_file_sources(
+                storage,
+                SourceSpan::new(author, lookup.span),
+                alias,
+                self.graphs().chain(self.named_source.iter()),
+            );
+        }
         let Some(package) = storage
             .sources
             .product_dependency_at(SourceSpan::new(author, lookup.span), &lookup.alias)

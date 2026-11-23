@@ -1527,3 +1527,100 @@ fn an_unused_deferred_import_warns_at_the_authored_name() {
         "{report}"
     );
 }
+
+#[test]
+fn a_build_resolves_its_file_alias_after_preparing_the_named_dependency() {
+    let build = r#"use {kit}/main.omg as chosen;
+machine build(builder: @mutable Build) suspends {
+    Build::application(builder, "staged_file");
+    let mutable description: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
+    dependency\with_alias(@mutable description, "kit");
+    let registered: DependencyRegistration = Build::build_dependency(builder, description);
+    suspend Build::prepare_dependency(builder, registered);
+    let value: i32 = |chosen|::v();
+    transition value == 7 {
+        true -> bind(builder),
+        false -> wrong(builder)
+    }
+    machine bind(builder: @mutable Build) {
+        Build::bind(builder, HOST\ProgramEntry, main);
+    }
+    machine wrong(builder: @mutable Build) {
+        Build::application(builder, "another_application");
+    }
+}"#.replace("HOST", target::TargetProfile::host_if_supported().unwrap().target_name());
+    let check =
+        |case: &str, source: &str| check_project(case, source, 7, "", &["--check", "main.omg"]);
+    let (ok, report) = check("exact-file-ready", &build);
+    assert!(ok, "{report}");
+    let (ok, report) = check(
+        "exact-file-missing",
+        &build.replace("{kit}/main.omg", "{kit}/other.omg"),
+    );
+    assert!(
+        !ok && report.contains("no admitted logical file `{kit}/other.omg`"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_build_binds_its_products_file_without_being_able_to_call_it() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "product-file-operand",
+        false,
+    )
+    .unwrap();
+    let root = project.path();
+    let kit = root.join("vendor");
+    std::fs::create_dir(&kit).unwrap();
+    std::fs::write(
+        kit.join("build.omg"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "kit"); }"#,
+    )
+    .unwrap();
+    std::fs::write(kit.join("entry.omg"), "public machine start() {}").unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        "machine unreachable() crashes Trap { crash Trap; }",
+    )
+    .unwrap();
+    let build = r#"use {kit}/entry.omg as selected;
+machine build(builder: @mutable Build) suspends {
+    Build::application(builder, "product_file");
+    let registered: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "vendor" }));
+    suspend Build::prepare_dependency(builder, registered);
+    Build::bind(builder, HOST\ProgramEntry, |selected|::start);
+}"#.replace("HOST", host.target_name());
+    let invoke = |source: &str, args: &[&str]| {
+        std::fs::write(root.join("build.omg"), source).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(args)
+            .current_dir(root)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        let report = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        (output.status.success(), report)
+    };
+    let (ok, report) = invoke(&build, &["run", "--both", "build.omg"]);
+    assert!(
+        ok && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
+    let called = build.replace(
+        "    Build::bind",
+        "    |selected|::start();\n    Build::bind",
+    );
+    let (ok, report) = invoke(&called, &["--check", "build.omg"]);
+    assert!(
+        !ok && report.contains("Alias `kit` was prepared as a Product dependency"),
+        "{report}"
+    );
+}

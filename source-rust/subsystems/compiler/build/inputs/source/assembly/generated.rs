@@ -11,17 +11,21 @@ use source_compiler::SourceInput;
 use std::sync::Arc;
 
 impl GeneratedSourceExtension {
-    pub fn source_input(
+    pub fn prepare_source_request(
         self,
         base_sources: &Arc<source_compiler::representations::source_inputs::SourceMap>,
-    ) -> Result<
-        (
-            Arc<source_compiler::representations::source_inputs::SourceMap>,
-            source_admission::LoadedSources,
-        ),
-        Vec<Diagnostic>,
-    > {
+        inputs: &PackageCompilationInputs,
+        timings: &mut CompileTimings,
+    ) -> Result<source_compiler::SourceExtensionRequest, Vec<Diagnostic>> {
         let (sources, custody) = self.into_source_inputs(base_sources)?;
+        let first = custody
+            .first()
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "generated-source handoff has no selected source",
+                )]
+            })?
+            .0;
         let mut generated_sources = Vec::with_capacity(custody.len());
         for (source_id, _) in &custody {
             let source = sources.get(*source_id).ok_or_else(|| {
@@ -37,7 +41,16 @@ impl GeneratedSourceExtension {
                 scope: source.dependency_scope,
             });
         }
-        Ok((sources, generated_sources.into_iter().collect()))
+        let mut syntax = source_compiler::SourceSyntax::new(first);
+        let parsed =
+            SourceInput(generated_sources.into_iter().collect()).append(&mut syntax, timings)?;
+        let top_level_bindings =
+            crate::source::source_imports::generated_file_imports(&parsed, &sources, inputs)?;
+        Ok(source_compiler::SourceExtensionRequest::new(
+            syntax,
+            sources,
+            top_level_bindings,
+        ))
     }
 }
 
