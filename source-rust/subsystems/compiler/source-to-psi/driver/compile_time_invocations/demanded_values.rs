@@ -136,13 +136,22 @@ impl RoundProgram {
     }
 }
 
-/// Evaluates everything `demand` asks of `program` and returns the inputs
-/// stage 04 prepares: each computed argument, then each demanded constant.
+/// What evaluating a request's values produced.
+pub(crate) struct EvaluatedValues {
+    /// The inputs stage 04 prepares: each computed argument, then each
+    /// demanded constant.
+    pub inputs: Vec<ValueInputs>,
+    /// The declarations each evaluated constant's computation reached, as
+    /// the order saw them. The receipt join compares exactly these.
+    pub constant_reaches: super::constants::ConstantReaches,
+}
+
+/// Evaluates everything `demand` asks of `program`.
 pub(crate) fn evaluate_demanded_values(
     program: &mut TypedTrees,
     demand: &ValueDemand<'_>,
     accounting: &mut SourceCompletionAccounting,
-) -> Result<Vec<ValueInputs>, Vec<Diagnostic>> {
+) -> Result<EvaluatedValues, Vec<Diagnostic>> {
     super::constants::retain_evaluation_entries(program)?;
     let mut layouts = super::fixed_layouts::Layouts::demanded(program, demand.layout_scopes)?;
     let demanded = super::demanded_declarations(program, demand.compilation)
@@ -157,9 +166,13 @@ pub(crate) fn evaluate_demanded_values(
         &mut [&mut layouts, &mut plans, &mut arguments, &mut initializers],
         accounting,
     )?;
-    let mut values = arguments.into_inputs();
-    values.extend(initializers.into_inputs());
-    Ok(values)
+    let mut inputs = arguments.into_inputs();
+    let (constants, constant_reaches) = initializers.into_inputs();
+    inputs.extend(constants);
+    Ok(EvaluatedValues {
+        inputs,
+        constant_reaches,
+    })
 }
 
 fn key(symbol: SymbolHandle) -> (u32, u32) {

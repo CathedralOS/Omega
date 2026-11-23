@@ -99,6 +99,9 @@ struct Job<'scope> {
     /// This constant's row among the demanded constants' inputs.
     inputs: usize,
     deployments: Vec<&'scope FixedLayoutTargetScope>,
+    /// Every declaration the initializer's computation reaches, sorted, as
+    /// the demand order computed it.
+    reached: Vec<SymbolHandle>,
 }
 
 /// The constants a request demands. Those written as a literal already have
@@ -226,6 +229,7 @@ impl<'scope> Initializers<'scope> {
                 entry: [entry],
                 inputs,
                 deployments,
+                reached: Vec::new(),
             });
         }
         Ok(Self {
@@ -234,8 +238,15 @@ impl<'scope> Initializers<'scope> {
         })
     }
 
-    pub(in super::super) fn into_inputs(self) -> Vec<ValueInputs> {
-        self.values
+    /// The inputs stage 04 prepares for every demanded constant, and the
+    /// reach of each constant this request evaluated.
+    pub(in super::super) fn into_inputs(self) -> (Vec<ValueInputs>, super::ConstantReaches) {
+        let reaches = super::ConstantReaches::new(
+            self.jobs
+                .into_iter()
+                .map(|job| (job.symbol[0], job.reached)),
+        );
+        (self.values, reaches)
     }
 
     fn evaluate_job(
@@ -358,6 +369,10 @@ impl DemandedValues for Initializers<'_> {
 
     fn roots(&self, value: usize) -> &[SymbolHandle] {
         &self.jobs[value].entry
+    }
+
+    fn reaches(&mut self, _program: &TypedTrees, value: usize, reached: &[SymbolHandle]) {
+        self.jobs[value].reached = reached.to_vec();
     }
 
     fn description(&self, program: &TypedTrees, value: usize) -> String {

@@ -1,7 +1,7 @@
 use super::validate_constant_evaluations;
 use crate::compile_time_invocations::{
-    InvocationSourceConsent, PreCheckEvaluation, SourceCompletionAccounting, ValueDemand,
-    evaluate_demanded_values,
+    EvaluatedValues, InvocationSourceConsent, PreCheckEvaluation, SourceCompletionAccounting,
+    ValueDemand, evaluate_demanded_values,
 };
 use crate::source_state::TypedTrees;
 use crate::source_state::data::DataMember;
@@ -57,6 +57,17 @@ fn evaluate(
     source_consent: Option<Arc<dyn InvocationSourceConsent>>,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<Vec<ValueInputs>, Vec<diagnostics::Diagnostic>> {
+    evaluate_with_reaches(program, compilation, source_consent, accounting)
+        .map(|evaluated| evaluated.inputs)
+}
+
+/// The same, keeping the reach the receipt join compares.
+fn evaluate_with_reaches(
+    program: &mut TypedTrees,
+    compilation: production::TerminalSourceCompilation<'_>,
+    source_consent: Option<Arc<dyn InvocationSourceConsent>>,
+    accounting: &mut SourceCompletionAccounting,
+) -> Result<EvaluatedValues, Vec<diagnostics::Diagnostic>> {
     evaluate_demanded_values(
         program,
         &ValueDemand {
@@ -92,8 +103,10 @@ fn a_computed_constant_uses_its_source_receipt_only_when_reached() {
     );
     let entry = typed.realized_machine_named("main").unwrap().symbol;
     let mut accounting = SourceCompletionAccounting::default();
-    let demanded = evaluate(&mut typed, request(&[entry]), None, &mut accounting).unwrap();
-    let [input] = demanded.as_slice() else {
+    let evaluated =
+        evaluate_with_reaches(&mut typed, request(&[entry]), None, &mut accounting).unwrap();
+    let reaches = &evaluated.constant_reaches;
+    let [input] = evaluated.inputs.as_slice() else {
         panic!("one demanded constant")
     };
     let PreparedValue::Constant(demanded) = input.value else {
@@ -106,7 +119,7 @@ fn a_computed_constant_uses_its_source_receipt_only_when_reached() {
             .evaluated_value
             .is_some()
     );
-    validate_constant_evaluations(&typed, &accounting).unwrap();
+    validate_constant_evaluations(&typed, &accounting, reaches).unwrap();
     let [PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
         panic!("one actual invocation")
     };
@@ -118,7 +131,7 @@ fn a_computed_constant_uses_its_source_receipt_only_when_reached() {
         }
     ));
     assert_eq!(
-        validate_constant_evaluations(&typed, &Default::default()).unwrap_err(),
+        validate_constant_evaluations(&typed, &Default::default(), reaches).unwrap_err(),
         "constant result has no accepted invocation receipt"
     );
     let original = Arc::downgrade(accounting.constant_input(receipt).unwrap().unwrap());
@@ -126,7 +139,7 @@ fn a_computed_constant_uses_its_source_receipt_only_when_reached() {
     retry.append(accounting.clone());
     accounting.release_constant_inputs();
     accounting.validate_charges().unwrap();
-    validate_constant_evaluations(&typed, &retry).unwrap();
+    validate_constant_evaluations(&typed, &retry, reaches).unwrap();
     retry.release_constant_inputs();
     assert_eq!(original.strong_count(), 0);
     retry.validate_charges().unwrap();
@@ -640,7 +653,10 @@ fn each_value_is_evaluated_once_after_the_values_it_reads() {
     let mut typed = typed_source(CHAIN);
     let entry = typed.realized_machine_named("main").unwrap().symbol;
     let mut accounting = SourceCompletionAccounting::default();
-    let values = evaluate(&mut typed, request(&[entry]), None, &mut accounting).unwrap();
+    let EvaluatedValues {
+        inputs: values,
+        constant_reaches,
+    } = evaluate_with_reaches(&mut typed, request(&[entry]), None, &mut accounting).unwrap();
     // One invocation per value, each named by the declaration that asked,
     // and none before a value it reads.
     assert_eq!(
@@ -649,7 +665,7 @@ fn each_value_is_evaluated_once_after_the_values_it_reads() {
             .map(|(name, value)| (name.to_owned(), value)),
     );
     accounting.validate_charges().unwrap();
-    validate_constant_evaluations(&typed, &accounting).unwrap();
+    validate_constant_evaluations(&typed, &accounting, &constant_reaches).unwrap();
     // Stage 04 receives the two arguments, then the two constants.
     assert_eq!(
         values
@@ -732,4 +748,57 @@ fn values_that_need_each_other_are_refused_by_name() {
         "constant `SIDE` needs its own value, so its evaluation has no first step"
     );
     assert!(accounting.receipts().is_empty());
+}
+
+/// `VALUE` is computed by `calc`, which builds a `Packet`. Nothing it runs
+/// names `Spare`.
+const READS_PACKET: &str = "data Packet { bytes: u8; }
+    data Spare { bytes: u8; }
+    const VALUE: u8 = calc();
+    machine calc() -> u8 crashes none { let packet: Packet = Packet { bytes: 3u8 }; packet.bytes }
+    machine spare(held: Spare) -> u8 crashes none { held.bytes }
+    machine main() -> u8 crashes none { VALUE }";
+
+/// Evaluates `READS_PACKET`, then installs a layout for `data` as a later
+/// round would, after `VALUE`'s receipt was recorded, and joins the receipt.
+fn join_after_a_later_layout_of(data: &str) -> Result<(), String> {
+    let mut typed = typed_source(READS_PACKET);
+    let entry = typed.realized_machine_named("main").unwrap().symbol;
+    let mut accounting = SourceCompletionAccounting::default();
+    let evaluated =
+        evaluate_with_reaches(&mut typed, request(&[entry]), None, &mut accounting).unwrap();
+    validate_constant_evaluations(&typed, &accounting, &evaluated.constant_reaches).unwrap();
+    let symbol = typed.data_definition_by_name_str(data).unwrap().symbol;
+    typed
+        .plan_laid_layouts
+        .push(crate::source_state::PlanLaidLayout {
+            application: arena::Handle::invalid(),
+            semantic_type: arena::Handle::invalid(),
+            target_inputs: Vec::new(),
+            data_name: data.to_owned(),
+            data_symbol: symbol,
+            field_symbols: Vec::new(),
+            schema_symbol: symbol,
+            schema_field_symbols: Vec::new(),
+            policy_symbol: symbols::SymbolHandle::invalid(),
+            policy_plan_machine_symbol: symbols::SymbolHandle::invalid(),
+            schema_argument: None,
+            realizations: crate::source_state::PlanLaidRealizations::TargetInputs(
+                arena::HandleSpan::empty(),
+            ),
+        });
+    validate_constant_evaluations(&typed, &accounting, &evaluated.constant_reaches)
+}
+
+#[test]
+fn a_later_layout_of_data_the_constant_never_reached_is_accepted() {
+    join_after_a_later_layout_of("Spare").unwrap();
+}
+
+#[test]
+fn a_later_layout_of_data_the_constant_reached_refuses_its_receipt() {
+    assert_eq!(
+        join_after_a_later_layout_of("Packet").unwrap_err(),
+        "constant receipt read a layout that changed after the constant was evaluated"
+    );
 }
