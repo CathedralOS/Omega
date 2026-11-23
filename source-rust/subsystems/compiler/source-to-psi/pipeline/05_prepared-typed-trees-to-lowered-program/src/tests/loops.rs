@@ -668,7 +668,7 @@ fn a_tail_cycle_cannot_discard_a_supplied_theorem() {
     let body = Body {
         slots: Vec::new(),
         statements: vec![Statement::Arm {
-            guard: None,
+            guard: ArmGuard::Always,
             target: Target::Value(recursive),
             source: nowhere(),
         }],

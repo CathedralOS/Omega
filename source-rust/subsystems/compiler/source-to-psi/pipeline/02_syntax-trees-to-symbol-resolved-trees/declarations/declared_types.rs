@@ -1677,12 +1677,16 @@ mod type_alias_tests {
                 assert_eq!(program.symbols.get(formal).parent, parameter.symbol);
                 let expressions = &program.tables.bodies.expressions;
                 let declarations = &program.tables.declarations;
-                for clause in declarations.signature_contracts.span_or_empty(contract.contracts) {
+                for clause in declarations
+                    .signature_contracts
+                    .span_or_empty(contract.contracts)
+                {
                     for fact in declarations.proof_facts.span_or_empty(clause.facts) {
                         let ProofFact::Expression(expression) = fact else {
                             panic!("the fixture uses scalar clauses");
                         };
-                        let ResolvedExpression::Binary(binary) = expressions.expression(*expression)
+                        let ResolvedExpression::Binary(binary) =
+                            expressions.expression(*expression)
                         else {
                             panic!("each clause compares its formal with zero");
                         };

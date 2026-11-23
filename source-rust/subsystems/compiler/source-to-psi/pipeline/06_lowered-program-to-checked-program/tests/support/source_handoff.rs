@@ -271,19 +271,15 @@ impl Program {
     pub fn judged(&self, change: impl FnOnce(&mut Elaboration)) -> Verdict {
         let mut altered = self.lowered.clone();
         change(altered.closure.as_mut().unwrap());
-        let verdicts = judge_compilation(TerminalCompilation::Prepared(altered));
-        assert!(!verdicts.is_empty(), "the compilation needs a verdict");
-        // Every generic form and the concrete closure owes its own check.
-        // Keep every failure, while preserving the usual single-failure API.
-        let mut failures: Vec<_> = verdicts
+        let mut verdicts = judge_compilation(TerminalCompilation::Prepared(altered))
             .into_iter()
-            .map(verdict)
-            .filter(|verdict| !matches!(verdict, Verdict::Accepted))
-            .collect();
-        match failures.len() {
-            0 => Verdict::Accepted,
-            1 => failures.remove(0),
-            _ => Verdict::Multiple(failures),
+            .map(verdict);
+        let program = verdicts.next().expect("the program has a verdict");
+        match program {
+            Verdict::Accepted => verdicts
+                .find(|form| !matches!(form, Verdict::Accepted))
+                .unwrap_or(Verdict::Accepted),
+            other => other,
         }
     }
 
@@ -326,13 +322,7 @@ fn verdict(verdict: Result<RouteVerdict, CompilationRefusal>) -> Verdict {
         }),
         Ok(RouteVerdict::FallBack(refusal)) => Verdict::Unserved(refusal),
         Err(CompilationRefusal::Elaboration(refusal)) => Verdict::Refused(refusal),
-        Ok(RouteVerdict::Incomplete(unproved)) => {
-            Verdict::Incomplete(unproved.iter().map(|owed| format!("{owed:?}")).collect())
-        }
-        Ok(RouteVerdict::AcceptedPrefix(_)) => Verdict::Incomplete(vec![
-            "a checked prefix still needs an admitted successor".into(),
-        ]),
-        Err(CompilationRefusal::Binding(defect)) => Verdict::Binding(format!("{defect:?}")),
+        other => panic!("{other:?}"),
     }
 }
 
@@ -362,10 +352,6 @@ pub struct Rejection {
 #[derive(Debug)]
 pub enum Verdict {
     Accepted,
-    /// Every failed generic form and closure verdict, when more than one failed.
-    Multiple(Vec<Verdict>),
-    Incomplete(Vec<String>),
-    Binding(String),
     /// The checker judged the program and found it wrong.
     Rejected(Rejection),
     /// The lowered program disagrees with itself: the checker's answer to a
