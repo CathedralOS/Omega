@@ -1,0 +1,15 @@
+// Expected exit: 0
+data Lease dropped by finish { mark: u8; }
+machine finish(x: Lease) { let { mark as _ } = move x; }
+machine release(y: Lease) -> u8 { let { mark } = move y; mark }
+machine main() crashes Trap {
+    let kept: Lease = Lease { mark: 1u8 };
+    let taken: Lease = Lease { mark: 7u8 };
+    let mark: u8 = release(move taken);
+    transition mark == 7u8 {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

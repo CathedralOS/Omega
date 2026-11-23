@@ -193,3 +193,278 @@ fn back_source(machine: &TerminalMachine, edge: EdgeId) -> usize {
         .position(|block| matches!(&block.terminator, Terminator::Jump { edge: found, .. } if *found == edge))
         .unwrap()
 }
+
+fn mutual(first: &str, second: &str) -> String {
+    format!(
+        "machine first(n: u64) -> u64 terminates by n {{ transition {first} }} \
+         machine second(n: u64) -> u64 terminates by n {{ transition {second} }}"
+    )
+}
+
+/// The target block and comparison of each cycle edge that carries a
+/// jump's argument, by whether that argument is a subtraction result.
+fn handoffs(
+    machine: &TerminalMachine,
+) -> Vec<(
+    semantic_vocabulary::BlockId,
+    bool,
+    TerminalNaturalRankComparison,
+)> {
+    let subtractions: Vec<_> = machine
+        .operations()
+        .filter(|operation| matches!(operation.kind, OperationKind::ExactIntegerSubtract { .. }))
+        .filter_map(|operation| operation.result.scalar().map(|value| value.id))
+        .collect();
+    let cycle = cycle(machine);
+    let mut rows: Vec<_> = machine
+        .blocks
+        .iter()
+        .filter_map(|block| match &block.terminator {
+            Terminator::Jump {
+                edge,
+                target,
+                arguments,
+                ..
+            } if block.id != machine.entry => {
+                let claim = cycle.edges.iter().find(|claim| claim.edge == *edge)?;
+                Some((
+                    *target,
+                    subtractions.contains(&arguments[0]),
+                    claim.comparison,
+                ))
+            }
+            _ => None,
+        })
+        .collect();
+    rows.sort_by_key(|row| (row.0, row.1));
+    rows
+}
+
+/// The head block of the member a machine's entry jumps to.
+fn own_head(machine: &TerminalMachine) -> semantic_vocabulary::BlockId {
+    match &machine.blocks[0].terminator {
+        Terminator::Jump { target, .. } => *target,
+        other => panic!("the entry jumps to its head: {other:?}"),
+    }
+}
+
+/// In a mutual cycle each member's machine holds the whole component, one
+/// head block per member. The call that passes `n - 1` is the one Strict
+/// edge, into the head of the member it calls; the call that passes `n`
+/// unchanged is Preserving. Moving the decrement from `second` to `first`
+/// moves the Strict claim to the other head.
+#[test]
+fn in_a_mutual_cycle_only_the_decrementing_call_claims_descent() {
+    use TerminalNaturalRankComparison::{Preserving, Strict};
+    let handoff = "{ _ -> second(n), }";
+    let decrement_into_first = "n == 0 { true -> 9, false -> first(n - 1), }";
+    let decrement_into_second = "n == 0 { true -> 9, false -> second(n - 1), }";
+    let back = "{ _ -> first(n), }";
+    for (program, strict_into) in [
+        (Program::of(&mutual(handoff, decrement_into_first)), "first"),
+        (Program::of(&mutual(decrement_into_second, back)), "second"),
+    ] {
+        let heads = [
+            ("first", own_head(program.machine("first"))),
+            ("second", own_head(program.machine("second"))),
+        ];
+        let head = |name: &str| heads.iter().find(|(member, _)| *member == name).unwrap().1;
+        let preserved_into = if strict_into == "first" {
+            "second"
+        } else {
+            "first"
+        };
+        for member in ["first", "second"] {
+            let machine = program.machine(member);
+            assert_eq!(
+                handoffs(machine),
+                {
+                    let mut expected = vec![
+                        (head(strict_into), true, Strict),
+                        (head(preserved_into), false, Preserving),
+                    ];
+                    expected.sort_by_key(|row| (row.0, row.1));
+                    expected
+                },
+                "{member}"
+            );
+        }
+        program.judged(|_| {}).accepted();
+
+        // Turning every claim in `first`'s copy of the component around
+        // makes the unchanged handoff claim descent, which the checker
+        // cannot prove, so it rejects the cycle's comparisons.
+        let verdict = program.judged_in("first", |machine| {
+            let Some(TerminalRankedScc::Natural(cycles)) = &mut machine.ranked_scc else {
+                unreachable!()
+            };
+            for claim in &mut cycles[0].edges {
+                claim.comparison = match claim.comparison {
+                    Strict => Preserving,
+                    Preserving => Strict,
+                };
+            }
+        });
+        let rejection = verdict.rejected();
+        assert!(
+            rejection.unproved.len() == 2
+                && rejection
+                    .unproved
+                    .iter()
+                    .all(|kind| kind.starts_with("RankComparison")),
+            "{rejection:?}"
+        );
+    }
+}
+
+/// The value the range's ceiling is bound to: the third argument the entry
+/// passes to the block that establishes the range.
+fn ceiling_value(machine: &TerminalMachine) -> ValueId {
+    let Terminator::Jump { target, .. } = &machine.blocks[0].terminator else {
+        panic!("the entry jumps to the range's block")
+    };
+    machine
+        .blocks
+        .iter()
+        .find(|block| block.id == *target)
+        .map(|block| block.parameters[2].id)
+        .expect("the range's block binds floor, measure and ceiling")
+}
+
+/// The conjunct of the range invariant that compares the measure with the
+/// ceiling.
+fn ceiling_part<'p>(
+    machine: &TerminalMachine,
+    predicate: &'p semantic_vocabulary::Proposition,
+) -> &'p semantic_vocabulary::Proposition {
+    use semantic_vocabulary::{Proposition, ScalarTerm};
+    let ceiling = ceiling_value(machine);
+    let Proposition::Conjunction(parts) = predicate else {
+        panic!("floor and ceiling: {predicate:?}")
+    };
+    let found: Vec<_> = parts
+        .iter()
+        .filter(|part| {
+            matches!(part,
+                Proposition::LessOrEqual(_, ScalarTerm::Value { id, .. })
+                | Proposition::LessThan(_, ScalarTerm::Value { id, .. }) if *id == ceiling)
+        })
+        .collect();
+    let [part] = found.as_slice() else {
+        panic!("one ceiling comparison: {parts:?}")
+    };
+    part
+}
+
+fn visit(requires: &str, range: &str) -> String {
+    format!("machine visit(n: u64) requires {requires} terminates by n in {range} {{}}")
+}
+
+/// The rank range's invariant as stage 05 wrote it: whether the ceiling is
+/// inclusive, and the constant the ceiling is bound to.
+fn range_invariant(program: &Program) -> (bool, u64) {
+    use semantic_vocabulary::{IntegerValue, Proposition};
+    let visit = program.machine("visit");
+    let invariants: Vec<_> = program
+        .elaboration()
+        .module
+        .proofs
+        .scalar_block_invariants
+        .iter()
+        .filter(|invariant| invariant.machine == visit.id)
+        .collect();
+    let [invariant] = invariants.as_slice() else {
+        panic!("one rank range invariant: {invariants:?}")
+    };
+    let inclusive = match ceiling_part(visit, &invariant.predicate) {
+        Proposition::LessOrEqual(..) => true,
+        Proposition::LessThan(..) => false,
+        other => panic!("a ceiling comparison: {other:?}"),
+    };
+    let bound = visit
+        .operations()
+        .filter_map(|operation| match operation.kind {
+            OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(value),
+            } if value != 0 => Some(value as u64),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [bound] = bound.as_slice() else {
+        panic!("one nonzero bound: {bound:?}")
+    };
+    (inclusive, *bound)
+}
+
+/// `in 0..=9` writes an inclusive ceiling bound to 9 and `in 0..10` an
+/// exclusive one bound to 10; both hold under `requires n <= 9`. Under
+/// `requires n <= 10`, `0..=9` is rejected at the rank's arrival. Making
+/// the lowered `0..=9` ceiling exclusive makes `requires n <= 9` too weak,
+/// and the checker rejects it the same way.
+#[test]
+fn a_rank_range_keeps_its_own_ceiling_and_inclusivity() {
+    let inclusive = Program::of(&visit("n <= 9", "0..=9"));
+    assert_eq!(range_invariant(&inclusive), (true, 9));
+    inclusive.judged(|_| {}).accepted();
+    let exclusive = Program::of(&visit("n <= 9", "0..10"));
+    assert_eq!(range_invariant(&exclusive), (false, 10));
+    exclusive.judged(|_| {}).accepted();
+
+    let arrival = |rejection: program::Rejection| {
+        assert!(
+            rejection
+                .unproved
+                .iter()
+                .any(|kind| kind.starts_with("ArrivalInvariant")),
+            "{rejection:?}"
+        );
+    };
+    arrival(
+        Program::of(&visit("n <= 10", "0..=9"))
+            .judged(|_| {})
+            .rejected(),
+    );
+
+    let machine = inclusive.machine("visit");
+    let visit_id = machine.id;
+    let target = ceiling_part(machine, &range_predicate(&inclusive, visit_id)).clone();
+    arrival(
+        inclusive
+            .judged(|lowered| {
+                use semantic_vocabulary::Proposition;
+                for invariant in &mut lowered.module.proofs.scalar_block_invariants {
+                    if invariant.machine != visit_id {
+                        continue;
+                    }
+                    let Proposition::Conjunction(parts) = &mut invariant.predicate else {
+                        unreachable!()
+                    };
+                    for part in parts.iter_mut() {
+                        if *part == target {
+                            let Proposition::LessOrEqual(measure, ceiling) = part.clone() else {
+                                unreachable!()
+                            };
+                            *part = Proposition::LessThan(measure, ceiling);
+                        }
+                    }
+                }
+            })
+            .rejected(),
+    );
+}
+
+fn range_predicate(
+    program: &Program,
+    machine: semantic_vocabulary::MachineId,
+) -> semantic_vocabulary::Proposition {
+    program
+        .elaboration()
+        .module
+        .proofs
+        .scalar_block_invariants
+        .iter()
+        .find(|invariant| invariant.machine == machine)
+        .expect("the range invariant")
+        .predicate
+        .clone()
+}

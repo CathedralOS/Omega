@@ -178,6 +178,26 @@ path = "pipeline/06_lowered-program-to-checked-program/tests/rank_edges.rs"
 required-features = ["test-support"]
 
 [[test]]
+name = "checking_nominal_cleanup_selection"
+path = "pipeline/06_lowered-program-to-checked-program/tests/nominal_cleanup_selection.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_reference_results"
+path = "pipeline/06_lowered-program-to-checked-program/tests/reference_results.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_runtime_callables"
+path = "pipeline/06_lowered-program-to-checked-program/tests/runtime_callables.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_cast_edges"
+path = "pipeline/06_lowered-program-to-checked-program/tests/cast_edges.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "checking_dominance"
 path = "pipeline/06_lowered-program-to-checked-program/tests/dominance.rs"
 required-features = ["test-support"]

@@ -227,10 +227,11 @@ pub fn decomposition_authorized(
         identities,
         selection.declaration.identity(),
     )?;
-    let machine_owner = crate::closed_conformances::identity_package(
-        identities,
-        declaration.semantic_declaration,
-    )?;
+    // The machine's nominal identity names its owning package in the same
+    // grammar as the carrier's. Its semantic declaration is the hermetic
+    // `package:<digest>::declaration(...)` form, which that grammar refuses.
+    let machine_owner =
+        crate::closed_conformances::identity_package(identities, declaration.machine.identity())?;
     if carrier_owner.is_some() && carrier_owner == machine_owner {
         Ok(())
     } else {
