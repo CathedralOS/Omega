@@ -2925,6 +2925,23 @@ impl<'a> Storage<'a> {
                         unavailable.message(),
                     )
                 }
+                terminal_semantics::plain_affine::Error::Unconsumed { at_join, site, .. } => {
+                    let concerns = match site {
+                        Some(terminal_semantics::plain_affine::Site::Operation(at)) => {
+                            Construct::Operation(at)
+                        }
+                        Some(terminal_semantics::plain_affine::Site::Edge(at)) => {
+                            Construct::Edge(at)
+                        }
+                        None => Construct::Machine,
+                    };
+                    crate::checking::refusal(
+                        RefusalReason::Violation,
+                        self.machine,
+                        concerns,
+                        terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
+                    )
+                }
                 terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
                     self.foreign(Construct::Machine, detail)
                 }

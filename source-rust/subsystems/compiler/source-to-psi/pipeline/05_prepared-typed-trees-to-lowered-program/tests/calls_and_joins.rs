@@ -160,7 +160,7 @@ fn discard(declaration: &str) -> Result<Program, program::EarlierRefusal> {
 
 /// `_ = leaf(x)` calls `leaf` once and drops only its scalar result. `_ =
 /// make()` disposes of an affine `Handle` and is accepted, but a linear one
-/// may not be discarded: the program is refused before it reaches the
+/// may not be discarded: the program is rejected before it reaches the
 /// checker, because no edge may dispose of the linear result.
 #[test]
 fn a_discard_drops_one_call_result_and_cannot_drop_a_linear_one() {
@@ -188,8 +188,10 @@ fn a_discard_drops_one_call_result_and_cannot_drop_a_linear_one() {
         (linear.stage, linear.message.as_str()),
         (
             "lowering",
-            "Unsupported: while checking control-flow edge: normal edge cannot implicitly \
-             dispose storage without an authorized disposition"
+            "Violation: while checking control-flow edge: a linear value is still held when \
+             this path leaves its storage, and nothing consumes it: every path must pass it on, \
+             return it or end it by its declared disposition, and neither `_ =` nor leaving \
+             scope can discard it"
         )
     );
 }

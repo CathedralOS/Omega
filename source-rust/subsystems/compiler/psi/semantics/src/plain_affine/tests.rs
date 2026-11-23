@@ -442,8 +442,8 @@ fn an_unread_linear_value_survives_an_internal_edge_to_a_crash() {
         assert_eq!(error.site(), Some(Site::Edge(id(2))));
         assert!(matches!(
             error,
-            Error::Unsupported {
-                detail: "normal edge cannot implicitly dispose storage without an authorized disposition",
+            Error::Unconsumed {
+                at_join: false,
                 ..
             }
         ));
@@ -496,13 +496,23 @@ fn a_normal_return_cannot_forget_a_transfer_only_value() {
             edge: id(2),
             cleanup_actions: Vec::new(),
         };
-        assert!(matches!(
-            plan(&machine, &types),
-            Err(Error::Unsupported {
-                detail: "normal edge cannot implicitly dispose storage without an authorized disposition",
-                ..
-            })
-        ));
+        // A linear value is the program's error; an affine value with no
+        // disposition is a limit of this check.
+        let planned = plan(&machine, &types);
+        if linear {
+            assert!(
+                matches!(planned, Err(Error::Unconsumed { at_join: false, .. })),
+                "{planned:?}"
+            );
+        } else {
+            assert!(matches!(
+                planned,
+                Err(Error::Unsupported {
+                    detail: "normal edge cannot implicitly dispose storage without an authorized disposition",
+                    ..
+                })
+            ));
+        }
     }
 }
 
@@ -557,10 +567,7 @@ fn a_join_cannot_discard_a_live_transfer_only_residual() {
     );
     assert!(matches!(
         analysis.equalize(id(1), &held, &joined, 1),
-        Err(Error::Unsupported {
-            detail: "reconvergence cannot implicitly dispose storage without an authorized disposition",
-            ..
-        })
+        Err(Error::Unconsumed { at_join: true, .. })
     ));
     assert!(analysis.dispose(id(1), &joined, 1).is_err());
 }
