@@ -173,6 +173,11 @@ path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/selected_opera
 required-features = ["test-support"]
 
 [[test]]
+name = "lowering_written_places"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/written_places.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "checking_lowered_facts"
 path = "pipeline/06_lowered-program-to-checked-program/tests/lowered_facts.rs"
 required-features = ["test-support"]
@@ -205,6 +210,11 @@ required-features = ["test-support"]
 [[test]]
 name = "checking_runtime_callables"
 path = "pipeline/06_lowered-program-to-checked-program/tests/runtime_callables.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_call_contract_inputs"
+path = "pipeline/06_lowered-program-to-checked-program/tests/call_contract_inputs.rs"
 required-features = ["test-support"]
 
 [[test]]
