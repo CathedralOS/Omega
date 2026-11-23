@@ -99,8 +99,7 @@ the file and line:
   (`transition x == 100`), changing the bound or operation, or simplifying the
   construct under test. Positive programs that run must bind `ProgramEntry` for
   every hosted target the compiler implements (`windows_x86_64`, `linux_x86_64`,
-  `macos_arm64`, `linux_arm64`, and `windows_arm64` once **WINDOWS-ARM64-TARGET**
-  lands its target package) and
+  `macos_arm64`, `linux_arm64`, and `windows_arm64`) and
   produce their authored exit and expected outputs on both engines.
 - **Twins differ in one thing:** Each positive program and its negative twin
   (`pass/...` vs. `fail/...` under the kept fixtures) must differ **only** in

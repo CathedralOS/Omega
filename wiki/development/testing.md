@@ -492,7 +492,7 @@ scoped, never as a verified full baseline.
 the same refusals and limits on every hosted target, as
 [three layers](../spec/build/platform_services.md#three-layers)
 requires. It reads `std`'s source, not a build, and takes well under a second.
-For each provider `std/build.omg` selects on all four targets, it collects the
+For each provider `std/build.omg` selects on all five targets, it collects the
 refusals, guard limits, constant arguments and clamps each member reaches, and
 lists every one that some targets have and others lack.
 

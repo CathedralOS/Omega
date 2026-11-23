@@ -110,63 +110,78 @@ pub struct LinuxWriteLineRealization;
 pub struct ClaimCompletionOnlyRealization;
 
 /// Fixed operating-system imports used to implement a sealed compiler primitive.
-/// A Build-issued import carries its own independent receipt.
+/// A Build-issued import carries its own independent receipt. Each Windows
+/// target imports `kernel32!ExitProcess` under its own locator and C ABI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CompilerImport {
     WindowsProcessExit,
+    WindowsArm64ProcessExit,
 }
 
 impl CompilerImport {
     pub const fn tag(self) -> u8 {
         match self {
             Self::WindowsProcessExit => 0,
+            Self::WindowsArm64ProcessExit => 1,
         }
     }
 
     pub const fn from_tag(tag: u8) -> Option<Self> {
         match tag {
             0 => Some(Self::WindowsProcessExit),
+            1 => Some(Self::WindowsArm64ProcessExit),
             _ => None,
+        }
+    }
+
+    /// The import that realizes hosted process exit on `profile`, if any.
+    pub const fn process_exit(profile: target::TargetProfile) -> Option<Self> {
+        match profile {
+            target::TargetProfile::WindowsX64 => Some(Self::WindowsProcessExit),
+            target::TargetProfile::WindowsArm64 => Some(Self::WindowsArm64ProcessExit),
+            _ => None,
+        }
+    }
+
+    pub const fn target(self) -> target::TargetProfile {
+        match self {
+            Self::WindowsProcessExit => target::TargetProfile::WindowsX64,
+            Self::WindowsArm64ProcessExit => target::TargetProfile::WindowsArm64,
         }
     }
 
     pub fn locator(self) -> &'static target::NormalizedForeignLocator {
         use std::sync::OnceLock;
-        static EXIT: OnceLock<target::NormalizedForeignLocator> = OnceLock::new();
-        match self {
-            Self::WindowsProcessExit => EXIT.get_or_init(|| {
-                target::normalize_foreign_locator(
-                    target::ForeignLocatorCandidate::PeByName {
-                        library: b"kernel32.dll".to_vec(),
-                        export: b"ExitProcess".to_vec(),
-                    },
-                    target::TargetProfile::WindowsX64,
-                )
-                .expect("kernel32 ExitProcess is a Windows import")
-            }),
-        }
+        static EXIT: [OnceLock<target::NormalizedForeignLocator>; 2] =
+            [OnceLock::new(), OnceLock::new()];
+        EXIT[usize::from(self.tag())].get_or_init(|| {
+            target::normalize_foreign_locator(
+                target::ForeignLocatorCandidate::PeByName {
+                    library: b"kernel32.dll".to_vec(),
+                    export: b"ExitProcess".to_vec(),
+                },
+                self.target(),
+            )
+            .expect("kernel32 ExitProcess is a Windows import")
+        })
     }
 
     pub fn entry_plan(self) -> &'static BoundaryEntryPlan {
         use calling_conventions::{CallSignature, CallingPolicy, ValueShape};
         use std::sync::OnceLock;
-        static PLAN: OnceLock<BoundaryEntryPlan> = OnceLock::new();
-        match self {
-            Self::WindowsProcessExit => PLAN.get_or_init(|| {
-                calling_conventions::evaluate_ordinary_boundary_entry_plan(
-                    CallingPolicy::native_for_target(
-                        target::TargetProfile::WindowsX64.native_target(),
-                    ),
-                    &CallSignature {
-                        parameters: vec![ValueShape::integer(4, 4)],
-                        result: None,
-                    },
-                )
-                .expect("ExitProcess takes one Windows DWORD and never returns")
-                .plan()
-                .clone()
-            }),
-        }
+        static PLAN: [OnceLock<BoundaryEntryPlan>; 2] = [OnceLock::new(), OnceLock::new()];
+        PLAN[usize::from(self.tag())].get_or_init(|| {
+            calling_conventions::evaluate_ordinary_boundary_entry_plan(
+                CallingPolicy::native_for_target(self.target().native_target()),
+                &CallSignature {
+                    parameters: vec![ValueShape::integer(4, 4)],
+                    result: None,
+                },
+            )
+            .expect("ExitProcess takes one Windows DWORD and never returns")
+            .plan()
+            .clone()
+        })
     }
 
     pub fn binding(
@@ -226,7 +241,9 @@ pub enum NormalizedForeignCallMechanism {
 }
 
 impl NormalizedForeignCallMechanism {
-    fn same_stack_contribution(&self) -> Option<&provider_stack_contribution::AdmittedSameStackContribution> {
+    fn same_stack_contribution(
+        &self,
+    ) -> Option<&provider_stack_contribution::AdmittedSameStackContribution> {
         match self {
             Self::Import {
                 same_stack_contribution,
@@ -296,15 +313,10 @@ impl NormalizedForeignCallBinding {
             super::BoundaryExecutionBinding::CompilerBuiltin(
                 super::CompilerBuiltinExecution::HostedExitProcessI32,
             ),
-            NormalizedForeignCallMechanism::CompilerImport {
-                import: CompilerImport::WindowsProcessExit,
-                ..
-            },
+            NormalizedForeignCallMechanism::CompilerImport { import, .. },
         ) = (execution, &self.mechanism)
         {
-            return Some(super::ExternalExecutionBinding::CompilerImport(
-                CompilerImport::WindowsProcessExit,
-            ));
+            return Some(super::ExternalExecutionBinding::CompilerImport(*import));
         }
         execution.external()
     }
@@ -540,7 +552,9 @@ impl NormalizedForeignCallBinding {
         }
     }
 
-    pub fn same_stack_contribution(&self) -> Option<&provider_stack_contribution::AdmittedSameStackContribution> {
+    pub fn same_stack_contribution(
+        &self,
+    ) -> Option<&provider_stack_contribution::AdmittedSameStackContribution> {
         self.mechanism.same_stack_contribution()
     }
 
