@@ -551,13 +551,12 @@ impl CallingPolicy {
             (Architecture::X86_64, target::ObjectFormat::Coff) => Self::MicrosoftX64,
             (Architecture::X86_64, target::ObjectFormat::Elf)
             | (Architecture::X86_64, target::ObjectFormat::MachO) => Self::SystemVAMD64,
-            (Architecture::Aarch64, target::ObjectFormat::Elf) => Self::Aapcs64,
-            (Architecture::Aarch64, target::ObjectFormat::MachO) => Self::DarwinAapcs64,
-            (Architecture::Aarch64, target::ObjectFormat::Coff) => {
-                panic!(
-                    "no native calling policy is declared for this (architecture, object-format) pair"
-                )
+            // Windows ARM64 places fixed arguments and results exactly as
+            // AAPCS64 does; its reserved x18 belongs to the register model.
+            (Architecture::Aarch64, target::ObjectFormat::Elf | target::ObjectFormat::Coff) => {
+                Self::Aapcs64
             }
+            (Architecture::Aarch64, target::ObjectFormat::MachO) => Self::DarwinAapcs64,
         }
     }
 
@@ -567,12 +566,8 @@ impl CallingPolicy {
             (Architecture::Aarch64, target::ObjectFormat::Elf) => Some(Self::LinuxSyscallAarch64),
             (Architecture::X86_64, target::ObjectFormat::Coff)
             | (Architecture::X86_64, target::ObjectFormat::MachO)
-            | (Architecture::Aarch64, target::ObjectFormat::MachO) => None,
-            (Architecture::Aarch64, target::ObjectFormat::Coff) => {
-                panic!(
-                    "no native syscall policy is declared for this (architecture, object-format) pair"
-                )
-            }
+            | (Architecture::Aarch64, target::ObjectFormat::MachO)
+            | (Architecture::Aarch64, target::ObjectFormat::Coff) => None,
         }
     }
 

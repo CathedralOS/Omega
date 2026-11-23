@@ -1,7 +1,7 @@
 /*
 We test target-to-policy selection (`native_for_target`,
-`native_syscall_for_target`), fail-closed rejection for undeclared
-architecture/object-format pairs, architecture drift rejection on syscall
+`native_syscall_for_target`) for every architecture/object-format pair,
+architecture drift rejection on syscall
 plans, and multi-word integer formal placement across the six Linux syscall
 argument registers.
 */
@@ -29,6 +29,11 @@ fn native_for_target_maps_each_declared_pair_to_its_policy() {
             CallingPolicy::SystemVAMD64,
         ),
         (target::NativeTarget::linux_arm64(), CallingPolicy::Aapcs64),
+        // Windows ARM64 places fixed arguments as AAPCS64 does.
+        (
+            target::NativeTarget::windows_arm64(),
+            CallingPolicy::Aapcs64,
+        ),
         (
             target::NativeTarget::macos_arm64(),
             CallingPolicy::DarwinAapcs64,
@@ -44,20 +49,6 @@ fn native_for_target_maps_each_declared_pair_to_its_policy() {
 }
 
 #[test]
-fn native_for_target_fails_closed_for_undeclared_pairs() {
-    let undeclared = target::NativeTarget {
-        architecture: Architecture::Aarch64,
-        object_format: target::ObjectFormat::Coff,
-        pointer_size: 8,
-        pointer_alignment: 8,
-    };
-    assert!(
-        std::panic::catch_unwind(|| CallingPolicy::native_for_target(undeclared)).is_err(),
-        "undeclared pair must fail closed"
-    );
-}
-
-#[test]
 fn native_syscall_for_target_maps_each_supported_target_to_its_row() {
     for (target, policy) in [
         (
@@ -69,6 +60,7 @@ fn native_syscall_for_target_maps_each_supported_target_to_its_row() {
             Some(CallingPolicy::LinuxSyscallAarch64),
         ),
         (target::NativeTarget::windows_x64(), None),
+        (target::NativeTarget::windows_arm64(), None),
         (target::NativeTarget::uefi_x64(), None),
         (target::NativeTarget::macos_arm64(), None),
         (target::NativeTarget::macos_x64(), None),
@@ -78,21 +70,6 @@ fn native_syscall_for_target_maps_each_supported_target_to_its_row() {
             assert_eq!(policy.architecture(), target.architecture);
         }
     }
-}
-
-#[test]
-fn native_syscall_for_target_fails_closed_for_undeclared_pairs() {
-    let undeclared = target::NativeTarget {
-        architecture: Architecture::Aarch64,
-        object_format: target::ObjectFormat::Coff,
-        pointer_size: 8,
-        pointer_alignment: 8,
-    };
-    assert!(
-        std::panic::catch_unwind(|| { CallingPolicy::native_syscall_for_target(undeclared) })
-            .is_err(),
-        "undeclared pair must fail closed"
-    );
 }
 
 #[test]

@@ -1045,17 +1045,7 @@ pub(crate) mod load_layout {
         }
 
         const fn target_tag(target: TargetProfile) -> u8 {
-            match target {
-                TargetProfile::LinuxArm64 => 1,
-                TargetProfile::LinuxX64 => 2,
-                TargetProfile::MacosArm64 => 3,
-                TargetProfile::WindowsX64 => 4,
-                TargetProfile::UefiX64 => 5,
-                TargetProfile::CrossPlatformCli => 6,
-                TargetProfile::LocalUnchecked => 7,
-                TargetProfile::AlphaBootstrap => 8,
-                TargetProfile::MacosX64 => 9,
-            }
+            target.identity_tag()
         }
 
         pub(crate) fn checked_align(

@@ -23,6 +23,9 @@ pub(crate) fn encode_representation_target(
             PackageReviewRepresentationTargetProfile::WindowsX64 => {
                 encoder.tag("windows_x86_64", 3)
             }
+            PackageReviewRepresentationTargetProfile::WindowsArm64 => {
+                encoder.tag("windows_arm64", 8)
+            }
             PackageReviewRepresentationTargetProfile::UefiX64 => encoder.tag("uefi_x86_64", 4),
             PackageReviewRepresentationTargetProfile::CrossPlatformCli => {
                 encoder.tag("cross_platform_cli", 5)

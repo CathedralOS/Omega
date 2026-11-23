@@ -21,6 +21,7 @@ pub(in crate::encoding::recovery) fn target(
             5 => PackageReviewRepresentationTargetProfile::CrossPlatformCli,
             6 => PackageReviewRepresentationTargetProfile::LocalUnchecked,
             7 => PackageReviewRepresentationTargetProfile::MacosX64,
+            8 => PackageReviewRepresentationTargetProfile::WindowsArm64,
         }),
         architecture: super::super::tag!(reader => {
             0 => PackageReviewRepresentationArchitecture::Aarch64,

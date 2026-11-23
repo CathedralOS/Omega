@@ -341,9 +341,9 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 ## Rust compiler release closure
 
 - **WINDOWS-ARM64-TARGET.** The owner ruled on 2026-11-23 that `windows_arm64` (Windows on AArch64, PE/COFF) is the fifth hosted target. Make the compiler produce working Windows ARM64 programs by generalizing the existing AArch64 ([target-aarch64](source-rust/subsystems/compiler/psi-to-native/targets/target-aarch64)) and Windows PE ([image-pe](source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-pe)) mechanisms, not by copying them. Follow [calling plans](wiki/spec/build/calling_plans.md), [entry roots](wiki/spec/build/entry_roots.md), [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection) and [foreign bindings](wiki/spec/build/foreign_bindings.md).
-  - Add the `windows_arm64` target profile, its `NativeTarget` (AArch64, COFF) and its `ProgramEntry` slot with a std entry contract.
-  - Model the Windows ARM64 calling convention: x18 reserved for the TEB on every call, variadic arguments passed in general registers (floating-point values included), and composite return rules.
-  - Emit PE32+ images with machine `0xAA64`, AArch64 import thunks through the IAT, and the `.pdata`/`.xdata` unwind records Windows requires for each non-leaf function.
+  - Model Windows ARM64 variadic calls: variadic arguments travel in general registers, floating-point values included. The calling vocabulary has no variadic signature yet, so no policy can request this placement.
+  - Emit the `.pdata`/`.xdata` unwind records Windows requires for each non-leaf function, so exceptions and stack walks can cross Omega frames.
+  - Write hosted receiver observations (`omega run --inputs/--outputs`) on `windows_arm64` through an imported write, as `windows_x86_64` does; the AArch64 receiver entry writes only by Darwin and Linux system calls. Admit `windows_arm64` component DLLs in `ComponentImportLocator` and `emit_pe_shared_component`.
   - Select std's Windows providers for `windows_arm64` through Build rows as ordinary implementations; no target keywords or target-prefixed declarations ([target-scoped families](wiki/spec/language/machines.md)). Extend `mbx xtask check-portable-services` to five targets.
   - Remaining acceptance: on a real `windows_arm64` host, run the native programs and compare termination, stdout and stderr with Psi. Cross-target bytes do not replace this run.
 

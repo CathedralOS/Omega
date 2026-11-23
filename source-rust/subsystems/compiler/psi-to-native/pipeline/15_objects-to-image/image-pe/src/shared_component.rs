@@ -11,7 +11,7 @@ use object_file::SymbolKind;
 
 use crate::bytes::{write_u16_at, write_u32_at};
 use crate::constants::TEXT_RVA;
-use crate::{PeImageKind, emit_pe_x86_64};
+use crate::{PeImageKind, emit_pe};
 
 const COMPONENT_DIRECTORY_NAME: &[u8] = b"omega-component.dll\0";
 
@@ -69,7 +69,7 @@ pub fn emit_pe_shared_component(
             "shared component requires a Windows x86-64 PE container",
         ));
     }
-    match emit_pe_x86_64(
+    match emit_pe(
         image.clone(),
         3,
         PeImageKind::SharedComponent {

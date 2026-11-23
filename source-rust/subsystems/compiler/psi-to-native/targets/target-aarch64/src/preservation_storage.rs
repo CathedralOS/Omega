@@ -1,6 +1,7 @@
 /*
 We define and validate the AArch64 ABI callee-saved preservation-storage catalog
-(`aarch64_preservation_storage_catalog`) for `linux_arm64` and `macos_arm64`,
+(`aarch64_preservation_storage_catalog`) for `linux_arm64`, `macos_arm64` and
+`windows_arm64`,
 binding preserved general-purpose (`x19`..`x28`) and low-64-bit vector
 (`d8`..`d15`) registers to their canonical save/restore groups.
 */
@@ -39,7 +40,13 @@ pub fn aarch64_preservation_storage_catalog(
     if model.identity() != crate::canonical_aarch64_physical_register_model_identity() {
         return Err(Aarch64PreservationStorageCatalogError::PhysicalRegisterModelMismatch);
     }
-    if target != NativeTarget::linux_arm64() && target != NativeTarget::macos_arm64() {
+    if ![
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+        NativeTarget::windows_arm64(),
+    ]
+    .contains(&target)
+    {
         return Err(Aarch64PreservationStorageCatalogError::UnsupportedTarget);
     }
     let convention = aarch64_preservation_convention_for_target(model, target)

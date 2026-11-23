@@ -164,7 +164,7 @@ mod isa {
 
         pub(crate) fn import_thunk_size(self) -> usize {
             match self {
-                Self::Aarch64 => 12,
+                Self::Aarch64 => target_aarch64::import_thunk::AARCH64_IMPORT_THUNK_BYTE_COUNT,
                 Self::X86_64 => target_x86_64::import_thunk::X86_64_IMPORT_THUNK_BYTE_COUNT,
             }
         }
@@ -185,14 +185,7 @@ mod isa {
 
         pub(crate) fn thunk_footprint(self) -> StateFootprintEvidence {
             match self {
-                Self::Aarch64 => StateFootprintEvidence::new(
-                    calling_conventions::RegisterSet::new([
-                        calling_conventions::MachineRegister::Aarch64X(16),
-                    ]),
-                    calling_conventions::MachineStateSet::new([
-                        calling_conventions::MachineState::InstructionPointer,
-                    ]),
-                ),
+                Self::Aarch64 => target_aarch64::import_thunk::aarch64_import_thunk_footprint(),
                 Self::X86_64 => target_x86_64::import_thunk::x86_64_import_thunk_footprint(),
             }
         }

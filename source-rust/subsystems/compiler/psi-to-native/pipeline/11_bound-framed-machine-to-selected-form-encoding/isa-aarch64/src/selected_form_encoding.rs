@@ -13076,14 +13076,7 @@ mod normalized_foreign_call {
             fixture::rejects_wrong_kind_target_alternative_and_fixup(
                 &entrances(),
                 inputs,
-                &[
-                    NativeTarget::linux_x64(),
-                    NativeTarget::windows_x64(),
-                    NativeTarget {
-                        object_format: target::ObjectFormat::Coff,
-                        ..NativeTarget::macos_arm64()
-                    },
-                ],
+                &[NativeTarget::linux_x64(), NativeTarget::windows_x64()],
                 &0x1400_0000_u32.to_le_bytes(),
             );
         }
@@ -13864,18 +13857,13 @@ mod scalar_call {
                 aarch64_selected_abi(NativeTarget::linux_arm64()),
                 Ok(Aarch64SelectedAbi::Aapcs64)
             );
-            assert_eq!(
-                aarch64_selected_abi(NativeTarget::macos_arm64()),
-                Ok(Aarch64SelectedAbi::Darwin)
-            );
-            for undeclared in [
-                NativeTarget {
-                    object_format: target::ObjectFormat::Coff,
-                    ..NativeTarget::linux_arm64()
-                },
-                NativeTarget::linux_x64(),
-                NativeTarget::windows_x64(),
-            ] {
+            for reserved_x18 in [NativeTarget::macos_arm64(), NativeTarget::windows_arm64()] {
+                assert_eq!(
+                    aarch64_selected_abi(reserved_x18),
+                    Ok(Aarch64SelectedAbi::Darwin)
+                );
+            }
+            for undeclared in [NativeTarget::linux_x64(), NativeTarget::windows_x64()] {
                 assert_eq!(
                 aarch64_selected_abi(undeclared),
                 Err(
@@ -13915,23 +13903,6 @@ mod scalar_call {
             assert_eq!(
                 validate_aarch64_selected_scalar_call_template(
                     NativeTarget::linux_x64(),
-                    &physical,
-                    kind,
-                    alternative,
-                    &operands,
-                    &effects,
-                    &0x9400_0000_u32.to_le_bytes(),
-                    fixup,
-                ),
-                Err(Aarch64ScalarCallTemplateError::UnsupportedTarget)
-            );
-            let undeclared_coff = NativeTarget {
-                object_format: target::ObjectFormat::Coff,
-                ..NativeTarget::linux_arm64()
-            };
-            assert_eq!(
-                validate_aarch64_selected_scalar_call_template(
-                    undeclared_coff,
                     &physical,
                     kind,
                     alternative,

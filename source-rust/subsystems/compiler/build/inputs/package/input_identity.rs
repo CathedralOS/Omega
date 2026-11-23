@@ -177,15 +177,5 @@ fn hash_component_description(
 }
 
 fn target_profile_tag(profile: target::TargetProfile) -> u8 {
-    match profile {
-        target::TargetProfile::LinuxArm64 => 1,
-        target::TargetProfile::LinuxX64 => 2,
-        target::TargetProfile::MacosArm64 => 3,
-        target::TargetProfile::WindowsX64 => 4,
-        target::TargetProfile::UefiX64 => 5,
-        target::TargetProfile::CrossPlatformCli => 6,
-        target::TargetProfile::LocalUnchecked => 7,
-        target::TargetProfile::AlphaBootstrap => 8,
-        target::TargetProfile::MacosX64 => 9,
-    }
+    profile.identity_tag()
 }

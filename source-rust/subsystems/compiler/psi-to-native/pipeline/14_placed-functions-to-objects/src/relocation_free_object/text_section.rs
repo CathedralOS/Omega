@@ -166,8 +166,7 @@ fn assemble_object(
 mod tests {
     use super::construct_relocation_free_object_from_text;
     use crate::{
-        ObjectLocalSymbolId, PlacedFunctionFragment, RelocationFreeObjectError,
-        RelocationFreeObjectFromTextError, RelocationFreeTextSectionPlacement,
+        ObjectLocalSymbolId, PlacedFunctionFragment, RelocationFreeTextSectionPlacement,
         TextSectionPlacementPolicy, TextSectionRelocationRequirements,
     };
     use optimization_core::{
@@ -176,7 +175,7 @@ mod tests {
     };
     use selected_instructions::SelectedInstructionPlanIdentity;
     use semantic_vocabulary::{MachineId, WorkScheduleIdentity};
-    use target::{Architecture, NativeTarget, ObjectFormat};
+    use target::NativeTarget;
     use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
     fn text_with_target(target: NativeTarget) -> RelocationFreeTextSectionPlacement {
@@ -211,25 +210,6 @@ mod tests {
             unresolved_normalized_foreign_calls: vec![],
             unresolved_image_addresses: Vec::new(),
         }
-    }
-
-    #[test]
-    fn construction_fails_closed_on_undeclared_target_pair() {
-        let target = NativeTarget {
-            architecture: Architecture::Aarch64,
-            object_format: ObjectFormat::Coff,
-            pointer_size: 8,
-            pointer_alignment: 8,
-        };
-        assert_eq!(
-            construct_relocation_free_object_from_text(
-                &text_with_target(target),
-                OptimizationSelectionIdentity::from_bytes([6; 32]),
-            ),
-            Err(RelocationFreeObjectFromTextError::InvalidObject(
-                RelocationFreeObjectError::NonCanonicalTarget
-            ))
-        );
     }
 
     #[test]

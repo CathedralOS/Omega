@@ -2,7 +2,7 @@
 use calling_conventions::{
     MachineRegister as R, MachineState as S, MachineStateSet, RegisterSet, StateEffectsEvidence,
 };
-use target::{Architecture, NativeTarget};
+use target::{Architecture, NativeTarget, ObjectFormat};
 
 use machine_code::hosted_entry::{EntrySymbol, HostedEntryMode};
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,14 +24,7 @@ pub fn plan_hosted_entry(
     mode: HostedEntryMode,
     storage: &[ReceiverStorage],
 ) -> Result<HostedEntryProgram, &'static str> {
-    if ![
-        NativeTarget::linux_x64(),
-        NativeTarget::linux_arm64(),
-        NativeTarget::macos_x64(),
-        NativeTarget::macos_arm64(),
-        NativeTarget::windows_x64(),
-    ]
-    .contains(&target)
+    if !crate::hosted_program::supports_unit_entry(target)
         || mode != HostedEntryMode::Receiver && !storage.is_empty()
         || mode == HostedEntryMode::Receiver && storage.is_empty()
     {
@@ -140,9 +133,16 @@ fn reference(
     });
 }
 
+/// The Linux kernel enters an ELF program with no return address, so it must
+/// exit by system call. The Darwin and Windows loaders call the entry as a
+/// function and take its returned value as the exit status.
+fn returns_to_loader(target: NativeTarget) -> bool {
+    target.object_format != ObjectFormat::Elf
+}
+
 fn plan_loader(target: NativeTarget, ops: &mut Vec<Operation>) -> Result<(), &'static str> {
     if target.architecture == Architecture::Aarch64 {
-        let returning = target == NativeTarget::macos_arm64();
+        let returning = returns_to_loader(target);
         if returning {
             ops.push(Operation::A64Fixed(A64Template::SaveLoaderFrame));
         }
@@ -191,6 +191,11 @@ fn plan_aarch64(
     ops: &mut Vec<Operation>,
 ) -> Result<(), &'static str> {
     let darwin = target == NativeTarget::macos_arm64();
+    if !darwin && target != NativeTarget::linux_arm64() && !storage.is_empty() {
+        // Receiver output writes use Darwin and Linux system calls; a Windows
+        // program must write through an imported function instead.
+        return Err("hosted receiver output has no physical program for this AArch64 target");
+    }
     ops.push(Operation::A64Address {
         register: 9,
         destination: EntrySymbol::Scratch,
@@ -251,7 +256,7 @@ fn plan_aarch64(
         register: 9,
         destination: EntrySymbol::Scratch,
     });
-    ops.push(Operation::A64Fixed(if darwin {
+    ops.push(Operation::A64Fixed(if returns_to_loader(target) {
         A64Template::DarwinComplete
     } else {
         A64Template::LinuxComplete

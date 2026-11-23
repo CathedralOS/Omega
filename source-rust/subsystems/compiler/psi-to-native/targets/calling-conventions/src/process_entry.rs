@@ -105,11 +105,20 @@ const fn row(
     }
 }
 
-const ARRIVALS: [PhysicalArrival; 6] = [
+const ARRIVALS: [PhysicalArrival; 7] = [
     row(
         Package::WindowsX64,
         Convention::MicrosoftX64,
         CallingPolicy::MicrosoftX64,
+        &[],
+        INTEGER32,
+        Some(ordinary_arrival),
+        None,
+    ),
+    row(
+        Package::WindowsArm64,
+        Convention::Aapcs64,
+        CallingPolicy::Aapcs64,
         &[],
         INTEGER32,
         Some(ordinary_arrival),

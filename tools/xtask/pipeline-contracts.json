@@ -12525,7 +12525,7 @@
       "kind": "definition",
       "meaning": "The template selected for the exact target architecture and object format.",
       "producer": "04 physical planning",
-      "signature": "80675e5e350d6de2495cd550376e31c3f2f750992f392c80398da39afd1bcb8c"
+      "signature": "07314d9ffa4eb6af0e339ade47cc006f8a7c655f34972babbc5bfd9a6491f7d1"
     },
     {
       "consumers": [

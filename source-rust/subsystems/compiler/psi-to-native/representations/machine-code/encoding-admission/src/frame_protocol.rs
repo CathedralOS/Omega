@@ -210,12 +210,11 @@ mod tests {
     }
 
     #[test]
-    fn codec_matrix_fails_closed_on_undeclared_pairs() {
-        let target = NativeTarget {
-            object_format: ObjectFormat::Coff,
-            ..NativeTarget::linux_arm64()
-        };
-        assert_eq!(frame_protocol_codec(target), None, "{target:?}");
+    fn windows_arm64_frames_use_the_aarch64_codec() {
+        assert_eq!(
+            frame_protocol_codec(NativeTarget::windows_arm64()),
+            Some(FrameProtocolCodec::Aarch64)
+        );
     }
 
     #[test]

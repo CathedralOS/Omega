@@ -34,6 +34,7 @@ pub enum TargetProfile {
     MacosArm64,
     MacosX64,
     WindowsX64,
+    WindowsArm64,
     UefiX64,
     CrossPlatformCli,
     LocalUnchecked,
@@ -66,6 +67,7 @@ pub enum ProgramEntryPhysicalContractPackage {
     LinuxX86_64,
     LinuxArm64,
     WindowsX64,
+    WindowsArm64,
 }
 
 impl ProgramEntryPhysicalContractPackage {
@@ -77,6 +79,7 @@ impl ProgramEntryPhysicalContractPackage {
             Self::LinuxX86_64 => "omega::language::std::targets::linux_x86_64::entry",
             Self::LinuxArm64 => "omega::language::std::targets::linux_arm64::entry",
             Self::WindowsX64 => "omega::language::std::targets::windows_x86_64::entry",
+            Self::WindowsArm64 => "omega::language::std::targets::windows_arm64::entry",
         }
     }
 
@@ -88,6 +91,7 @@ impl ProgramEntryPhysicalContractPackage {
             Self::LinuxX86_64 => "targets/linux_x86_64/entry.omg",
             Self::LinuxArm64 => "targets/linux_arm64/entry.omg",
             Self::WindowsX64 => "targets/windows_x86_64/entry.omg",
+            Self::WindowsArm64 => "targets/windows_arm64/entry.omg",
         }
     }
 
@@ -99,6 +103,7 @@ impl ProgramEntryPhysicalContractPackage {
             Self::LinuxX86_64 => "Linux x86-64",
             Self::LinuxArm64 => "Linux ARM64",
             Self::WindowsX64 => "Windows x86-64",
+            Self::WindowsArm64 => "Windows ARM64",
         }
     }
 }
@@ -257,22 +262,40 @@ impl TargetProfile {
             | Self::MacosArm64
             | Self::MacosX64
             | Self::WindowsX64
+            | Self::WindowsArm64
             | Self::UefiX64 => semantic_vocabulary::IntegerType::address(64).ok(),
             Self::CrossPlatformCli | Self::LocalUnchecked | Self::AlphaBootstrap => None,
         }
     }
 
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::LinuxArm64,
         Self::LinuxX64,
         Self::MacosArm64,
         Self::MacosX64,
         Self::WindowsX64,
+        Self::WindowsArm64,
         Self::UefiX64,
         Self::CrossPlatformCli,
         Self::LocalUnchecked,
         Self::AlphaBootstrap,
     ];
+
+    /// The one-byte profile tag that package and image identities hash.
+    pub const fn identity_tag(self) -> u8 {
+        match self {
+            Self::LinuxArm64 => 1,
+            Self::LinuxX64 => 2,
+            Self::MacosArm64 => 3,
+            Self::WindowsX64 => 4,
+            Self::UefiX64 => 5,
+            Self::CrossPlatformCli => 6,
+            Self::LocalUnchecked => 7,
+            Self::AlphaBootstrap => 8,
+            Self::MacosX64 => 9,
+            Self::WindowsArm64 => 10,
+        }
+    }
 
     pub const fn identity(self) -> TargetProfileIdentity {
         TargetProfileIdentity(match self {
@@ -281,6 +304,7 @@ impl TargetProfile {
             Self::MacosArm64 => "omega.target-profile.v1:macos_arm64",
             Self::MacosX64 => "omega.target-profile.v1:macos_x86_64",
             Self::WindowsX64 => "omega.target-profile.v1:windows_x86_64",
+            Self::WindowsArm64 => "omega.target-profile.v1:windows_arm64",
             Self::UefiX64 => "omega.target-profile.v1:uefi_x86_64",
             Self::CrossPlatformCli => "omega.target-profile.v1:cross_platform_cli",
             Self::LocalUnchecked => "omega.target-profile.v1:local_unchecked",
@@ -303,6 +327,8 @@ impl TargetProfile {
             Some(Self::LinuxX64)
         } else if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
             Some(Self::WindowsX64)
+        } else if cfg!(all(target_os = "windows", target_arch = "aarch64")) {
+            Some(Self::WindowsArm64)
         } else {
             None
         }
@@ -314,7 +340,7 @@ impl TargetProfile {
         };
         Self::from_canonical_target_name(target_name).map_err(|_| {
             Diagnostic::error(format!(
-                "unknown target profile `{target_name}`; expected linux_arm64, linux_x86_64, macos_arm64, macos_x86_64, windows_x86_64, uefi_x86_64, cross_platform_cli, local_unchecked, or alpha_bootstrap"
+                "unknown target profile `{target_name}`; expected linux_arm64, linux_x86_64, macos_arm64, macos_x86_64, windows_x86_64, windows_arm64, uefi_x86_64, cross_platform_cli, local_unchecked, or alpha_bootstrap"
             ))
         })
     }
@@ -340,6 +366,7 @@ impl TargetProfile {
             Self::MacosArm64 => "macos_arm64",
             Self::MacosX64 => "macos_x86_64",
             Self::WindowsX64 => "windows_x86_64",
+            Self::WindowsArm64 => "windows_arm64",
             Self::UefiX64 => "uefi_x86_64",
             Self::CrossPlatformCli => "cross_platform_cli",
             Self::LocalUnchecked => "local_unchecked",
@@ -354,6 +381,7 @@ impl TargetProfile {
             Self::MacosArm64 => "MacosArm64",
             Self::MacosX64 => "MacosX86_64",
             Self::WindowsX64 => "WindowsX86_64",
+            Self::WindowsArm64 => "WindowsArm64",
             Self::UefiX64 => "UefiX86_64",
             Self::CrossPlatformCli => "CrossPlatformCli",
             Self::LocalUnchecked => "LocalUnchecked",
@@ -368,6 +396,7 @@ impl TargetProfile {
             "MacosArm64" => Some(Self::MacosArm64),
             "MacosX86_64" => Some(Self::MacosX64),
             "WindowsX86_64" => Some(Self::WindowsX64),
+            "WindowsArm64" => Some(Self::WindowsArm64),
             "UefiX86_64" => Some(Self::UefiX64),
             "CrossPlatformCli" => Some(Self::CrossPlatformCli),
             "LocalUnchecked" => Some(Self::LocalUnchecked),
@@ -383,11 +412,17 @@ impl TargetProfile {
             Self::MacosArm64 => "macos_arm64",
             Self::MacosX64 => "macos_x86_64",
             Self::WindowsX64 => "windows_x86_64",
+            Self::WindowsArm64 => "windows_arm64",
             Self::UefiX64 => "uefi_x86_64",
             Self::CrossPlatformCli => "cross_platform_cli",
             Self::LocalUnchecked => "local_unchecked",
             Self::AlphaBootstrap => "alpha_bootstrap",
         }
+    }
+
+    /// Windows programs bind their DLL imports through a PE import table.
+    pub const fn imports_through_pe(self) -> bool {
+        matches!(self, Self::WindowsX64 | Self::WindowsArm64)
     }
 
     pub fn native_realization(self) -> Option<NativeTarget> {
@@ -417,6 +452,7 @@ impl TargetProfile {
             Self::MacosArm64 => NativeTarget::macos_arm64(),
             Self::MacosX64 => NativeTarget::macos_x64(),
             Self::WindowsX64 => NativeTarget::windows_x64(),
+            Self::WindowsArm64 => NativeTarget::windows_arm64(),
             Self::UefiX64 => NativeTarget::uefi_x64(),
             Self::CrossPlatformCli | Self::LocalUnchecked => NativeTarget::host(),
             Self::AlphaBootstrap => {
@@ -488,6 +524,17 @@ impl TargetProfile {
                 Some(ProgramEntryPhysicalContractPackage::WindowsX64),
                 Some(ProgramEntryCallingConvention::MicrosoftX64),
                 Some(ProgramEntryCallingConvention::MicrosoftX64),
+            ),
+            // The Windows ARM64 loader calls the entry like an ordinary AAPCS64
+            // function and maps the returned w0 to the process exit code.
+            Self::WindowsArm64 => (
+                ProgramEntrySchema::HostedApplication,
+                ProgramEntryVisibleParameters::None,
+                Some("targets::windows_arm64::WindowsArm64Application"),
+                Some("targets::windows_arm64::WindowsArm64ProcessEntry::enter"),
+                Some(ProgramEntryPhysicalContractPackage::WindowsArm64),
+                Some(ProgramEntryCallingConvention::Aapcs64),
+                Some(ProgramEntryCallingConvention::Aapcs64),
             ),
             _ => (
                 ProgramEntrySchema::HostedApplication,
@@ -692,6 +739,17 @@ impl NativeTarget {
         }
     }
 
+    /// Windows on AArch64 places values like AAPCS64 and reserves x18 for
+    /// the thread environment block, as Darwin does.
+    pub fn windows_arm64() -> Self {
+        Self {
+            architecture: Architecture::Aarch64,
+            object_format: ObjectFormat::Coff,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        }
+    }
+
     pub fn uefi_x64() -> Self {
         Self {
             architecture: Architecture::X86_64,
@@ -769,7 +827,10 @@ mod tests {
         assert_eq!(slot.slot_name, "ProgramEntry");
         assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
         eq!(slot.semantic_arrival_requirement => "ProgramStorageEntry::enter");
-        assert_eq!(slot.boundary_schema, Some("targets::windows_x86_64::WindowsX86_64Application"));
+        assert_eq!(
+            slot.boundary_schema,
+            Some("targets::windows_x86_64::WindowsX86_64Application")
+        );
         eq!(slot.physical_arrival_requirement => Some("targets::windows_x86_64::WindowsProcessEntry::enter"));
         assert_eq!(
             slot.physical_contract_package,
@@ -793,6 +854,42 @@ mod tests {
             Some(super::ProgramEntryCallingConvention::MicrosoftX64)
         );
         assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
+    }
+
+    #[test]
+    fn windows_arm64_profile_enters_an_aapcs64_pe_program() {
+        let profile = TargetProfile::WindowsArm64;
+        eq!(TargetProfile::from_omega_target_name(Some("windows_arm64")).unwrap() => profile);
+        eq!(TargetProfile::from_build_case_name("WindowsArm64") => Some(profile));
+        eq!(profile.identity().as_str() => "omega.target-profile.v1:windows_arm64");
+        assert!(profile.imports_through_pe());
+        assert_eq!(profile.native_target(), NativeTarget::windows_arm64());
+        assert_eq!(
+            (
+                profile.native_target().architecture,
+                profile.native_target().object_format
+            ),
+            (Architecture::Aarch64, ObjectFormat::Coff)
+        );
+        let slot = profile.program_entry_slot();
+        assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
+        assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
+        eq!(slot.boundary_schema => Some("targets::windows_arm64::WindowsArm64Application"));
+        eq!(slot.physical_arrival_requirement => Some("targets::windows_arm64::WindowsArm64ProcessEntry::enter"));
+        let package = slot
+            .physical_contract_package
+            .expect("closed entry package");
+        eq!(package => ProgramEntryPhysicalContractPackage::WindowsArm64);
+        eq!(package.package_relative_source() => "targets/windows_arm64/entry.omg");
+        eq!(slot.physical_calling_convention => Some(super::ProgramEntryCallingConvention::Aapcs64));
+        eq!(slot.semantic_calling_convention => Some(super::ProgramEntryCallingConvention::Aapcs64));
+        let tags = TargetProfile::ALL.map(TargetProfile::identity_tag);
+        for (index, tag) in tags.iter().enumerate() {
+            assert!(
+                !tags[index + 1..].contains(tag),
+                "profile tags must stay distinct"
+            );
+        }
     }
 
     #[test]
@@ -962,7 +1059,10 @@ mod tests {
         assert_eq!(slot.slot_name, "ProgramEntry");
         assert_eq!(slot.schema, ProgramEntrySchema::HostedApplication);
         assert_eq!(slot.visible_parameters, ProgramEntryVisibleParameters::None);
-        assert_eq!(slot.boundary_schema, Some("targets::macos_x86_64::MacosX64Application"));
+        assert_eq!(
+            slot.boundary_schema,
+            Some("targets::macos_x86_64::MacosX64Application")
+        );
         eq!(slot.physical_arrival_requirement => Some("targets::macos_x86_64::MacosX64PhysicalEntry::enter"));
         eq!(slot.physical_contract_package => Some(ProgramEntryPhysicalContractPackage::MacosX64));
         let physical_package = slot
@@ -1021,6 +1121,7 @@ mod tests {
             NativeTarget::linux_x64(),
             NativeTarget::macos_x64(),
             NativeTarget::windows_x64(),
+            NativeTarget::windows_arm64(),
             NativeTarget::uefi_x64(),
             NativeTarget {
                 architecture: Architecture::Aarch64,

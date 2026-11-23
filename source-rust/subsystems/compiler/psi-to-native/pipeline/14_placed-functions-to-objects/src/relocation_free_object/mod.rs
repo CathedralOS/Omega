@@ -15,6 +15,7 @@ pub mod text_section;
 
 use crate::cursor::Cursor;
 use crate::object_target_policy;
+use calling_conventions::MachineRegister;
 use machine_code::{
     NormalizedForeignCallResolutionKind, NormalizedForeignCallResolutionState,
     PlacedCallbackAddressEncoding, PlacedCallbackAddressMaterialization,
@@ -29,7 +30,6 @@ use selected_instructions::{
 };
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, WorkScheduleIdentity};
 use target::{NativeTarget, TargetWireIdentityError};
-use calling_conventions::MachineRegister;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 const PLAN_SCHEMA: &[u8] = b"omega.terminal.relocation-free-object-plan.v6\0";
@@ -1089,7 +1089,6 @@ mod tests {
         decode_relocation_free_object, encode_relocation_free_object,
         validate_relocation_free_object,
     };
-    use target::{Architecture, ObjectFormat};
 
     fn plan() -> RelocationFreeObjectPlan {
         let machine = MachineId::new(7).unwrap();
@@ -1319,22 +1318,6 @@ mod tests {
 
         let mut object = plan();
         object.target.pointer_size = 4;
-        object.identity = object.recomputed_identity().unwrap();
-        assert_eq!(
-            validate_relocation_free_object(&object),
-            Err(RelocationFreeObjectError::NonCanonicalTarget)
-        );
-    }
-
-    #[test]
-    fn object_validation_fails_closed_on_undeclared_target_pairs() {
-        let mut object = plan();
-        object.target = NativeTarget {
-            architecture: Architecture::Aarch64,
-            object_format: ObjectFormat::Coff,
-            pointer_size: 8,
-            pointer_alignment: 8,
-        };
         object.identity = object.recomputed_identity().unwrap();
         assert_eq!(
             validate_relocation_free_object(&object),

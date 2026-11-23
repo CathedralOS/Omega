@@ -141,7 +141,7 @@ fn validate_target(
 ) -> Result<(), ForeignLocatorValidationError> {
     let applicable = match locator {
         ForeignLocatorCandidate::PeByName { .. } | ForeignLocatorCandidate::PeByOrdinal { .. } => {
-            target == TargetProfile::WindowsX64
+            target.imports_through_pe()
         }
         ForeignLocatorCandidate::ElfVersioned { .. } => {
             matches!(target, TargetProfile::LinuxArm64 | TargetProfile::LinuxX64)

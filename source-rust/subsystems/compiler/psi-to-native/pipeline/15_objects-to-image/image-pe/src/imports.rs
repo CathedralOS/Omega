@@ -1,22 +1,26 @@
 /*
-We install six-byte `jmp [rip+disp32]` import thunks onto `.text`, build the
-deterministic `.rdata` import directory, import lookup tables, hint/name table,
-and IAT for both by-name and by-ordinal imports, patch the thunk displacements
-once layout is fixed, and re-verify that every thunk's `ff 25` opcode survived
-general relocation patching.
+We install each import's encoded thunk onto `.text` (x86-64 `jmp [rip+disp32]`,
+AArch64 `adrp x16; ldr x16, [x16]; br x16`), build the deterministic `.rdata`
+import directory, import lookup tables, hint/name table, and IAT for both
+by-name and by-ordinal imports, point each thunk at its IAT slot once layout is
+fixed, and re-verify that every thunk kept its canonical form through general
+relocation patching.
 */
 
 use crate::bytes::{write_i32_at, write_u16_at, write_u32_at, write_u64_at};
 use crate::constants::IMAGE_BASE;
 use crate::layout::align_to;
-use calling_conventions::{MachineState, MachineStateSet, RegisterSet, StateFootprintEvidence};
+use calling_conventions::StateFootprintEvidence;
 use diagnostics::Diagnostic;
 use image::{
     FinalExecutableRegion, FinalExecutableRegionOrigin, FinalImage, FinalImageImportPlan,
     FinalImageLayout, FinalImageSection,
 };
+use machine_code::import_code::{
+    ImportOperand, ImportOperandKind as Kind, ImportOperandTarget as Target,
+};
 use object_file::SymbolKind;
-use target::{Architecture, ForeignLocatorCandidate, ObjectFormat, TargetProfile};
+use target::{Architecture, ForeignLocatorCandidate, NativeTarget, ObjectFormat};
 
 const IMAGE_ORDINAL_FLAG64: u64 = 1 << 63;
 
@@ -24,6 +28,118 @@ const IMAGE_ORDINAL_FLAG64: u64 = 1 << 63;
 pub(crate) enum PeImportLookup {
     ByName(Vec<u8>),
     ByOrdinal(u16),
+}
+
+/// The instruction set a PE32+ image carries, which fixes its COFF machine
+/// word and the shape of its import thunks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PeIsa {
+    X86_64,
+    Aarch64,
+}
+
+impl PeIsa {
+    pub(crate) fn of(target: NativeTarget) -> Result<Self, Diagnostic> {
+        match (target.object_format, target.architecture) {
+            (ObjectFormat::Coff, Architecture::X86_64) => Ok(Self::X86_64),
+            (ObjectFormat::Coff, Architecture::Aarch64) => Ok(Self::Aarch64),
+            _ => Err(Diagnostic::error(
+                "PE emission received a non-COFF image target",
+            )),
+        }
+    }
+
+    /// `IMAGE_FILE_MACHINE_AMD64` or `IMAGE_FILE_MACHINE_ARM64`.
+    pub(crate) const fn machine(self) -> u16 {
+        match self {
+            Self::X86_64 => 0x8664,
+            Self::Aarch64 => 0xaa64,
+        }
+    }
+
+    pub(crate) const fn format_name(self) -> &'static str {
+        match self {
+            Self::X86_64 => "pe64-x86_64-executable",
+            Self::Aarch64 => "pe64-arm64-executable",
+        }
+    }
+
+    fn thunk_size(self) -> usize {
+        match self {
+            Self::X86_64 => target_x86_64::import_thunk::X86_64_IMPORT_THUNK_BYTE_COUNT,
+            Self::Aarch64 => target_aarch64::import_thunk::AARCH64_IMPORT_THUNK_BYTE_COUNT,
+        }
+    }
+
+    fn thunk_operands(self) -> Vec<ImportOperand> {
+        let slot = |offset, kind| ImportOperand {
+            offset,
+            kind,
+            target: Target::BindingSlot,
+        };
+        match self {
+            Self::X86_64 => vec![slot(2, Kind::X86Relative32)],
+            Self::Aarch64 => vec![
+                slot(0, Kind::Aarch64Page21),
+                slot(4, Kind::Aarch64PageOffset12 { scale: 3 }),
+            ],
+        }
+    }
+
+    fn thunk_footprint(self) -> StateFootprintEvidence {
+        match self {
+            Self::X86_64 => target_x86_64::import_thunk::x86_64_import_thunk_footprint(),
+            Self::Aarch64 => target_aarch64::import_thunk::aarch64_import_thunk_footprint(),
+        }
+    }
+
+    fn thunk_is_canonical(self, bytes: &[u8]) -> bool {
+        match self {
+            Self::X86_64 => {
+                target_x86_64::import_thunk::decode_x86_64_import_thunk(bytes).is_some()
+            }
+            Self::Aarch64 => target_aarch64::import_thunk::decode_aarch64_import_thunk(bytes),
+        }
+    }
+
+    fn patch_thunk(
+        self,
+        text: &mut [u8],
+        thunk: &PeImportThunk,
+        thunk_address: u64,
+        slot_address: u64,
+    ) -> Result<(), Diagnostic> {
+        match self {
+            Self::X86_64 => {
+                let delta = slot_address as i64 - (thunk_address + 6) as i64;
+                let displacement = i32::try_from(delta).map_err(|_| {
+                    Diagnostic::error(format!(
+                        "PE x86_64 import thunk for `{}` is out of range",
+                        thunk.symbol
+                    ))
+                })?;
+                write_i32_at(text, thunk.text_offset + 2, displacement)
+            }
+            Self::Aarch64 => {
+                let bytes = text
+                    .get_mut(thunk.text_offset..thunk.text_offset + self.thunk_size())
+                    .ok_or_else(|| {
+                        Diagnostic::error(format!(
+                            "PE arm64 import thunk `{}` is outside the text section",
+                            thunk.symbol
+                        ))
+                    })?;
+                target_aarch64::import_thunk::patch_aarch64_import_thunk(
+                    bytes,
+                    thunk_address,
+                    slot_address,
+                )
+                .map_err(|reason| {
+                    Diagnostic::error(format!("PE import thunk `{}`: {reason}", thunk.symbol))
+                })
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,13 +154,7 @@ pub(crate) fn install_import_thunks(
     image: &mut FinalImage,
     subsystem: u16,
 ) -> Result<Vec<PeImportThunk>, Diagnostic> {
-    if image.target.architecture != Architecture::X86_64
-        || image.target.object_format != ObjectFormat::Coff
-    {
-        return Err(Diagnostic::error(
-            "PE x86_64 import installation received a non-COFF/x86_64 image target",
-        ));
-    }
+    let isa = PeIsa::of(image.target)?;
     let mut imports = Vec::with_capacity(image.symbol_table.imports.len());
     for (_, import) in image.symbol_table.imports.iter() {
         if !image.symbol_table.symbols.is_valid(import.symbol_handle) {
@@ -90,7 +200,7 @@ pub(crate) fn install_import_thunks(
                 (library, PeImportLookup::ByName(symbol.as_bytes().to_vec()))
             }
             FinalImageImportPlan::Normalized(target::NormalizedImportLocator::Foreign(locator)) => {
-                if locator.target() != TargetProfile::WindowsX64
+                if !locator.target().imports_through_pe()
                     || locator.target().native_target() != image.target
                     || matches!(subsystem, 10..=12)
                 {
@@ -123,7 +233,7 @@ pub(crate) fn install_import_thunks(
             FinalImageImportPlan::Normalized(target::NormalizedImportLocator::Component(
                 component,
             )) => {
-                if component.target() != TargetProfile::WindowsX64
+                if !component.target().imports_through_pe()
                     || component.target().native_target() != image.target
                 {
                     return Err(Diagnostic::error(
@@ -154,15 +264,8 @@ pub(crate) fn install_import_thunks(
         }
         let text_offset = image.memory.text.len();
         let body = image.encoded_import_body(symbol_handle)?;
-        use machine_code::import_code::{ImportOperand, ImportOperandKind, ImportOperandTarget};
-        if body.bytes.len() != 6
-            || body.operands
-                != [ImportOperand {
-                    offset: 2,
-                    kind: ImportOperandKind::X86Relative32,
-                    target: ImportOperandTarget::BindingSlot,
-                }]
-        {
+        let thunk_size = isa.thunk_size();
+        if body.bytes.len() != thunk_size || body.operands != isa.thunk_operands() {
             return Err(Diagnostic::error(
                 "PE import body has a different encoded operand contract",
             ));
@@ -174,12 +277,12 @@ pub(crate) fn install_import_thunks(
         let image_symbol = image.symbol_table.symbols.get_mut(symbol_handle);
         image_symbol.section = FinalImageSection::Text;
         image_symbol.offset = text_offset;
-        image_symbol.size = 6;
+        image_symbol.size = thunk_size;
 
         image.executable_regions.push(FinalExecutableRegion {
             origin: FinalExecutableRegionOrigin::ImportThunk,
             section_offset: text_offset,
-            byte_count: 6,
+            byte_count: thunk_size,
             symbol: symbol.clone(),
             footprint: Some(footprint),
             entry_effects: None,
@@ -315,19 +418,17 @@ pub(crate) fn patch_import_thunks(
     thunks: &[PeImportThunk],
     table: &PeImportTable,
 ) -> Result<(), Diagnostic> {
+    let isa = PeIsa::of(image.target)?;
     let table_rva = table.import_directory_rva;
     for (thunk, &slot_offset) in thunks.iter().zip(table.iat_table_offsets.iter()) {
         let instruction_address = layout.text_address + thunk.text_offset as u64;
-        let next_instruction = instruction_address + 6;
         let iat_address = IMAGE_BASE + u64::from(table_rva) + slot_offset as u64;
-        let delta = iat_address as i64 - next_instruction as i64;
-        let displacement = i32::try_from(delta).map_err(|_| {
-            Diagnostic::error(format!(
-                "PE x86_64 import thunk for `{}` is out of range",
-                thunk.symbol
-            ))
-        })?;
-        write_i32_at(&mut image.memory.text, thunk.text_offset + 2, displacement)?;
+        isa.patch_thunk(
+            &mut image.memory.text,
+            thunk,
+            instruction_address,
+            iat_address,
+        )?;
     }
 
     Ok(())
@@ -337,8 +438,10 @@ pub(crate) fn validate_import_thunk_footprints(
     image: &mut FinalImage,
     thunks: &[PeImportThunk],
 ) -> Result<(), Diagnostic> {
+    let isa = PeIsa::of(image.target)?;
+    let thunk_size = isa.thunk_size();
     for thunk in thunks {
-        let end = thunk.text_offset.checked_add(6).ok_or_else(|| {
+        let end = thunk.text_offset.checked_add(thunk_size).ok_or_else(|| {
             Diagnostic::error(format!(
                 "PE import thunk `{}` range overflows",
                 thunk.symbol
@@ -354,9 +457,9 @@ pub(crate) fn validate_import_thunk_footprints(
                     thunk.symbol
                 ))
             })?;
-        if bytes[..2] != [0xff, 0x25] {
+        if !isa.thunk_is_canonical(bytes) {
             return Err(Diagnostic::error(format!(
-                "PE import thunk `{}` does not match jmp [rip+disp32]",
+                "PE import thunk `{}` does not match the ISA's canonical slot branch",
                 thunk.symbol
             )));
         }
@@ -366,7 +469,7 @@ pub(crate) fn validate_import_thunk_footprints(
             .find(|region| {
                 region.origin == FinalExecutableRegionOrigin::ImportThunk
                     && region.section_offset == thunk.text_offset
-                    && region.byte_count == 6
+                    && region.byte_count == thunk_size
                     && region.symbol == thunk.symbol
             })
             .ok_or_else(|| {
@@ -375,11 +478,7 @@ pub(crate) fn validate_import_thunk_footprints(
                     thunk.symbol
                 ))
             })?;
-        let expected = StateFootprintEvidence::new(
-            RegisterSet::default(),
-            MachineStateSet::new([MachineState::InstructionPointer]),
-        );
-        if region.footprint.as_ref() != Some(&expected) {
+        if region.footprint.as_ref() != Some(&isa.thunk_footprint()) {
             return Err(Diagnostic::error(
                 "PE import body effects differ from the encoded program",
             ));
@@ -494,7 +593,68 @@ mod tests {
 
         let diagnostic = validate_import_thunk_footprints(&mut image, &thunks)
             .expect_err("mutated PE thunk opcode must reject");
-        assert!(diagnostic.message.contains("jmp [rip+disp32]"));
+        assert!(diagnostic.message.contains("canonical slot branch"));
+    }
+
+    #[test]
+    fn arm64_import_thunk_loads_its_iat_slot_through_x16() {
+        let mut image = image_with_normalized_import(
+            NativeTarget::windows_arm64(),
+            ForeignLocatorCandidate::PeByName {
+                library: b"kernel32.dll".to_vec(),
+                export: b"Sleep".to_vec(),
+            },
+        );
+        let thunks = install_import_thunks(&mut image, 3).expect("Windows ARM64 name import");
+        assert_eq!(image.executable_regions[0].byte_count, 12);
+        let table = build_import_table(&thunks, 0x3000);
+        let layout = image::FinalImageLayout {
+            text_address: crate::constants::IMAGE_BASE + 0x1000,
+            data_address: 0,
+            bss_address: 0,
+        };
+        super::patch_import_thunks(&mut image, &layout, &thunks, &table).expect("in range");
+        validate_import_thunk_footprints(&mut image, &thunks).expect("canonical ARM64 thunk");
+        let word = |index: usize| {
+            u32::from_le_bytes(
+                image.memory.text[index * 4..index * 4 + 4]
+                    .try_into()
+                    .unwrap(),
+            )
+        };
+        // The IAT slot sits in .rdata at RVA 0x3000 + its table offset: two
+        // pages after the thunk's page.
+        let slot = 0x3000 + table.iat_table_offsets[0] as u32;
+        assert_eq!(slot & 0xfff, slot - 0x3000);
+        assert_eq!(word(0), 0xd000_0010, "adrp x16, +2 pages");
+        assert_eq!(word(1), 0xf940_0210 | (((slot & 0xfff) / 8) << 10));
+        assert_eq!(word(2), 0xd61f_0200, "br x16");
+
+        image.memory.text[8] = 0xc0;
+        assert!(
+            validate_import_thunk_footprints(&mut image, &thunks)
+                .unwrap_err()
+                .message
+                .contains("canonical slot branch")
+        );
+    }
+
+    #[test]
+    fn windows_imports_stay_on_their_own_architecture() {
+        let mut crossed = image_with_normalized_import(
+            NativeTarget::windows_x64(),
+            ForeignLocatorCandidate::PeByName {
+                library: b"kernel32.dll".to_vec(),
+                export: b"Sleep".to_vec(),
+            },
+        );
+        crossed.target = NativeTarget::windows_arm64();
+        assert!(
+            install_import_thunks(&mut crossed, 3)
+                .unwrap_err()
+                .message
+                .contains("not applicable")
+        );
     }
 
     #[test]
@@ -560,8 +720,13 @@ mod tests {
         target: NativeTarget,
         candidate: ForeignLocatorCandidate,
     ) -> FinalImage {
-        let locator = normalize_foreign_locator(candidate, TargetProfile::WindowsX64)
-            .expect("valid normalized PE locator");
+        let profile = if target == NativeTarget::windows_arm64() {
+            TargetProfile::WindowsArm64
+        } else {
+            TargetProfile::WindowsX64
+        };
+        let locator =
+            normalize_foreign_locator(candidate, profile).expect("valid normalized PE locator");
         let mut image =
             FinalImage::with_capacity(target, Default::default(), Handle::invalid(), 1, 1, 0);
         let symbol = image.symbol_table.symbols.insert(FinalImageSymbol {
