@@ -52,7 +52,21 @@ pub(crate) fn parse_transition_guard_node<'tokens, 'source>(
         return Ok((condition, rest));
     }
 
-    let (patterns, pattern_rest) = parse_transition_match_list(syntax_trees, pattern_input, true)?;
+    // Without a subject an arm is one guard, which may itself start with a
+    // parenthesis, as in `(a + b) > a -> grow()`. Only a parenthesized list
+    // with a top-level comma is read as a tuple pattern, which is refused
+    // below with its own message.
+    let (patterns, pattern_rest) =
+        if subject.is_empty() && !pattern_input.leading_paren_group_has_top_level_comma() {
+            let (pattern, rest) = parse_transition_match_component::<Option<ExpressionHandle>>(
+                syntax_trees,
+                pattern_input,
+                true,
+            )?;
+            (vec![pattern], rest)
+        } else {
+            parse_transition_match_list(syntax_trees, pattern_input, true)?
+        };
     if !pattern_rest.tokens.is_empty() {
         return Err(pattern_rest.error_here("expected transition pattern"));
     }
