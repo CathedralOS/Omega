@@ -1361,101 +1361,139 @@ data LocalAlias = i64;
 
 #[test]
 fn selected_provider_review_preserves_qualified_scalar_parameters() {
+    for provider in ["Marked", "Other"] {
+        check_qualified_parameter("i32", "self >= 0", "self <= 0", provider, false);
+    }
+}
+
+#[test]
+fn selected_provider_review_preserves_qualified_structural_parameters() {
+    check_qualified_parameter(
+        "[u8; 3]",
+        "self[0] == 0u8",
+        "self[0] != 0u8",
+        "Marked",
+        true,
+    );
+}
+
+fn check_qualified_parameter(
+    carrier: &str,
+    predicate: &str,
+    other: &str,
+    provider_domain: &str,
+    structural: bool,
+) {
     use build_evaluation_result::CompileFailure;
-    for provider_domain in ["Marked", "Other"] {
-        let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
-            "review-qualified-provider",
-            false,
-        )
-        .unwrap();
-        let root = temporary.path();
-        let build = root.join("build.omg");
-        std::fs::write(
-            &build,
-            r#"machine build(builder: @mutable Build) {
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-qualified-provider",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path();
+    let build = root.join("build.omg");
+    std::fs::write(
+        &build,
+        r#"machine build(builder: @mutable Build) {
             Build::package(builder, "reading");
             Build::select_provider::<Reading, Provider>(builder, linux_x86_64);
         }"#,
-        )
-        .unwrap();
-        std::fs::write(
-            root.join("main.omg"),
-            format!(
-                r#"
-public domain i32::Marked requires self >= 0;
-public domain i32::Other requires self <= 0;
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        format!(
+            r#"
+public domain {carrier}::Marked requires {predicate};
+public domain {carrier}::Other requires {other};
 public boundary trait Reading {{
-    machine read(plain: i32, value: i32 in Marked) -> i32 reaches none crashes none;
+    machine read(plain: i32, value: {carrier} in Marked) -> i32 reaches none crashes none;
 }}
-public machine run(plain: i32, value: i32 in Marked) -> i32 reaches Reading {{
+public machine run(plain: i32, value: {carrier} in Marked) -> i32 reaches Reading {{
     Reading::read(plain, value)
 }}
 Provider satisfies Reading {{
-    machine read(plain: i32, value: i32 in {provider_domain}) -> i32 {{ 1i32 }}
+    machine read(plain: i32, value: {carrier} in {provider_domain}) -> i32 {{ 1i32 }}
 }}"#
-            ),
-        )
+        ),
+    )
+    .unwrap();
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&build, &[target]);
+    let product = returned
+        .settle_dependency(inputs.clone())
+        .unwrap()
+        .open_product(inputs)
         .unwrap();
-        let target = TargetProfile::LinuxX64;
-        let (returned, inputs) = run_project_build(&build, &[target]);
-        let product = returned
-            .settle_dependency(inputs.clone())
-            .unwrap()
-            .open_product(inputs)
-            .unwrap();
-        let stage = product.product_stage(&[target]).unwrap();
-        let reviewed = stage.review_policy(target);
-        if provider_domain == "Other" {
-            let Err(
-                CompileFailure::Diagnostics(diagnostics)
-                | CompileFailure::SourceCompletion { diagnostics, .. },
-            ) = reviewed
-            else {
-                panic!("the provider with a different domain must be refused");
-            };
-            assert!(
-                diagnostics.iter().any(|error| error
-                    .message
-                    .contains("member signature differs from its requirement")),
-                "{diagnostics:?}"
-            );
-            continue;
-        }
-        let policy = reviewed.unwrap().policy;
-        policy
-            .validate_package_membership(|key| key == policy.package, Default::default())
-            .unwrap();
-        let [plan] = policy.selected_providers.plans.as_slice() else {
-            panic!("expected the selected Reading provider");
+    let stage = product.product_stage(&[target]).unwrap();
+    let reviewed = stage.review_policy(target);
+    if provider_domain == "Other" {
+        let Err(
+            CompileFailure::Diagnostics(diagnostics)
+            | CompileFailure::SourceCompletion { diagnostics, .. },
+        ) = reviewed
+        else {
+            panic!("the provider with a different domain must be refused");
         };
-        let [method] = plan.methods.as_slice() else {
-            panic!("expected Reading::read");
+        assert!(
+            diagnostics.iter().any(|error| error
+                .message
+                .contains("member signature differs from its requirement")),
+            "{diagnostics:?}"
+        );
+        return;
+    }
+    let policy = reviewed.unwrap().policy;
+    policy
+        .validate_package_membership(|key| key == policy.package, Default::default())
+        .unwrap();
+    let [plan] = policy.selected_providers.plans.as_slice() else {
+        panic!("expected the selected Reading provider");
+    };
+    let [method] = plan.methods.as_slice() else {
+        panic!("expected Reading::read");
+    };
+    let declaration = policy
+        .public_api
+        .traits
+        .iter()
+        .flat_map(|item| &item.requirements)
+        .find(|item| item.identity == method.requirement)
+        .unwrap();
+    assert_eq!(method.signature.parameters, declaration.parameters);
+    let [plain, qualified] = method.signature.parameters.as_slice() else {
+        panic!("expected two formals");
+    };
+    assert_ne!(plain.type_identity, qualified.type_identity);
+    assert!(qualified.type_identity.canonical.contains("Marked"));
+    let [contract] = declaration.contracts.as_slice() else {
+        panic!("expected the input membership contract");
+    };
+    assert_eq!(
+        contract.kind,
+        review_evidence::record::PackageReviewContractKind::Requires
+    );
+    let review_evidence::record::PackageReviewContractFact::Membership {
+        value: review_evidence::record::PackageReviewContractExpression::Parameter(1),
+        domain,
+        ..
+    } = &contract.fact
+    else {
+        panic!("expected membership on the second parameter");
+    };
+    assert!(domain.path().ends_with("::Marked"));
+    if structural {
+        assert_eq!(
+            declaration.structural_parameter_positions.as_deref(),
+            Some(&[1][..])
+        );
+        let [qualification] = declaration.parameter_qualification_preconditions.as_slice() else {
+            panic!("expected one structural qualification");
         };
-        let declaration = policy
-            .public_api
-            .traits
-            .iter()
-            .flat_map(|item| &item.requirements)
-            .find(|item| item.identity == method.requirement)
-            .unwrap();
-        assert_eq!(method.signature.parameters, declaration.parameters);
-        let [plain, qualified] = method.signature.parameters.as_slice() else {
-            panic!("expected two formals");
-        };
-        assert_ne!(plain.type_identity, qualified.type_identity);
-        assert!(qualified.type_identity.canonical.contains("Marked"));
-        let [contract] = declaration.contracts.as_slice() else {
-            panic!("expected the input membership contract");
-        };
-        assert_eq!(contract.kind, review_evidence::record::PackageReviewContractKind::Requires);
-        let review_evidence::record::PackageReviewContractFact::Membership {
-            value: review_evidence::record::PackageReviewContractExpression::Parameter(1),
-            domain,
-            ..
-        } = &contract.fact else {
-            panic!("expected membership on the second parameter");
-        };
-        assert_eq!(domain.path(), "main.omg::i32::Marked");
+        assert_eq!(qualification.structural_index(), 0);
+        assert_eq!(qualification.domain(), domain);
+    } else {
+        assert!(declaration.parameter_qualification_preconditions.is_empty());
     }
 }
 
