@@ -193,6 +193,23 @@ fn private_worker_and_host_share_pages_until_each_mapping_retires() {
 }
 
 #[test]
+fn an_idle_provider_accepts_the_next_request_and_retires() {
+    let timeout = Duration::from_secs(1);
+    let mut command = Command::new(std::env::current_exe().unwrap());
+    command.args([
+        "--exact",
+        "physical_tests::internal_native_provider_worker",
+        "--nocapture",
+    ]);
+    let mut process = TestProviderProcess::launch(command, timeout).unwrap();
+    let first = process.create_home(8, 8).unwrap();
+    std::thread::sleep(timeout * 3);
+    let second = process.create_home(8, 8).unwrap();
+    assert_ne!(first, second);
+    process.close().unwrap();
+}
+
+#[test]
 fn pointer_links_use_worker_homes_and_reject_foreign_incarnations() {
     use crate::{NativePointerSlot, NativePointerTarget};
     let launch = || {
