@@ -1361,6 +1361,15 @@ public boundary trait Framed<Frame> {
         assert!(
             matches!(&count.kind, PackagePolicyTypeParameterKind::Const(carrier) if carrier.canonical().contains("u64"))
         );
+        let [text] = send.parameters.as_slice() else {
+            panic!("expected the borrowed array")
+        };
+        assert!(
+            text.type_identity
+                .canonical()
+                .contains(&format!("const-parameter($T{count_binder})")),
+            "array extent on {path} uses the wrong binder: {text:?}"
+        );
         let [requires] = send.contracts.as_slice() else {
             panic!("expected Count > 0")
         };
