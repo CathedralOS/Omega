@@ -998,9 +998,17 @@ pub(crate) mod leaf_copy {
                 )
                 .ok_or(invalid())?;
                 Some(
-                    leaf_copy_geometry(root, path, result.structural_type, function.geometry())
-                        .filter(|geometry| geometry.readable)
-                        .ok_or(invalid())?,
+                    leaf_copy_geometry(
+                        root,
+                        crate::instruction_selection::selection::arrival_parameter_input::parameter(
+                            function, *source,
+                        ),
+                        path,
+                        result.structural_type,
+                        function.geometry(),
+                    )
+                    .filter(|geometry| geometry.readable)
+                    .ok_or(invalid())?,
                 )
             }
             operation_operands::structural_stores::StructuralCopyPath::Case(path) => {
