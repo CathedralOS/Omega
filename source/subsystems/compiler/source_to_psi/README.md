@@ -364,8 +364,9 @@ names here; which
 requirement a member or row fills, row completeness and a domain's
 establishment obligations are checking's.
 
-Typing follows resolution ([`pipeline/symbol_resolved_trees_to_typed_trees/typer.omg`](pipeline/symbol_resolved_trees_to_typed_trees/typer.omg)) and
-records its results in [`representations/typed_trees/typed_trees.omg`](representations/typed_trees/typed_trees.omg): an interned
+[Typing](pipeline/symbol_resolved_trees_to_typed_trees/typer.omg) follows name resolution.
+The pass shares its expression marks, generic bindings and type lookups through
+[Typer](pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg). It records its results in [`representations/typed_trees/typed_trees.omg`](representations/typed_trees/typed_trees.omg): an interned
 type table, where equal types share one handle and a type's children precede
 it, and annotations indexed by syntax handles (a type per type-reference row,
 expression and pattern binder; each call's selected machine
@@ -394,7 +395,10 @@ a computational integer landing after a fractional intermediate requires `as`
 around the completed anonymous operand. Declared locals, parameters, fields,
 typed peers and results do not acknowledge that history. Explicit casts still
 require final integrality and range. A
-suffix types its literal at that carrier, under a destination's policy. Arithmetic and bitwise operators take
+suffix types its literal at that carrier, under a destination's policy. The
+[quoted literal reader](pipeline/symbol_resolved_trees_to_typed_trees/quoted_literals.omg)
+decodes each escape once to compute the byte length and the UTF-8, ASCII,
+nonempty and NUL-free properties. Arithmetic and bitwise operators take
 one fixed-integer or float type, policy included, so differing policies never
 mix; integer comparisons relate exact values of any carriers; `==` also
 compares Booleans, addresses and sums whose every case is payload-free. A call
