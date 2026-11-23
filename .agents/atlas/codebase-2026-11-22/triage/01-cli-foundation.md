@@ -1,6 +1,6 @@
 # CLI and foundation findings
 
-These fixtures reproduce failures on `1ab250720c8c`. Each passes after the repair in its owning crate. This is a partial review of [area 01](../digests/01-cli-foundation.md).
+The arena ID, primitive type and staging-path fixtures reproduce failures on `1ab250720c8c`. Later repairs identify their own regressions. This is a partial review of [area 01](../digests/01-cli-foundation.md).
 
 | Finding | Before the fix | Regression coverage |
 | --- | --- | --- |
@@ -25,3 +25,21 @@ Sections 5 and 6 contain 62 top-level observations. The linked ranges cover each
 | CLI and foundation drops | [243–259](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/01-cli-foundation.md#L243-L259) | 243 and the repeated build-directory part of 244 have regressions. The other entries include flag handling, defaults, declaration edges and reporting. |
 
 The [builtin type name decision](../../../../wiki/spec/language/modules.md#builtin-type-names) reserves names by role. The [width-indexed integer rule](../../../../wiki/spec/language/numeric_values.md#width-indexed-integers) separately defines which widths form types. The test `builtin_type_spellings_cover_the_roster_and_the_integer_family` explicitly checks `u0`.
+
+## Findings checked against their consumers
+
+| Digest lines | Disposition and evidence |
+| --- | --- |
+| 188 | The saved-program pin covers the artifact's canonical sections. `CanonicalTerminalArtifact::from_bytes` rejects trailing bytes and noncanonical sections. It reconstructs the semantic, optimization and debug sections, and checks any publication section. `manifest_for_semantic` binds the section identities and their presence. `with_publication` extends that identity with the publication fingerprint. The CLI compares this reconstructed manifest identity with the caller's pin before authorizing the artifact. |
+| 200 | The freshly compiled route receives a `PublishedPsi` from the current invocation. `HostProducerTrust::accept` creates a process-local capability, and equality uses allocation identity. The producer description is informational. The saved-artifact route requires its separate manifest pin. |
+| 201, 249 | The consent filter skips a permission only when its class set is empty and there is no matching owner. A nonempty permission with no unique matching owner returns an error. The retained rows go to `compare_runtime_permissions`. This resolves the specific claim about silently granting a class. |
+| 202 | `a_definitive_error_or_absence_of_errors_rejects` exercises both a warning-only list and an empty list. Both yield `Reject`. |
+| 206 | A generational lookup returns a marked dummy for an invalid or stale handle. The public `is_valid` checks that marker. `resolves_invalid_handles_to_dummy` and `frees_and_reuses_slots_with_new_generation` pin both cases. |
+| 209, 254 | `OwnedIndex` is an owner-local cache. Equality ignores cache population and the record reader restores an empty cache. Its lookup checks the owner's revision and rebuilds as needed. The separately stored interners at 210 still need their callers traced. |
+| 212 | The arena signals a repeated retirement with a false return. The rooted arena checks this return before decrementing the active count or adding the slot to the free list. |
+| 214 | `NormalizedIdentitySet::contains` implements subset inclusion. An empty requirement is satisfied. For example, `MappingTransitionReceipt::verify` checks the mapping identity and the affirmative establishment independently before checking this set. |
+| 234 | A failed source remapping deliberately leaves a float equality with no values. `FloatMeaningClause::validate` requires a value for each operand and returns an error. |
+| 251 | The two missing declaration rows have different consumers. `Slice::Length` is selected as a builtin and lowered to a collection measurement without a catalog machine declaration. The lowering match still refuses an unhandled ranking relation. The intended source coverage of `Nat::IncreasingTo` remains open. |
+| 252 | The canonical structural path enum has four variants. The encoder matches all four exhaustively and writes a distinct tag for each. Adding a variant without updating the encoder is a compile error. |
+| 253 | Scratch slots 14 through 21 name the zero flag and internal flag, subtraction and comparison state. `scratch_register` exposes the architectural register ranges on either side. The omitted slots are present in `ASM_SCRATCH_NAMES`. |
+| 258 | Release library digest enforcement lives in the Build inputs crate. Its build script validates and exports `OMEGA_RELEASE_LIBRARY_SHA256`. Library discovery checks the actual contents against that digest. The application's redundant rebuild trigger does not bypass this check. |
