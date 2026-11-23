@@ -408,7 +408,10 @@ pub(crate) fn normalize_signature(
         let mut parts = vec![
             record("static-binders", static_binders),
             record("parameters", parameter_shapes),
-            typed("result", result_text(program, signature.return_type, nested)?),
+            typed(
+                "result",
+                result_text(program, signature.return_type, nested)?,
+            ),
         ];
         if !nested.callable_operand_shape {
             parts.push(scalar(
