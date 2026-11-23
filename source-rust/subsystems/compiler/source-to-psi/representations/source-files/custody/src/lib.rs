@@ -29,24 +29,12 @@ pub fn directory_namespace<'a>(
                 path.display()
             ));
         };
-        let valid = directory.to_str().filter(|name| {
-            let mut bytes = name.bytes();
-            bytes
-                .next()
-                .is_some_and(|first| first == b'_' || first.is_ascii_alphabetic())
-                && bytes.all(|byte| byte == b'_' || byte.is_ascii_alphanumeric())
-        });
-        let name = valid.ok_or_else(|| format!(
-            "directory `{}` in source `{}` cannot name an Omega namespace; expected an ASCII identifier",
+        let name = directory.to_str().filter(|name| {
+            name.chars().all(|c| c.is_alphanumeric() || matches!(c, '_' | '-'))
+        }).ok_or_else(|| format!(
+            "directory `{}` in source `{}` is not a logical filename component",
             directory.to_string_lossy(), path.display()
         ))?;
-        // The parser admits contextual keyword spellings in paths, except for the receiver.
-        if name == "self" {
-            return Err(format!("directory `self` in source `{}` cannot name an Omega namespace", path.display()));
-        }
-        if symbols::BuiltinTypeAtom::is_builtin_type_spelling(name) {
-            return Err(format!("module `{name}` is spelled like the builtin type `{name}`; choose another directory name in source `{}`", path.display()));
-        }
         namespace.push(name);
     }
     Ok(namespace)
@@ -381,7 +369,7 @@ pub mod source_identity {
         )?))
     }
 
-    pub fn is_virtual_toolchain_path(path: &Path) -> bool {
+    fn is_virtual_toolchain_path(path: &Path) -> bool {
         if is_build_prelude_path(path) {
             return true;
         }
@@ -425,14 +413,11 @@ mod directory_tests {
                     .unwrap()
                     .is_empty()
             );
-            assert!(
-                directory_namespace(&root.join("bad-name/program.omg"), root)
-                    .unwrap_err()
-                    .contains("bad-name")
+            assert_eq!(
+                directory_namespace(&root.join("bad-name/self/u32/program.omg"), root).unwrap(),
+                ["bad-name", "self", "u32"]
             );
-            assert!(directory_namespace(&root.join("self/program.omg"), root).is_err());
             assert!(directory_namespace(Path::new("/elsewhere/program.omg"), root).is_err());
-            assert!(directory_namespace(&root.join("u32/program.omg"), root).unwrap_err().contains("builtin type `u32`"));
         }
     }
 }
