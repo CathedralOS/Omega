@@ -37,7 +37,7 @@ impl PolicySource<'_> {
                 Ok(())
             })
             .map_err(unavailable)?;
-            let binder_scope = SignatureScope::declaration(self, conformance.symbol)?;
+            let binder_scope = SignatureScope::declaration(self, &[conformance.symbol])?;
             let mut applications = scopes
                 .iter()
                 .map(|scope| self.conformance_interface(scope, &binder_scope));
@@ -292,13 +292,12 @@ impl PolicySource<'_> {
             .requirement_review(signature.symbol)
             .map_err(|reason| unavailable(&reason))?;
         if signature.is_default
-            || !signature.type_parameters.is_empty()
             || !signature.conformance_bounds.is_empty()
             || !signature.native_callback_parameters.is_empty()
             || signature.spelling.is_some()
         {
             return Err(unavailable(
-                "the requirement's complete static/default/callback contract",
+                "the requirement's complete conformance, spelling, default, or callback contract",
             ));
         }
         let exposure = if declaration.is_public {
@@ -309,12 +308,24 @@ impl PolicySource<'_> {
         let parameters =
             self.scoped_requirement_parameters(signature, &metadata.parameter_types, exposure)?;
         let formals = typed.state_signature_parameters(signature);
+        let scope = super::telescope::SignatureScope::declaration(
+            self,
+            &[declaration.symbol, signature.symbol],
+        )?;
+        let type_parameters = self.scoped_parameters(signature.symbol, &scope)?;
+        let mut statics = typed.trait_type_parameters(declaration).to_vec();
+        statics.extend(
+            typed
+                .state_signature_type_parameters(signature)
+                .iter()
+                .cloned(),
+        );
         let contracts = self.signature_contracts(
             typed.state_signature_contracts(signature),
             ContractScope {
                 owner: signature.symbol,
                 subject: None,
-                statics: Default::default(),
+                statics: statics.as_slice().into(),
                 parameters: formals,
                 result: None,
             },
@@ -351,7 +362,7 @@ impl PolicySource<'_> {
             spelling: None,
             has_default_realization: false,
             lifetime_parameter_count: metadata.lifetime_parameter_count,
-            type_parameters: Vec::new(),
+            type_parameters,
             conformance_bounds: Vec::new(),
             parameters,
             structural_parameter_positions: Some(metadata.structural_parameter_positions.clone()),

@@ -1298,6 +1298,127 @@ public boundary trait TimeHost {
 }
 
 #[test]
+fn public_method_contracts_keep_their_declaration_binders() {
+    use review_evidence::record::{
+        PackagePolicyBaseline, PackagePolicyTypeParameterKind, PackageReviewContractBinaryOperator,
+        PackageReviewContractExpression as Expression, PackageReviewContractFact,
+        PackageReviewContractKind,
+    };
+    let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "public-method-binders",
+        false,
+    )
+    .unwrap();
+    let build = directory.path().join("build.omg");
+    std::fs::write(
+        &build,
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "receiver"); }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        directory.path().join("main.omg"),
+        r#"
+public boundary trait Receiver {
+    machine send<const Count: u64>(text: @[u8; Count]) -> u64
+    requires Count > 0 reaches none crashes none;
+}
+public machine deliver<'input>(text: @'input [u8; 22]) -> u64
+reaches none invokes Receiver { Receiver::send(text) }
+
+public boundary trait Framed<Frame> {
+    machine send<const Count: u64>(text: @[u8; Count]) -> u64
+    requires Count > 0 requires text[Count - 1] == 0 reaches none crashes none;
+}
+"#,
+    )
+    .unwrap();
+
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&build, &[target]);
+    let settled = returned.settle_dependency(inputs.clone()).unwrap();
+    let product = settled.open_product(inputs).unwrap();
+    let reviewed = product
+        .product_stage(&[target])
+        .unwrap()
+        .review_policy(target)
+        .unwrap();
+    let bytes = reviewed.policy.canonical_bytes().unwrap();
+    let policy = PackagePolicyBaseline::recover_canonical(&bytes, Default::default()).unwrap();
+    policy
+        .validate_package_membership(|owner| owner == policy.package, Default::default())
+        .unwrap();
+    for (path, count_binder) in [("main.omg::Receiver", 0), ("main.omg::Framed", 1)] {
+        let owner = policy
+            .public_api
+            .traits
+            .iter()
+            .find(|row| row.identity.path == path)
+            .unwrap();
+        let [send] = owner.requirements.as_slice() else {
+            panic!("expected one method on {path}")
+        };
+        let callable = policy
+            .callables
+            .callables()
+            .iter()
+            .find(|row| row.identity == send.identity)
+            .unwrap();
+        let expected_parameters = owner
+            .type_parameters
+            .iter()
+            .chain(&send.type_parameters)
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(callable.type_parameters, expected_parameters);
+        assert_eq!(callable.contracts, send.contracts);
+        let [count] = send.type_parameters.as_slice() else {
+            panic!("expected the method's Count binder")
+        };
+        assert!(
+            matches!(&count.kind, PackagePolicyTypeParameterKind::Const(carrier) if carrier.canonical().contains("u64"))
+        );
+        let [text] = send.parameters.as_slice() else {
+            panic!("expected the borrowed array")
+        };
+        assert!(
+            text.type_identity
+                .canonical()
+                .contains(&format!("const-parameter($T{count_binder})")),
+            "array extent on {path} uses the wrong binder: {text:?}"
+        );
+        assert!(
+            send.contracts
+                .iter()
+                .all(|contract| contract.kind == PackageReviewContractKind::Requires)
+        );
+        assert!(send.contracts.iter().any(|contract| matches!(
+            &contract.fact, PackageReviewContractFact::Expression(Expression::Binary {
+                operator: PackageReviewContractBinaryOperator::Greater, left, right, ..
+            }) if **left == Expression::GenericBinder(count_binder) && **right == Expression::Integer("0".into())
+        )));
+        if path == "main.omg::Framed" {
+            use review_evidence::record::PackageReviewContractOperatorMeaning::Builtin;
+            let last_index = Expression::Binary {
+                meaning: Builtin,
+                operator: PackageReviewContractBinaryOperator::Subtract,
+                left: Box::new(Expression::GenericBinder(count_binder)),
+                right: Box::new(Expression::Integer("1".into())),
+            };
+            let final_byte = Expression::Indexed {
+                meaning: Builtin,
+                collection: Box::new(Expression::Parameter(0)),
+                index: Box::new(last_index),
+            };
+            assert!(send.contracts.iter().any(|contract| matches!(
+                &contract.fact, PackageReviewContractFact::Expression(Expression::Binary {
+                    meaning: Builtin, operator: PackageReviewContractBinaryOperator::Equal, left, right,
+                }) if **left == final_byte && **right == Expression::Integer("0".into())
+            )));
+        }
+    }
+}
+
+#[test]
 fn review_retains_public_alias_names_with_their_normalized_expansions() {
     let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
         "review-public-aliases",
