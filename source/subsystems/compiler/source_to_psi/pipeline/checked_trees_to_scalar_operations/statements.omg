@@ -1,6 +1,6 @@
 use pipeline/checked_trees_to_scalar_operations/expressions.omg;
 use pipeline/checked_trees_to_scalar_operations/layout.omg;
-use pipeline/checked_trees_to_scalar_operations/scalar.omg;
+use pipeline/checked_trees_to_scalar_operations/lowerer.omg;
 use pipeline/checked_trees_to_scalar_operations/storage.omg;
 
 use representations/lowered_program/layouts.omg;
@@ -12,17 +12,17 @@ use representations/typed_trees/typed_trees.omg;
 // Every invocation owns parameter and local storage. Caller arguments have
 // finished evaluation before entry; the emitter copies them into these exact
 // offsets before any body call can reuse its own argument scratch.
-public machine scalar_parameters(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem)
+public machine scalar_parameters(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem)
 crashes Trap
 {
     transition { _ -> next(lowerer, syntax, typing, item, 0 as u64 +Trapping) }
-    machine next(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
+    machine next(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
         transition offset < item.parameter_count && lowerer.output.status == |program|::ScalarStatus::Complete {
             true -> parameter(lowerer, syntax, typing, item, offset),
             _ -> done()
         }
     }
-    machine parameter(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
+    machine parameter(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
         let handle: u64 in Trapping = item.first_parameter + offset;
         let parameter: |syntax_trees|::Parameter = |syntax_trees|::syntax_trees_parameter(syntax, handle);
         let type_handle: u64 in Trapping = |typed_trees|::reference_type(typing, parameter.type_reference);
@@ -32,7 +32,7 @@ crashes Trap
             _ -> done()
         }
     }
-    machine layout(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, handle: u64 in Trapping, type_handle: u64 in Trapping) {
+    machine layout(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, handle: u64 in Trapping, type_handle: u64 in Trapping) {
         let layout: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@lowerer.output, type_handle);
         let copyable: bool = |storage|::scalar_copyable(syntax, typing, type_handle);
         transition layout.kind == |layouts|::ScalarLayoutKind::Reference || copyable {
@@ -40,32 +40,43 @@ crashes Trap
             _ -> unsupported(lowerer)
         }
     }
-    machine allocate(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, handle: u64 in Trapping, type_handle: u64 in Trapping, layout: |layouts|::ScalarLayout) {
+    machine allocate(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, handle: u64 in Trapping, type_handle: u64 in Trapping, layout: |layouts|::ScalarLayout) {
         let storage: u64 in Trapping = |storage|::scalar_storage_allocate(lowerer, layout.size);
         lowerer.output.parameters[(handle) as -Trapping] = |program|::ScalarParameter { offset: storage, type_handle: type_handle };
         transition { _ -> next(lowerer, syntax, typing, item, offset + 1) }
     }
-    machine unsupported(lowerer: @mutable |scalar|::ScalarLowerer) { lowerer.output.status = |program|::ScalarStatus::Unsupported; }
+    machine unsupported(lowerer: @mutable |lowerer|::ScalarLowerer) { lowerer.output.status = |program|::ScalarStatus::Unsupported; }
     machine done() {}
 }
 
-public machine scalar_statements(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem)
+public machine scalar_result_type(typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem) -> u64 in Trapping
+crashes Trap
+{
+    transition item.has_return_type {
+        true -> declared(typing, item.return_type),
+        _ -> unit(typing)
+    }
+    machine declared(typing: @|typed_trees|::Typing, reference: u64 in Trapping) -> u64 in Trapping { |typed_trees|::reference_type(typing, reference) }
+    machine unit(typing: @|typed_trees|::Typing) -> u64 in Trapping { typing.unit }
+}
+
+public machine scalar_statements(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem)
 crashes Trap
 {
     transition { _ -> next(lowerer, syntax, resolution, typing, item, 0 as u64 +Trapping) }
-    machine next(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
+    machine next(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
         transition lowerer.output.status == |program|::ScalarStatus::Complete {
             true -> remaining(lowerer, syntax, resolution, typing, item, offset),
             _ -> done()
         }
     }
-    machine remaining(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
+    machine remaining(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
         transition offset < item.statement_count {
             true -> statement(lowerer, syntax, resolution, typing, item, offset),
             _ -> unit_end(lowerer, typing, item)
         }
     }
-    machine statement(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
+    machine statement(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping) {
         let statement: |syntax_trees|::Statement = |syntax_trees|::syntax_trees_statement(syntax, item.first_statement + offset);
         transition statement.kind {
             |syntax_trees|::StatementKind::Let -> local(lowerer, syntax, resolution, typing, item, offset, statement),
@@ -78,7 +89,7 @@ crashes Trap
             _ -> unsupported(lowerer)
         }
     }
-    machine local(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
+    machine local(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
         let type_handle: u64 in Trapping = |typed_trees|::reference_type(typing, statement.type_reference);
         |layout|::scalar_require_layout(lowerer, syntax, typing, type_handle);
         transition lowerer.output.status {
@@ -86,33 +97,33 @@ crashes Trap
             _ -> done()
         }
     }
-    machine allocate(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement, type_handle: u64 in Trapping) {
+    machine allocate(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement, type_handle: u64 in Trapping) {
         let layout: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@lowerer.output, type_handle);
         let storage: u64 in Trapping = |storage|::scalar_storage_allocate(lowerer, layout.size);
-        |scalar|::scalar_bind(lowerer, item.first_statement + offset, storage + 1);
-        let address: u64 in Trapping = |scalar|::scalar_append(lowerer, |program|::ScalarOperationKind::FrameAddress, storage, 0 as u64 +Trapping, 0 as u64 +Trapping);
+        |lowerer|::scalar_bind(lowerer, item.first_statement + offset, storage + 1);
+        let address: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::FrameAddress, storage, 0 as u64 +Trapping, 0 as u64 +Trapping);
         transition statement.has_value {
             true -> initialize(lowerer, syntax, resolution, typing, item, offset, statement, layout, address),
             _ -> zero(lowerer, syntax, resolution, typing, item, offset, layout, address)
         }
     }
-    machine initialize(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement, layout: |layouts|::ScalarLayout, address: u64 in Trapping) {
+    machine initialize(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement, layout: |layouts|::ScalarLayout, address: u64 in Trapping) {
         |expressions|::scalar_expression(lowerer, syntax, resolution, typing, statement.value, false);
-        let value: u64 in Trapping = |scalar|::scalar_value(lowerer, statement.value);
+        let value: u64 in Trapping = |lowerer|::scalar_value(lowerer, statement.value);
         |storage|::scalar_transfer(lowerer, layout, address, value);
         transition { _ -> next(lowerer, syntax, resolution, typing, item, offset + 1) }
     }
-    machine zero(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, layout: |layouts|::ScalarLayout, address: u64 in Trapping) {
+    machine zero(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, layout: |layouts|::ScalarLayout, address: u64 in Trapping) {
         transition address > 0 && lowerer.output.status == |program|::ScalarStatus::Complete {
             true -> zeroed(lowerer, syntax, resolution, typing, item, offset, layout, address),
             _ -> done()
         }
     }
-    machine zeroed(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, layout: |layouts|::ScalarLayout, address: u64 in Trapping) {
-        let ignored: u64 in Trapping = |scalar|::scalar_append(lowerer, |program|::ScalarOperationKind::Zero, address - 1, layout.size, 0 as u64 +Trapping);
+    machine zeroed(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, layout: |layouts|::ScalarLayout, address: u64 in Trapping) {
+        let ignored: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::Zero, address - 1, layout.size, 0 as u64 +Trapping);
         transition { _ -> next(lowerer, syntax, resolution, typing, item, offset + 1) }
     }
-    machine assign(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
+    machine assign(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
         // Capture the destination place before evaluating a possibly effectful
         // value. Neither side is reevaluated by the emitted transfer.
         |expressions|::scalar_expression(lowerer, syntax, resolution, typing, statement.target, true);
@@ -122,7 +133,7 @@ crashes Trap
             _ -> done()
         }
     }
-    machine assigned(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
+    machine assigned(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
         let target: |syntax_trees|::Expression = |syntax_trees|::syntax_trees_expression(syntax, statement.target);
         let type_handle: u64 in Trapping = |typed_trees|::typing_expression_type(typing, statement.target);
         let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, type_handle);
@@ -134,56 +145,56 @@ crashes Trap
             _ -> transfer(lowerer, syntax, resolution, typing, item, offset, statement)
         }
     }
-    machine transfer(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
+    machine transfer(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
         let type_handle: u64 in Trapping = scalar_destination_type(syntax, typing, statement.target);
         let layout: |layouts|::ScalarLayout = |layouts|::scalar_layout_at(@lowerer.output, type_handle);
-        let address: u64 in Trapping = |scalar|::scalar_value(lowerer, statement.target);
-        let value: u64 in Trapping = |scalar|::scalar_value(lowerer, statement.value);
+        let address: u64 in Trapping = |lowerer|::scalar_value(lowerer, statement.target);
+        let value: u64 in Trapping = |lowerer|::scalar_value(lowerer, statement.value);
         |storage|::scalar_transfer(lowerer, layout, address, value);
         transition { _ -> next(lowerer, syntax, resolution, typing, item, offset + 1) }
     }
-    machine discard(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
+    machine discard(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
         |expressions|::scalar_expression(lowerer, syntax, resolution, typing, statement.value, false);
         transition { _ -> next(lowerer, syntax, resolution, typing, item, offset + 1) }
     }
-    machine terminal(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
+    machine terminal(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
         transition offset + 1 == item.statement_count {
             true -> returned(lowerer, syntax, resolution, typing, statement.value),
             _ -> unsupported(lowerer)
         }
     }
-    machine returned(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, value: u64 in Trapping) {
+    machine returned(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, value: u64 in Trapping) {
         |expressions|::scalar_expression(lowerer, syntax, resolution, typing, value, false);
         scalar_return(lowerer, value);
     }
-    machine transition_statement(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
+    machine transition_statement(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
         transition offset + 1 == item.statement_count {
             true -> arms(lowerer, syntax, resolution, typing, statement),
             _ -> unsupported(lowerer)
         }
     }
-    machine arms(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement) {
+    machine arms(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement) {
         scalar_transition(lowerer, syntax, resolution, typing, statement);
     }
-    machine crash_statement(lowerer: @mutable |scalar|::ScalarLowerer, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
+    machine crash_statement(lowerer: @mutable |lowerer|::ScalarLowerer, item: |syntax_trees|::MachineItem, offset: u64 in Trapping, statement: |syntax_trees|::Statement) {
         transition statement.cause == |syntax_trees|::CrashCause::Trap && offset + 1 == item.statement_count {
             true -> trap(lowerer),
             _ -> unsupported(lowerer)
         }
     }
-    machine trap(lowerer: @mutable |scalar|::ScalarLowerer) { scalar_trap(lowerer); }
-    machine unit_end(lowerer: @mutable |scalar|::ScalarLowerer, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem) {
-        let result: u64 in Trapping = |scalar|::scalar_result_type(typing, item);
+    machine trap(lowerer: @mutable |lowerer|::ScalarLowerer) { scalar_trap(lowerer); }
+    machine unit_end(lowerer: @mutable |lowerer|::ScalarLowerer, typing: @|typed_trees|::Typing, item: |syntax_trees|::MachineItem) {
+        let result: u64 in Trapping = scalar_result_type(typing, item);
         let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typing.types, result);
         transition row.kind == |typed_trees|::TypeKind::Unit {
             true -> unit(lowerer),
             _ -> unsupported(lowerer)
         }
     }
-    machine unit(lowerer: @mutable |scalar|::ScalarLowerer) {
-        let ignored: u64 in Trapping = |scalar|::scalar_append(lowerer, |program|::ScalarOperationKind::ReturnUnit, 0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping);
+    machine unit(lowerer: @mutable |lowerer|::ScalarLowerer) {
+        let ignored: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::ReturnUnit, 0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping);
     }
-    machine unsupported(lowerer: @mutable |scalar|::ScalarLowerer) { lowerer.output.status = |program|::ScalarStatus::Unsupported; }
+    machine unsupported(lowerer: @mutable |lowerer|::ScalarLowerer) { lowerer.output.status = |program|::ScalarStatus::Unsupported; }
     machine done() {}
 }
 
@@ -200,66 +211,51 @@ crashes Trap
     machine result(handle: u64 in Trapping) -> u64 in Trapping { handle }
 }
 
-public machine scalar_return(lowerer: @mutable |scalar|::ScalarLowerer, expression: u64 in Trapping)
+public machine scalar_return(lowerer: @mutable |lowerer|::ScalarLowerer, expression: u64 in Trapping)
 crashes Trap
 {
-    let value: u64 in Trapping = |scalar|::scalar_value(lowerer, expression);
+    let value: u64 in Trapping = |lowerer|::scalar_value(lowerer, expression);
     transition value > 0 && lowerer.output.status == |program|::ScalarStatus::Complete {
         true -> returned(lowerer, value),
         _ -> absent(lowerer)
     }
-    machine returned(lowerer: @mutable |scalar|::ScalarLowerer, value: u64 in Trapping) {
-        let ignored: u64 in Trapping = |scalar|::scalar_append(lowerer, |program|::ScalarOperationKind::ReturnValue, value - 1, 0 as u64 +Trapping, 0 as u64 +Trapping);
+    machine returned(lowerer: @mutable |lowerer|::ScalarLowerer, value: u64 in Trapping) {
+        let ignored: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::ReturnValue, value - 1, 0 as u64 +Trapping, 0 as u64 +Trapping);
     }
-    machine absent(lowerer: @mutable |scalar|::ScalarLowerer) {
+    machine absent(lowerer: @mutable |lowerer|::ScalarLowerer) {
         transition lowerer.output.status { |program|::ScalarStatus::Complete -> unsupported(lowerer), _ -> done() }
     }
-    machine unsupported(lowerer: @mutable |scalar|::ScalarLowerer) { lowerer.output.status = |program|::ScalarStatus::Unsupported; }
+    machine unsupported(lowerer: @mutable |lowerer|::ScalarLowerer) { lowerer.output.status = |program|::ScalarStatus::Unsupported; }
     machine done() {}
-}
-
-public machine scalar_patch_branch(lowerer: @mutable |scalar|::ScalarLowerer, branch: u64 in Trapping, target: u64 in Trapping)
-crashes Trap
-{
-    transition branch > 0 && branch <= lowerer.output.operation_count && branch <= 16384 {
-        true -> patch(lowerer, branch - 1, target),
-        _ -> invalid()
-    }
-    machine patch(lowerer: @mutable |scalar|::ScalarLowerer, index: u64 in Trapping, target: u64 in Trapping) {
-        let mutable operation: |program|::ScalarOperation = |program|::scalar_operation(@lowerer.output, index);
-        operation.right = target;
-        lowerer.output.operations[(index) as -Trapping] = operation;
-    }
-    machine invalid() { crash Trap; }
 }
 
 // A transition evaluates its subject once, then tests arms in authored order.
 // Every selected arm completes this invocation; a terminal call is an ordinary
 // retained-frame call followed by return, never an unsafe frame-reusing jump.
-public machine scalar_transition(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement)
+public machine scalar_transition(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement)
 crashes Trap
 {
     transition statement.has_value {
         true -> subject(lowerer, syntax, resolution, typing, statement),
         _ -> arms(lowerer, syntax, resolution, typing, statement, 0 as u64 +Trapping)
     }
-    machine subject(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement) {
+    machine subject(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement) {
         |expressions|::scalar_expression(lowerer, syntax, resolution, typing, statement.value, false);
         transition { _ -> arms(lowerer, syntax, resolution, typing, statement, 0 as u64 +Trapping) }
     }
-    machine arms(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping) {
+    machine arms(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping) {
         transition lowerer.output.status == |program|::ScalarStatus::Complete {
             true -> next(lowerer, syntax, resolution, typing, statement, offset),
             _ -> done()
         }
     }
-    machine next(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping) {
+    machine next(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping) {
         transition offset < statement.arm_count {
             true -> arm(lowerer, syntax, resolution, typing, statement, offset),
             _ -> unmatched(lowerer)
         }
     }
-    machine arm(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping) {
+    machine arm(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping) {
         let arm: |syntax_trees|::TransitionArm = |syntax_trees|::syntax_trees_arm(syntax, statement.first_arm + offset);
         transition arm.kind {
             |syntax_trees|::ArmPatternKind::Binder -> guard(lowerer, syntax, resolution, typing, statement, offset, arm, 0 as u64 +Trapping),
@@ -269,100 +265,100 @@ crashes Trap
             _ -> unsupported(lowerer)
         }
     }
-    machine condition(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, literal: bool) {
+    machine condition(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, literal: bool) {
         |expressions|::scalar_expression(lowerer, syntax, resolution, typing, arm.pattern, false);
         transition lowerer.output.status {
             |program|::ScalarStatus::Complete -> tested(lowerer, syntax, resolution, typing, statement, offset, arm, literal),
             _ -> done()
         }
     }
-    machine tested(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, literal: bool) {
-        let value: u64 in Trapping = |scalar|::scalar_value(lowerer, arm.pattern);
+    machine tested(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, literal: bool) {
+        let value: u64 in Trapping = |lowerer|::scalar_value(lowerer, arm.pattern);
         transition literal && statement.has_value {
             true -> equal(lowerer, syntax, resolution, typing, statement, offset, arm, value),
             _ -> branch(lowerer, syntax, resolution, typing, statement, offset, arm, value)
         }
     }
-    machine equal(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, pattern: u64 in Trapping) {
-        let subject: u64 in Trapping = |scalar|::scalar_value(lowerer, statement.value);
-        let condition: u64 in Trapping = |scalar|::scalar_append(lowerer, |program|::ScalarOperationKind::IntegerEqual, subject - 1, pattern - 1, 0 as u64 +Trapping);
+    machine equal(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, pattern: u64 in Trapping) {
+        let subject: u64 in Trapping = |lowerer|::scalar_value(lowerer, statement.value);
+        let condition: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::IntegerEqual, subject - 1, pattern - 1, 0 as u64 +Trapping);
         transition { _ -> branch(lowerer, syntax, resolution, typing, statement, offset, arm, condition) }
     }
-    machine branch(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, condition: u64 in Trapping) {
+    machine branch(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, condition: u64 in Trapping) {
         transition condition > 0 && lowerer.output.status == |program|::ScalarStatus::Complete {
             true -> skipped(lowerer, syntax, resolution, typing, statement, offset, arm, condition),
             _ -> done()
         }
     }
-    machine skipped(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, condition: u64 in Trapping) {
-        let skip: u64 in Trapping = |scalar|::scalar_append(lowerer, |program|::ScalarOperationKind::BranchZero, condition - 1, 0 as u64 +Trapping, 0 as u64 +Trapping);
+    machine skipped(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, condition: u64 in Trapping) {
+        let skip: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::BranchZero, condition - 1, 0 as u64 +Trapping, 0 as u64 +Trapping);
         transition { _ -> guard(lowerer, syntax, resolution, typing, statement, offset, arm, skip) }
     }
-    machine guard(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, skip: u64 in Trapping) {
+    machine guard(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, skip: u64 in Trapping) {
         transition arm.has_guard {
             true -> guarded(lowerer, syntax, resolution, typing, statement, offset, arm, skip),
             _ -> target(lowerer, syntax, resolution, typing, statement, offset, arm, skip, 0 as u64 +Trapping)
         }
     }
-    machine guarded(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, skip: u64 in Trapping) {
+    machine guarded(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, skip: u64 in Trapping) {
         |expressions|::scalar_expression(lowerer, syntax, resolution, typing, arm.guard, false);
-        let value: u64 in Trapping = |scalar|::scalar_value(lowerer, arm.guard);
+        let value: u64 in Trapping = |lowerer|::scalar_value(lowerer, arm.guard);
         transition value > 0 && lowerer.output.status == |program|::ScalarStatus::Complete {
             true -> guard_skip(lowerer, syntax, resolution, typing, statement, offset, arm, skip, value),
             _ -> done()
         }
     }
-    machine guard_skip(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, skip: u64 in Trapping, value: u64 in Trapping) {
-        let guard_skip: u64 in Trapping = |scalar|::scalar_append(lowerer, |program|::ScalarOperationKind::BranchZero, value - 1, 0 as u64 +Trapping, 0 as u64 +Trapping);
+    machine guard_skip(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, skip: u64 in Trapping, value: u64 in Trapping) {
+        let guard_skip: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::BranchZero, value - 1, 0 as u64 +Trapping, 0 as u64 +Trapping);
         transition { _ -> target(lowerer, syntax, resolution, typing, statement, offset, arm, skip, guard_skip) }
     }
-    machine target(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, skip: u64 in Trapping, guard_skip: u64 in Trapping) {
+    machine target(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, skip: u64 in Trapping, guard_skip: u64 in Trapping) {
         transition arm.target_kind {
             |syntax_trees|::ArmTargetKind::Unit -> unit(lowerer, syntax, resolution, typing, statement, offset, skip, guard_skip),
             _ -> returned(lowerer, syntax, resolution, typing, statement, offset, arm, skip, guard_skip)
         }
     }
-    machine unit(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, skip: u64 in Trapping, guard_skip: u64 in Trapping) {
-        let ignored: u64 in Trapping = |scalar|::scalar_append(lowerer, |program|::ScalarOperationKind::ReturnUnit, 0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping);
+    machine unit(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, skip: u64 in Trapping, guard_skip: u64 in Trapping) {
+        let ignored: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::ReturnUnit, 0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping);
         transition { _ -> end_arm(lowerer, syntax, resolution, typing, statement, offset, skip, guard_skip) }
     }
-    machine returned(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, skip: u64 in Trapping, guard_skip: u64 in Trapping) {
+    machine returned(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, arm: |syntax_trees|::TransitionArm, skip: u64 in Trapping, guard_skip: u64 in Trapping) {
         |expressions|::scalar_expression(lowerer, syntax, resolution, typing, arm.target, false);
         scalar_return(lowerer, arm.target);
         transition { _ -> end_arm(lowerer, syntax, resolution, typing, statement, offset, skip, guard_skip) }
     }
-    machine end_arm(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, skip: u64 in Trapping, guard_skip: u64 in Trapping) {
+    machine end_arm(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, skip: u64 in Trapping, guard_skip: u64 in Trapping) {
         transition lowerer.output.status == |program|::ScalarStatus::Complete {
             true -> label(lowerer, syntax, resolution, typing, statement, offset, skip, guard_skip),
             _ -> done()
         }
     }
-    machine label(lowerer: @mutable |scalar|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, skip: u64 in Trapping, guard_skip: u64 in Trapping) {
+    machine label(lowerer: @mutable |lowerer|::ScalarLowerer, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, typing: @|typed_trees|::Typing, statement: |syntax_trees|::Statement, offset: u64 in Trapping, skip: u64 in Trapping, guard_skip: u64 in Trapping) {
         let target: u64 in Trapping = lowerer.output.operation_count;
-        let ignored: u64 in Trapping = |scalar|::scalar_append(lowerer, |program|::ScalarOperationKind::Label, 0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping);
+        let ignored: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::Label, 0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping);
         scalar_optional_branch(lowerer, skip, target);
         scalar_optional_branch(lowerer, guard_skip, target);
         transition { _ -> arms(lowerer, syntax, resolution, typing, statement, offset + 1) }
     }
-    machine unmatched(lowerer: @mutable |scalar|::ScalarLowerer) { scalar_trap(lowerer); }
-    machine unsupported(lowerer: @mutable |scalar|::ScalarLowerer) { lowerer.output.status = |program|::ScalarStatus::Unsupported; }
+    machine unmatched(lowerer: @mutable |lowerer|::ScalarLowerer) { scalar_trap(lowerer); }
+    machine unsupported(lowerer: @mutable |lowerer|::ScalarLowerer) { lowerer.output.status = |program|::ScalarStatus::Unsupported; }
     machine done() {}
 }
 
-machine scalar_trap(lowerer: @mutable |scalar|::ScalarLowerer)
+machine scalar_trap(lowerer: @mutable |lowerer|::ScalarLowerer)
 crashes Trap
 {
-    let ignored: u64 in Trapping = |scalar|::scalar_append(lowerer, |program|::ScalarOperationKind::Trap,
+    let ignored: u64 in Trapping = |lowerer|::scalar_append(lowerer, |program|::ScalarOperationKind::Trap,
         0 as u64 +Trapping, 0 as u64 +Trapping, 0 as u64 +Trapping);
 }
 
-machine scalar_optional_branch(lowerer: @mutable |scalar|::ScalarLowerer, branch: u64 in Trapping, target: u64 in Trapping)
+machine scalar_optional_branch(lowerer: @mutable |lowerer|::ScalarLowerer, branch: u64 in Trapping, target: u64 in Trapping)
 crashes Trap
 {
     transition branch > 0 {
         true -> patch(lowerer, branch, target),
         _ -> done()
     }
-    machine patch(lowerer: @mutable |scalar|::ScalarLowerer, branch: u64 in Trapping, target: u64 in Trapping) { scalar_patch_branch(lowerer, branch, target); }
+    machine patch(lowerer: @mutable |lowerer|::ScalarLowerer, branch: u64 in Trapping, target: u64 in Trapping) { |lowerer|::scalar_patch_branch(lowerer, branch, target); }
     machine done() {}
 }
