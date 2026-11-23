@@ -4386,14 +4386,7 @@ impl<'t> Program<'t> {
                 StatementNode::Evaluate {
                     expression,
                     discards_result,
-                } => {
-                    let mut expression = self.expression(id, &slots, *expression, None)?;
-                    crate::lowering::operational::boundary(&mut expression);
-                    Statement::Evaluate {
-                        expression,
-                        discards_result: *discards_result,
-                    }
-                }
+                } => self.evaluated_expression(id, &slots, *expression, *discards_result)?,
                 StatementNode::Expression(expression) => {
                     let expected = if last { signature.result } else { None };
                     let mut expression = self.expression(id, &slots, *expression, expected)?;
