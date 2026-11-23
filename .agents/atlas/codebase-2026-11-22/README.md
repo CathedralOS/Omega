@@ -12,6 +12,7 @@ on it.
 
 The counts below describe the November 22 survey. The area digests also record fixes verified after that revision.
 
+- Replay three fixes for generated infinity text, changed-program selection and repeated build output directories. [Commands and timings](reproductions.md)
 - Source stage 05 can pass a final guarded arm to the ordinary coverage proof. [Guarded matches and transitions](digests/03-source-stage-05.md#verified-follow-ups)
 - Native plans preserve memory fences when reopened, and editing an existing spill slot invalidates its cached digest. [Native representations](digests/12-native-representations.md#verified-follow-ups)
 
