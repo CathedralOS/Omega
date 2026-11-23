@@ -144,6 +144,10 @@ fn verdict(build: &str) -> String {
     match judge_build(build) {
         Err(crate::checking::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
+        // A program the compiler rejects reads as its one violation.
+        Ok(RouteVerdict::Rejected { violations, .. }) if violations.len() == 1 => {
+            violations[0].statement.clone()
+        }
         Ok(RouteVerdict::Accepted(accepted)) => {
             accepted.publish_invocation().unwrap();
             "accepted".to_owned()
@@ -191,7 +195,7 @@ machine build_entry{binders}(holder: @mutable View{holder}, cell: @{cell}Cell) {
     };
     assert_eq!(
         verdict(&stashed("", "", "")),
-        "typing assigned value type while reading the body of `build_entry`"
+        "this view is of the region of another lifetime of the machine than the place it is assigned to names: nothing relates two lifetimes of one machine while reading the body of `build_entry`"
     );
     // Stated as one region the store is typed; what stops it then is the
     // checker's own question about a reference kept in storage the caller

@@ -477,3 +477,32 @@ fn a_literal_of_another_carrier_is_refused_at_the_literal() {
         .judged(|_| {})
         .accepted();
 }
+
+/// A record literal's borrowed field must hold a view of the lifetime its
+/// declared type names for that field. `Pair<'a, 'b>` puts `'b` on `left`
+/// and `'a` on `right`, so `Pair { left: y, right: x }` is accepted, and
+/// its twin `Pair { left: x, right: y }` hands `left` a view of `'a`: nothing
+/// relates two lifetimes of one machine, so the literal is rejected at the
+/// field's value (`wiki/spec/language/lifetimes.md`: the language has no
+/// authored outlives bounds).
+#[test]
+fn a_record_literal_field_of_the_other_lifetime_is_rejected() {
+    let program = |fields: &str| {
+        format!(
+            "data Pair<'first, 'second> {{ left: @'second [u8]; right: @'first [u8]; }} \
+             machine make<'a, 'b>(x: @'a [u8], y: @'b [u8]) -> Pair<'a, 'b> {{ Pair {{ {fields} }} }}"
+        )
+    };
+    Program::of(&program("left: y, right: x"))
+        .judged(|_| {})
+        .accepted();
+    let refusal = refused(&program("left: x, right: y"));
+    assert_eq!((refusal.stage, refusal.at.as_str()), ("lowering", "x"));
+    assert!(
+        refusal.message.starts_with(
+            "Violation: this view is of the region of another lifetime of the machine than \
+             the field it initializes names: nothing relates two lifetimes of one machine"
+        ),
+        "{refusal:?}"
+    );
+}
