@@ -209,10 +209,12 @@ impl<'module> AcceptedDeclarations<'module> {
         use terminal_semantics::scalar_qualifications::{
             primitive_qualifications, qualification_domains, scalar_domain,
         };
-        let mismatch = || unavailable(format!(
-            "the parameter domain applications of boundary requirement `{}`",
-            requirement.path()
-        ));
+        let mismatch = || {
+            unavailable(format!(
+                "the parameter domain applications of boundary requirement `{}`",
+                requirement.path()
+            ))
+        };
         if !boundary.has_valid_parameter_order()
             || !StructuralDomainRequirement::declared_roots(&boundary.structural_parameters)
                 .eq(boundary.requires.iter().cloned())
@@ -257,20 +259,27 @@ impl<'module> AcceptedDeclarations<'module> {
                 actual.push((position, scalar_source(id)?));
             }
         }
-        use review_evidence::record::{PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind};
+        use review_evidence::record::{
+            PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
+        };
         let declared_membership = contracts.iter().any(|clause| {
-            clause.kind == PackageReviewContractKind::Requires && matches!(
-                &clause.fact,
-                PackageReviewContractFact::Membership { value: PackageReviewContractExpression::Parameter(_), .. }
-            )
+            clause.kind == PackageReviewContractKind::Requires
+                && matches!(
+                    &clause.fact,
+                    PackageReviewContractFact::Membership {
+                        value: PackageReviewContractExpression::Parameter(_),
+                        ..
+                    }
+                )
         });
         // Typing records each domain-qualified formal as a required membership.
         // If both sides have empty roots, unrelated unavailable metadata (for
         // example a generic result) is outside this comparison.
-        if actual.is_empty() && !declared_membership {
-            return Ok(());
-        }
-        let source = self.accepted.requirement_review(signature.symbol).map_err(unavailable)?;
+        let source = match self.accepted.requirement_review(signature.symbol) {
+            Ok(metadata) => metadata,
+            Err(_) if actual.is_empty() && !declared_membership => return Ok(()),
+            Err(reason) => return Err(unavailable(reason)),
+        };
         actual.sort_unstable_by_key(|(position, domain)| (*position, domain.coordinates()));
         if boundary.parameter_order.len() != source.parameter_types.len()
             || !structural_positions.iter().copied().eq(source
