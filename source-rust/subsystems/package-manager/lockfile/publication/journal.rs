@@ -3,7 +3,19 @@
 
 use super::{PackagePublicationError, PackagePublicationLimits};
 
-const HEADER: &[u8] = b"omega-package-transaction 1\n";
+use crate::transaction::PackageCommandKind;
+
+const HEADER: &[u8] = b"omega-package-transaction 2\n";
+const LEGACY_HEADER: &[u8] = b"omega-package-transaction 1\n";
+const INSTALL: &[u8] = b"install ";
+const UPDATE: &[u8] = b"update ";
+
+/// The proposal may disappear after the pair was written and before its journal was removed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ReviewedProposal {
+    pub kind: PackageCommandKind,
+    pub digest: [u8; 32],
+}
 const BEFORE_BUILD: &[u8] = b"before-build ";
 const AFTER_BUILD: &[u8] = b"after-build ";
 const BEFORE_LOCK: &[u8] = b"before-lock ";
@@ -13,6 +25,7 @@ const DECIMAL_CAPACITY: usize = usize::MAX.ilog10() as usize + 1;
 
 #[derive(Debug, PartialEq, Eq)]
 pub(super) struct PackageFileJournal {
+    pub proposal: Option<ReviewedProposal>,
     pub before_build: Vec<u8>,
     pub after_build: Vec<u8>,
     pub before_lock: Option<Vec<u8>>,
@@ -30,7 +43,19 @@ impl PackageFileJournal {
             (BEFORE_LOCK, self.before_lock.as_deref()),
             (AFTER_LOCK, Some(self.after_lock.as_slice())),
         ];
-        let mut total = HEADER.len();
+        let proposal_row = self.proposal.map(|proposal| {
+            let command = match proposal.kind {
+                PackageCommandKind::Install => "install",
+                PackageCommandKind::Update => "update",
+            };
+            format!("{command} {}\n", crate::Hex(&proposal.digest))
+        });
+        let header = if proposal_row.is_some() {
+            HEADER
+        } else {
+            LEGACY_HEADER
+        };
+        let mut total = header.len() + proposal_row.as_ref().map_or(0, String::len);
         for (name, payload) in rows {
             let mut decimal = [0; DECIMAL_CAPACITY];
             let row_length = if let Some(payload) = payload {
@@ -55,7 +80,10 @@ impl PackageFileJournal {
         }
         let mut bytes = Vec::new();
         crate::reserve!(bytes, total, PackagePublicationError);
-        bytes.extend_from_slice(HEADER);
+        bytes.extend_from_slice(header);
+        if let Some(proposal) = proposal_row {
+            bytes.extend_from_slice(proposal.as_bytes());
+        }
         for (name, payload) in rows {
             bytes.extend_from_slice(name);
             if let Some(payload) = payload {
@@ -78,9 +106,30 @@ impl PackageFileJournal {
         if bytes.len() > limits.maximum_journal_bytes {
             return Err(PackagePublicationError::ByteLimitExceeded);
         }
-        let mut remaining = bytes
-            .strip_prefix(HEADER)
-            .ok_or(PackagePublicationError::InvalidJournal("invalid header"))?;
+        let (proposal, mut remaining) = if let Some(rest) = bytes.strip_prefix(LEGACY_HEADER) {
+            (None, rest)
+        } else {
+            let mut rest = bytes
+                .strip_prefix(HEADER)
+                .ok_or(PackagePublicationError::InvalidJournal("invalid header"))?;
+            let kind = if rest.starts_with(INSTALL) {
+                consume(&mut rest, INSTALL)?;
+                PackageCommandKind::Install
+            } else {
+                consume(&mut rest, UPDATE)?;
+                PackageCommandKind::Update
+            };
+            let digest = rest
+                .get(..64)
+                .and_then(|row| std::str::from_utf8(row).ok())
+                .and_then(crate::hex_digest)
+                .ok_or(PackagePublicationError::InvalidJournal(
+                    "invalid proposal digest",
+                ))?;
+            rest = &rest[64..];
+            consume(&mut rest, b"\n")?;
+            (Some(ReviewedProposal { kind, digest }), rest)
+        };
         let before_build = read_required(&mut remaining, BEFORE_BUILD, &limits)?;
         let after_build = read_required(&mut remaining, AFTER_BUILD, &limits)?;
         consume(&mut remaining, BEFORE_LOCK)?;
@@ -96,6 +145,7 @@ impl PackageFileJournal {
         }
 
         Ok(Self {
+            proposal,
             before_build: copy_payload(before_build)?,
             after_build: copy_payload(after_build)?,
             before_lock: before_lock.map(copy_payload).transpose()?,

@@ -22,14 +22,14 @@ mod proposal;
 mod source_review;
 mod state;
 
-use package_compilation::build_execution::BuildSnapshotRequest;
 use crate::build_session::{PackageBuildSession, PackageSourceBindings};
 use crate::declarations::{BuildFileReplacement, PackageKey};
 use crate::dependencies::{LOCAL_PROJECT_CONTEXT, stage_build_dependency_edit};
 use crate::digest_encoder::content_identity;
 use crate::lock::{PackageLock, PackageLockRecoveryLimits, PackageLockTarget};
 use crate::lockfile::publication::{
-    PackageFileTransaction, PackagePublicationLimits, publish_reviewed_package_change,
+    PackageFileTransaction, PackagePublicationLimits, ReviewedProposal,
+    publish_reviewed_package_change,
 };
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, CanonicalSourceClosureSubjectLimits, GitDependencyPins,
@@ -39,8 +39,10 @@ use crate::resolution::source::{AcquiredBuildSource, BuildSourceAcquisitions};
 use crate::review::CompileResolvedPackageReviewsError;
 use crate::review::{PackageChangeReview, review_package_change_reusing};
 use build_evaluation_result::CompileFailure;
+use package_compilation::build_execution::BuildSnapshotRequest;
 use platform_custody::record_file::{RecordFileRoot, RootRecordRead};
 use proposal::PendingPackageChange;
+pub(crate) use proposal::legacy_publication_kind;
 use source_acquisition::PrimaryGitChoices;
 use source_acquisition::git::resolution::GitExactRevisionAcquisition;
 use source_acquisition::local::staging::StagedLocalSnapshot;
@@ -53,6 +55,7 @@ use std::sync::Arc;
 use target::TargetProfile;
 
 pub struct PackageCommandTransaction {
+    recovered: Option<PackageCommandKind>,
     transaction: PackageFileTransaction,
     files: RecordFileRoot,
     options: PackageCommandOptions,
@@ -65,9 +68,10 @@ impl PackageCommandTransaction {
             PackagePublicationLimits::default(),
         )
         .map_err(failure)?;
-        transaction.recover().map_err(failure)?;
+        let recovered = transaction.recover().map_err(failure)?;
         let files = transaction.command_state_files().map_err(failure)?;
         Ok(Self {
+            recovered,
             transaction,
             files,
             options,
@@ -78,7 +82,7 @@ impl PackageCommandTransaction {
         &'workspace mut self,
         command: PackageCommand,
         storage: Option<&'storage SourceResolver>,
-    ) -> Result<PackageCommandPreparation<'workspace, 'storage>, PackageCommandError> {
+    ) -> Result<PackageCommandAdmission<'workspace, 'storage>, PackageCommandError> {
         let options = &self.options;
         if options.build_inputs.is_some()
             && matches!(
@@ -89,6 +93,24 @@ impl PackageCommandTransaction {
             return Err(failure(
                 "--resume and --discard-review cannot override the pending input inventory",
             ));
+        }
+        let recovered = self.recovered.take();
+        if let PackageCommand::Resume { kind } = command {
+            if !options.targets.is_empty() {
+                return Err(failure("--resume uses the pending proposal's targets"));
+            }
+            if let Some(recovered) = recovered {
+                if kind != recovered {
+                    return Err(failure(
+                        "the recovered publication belongs to the other package command",
+                    ));
+                }
+                return Ok(PackageCommandAdmission::Published(PackageCommandOutcome {
+                    status: PackageCommandStatus::Published,
+                    report: "Recovered the reviewed build.omg and omega.lock.".into(),
+                    review_paths: Vec::new(),
+                }));
+            }
         }
         let transaction = &mut self.transaction;
         if matches!(command, PackageCommand::DiscardReview) {
@@ -155,9 +177,6 @@ impl PackageCommandTransaction {
                 None,
             ),
             PackageCommand::Resume { kind } => {
-                if !requested_targets.is_empty() {
-                    return Err(failure("--resume uses the pending proposal's targets"));
-                }
                 let file = pending_file.as_ref().ok_or_else(|| {
                     failure("no pending package review; start an install or update first")
                 })?;
@@ -222,7 +241,7 @@ impl PackageCommandTransaction {
         } else {
             GitExactRevisionAcquisition::AllowFetch
         };
-        Ok(PackageCommandPreparation {
+        Ok(PackageCommandAdmission::Review(Box::new(PackageCommandPreparation {
             identity: Arc::new(CommandReviewIdentity),
             transaction,
             files,
@@ -242,7 +261,7 @@ impl PackageCommandTransaction {
             recovered,
             updates,
             offline,
-        })
+        })))
     }
 }
 
@@ -370,6 +389,11 @@ impl CommandStorage<'_> {
             Self::Opened(storage) => storage,
         }
     }
+}
+
+pub enum PackageCommandAdmission<'workspace, 'storage> {
+    Review(Box<PackageCommandPreparation<'workspace, 'storage>>),
+    Published(PackageCommandOutcome),
 }
 
 pub struct PackageCommandPreparation<'workspace, 'storage> {
@@ -503,6 +527,7 @@ impl PreparedPackageCommand<'_, '_> {
             replacement,
             stage,
             resume,
+            kind,
             ..
         } = preparation;
         let reviews = reviews
@@ -532,6 +557,9 @@ impl PreparedPackageCommand<'_, '_> {
         if let Some(text) = proposal_text {
             write_proposal(files, &text)?;
             pending_file = read(files, PROPOSAL)?;
+            if pending_file.as_ref().map(|file| file.bytes()) != Some(text.as_bytes()) {
+                return Err(failure("the package proposal changed before publication"));
+            }
         }
         if let Some(file) = &mut pending_file {
             file.verify_current(LIMITS).map_err(file_failure)?;
@@ -552,8 +580,11 @@ impl PreparedPackageCommand<'_, '_> {
             .zip(choices.resolutions.iter())
             .collect::<Vec<_>>();
         session.close().map_err(PackageCommandError::from)?;
+        let proposal = pending_file
+            .ok_or_else(|| failure("reviewed package proposal disappeared before publication"))?;
         let published = publish_reviewed_package_change(
             transaction,
+            ReviewedProposal { kind, digest: digest(proposal.bytes()) },
             &replacement,
             &stage,
             &paired,
@@ -565,11 +596,6 @@ impl PreparedPackageCommand<'_, '_> {
             published.targets()[0].source().packages().len(),
             published.targets().len()
         ));
-        if let Some(file) = pending_file
-            && let Err(error) = file.remove(LIMITS)
-        {
-            choices.report.push_str(&format!("\nAccepted files were published, but proposal cleanup failed: {}. Use --discard-review before starting another change.", file_failure(error)));
-        }
         Ok(PackageCommandOutcome {
             status: PackageCommandStatus::Published,
             report: choices.report,

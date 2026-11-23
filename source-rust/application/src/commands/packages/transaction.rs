@@ -5,8 +5,8 @@ use package_manager::operations::{
 };
 use package_manager::project::resolve_build_sources;
 use package_manager::{
-    PackageBuildSession, PackageCommand, PackageCommandError, PackageCommandOptions,
-    PackageCommandOutcome, PackageCommandTransaction, PackageSourceBindings,
+    PackageBuildSession, PackageCommand, PackageCommandAdmission, PackageCommandError,
+    PackageCommandOptions, PackageCommandOutcome, PackageCommandTransaction, PackageSourceBindings,
 };
 
 pub(super) fn execute_package_command(
@@ -15,7 +15,10 @@ pub(super) fn execute_package_command(
     session: &mut PackageBuildSession,
 ) -> Result<PackageCommandOutcome, PackageCommandError> {
     let mut transaction = PackageCommandTransaction::open(options)?;
-    let preparation = transaction.prepare(command, None)?;
+    let preparation = match transaction.prepare(command, None)? {
+        PackageCommandAdmission::Published(outcome) => return Ok(outcome),
+        PackageCommandAdmission::Review(preparation) => *preparation,
+    };
     let acquired = preparation.acquire_root()?;
     let sources = resolve_build_sources(
         session,
