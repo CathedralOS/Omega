@@ -35,15 +35,21 @@ def main():
     args = parser.parse_args()
     fixture = PACKAGE / "tests/fixtures/generics/run/static_arguments"
     units = []
+    resolver_files = {}
     for filename, names in DECLARATIONS.items():
         source = (PACKAGE / filename).read_text()
+        declarations = []
         for name in names:
             # A top-level declaration closes at the left margin. Nested machines
             # stay with their owner, exactly as compiled in the product package.
             match = re.search(rf"^(?:public )?(?:data|machine) {name}\b.*?^}}", source, re.M | re.S)
             if not match:
                 raise ValueError(f"missing declaration {name} in {filename}")
-            units.append(match[0])
+            declarations.append(match[0])
+        if filename.startswith(RESOLVER):
+            resolver_files[filename] = declarations
+        else:
+            units.extend(declarations)
 
     with tempfile.TemporaryDirectory(prefix="omega-static-arguments-") as directory:
         root = Path(directory)
@@ -55,6 +61,18 @@ def main():
             (root / state.parent).mkdir(parents=True)
             shutil.copyfile(fixture / state.name, root / state)
             units.insert(0, f"use {state.as_posix()};")
+        for filename, declarations in resolver_files.items():
+            # These queries use the fixture's short syntax and name tables. Other
+            # resolver declarations still come from their own source files.
+            body = "\n\n".join(declarations) + "\n"
+            imports = []
+            for alias in sorted(set(re.findall(r"\|(\w+)\|::", body))):
+                if alias in {"syntax_trees", "symbol_resolved_trees"}:
+                    imports.append(f"use main.omg as {alias};")
+                else:
+                    imports.append(f"use {RESOLVER}{alias}.omg;")
+            (root / filename).write_text("\n".join(imports) + "\n\n" + body)
+            units.insert(0, f"use {filename};")
         program = root / "main.omg"
         units.insert(0, "use representations/tokens/numeric.omg;")
         units.append((fixture / "main.omg").read_text())
