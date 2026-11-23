@@ -16,6 +16,12 @@ fn generated_files_can_import_the_checked_base_and_one_another() {
             source_capture::CapturedSourceNode::Directory,
         ),
         (
+            PathBuf::from("linked.omg"),
+            source_capture::CapturedSourceNode::Symlink {
+                target: "types/base.omg".into(),
+            },
+        ),
+        (
             PathBuf::from("types/base.omg"),
             source_capture::CapturedSourceNode::File {
                 bytes: Arc::from(base_text.as_bytes()),
@@ -61,7 +67,7 @@ fn generated_files_can_import_the_checked_base_and_one_another() {
         generated("math/value.omg", "public machine value() -> u8 { 7 }"),
         generated(
             "entry.omg",
-            "use math/value.omg; use types/base.omg; machine make() -> u8 { |value|::value() }",
+            "use math/value.omg; use types/base.omg; use linked.omg; machine make() -> u8 { |value|::value() }",
         ),
     ];
     let admit = |units: &[PackageGeneratedSource], catalogue: &mut SourceCatalogue| {
@@ -78,6 +84,7 @@ fn generated_files_can_import_the_checked_base_and_one_another() {
         [
             SourceScopedTopLevelBinding::file_import(entry, value, "value"),
             SourceScopedTopLevelBinding::file_import(entry, authored, "base"),
+            SourceScopedTopLevelBinding::file_import(entry, authored, "linked"),
         ]
     );
     let duplicate = [generated("types/base.omg", "public data Other {}")];

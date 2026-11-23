@@ -66,7 +66,13 @@ impl BuildStage {
             .collect::<Vec<_>>();
         incomplete_files.sort_unstable();
         incomplete_files.dedup();
+        let unused_files = PendingBuildImport::files_without_product_uses(imports, typed);
         for import in imports {
+            if let crate::SourceImportTarget::File { alias, .. } = &import.target
+                && !unused_files.contains(&(import.source.0, alias.as_str()))
+            {
+                continue;
+            }
             if incomplete_files.binary_search(&import.source.0).is_err() {
                 let diagnostic =
                     Diagnostic::warning(format!("unused deferred Build import `{}`", import.target))
