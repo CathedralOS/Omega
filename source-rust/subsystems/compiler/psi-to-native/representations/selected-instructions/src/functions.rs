@@ -157,6 +157,21 @@ fn function_of(entry: &Arc<FunctionEntry>) -> &SelectedFunction {
     &entry.function
 }
 
+/// Register rewrites may add rows while the function keeps the digest of its existing rows.
+pub struct AppendOnlyRows<'a, T>(&'a mut Vec<T>);
+
+impl<T> AppendOnlyRows<'_, T> {
+    pub fn push(&mut self, row: T) {
+        self.0.push(row);
+    }
+}
+
+impl<T> Extend<T> for AppendOnlyRows<'_, T> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, rows: I) {
+        self.0.extend(rows);
+    }
+}
+
 impl SelectedFunctions {
     fn invalidate_plan_prefix(&mut self) {
         if let Some(prefix) = self.retained_plan_prefix.take() {
@@ -198,12 +213,23 @@ impl SelectedFunctions {
         self.detach_entry(index).map(detach)
     }
 
+    /// Reuse the encoded register and spill-slot prefix while appending new rows.
+    /// Editing an existing row goes through [`Self::get_mut`] to invalidate its digest.
+    ///
+    /// ```compile_fail,E0608
+    /// # use selected_instructions::SelectedFunctions;
+    /// # fn resize(functions: &mut SelectedFunctions) {
+    /// functions.mutate_preserving_register_prefix(0, |slots, _, _, _| {
+    ///     slots[0].byte_size = 16;
+    /// });
+    /// # }
+    /// ```
     pub fn mutate_preserving_register_prefix<R>(
         &mut self,
         index: usize,
         f: impl FnOnce(
-            &mut Vec<SelectedLocalStorageSlot>,
-            &mut Vec<VirtualRegister>,
+            &mut AppendOnlyRows<'_, SelectedLocalStorageSlot>,
+            &mut AppendOnlyRows<'_, VirtualRegister>,
             &mut Vec<SelectedBoundarySettlement>,
             &mut SelectedBlocks,
         ) -> R,
@@ -219,16 +245,13 @@ impl SelectedFunctions {
             entry.previous_prefix = prior_prefix;
             entry.previous_prefix_verified = true;
         }
-        let old_len = entry.function.virtual_registers.len();
         let contracts = Arc::make_mut(&mut entry.function.contracts);
-        let result = f(
-            &mut contracts.local_storage_slots,
-            &mut contracts.virtual_registers,
+        f(
+            &mut AppendOnlyRows(&mut contracts.local_storage_slots),
+            &mut AppendOnlyRows(&mut contracts.virtual_registers),
             &mut contracts.boundary_settlements,
             &mut entry.function.blocks,
-        );
-        debug_assert!(entry.function.virtual_registers.len() >= old_len);
-        result
+        )
     }
 
     pub fn iter(&self) -> Iter<'_> {
