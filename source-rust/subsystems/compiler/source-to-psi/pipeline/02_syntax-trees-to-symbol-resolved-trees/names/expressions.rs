@@ -332,6 +332,13 @@ mod references {
         member: &str,
         has_suffix: bool,
     ) -> SymbolHandle {
+        // A multi-part name is a static selection. Dot access has a separate
+        // member node whose receiver is resolved as an ordinary value.
+        if has_suffix {
+            return machine.type_parameters.iter()
+                .find(|parameter| parameter.name.as_str() == member)
+                .map_or_else(SymbolHandle::invalid, |parameter| parameter.symbol);
+        }
         machine
             .prior_statements
             .iter()
@@ -352,12 +359,12 @@ mod references {
                     .iter()
                     .find(|parameter| {
                         parameter.name.as_str() == member
-                            && (matches!(
+                            && matches!(
                                 parameter.kind,
                                 TypeParameterKind::Type
                                     | TypeParameterKind::Const { .. }
                                     | TypeParameterKind::Value { .. }
-                            ) || has_suffix)
+                            )
                     })
                     .map(|parameter| parameter.symbol)
             })
