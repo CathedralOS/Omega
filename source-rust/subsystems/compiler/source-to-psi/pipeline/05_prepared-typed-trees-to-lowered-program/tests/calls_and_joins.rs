@@ -505,13 +505,36 @@ fn each_arm_of_a_returned_match_returns_what_its_own_formal_built() {
 }
 
 fn views(access: &str) -> Program {
+    bounded_views(access, "requires right.length < 1000")
+}
+
+fn bounded_views(access: &str, right: &str) -> Program {
     Program::of(&format!(
         "machine measure(n: u64) -> u8 requires n < 1000 {{ 1u8 }} \
          machine pick<'a>(flag: bool, left: @'a {access}[u32], right: @'a {access}[u32]) -> u8 \
-             requires left.length < 1000 requires right.length < 1000 {{ \
+             requires left.length < 1000 {right} {{ \
              let chosen: @'a {access}[u32] = match flag {{ true -> left, false -> right, }}; \
              measure(chosen.length) }}"
     ))
+}
+
+/// A view chosen by a `match` keeps the length of whichever view arrived,
+/// whether the views are shared or exclusive. An exclusive view is affine,
+/// so stage 05 moves the joined view into the local `chosen`; the join names
+/// its length, and the checker relates that name to each arm's view, so
+/// `measure`'s `requires n < 1000` holds when both formals are bounded. The
+/// twin without the bound on `right` is rejected at the call.
+#[test]
+fn a_joined_view_keeps_the_length_of_the_view_that_arrived() {
+    for access in ["", "mutable "] {
+        views(access).judged(|_| {}).accepted();
+        let unbounded = bounded_views(access, "").judged(|_| {}).rejected();
+        assert_eq!(
+            unbounded.unproved,
+            ["CallRequirement { invocation: InvocationId(1), clause: 0 }"],
+            "{access}: {unbounded:?}"
+        );
+    }
 }
 
 /// A `match` that chooses between two exclusive views lends each arm's
