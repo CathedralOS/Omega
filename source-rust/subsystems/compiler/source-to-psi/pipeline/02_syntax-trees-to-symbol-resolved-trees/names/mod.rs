@@ -452,9 +452,9 @@ pub(crate) fn assign_constant_expression_symbols(
 }
 
 pub(crate) use lookup::{
-    DomainMembership, MembershipSelection, builtin_type_atom_by_symbol_name,
-    constructor_type, domain_name_reaches, membership_domain_lookup,
-    membership_selection, qualified_payload_free_case_type,
+    DomainMembership, MembershipSelection, builtin_type_atom_by_symbol_name, constructor_type,
+    domain_name_reaches, membership_domain_lookup, membership_selection,
+    qualified_payload_free_case_type,
 };
 
 /// Assign declaration identities before resolving a batch of body locals.

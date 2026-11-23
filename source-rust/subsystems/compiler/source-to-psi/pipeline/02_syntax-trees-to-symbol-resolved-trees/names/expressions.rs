@@ -335,7 +335,9 @@ mod references {
         // A multi-part name is a static selection. Dot access has a separate
         // member node whose receiver is resolved as an ordinary value.
         if has_suffix {
-            return machine.type_parameters.iter()
+            return machine
+                .type_parameters
+                .iter()
                 .find(|parameter| parameter.name.as_str() == member)
                 .map_or_else(SymbolHandle::invalid, |parameter| parameter.symbol);
         }

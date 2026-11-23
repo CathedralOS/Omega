@@ -44,11 +44,7 @@ fn local_and_dependency_file_roots_select_only_their_exact_admitted_source() {
                     "kit/math/other.omg",
                 ],
             ),
-            package(
-                dependency,
-                "lib",
-                &["math", "math/v.omg", "math/other.omg"],
-            ),
+            package(dependency, "lib", &["math", "math/v.omg", "math/other.omg"]),
         ],
         vec![PackageDependencyBinding::new(app, "kit", dependency)],
     )
