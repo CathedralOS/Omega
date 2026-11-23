@@ -1379,11 +1379,20 @@ macro_rules! move_or_store_structural_field_pattern {
     };
 }
 
+/// Matches ordinary and case-specific leaf copies. The operation's `path`
+/// identifies which kind of copy was selected.
+///
+/// ```
+/// use abstract_operations::{AbstractOperation, structural_leaf_copy_pair_pattern};
+///
+/// fn is_leaf_copy(operation: &AbstractOperation) -> bool {
+///     matches!(operation, structural_leaf_copy_pair_pattern!())
+/// }
+/// ```
 #[macro_export]
 macro_rules! structural_leaf_copy_pair_pattern {
     () => {
         $crate::AbstractOperation::StructuralLeafCopy { .. }
-            | $crate::AbstractOperation::StructuralCaseLeafCopy { .. }
     };
 }
 
