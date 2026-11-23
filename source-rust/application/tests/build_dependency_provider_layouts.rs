@@ -55,11 +55,14 @@ fn default_only(name: &str, main: &str) -> PathBuf {
         .canonicalize()
         .expect("kit package");
     let build = std::fs::read_to_string(fixture().join("build.omg")).expect("kept Build");
+    // The path becomes an Omega string literal, where a backslash starts an
+    // escape. A Windows path needs each separator doubled.
+    let location = kit
+        .to_str()
+        .expect("UTF-8 repository path")
+        .replace('\\', "\\\\");
     let defaults = build
-        .replace(
-            "../../../packages/layout-default-kit",
-            kit.to_str().expect("UTF-8 repository path"),
-        )
+        .replace("../../../packages/layout-default-kit", &location)
         .lines()
         .filter(|line| !line.contains("select_provider") && !line.contains("Windows takes"))
         .collect::<Vec<_>>()
@@ -109,6 +112,16 @@ fn a_chosen_dependency_default_with_an_invalid_layout_is_refused() {
         ),
         "{report}"
     );
+}
+
+/// Saves `module` and reopens the saved bytes. Encoding trusts its producer;
+/// the reader is the boundary that validates a program it did not produce,
+/// so an altered table has to be refused there.
+fn reopen(
+    module: terminal_psi::TerminalModule,
+) -> Result<terminal_codec::ClosedTerminalModule, terminal_codec::CodecError> {
+    let saved = terminal_codec::ClosedTerminalModule::new(module)?;
+    terminal_codec::ClosedTerminalModule::from_semantic_bytes(saved.semantic_bytes())
 }
 
 #[test]
@@ -190,11 +203,15 @@ fn an_entryless_library_demands_only_the_selected_targets_layouts() {
             } if id == pending.id)
             );
 
+            // The original publication reopens; each altered copy below differs
+            // from it in one table only.
+            reopen(module.clone()).expect("the published library reopens");
+
             let mut wrong_policy = module.clone();
             assert_ne!(pending.policy_identity, pending.plan_identity);
             wrong_policy.layouts.target_layout_applications[0].policy_identity =
                 pending.plan_identity;
-            let error = terminal_codec::ClosedTerminalModule::new(wrong_policy).unwrap_err();
+            let error = reopen(wrong_policy).unwrap_err();
             assert!(
                 error
                     .to_string()
@@ -216,7 +233,7 @@ fn an_entryless_library_demands_only_the_selected_targets_layouts() {
             };
             fields[0].field_type =
                 terminal_psi::StructuralFieldType::Scalar(semantic_vocabulary::ScalarType::Boolean);
-            let error = terminal_codec::ClosedTerminalModule::new(altered).unwrap_err();
+            let error = reopen(altered).unwrap_err();
             assert!(
                 error
                     .to_string()
