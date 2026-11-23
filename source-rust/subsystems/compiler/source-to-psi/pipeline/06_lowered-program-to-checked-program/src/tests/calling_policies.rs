@@ -90,8 +90,7 @@ fn describe_verdicts(
 ) -> String {
     let parts: Vec<String> = verdicts
         .into_iter()
-        .map(|verdict| {
-            match verdict {
+        .map(|verdict| match verdict {
             Err(crate::checking::CompilationRefusal::Elaboration(refusal))
             | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
             Ok(RouteVerdict::Accepted(accepted)) => match accepted.publish_invocation() {
