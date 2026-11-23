@@ -87,11 +87,7 @@ impl PrimitiveType {
     }
 
     pub fn is_signed_integer(self) -> bool {
-        match self {
-            Self::Integer(carrier) => carrier.is_signed(),
-            Self::Bool | Self::F32 | Self::F64 => true,
-            Self::Addr | Self::Selector => false,
-        }
+        matches!(self, Self::Integer(carrier) if carrier.is_signed())
     }
 
     /*
@@ -139,6 +135,26 @@ impl std::fmt::Display for PrimitiveType {
             Self::Integer(carrier) => carrier.fmt(formatter),
             Self::Addr => formatter.write_str("addr"),
             Self::Selector => formatter.write_str("selector"),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_signed_integer_carriers_are_signed_integers() {
+        assert!(PrimitiveType::Integer(FixedInteger::signed(8)).is_signed_integer());
+        for ty in [
+            PrimitiveType::U8,
+            PrimitiveType::Bool,
+            PrimitiveType::F32,
+            PrimitiveType::F64,
+            PrimitiveType::Addr,
+            PrimitiveType::Selector,
+        ] {
+            assert!(!ty.is_signed_integer(), "{ty}");
         }
     }
 }
