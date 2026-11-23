@@ -291,12 +291,9 @@ fn parses_value_and_policy_domain_chain_as_one_constrained_type() {
     let constraints = parsed.type_references.constraints(*constraints);
     assert!(matches!(
         constraints,
-        [
-            TypeConstraintNode::Domain(name),
-            TypeConstraintNode::ArithmeticDomain(
-                numerics::arithmetic::ArithmeticDomain::Saturating
-            )
-        ] if name.name.as_str(&parsed) == "Finite"
+        [TypeConstraintNode::Domain(value), TypeConstraintNode::Domain(policy)]
+            if value.name.as_str(&parsed) == "Finite"
+                && policy.name.as_str(&parsed) == "Saturating"
     ));
 }
 

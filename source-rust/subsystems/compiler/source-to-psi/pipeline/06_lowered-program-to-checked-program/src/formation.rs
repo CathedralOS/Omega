@@ -35,9 +35,9 @@ fn denied_domain_cast(
     denied: terminal_semantics::DeniedEstablishment,
 ) -> Refusal {
     let domain = elaboration
-        .domain_names
+        .domain_sources
         .get(denied.domain)
-        .cloned()
+        .map(|source| source.label.clone())
         .unwrap_or_else(|| format!("domain {}", denied.domain.get()));
     crate::checking::refusal(
         RefusalReason::Violation,

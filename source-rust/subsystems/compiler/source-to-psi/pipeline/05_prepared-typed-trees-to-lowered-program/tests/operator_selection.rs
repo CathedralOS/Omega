@@ -179,6 +179,59 @@ machine both(x: u8 in Wrapping) -> u8 in Wrapping crashes none { x + add(1u8) }"
     program.judged(|_| {}).accepted();
 }
 
+/// `Wrapping` is core's policy domain, not a reserved word. A package that
+/// declares its own `domain u8::Wrapping` means that domain: `x + 10u8`
+/// calls the package's `+` over it, and `250u8 as +Wrapping` adds it. The
+/// twin without the declaration reads `Wrapping` as core's policy, so the
+/// same `x + 10u8` is the wrapping addition.
+#[test]
+fn a_packages_own_wrapping_domain_is_not_the_core_policy() {
+    let caller = "machine shifted(x: u8 in Wrapping) -> u8 in Wrapping crashes none { x + 10u8 }
+machine start() -> u8 in Wrapping crashes none { 250u8 as +Wrapping }";
+    let own = Program::of(&format!(
+        "domain u8::Wrapping;
+machine + add(x: u8 in Wrapping, y: u8) -> u8 in Wrapping crashes none {{
+    ((x as -Wrapping) +% y +% 1u8) as +Wrapping
+}}
+{caller}"
+    ));
+    // `shifted` lands `10u8` and then applies the selected `+` to `x` and it.
+    let sum = |program: &Program| {
+        let lowered = program.lower();
+        let operations = lowered.operations("shifted");
+        let [(_, ten), (_, sum)] = operations[..] else {
+            panic!("{operations:?}")
+        };
+        let x = formals(lowered.machine("shifted"))[0];
+        (lowered.machine_id("add"), x, scalar(ten), sum.kind.clone())
+    };
+    let (add, x, ten, kind) = sum(&own);
+    let OperationKind::Call {
+        callee, arguments, ..
+    } = &kind
+    else {
+        panic!("{kind:?}")
+    };
+    assert_eq!((*callee, arguments.as_slice()), (add, &[x, ten][..]));
+    own.judged(|_| {}).accepted();
+
+    let core = Program::of(caller);
+    let lowered = core.lower();
+    let operations = lowered.operations("shifted");
+    let [(_, ten), (_, sum)] = operations[..] else {
+        panic!("{operations:?}")
+    };
+    let x = formals(lowered.machine("shifted"))[0];
+    assert_eq!(
+        sum.kind,
+        OperationKind::WrappingIntegerAdd {
+            left: x,
+            right: scalar(ten),
+        }
+    );
+    core.judged(|_| {}).accepted();
+}
+
 /// `x as +Wrapping` and `x as -Wrapping` keep the carrier: each is one
 /// qualification change of `x` on the edge out of the entry, with no
 /// operation. `x as u13 +Wrapping` widens `x` first and qualifies the

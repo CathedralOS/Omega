@@ -54,6 +54,7 @@ impl Handles {
 #[derive(Clone, Copy, Debug)]
 enum Effect {
     Acquire,
+    Reopen,
     Use,
     Close,
     Duplicate,
@@ -262,6 +263,18 @@ impl Call {
                     && scalar(arguments[4], 0)
                     && scalar(arguments[5], 2)
             }
+            // std reopens a pinned original with exactly its read or write
+            // ceiling, full sharing and no flags; its granted mask came from
+            // NtQueryObject's ObjectBasicInformation (class 0, 56 bytes).
+            b"ReOpenFile" => {
+                arguments.len() == 4
+                    && (scalar(arguments[1], 1048577) || scalar(arguments[1], 1048578))
+                    && scalar(arguments[2], 7)
+                    && scalar(arguments[3], 0)
+            }
+            b"NtQueryObject" => {
+                arguments.len() == 3 && scalar(arguments[1], 0) && scalar(arguments[2], 56)
+            }
             b"ReadFile" | b"WriteFile" | b"SetFileTime" | b"GetFileTime" => {
                 arguments.len() == 2 && scalar(arguments[1], 0)
             }
@@ -335,7 +348,7 @@ impl Call {
         value: TerminalScalarValue,
     ) -> Result<TerminalScalarValue, TerminalEffectRejection> {
         match self.effect {
-            Effect::Acquire => replace_handle(
+            Effect::Acquire | Effect::Reopen => replace_handle(
                 value,
                 self.context.windows.borrow_mut().acquire(signed(value)?)?,
             ),

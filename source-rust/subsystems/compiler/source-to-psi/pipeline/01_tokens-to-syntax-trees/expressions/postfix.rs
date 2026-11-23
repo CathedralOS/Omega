@@ -178,11 +178,6 @@ pub(crate) fn parse_cast_suffix<'tokens, 'source>(
         }
         let after_in = input.take_contextual("in")?;
         let (domain_name, rest) = crate::types::references::parse_static_name(after_in)?;
-        if ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)).is_some() {
-            return Err(input.error_here(
-                "a recast re-views a place's bytes and takes no arithmetic domain",
-            ));
-        }
         syntax_trees.expressions.append_identifier_path_member_to_span(
             &mut semantic_domain,
             domain_name,
@@ -262,28 +257,14 @@ fn parse_cast_entries<'tokens, 'source>(
                 )));
         }
         let (domain_name, rest) = crate::types::references::parse_static_name(after_sign)?;
-        let mut domain = ArithmeticDomain::Exact;
+        // Every entry names a domain path. Name resolution decides whether
+        // `+Wrapping` is the package's own domain or core's arithmetic policy.
         let mut semantic_domain = arena::HandleSpan::empty();
-        let mut semantic_domain_arguments = arena::HandleSpan::empty();
-        match ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)) {
-            Some(parsed) => {
-                if rest.at_punctuation(PunctuationKind::Less) {
-                    return Err(
-                        rest.error_here("compiler arithmetic domains do not take index arguments")
-                    );
-                }
-                domain = parsed;
-                input = rest;
-            }
-            None => {
-                syntax_trees
-                    .expressions
-                    .append_identifier_path_member_to_span(&mut semantic_domain, domain_name);
-                let (arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
-                semantic_domain_arguments = arguments;
-                input = rest;
-            }
-        }
+        syntax_trees
+            .expressions
+            .append_identifier_path_member_to_span(&mut semantic_domain, domain_name);
+        let (semantic_domain_arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
+        input = rest;
         let consumed = entry_start.tokens.len().saturating_sub(input.tokens.len());
         let label_text = entry_start.tokens[..consumed]
             .iter()
@@ -304,7 +285,9 @@ fn parse_cast_entries<'tokens, 'source>(
                 value: expression,
                 target_type,
                 target_label,
-                domain,
+                // Name resolution sets core's policy here when no declared
+                // domain of the written name is visible.
+                domain: ArithmeticDomain::Exact,
                 semantic_domain,
                 semantic_domain_arguments,
                 form: CastForm::Entry(CastEntry {

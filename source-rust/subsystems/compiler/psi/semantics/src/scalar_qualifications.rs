@@ -769,7 +769,8 @@ pub(crate) fn field_qualifications(
         })
 }
 
-pub(crate) fn primitive_qualifications(
+/// The whole-value scalar qualification set retained on an addressable primitive.
+pub fn primitive_qualifications(
     module: &TerminalModule,
     ty: semantic_vocabulary::StructuralTypeId,
 ) -> ScalarQualificationSetId {

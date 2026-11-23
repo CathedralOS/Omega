@@ -213,28 +213,25 @@ impl Program<'_> {
         let mut parameter_qualifications = Vec::new();
         let mut structural_parameter_positions = Vec::new();
         for (position, value) in signature.parameters.iter().enumerate() {
-            if !signature.is_place(position) {
-                continue;
+            let structural = signature.is_place(position);
+            let position = u32::try_from(position)
+                .map_err(|_| "public requirement parameter position exceeds u32")?;
+            if structural {
+                structural_parameter_positions.push(position);
             }
-            let structural_index = u32::try_from(structural_parameter_positions.len())
-                .map_err(|_| "public requirement structural namespace exceeds u32")?;
-            structural_parameter_positions.push(
-                u32::try_from(position)
-                    .map_err(|_| "public requirement parameter position exceeds u32")?,
-            );
             for domain in value.qualification().domains.members() {
-                let definition = self
-                    .typed
-                    .domain_definition(domain.declaration)
-                    .ok_or("public requirement qualification lost its exact domain declaration")?;
-                if !definition.type_parameters.is_empty() || !definition.index_arguments.is_empty()
-                {
-                    return Err(
-                        "public requirement review needs its complete domain application arguments"
-                            .to_owned(),
-                    );
+                if structural {
+                    // Public structural preconditions currently carry nominal declarations.
+                    let definition = self.typed.domain_definition(domain.declaration).ok_or(
+                        "public requirement qualification lost its exact domain declaration",
+                    )?;
+                    if !definition.type_parameters.is_empty()
+                        || !definition.index_arguments.is_empty()
+                    {
+                        return Err("public requirement review needs its complete domain application arguments".to_owned());
+                    }
                 }
-                parameter_qualifications.push((structural_index, domain.declaration));
+                parameter_qualifications.push((position, domain));
             }
         }
         Ok(RequirementReviewMetadata {

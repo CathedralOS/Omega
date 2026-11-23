@@ -71,7 +71,8 @@ pub struct RequirementReviewMetadata {
     /// None is open. A closed declaration owns all of its checked crash routes.
     pub published_crash_routes: Option<Vec<terminal_psi::CrashRouteBucket>>,
     pub returned_parameters: Vec<u32>,
-    pub parameter_qualifications: Vec<(u32, symbols::SymbolHandle)>,
+    /// Root domain applications keyed by source parameter position.
+    pub parameter_qualifications: Vec<(u32, terminal_check_tables::program::DomainInstance)>,
     pub suspends: bool,
     pub blocks: bool,
     pub terminates: bool,

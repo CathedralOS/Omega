@@ -60,6 +60,31 @@ fn a_compiler_policy_qualifier_is_not_a_declared_home() {
     ));
 }
 
+/*
+    `Wrapping` names core's policy only where no declared domain of that name
+    is visible. A package's own `domain u8::Wrapping;` is a declared home for
+    its `+`; the same `+` without the declaration joins the primitive family.
+*/
+#[test]
+fn a_packages_own_wrapping_domain_is_a_declared_home() {
+    let binding = "machine + add(x: u8 in Wrapping, y: u8) -> u8 in Wrapping { x }";
+    assert_eq!(
+        diagnostics(&format!("domain u8::Wrapping;\n{binding}")),
+        Vec::<String>::new()
+    );
+    assert!(rejects_as_primitive_family(binding));
+
+    // A recast takes a declared domain but never core's policy.
+    let recast = "machine view(value: @u64) -> @u8 { value as @u8 in Wrapping }";
+    assert!(
+        diagnostics(recast)
+            .iter()
+            .any(|message| message.contains("takes no arithmetic domain")),
+        "{:?}",
+        diagnostics(recast)
+    );
+}
+
 #[test]
 fn a_declared_data_or_domain_operand_is_a_home_whatever_the_path() {
     for source_text in [
