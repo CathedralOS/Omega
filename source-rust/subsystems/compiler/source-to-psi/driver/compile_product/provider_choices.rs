@@ -400,8 +400,7 @@ pub fn prepare_with_source_defaults(
                     "source provider selection for {}: explicit source slot has no provider supply",
                     *target
                 )),
-                // Name who made the competing choices and which providers they
-                // chose, in the words settlement uses for the same conflict.
+                // Name who made the competing choices and which providers they chose.
                 UnchosenSupply::Competing(rows) => {
                     let declarer = match rows[0].authority {
                         SupplyAuthority::Build => "the Build",
@@ -410,12 +409,7 @@ pub fn prepare_with_source_defaults(
                     };
                     let providers = rows
                         .iter()
-                        .map(|row| {
-                            row.checked().map_or_else(
-                                || "a native binding".to_owned(),
-                                |selection| format!("`{}`", selection.provider_type.authored_path),
-                            )
-                        })
+                        .map(|row| row.description())
                         .collect::<Vec<_>>()
                         .join(" and ");
                     diagnostic(format!(
