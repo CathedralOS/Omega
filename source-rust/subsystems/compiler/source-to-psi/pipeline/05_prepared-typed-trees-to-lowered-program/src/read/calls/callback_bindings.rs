@@ -323,7 +323,11 @@ impl Program<'_> {
                 argument.authored_machine_application,
                 &applied.arguments,
             )?;
-            let body = self.application(caller, target, actual.types, actual.references)?;
+            let body = self.application(
+                caller,
+                target,
+                super::ApplicationTypes::Machine(actual.types, actual.references),
+            )?;
             let nested = self.callable_application_arguments(
                 caller,
                 body,

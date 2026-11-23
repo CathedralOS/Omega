@@ -2564,7 +2564,9 @@ pub(crate) mod namespaces {
         }
     }
 }
-pub use super::machine_instances::{MachineInstantiation, NamedConformanceCaptureIndex};
+pub use super::machine_instances::{
+    MachineInstantiation, NamedCaptureError, NamedConformanceCaptureIndex,
+};
 pub(crate) mod payloads {
     use super::{CallableApplication, CallableLifetimeOrigin};
     use crate::source_state::{TypedTrees, expression, static_applications, types};

@@ -16,6 +16,27 @@ pub(super) fn serve(
     let Some(call) = site.call(program) else {
         return Ok(false);
     };
+    let is_open = if let StaticArgumentCall::Expression(_, written) = call
+        && written.static_requirement_dispatch.is_none()
+        && written.requirement_application.is_valid()
+        && let Some(receiver) = program.expression_table.name_path_node(written.receiver)
+        && program.conformance_by_symbol(receiver.symbol).is_some()
+    {
+        let qualifier = written.requirement_application;
+        program
+            .prepare_applied_callable_signatures_for_application(holder, qualifier)
+            .map_err(unserved)?;
+        !crate::source_state::domain::index_argument_is_closed_with_substitutions(
+            program,
+            qualifier,
+            &[],
+        )
+    } else {
+        false
+    };
+    let call = site
+        .call(program)
+        .ok_or(Stop::Defect("map call lost its source occurrence"))?;
     let Some(member) = program
         .source_conformance_call_member(holder, call)
         .map_err(unserved)?
@@ -31,7 +52,17 @@ pub(super) fn serve(
             "selected implementation does not own its executable body",
         ));
     }
-    let selected = captures.get(program, holder, call).map_err(Stop::Defect)?;
+    // The generic caller retains this validated public entry. Its executable
+    // copy is visited with the substituted qualifier when a caller supplies types.
+    if is_open {
+        return Ok(true);
+    }
+    let selected = captures
+        .get(program, holder, call)
+        .map_err(|error| match error {
+            crate::source_state::NamedCaptureError::Invalid(message) => Stop::Defect(message),
+            crate::source_state::NamedCaptureError::Expanding => unserved(error.detail()),
+        })?;
     let parameters = program
         .conformance_type_parameters(member.implementation)
         .to_vec();

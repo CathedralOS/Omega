@@ -2973,7 +2973,6 @@ pub(crate) mod declaration_tables {
                     }],
                     supplying_application: supplying,
                     conformance_application: application,
-                    ..Default::default()
                 },
             );
             let removed = std::collections::HashSet::from([owner]);

@@ -7,7 +7,7 @@ use crate::source_state::{
 use symbols::SymbolHandle;
 
 mod map_captures;
-pub use map_captures::NamedConformanceCaptureIndex;
+pub use map_captures::{NamedCaptureError, NamedConformanceCaptureIndex};
 
 const MISSING_EXECUTABLE_TEMPLATE: &str = "executable application lost its template machine";
 

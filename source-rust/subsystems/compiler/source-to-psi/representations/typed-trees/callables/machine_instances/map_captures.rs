@@ -2,10 +2,31 @@
 
 use super::{CapturedMachineApplication, SymbolHandle, TypedTrees};
 use crate::source_state::type_identity::NormalizedTypeIdentity;
+use crate::source_state::types::{TypeReferenceHandle, TypeReferenceNode};
 
 type CaptureHandle = arena::Handle<CapturedMachineApplication>;
 
 type CaptureKey = (SymbolHandle, NormalizedTypeIdentity);
+
+pub enum NamedCaptureError {
+    Invalid(&'static str),
+    Expanding,
+}
+
+impl NamedCaptureError {
+    pub fn detail(&self) -> &'static str {
+        match self {
+            Self::Invalid(message) => message,
+            Self::Expanding => "recursive map call has no established finite argument closure",
+        }
+    }
+}
+
+impl From<&'static str> for NamedCaptureError {
+    fn from(message: &'static str) -> Self {
+        Self::Invalid(message)
+    }
+}
 
 /// A transient sparse index of existing capture records. Entries retain
 /// handles only; all source and body correspondence stays in the record.
@@ -50,38 +71,96 @@ impl NamedConformanceCaptureIndex {
         program: &TypedTrees,
         owner: SymbolHandle,
         call: crate::source_state::references::StaticArgumentCall<'_>,
-    ) -> Result<Option<CaptureHandle>, &'static str> {
+    ) -> Result<Option<CaptureHandle>, NamedCaptureError> {
         use crate::source_state::references::StaticArgumentCall;
-        let (key, enclosing) = match call {
-            StaticArgumentCall::Expression(_, written)
-                if written.requirement_application.is_valid() =>
-            {
-                let Some(key) = program.named_conformance_capture_key(written)? else {
+        let written = match call {
+            StaticArgumentCall::Expression(_, call) if call.requirement_application.is_valid() => {
+                let Some(key) = program.named_conformance_capture_key(call)? else {
                     return Ok(None);
                 };
-                (key, None)
+                Some(key)
             }
-            _ => {
-                let Some(group) = program.enclosing_map_capture(owner)? else {
-                    return Ok(None);
-                };
-                (Self::capture_key(program, group)?, Some(group))
-            }
+            _ => None,
         };
-        let handle = self
-            .rows
+        let requested = written.map(|_| {
+            program
+                .static_machine_application(call.application())
+                .registration_operation
+        });
+        let mut holder = owner;
+        let mut visited = Vec::new();
+        let mut recursive_arguments = Vec::new();
+        while let Some(group) = program.enclosing_map_capture(holder)? {
+            let key = Self::capture_key(program, group)?;
+            if written.is_none_or(|written| written.1 == key.1) {
+                let handle = self
+                    .lookup(key)?
+                    .ok_or("enclosing map has no indexed capture")?;
+                if !std::ptr::eq(program.captured_machine_applications.get(handle), group) {
+                    return Err("enclosing map call changed its capture".into());
+                }
+                return Ok(Some(handle));
+            }
+            let incoming = program.static_machine_application(group.supplying_application);
+            if requested == Some(incoming.registration_operation)
+                && let StaticArgumentCall::Expression(_, site) = call
+                && program
+                    .expression_table
+                    .name_path_node(site.receiver)
+                    .is_some_and(|receiver| {
+                        receiver.symbol == group.conformance_application.declaration
+                    })
+            {
+                recursive_arguments.push(
+                    group
+                        .conformance_application
+                        .arguments
+                        .iter()
+                        .map(|argument| argument.type_reference)
+                        .collect::<Vec<_>>(),
+                );
+            }
+            if visited.contains(&key.0) {
+                return Err("named capture has cyclic supplying owners".into());
+            }
+            visited.push(key.0);
+            holder = program
+                .machine_by_own_or_state_symbol(key.0)
+                .ok_or("named capture has no supplying machine")?
+                .symbol;
+        }
+        let Some(key) = written else {
+            return Ok(None);
+        };
+        let selected = self.lookup(key)?;
+        if selected.is_none()
+            && let StaticArgumentCall::Expression(_, site) = call
+            && let TypeReferenceNode::Generic { arguments, .. } =
+                program.type_reference_node(site.requirement_application)
+        {
+            // A substitution may move a growing term through the whole telescope
+            // before replacing it with a constant. Allow that finite chain.
+            let mut current = program.type_reference_handles(*arguments);
+            let mut growth_steps = 0;
+            for older in &recursive_arguments {
+                if introduces_nested_type(program, current, older) {
+                    growth_steps += 1;
+                    if growth_steps > current.len() {
+                        return Err(NamedCaptureError::Expanding);
+                    }
+                    current = older;
+                }
+            }
+        }
+        Ok(selected)
+    }
+
+    fn lookup(&self, key: CaptureKey) -> Result<Option<CaptureHandle>, &'static str> {
+        self.rows
             .get(&key)
             .copied()
             .map(|entry| entry.ok_or("named application has ambiguous captured bodies"))
-            .transpose()?;
-        if let Some(group) = enclosing
-            && !handle.is_some_and(|handle| {
-                std::ptr::eq(program.captured_machine_applications.get(handle), group)
-            })
-        {
-            return Err("lexical caller has no unique selected map application");
-        }
-        Ok(handle)
+            .transpose()
     }
 
     fn capture_key(
@@ -182,4 +261,25 @@ impl NamedConformanceCaptureIndex {
         }
         Ok((source.lexical_owner, selected))
     }
+}
+
+fn introduces_nested_type(
+    program: &TypedTrees,
+    current: &[TypeReferenceHandle],
+    older: &[TypeReferenceHandle],
+) -> bool {
+    let previous = older
+        .iter()
+        .map(|&reference| program.normalized_type_identity(reference))
+        .collect::<Vec<_>>();
+    current.iter().any(|&reference| {
+        !previous.contains(&program.normalized_type_identity(reference))
+            && crate::source_state::references::type_reference_inputs(program, reference)
+                .types
+                .into_iter()
+                .any(|child| {
+                    child != reference
+                        && previous.contains(&program.normalized_type_identity(child))
+                })
+    })
 }

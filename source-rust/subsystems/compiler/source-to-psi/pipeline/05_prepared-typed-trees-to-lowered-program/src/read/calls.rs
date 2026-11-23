@@ -28,6 +28,7 @@ use terminal_check_tables::{Checked, Construct};
 use terminal_psi::StructuralAccess;
 
 use super::authority::Access;
+use super::machine::ApplicationTypes;
 use super::storage_path::{names_storage, root_slot};
 use super::{Program, Slot, symbol_kind};
 use crate::lowering::body::{CallTarget, Expression, ExpressionKind, Signature, ValueType};
@@ -57,13 +58,13 @@ enum CallBinding<'a> {
     },
 }
 
-enum NamedCallBody {
+enum NamedCallBody<'a> {
     Closed(SymbolHandle),
-    EnclosingMap,
+    SymbolicMap(Option<&'a [TypeReferenceHandle]>),
 }
 
 struct NamedCallTarget<'a> {
-    body: NamedCallBody,
+    body: NamedCallBody<'a>,
     member: ConformanceCallMember<'a>,
 }
 
@@ -426,9 +427,27 @@ impl<'t> Program<'t> {
                 "named application changed its actual calling owner",
             ));
         }
-        if self.shares_enclosing_map(id, template)
-            && !matches!(call, StaticArgumentCall::Expression(_, written) if written.requirement_application.is_valid())
-        {
+        let written = match call {
+            StaticArgumentCall::Expression(_, call) if call.requirement_application.is_valid() => {
+                Some(call.requirement_application)
+            }
+            _ => None,
+        };
+        let symbolic = match written {
+            Some(reference) if self.rigid
+                && !crate::source_state::domain::index_argument_is_closed_with_substitutions(self.typed, reference, &[]) => {
+                let crate::source_state::types::TypeReferenceNode::Generic { base_symbol, arguments, .. } = self.typed.type_reference_table.type_reference(reference) else {
+                    return Err(unserved("symbolic map call lost its constructor"));
+                };
+                if *base_symbol != owner.symbol {
+                    return Err(unserved("symbolic map call changed its constructor"));
+                }
+                Some(NamedCallBody::SymbolicMap(Some(self.typed.type_reference_table.type_reference_handles(*arguments))))
+            }
+            None if self.shares_enclosing_map(id, template) => Some(NamedCallBody::SymbolicMap(None)),
+            _ => None,
+        };
+        if let Some(body) = symbolic {
             if self
                 .typed
                 .trait_definition_by_symbol(row.declaring_trait)
@@ -436,17 +455,14 @@ impl<'t> Program<'t> {
             {
                 return Err(unserved("a boundary requirement needs its provider slot"));
             }
-            return Ok(NamedCallTarget {
-                body: NamedCallBody::EnclosingMap,
-                member,
-            });
+            return Ok(NamedCallTarget { body, member });
         }
         let missing = || unserved("named map body has no prepared capture");
         let handle = self
             .shared
             .captures
             .get(self.typed, caller, call)
-            .map_err(unserved)?
+            .map_err(|error| unserved(error.detail()))?
             .ok_or_else(missing)?;
         let group = self.typed.captured_machine_applications.get(handle);
         let capture = group
@@ -1713,11 +1729,15 @@ impl<'t> Program<'t> {
         } = member;
         let body = match body {
             NamedCallBody::Closed(symbol) => symbol,
-            NamedCallBody::EnclosingMap => {
-                // The map is fixed inside its own proof. Read its selected member at
-                // these rigid arguments, using the public entry and its inferred effects.
+            NamedCallBody::SymbolicMap(map_arguments) => {
+                // Read the selected member under its public entry, with the exact
+                // map arguments supplied by this caller.
                 let outer = self.signature_view_owner.replace(row.realization_machine);
-                let callee = self.application(id, row.realization_machine, Vec::new(), None);
+                let callee = self.application(
+                    id,
+                    row.realization_machine,
+                    ApplicationTypes::SelectedMap(map_arguments),
+                );
                 self.signature_view_owner = outer;
                 return self.call_of(
                     id,
@@ -2095,7 +2115,11 @@ impl<'t> Program<'t> {
             // applications still dispatch through their selected boundary.
             self.generic_requirement(requirement)?
         } else {
-            self.application(id, target, arguments.types, arguments.references)?
+            self.application(
+                id,
+                target,
+                ApplicationTypes::Machine(arguments.types, arguments.references),
+            )?
         };
         let callbacks = self.callable_application_arguments(
             id,
@@ -2600,7 +2624,11 @@ impl<'t> Program<'t> {
         // The callee's formals are the arguments' expected types, so its
         // signature is read first; reading order is not evaluation order.
         if let Some(applied) = self.inherited_application_arguments(id, target)? {
-            let callee = self.application(id, target, applied.types, applied.references)?;
+            let callee = self.application(
+                id,
+                target,
+                ApplicationTypes::Machine(applied.types, applied.references),
+            )?;
             let operands = self.const_operands(id, slots, &applied.values, source)?;
             self.call_of_values(
                 id,
@@ -2645,7 +2673,7 @@ impl<'t> Program<'t> {
         // Siblings and recursive helpers inherit the same declarations too.
         // Match those declarations, rather than requiring the caller to own
         // the callee; ordinary visibility still controls which helper is callable.
-        if parameters.is_empty()
+        if (parameters.is_empty() && !self.shares_enclosing_map(id, target))
             || !machine.conformance_bounds.is_empty()
             || !parameters.iter().all(|parameter| {
                 self.typed.symbols.get(parameter.symbol).parent != target
