@@ -148,6 +148,21 @@ path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/variant_parent
 required-features = ["test-support"]
 
 [[test]]
+name = "checking_owned_place_transfers"
+path = "pipeline/06_lowered-program-to-checked-program/tests/owned_place_transfers.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_construction_operands"
+path = "pipeline/06_lowered-program-to-checked-program/tests/construction_operands.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_rank_edges"
+path = "pipeline/06_lowered-program-to-checked-program/tests/rank_edges.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "checking_dominance"
 path = "pipeline/06_lowered-program-to-checked-program/tests/dominance.rs"
 required-features = ["test-support"]
