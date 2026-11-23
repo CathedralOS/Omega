@@ -9792,9 +9792,8 @@ impl TypedTrees {
         else {
             return Ok(path);
         };
-        if source.origin.is_toolchain()
-            && source_admission::source_identity::is_virtual_toolchain_path(&source.path)
-        {
+        // Installed declarations have a separate, revision-checked catalog.
+        if source.origin.is_toolchain() {
             return Ok(path);
         }
         let filename = source.logical_filename()?;
@@ -9804,14 +9803,6 @@ impl TypedTrees {
             .strip_prefix(&module_path)
             .and_then(|suffix| suffix.strip_prefix("::"))
             .unwrap_or(&path);
-        if source.origin.is_toolchain() {
-            let namespace = source
-                .package_root
-                .file_name()
-                .and_then(|name| name.to_str())
-                .ok_or("a toolchain declaration has no source root name")?;
-            return Ok(format!("{namespace}/{filename}::{local}"));
-        }
         Ok(format!("{filename}::{local}"))
     }
 

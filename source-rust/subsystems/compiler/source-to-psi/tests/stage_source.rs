@@ -746,14 +746,14 @@ fn a_file_qualifier_selects_its_own_sources_declarations() {
         &mut files,
         "product",
         package,
-        "m/bytes.omg",
+        "source-files/bytes.omg",
         "machine read() -> u8 { 7u8 }",
     );
     let flags = capture_file(
         &mut files,
         "product",
         package,
-        "m/flags.omg",
+        "source-files/flags.omg",
         "machine read() -> bool { true }",
     );
     let make = |selected: Option<SourceId>| {
