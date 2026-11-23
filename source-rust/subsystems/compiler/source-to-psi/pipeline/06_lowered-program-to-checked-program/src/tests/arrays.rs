@@ -14,7 +14,7 @@ fn array_types() -> IdTable<StructuralTypeId, RecordType> {
         identity: "u32-storage".into(),
         shape: StorageShape::PrimitiveScalar {
             scalar_type: u32_type(),
-            policy: None,
+            qualification: crate::lowering::Qualification::NONE,
         },
         requires: Vec::new(),
     });
