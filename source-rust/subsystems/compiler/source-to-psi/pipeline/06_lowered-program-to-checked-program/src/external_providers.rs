@@ -186,19 +186,13 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
                     refuse("native conformance goal namespace exceeds its coordinate width")
                 })?;
             crate::checking::derive_contract_obligation(
+                RefusalSite::Program,
                 &proof_context,
                 obligation,
                 &goal.proposition,
                 &declarations,
                 &mut Default::default(),
-            )
-            .map_err(|detail| {
-                Refusal::at(
-                    RefusalReason::Unproved(terminal_check_tables::UnprovedCause::NoDerivation),
-                    RefusalSite::Program,
-                    detail,
-                )
-            })?;
+            )?;
         }
         let native_headers = module
             .interfaces.boundary_machines

@@ -2692,15 +2692,17 @@ fn returned_for_result(clause: &Proposition, result: ValueId, value: ValueId) ->
 /// provide declarations, never hypotheses from source checking. This is the
 /// same prover and kernel used for obligations at executable program points.
 pub fn derive_contract_obligation(
+    site: terminal_check_tables::RefusalSite,
     context: &PropositionContext,
     obligation: ObligationId,
     goal: &Proposition,
     declarations: &[(ValueId, ScalarType)],
     activity: &mut ProofSearchActivity,
-) -> Result<CertificateEnvelope, &'static str> {
+) -> Checked<CertificateEnvelope> {
+    let malformed = |detail| Refusal::at(RefusalReason::ForeignIdentity, site, detail);
     context
         .validate(goal)
-        .map_err(|_| "contract obligation escapes its formal namespace")?;
+        .map_err(|_| malformed("contract obligation escapes its formal namespace"))?;
     let mut declarations = declarations.to_vec();
     declarations.sort_unstable_by_key(|(id, _)| *id);
     let values = IdTable::from_rows(
@@ -2721,13 +2723,22 @@ pub fn derive_contract_obligation(
                     },
                 ))
             })
-            .collect::<Result<Vec<_>, &'static str>>()?,
+            .collect::<Result<Vec<_>, &'static str>>()
+            .map_err(malformed)?,
     )
-    .map_err(|_| "contract formal identities are not a complete dense namespace")?;
-    let proof = prove::Prover::new(context, &[], &[], &values, activity).prove(goal)?;
+    .map_err(|_| malformed("contract formal identities are not a complete dense namespace"))?;
+    let mut prover = prove::Prover::new(context, &[], &[], &values, activity);
+    let proof = prover.prove(goal).map_err(|detail| {
+        let cause = if prover.has_rules_for(goal) {
+            UnprovedCause::NoDerivation
+        } else {
+            UnprovedCause::NoRuleForGoalForm
+        };
+        Refusal::at(RefusalReason::Unproved(cause), site, detail)
+    })?;
     let certificate = CertificateEnvelope {
         identity: EvidenceIdentity::new(obligation.get())
-            .ok_or("contract obligation identity is absent")?,
+            .ok_or_else(|| malformed("contract obligation identity is absent"))?,
         proof_system_marker: ProofSystemMarker::CURRENT,
         proof,
     };
@@ -2742,7 +2753,13 @@ pub fn derive_contract_obligation(
         &[],
         EvidenceRoute::CertificateDerived(certificate.as_ref()),
     )
-    .map_err(|_| "contract implication certificate was refused by the proof kernel")?;
+    .map_err(|_| {
+        Refusal::at(
+            RefusalReason::Unproved(UnprovedCause::KernelRefused),
+            site,
+            "contract implication certificate was refused by the proof kernel",
+        )
+    })?;
     Ok(certificate)
 }
 
