@@ -116,14 +116,14 @@ fn typed_hosted_policy(policy: &str) -> crate::source_state::TypedTrees {
     let mut sources = crate::source_inputs::SourceMap::default();
     let package = semantic_vocabulary::PackageKeyIdentity::from_digest([0xbc; 32]).unwrap();
     let mut syntax = syntax_trees::SyntaxTrees::default();
-    let mut add_file = |name: &str, text: &str| {
+    let mut add_file = |root: &std::path::Path, name: &str, text: &str, owner, origin| {
         let id = sources
             .add_checked_instance(
-                std::path::Path::new("std").join(name),
+                root.join(name),
                 text,
-                "std".into(),
-                Some(package),
-                source_admission::SourceOrigin::User,
+                root.into(),
+                owner,
+                origin,
                 source_admission::SourceResolutionStratum::Base,
                 source_provenance::DependencyScope::Product,
             )
@@ -132,13 +132,25 @@ fn typed_hosted_policy(policy: &str) -> crate::source_state::TypedTrees {
         parse(&mut syntax, id, &tokens).unwrap();
         id
     };
-    let abi = add_file("calling.omg", VOCABULARY);
-    let shapes = add_file("entry_shapes.omg", SHAPES);
-    let entry = add_file("entry.omg", policy);
+    let library = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../../source/library");
+    let observations = add_file(
+        &library.join("core"), "byte_observation/byte_observation.omg",
+        include_str!("../../../../../../../../source/library/core/byte_observation/byte_observation.omg"),
+        None, source_admission::SourceOrigin::Toolchain,
+    );
+    let mut add_std = |name, text| add_file(
+        std::path::Path::new("std"), name, text, Some(package), source_admission::SourceOrigin::User,
+    );
+    let abi = add_std("calling.omg", VOCABULARY);
+    let shapes = add_std("entry_shapes.omg", SHAPES);
+    let entry = add_std("entry.omg", policy);
     let resolved = crate::resolution::resolve(crate::resolution::ResolutionRequest {
         syntax,
         sources: Some(Arc::new(sources)),
         top_level_bindings: vec![
+            SourceScopedTopLevelBinding::logical_module_import(
+                abi, observations, "omega::language::core::byte_observation", 3,
+            ),
             SourceScopedTopLevelBinding::file_import(shapes, abi, "abi"),
             SourceScopedTopLevelBinding::file_import(entry, abi, "abi"),
             SourceScopedTopLevelBinding::file_import(entry, shapes, "shapes"),
