@@ -205,8 +205,7 @@ mod tests {
         }
     }
 
-    #[test]
-    fn coverage_identity_binds_operation_plan_and_role() {
+    fn call_demands() -> (OperationId, TerminalBoundaryApplicationDemands) {
         let operation = OperationId::new(1).unwrap();
         let demand = TerminalBoundaryApplicationDemand::new(
             operation,
@@ -219,6 +218,12 @@ mod tests {
             BoundaryApplication::Empty,
         );
         let demands = TerminalBoundaryApplicationDemands::new(terminal(), vec![demand]).unwrap();
+        (operation, demands)
+    }
+
+    #[test]
+    fn coverage_identity_binds_operation_plan_and_role() {
+        let (operation, demands) = call_demands();
         let checked = |plan| {
             BoundaryApplicationRealizationCompanion::new(
                 operation,
@@ -245,6 +250,33 @@ mod tests {
                 .coverage_references(&demands)
                 .unwrap();
         assert_ne!(first[0].coverage(), changed[0].coverage());
+    }
+
+    #[test]
+    fn coverage_identifies_the_exact_compiler_intrinsic() {
+        use native_intrinsics::CompilerIntrinsicExecutionIdentity as Intrinsic;
+
+        let (operation, demands) = call_demands();
+        let coverage = |execution| {
+            let realization = BoundaryApplicationRealizationCompanion::new(
+                operation,
+                [1; 32],
+                BoundaryApplicationRealization::ExactCompilerIntrinsic { execution },
+            )
+            .unwrap();
+            TerminalBoundaryApplicationRealizations::new(&demands, vec![realization])
+                .unwrap()
+                .coverage_references(&demands)
+                .unwrap()[0]
+                .coverage()
+        };
+        let install = terminal_psi::CheckedBoundaryExecution::StaticInterruptInstall
+            .static_interrupt_operation()
+            .unwrap();
+        assert_ne!(
+            coverage(Intrinsic::StaticInterrupt(install)),
+            coverage(Intrinsic::EmptyRunRelease)
+        );
     }
 
     #[test]
