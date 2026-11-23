@@ -1780,7 +1780,7 @@ impl<'a> Lowering<'a> {
                 // Which case an input or call result holds is not known, so
                 // every payload leaf gets an initial identity; the checker lets
                 // a read reach one only where that case is established.
-                for case in data.cases() {
+                for case in data.cases().iter().filter(|case| !case.fields.is_empty()) {
                     let payload = self.project(place, Segment::Case(case.id))?;
                     for field in &case.fields {
                         let leaf = self.project(payload, Segment::Field(field.id))?;
