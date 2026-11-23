@@ -1305,7 +1305,7 @@ mod module_namespaces {
     }
 
     #[test]
-    fn unmoduled_package_discovery_keeps_checked_occurrences_separate() {
+    fn a_build_alias_resolves_only_to_the_build_instance_of_a_file() {
         let (unimported, _, _) = namespace_table(
             [1, 1, 1],
             vec![SourceScopedTopLevelBinding::module_import(
@@ -1327,7 +1327,6 @@ mod module_namespaces {
         let (_, _, sources) = namespace_table([1, 1, 1], Vec::new());
         let mut files = sources.files().cloned().collect::<Vec<_>>();
         for (ordinal, file) in files.iter_mut().enumerate() {
-            file.origin = SourceOrigin::Toolchain;
             file.dependency_scope = if ordinal == 2 {
                 source_provenance::DependencyScope::Product
             } else {
@@ -1336,11 +1335,10 @@ mod module_namespaces {
         }
         let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
             Some(Arc::new(SourceMap::from_files(files))),
-            vec![SourceScopedTopLevelBinding::file_import(
-                SourceId(0),
-                SourceId(1),
-                "api",
-            )],
+            vec![
+                SourceScopedTopLevelBinding::file_import(SourceId(0), SourceId(1), "api"),
+                SourceScopedTopLevelBinding::file_import(SourceId(0), SourceId(2), "product"),
+            ],
         );
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
@@ -1358,6 +1356,7 @@ mod module_namespaces {
         .collect::<Vec<_>>();
         let symbols = builder.finish();
         assert_eq!(data_reference(&symbols, 0, "|api|::Item"), Some(declarations[0]));
+        assert_eq!(data_reference(&symbols, 0, "|product|::Item"), None);
         assert_eq!(data_reference(&symbols, 0, "Item"), None);
     }
 
