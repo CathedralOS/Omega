@@ -98,16 +98,7 @@ pub struct PackageGeneratedSource {
 impl PackageGeneratedSource {
     pub fn validate_publication(logical_name: &[u8], bytes: &[u8]) -> Result<(), String> {
         let valid_name = std::str::from_utf8(logical_name)
-            .ok()
-            .and_then(|name| name.strip_suffix(".omg"))
-            .is_some_and(|stem| {
-                stem.split('/').all(|component| {
-                    !component.is_empty()
-                        && component.chars().all(|character| {
-                            character.is_alphanumeric() || matches!(character, '_' | '-')
-                        })
-                })
-            });
+            .is_ok_and(language_core::logical_filename::is_valid);
         if !valid_name
             || !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(
                 logical_name,

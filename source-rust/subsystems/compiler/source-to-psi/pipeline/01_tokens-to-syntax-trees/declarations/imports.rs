@@ -89,9 +89,7 @@ fn file_component<'tokens, 'source>(
     while let Some(token) = rest.tokens.first() {
         let spelling = rest.spelling(token);
         if end.is_some_and(|end| end != token.span.start)
-            || !spelling
-                .chars()
-                .all(|character| character.is_alphanumeric() || matches!(character, '_' | '-'))
+            || !language_core::logical_filename::is_component(spelling)
         {
             break;
         }
