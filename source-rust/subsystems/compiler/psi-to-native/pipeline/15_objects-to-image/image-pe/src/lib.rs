@@ -12,7 +12,10 @@ We execute the eight emission steps in a strict dependency order:
 1. Install the ISA's encoded import thunks (x86-64 `jmp [rip+disp32]`, AArch64
    `adrp`/`ldr`/`br` through x16) at the end of `.text`.
 2. Compute the `.rdata` RVA immediately after `.text`.
-3. Build the `.rdata` import directory, lookup tables, and IAT against that RVA.
+3. Build the `.rdata` import directory, lookup tables, and IAT against that RVA,
+   then append the export directory and the `.xdata`/`.pdata` unwind tables
+   (`unwind`) for every function that moves the stack pointer or saves a
+   preserved register.
 4. Plan all section RVAs, raw file offsets, and base-relocation (`.reloc`)
    blocks in a single layout pass.
 5. Point each import thunk at its IAT slot.
@@ -151,6 +154,8 @@ mod layout {
 
 mod sections;
 mod shared_component;
+mod unwind;
+pub mod unwind_records;
 
 pub use shared_component::{
     PeComponentExport, PeSharedComponentEmissionError, PeSharedComponentImage,
@@ -203,6 +208,22 @@ pub(crate) fn emit_pe(
         rdata_bytes.resize(align_to(rdata_bytes.len(), 4), 0);
         rdata_bytes.extend_from_slice(&export_bytes);
     }
+    let unwind_offset = align_to(rdata_bytes.len(), 4);
+    let unwind = unwind::build_unwind_tables(
+        &image,
+        isa,
+        shared_component::directory_rva_of(rdata_rva, unwind_offset)?,
+    )?;
+    let (exception_directory_rva, exception_directory_size) = if unwind.is_empty() {
+        (0, 0)
+    } else {
+        rdata_bytes.resize(unwind_offset, 0);
+        rdata_bytes.extend_from_slice(&unwind.bytes);
+        (
+            shared_component::directory_rva_of(rdata_rva, unwind_offset + unwind.directory_offset)?,
+            unwind.directory_size,
+        )
+    };
     let sections = plan_pe_sections(&image, rdata_bytes.len());
     let layout = sections.final_image_layout();
 
@@ -271,6 +292,8 @@ pub(crate) fn emit_pe(
             file_characteristics,
             export_directory_rva,
             export_directory_size,
+            exception_directory_rva,
+            exception_directory_size,
         },
     );
     write_section_header(
