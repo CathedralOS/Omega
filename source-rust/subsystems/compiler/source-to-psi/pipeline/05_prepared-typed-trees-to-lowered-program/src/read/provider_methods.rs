@@ -17,7 +17,7 @@ impl<'program> Program<'program> {
         supplied: &'program Machine,
     ) -> Checked<Vec<(&'program StateSignature, &'program Machine)>> {
         let typed = self.typed;
-        if !application.declaration.is_boundary || required.type_parameters.is_empty() {
+        if required.type_parameters.is_empty() {
             let header = typed
                 .applied_callable_signature(application, required.symbol)
                 .or_else(|| {
@@ -207,5 +207,55 @@ impl<'program> Program<'program> {
             }
         }
         Ok(Some(closed.signature))
+    }
+
+    /// The body a named call enters for a member its conformance supplies.
+    /// A generic member (`machine keep<T>`) is entered at the instance stage
+    /// 04 prepared for the call's own closed requirement application,
+    /// `Keep::keep<u8>` for `Local::keep::<u8>(x)`; any other member is its
+    /// own body. Without that prepared instance the generic body is left as
+    /// selected, and reading it refuses the call.
+    pub(super) fn selected_member_instance(
+        &self,
+        id: MachineId,
+        call: crate::source_state::references::StaticArgumentCall<'_>,
+        member: SymbolHandle,
+        requirement: SymbolHandle,
+    ) -> Checked<SymbolHandle> {
+        let typed = self.typed;
+        let generic = typed
+            .machine_by_symbol(member)
+            .is_some_and(|machine| !machine.type_parameters.is_empty());
+        let target = match call {
+            crate::source_state::references::StaticArgumentCall::Expression(_, call) => {
+                call.target_symbol
+            }
+            crate::source_state::references::StaticArgumentCall::Statement(call) => {
+                call.target_symbol
+            }
+        };
+        if !generic || typed.closed_requirement_application(target).is_none() {
+            return Ok(member);
+        }
+        let mut selected = None;
+        for receipt in typed
+            .machine_specializations
+            .iter()
+            .filter(|receipt| receipt.template == member)
+        {
+            if self
+                .provider_method_requirement(id, receipt.instance, requirement)?
+                .is_some_and(|closed| closed.symbol == target)
+            {
+                if selected.is_some_and(|known| known != receipt.instance) {
+                    return Err(services::unavailable(
+                        id,
+                        "the selected member has two bodies for the same public arguments",
+                    ));
+                }
+                selected = Some(receipt.instance);
+            }
+        }
+        Ok(selected.unwrap_or(member))
     }
 }

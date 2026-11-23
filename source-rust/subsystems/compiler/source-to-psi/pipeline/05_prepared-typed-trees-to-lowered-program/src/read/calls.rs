@@ -395,8 +395,9 @@ impl<'t> Program<'t> {
         self.visible_declaration_to(id, owner.symbol, owner.is_public)?;
         let template = row.realization_machine;
         if owner.type_parameters.is_empty() {
+            let body = self.selected_member_instance(id, call, template, row.requirement)?;
             return Ok(NamedCallTarget {
-                body: NamedCallBody::Closed(template),
+                body: NamedCallBody::Closed(body),
                 member,
             });
         }

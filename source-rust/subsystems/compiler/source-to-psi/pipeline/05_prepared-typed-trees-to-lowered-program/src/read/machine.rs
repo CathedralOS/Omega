@@ -608,8 +608,8 @@ impl<'t> Program<'t> {
         let bound = self
             .conformer_requirement(id, machine)?
             .map(|(owner, required)| (owner, required.symbol));
-        if let Some(bound) = bound
-            && bound != (declaring_trait, requirement)
+        if let Some((owner, required)) = bound
+            && (owner != declaring_trait || !self.applies_requirement(required, requirement))
         {
             return Err(refuse(
                 id,
@@ -896,6 +896,17 @@ impl<'t> Program<'t> {
         Ok(id)
     }
 
+    /// Whether `applied` is `requirement` itself or one closed application
+    /// of it: a generic member's instance (`keep<u8>`) is bound to the
+    /// requirement `keep<T>` it was prepared from.
+    fn applies_requirement(&self, applied: SymbolHandle, requirement: SymbolHandle) -> bool {
+        applied == requirement
+            || self
+                .typed
+                .closed_requirement_application(applied)
+                .is_some_and(|closed| closed.template == requirement)
+    }
+
     /// The requirement `requirement` as `declaring_trait` declares it.
     pub(super) fn declared_requirement(
         &self,
@@ -965,7 +976,7 @@ impl<'t> Program<'t> {
         if let Some(machine) = self.typed.machine_by_symbol(implementation)
             && let Some((owner, applied)) = self.conformer_requirement(id, machine)?
         {
-            if owner != declaring_trait || applied.symbol != requirement {
+            if owner != declaring_trait || !self.applies_requirement(applied.symbol, requirement) {
                 return Err(refuse(
                     id,
                     Construct::Machine,
