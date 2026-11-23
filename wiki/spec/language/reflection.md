@@ -7,12 +7,12 @@ AST quotation, mandatory object header, or implicit runtime registry follows.
 
 ## Semantic descriptions
 
-`reflect\schema::<T>()` produces an owned `reflect\TypeSchema` description graph
+`|reflect|::schema::<T>()` produces an owned `|reflect|::TypeSchema` description graph
 for the selected type application. Nodes describe declarations, fields, cases,
-and their relationships; handles index only that owned graph. `schema.fields()`
-and `schema.cases()` borrow description records from the schema value, never
-compiler/evaluator storage. Recursive references are graph edges with their
-substitutions, not an instruction to recursively expand every possible instance.
+and their relationships. Handles index only that owned graph. Field and case
+descriptions borrow from the schema's own storage. Recursive references are
+graph edges with their substitutions, not an instruction to recursively expand
+every possible instance.
 
 A field description retains its exact declaring owner/application/member,
 complete declared type, relevance, case ownership, name, and optional authored
@@ -58,12 +58,27 @@ declaration/schema revision and every referenced application. Fingerprints index
 these records; a digest, offset, numeric key, or matching bytes alone authorizes
 no operation. Display names and schema numbers are not alternative type identities.
 
+### Field enumeration
+
+`|reflect|::fields(Account)` returns the descriptions of the fields declared
+on `Account`, in declaration order. It takes a type as its operand. A library
+that already holds the schema for that type can enumerate the same fields from
+the schema. Both routes yield `FieldInfo` elements. Looking up an element past
+the end reports absence. A type with no fields, including `u32`, yields an
+empty collection.
+
+The entry for `balance` in `|reflect|::fields(Account)` and the result of
+`|reflect|::field(Account::balance)` identify the same field of the same type
+application and schema revision. A consumer accepting `FieldInfo` can use
+either. Enumeration follows the schema's structural visibility rules. Reading
+or writing a field on a value still requires the corresponding access.
+
 ## Typed declaration selectors
 
 Named decision: `domain-access-unification`, settled 2026-11-01.
 
-`reflect\field(Type::field)` selects a semantic field declaration and returns
-`FieldInfo`. `reflect\callable(Path::machine)` selects either an exact concrete
+`|reflect|::field(Type::field)` selects a semantic field declaration and returns
+`FieldInfo`. `|reflect|::callable(Path::machine)` selects either an exact concrete
 machine or an exact trait machine requirement and returns `CallableInfo`.
 These compiler-known core queries add no keyword and follow ordinary lexical
 resolution, dependency and visibility rules. They do not evaluate an instance,
@@ -75,10 +90,10 @@ as a declaration its holder could not otherwise name. Describing a declared
 conformer describes that conformer and exposes no direct entry.
 
 ```omega
-reflect\field(Controller::status)
-reflect\field(Buffer::<u32>::used)
-reflect\callable(Controller\update)
-reflect\callable(ControllerWriter::write)
+|reflect|::field(Controller::status)
+|reflect|::field(Buffer::<u32>::used)
+|reflect|::callable(|controller|::update)
+|reflect|::callable(ControllerWriter::write)
 ```
 
 `FieldInfo` retains exact owner/application/member, complete field type, relevance,
