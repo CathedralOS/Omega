@@ -864,6 +864,9 @@ mod tests {
                 .complete_output(obligation, b"generated.omg")
                 .is_err()
         );
+        let exported = runtime.create(b"z-export.omg", 0).unwrap();
+        runtime.write(exported, b"exported").unwrap();
+        runtime.close(BUILD_OUTPUT_ROOT_IDENTITY, exported).unwrap();
         let mut publications = crate::BuildSourcePublications::default();
         publications
             .publish(&invocation, b"generated.omg", b"published source")
@@ -876,6 +879,7 @@ mod tests {
             .unwrap();
         let summary = observations.settle(true, "build").unwrap();
         assert_eq!(summary.required_output_settlements().len(), 1);
+        assert_eq!(summary.generated_sources().len(), 1);
         assert_eq!(summary.generated_sources()[0].bytes(), b"published source");
         let path = b"generated.omg".to_vec();
         let tree = summary.staged_output_tree().unwrap();
@@ -887,12 +891,13 @@ mod tests {
             }
         ));
 
-        // An older review named its closed output, so it must still recover the exported bytes.
+        // Older Builds could hand off their closed files at one ordinal in any order.
         let mut legacy = summary.clone();
         legacy.generated_sources =
-            build_output::recover_included_output_sources(tree, &[path]).unwrap();
+            build_output::recover_included_output_sources(tree, &[b"z-export.omg".to_vec(), path])
+                .unwrap();
         legacy.staged_source_ordinals =
-            Some(vec![legacy.filesystem_operation_attempts().len() as u64]);
+            Some(vec![legacy.filesystem_operation_attempts().len() as u64; 2]);
         let mut wire = Vec::new();
         crate::build_record_codec::encode_observation_summary(&legacy, &mut wire);
         let recover = |bytes: &[u8]| {
@@ -901,13 +906,18 @@ mod tests {
             )
         };
         let reopened = recover(&wire).unwrap();
-        assert_eq!(reopened.generated_sources()[0].bytes(), b"hello");
+        assert_eq!(
+            reopened.generated_sources()[0].relative_path(),
+            b"z-export.omg"
+        );
+        assert_eq!(reopened.generated_sources()[0].bytes(), b"exported");
+        assert_eq!(reopened.generated_sources()[1].bytes(), b"hello");
         assert_eq!(reopened.identity(), legacy.identity());
         let mut roundtrip = Vec::new();
         crate::build_record_codec::encode_observation_summary(&reopened, &mut roundtrip);
         assert_eq!(roundtrip, wire);
 
-        legacy.staged_source_ordinals = Some(vec![0]);
+        legacy.staged_source_ordinals = Some(vec![0, 0]);
         wire.clear();
         crate::build_record_codec::encode_observation_summary(&legacy, &mut wire);
         assert!(recover(&wire).is_none());
