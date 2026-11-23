@@ -204,7 +204,7 @@ Compiler:
 Arena:
 - `Arena::get(Handle::invalid())` returns the shared default row (`arena.rs:1185`): stated (`:216-224`), traced. Same for `PagedArenaSet` (`paged.rs:487-495`, stated `:483-484`), `SealedPagedArena` (`:1086-1094`), `RetainedArena` (`retained.rs:239-241`, no comment) and `RootedArena` (`rooted.rs:287-289`); all refuse any other unresolved handle.
 - `GenerationalPagedArena::get` returns the dummy for any stale, unknown or invalid handle (`paged.rs:1489-1515`): no comment; traced to have no caller outside the arena crate.
-- `HandleSpan::handle_at(offset)` has no bound check against `count` (`arena.rs:299`): read.
+- `HandleSpan::handle_at(offset)` has no bound check against `count` (`arena.rs:299`): read. **Follow-up (2026-11-23).** A span now checks its own length before returning a row handle. Arena tests cover the last valid row, an offset equal to the length, and offset zero in an empty span.
 - `RevisionStamp` equality is always true (`arena.rs:75-79`): stated (`:74`). `Arena` equality ignores `revision`/`rewrite_revision` (`:681-705`): read.
 - `OwnedIndex` equality is always true (`owned_index.rs:57-61`): the record says "stated-ish" (header calls it a summary).
 - `OwnedInterner` and `OwnedTextInterner` equality is always true (`paged.rs:1729-1733`, `:2036-2040`): open (which derived equalities hold them not traced).
