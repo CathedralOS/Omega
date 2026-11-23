@@ -598,9 +598,12 @@ mod statement_nodes {
                 let call = syntax_trees.expressions.call(*expression);
                 let callee = lower_statement_expression(lowerer, syntax_trees, call.callee)?;
                 let arguments = lower_statement_expressions(
-                    lowerer, syntax_trees, syntax_trees.expressions.expression_handles(call.arguments),
+                    lowerer,
+                    syntax_trees,
+                    syntax_trees.expressions.expression_handles(call.arguments),
                 )?;
-                let receiver = syntax_trees.expression_identifier_path(call.receiver)
+                let receiver = syntax_trees
+                    .expression_identifier_path(call.receiver)
                     .expect("a named transition has a static receiver path");
                 for offset in 0..if unconditional { arguments.count() } else { 0 } {
                     let argument =
@@ -625,10 +628,13 @@ mod statement_nodes {
                         unresolved_name: Default::default(),
                         operational_acknowledgement: call.operational_acknowledgement,
                         path: lower_statement_path_members(
-                            lowerer, syntax_trees, receiver.into_iter().chain([&call.target]),
+                            lowerer,
+                            syntax_trees,
+                            receiver.into_iter().chain([&call.target]),
                         ),
                         arguments,
-                        evidence_arguments: lower_names(syntax_trees, &call.evidence_arguments).into_boxed_slice(),
+                        evidence_arguments: lower_names(syntax_trees, &call.evidence_arguments)
+                            .into_boxed_slice(),
                         source_span: call.target.source_span(),
                         authored_call_selection: None,
                     },

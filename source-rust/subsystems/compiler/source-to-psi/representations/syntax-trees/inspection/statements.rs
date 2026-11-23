@@ -601,14 +601,25 @@ fn snapshot_transition_target(
     match target {
         TransitionTargetNode::Named(expression) => {
             let call = syntax_trees.expressions.call(*expression);
-            let receiver = syntax_trees.expression_identifier_path(call.receiver)
+            let receiver = syntax_trees
+                .expression_identifier_path(call.receiver)
                 .expect("a named transition has a static receiver path");
             TransitionTargetSnapshot::Named {
-                path: receiver.into_iter().chain([&call.target])
-                    .map(|name| snapshot_identifier(syntax_trees, name)).collect(),
-                arguments: syntax_trees.expressions.expression_handles(call.arguments)
-                    .iter().map(|handle| snapshot_expression_handle(syntax_trees, *handle)).collect(),
-                evidence_arguments: snapshot_identifier_slice(syntax_trees, &call.evidence_arguments),
+                path: receiver
+                    .into_iter()
+                    .chain([&call.target])
+                    .map(|name| snapshot_identifier(syntax_trees, name))
+                    .collect(),
+                arguments: syntax_trees
+                    .expressions
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
+                    .collect(),
+                evidence_arguments: snapshot_identifier_slice(
+                    syntax_trees,
+                    &call.evidence_arguments,
+                ),
                 acknowledgement_synthesized: call.operational_acknowledgement.origin
                     == language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
                 acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,

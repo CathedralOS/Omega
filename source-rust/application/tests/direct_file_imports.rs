@@ -1,4 +1,4 @@
-//! Exercise a direct call when a file, a value and a type share one name.
+//! Exercise direct and stored calls when a file, a value and a type share one name.
 mod support;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
@@ -6,12 +6,15 @@ use std::process::{Command, Stdio};
 
 #[test]
 fn invoke_a_returned_machine_in_a_transition_arm() {
-    run_example(include_str!("../../../samples/cli/probes/direct_file_imports/main.omg"));
+    run_example(include_str!(
+        "../../../samples/cli/probes/direct_file_imports/main.omg"
+    ));
 }
 
 #[test]
 fn the_file_type_and_value_each_select_their_own_member() {
-    run_example(r#"
+    run_example(
+        r#"
 use m/value-cell.omg as cell;
 use m/b.omg;
 
@@ -38,7 +41,8 @@ machine main() crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-"#);
+"#,
+    );
 }
 
 fn run_example(source: &str) {

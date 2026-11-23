@@ -288,8 +288,11 @@ fn a_transition_calls_the_lexical_value_with_its_declared_arguments() {
     for (kind, argument) in [("Read", "true"), ("u8", "7u8")] {
         let call = format!("read({argument})");
         let expression = check(kind, &call).unwrap_err();
-        let arm = check(kind, &format!("transition true {{ true -> {call}, _ -> 0u8 }}"))
-            .unwrap_err();
+        let arm = check(
+            kind,
+            &format!("transition true {{ true -> {call}, _ -> 0u8 }}"),
+        )
+        .unwrap_err();
         assert_eq!(arm[0].message, expression[0].message);
     }
 }

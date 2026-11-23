@@ -9,9 +9,11 @@ use arena::HandleSpan;
 fn statement_table_stores_transition_payloads_as_handles() {
     let mut statements = StatementTable::new();
     let mut expressions = ExpressionTable::new();
-    let values = [1, 2].map(|value| expressions.insert(ExpressionNode::Integer(
-        numeric_literals::IntegerLiteral::from_value(value),
-    )));
+    let values = [1, 2].map(|value| {
+        expressions.insert(ExpressionNode::Integer(
+            numeric_literals::IntegerLiteral::from_value(value),
+        ))
+    });
     let arguments = expressions.insert_expression_handles(values);
     let call = expressions.insert(ExpressionNode::Call(TableCallExpression {
         callee: Default::default(),

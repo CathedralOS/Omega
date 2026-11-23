@@ -337,7 +337,9 @@ fn suspending_arm(
     let ExpressionNode::Call(call) = syntax.expressions.expression(value) else {
         return None;
     };
-    call.operational_acknowledgement.acknowledges_suspend.then(|| call.target.source_span().span)
+    call.operational_acknowledgement
+        .acknowledges_suspend
+        .then(|| call.target.source_span().span)
 }
 
 /// The authored operation name in a top-level dependency preparation.
