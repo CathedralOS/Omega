@@ -97,7 +97,32 @@ impl Program<'_> {
         // An explicit carrier supplies the landing type for an anonymous
         // numeric operand, including the carrier step before a named domain.
         let landing = target.scalar().filter(|_| self.wholly_anonymous(cast.value));
-        let operand = self.expression(id, slots, cast.value, landing.map(ValueType::plain))?;
+        let operand = match landing {
+            // `as` to a computational integer type lands the complete
+            // anonymous operand, fractional intermediates included.
+            Some(integer @ ScalarType::Integer(_))
+                if !matches!(
+                    self.typed.expression_table.expression(cast.value),
+                    crate::source_state::expression::ExpressionNode::Integer(_)
+                ) =>
+            {
+                let evaluated = self.anonymous_value(
+                    id,
+                    cast.value,
+                    Some(integer),
+                    super::types::AnonymousLanding::ExplicitAs,
+                )?;
+                let owner = self.symbols.get(id).copied().unwrap_or_default();
+                self.complete_anonymous_operators(id, owner, &evaluated.operators)?;
+                Expression {
+                    call_context: None,
+                    kind: ExpressionKind::Integer(evaluated.value),
+                    result: Some(ValueType::plain(ScalarType::Integer(evaluated.integer))),
+                    source: SourceOrigin::of(self.typed.expression_table.source_span(cast.value)),
+                }
+            }
+            _ => self.expression(id, slots, cast.value, landing.map(ValueType::plain))?,
+        };
         let source_type = match operand.result {
             Some(source_type @ ValueType::Scalar(..)) => source_type,
             Some(ValueType::Record(_, _, _) | ValueType::Rigid(_)) | None => {

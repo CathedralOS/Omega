@@ -454,8 +454,32 @@ impl<'t> Program<'t> {
                 let value = self.anonymous_float(id, handle, format)?;
                 (ExpressionKind::Float(value), ScalarType::IeeeFloat(format))
             }
+            // A decimal literal is an exact rational, so `1.0e0` lands in an
+            // integer destination as `1`, like `1`, and `1.5` is refused as a
+            // fractional value (`numeric_values.md`, "Decimal literals and
+            // wholly anonymous arithmetic denote exact rationals").
+            ExpressionNode::Float(literal)
+                if literal.landing().is_none()
+                    && matches!(expected_scalar, Some(ScalarType::Integer(_))) =>
+            {
+                let evaluated = self.anonymous_value(
+                    id,
+                    handle,
+                    expected_scalar,
+                    super::types::AnonymousLanding::Implicit,
+                )?;
+                (
+                    ExpressionKind::Integer(evaluated.value),
+                    ScalarType::Integer(evaluated.integer),
+                )
+            }
             ExpressionNode::Binary(_) if self.wholly_anonymous(handle) => {
-                let evaluated = self.anonymous_value(id, handle, expected_scalar)?;
+                let evaluated = self.anonymous_value(
+                    id,
+                    handle,
+                    expected_scalar,
+                    super::types::AnonymousLanding::Implicit,
+                )?;
                 let owner = self.symbols.get(id).copied().unwrap_or_default();
                 self.complete_anonymous_operators(id, owner, &evaluated.operators)?;
                 (

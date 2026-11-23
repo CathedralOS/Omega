@@ -211,6 +211,21 @@ pub(super) struct AnonymousValue {
     pub operators: Vec<ExpressionHandle>,
 }
 
+/// How a wholly anonymous calculation reaches its integer destination.
+///
+/// `Implicit` is a destination that only types the value, such as
+/// `let x: u8 = (5 / 2) * 2;`: a fractional intermediate is refused there.
+/// `ExplicitAs` is the operand of `as` to a computational integer type,
+/// `((5 / 2) * 2) as u8`, which "explicitly lands its complete operand" and so
+/// acknowledges a fractional intermediate
+/// (`wiki/spec/language/numeric_values.md#fractional-intermediate-diagnostics`).
+/// Both still require an integral final value that fits the destination.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum AnonymousLanding {
+    Implicit,
+    ExplicitAs,
+}
+
 impl Program<'_> {
     /// A caller-owned rigid binder already has its exact bound storage.
     /// Resolving its source identity does not put that lexical binder into
@@ -1545,13 +1560,15 @@ impl Program<'_> {
     /// an integer of `expected`, with no fractional intermediate, becomes a
     /// literal. Every other tree is refused: one whose operator has no anonymous meaning
     /// (remainder, bitwise, shift, comparison: "Builtin remainder requires
-    /// integer operand meaning before folding"), one whose value or any
-    /// intermediate is fractional, and one outside `expected`.
+    /// integer operand meaning before folding"), one whose value is
+    /// fractional, one with a fractional intermediate that no `as`
+    /// acknowledges (`AnonymousLanding`), and one outside `expected`.
     pub(super) fn anonymous_value(
         &self,
         id: MachineId,
         expression: ExpressionHandle,
         expected: Option<ScalarType>,
+        landing: AnonymousLanding,
     ) -> Checked<AnonymousValue> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let typed = self.typed;
@@ -1576,20 +1593,51 @@ impl Program<'_> {
         ) else {
             return unserved("anonymous operation without an exact meaning");
         };
-        let Some(value) = evaluated.value.to_integer_exact() else {
-            return unserved("fractional anonymous value");
-        };
-        // "integer landing requires an integral in-range result and
-        // explicit `as` when acknowledging fractional intermediates": `(7 /
-        // 2) * 2` is 7, but lands only through an `as`, which is outside the
-        // subset.
-        if evaluated.fractional_origin.is_valid() {
-            return unserved("anonymous value with a fractional intermediate");
-        }
+        // Only an integer destination makes these errors in the program;
+        // without one the reader cannot say what the value lands as.
         let Some(ScalarType::Integer(integer)) = expected else {
-            return unserved("anonymous value without an expected integer type");
+            return match evaluated.value.to_integer_exact() {
+                None => unserved("fractional anonymous value"),
+                Some(_) if evaluated.fractional_origin.is_valid() => {
+                    unserved("anonymous value with a fractional intermediate")
+                }
+                Some(_) => unserved("anonymous value without an expected integer type"),
+            };
         };
-        let value = match integer.sign() {
+        let destination = semantic_vocabulary::fixed_integer_type(integer).map_or_else(
+            |_| "its integer type".to_owned(),
+            |fixed| format!("`{fixed}`"),
+        );
+        let at = |expression| {
+            crate::lowering::SourceOrigin::of(typed.expression_table.source_span(expression))
+        };
+        // numeric_values.md, "Fractional-intermediate diagnostics": "Integer
+        // landing of a fractional final value rejects with its exact value and
+        // destination type."
+        let Some(value) = evaluated.value.to_integer_exact() else {
+            return Err(crate::lowering::reject(
+                id,
+                at(expression),
+                format!(
+                    "this anonymous calculation has the exact value {} and lands in {destination}, which holds only integers; typing a computational integer operand asks for integer quotient, typing only the destination does not",
+                    evaluated.value
+                ),
+            ));
+        };
+        // "An authored anonymous calculation with a fractional intermediate
+        // rejects at an implicit computational integer landing", and the
+        // diagnostic identifies that origin: `(7 / 2) * 2` is 7, but lands
+        // only through an `as`.
+        if evaluated.fractional_origin.is_valid() && landing == AnonymousLanding::Implicit {
+            return Err(crate::lowering::reject(
+                id,
+                at(evaluated.fractional_origin),
+                format!(
+                    "this part of an anonymous calculation is fractional, and the calculation lands its exact value {value} in {destination} without `as`: write `as` around the whole calculation to land its exact value, or type an operand if integer arithmetic was intended"
+                ),
+            ));
+        }
+        let landed = match integer.sign() {
             IntegerSign::Signed => value
                 .to_i64()
                 .map(|value| IntegerValue::Signed(i128::from(value))),
@@ -1597,13 +1645,26 @@ impl Program<'_> {
                 .to_u64()
                 .map(|value| IntegerValue::Unsigned(u128::from(value))),
         };
-        match value {
-            Some(value) if integer.admits(value) => Ok(AnonymousValue {
-                value,
+        match landed {
+            Some(landed) if integer.admits(landed) => Ok(AnonymousValue {
+                value: landed,
                 integer,
                 operators,
             }),
-            Some(_) | None => unserved("anonymous value outside its type"),
+            // The reader holds integers of at most 64 bits, so a value it cannot
+            // hold for a wider destination says nothing about the program.
+            None if integer.bits().is_none_or(|bits| bits > 64) => {
+                unserved("anonymous value beyond the reader's 64-bit integers")
+            }
+            // "computational integer landing requires an integral result,
+            // destination range where bounded".
+            Some(_) | None => Err(crate::lowering::reject(
+                id,
+                at(expression),
+                format!(
+                    "this anonymous calculation has the exact value {value}, which does not fit in {destination}"
+                ),
+            )),
         }
     }
 

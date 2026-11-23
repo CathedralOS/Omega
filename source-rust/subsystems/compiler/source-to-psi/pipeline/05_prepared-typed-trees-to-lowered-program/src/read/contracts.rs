@@ -1581,7 +1581,12 @@ impl Program<'_> {
                 ))
             }
             ExpressionNode::Binary(_) if self.wholly_anonymous(expression) => {
-                let evaluated = self.anonymous_value(id, expression, expected)?;
+                let evaluated = self.anonymous_value(
+                    id,
+                    expression,
+                    expected,
+                    super::types::AnonymousLanding::Implicit,
+                )?;
                 if !evaluated.operators.is_empty() {
                     let owner = self.contract_operator_owner(id, scope)?;
                     self.complete_anonymous_operators(id, owner, &evaluated.operators)?;
@@ -1772,7 +1777,35 @@ impl Program<'_> {
         if cast.form == language_core::cast_form::CastForm::Value && cast.result_type.is_valid() {
             let after = self.qualified_scalar_type(id, cast.result_type)?;
             let landing = after.scalar().filter(|_| self.wholly_anonymous(cast.value));
-            let (term, before) = self.term(id, scope, cast.value, landing)?;
+            let (term, before) = match landing {
+                // `as` lands the complete anonymous operand here as in a body
+                // (`Program::cast`), fractional intermediates included.
+                Some(integer @ ScalarType::Integer(_))
+                    if !matches!(
+                        self.typed.expression_table.expression(cast.value),
+                        ExpressionNode::Integer(_)
+                    ) =>
+                {
+                    let evaluated = self.anonymous_value(
+                        id,
+                        cast.value,
+                        Some(integer),
+                        super::types::AnonymousLanding::ExplicitAs,
+                    )?;
+                    if !evaluated.operators.is_empty() {
+                        let owner = self.contract_operator_owner(id, scope)?;
+                        self.complete_anonymous_operators(id, owner, &evaluated.operators)?;
+                    }
+                    (
+                        ScalarTerm::Integer {
+                            scalar_type: evaluated.integer,
+                            value: evaluated.value,
+                        },
+                        ValueType::plain(ScalarType::Integer(evaluated.integer)),
+                    )
+                }
+                _ => self.term(id, scope, cast.value, landing)?,
+            };
             if before == after {
                 return Ok((term, after));
             }
