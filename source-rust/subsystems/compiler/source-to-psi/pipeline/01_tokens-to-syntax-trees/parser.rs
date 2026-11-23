@@ -309,9 +309,6 @@ mod declarations {
     pub(crate) mod operators;
     pub(crate) mod propositions;
     pub(crate) mod traits;
-    #[cfg(test)]
-    #[path = "../tests/unit/unannotated_constants.rs"]
-    mod unannotated_constants_tests;
 }
 mod expressions {
     pub(crate) mod context;

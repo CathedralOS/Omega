@@ -524,6 +524,9 @@ pub mod declarations {
             pub conformance_bounds: Vec<GenericConformanceBound>,
             pub expansion: TypeReference,
             pub body: AliasBody,
+            /// The multiplicity `data Alias [copy] = T;` asserts; see the
+            /// syntax tree's field of the same name.
+            pub asserted_multiplicity: Option<language_core::Multiplicity>,
         }
     }
 }

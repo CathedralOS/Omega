@@ -40,5 +40,6 @@ pub(crate) fn lower_type_alias_definition(
                 Diagnostic::error("missing authored type alias body")
                     .with_source_span(alias.name.source_span())
             })?,
+        asserted_multiplicity: alias.asserted_multiplicity,
     })
 }

@@ -467,6 +467,7 @@ impl SyntaxCopy<'_> {
                 authored_expansion: self
                     .copy_type_reference_handle(other, alias.authored_expansion),
                 expansion: self.copy_type_reference_handle(other, alias.expansion),
+                asserted_multiplicity: alias.asserted_multiplicity,
             }),
             Item::Domain(domain) => Item::Domain(DomainDefinition {
                 name: domain.name.clone(),

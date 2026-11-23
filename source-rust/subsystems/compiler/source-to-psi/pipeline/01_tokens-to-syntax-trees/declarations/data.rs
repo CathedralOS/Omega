@@ -71,12 +71,12 @@ pub(crate) fn parse_data_definition<'tokens, 'source>(
             parse_type_reference_handle(syntax_trees, input)?
         };
         if next.at_punctuation(PunctuationKind::Semicolon) {
-            if properties.multiplicity != language_core::Multiplicity::Affine
-                || properties.carry.is_some()
-                || cleanup_selection.is_some()
-            {
+            // An alias may assert its target's multiplicity, which typing
+            // checks; a carry list is invalid on an alias, and an alias has
+            // its expansion's cleanup.
+            if properties.carry.is_some() || cleanup_selection.is_some() {
                 return Err(next.error_here(
-                    "a transparent type alias inherits its expansion's properties and cleanup; it cannot declare storage properties",
+                    "a transparent type alias inherits its expansion's carry policy and cleanup; it may assert only `copy` or `linear`",
                 ));
             }
             return Ok((
@@ -88,6 +88,9 @@ pub(crate) fn parse_data_definition<'tokens, 'source>(
                     conformance_bounds: generic_parameters.conformance_bounds,
                     authored_expansion: carrier,
                     expansion: carrier,
+                    asserted_multiplicity: (properties.multiplicity
+                        != language_core::Multiplicity::Affine)
+                        .then_some(properties.multiplicity),
                 }),
                 next.take_punctuation(PunctuationKind::Semicolon, ";")?,
             ));
