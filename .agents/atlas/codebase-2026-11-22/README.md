@@ -8,6 +8,8 @@ file does, how it decides, and where the same work is written more than once, wi
 It describes one commit and goes stale as the code moves, so check a claim against the code before acting
 on it.
 
+Track current repairs, earlier fixes and outstanding claims in the [Atlas repair queue](triage/README.md).
+
 ## Verified follow-ups
 
 The counts below describe the November 22 survey. The area digests also record fixes verified after that revision.
