@@ -223,7 +223,7 @@ fn an_unknown_carrier_cannot_upgrade_a_shared_argument() {
 }
 
 #[test]
-fn a_copy_bound_keeps_unknown_loans_and_pending_cleanup() {
+fn a_copy_bound_keeps_unknown_loans_and_may_be_discarded() {
     let form = parameter_form("machine entry<T [copy]>(value: @T) {}");
     let storage = form.generic_storage[0].storage;
     let row = form.module.structural_type(storage).unwrap();
@@ -242,19 +242,15 @@ fn a_copy_bound_keeps_unknown_loans_and_pending_cleanup() {
     assert_eq!(inventory.unknown_contents.len(), 1);
     let verdict = judge(Ok(form)).unwrap();
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    // A `[copy]` binder permits discarding its value (ownership.md: "Copy
+    // and discard"); each specialization still checks its concrete type.
     let source = super::boundary_calls::typed("machine entry<T [copy]>(value: T) {}");
     let verdict = judge(crate::lowering::elaborate_generic(
         &source,
         super::boundary_calls::entry(&source),
     ))
     .unwrap();
-    assert!(
-        matches!(verdict, RouteVerdict::FallBack(ref refusal)
-        if refusal.reason == RefusalReason::Unsupported
-        && matches!(refusal.site.in_machine().unwrap().1, Construct::Edge(_))
-        && refusal.detail.contains("normal edge cannot implicitly dispose storage without an authorized disposition")),
-        "Copy does not identify the actual cleanup plan: {verdict:?}"
-    );
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
 }
 
 fn u32_value() -> ValueType {

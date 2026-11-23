@@ -1339,6 +1339,11 @@ fn prepare_disposition(
         || declaration.owns_linear_claim
     {
         false
+    } else if matches!(declaration.shape, StructuralTypeShape::TypeParameter) {
+        // A `[copy]` binder permits discarding every value of its type
+        // (ownership.md: "Copy and discard"). Each specialization still checks
+        // its concrete type, so this grants nothing the actual type lacks.
+        declaration.is_copyable()
     } else if declaration.no_code_affine_cleanup && declaration.descriptor_cleanup {
         true
     } else if let terminal_psi::StructuralTypeShape::Record { fields, .. } = &declaration.shape {
@@ -3838,10 +3843,13 @@ impl<'a> Analysis<'a> {
         {
             return Ok(vec![TerminalAffineCleanupAction::RetireHome(place)]);
         }
-        if region.contains_partition(&[])
-            || declaration.nominal_cleanup.is_some()
-            || !declaration.no_code_affine_cleanup
-            || !declaration.descriptor_cleanup
+        let copyable_parameter = matches!(declaration.shape, StructuralTypeShape::TypeParameter)
+            && info.multiplicity == terminal_psi::StructuralMultiplicity::Unrestricted;
+        if !copyable_parameter
+            && (region.contains_partition(&[])
+                || declaration.nominal_cleanup.is_some()
+                || !declaration.no_code_affine_cleanup
+                || !declaration.descriptor_cleanup)
         {
             let mut actions = Vec::new();
             if !info.unqualified_owned {

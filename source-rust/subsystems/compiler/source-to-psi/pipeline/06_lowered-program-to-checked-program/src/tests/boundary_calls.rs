@@ -4365,6 +4365,12 @@ fn a_boundary_call_uses_its_callers_type_argument() {
     "#;
     let verdict = super::entryless::judged(source, false);
     assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    // Call lowering retires the temporary that held the copyable argument.
+    let copied = source
+        .replace("keep<Item>", "keep<Item [copy]>")
+        .replace("relay<A, B>", "relay<A, B [copy]>");
+    let verdict = super::entryless::judged(&copied, false);
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
     let bounded = r#"
         boundary trait Transport {
             machine observe<Item [copy]>() reaches none crashes none;
