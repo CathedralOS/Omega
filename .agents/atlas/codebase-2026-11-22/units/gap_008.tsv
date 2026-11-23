@@ -1,0 +1,4 @@
+source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-elf/src/load_placement.rs	471	585	115
+source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-elf/src/load_placement.rs	986	3379	2394
+source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-elf/src/procedure_linkage.rs	581	1954	1374
+source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-elf/src/procedure_linkage.rs	2435	3466	1032

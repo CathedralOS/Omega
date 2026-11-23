@@ -1,0 +1,18 @@
+area	crates	files	lines	units	description
+01-cli-foundation	24	241	64036	5	The omega binary and its commands, shared host and compiler foundation crates, the public compiler entry
+02-source-stages-00-04	6	287	152667	8	Source stages 00 to 04: tokens, syntax trees, name resolution, typing, preparation
+03-source-stage-05	1	114	97047	6	Source stage 05: prepared typed trees to the lowered program
+04-source-stages-06-07	2	176	125030	7	Source stages 06 and 07: the lowered-form checker and Psi publication
+05-source-representations	20	210	136562	7	The forms the source stages exchange
+06-source-driver-build	26	285	80169	8	Source driver and compile-time evaluation; Build planning, execution and settings
+07-psi-semantics	7	291	178170	10	Psi semantics: storage flow, descriptors, replay, continuation checks
+08-psi-program	22	234	84577	6	Portable Psi program, artifact encoding, identities, interfaces and the rest of psi/
+09-native-stages-00-03	8	74	38911	3	Native stages 00 to 03: admitted inputs, target binding, abstract operations and their optimization
+10-native-stages-04-10	9	115	157272	9	Native stages 04 to 10: target operations, instruction selection, register allocation, framing
+11-native-stages-11-15	13	150	153323	9	Native stages 11 to 15: encoding, layout, placement, objects, images
+12-native-representations	30	293	160526	10	The forms the native stages exchange
+13-native-targets-driver	26	288	98804	7	Native targets and ABIs, the native driver and its admission crates
+14-interpreter	9	96	103372	6	The Psi interpreter, its host services and memory
+15-package-manager	6	525	77455	5	Package acquisition, graphs, review and update
+16-tools	2	59	30589	2	Repository tooling: xtask and benchmark
+17-omega-source	7	330	96444	6	The Omega-written compiler and application, and the bundled library packages
