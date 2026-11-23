@@ -5,8 +5,9 @@ beyond a closed scalar predicate. PR #2823 deleted the code that turned
 definitions, universe levels, `data` families, theorem machines,
 `core\Identity` and quotients into terms the proof kernel checks. The kernel
 and its tests survived, but no source stage calls it for those declarations.
-This note says what was lost, which outcomes the spec still requires, and what
-to build first for **PROOF-KERNEL-CORE** in [TASKS.md](../../../TASKS.md).
+This note says what was lost, which outcomes the spec still requires, how
+stage 05 turns a source clause into a proof term today, and what to build
+first for **PROOF-KERNEL-CORE** in [TASKS.md](../../../TASKS.md).
 Delete it when that task closes or its plan carries these findings.
 
 ## Summary
@@ -35,10 +36,23 @@ Delete it when that task closes or its plan carries these findings.
    blockers are domain rules the samples predate (53), value-indexed type
    arguments that stage 03 cannot evaluate (48), the level binder `u` read
    as a builtin type (18) and an unresolved `core::Access` import (18).
-5. **Do first.** In stages 02-03, bind `core\Level` binders and evaluate
-   value-indexed type arguments (66 samples move on). Then build R1 with
-   general Identity, which core's laws need. R2 and R3 follow, and the two
-   floor gaps can go in parallel.
+   This audit has no run of these samples from before #2823, so it measures
+   the loss by reading code, not by programs that stopped compiling.
+5. **The per-placement pattern moved into stage 05.** Stage 06 gives every
+   value the same treatment, but the code that reads a source clause does
+   not. Thirteen functions in four files read an expression into a proof
+   term, each accepting its own subset of expressions for its own clause
+   position. `Proposition` has five equality forms, one per kind of operand,
+   and none that takes a type. That is why Identity serves two types and a
+   call inside a clause serves one shape of machine. See
+   [how a clause becomes a proof term today](#how-a-clause-becomes-a-proof-term-today).
+6. **Do first.** Build toward the core library, not the samples: it needs no
+   level binder, no `core\Squash` and no `data` family. Give stage 05 one
+   term reader, add the two term forms `Proposition` lacks (application of a
+   declaration, and `Id` at a type), and take `core/algebra.omg` as the first
+   customer. Families, induction and quotients follow when a library
+   declaration or a repaired sample needs them. See
+   [plan order](#plan-order).
 
 ## How to read this audit
 
@@ -66,6 +80,10 @@ So each old capability gets one of four labels:
 [stage 06 README](../../../source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/README.md)
 define "what exists now". Do not port old functions; the old line ranges are
 cited only so a reader can see what an outcome used to cost.
+
+**Subsumed** is a claim about stage 06, argued from its design and not tested
+here. It does not say stage 05 reads the construct: where stage 05 still
+refuses a placement the old collector served, the row says so.
 
 ## Sources
 
@@ -102,9 +120,19 @@ Old files, all under `omega-rust/psi/compilation/`:
 read `derivation_store` or the old facts. About 43% of it (≈5,460 lines) is
 general elaboration logic, 45% (≈5,740) is per-case code and plumbing that fed
 the old checker, and 11% (1,442) is tests in four `#[cfg(test)]` modules
-(`:6048-6168`, `:7088-7161`, `:9080-9842`, `:9847-10330`). The general logic is
-portable typed-tree logic, but every piece calls `validation` helpers and
-produces old-checker rows, so it is a reference, not a source to restore.
+(`:6048-6168`, `:7088-7161`, `:9080-9842`, `:9847-10330`).
+
+The pattern of one piece of code per placement explains the deletion of the
+old range checker, but only about half of this file. The general half went
+because it depended on crates #2823 removed, and that dependency was narrow:
+of its 69 `validation::` references, 17 name the typed-tree view
+`CheckingInput`, 29 name one helper module, `mathematical_applications`, and
+23 name other helpers. #2823 chose to move no old checking code, and its
+`TASKS.md` change left **PROOF-KERNEL-CORE** as it was, so this audit is the
+first record of the loss. The file is still a reference and not a source to
+restore: its output type `CheckedMathematicalSignature` is gone and its
+per-placement half must not return. Its tests are the best record of what
+used to work; port their cases as expectations for the new code.
 
 Paths: S03 = `source-to-psi/pipeline/03_symbol-resolved-trees-to-typed-trees/src/`,
 S05 = `source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program/src/`,
@@ -114,7 +142,7 @@ K = `psi/semantics/proofs/mathematical/`, all under
 
 | # | Capability and example | Old code | Spec that requires it | Main today | Label and general rule |
 | --- | --- | --- | --- | --- | --- |
-| C1 | **A named definition becomes one kernel declaration** (Π over the telescope, λ body, constants applied by prefix; `boundary let` becomes an assumption). `public let no_wrap(base: addr, length: u64): core\Strict<0> = embed(base) + embed(length) <= addr::Bound;` | `elaborate_declaration` `:12028-12113`, binders `:12115-12157`, body `:12180-12353`, scope `:3715-3922`, callee instantiation `:473-647`, dependencies `:1448-1552`; ≈1,050 | [mathematical_bindings.md#named-mathematical-definitions](../../spec/proofs/mathematical_bindings.md#named-mathematical-definitions), [#assumptions-and-executable-demand](../../spec/proofs/mathematical_bindings.md#assumptions-and-executable-demand), [foundation.md#assumptions-and-calculus-identity](../../spec/proofs/foundation.md#assumptions-and-calculus-identity) | Stages 01-03 parse, resolve and type it (S03 `declarations.rs:1447-1538`). S05 `read/subjects.rs:566-578` sends every subject definition to `mathematical_predicate_definition` (S05 `read/mathematics.rs:251`), which serves only a closed definition with scalar formals and a `core\Strict<0>` result, as a `Proposition`, not a kernel term. It refuses binders ("open mathematical predicate declaration", `:275`), other results (`:282-286`), `boundary let` ("uninterpreted mathematical premise theory", `:287-289`), recursion (`:290-292`) and open applications (`:144-149`). No source stage calls `check_signature` (K `signature.rs:80,89`); its only non-test callers are the kernel's own `bounded_denotation.rs:12390` and the Psi wire decoder. | **needed** (R1). Elaboration in stage 05 turns every typed declaration into a closed kernel `Declaration` and publishes one signature table; stage 06 checks it once with the kernel. The old topological-order refusal (`:509-513`) is incidental. |
+| C1 | **A named definition becomes one kernel declaration** (Π over the telescope, λ body, constants applied by prefix; `boundary let` becomes an assumption). `public let no_wrap(base: addr, length: u64): core\Strict<0> = embed(base) + embed(length) <= addr::Bound;` | `elaborate_declaration` `:12028-12113`, binders `:12115-12157`, body `:12180-12353`, scope `:3715-3922`, callee instantiation `:473-647`, dependencies `:1448-1552`; ≈1,050 | [mathematical_bindings.md#named-mathematical-definitions](../../spec/proofs/mathematical_bindings.md#named-mathematical-definitions), [#assumptions-and-executable-demand](../../spec/proofs/mathematical_bindings.md#assumptions-and-executable-demand), [foundation.md#assumptions-and-calculus-identity](../../spec/proofs/foundation.md#assumptions-and-calculus-identity) | Stages 01-03 parse, resolve and type it (S03 `declarations.rs:1447-1538`). S05 `read/subjects.rs:566-578` sends every subject definition to `mathematical_predicate_definition` (S05 `read/mathematics.rs:251`), which serves only a closed definition with scalar formals and a `core\Strict<0>` result, as a `Proposition`, not a kernel term. It refuses binders ("open mathematical predicate declaration", `:275`), other results (`:282-286`), `boundary let` ("uninterpreted mathematical premise theory", `:287-289`), recursion (`:290-292`) and open applications (`:144-149`). No source stage calls `check_signature` (K `signature.rs:80,89`); its only non-test callers are the kernel's own `bounded_denotation.rs:12390` and `certificate.rs:35,665`, and the Psi wire decoder. | **needed** (R1). Elaboration in stage 05 turns every typed declaration into a closed kernel `Declaration` and publishes one signature table; stage 06 checks it once with the kernel. The old topological-order refusal (`:509-513`) is incidental. |
 | C2 | **Universe levels**: `core\Level` binders, `Type<u>`/`Strict<u>`, generalization, call-site level inference. `let same_result<u: core\Level, A: core\Type<u>>(left: A, right: A): core\Type<u> = core\Identity::<A>(left, right);` | `elaborate_level` `:2345-2399`, `generalized_level` `:2683-2706`, level slots `:520-647`, call inference `:676-893`, `source_levels` `:11537-11632`; ≈420 | [mathematical_bindings.md#universes-and-mathematical-function-types](../../spec/proofs/mathematical_bindings.md#universes-and-mathematical-function-types), [foundation.md#universes-functions-and-recursion](../../spec/proofs/foundation.md#universes-functions-and-recursion) | S03 checks arity only (`type_reference.rs:891-901`). Nothing classifies `core\Level`; the stage 02 comment hands it to "the typed-tree elaboration leg" that no longer exists (`02_.../lowering/mathematical.rs:9-11`). Any level binder is refused by C1. | **needed**, part of R1: one level telescope per declaration, generalized from the interface. |
 | C3 | **Mathematical type formers**: arrows as Π, `core\Squash<T>`, sorts, generic `data` application as a family. `present: core\Squash<Witness<u,v,A,P>>` | `elaborate_mathematical_type` `:2401-2439`, `elaborate_type_reference` `:2441-2552`, `named_type` `:2610-2663`; per-scalar carriers `:896-1385` (490) | [mathematical_bindings.md#universes-and-mathematical-function-types](../../spec/proofs/mathematical_bindings.md#universes-and-mathematical-function-types), [#witnesses-existence-and-proof-construction](../../spec/proofs/mathematical_bindings.md#witnesses-existence-and-proof-construction) | S03 lowers the type forms structurally. S05 refuses arrow inputs ("higher-order mathematical premise input", `read/mathematics.rs:196-199`); nothing handles Squash after stage 03. | Π/Squash/sort mapping **needed**, part of R1. The per-scalar carrier assumptions are **subsumed**: scalars take the bounded denotation's carrier theory. |
 | C4 | **Boolean and arithmetic bodies as propositions**: comparisons, connectives, `embed`, integer `+`/`-`. `let within(limit: u64, value: u64): core\Strict<0> = !(value > limit);` | `propositions` `:3323-3714`, `operand_terms` `:2806-3322`; ≈900 | [mathematical_bindings.md#assumptions-and-executable-demand](../../spec/proofs/mathematical_bindings.md#assumptions-and-executable-demand) (total Boolean computation as proposition), [contracts.md#mathematical-values-and-quantification](../../spec/proofs/contracts.md#mathematical-values-and-quantification) | S05 reads the body as `Proposition`/`IntegerMathTerm` (`read/mathematics.rs:389-473`) and unfolds it at use (`mathematical_clause`, `:220-250`); stage 06 proves it through `proof_admission`. | **covered** for closed scalar first-order bodies. The old per-operator kernel constants are **obsolete**. Under R1 the same body must also become a kernel term once binders appear. |
@@ -149,7 +177,8 @@ value lands in a bounded type at placement X": assignment, call argument,
 initializer, state return, value, transition argument, guarded transition.
 Each placement had its own collector (`obligations.rs:243-1130`), its own
 checker (`checker.rs:285-846`) and its own diagnostic constructors
-(`checker.rs:2979-3233`, 13 of them). When it built no certificate it accepted
+(`checker.rs:2979-3233`, 15 of them: five placements times integer, float and
+named constraint). When it built no certificate it accepted
 on an interval verdict with no kernel check (`checker.rs:373-395`, and
 547, 623, 689, 762-790). Floats were never certified (`checker.rs:824-845`).
 Stage 06 has no acceptance without the kernel: every decided obligation goes
@@ -160,9 +189,9 @@ S06 = `source-to-psi/pipeline/06_lowered-program-to-checked-program/`.
 
 | Outcome | Old rule (lines, size) | Spec | New path | Label |
 | --- | --- | --- | --- | --- |
-| A value lands in a range-constrained type, per placement | collectors `obligations.rs:243-1130` (≈890), `bounded_checks` `checker.rs:285-846` (562), `named_constraints` `:5969-6252`, diagnostics `:2979-3233` | [domains.md#literals-and-expected-types](../../spec/language/domains.md#literals-and-expected-types) | S05 `read/predicates.rs` turns `T in D` into ordinary contracts on the value: a formal's `requires` (`CallRequirement`, `lower/calls.rs:1022`), a result's `ensures` (`NormalGuarantee`, `lower/control.rs:226`), a field's `DataDomain` (`default_obligations.rs:91`), `+D` as `ArrivalInvariant` (`lower.rs:1352`) | **subsumed**. Remaining refusals (domains on payloads, array elements, borrowed formals) belong to `CANONICALIZE-SCALAR-RANGE-CONTRACTS`, not to this task. |
+| A value lands in a range-constrained type, per placement | collectors `obligations.rs:243-1130` (≈890), `bounded_checks` `checker.rs:285-846` (562), `named_constraints` `:5969-6252`, diagnostics `:2979-3233` | [domains.md#literals-and-expected-types](../../spec/language/domains.md#literals-and-expected-types) | S05 `read/predicates.rs` turns `T in D` into ordinary contracts on the value: a formal's `requires` (`CallRequirement`, `lower/calls.rs:1022`), a result's `ensures` (`NormalGuarantee`, `lower/control.rs:226`), a field's `DataDomain` (`default_obligations.rs:91`), `+D` as `ArrivalInvariant` (`lower.rs:1352`) | **subsumed** in stage 06. Stage 05 still refuses some placements the old collector served: an array whose elements carry a domain (S05 `read/arrays.rs:1105,1119`; old `collect_array_element_obligations`, `obligations.rs:938`), and domains on payloads and borrowed formals. Those belong to `CANONICALIZE-SCALAR-RANGE-CONTRACTS`, not to this task. |
 | Integer ranges through add, subtract, multiply, cast, left shift, literal divisors | `integer_ranges` `checker.rs:4959-5561` (603), `certificate` `:847-2013` (1,167), `obligations.rs:1332-1833`, `:3655-3888` | [contracts.md#required-automatic-discharge](../../spec/proofs/contracts.md#required-automatic-discharge) (range propagation) | S06 `src/prove.rs` (`bound`/`search` `:3485-3720`, `product` `:4502`), `src/prove/ranges.rs` (`remainder_within_dividend` `:285`, `quotient_order` `:553`, `cast_bound` `:690`, `remainder_by_fixed_divisor` `:808`), `src/prove/widths.rs` | **covered** |
-| Integer ranges through divide, remainder or right shift whose divisor or count is known only by an interval | the old code folded intervals without a certificate | the same floor: "An operand's bounds are the tightest literal bounds order reasoning gives it" | none: S06 README:1047-1052 ("would take endpoint propagation with the divisor's interval"); `prove/reach.rs:16-19` reports `NoRuleForGoalForm` | **needed**, one extension: a two-interval endpoint form for divide, remainder and shift in `IntegerAffineBound`, as multiply already has. Landing an operand on bounds proved equal (S06 README:1061-1072, `(prefix - 360) + last`, 15 programs) reads as the same floor clause. |
+| Integer ranges through divide, remainder or right shift whose divisor or count is known only by an interval | the old code folded intervals without a certificate, so programs it accepted this way are refused today | the same floor: "An operand's bounds are the tightest literal bounds order reasoning gives it" | none: S06 README:1047-1052 ("would take endpoint propagation with the divisor's interval"); `prove/reach.rs:16-19` reports `NoRuleForGoalForm` | **needed**, one extension: a two-interval endpoint form for divide, remainder and shift in `IntegerAffineBound`, as multiply already has. Landing an operand on bounds proved equal (S06 README:1061-1072, `(prefix - 360) + last`, 15 programs) reads as the same floor clause. |
 | Order reasoning (transitivity, ±literal, `a < b` ⇔ `a + 1 <= b`) | `apply_assignment_guard` `checker.rs:4608-4672`, `guarded_refold_certificate` `:1463-1688`, `requires_conditions::refine` `:6325-6358` | contracts.md floor, order reasoning | S06 `prove.rs`: `relation`/`steps` `:2812-3025`, `sum_order` `:2220`, `contradiction` `:1524`, `refute_guard` `:1672` | **covered**, except below |
 | Contradiction between two order facts when neither is a taken guard (`low <= high`, `high < low`) | no separate rule | floor: "contradiction of an unreachable path" | none: S06 README:1039-1046 | **needed**, one certificate rule: irreflexivity of `<` on an open value (`a < a` proves false). The kernel's denotation already states the law (`psi/semantics/proofs/bounded/bounded_denotation.rs:12572`) but reaches it only when both sides are closed values (`:6608-6640`). |
 | Float range derivation | `float_ranges` `checker.rs:3234-4139` (906); `obligations.rs:1489-1553`, `:1652-1669`, `:1753-1788`, `:3750-3848`; interval containment, never a certificate | float-to-integer conversion: [numeric_values.md#destination-owned-conversion](../../spec/language/numeric_values.md#destination-owned-conversion). The floor is integer-only. | conversion: S06 `prove/float_integer.rs:43`, `prove.rs:2063`; IEEE order: `prove/ieee_float_order.rs:145,293,361`; `FloatMeaning`: `prove/float_meaning.rs:20` | Conversion and order **covered**. Interval propagation through float arithmetic is **obsolete** as an automatic requirement. |
@@ -181,6 +210,94 @@ The old checker never called `mathematical_declarations` (only `pub mod` at
 04/05 and the review-evidence crate. So nothing in `checker.rs` is needed for
 R1-R3.
 
+## How a clause becomes a proof term today
+
+Stage 06 treats every value alike, but the path that brings a source clause
+to it still has one piece of code per clause position and per kind of
+operand. R1-R3 would add to that path, so its shape decides how much each
+rule costs. Read at `b8213143d790`; S05 and K are the paths defined above.
+
+| Step | Owner | What it produces |
+| --- | --- | --- |
+| Read a clause | stage 05: `read/contracts.rs`, `read/logical.rs`, `read/mathematics.rs`, `read/predicates.rs`, `read/clause_calls.rs` (6,705 lines) | a `Proposition` over `ScalarTerm` and `IntegerMathTerm` (`foundation/semantic-records/src/proposition.rs`, `scalar_terms.rs`) |
+| Attach it | stage 05 `lower/` | obligation and knowledge rows in the [lowered program](../../../source-rust/subsystems/compiler/source-to-psi/representations/lowered-program/README.md) |
+| Prove it | stage 06 `prove.rs` | a `ProofNode` certificate built from 33 rules (`psi/proofs/certificates.rs`, `ProofRule`) |
+| Check the proof | bounded admission, `psi/semantics/proofs/bounded/` | each rule is checked, then the certificate is translated into the mathematical kernel's `Term` and judged again (`bounded_denotation.rs`) |
+
+Five term types take part: `ScalarTerm` (runtime scalars and storage reads),
+`IntegerMathTerm` (unbounded integers), `Proposition`, `ProofTerm` (erased
+values) and the kernel's `Term` (Π, Σ, `Id`, W, `Two`, `Empty`). Only the
+last can state a type, and no source stage writes it.
+
+What the code shows:
+
+- **Thirteen term readers.** Thirteen functions in four files return a
+  `ScalarTerm` or `IntegerMathTerm` read from a source expression:
+  `term`, `read_term`, `old_term`, `clause_cast`, `arithmetic_term`,
+  `mathematical_term`, `read_mathematical_term` and `field_term` in
+  `read/contracts.rs`; `input_term` in `read/logical.rs`;
+  `mathematical_integer_literal`, `integer_embedding` and
+  `logical_mathematical_term` in `read/mathematics.rs`; `called_term` in
+  `read/clause_calls.rs`. Two more read an erased term
+  (`read/expressions.rs:272`, `lower/operations.rs:123`).
+- **The clause's position chooses the reader.** `ClauseScope`
+  (`read/contracts.rs:34`) records where a clause sits, and the readers
+  branch on it: `read_mathematical_term` hands the whole expression to
+  `logical_mathematical_term` when `scope.logical` is set
+  (`read/contracts.rs:2062`), and `identity_inputs` refuses Identity unless
+  the scope is a machine entry or return clause (`:750-752`). Each reader
+  then refuses what its position does not serve. Stage 05 has 1,252 refusal sites outside
+  its tests, and about 57 of their messages name a position, for example
+  "call in a clause of a state other than the entry", "embed outside a
+  mathematical comparison", "old outside a callable contract", "formal field
+  in a postcondition", "Identity outside a machine entry or return clause",
+  "term other than a formal, a literal or an embedded integer" and "term
+  other than a field of the value or a literal".
+- **The kind of operand chooses the proposition.** `Proposition` has 22
+  variants. Equality alone has five: `Equal` (scalars), `IntegerMathEqual`,
+  `ByteSequenceEqual`, `StructuralIdentity` and `FloatMeaningEqual`. None
+  takes a type, so each type Identity serves needs its own variant, reader
+  and prover rule. `identity_clause` (`read/contracts.rs:906`) serves two.
+- **A call in a clause is unfolded or refused.** `read/clause_calls.rs`
+  serves a call only to a closed machine with no contract, scalar parameters
+  and a scalar result, in a clause of the entry state, by reading the
+  callee's body in place of the call. A machine with no body cannot be
+  unfolded.
+- **`ProofTerm` names types by text.** Five of its variants and
+  `MathematicalArgument` hold a `type_identity: String`
+  (`proposition.rs:1466-1500`), against the lowered program's rule that no
+  decision is keyed on text.
+- **Some certificates are accepted without the mathematical kernel judging
+  them.** `bounded_denotation.rs` names all 33 rules, but nine sites return
+  `Unsupported` for a shape it cannot translate (for example "a carrier bound
+  of an integer whose width is a parameter"). Admission then records
+  `MathematicalCoreDecision::Refused` and still accepts the certificate on
+  the bounded rule (`bounded/proof.rs:257-259`). Nothing in `source-to-psi`
+  reads that decision, so nobody counts these.
+- **Terminal Psi has one slot per construct.** `mathematical_carriers`,
+  `identity_formations` and `indexed_theorems` each carry one kind of
+  declaration, and none has a writer.
+
+### What to change in this layer
+
+Each change removes one axis of the combinations above. They are proposals,
+checked against the code but not built.
+
+| # | Change | What it removes | Measure |
+| --- | --- | --- | --- |
+| L1 | **One term reader in stage 05.** One function reads an expression into a term at every position. `ClauseScope` supplies only what each name denotes there (a formal, the entry snapshot for `old`, the result, a field of the value being built). | the position axis: a term form served once is served in every clause, domain predicate, definition body and erased argument | readers per term form: 1; refusals that name a position: 0 |
+| L2 | **Two general term forms.** Add an application of a published declaration to argument terms, and `Id` at a type. The existing scalar, integer and float forms stay as the cases the arithmetic rules work on. | the operand axis: Identity for every type (C5), a call to a machine with no body, a definition with binders (C1) and a quotient relation (C10) become the same two forms, with one reader, one prover route (reflexivity, symmetry, transitivity, congruence) and one translation to the kernel | equality forms a new type needs: 0 |
+| L3 | **One signature table in Terminal Psi** in place of the three per-construct slots, written by stage 05 and checked once by stage 06 with `check_signature`. This answers open question 3. | a table and a wire reader per construct | writers per declaration kind: 1 |
+| L4 | **Stage 06 reads `MathematicalCoreDecision`** and reports how many accepted certificates the mathematical kernel did not judge, per obligation kind. Close the nine shapes or refuse them. | a second basis of trust that nobody measures | accepted without the kernel's judgment: 0 |
+| L5 | **Typed identities in `ProofTerm`** in place of `type_identity: String`. | decisions keyed on text | text keys in `ProofTerm`: 0 |
+
+L1 and L2 replace R1's separate routes for definitions, Identity and
+quotient formation. Build the single reader for the two new forms first, so
+they work at every position from the start, then move each existing form
+into it and delete the reader it came from in the same change. That avoids
+both rewriting 6,705 working lines at once and adding the new forms to
+thirteen readers.
+
 ## Who needs it today
 
 ### Library declarations
@@ -193,7 +310,23 @@ R1-R3.
 | `core/cauchy.omg` (28 uses), `nat.omg` (46), `nat_metric.omg` (32), `rat.omg` (28), `int.omg` (19), `math.omg` (14), `seq.omg` (12), `float_operations.omg` (78, mostly `FloatMeaning`) | `core\Identity`/`core\Type`/`core\Strict` over `Nat`, `Rat` and generic sequences, in `requires`/`ensures` | C5 for non-scalar T; C8 where a machine is a theorem |
 
 No `[erased]` binding and no other top-level mathematical `let` appears in
-`source/library/`.
+`source/library/`. Nor does `core\Level` or `core\Squash`, so the library
+needs neither level binders (C2) nor the Squash mapping (C3).
+
+The algebra laws need one thing no capability row above names: a call used
+as a term. `ensures core\Identity::<T>(add(a, b), add(b, a))` applies `add`,
+a trait machine that has no body and works on a generic `T`.
+`read/clause_calls.rs` can only unfold a closed machine with scalar
+parameters and a scalar result (`:189-314`), so stage 05 could not read these
+operands even if Identity served `T`. The spec already says when a call may
+stand as a term: "A call interpreted denotationally needs a checked
+observation-free, reach-free, crash-free, terminating invocation"
+([contracts.md#total-arithmetic](../../spec/proofs/contracts.md#total-arithmetic)).
+It also names call congruence for comparisons: repeated pure comparisons with
+the same operation and unchanged arguments have the same Boolean denotation
+([contracts.md#equality-bridges-and-comparison-facts](../../spec/proofs/contracts.md#equality-bridges-and-comparison-facts)).
+The [proofs lane plan](proofs_evidence_lane.md) lists this as slice 10;
+change L2 above serves it and Identity with the same two forms.
 
 ### Samples
 
@@ -228,7 +361,8 @@ targets). Grouped by the first error each sample reports:
 
 None of the 174 failures stops at a C1-C8 refusal site in stage 05. Fixing
 the two front-end groups owned by this task moves 66 samples to their next
-failure, which is where R1-R3 will first be measured.
+failure, not to passing. The samples therefore cannot show when the proof
+work is done; the core library can.
 
 ## What else was dropped
 
@@ -270,18 +404,20 @@ must-reject twin, per [the gate](check_on_lowered_form.md#the-gate). The
 [proofs lane plan](proofs_evidence_lane.md) lists finer slices; where a slice
 there adds a case per construct, take the rule here instead.
 
-| Step | Build | Owner | First customers | Moves |
-| --- | --- | --- | --- | --- |
-| 1 | Bind `core\Level` binders as levels (not builtin type spellings) and carry them in typed trees | stages 02-03 | `representation_agreement` | 18 samples to their next failure |
-| 2 | Evaluate value-indexed type arguments (`Vector<previous, previous_total>`) in typed trees | stage 03 | `source_indexed_family`, `_binary_tree`, `_type_parameter` | 48 samples |
-| 3 | R1 with Identity for every type: declarations (definitions with binders, `boundary let`, levels, Π/Squash) become one published kernel signature; `core\Identity::<T>` forms `Id` for any T, in clauses, domain predicates and definition bodies; stage 06 kernel-checks the signature once | stage 05, stage 06 | `core/algebra.omg`, `cauchy.omg`, `nat.omg`, `rat.omg`, `extent.omg:219`; `representation_agreement` | core library contracts |
-| 4 | R2: `data` to indexed W description; construction operations carry `sup`/`pack` evidence on their value | stage 05 | `source_indexed_*` | the step 2 samples |
-| 5 | R3: theorem machines as Π statements, induction through `indW`, assumption closure from the kernel | stage 06 | `source_indexed_family` (`vector_bound`), `induction_call_guarantee` | |
-| 6 | Quotient formation (R1) and the correspondence judgment (R3) | stages 05, 06 | none measured | |
-| — | In parallel: (a) divide/remainder/shift endpoints from an interval divisor in `IntegerAffineBound`; (b) irreflexivity of `<` on an open value | stage 06, kernel | S06 README:1039-1052 programs | floor conformance |
+| Step | Build | Owner | First customers |
+| --- | --- | --- | --- |
+| 1 | L1 and L2 together: the single term reader, serving an application of a declaration and `Id` at a type in every clause position. Stage 06 gets the equality route for them (reflexivity, symmetry, transitivity, congruence). | stage 05, lowered program, stage 06, kernel translation | `core/algebra.omg`: a caller that cites `add_comm` and relies on the Identity, and a twin that relies on it without the citation |
+| 2 | L3 with R1: definitions with binders and `boundary let` become declarations in the one published signature; stage 06 checks it once | stage 05, Terminal Psi, stage 06 | `cauchy.omg`, `nat.omg`, `rat.omg`, `extent.omg:219` |
+| 3 | Move each existing term form into the single reader and delete the reader it came from | stage 05 | each position refusal listed [above](#how-a-clause-becomes-a-proof-term-today), with its twin |
+| 4 | R2: `data` to indexed W description; construction operations carry `sup`/`pack` evidence on their value. Needs value-indexed type arguments (`Vector<previous, previous_total>`) evaluated in stage 03 first. | stages 03, 05 | the first library declaration that needs a family, else `source_indexed_*` once their other blockers are repaired |
+| 5 | R3: theorem machines as Π statements, induction through `indW`, assumption closure from the kernel | stage 06 | `source_indexed_family` (`vector_bound`), `induction_call_guarantee` |
+| 6 | Quotient formation (L2, L3) and the correspondence judgment (R3) | stages 05, 06 | none measured |
+| — | In parallel, each independent: (a) divide/remainder/shift endpoints from an interval divisor in `IntegerAffineBound`; (b) irreflexivity of `<` on an open value; (c) L4; (d) L5; (e) `core\Level` binders in stages 02-03, once open question 1 is answered | stage 06, kernel, stages 02-03 | S06 README:1039-1052 programs; `representation_agreement` for (e) |
 
-Steps 1-2 are prerequisites, not proof work; they are listed because no
-program reaches R1-R3 without them. The samples' other blockers (domain
+The first version of this plan started with level binders and value-indexed
+type arguments because they move 66 samples. They move those samples to
+their next failure, the library needs neither, and level binders wait on
+open question 1, so they no longer lead. The samples' other blockers (domain
 surface, imports, stale syntax, references) belong to their own `TASKS.md`
 items.
 
@@ -294,15 +430,22 @@ Recorded, not answered:
    names may use one, but not a `core\Level` binder. The spec's own examples
    name levels `u`, `v`, `w` ([mathematical_bindings.md](../../spec/proofs/mathematical_bindings.md#universes-and-mathematical-function-types)).
    Is a level argument a type position, and may a level binder be named `u`?
+   The library declares no level binder, so this blocks only
+   `representation_agreement`, not steps 1-3.
 2. **One mechanism for Identity over data.** The spec forms `core\Identity`
    with the kernel's `Id` rules ([mathematical_bindings.md#scope](../../spec/proofs/mathematical_bindings.md#scope));
    the [proofs lane](proofs_evidence_lane.md) slice 7 expands it into leaf
    equalities over values. Which one is the route, and does the other remain?
+   This audit's reading: `Id` is the route, because a generic `T`
+   (`core/algebra.omg`) has no fields to expand; leaf equalities would then
+   be a consequence the kernel proves for a concrete record, not a second
+   route.
 3. **Where the signature lives.** Terminal Psi has `mathematical_carriers`,
    `identity_formations` and `indexed_theorems` slots with readers and no
    writer. Is R1's signature table those slots, or a new table? The spec
    requires publishing "the full level telescope and constraints"; no level
-   constraint encoding was found.
+   constraint encoding was found. L3 proposes one table for every
+   declaration kind.
 4. **Floor scope.** Does "the tightest literal bounds order reasoning gives
    it" ([contracts.md#required-automatic-discharge](../../spec/proofs/contracts.md#required-automatic-discharge))
    require landing an operand on bounds proved equal (`(prefix - 360) + last`,
@@ -322,7 +465,17 @@ Recorded, not answered:
   --out build/proof-audit.json` at `6bab34687545` (2026-11-23). Exit 1:
   174 failed, 2 not runnable on `linux_arm64`, 0 passed. Grouping is by the
   first `error:` line of each result.
+- Second reading (2026-11-23), old files again from `cea9cdcde460^` and new
+  code at `b8213143d790`, with `grep` and `wc` only; nothing was built or
+  run. It corrected the diagnostic count (15, not 13), the `check_signature`
+  callers and the `validation::` breakdown, and added the layer section. The
+  1,252 refusal sites are lines outside test files matching
+  `Unserved::<Variant>(` or `unserved(`; the 57 that name a position are a
+  keyword count over their messages and are approximate.
 - Not determined: whether a full core library check with `no_wrap` passes
   end to end (no sample reaches it); `erased_array_evidence`'s signal 9;
   whether old level constraints were ever published; the two samples bound to
-  other targets.
+  other targets; which samples compiled before #2823; whether the old checker
+  accepted the 15 `(prefix - 360) + last` programs; whether any program in
+  use reaches one of the nine untranslated certificate shapes; whether the
+  33 certificate rules overlap.
