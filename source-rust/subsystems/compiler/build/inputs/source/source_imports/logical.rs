@@ -61,18 +61,8 @@ pub(crate) trait LogicalSourceDiscovery {
         filesystem: &SourceFileSystem,
         excluded_roots: Vec<PathBuf>,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>>;
-    /// The units a Build source's import of `logical_path` selects in the
-    /// package at `root`: the modules the path names or lies under, and the
-    /// module that declares the path's next name. Nothing else is acquired,
-    /// so an import that names no declaration of this package selects no
-    /// unit and stays deferred (`wiki/spec/language/modules.md`, "Names and
-    /// imports": "A logical `use dependency;` may remain deferred").
-    ///
-    /// `select_owned` instead acquires every enclosing namespace. That is
-    /// what a Product source needs, whose module siblings are loaded anyway.
-    /// A Build source has no such siblings: acquiring the package's module-less
-    /// Product units for a dependency name would check them in the Build
-    /// context, where their Product imports mean nothing.
+    /// Files selected by a legacy namespace import in Build. A missing
+    /// declaration remains deferred until the Build prepares its dependency.
     fn select_declaring(
         &mut self,
         root: &Path,
@@ -80,7 +70,7 @@ pub(crate) trait LogicalSourceDiscovery {
         filesystem: &SourceFileSystem,
         excluded_roots: Vec<PathBuf>,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>>;
-    fn siblings(
+    fn operator_family_sources(
         &mut self,
         root: &Path,
         source: &Path,
@@ -141,7 +131,7 @@ impl LogicalSourceDiscovery for Vec<RegisteredPackageRoot> {
             .map(|unit| unit.path.clone())
             .collect())
     }
-    fn siblings(
+    fn operator_family_sources(
         &mut self,
         root: &Path,
         source: &Path,
@@ -149,9 +139,9 @@ impl LogicalSourceDiscovery for Vec<RegisteredPackageRoot> {
         excluded_roots: Vec<PathBuf>,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
         let inventory = owner_inventory(self, root, filesystem, excluded_roots)?;
-        let Some(selected) = inventory.units.iter().find(|unit| unit.path == source) else {
+        if !inventory.units.iter().any(|unit| unit.path == source) {
             return Ok(Vec::new());
-        };
+        }
         Ok(inventory
             .units
             .iter()
@@ -159,7 +149,7 @@ impl LogicalSourceDiscovery for Vec<RegisteredPackageRoot> {
             // when their lexical module is not imported. Acquire those units
             // through the same Product queue; this grants no namespace exposure
             // or authority and leaves exact home/duplicate checks to resolution.
-            .filter(|unit| unit.module == selected.module || unit.declares_operator_family)
+            .filter(|unit| unit.declares_operator_family)
             .map(|unit| unit.path.clone())
             .collect())
     }
@@ -374,17 +364,9 @@ mod tests {
                 .unwrap(),
             ["another.omg", "odd.omg"].map(|path| capture_root().join(path))
         );
-        assert_eq!(
-            discovery
-                .siblings(
-                    &capture_root(),
-                    &capture_root().join("odd.omg"),
-                    &filesystem,
-                    Vec::new()
-                )
-                .unwrap(),
-            ["another.omg", "odd.omg"].map(|path| capture_root().join(path))
-        );
+        assert!(discovery.operator_family_sources(
+            &capture_root(), &capture_root().join("odd.omg"), &filesystem, vec![],
+        ).unwrap().is_empty());
         assert!(
             discovery
                 .select(
@@ -514,14 +496,14 @@ mod tests {
         let mut owners = Vec::<RegisteredPackageRoot>::new();
         assert_eq!(
             owners
-                .siblings(
+                .operator_family_sources(
                     &root,
                     &root.join("units/units.omg"),
                     &filesystem,
                     vec![root.join("child")]
                 )
                 .unwrap(),
-            ["operations/operators.omg", "units/units.omg"].map(|path| root.join(path)),
+            ["operations/operators.omg"].map(|path| root.join(path)),
             "family declarations must enter normal Product admission even without a namespace import",
         );
         assert_eq!(owners.len(), 1, "reuse the actual owner's cached inventory");
