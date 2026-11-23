@@ -397,7 +397,9 @@ impl<'program> ResolvedSignatureInputs<'program> {
                 self.expression(program, matched.subject, scope);
                 for arm in table.match_arms(matched.arms) {
                     match arm.pattern {
-                        MatchPattern::Value(value) => self.expression(program, value, scope),
+                        MatchPattern::Value(value) | MatchPattern::Guard(value) => {
+                            self.expression(program, value, scope)
+                        }
                         MatchPattern::Destructure(pattern) => {
                             self.expression(program, pattern.head, scope);
                             self.expression(program, pattern.guard, scope);

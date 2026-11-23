@@ -104,6 +104,9 @@ impl ExpressionTable {
                         MatchPattern::Value(value) => {
                             MatchPattern::Value(self.copy_graph(source, value, copies))
                         }
+                        MatchPattern::Guard(condition) => {
+                            MatchPattern::Guard(self.copy_graph(source, condition, copies))
+                        }
                         MatchPattern::Wildcard => MatchPattern::Wildcard,
                         MatchPattern::Destructure(pattern) => MatchPattern::Destructure(
                             self.copy_destructure_pattern(source, pattern, copies),

@@ -133,7 +133,7 @@ fn assign_expression_symbols_in_role(
                 let head = match arm.pattern {
                     MatchPattern::Value(head) => head,
                     MatchPattern::Destructure(pattern) => pattern.head,
-                    MatchPattern::Wildcard => ExpressionHandle::invalid(),
+                    MatchPattern::Guard(_) | MatchPattern::Wildcard => ExpressionHandle::invalid(),
                 };
                 for pattern in expressions
                     .match_pattern_dependencies(arm.pattern)

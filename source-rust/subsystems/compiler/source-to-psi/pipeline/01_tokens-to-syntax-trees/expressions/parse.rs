@@ -318,14 +318,24 @@ struct MatchFrame<'tokens, 'source> {
     arms: Vec<TableMatchArm>,
     arm_start: Input<'tokens, 'source>,
     phase: MatchPhase,
+    /// `match { ... }`: every arm but `_` is a condition.
+    subjectless: bool,
 }
 
 enum MatchPhase {
     Subject,
     PatternHead,
-    PatternFields { head: ExpressionHandle },
-    Guard { pattern: TableDestructurePattern },
-    Value { pattern: MatchPattern },
+    /// The condition of an arm of a match without a subject.
+    Condition,
+    PatternFields {
+        head: ExpressionHandle,
+    },
+    Guard {
+        pattern: TableDestructurePattern,
+    },
+    Value {
+        pattern: MatchPattern,
+    },
 }
 
 #[derive(Default)]
@@ -1038,14 +1048,24 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
         if input.at_keyword(KeywordKind::Match) {
             let start = input;
             let input = input.take_keyword(KeywordKind::Match, "match")?;
-            self.frames.push(Frame::Match(Box::new(MatchFrame {
+            let subjectless = input.at_punctuation(PunctuationKind::LeftBrace);
+            let state = Box::new(MatchFrame {
                 start,
                 subject: ExpressionHandle::invalid(),
                 capture: Handle::invalid(),
                 arms: Vec::new(),
                 arm_start: start,
                 phase: MatchPhase::Subject,
-            })));
+                subjectless,
+            });
+            // `match { a > b -> a, _ -> b }`: no subject; each arm tests a
+            // condition over existing values (patterns.md, "Bare names in
+            // dispatch arms").
+            if subjectless {
+                let input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+                return self.match_arms(syntax_trees, state, input);
+            }
+            self.frames.push(Frame::Match(state));
             return Ok(Step::Descend(
                 Descent::Expression(ExpressionContext::NoStructLiteral),
                 input,
@@ -1414,6 +1434,9 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             MatchPhase::Value { pattern } => {
                 self.match_arm(syntax_trees, state, pattern, value, input)
             }
+            MatchPhase::Condition => {
+                self.match_after_pattern(syntax_trees, state, MatchPattern::Guard(value), input)
+            }
             MatchPhase::PatternFields { .. } => {
                 unreachable!("a match pattern's fields return through `match_after_fields`")
             }
@@ -1432,6 +1455,14 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             if input.at_contextual("_") {
                 let rest = input.take_contextual("_")?;
                 return self.match_after_pattern(syntax_trees, state, MatchPattern::Wildcard, rest);
+            }
+            if state.subjectless {
+                state.phase = MatchPhase::Condition;
+                self.frames.push(Frame::Match(state));
+                return Ok(Step::Descend(
+                    Descent::Expression(ExpressionContext::NoStructLiteral),
+                    input,
+                ));
             }
             if crate::patterns::positional::starts_positional_arm(input) {
                 let (positional, rest) =

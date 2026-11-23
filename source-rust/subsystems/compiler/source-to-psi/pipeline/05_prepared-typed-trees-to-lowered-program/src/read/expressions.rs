@@ -1034,6 +1034,13 @@ impl<'t> Program<'t> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        if !self
+            .typed
+            .expression_table
+            .expression_is_valid(matched.subject)
+        {
+            return self.guarded_match(id, slots, matched, expected, source);
+        }
         let subject = self.expression(id, slots, matched.subject, None)?;
         let record = self.opened(id, subject.result, Access::Read)?;
         if !self
@@ -1119,6 +1126,9 @@ impl<'t> Program<'t> {
         for arm in self.typed.expression_table.match_arms(matched.arms) {
             let case = match &arm.pattern {
                 MatchPattern::Wildcard => None,
+                MatchPattern::Guard(_) => {
+                    return Err(unserved("a condition arm in a match with a subject"));
+                }
                 MatchPattern::Value(head) => {
                     if !self.typed.expression_table.expression_is_valid(*head) {
                         return Err(unserved("match value pattern has no retained head"));
@@ -1278,7 +1288,7 @@ impl<'t> Program<'t> {
         let table = &self.typed.expression_table;
         let label = match pattern {
             MatchPattern::Wildcard => String::from("_"),
-            MatchPattern::Value(head) => table.display_name(*head),
+            MatchPattern::Value(head) | MatchPattern::Guard(head) => table.display_name(*head),
             MatchPattern::Destructure(pattern) => table.display_name(pattern.head),
         };
         if let Some(names) = self.names.get_mut(id) {
@@ -1349,6 +1359,9 @@ impl<'t> Program<'t> {
             }
             let pattern = match &arm.pattern {
                 MatchPattern::Wildcard => None,
+                MatchPattern::Guard(_) => {
+                    return Err(unserved("a condition arm in a match with a subject"));
+                }
                 MatchPattern::Value(head) => {
                     if !self.typed.expression_table.expression_is_valid(*head) {
                         return Err(unserved("match value pattern has no retained head"));
@@ -1409,6 +1422,96 @@ impl<'t> Program<'t> {
             kind: ExpressionKind::Match {
                 capture: Some(matched.capture),
                 subject: Box::new(subject),
+                arms,
+                default,
+            },
+            result: Some(result),
+            source,
+        })
+    }
+}
+
+impl Program<'_> {
+    /// `match { a > b -> a, _ -> b }`: no subject, and each arm but the last
+    /// is a Boolean condition over existing values, tested in authored order
+    /// (patterns.md, "Bare names in dispatch arms": "In a dispatch without a
+    /// subject, an arm condition such as `ready -> 1` reads the existing
+    /// value of `ready`"; "Value-position `match` | Subject once; first
+    /// matching arm only").
+    ///
+    /// Coverage ("Missing runtime coverage is a compile error"): only a
+    /// wildcard closes a ladder of conditions here. patterns.md also lets
+    /// complementary equality and inequality guards over unchanged subjects
+    /// cover their domain; no ladder is judged that way yet, so one without
+    /// `_` is refused, as "Other value/comparison ladders ... require a
+    /// wildcard" requires of the rest.
+    fn guarded_match(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        matched: &crate::source_state::expression::TableMatchExpression,
+        expected: Option<ValueType>,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use crate::source_state::expression::MatchPattern;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
+        let boolean = ValueType::Scalar(ScalarType::Boolean, Qualification::NONE);
+        let mut arms: Vec<(Selector, Expression)> = Vec::new();
+        let mut default = None;
+        let mut result = expected;
+        for arm in self.typed.expression_table.match_arms(matched.arms) {
+            if default.is_some() {
+                return Err(unserved("match arm after the wildcard"));
+            }
+            let condition = match &arm.pattern {
+                MatchPattern::Wildcard => None,
+                MatchPattern::Guard(condition) => {
+                    let condition = self.expression(id, slots, *condition, Some(boolean))?;
+                    if !matches!(
+                        condition.result,
+                        Some(ValueType::Scalar(ScalarType::Boolean, _))
+                    ) {
+                        return Err(reject(
+                            id,
+                            condition.source,
+                            String::from(
+                                "the condition of an arm of a match without a subject must be a `bool`",
+                            ),
+                        ));
+                    }
+                    Some(condition)
+                }
+                MatchPattern::Value(_) | MatchPattern::Destructure(_) => {
+                    return Err(unserved("a pattern in a match without a subject"));
+                }
+            };
+            let value = self.arm_value(id, slots, arm.value, &mut result)?;
+            self.label_arm(id, &value, &arm.pattern);
+            match condition {
+                Some(condition) => arms.push((Selector::Guard(condition), value)),
+                None => default = Some(Box::new(value)),
+            }
+        }
+        if default.is_none() {
+            return Err(reject(
+                id,
+                source,
+                String::from(
+                    "this match has no `_` arm: when every condition is false no arm applies, so add a `_ ->` arm",
+                ),
+            ));
+        }
+        let result = result.ok_or_else(|| unserved("match without an arm"))?;
+        Ok(Expression {
+            call_context: None,
+            kind: ExpressionKind::Match {
+                capture: None,
+                subject: Box::new(Expression {
+                    call_context: None,
+                    kind: ExpressionKind::Boolean(true),
+                    result: Some(boolean),
+                    source,
+                }),
                 arms,
                 default,
             },
@@ -2030,9 +2133,11 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                                             (None, None) => true,
                                             _ => false,
                                         },
-                                    (Selector::Value(a), Selector::Value(b)) => both(a, b),
-                                    (Selector::Case(_), Selector::Value(_))
-                                    | (Selector::Value(_), Selector::Case(_)) => false,
+                                    (Selector::Value(a), Selector::Value(b))
+                                    | (Selector::Guard(a), Selector::Guard(b)) => both(a, b),
+                                    (Selector::Case(_), _)
+                                    | (Selector::Value(_), _)
+                                    | (Selector::Guard(_), _) => false,
                                 }
                         })
                     && match (a_default, b_default) {

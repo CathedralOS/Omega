@@ -4427,6 +4427,9 @@ pub mod inspection {
                 Value {
                     value: Box<ExpressionSnapshot>,
                 },
+                Guard {
+                    condition: Box<ExpressionSnapshot>,
+                },
                 Destructure {
                     #[serde(skip_serializing_if = "Option::is_none")]
                     application_type: Option<Box<TypeReferenceSnapshot>>,
@@ -5098,6 +5101,9 @@ pub mod inspection {
                 match pattern {
                     MatchPattern::Value(value) => MatchPatternSnapshot::Value {
                         value: Box::new(expression_snapshot(program, value)),
+                    },
+                    MatchPattern::Guard(condition) => MatchPatternSnapshot::Guard {
+                        condition: Box::new(expression_snapshot(program, condition)),
                     },
                     MatchPattern::Destructure(pattern) => MatchPatternSnapshot::Destructure {
                         application_type: pattern.application_type.is_valid().then(|| {

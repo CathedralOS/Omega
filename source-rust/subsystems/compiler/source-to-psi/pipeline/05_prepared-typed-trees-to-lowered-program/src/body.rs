@@ -1360,6 +1360,10 @@ pub enum Selector {
     /// `Integer` or `Boolean` literal of the subject's carrier, so it has no
     /// operand, storage use or call for a walker to visit.
     Value(Expression),
+    /// An arm of a match without a subject: it runs when this Boolean
+    /// condition is true. Its subject is the constant `true` and is never
+    /// evaluated or compared.
+    Guard(Expression),
 }
 
 impl Selector {
@@ -1367,7 +1371,7 @@ impl Selector {
     pub fn case(&self) -> Option<usize> {
         match self {
             Self::Case(selector) => Some(selector.case),
-            Self::Value(_) => None,
+            Self::Value(_) | Self::Guard(_) => None,
         }
     }
 
@@ -1376,7 +1380,7 @@ impl Selector {
     pub fn test(&self) -> Option<&Expression> {
         match self {
             Self::Case(selector) => selector.condition.as_deref(),
-            Self::Value(value) => Some(value),
+            Self::Value(value) | Self::Guard(value) => Some(value),
         }
     }
 }

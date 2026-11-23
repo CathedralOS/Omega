@@ -1,7 +1,7 @@
 //! What resolution and typing hand stage 04 about a block-valued arm: the
 //! typed arm value is a block that owns its statements, and its final value
 //! names the block's own local. The program is
-//! `05_prepared-typed-trees-to-lowered-program/tests/support/block_values.rs`;
+//! `05_prepared-typed-trees-to-lowered-program/tests/support/dispatch_arms.rs`;
 //! stage 05's side of the handoff is that stage's `tests/block_values.rs`.
 //!
 //! The rule: `wiki/spec/language/expressions.md`, "A block introduces local
@@ -9,7 +9,7 @@
 //! `wiki/spec/language/state_contracts.md`, "Disjoint arms or blocks may
 //! reuse names": a block local belongs to its block, not to the body.
 
-#[path = "../../05_prepared-typed-trees-to-lowered-program/tests/support/block_values.rs"]
+#[path = "../../05_prepared-typed-trees-to-lowered-program/tests/support/dispatch_arms.rs"]
 mod program;
 
 use source_compiler::representations::source_state::expression::{ExpressionNode, MatchPattern};

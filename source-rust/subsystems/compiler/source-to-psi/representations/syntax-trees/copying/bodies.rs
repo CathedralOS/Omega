@@ -379,6 +379,9 @@ impl SyntaxCopy<'_> {
                                     MatchPattern::Value(value) => MatchPattern::Value(
                                         self.copy_expression_handle(other, value),
                                     ),
+                                    MatchPattern::Guard(condition) => MatchPattern::Guard(
+                                        self.copy_expression_handle(other, condition),
+                                    ),
                                     MatchPattern::Destructure(pattern) => {
                                         MatchPattern::Destructure(
                                             self.copy_destructure_pattern(other, pattern),
@@ -844,6 +847,9 @@ impl SyntaxCopy<'_> {
                     let pattern = match arm.pattern {
                         MatchPattern::Value(value) => {
                             MatchPattern::Value(self.copy_expression_handle(other, value))
+                        }
+                        MatchPattern::Guard(condition) => {
+                            MatchPattern::Guard(self.copy_expression_handle(other, condition))
                         }
                         MatchPattern::Wildcard => MatchPattern::Wildcard,
                         MatchPattern::Destructure(pattern) => {

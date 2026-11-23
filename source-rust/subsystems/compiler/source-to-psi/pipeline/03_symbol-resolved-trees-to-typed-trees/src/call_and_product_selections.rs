@@ -1308,6 +1308,12 @@ pub(crate) mod capture_product_operands {
                 source_expression::MatchPattern::Value(value) => {
                     ProductMatchPattern::Value(self.expression(value)?)
                 }
+                source_expression::MatchPattern::Guard(condition) => {
+                    return Err(Diagnostic::error(
+                        "a match without a subject cannot be a designated static operand",
+                    )
+                    .with_source_span(source.tables.bodies.expressions.source_span(condition)));
+                }
                 source_expression::MatchPattern::Destructure(value) => {
                     let head = self.expression(value.head)?;
                     let fields = resolved_expressions(source)

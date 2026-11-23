@@ -77,6 +77,9 @@ pub(crate) mod match_dispatch {
                 syntax::MatchPattern::Value(value) => {
                     MatchPattern::Value(lower_expression_into_table(lowerer, syntax_trees, value)?)
                 }
+                syntax::MatchPattern::Guard(condition) => MatchPattern::Guard(
+                    lower_expression_into_table(lowerer, syntax_trees, condition)?,
+                ),
                 syntax::MatchPattern::Wildcard => MatchPattern::Wildcard,
                 syntax::MatchPattern::Destructure(pattern) => lower_destructure_pattern(
                     lowerer,

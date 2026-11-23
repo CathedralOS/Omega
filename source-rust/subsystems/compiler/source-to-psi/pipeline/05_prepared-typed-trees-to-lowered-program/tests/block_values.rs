@@ -5,7 +5,7 @@
 //! change with it.
 //!
 //! The program and typing's side of the handoff are in
-//! `support/block_values.rs` and
+//! `support/dispatch_arms.rs` and
 //! `03_symbol-resolved-trees-to-typed-trees/tests/block_values.rs`; the
 //! checker's side is `06_lowered-program-to-checked-program/tests/block_values.rs`.
 //! The rule: `wiki/spec/language/expressions.md`, "A block introduces local
@@ -15,7 +15,7 @@
 //! altered product is made by taking the prepared trees back with
 //! `into_inner`, changing one fact, and running stage 04 again.
 
-#[path = "support/block_values.rs"]
+#[path = "support/dispatch_arms.rs"]
 mod program;
 
 use program::{Prepared, block_binding, machine, prepare};

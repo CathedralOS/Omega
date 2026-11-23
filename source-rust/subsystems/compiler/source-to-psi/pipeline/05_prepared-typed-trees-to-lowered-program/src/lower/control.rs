@@ -685,12 +685,20 @@ impl Lowering<'_> {
         mut finish: impl FnMut(&mut Self, &Expression, Option<PlaceId>) -> Checked<()>,
     ) -> Evaluation<()> {
         if let Some(ValueType::Scalar(subject_type, _)) = subject.result {
-            let tested = continuing!(self.scalar(subject));
-            if let Some(capture) = capture {
+            // A match without a subject tests only its conditions.
+            let tested = if arms
+                .iter()
+                .all(|(selector, _)| matches!(selector, Selector::Guard(_)))
+            {
+                None
+            } else {
+                Some(continuing!(self.scalar(subject)))
+            };
+            if let (Some(capture), Some(tested)) = (capture, tested) {
                 self.scalar_subjects.push((capture, tested));
             }
             let result = self.scalar_match(tested, subject_type, arms, default, finish);
-            if capture.is_some() {
+            if capture.is_some() && tested.is_some() {
                 self.scalar_subjects.pop();
             }
             return result;
@@ -700,6 +708,7 @@ impl Lowering<'_> {
             .map(|(selector, value)| match selector {
                 Selector::Case(selector) => Ok((selector, value, value.source)),
                 Selector::Value(_) => Err(self.internal("a value pattern on a sum subject")),
+                Selector::Guard(_) => Err(self.internal("a condition arm on a sum subject")),
             })
             .collect::<Checked<Vec<_>>>()?;
         self.case_decisions(
@@ -876,7 +885,7 @@ impl Lowering<'_> {
     /// caller's ordinary value-arrival or invocation-completion owner.
     fn scalar_match(
         &mut self,
-        tested: ValueId,
+        tested: Option<ValueId>,
         subject_type: ScalarType,
         arms: &[(Selector, Expression)],
         default: Option<&Expression>,
@@ -887,20 +896,30 @@ impl Lowering<'_> {
         };
         let mut decided_in = None;
         for (selector, value) in arms {
-            let Selector::Value(pattern) = selector else {
-                return Err(self.internal("a case pattern on a scalar subject"));
-            };
-            let expected = continuing!(self.scalar(pattern));
-            let Value::Scalar(condition) = self.strict(
-                Strict::Equal,
-                subject_type,
-                tested,
-                expected,
-                Some(ScalarType::Boolean),
-                pattern.source,
-            )?
-            else {
-                return Err(self.internal("an equality test without a value"));
+            let (condition, pattern) = match (selector, tested) {
+                // A condition arm is its own branch condition.
+                (Selector::Guard(guard), _) => (continuing!(self.scalar(guard)), guard),
+                (Selector::Value(pattern), Some(tested)) => {
+                    let expected = continuing!(self.scalar(pattern));
+                    let Value::Scalar(condition) = self.strict(
+                        Strict::Equal,
+                        subject_type,
+                        tested,
+                        expected,
+                        Some(ScalarType::Boolean),
+                        pattern.source,
+                    )?
+                    else {
+                        return Err(self.internal("an equality test without a value"));
+                    };
+                    (condition, pattern)
+                }
+                (Selector::Value(_), None) => {
+                    return Err(self.internal("a value pattern in a match without a subject"));
+                }
+                (Selector::Case(_), _) => {
+                    return Err(self.internal("a case pattern on a scalar subject"));
+                }
             };
             let here = self.current()?;
             let arm = self.block(value.source);

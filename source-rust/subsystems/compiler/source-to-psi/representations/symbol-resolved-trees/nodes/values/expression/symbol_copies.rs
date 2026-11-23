@@ -388,7 +388,9 @@ impl SymbolCopy<'_, '_> {
                     .to_vec();
                 for (ordinal, mut arm) in arms.into_iter().enumerate() {
                     match arm.pattern {
-                        MatchPattern::Value(pattern) => self.expression_payloads(pattern),
+                        MatchPattern::Value(pattern) | MatchPattern::Guard(pattern) => {
+                            self.expression_payloads(pattern)
+                        }
                         MatchPattern::Wildcard => {}
                         MatchPattern::Destructure(mut pattern) => {
                             pattern.application_type =
