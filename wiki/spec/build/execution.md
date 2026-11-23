@@ -103,10 +103,10 @@ package, build purpose, operation, logical resource scope, bounds, and applicabl
 profile/target context. Delegation uses explicitly supplied capabilities and
 cannot widen their authority.
 
-The parent supplies each child's filesystem backing and selected implementation
-under ordinary service contracts. It may compose a restricted or virtual provider
-without the child knowing its physical representation. Alternative providers
-are legal only with explicitly supplied backing within the parent's grant;
+The parent can [supply a filesystem for one dependency](scoped_execution.md#supplying-a-filesystem-to-a-child-build)
+when it registers that dependency. It may compose a restricted or virtual
+provider without the child knowing its physical representation. Alternative
+providers are legal only with explicitly supplied backing within the parent's grant;
 importing a real-filesystem API cannot create such a grant or bypass a virtual
 view. Unsupported operations do not open a host route. Lock agreement and
 actual capability checks remain separate obligations.

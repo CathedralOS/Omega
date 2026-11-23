@@ -75,10 +75,10 @@ or evidence systems:
 
 `Build::dependency` registers a product dependency; `Build::build_dependency`
 registers a dependency for interpreted Build code. Both consume a configured
-dependency description and return its exact registration. The description may
-be prepared by ordinary library helpers, including the dependency request’s alias setter;
-registration atomically fixes source selection, purpose, alias and delegated
-execution context before coordination may schedule work. There is no mutable
+dependency description and return its exact registration. Before registration,
+the parent can set an alias and [supply a filesystem to the child's Build](#supplying-a-filesystem-to-a-child-build).
+Registration fixes the source, purpose, alias and delegated execution context
+before the coordinator may schedule work. There is no mutable
 half-registered edge, post-registration alias setter or spelling-based retarget.
 Descriptions and registration receipts grant no host or package authority by
 construction alone. The readable dependency names replace `depend`, `depend_as`,
@@ -405,9 +405,11 @@ implementation explicitly. Dynamic dispatch is optional, not a condition of
 sandbox transparency.
 
 Every activation receives only its actual invocation/parent grants, explicit
-bounded diagnostics and evaluation resources. The safe default can be a
-read-only view of its exact package snapshot plus private bounded writable
-storage, constructed through the same filesystem interfaces. A root may receive
+bounded diagnostics and evaluation resources. An entry declaring only
+`build(plan)` receives no filesystem argument. For a filesystem-using entry,
+the default view contains the exact read-only package snapshot and private,
+bounded writable storage. The CLI or embedding program supplies the root's
+backing and selected implementation. A root may receive
 broad host backing only when the invocation actually grants it. Root position,
 a package import, a lock acceptance row or a filesystem trait name supplies
 none. Descendants do not inherit home directories, consumer source trees,
@@ -553,6 +555,38 @@ public BuildInputs/BuildSource registry. Capture and exact inventory retention
 remain internal owners of reproducible filesystem observations, not authoring
 APIs that turn strings into host access. A missing file or denied operation has
 the selected filesystem's checked result; no fallback grants a broader root.
+
+### Supplying a filesystem to a child Build
+
+To give one child a filesystem, the parent configures its dependency
+description with `|dependency|::with_filesystem`, then passes the description
+to `Build::dependency` or `Build::build_dependency`. That registration
+retains the selected implementation and its backing. The driver binds them
+to the child's [filesystem parameter](declarations.md#project-role) before
+execution. If a required binding is missing or incompatible, the driver
+refuses to start that child. This is the `per-child-filesystem-grant`
+decision of 2026-11-23.
+
+A child that asks for a filesystem gets the [default view](#inputs-and-default-filesystem)
+of its own package snapshot and private scratch when the parent supplies no override.
+An explicit view is the child's entire filesystem argument. The parent
+chooses which files and mounts it exposes and which operations it permits.
+Siblings retain their own views. The compiler can still read the child's
+package to compile its source. Editing the child's mutable Build plan cannot
+change the filesystem grant under which that Build runs.
+
+The parent can move an owned view into the registration. The registration then
+owns it for the child's use, even after the registering helper returns.
+A view may borrow backing when the checker can prove that backing outlives
+every use by the child. The [ordinary borrow rules](../language/ownership.md#borrows-and-aliases)
+apply for the duration of the loan. This applies to a view over a live host directory as well as one
+over memory. All uses must still fit the parent's grant.
+
+A child may still be running when its parent's Build entry returns. The driver
+joins outstanding dependency work at that point. Returning from the helper
+alone cannot end a child's borrow. A helper can transfer a memory filesystem
+it created locally. The checker rejects lending that local to a child that
+can outlive the helper.
 
 ## Execution contexts and reuse
 
@@ -788,6 +822,9 @@ a new manifest as output.
 | Application or generated source imports a build-only dependency | Reject, even if build evaluation already loaded its source. |
 | One source package used for host tools and a different product target | Shared acquisition permitted; checked contexts and outputs remain distinct. |
 | Changed build-tool revision or input | Build provenance and affected results change; no stale output reuse. |
+| A parent gives one child a read-only schema directory and registers a sibling with defaults | Only the first child can read the supplied directory. Neither child can change that grant by editing its plan. |
+| A helper creates a memory filesystem and returns while the child still needs it | Moving the owned view succeeds. Borrowing the helper's local backing rejects. |
+| A child borrows backing held through its completion | The child can use the view. Conflicting parent access is refused while the loan is live. |
 | A generator writes `parser.omg` into the selected Product view | A handwritten Product file can `use parser.omg;`. The generator needs only its delegated filesystem access. |
 | A generator writes `parser.omg` only to scratch or an export directory outside the selected view | The Product import cannot resolve that file. |
 | Same snapshot with different host file order, mtime, uid, or checkout location | Same logical observations; unsupported metadata is not fabricated. |
