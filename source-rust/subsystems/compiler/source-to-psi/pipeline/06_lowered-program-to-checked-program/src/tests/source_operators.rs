@@ -540,14 +540,14 @@ machine entry() -> bool { bounded(42i64) == 42i64 }
 #[test]
 fn static_completion_keeps_later_guard_answers_without_assuming_the_result() {
     let source = r#"
-        machine entry<Kind>() -> bool
+        machine entry<Kind>(value: @Kind) -> bool
         requires Kind == bool
         ensures result
         {
             transition {
                 Kind == bool -> true,
                 Kind == u8 || Kind == u16 -> false,
-                _ -> false
+                _ -> ($value == $value)
             }
         }
     "#;
