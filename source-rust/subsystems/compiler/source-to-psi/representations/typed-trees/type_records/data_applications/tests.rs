@@ -132,3 +132,18 @@ fn a_type_that_contains_itself_with_no_declaration_between_is_refused() {
         Err("data application has a cyclic type-reference graph".into())
     );
 }
+
+#[test]
+fn an_unresolved_type_reports_its_source_name() {
+    let mut program = TypedTrees::default();
+    let missing = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Named {
+            symbol: SymbolHandle::invalid(),
+            name: Identifier::generated("DirectoryStep"),
+        });
+    assert_eq!(
+        prepare(&mut program, missing),
+        Err("unknown type `DirectoryStep`".into())
+    );
+}
