@@ -1,0 +1,18 @@
+[package]
+name = "prepared-source"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+autotests = false
+autoexamples = false
+autobenches = false
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+typed-trees = { path = "../typed-trees" }
+layout-plans = { path = "../../../psi/layouts/geometry" }
+arena = { path = "../../../../../foundation/arena" }
+diagnostics = { path = "../../../../../foundation/diagnostics" }
+symbols = { path = "../../../foundation/declaration-identity" }

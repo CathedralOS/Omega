@@ -2138,6 +2138,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "prepared-source"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "diagnostics",
+ "layout-plans",
+ "symbols",
+ "typed-trees",
+]
+
+[[package]]
 name = "prepared-typed-trees-to-lowered-program"
 version = "0.1.0"
 dependencies = [
@@ -2148,6 +2159,7 @@ dependencies = [
  "language-core",
  "numeric-literals",
  "numerics",
+ "prepared-source",
  "proof-applications",
  "schema-reflection",
  "semantic-vocabulary",
@@ -2163,7 +2175,6 @@ dependencies = [
  "terminal-psi",
  "terminal-semantics",
  "typed-trees",
- "typed-trees-to-prepared-typed-trees",
  "wire",
 ]
 
@@ -3909,9 +3920,9 @@ dependencies = [
  "arena",
  "diagnostics",
  "language-core",
- "layout-plans",
  "numeric-literals",
  "numerics",
+ "prepared-source",
  "record-storage",
  "semantic-vocabulary",
  "source-admission",

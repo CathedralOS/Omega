@@ -106,12 +106,11 @@ fn stage(path: &str) -> Option<Phase> {
 
 /// A source stage reads the representation an earlier stage produced. Linking
 /// that stage's crate instead lets it call the code that made the decision, so
-/// a wrong answer could come from either place. These are the links that still
-/// exist, as (owning stage, linked stage) numbers: lowering names the prepared
-/// input, and publication runs lowering and the checker. OWNER_CODE_CONCERNS.md
-/// says what removing each one needs. Do not add a pair: move the type the
-/// stage reads into `representations/`.
-const RETAINED_SOURCE_STAGE_LINKS: [(usize, usize); 3] = [(5, 4), (7, 5), (7, 6)];
+/// a wrong answer could come from either place. Publication still links lowering
+/// and checking for their carried records and deferred advisory state. The pairs
+/// are (owning stage, linked stage); OWNER_CODE_CONCERNS.md tracks their removal.
+/// Do not add a pair: move the type the stage reads into `representations/`.
+const RETAINED_SOURCE_STAGE_LINKS: [(usize, usize); 2] = [(7, 5), (7, 6)];
 
 /// The stage numbers of a production link from one source stage into another.
 /// The Build text reader is not a stage: it runs the lexer and parser on purpose.
@@ -296,9 +295,7 @@ pub(super) fn violations(metadata: &Metadata) -> Result<Vec<String>, String> {
                     && here == super::RETAINED_IMAGE_RUNTIME
                     && next == native_stages::NATIVE_ARTIFACT;
                 if enters_coordinator
-                    || (runtime
-                        && dependency_phase.is_some()
-                        && !reads_retained_image)
+                    || (runtime && dependency_phase.is_some() && !reads_retained_image)
                     || forbidden_frontend(start, next)
                     || (!scoped_reader
                         && (later
@@ -335,15 +332,31 @@ mod tests {
             workspace_root: "/repo".into(),
             packages: vec![
                 pkg("core", core, &[("image-host", host, None)]),
-                pkg("image-host", host, &[("image", image, None), ("helper", "shared", None)]),
+                pkg(
+                    "image-host",
+                    host,
+                    &[("image", image, None), ("helper", "shared", None)],
+                ),
                 pkg("image", image, &[]),
-                pkg("helper", "shared", &[("driver", native_stages::DRIVER, None)]),
+                pkg(
+                    "helper",
+                    "shared",
+                    &[("driver", native_stages::DRIVER, None)],
+                ),
                 pkg("driver", native_stages::DRIVER, &[]),
             ],
         };
         let errors = violations(&metadata).unwrap();
-        assert!(errors.iter().any(|row| row.contains("core -> image-host -> image")));
-        assert!(errors.iter().any(|row| row.contains("image-host -> helper -> driver")));
+        assert!(
+            errors
+                .iter()
+                .any(|row| row.contains("core -> image-host -> image"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|row| row.contains("image-host -> helper -> driver"))
+        );
         assert!(!errors.iter().any(|row| row.starts_with("forbidden production dependency: image-host -> image ")));
     }
 
@@ -446,8 +459,8 @@ mod tests {
     }
 
     /// The typer reaching the resolver through a helper must fail, and so must
-    /// publication linking preparation directly. The three retained links pass,
-    /// and publication is not blamed for what lowering links.
+    /// publication linking preparation directly. Lowering also cannot link
+    /// preparation for its input type; publication keeps only its two retained links.
     #[test]
     fn a_source_stage_cannot_link_another_stages_implementation() {
         const SHARED: &str = "shared";
@@ -479,7 +492,7 @@ mod tests {
             .collect();
         let [typer, lowering, publication] = [3, 5, 7].map(|index| name(PSI_STAGES[index]));
         let [resolver, preparation] = [2, 4].map(|index| name(PSI_STAGES[index]));
-        assert_eq!(errors.len(), 2, "{errors:?}");
+        assert_eq!(errors.len(), 3, "{errors:?}");
         assert!(
             errors
                 .iter()
@@ -489,6 +502,11 @@ mod tests {
             errors
                 .iter()
                 .any(|error| error.contains(&format!(": {publication} -> {preparation} ")))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| { error.contains(&format!(": {lowering} -> {preparation} ")) })
         );
         assert!(
             !errors
