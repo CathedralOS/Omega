@@ -5,7 +5,7 @@ use crate::CheckTables;
 use crate::names::MachineNames;
 use arena::IdTable;
 use semantic_vocabulary::{
-    BlockId, EdgeId, MachineId, ObligationId, OperationId, StructuralTypeId,
+    BlockId, DomainSemanticId, EdgeId, MachineId, ObligationId, OperationId, StructuralTypeId,
 };
 use symbols::SymbolHandle;
 use terminal_psi::TerminalModule;
@@ -207,6 +207,9 @@ pub struct Elaboration {
     /// trees (`names`). Empty for bodies lowered without typed trees
     /// (`lower_bodies`): a message then names identities only.
     pub names: IdTable<MachineId, MachineNames>,
+    /// Authored domain labels, prepared once with their semantic identities.
+    /// Diagnostics may display them; no proof or verdict depends on a label.
+    pub domain_names: IdTable<DomainSemanticId, String>,
     /// The typed-tree machine each `MachineId` elaborates. The first entry
     /// is 1.
     pub machines: IdTable<MachineId, SymbolHandle>,

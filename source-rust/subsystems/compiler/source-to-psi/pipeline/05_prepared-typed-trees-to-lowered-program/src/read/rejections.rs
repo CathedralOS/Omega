@@ -427,7 +427,7 @@ impl Program<'_> {
     }
 
     /// One declared domain as a diagnostic names it.
-    pub(super) fn domain_named(&self, domain: crate::lowering::body::DomainInstance) -> String {
+    pub(crate) fn domain_named(&self, domain: crate::lowering::body::DomainInstance) -> String {
         match self.typed.domain_definition(domain.declaration) {
             Some(definition) => {
                 match self

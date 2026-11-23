@@ -50,6 +50,7 @@ struct Permissions<'a> {
 }
 fn failure(machine: MachineId, detail: &'static str) -> StructuralQualificationError {
     StructuralQualificationError {
+        denied_establishment: None,
         machine: Some(machine),
         detail,
     }
@@ -598,6 +599,7 @@ pub(super) fn validate(module: &TerminalModule) -> Judged<()> {
     }
     let mut graph = terminal_borrowed_storage_graph_from(module, roots.iter().copied(), &[])
         .map_err(|error| StructuralQualificationError {
+            denied_establishment: None,
             machine: Some(error.machine()),
             detail: error
                 .detail()

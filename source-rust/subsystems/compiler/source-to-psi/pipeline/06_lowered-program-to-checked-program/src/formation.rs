@@ -89,6 +89,27 @@ pub fn prepare_replay<'source>(
         &bodies,
     )
     .map_err(|error| {
+        if let Some(denied) = error.denied_establishment()
+            && let Some(machine) = error.machine
+        {
+            let named = elaboration
+                .module
+                .types
+                .structural_domains
+                .iter()
+                .find(|domain| domain.id == denied.domain)
+                .and_then(|domain| elaboration.domain_names.get(domain.semantic_domain));
+            let domain = named.cloned().unwrap_or_else(|| format!("domain {}", denied.domain.get()));
+            return crate::checking::refusal(
+                RefusalReason::Violation,
+                machine,
+                Construct::Edge(denied.edge),
+                &format!(
+                    "this cast adds {domain} in a machine that is not one of the domain's \
+                     establishment routes, and its input has no retained membership to forward"
+                ),
+            );
+        }
         crate::checking::refusal(
             RefusalReason::ForeignIdentity,
             error

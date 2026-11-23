@@ -423,6 +423,56 @@ fn a_routed_cast_needs_its_issuer_route() {
 }
 
 #[test]
+fn an_unprepared_issuer_set_does_not_blame_the_source_cast() {
+    let mut elaboration = invocation(STAMPED).unwrap();
+    elaboration.module.types.structural_domains[0].establishment_routes = Some(Vec::new());
+    for change in &mut elaboration.module.types.structural_qualification_changes {
+        change.establishments.clear();
+    }
+    refused(
+        elaboration,
+        "a structural cast lacks both an existing membership and an authorized issuer route",
+    );
+}
+
+#[test]
+fn a_denied_cast_names_its_domain_and_exact_source_without_weakening_artifact_checks() {
+    let source = STAMPED.replace("established by stamp;", "established by holder;");
+    let elaboration = invocation(&source).unwrap();
+    let encoded = terminal_codec::ClosedTerminalModule::new(elaboration.module.clone()).unwrap();
+    assert!(matches!(
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(encoded.semantic_bytes()),
+        Err(terminal_codec::CodecError::MalformedStructuralFoundation(
+            "a structural cast lacks both an existing membership and an authorized issuer route"
+        ))
+    ));
+    let RouteVerdict::Rejected { violations, .. } = judge(Ok(elaboration)).unwrap() else {
+        panic!("the unauthorized cast is a rejection of the source program")
+    };
+    assert_eq!(violations.len(), 1);
+    let violation = &violations[0];
+    assert!(
+        violation
+            .statement
+            .contains("this cast adds `Ticket::Stamped`")
+            && violation
+                .statement
+                .contains("not one of the domain's establishment routes")
+            && violation.statement.contains("in machine `stamp`"),
+        "{violation:?}"
+    );
+    let span = violation
+        .site
+        .expect("the cast retains its source span")
+        .span;
+    assert_eq!(&source[span.start..span.end], "+");
+    assert_eq!(
+        span.start,
+        source.find("ticket as +Stamped").unwrap() + "ticket as ".len()
+    );
+}
+
+#[test]
 fn an_empty_issuer_set_permits_no_cast() {
     let mut elaboration = invocation(STAMPED).unwrap();
     elaboration.module.types.structural_domains[0].establishment_routes = Some(Vec::new());
@@ -679,15 +729,36 @@ fn normal_result_membership_rejects_missing_facts_and_wrong_subjects() {
         eprintln!("{name}: {verdict:?}");
     }
     for (name, verdict) in observed {
-        let refusal = verdict.expect_err(name);
-        let expected = match name {
-            "input named as result" => "membership promise does not name its exact normal result",
-            "missing independent predicate" => {
-                "membership guarantee lost its independent result predicate"
-            }
-            _ => "lacks both an existing membership and an authorized issuer route",
-        };
-        assert!(refusal.detail.contains(expected), "{name}: {refusal:?}");
+        if name == "missing guarantee" {
+            let RouteVerdict::Rejected { violations, .. } = verdict.unwrap() else {
+                panic!("the caller has no membership to forward")
+            };
+            assert_eq!(violations.len(), 1);
+            assert!(
+                violations[0]
+                    .statement
+                    .contains("not one of the domain's establishment routes"),
+                "{name}: {violations:?}"
+            );
+            let span = violations[0].site.unwrap().span;
+            assert_eq!(&NORMAL_MEMBERSHIP[span.start..span.end], "+");
+            assert_eq!(
+                span.start,
+                NORMAL_MEMBERSHIP.find("plain as +Stamped").unwrap() + "plain as ".len()
+            );
+        } else {
+            let refusal = verdict.expect_err(name);
+            let expected = match name {
+                "input named as result" => {
+                    "membership promise does not name its exact normal result"
+                }
+                "missing independent predicate" => {
+                    "membership guarantee lost its independent result predicate"
+                }
+                _ => unreachable!(),
+            };
+            assert!(refusal.detail.contains(expected), "{name}: {refusal:?}");
+        }
     }
 }
 
@@ -814,26 +885,29 @@ fn normal_result_membership_does_not_survive_alias_writes_or_value_changes() {
         "let tagged: u32 in WordStamped = plain as +WordStamped;",
         "let tagged: u32 in WordStamped = (plain ^ 1u32) as +WordStamped;",
     );
-    let observed = [
-        (
-            "alias write",
-            alias_write,
-            "lacks both an existing membership and an authorized issuer route",
-        ),
-        (
-            "changed value",
-            changed_value,
-            "scalar return origin does not match its source or authorized issuer",
-        ),
-    ]
-    .map(|(name, text, reason)| (name, judge(invocation(&text)), reason));
-    for (name, verdict, _) in &observed {
-        eprintln!("{name}: {verdict:?}");
-    }
-    for (name, verdict, reason) in observed {
-        let refusal = verdict.expect_err(name);
-        assert!(refusal.detail.contains(reason), "{name}: {refusal:?}");
-    }
+    let RouteVerdict::Rejected { violations, .. } = judge(invocation(&alias_write)).unwrap() else {
+        panic!("a write invalidates the membership the cast would forward")
+    };
+    assert_eq!(violations.len(), 1);
+    assert!(
+        violations[0]
+            .statement
+            .contains("not one of the domain's establishment routes"),
+        "{violations:?}"
+    );
+    let span = violations[0].site.unwrap().span;
+    assert_eq!(&alias_write[span.start..span.end], "+");
+    assert_eq!(
+        span.start,
+        alias_write.find("plain as +Stamped").unwrap() + "plain as ".len()
+    );
+    let refusal = judge(invocation(&changed_value)).unwrap_err();
+    assert!(
+        refusal
+            .detail
+            .contains("scalar return origin does not match its source or authorized issuer"),
+        "{refusal:?}"
+    );
 }
 
 #[test]
