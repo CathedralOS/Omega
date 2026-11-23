@@ -104,8 +104,31 @@ impl SourceFile {
             && self.source == earlier.source
     }
 
+    /// The admitted filename relative to its source root, independent of the host checkout.
+    pub fn logical_filename(&self) -> Result<String, String> {
+        let mut relative = self.path.strip_prefix(&self.package_root).map_err(|_| {
+            format!(
+                "source `{}` is outside its owning root",
+                self.path.display()
+            )
+        })?;
+        if self.resolution_stratum != SourceResolutionStratum::Base {
+            relative = relative
+                .strip_prefix(GENERATED_SOURCE_DIRECTORY)
+                .map_err(|_| {
+                    format!(
+                        "generated source `{}` is outside its store",
+                        self.path.display()
+                    )
+                })?;
+        }
+        let components = source_identity::canonical_path_components(relative, &self.path)?;
+        Ok(components.join("/"))
+    }
+
     pub fn directory_namespace(&self) -> Result<Vec<&str>, String> {
-        self.resolution_stratum.directory_namespace(&self.path, &self.package_root)
+        self.resolution_stratum
+            .directory_namespace(&self.path, &self.package_root)
     }
 
     pub fn source_span(&self, span: Span) -> SourceSpan {
@@ -358,7 +381,7 @@ pub mod source_identity {
         )?))
     }
 
-    fn is_virtual_toolchain_path(path: &Path) -> bool {
+    pub fn is_virtual_toolchain_path(path: &Path) -> bool {
         if is_build_prelude_path(path) {
             return true;
         }
