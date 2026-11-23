@@ -34,9 +34,11 @@ pub fn stage_exact_bytes(
         .ok_or_else(|| "native publication path has no parent directory".to_owned())?;
     let file_name = path
         .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("omega-output");
-    let staged = parent.join(format!(".{file_name}.{}.tmp", std::process::id()));
+        .ok_or_else(|| "native publication path has no file name".to_owned())?;
+    let mut staged_name = std::ffi::OsString::from(".");
+    staged_name.push(file_name);
+    staged_name.push(format!(".{}.tmp", std::process::id()));
+    let staged = parent.join(staged_name);
     let _ = std::fs::remove_file(&staged);
     std::fs::write(&staged, bytes)
         .map_err(|error| format!("failed to stage {}: {error}", staged.display()))?;
@@ -121,4 +123,35 @@ pub fn make_executable(path: &std::path::Path) -> Result<(), String> {
 #[cfg(not(unix))]
 pub fn make_executable(_path: &std::path::Path) -> Result<(), String> {
     Ok(())
+}
+
+#[cfg(all(test, any(unix, windows)))]
+mod tests {
+    use super::*;
+    use crate::temporary_directory::TemporaryDirectory;
+    use std::ffi::OsString;
+
+    #[test]
+    fn distinct_native_filenames_keep_their_own_staged_contents() {
+        #[cfg(windows)]
+        let native_name = {
+            use std::os::windows::ffi::OsStringExt;
+            OsString::from_wide(&[0xd800])
+        };
+        #[cfg(unix)]
+        let native_name = {
+            use std::os::unix::ffi::OsStringExt;
+            OsString::from_vec(vec![0xff])
+        };
+        let directory = TemporaryDirectory::create("native-output-names", false).unwrap();
+        let binary = directory.path().join(native_name);
+        let companion = directory.path().join("omega-output");
+        let products = [
+            stage_exact_bytes(&binary, b"program", false).unwrap(),
+            stage_exact_bytes(&companion, b"proof", false).unwrap(),
+        ];
+        install_staged_files(&products).unwrap();
+        assert_eq!(std::fs::read(binary).unwrap(), b"program");
+        assert_eq!(std::fs::read(companion).unwrap(), b"proof");
+    }
 }

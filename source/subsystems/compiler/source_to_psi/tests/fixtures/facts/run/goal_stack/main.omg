@@ -1,0 +1,63 @@
+// Expected exit: 0
+// The driver includes the product goal stack and `proves` unchanged. The
+// table is a right-nested chain `true && (true && (... && bottom))` with
+// `depth` connectives at handles 0 to depth - 1. The bottom literal is at
+// handle `depth`, and each connective's `true` operand follows it. `proves`
+// pops a connective and pushes both operands, so the chain keeps one
+// pending `true` per level: 127 connectives fill the 128-goal stack exactly,
+// and 128 drop the bottom literal.
+public data Checker { assumptions: [u64; 128]; assumption_count: u64; overflowed: bool; }
+public data SyntaxTrees [copy] { depth: u64 in Trapping; bottom: bool; }
+public data Expression [copy] { kind: ExpressionKind; operator: OperatorKind; left: u64 in Trapping; right: u64 in Trapping; flag: bool; }
+
+machine syntax_trees_expression(syntax: @SyntaxTrees, handle: u64 in Trapping) -> Expression
+crashes Trap
+{
+    transition {
+        handle < syntax.depth -> connective(syntax.depth + 1 + handle, handle + 1),
+        handle == syntax.depth -> literal(syntax.bottom),
+        _ -> literal(true)
+    }
+    machine connective(left: u64 in Trapping, right: u64 in Trapping) -> Expression {
+        Expression { kind: ExpressionKind::Binary, operator: OperatorKind::And, left: left, right: right, flag: false }
+    }
+    machine literal(flag: bool) -> Expression {
+        Expression { kind: ExpressionKind::Boolean, operator: OperatorKind::None, left: 0u64 as +Trapping, right: 0u64 as +Trapping, flag: flag }
+    }
+}
+
+// Every leaf is a Boolean literal, which proves exactly when it matches.
+machine proves_atom(checker: @Checker, syntax: @SyntaxTrees, handle: u64 in Trapping, holds: bool) -> bool
+crashes Trap
+{
+    let expression: Expression = syntax_trees_expression(syntax, handle);
+    expression.kind == ExpressionKind::Boolean && expression.flag == holds
+}
+
+// 1 when the chain is proved, 2 when it is not and the checker recorded an
+// overflow, 0 when it is simply not proved.
+machine outcome(depth: u64 in Trapping, bottom: bool) -> u8
+crashes Trap
+{
+    let mutable checker: Checker;
+    checker.assumption_count = 0;
+    checker.overflowed = false;
+    let syntax: SyntaxTrees = SyntaxTrees { depth: depth, bottom: bottom };
+    let held: bool = proves(@mutable checker, @syntax, 0u64 as +Trapping);
+    transition {
+        held -> 1,
+        checker.overflowed -> 2,
+        _ -> 0
+    }
+}
+
+// A full stack still decides the chain either way. One more level must be
+// refused whatever the dropped literal says.
+machine main() crashes Trap {
+    transition outcome(127u64 as +Trapping, true) == 1 && outcome(127u64 as +Trapping, false) == 0
+        && outcome(128u64 as +Trapping, false) == 2 && outcome(128u64 as +Trapping, true) == 2 {
+        true -> done(), _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

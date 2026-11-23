@@ -1,0 +1,5 @@
+source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/borrowed_restoration.rs	752	1021	270
+source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/boundary_calls.rs	1	4385	4385
+source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/branch_warnings.rs	1	174	174
+source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/build_purpose.rs	1	356	356
+source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/byte_domains.rs	1	815	815

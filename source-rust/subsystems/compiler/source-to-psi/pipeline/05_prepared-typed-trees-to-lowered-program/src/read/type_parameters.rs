@@ -21,6 +21,20 @@ pub(super) struct ParameterStorage {
     multiplicity: terminal_psi::StructuralMultiplicity,
 }
 
+pub(super) fn can_check_implementation_parameter(
+    typed: &crate::source_state::TypedTrees,
+    parameter: &crate::source_state::data::TypeParameter,
+) -> bool {
+    parameter.bounds == crate::source_state::data::DataProperties::default()
+        && match parameter.kind {
+            TypeParameterKind::Type => true,
+            TypeParameterKind::Const { type_reference } => {
+                crate::source_state::canonical_const_carrier_is_supported(typed, type_reference)
+            }
+            _ => false,
+        }
+}
+
 pub(super) fn rigid_type_scope<'a>(
     parameters: impl IntoIterator<Item = &'a crate::source_state::data::TypeParameter>,
 ) -> Vec<(SymbolHandle, ValueType)> {

@@ -7,15 +7,8 @@
 //! existing value of `ready`"; "Coverage and domain tests": "Other
 //! value/comparison ladders and predicate-domain guards require a wildcard".
 //!
-//! The program puts a subjectless match in a machine's result, beside a
-//! block-valued arm, in a call argument and as a returned record, and crashes
-//! unless each returns its expected value. The twin replaces the wildcard of
-//! `larger` with `a <= b`: the two comparisons do cover every pair, but a
-//! comparison ladder is closed only by `_`, so the checker refuses it at the
-//! `match`. The stage handoffs are tested in the `subjectless_match` tests of
-//! `pipeline/03_symbol-resolved-trees-to-typed-trees`,
-//! `pipeline/05_prepared-typed-trees-to-lowered-program` and
-//! `pipeline/06_lowered-program-to-checked-program`.
+//! The wildcard and proved-coverage fixtures must select the same values in
+//! both engines. A gap between two comparisons owes a proof at the last guard.
 
 mod support;
 
@@ -36,9 +29,20 @@ fn fixture(tier: &str, case: &str) -> String {
 fn invoke(source: &str, arguments: &[&str]) -> (Output, String) {
     let scratch = TemporaryDirectory::create("subjectless-match", false).unwrap();
     std::fs::write(scratch.path().join("main.omg"), source).unwrap();
+    std::fs::write(
+        scratch.path().join("build.omg"),
+        include_str!("fixtures/patterns/run/subjectless_match/build.omg"),
+    )
+    .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args(arguments)
-        .arg("main.omg")
+        .args([
+            "--build-input",
+            "main.omg",
+            "--build-input",
+            "build.omg",
+            "build.omg",
+        ])
         .current_dir(scratch.path())
         .stdin(Stdio::null())
         .output()
@@ -62,18 +66,42 @@ fn a_match_without_a_subject_runs_natively_and_in_psi() {
 }
 
 #[test]
-fn a_comparison_ladder_without_a_wildcard_is_refused() {
-    let (from, to) = ("a > b -> a, _ -> b }", "a > b -> a, a <= b -> b }");
-    let run = fixture("run", "subjectless_match");
-    assert_eq!(run.matches(from).count(), 1, "the change has one site");
-    let twin = fixture("fail", "subjectless_match_ladder");
-    assert_eq!(run.replace(from, to), twin);
-    let (output, report) = invoke(&twin, &["--check"]);
+fn the_last_guard_must_cover_the_remaining_inputs() {
+    let complete = fixture("run", "subjectless_match_ladder");
+    let (output, report) = invoke(&complete, &["run", "--both"]);
+    assert!(output.status.success(), "{report}");
+    let gap = complete.replace("a <= b -> b", "a < b -> b");
+    assert_ne!(gap, complete);
+    let (output, report) = invoke(&gap, &["--check"]);
     assert!(!output.status.success(), "{report}");
-    for expected in [
-        "this match has no `_` arm: when every condition is false no arm applies, so add a `_ ->` arm",
-        "main.omg:3:5",
+    assert!(
+        report.contains("cannot prove the last guard covers every remaining arrival"),
+        "{report}"
+    );
+    assert!(report.contains("main.omg:3:"), "{report}");
+}
+
+#[test]
+fn complementary_guards_cover_values_and_transitions() {
+    let source = fixture("run", "complementary_guards");
+    let (output, report) = invoke(&source, &["run", "--both"]);
+    assert!(output.status.success(), "{report}");
+    for receipt in ["native exit 0", "interp exit: 0"] {
+        assert!(report.lines().any(|line| line == receipt), "{report}");
+    }
+    for uncovered in [
+        source.replace("a != b -> 7", "a != 0 -> 7"),
+        source
+            .replace("let seen: bool = read_then_clear(@mutable flag);", "")
+            .replace("seen ==", "read_then_clear(@mutable flag) ==")
+            .replace("seen !=", "read_then_clear(@mutable flag) !="),
     ] {
-        assert!(report.contains(expected), "{report}");
+        assert_ne!(uncovered, source);
+        let (output, report) = invoke(&uncovered, &["--check"]);
+        assert!(!output.status.success(), "{report}");
+        assert!(
+            report.contains("cannot prove the last guard covers every remaining arrival"),
+            "{report}"
+        );
     }
 }

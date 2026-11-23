@@ -149,6 +149,38 @@ impl PendingPackageChange {
     }
 }
 
+/// Older publication journals identify a review by its accepted project pair and source graph.
+pub(crate) fn legacy_publication_kind(
+    bytes: &[u8],
+    before_build: &[u8],
+    before_lock: Option<&[u8]>,
+    after_build: &[u8],
+    after_lock: &[u8],
+) -> Option<PackageCommandKind> {
+    let proposal = PendingPackageChange::recover(std::str::from_utf8(bytes).ok()?).ok()?;
+    if proposal.before_build != super::digest(before_build)
+        || proposal.before_lock != before_lock.map(super::digest)
+        || proposal.proposed_build.as_bytes() != after_build
+    {
+        return None;
+    }
+    let lock = crate::lock::PackageLock::recover_text(
+        std::str::from_utf8(after_lock).ok()?,
+        crate::lock::PackageLockRecoveryLimits::default(),
+    )
+    .ok()?;
+    if lock.targets().len() != proposal.targets.len()
+        || !proposal
+            .targets
+            .iter()
+            .all(|&target| lock.target(target).is_some())
+        || lock.target(proposal.source.target_profile())?.source() != &proposal.source
+    {
+        return None;
+    }
+    Some(proposal.kind)
+}
+
 fn write_build_inputs(
     writer: &mut Writer,
     request: Option<&BuildSourceCaptureRequest>,

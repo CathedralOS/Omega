@@ -98,11 +98,11 @@ pub fn review_package(
     target: &str,
     accounting: &mut crate::compile_time_invocations::SourceCompletionAccounting,
 ) -> Result<(CheckedPackageDeclarations, PublishedTargetProgram), Vec<Diagnostic>> {
-    if source.product.subject.is_none() {
-        return Err(vec![Diagnostic::error(
+    let package = source.product.subject.ok_or_else(|| {
+        vec![Diagnostic::error(
             "package review requires a named source subject",
-        )]);
-    }
+        )]
+    })?;
     let (artifact, mut checked, subject) = publish_deployment(
         source,
         target,
@@ -110,6 +110,7 @@ pub fn review_package(
         None,
         accounting,
     )?;
+    checked.retain_package_review_bindings(package, target)?;
     let declarations = CheckedPackageDeclarations {
         published_program: artifact.view().identity(),
         publication: Arc::clone(checked.terminal_publication()),

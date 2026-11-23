@@ -22,7 +22,7 @@ Discover the host's exposed Codex session schemas before dispatch:
 
 ## 2. Dispatch & Optional Batch Intake
 
-1. **Standard PR mode:** Dispatch each session with its capability, witness, fixed base, and instruction to test the change and verify it on main after landing. After the session reports the PR URL, submitted head, published commit and observed limits, send the next requirement of the parent capability via `send_message_to_thread`.
+1. **Standard PR mode:** Dispatch each session with its capability, witness, fixed base, and instruction to run the focused checks before merge and confirm the published commit on main. After the session reports the PR URL, submitted head, published commit and observed limits, send the next requirement of the parent capability via `send_message_to_thread`.
 2. **Compact source batch-intake mode (when explicitly requested):**
    - Assign one integration session ownership of combined validation, review and publication. Source workers do not open or merge individual PRs in this mode; they package `committed.patch`, `staged.patch`, `unstaged.patch`, and a provenance manifest into a small source ZIP (`< 50 MiB`, no build caches or `.git`) and report `source_ready` with their actual checks and remaining limits.
    - The integration session materializes and verifies hashes locally, integrates compatible candidates sequentially onto a clean isolated worktree from fetched `origin/main`, and validates the combined changes under [testing](../../../../wiki/development/testing.md). It reviews the combined diff, publishes and lands under [landing](../../../../wiki/development/landing.md), and verifies remote main. Source intake alone does not complete the assigned outcome.

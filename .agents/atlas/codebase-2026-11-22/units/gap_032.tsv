@@ -1,0 +1,5 @@
+source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/byte_domains.rs	816	1256	441
+source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/byte_view_elements.rs	1	2074	2074
+source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/call_claims.rs	1	147	147
+source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/callable_contracts.rs	1	760	760
+source-rust/subsystems/compiler/source-to-psi/pipeline/06_lowered-program-to-checked-program/src/tests/calling_policies.rs	1	1077	1077

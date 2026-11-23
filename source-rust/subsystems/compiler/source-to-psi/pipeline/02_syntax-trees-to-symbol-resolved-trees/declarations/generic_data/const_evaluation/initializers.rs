@@ -735,6 +735,15 @@ mod tests {
         base: Option<(Arc<SymbolResolvedTrees>, crate::source_inputs::SourceMap)>,
     ) -> Result<(SymbolResolvedTrees, crate::source_inputs::SourceMap), Vec<diagnostics::Diagnostic>>
     {
+        resolve_files_with_imports(units, &[], base)
+    }
+
+    fn resolve_files_with_imports(
+        units: &[(&str, &str)],
+        imports: &[(&str, &str, &str)],
+        base: Option<(Arc<SymbolResolvedTrees>, crate::source_inputs::SourceMap)>,
+    ) -> Result<(SymbolResolvedTrees, crate::source_inputs::SourceMap), Vec<diagnostics::Diagnostic>>
+    {
         let (retained_base, mut sources) = match base {
             Some((base, sources)) => (Some(base), sources),
             None => (None, crate::source_inputs::SourceMap::default()),
@@ -765,7 +774,7 @@ mod tests {
         resolve(ResolutionRequest {
             syntax,
             sources: Some(Arc::new(sources.clone())),
-            top_level_bindings: Vec::new(),
+            top_level_bindings: crate::resolution::fixture_file_bindings(&sources, imports),
             retained_base,
         })
         .map(|program| (program, sources))
@@ -1002,8 +1011,12 @@ mod tests {
         let base_text = "const SEED: u64 = 5;\npublic const BASE: u64 = SEED * 2;";
         let (base, sources) = resolve_files(&[("library/base.omg", base_text)], None).unwrap();
         assert_eq!(value(&base, "BASE"), integer("u64", 10));
-        let (program, _) = resolve_files(
-            &[("library/next.omg", "public const NEXT: u64 = BASE + 1;")],
+        let (program, _) = resolve_files_with_imports(
+            &[(
+                "library/next.omg",
+                "use base.omg; public const NEXT: u64 = |base|::BASE + 1;",
+            )],
+            &[("library/next.omg", "library/base.omg", "base")],
             Some((Arc::new(base), sources)),
         )
         .unwrap();

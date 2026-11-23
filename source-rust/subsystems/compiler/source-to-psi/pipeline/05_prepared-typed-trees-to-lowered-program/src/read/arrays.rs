@@ -6,7 +6,7 @@ mod argument_types;
 
 use crate::lowering::body::Qualification;
 use crate::source_state::SourceTypeApplication;
-use crate::source_state::expression::{ExpressionHandle, TableIndexedExpression};
+use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableIndexedExpression};
 use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle};
 use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, StructuralTypeId};
 use symbols::SymbolHandle;
@@ -124,7 +124,7 @@ impl Program<'_> {
         };
         (actual.requires.is_empty() && self.records.get(element).is_some_and(|element|
             element.requires.is_empty() && matches!(element.shape,
-                StorageShape::PrimitiveScalar { scalar_type: ScalarType::Integer(integer), policy: None }
+                StorageShape::PrimitiveScalar { scalar_type: ScalarType::Integer(integer), qualification: Qualification::NONE }
                     if integer.bits() == Some(8) && integer.sign() == IntegerSign::Unsigned && !integer.is_address())))
             .then_some(element)
     }
@@ -620,10 +620,13 @@ impl Program<'_> {
         for handle in supplied {
             let element = self.expression(machine, slots, *handle, Some(declared))?;
             if !self.agrees(element.result, Some(declared)) {
-                return Err(refuse(
+                return Err(self.mistyped(
                     machine,
-                    Construct::Machine,
-                    Unserved::Typing("array literal element"),
+                    element.source,
+                    super::rejections::Destination::ArrayElement,
+                    Some(declared),
+                    element.result,
+                    "array literal element",
                 ));
             }
             elements.push(element);
@@ -655,6 +658,16 @@ impl Program<'_> {
         let range = self.typed.expression_table.range_node(indexed.index);
         let hint = range.and(hint);
         let base = self.place(machine, slots, indexed.collection, hint, access)?;
+        // A domain cast preserves the reference descriptor. Indexing projects
+        // into its referent, including when the cast removed a domain.
+        let base = if matches!(
+            self.node(machine, indexed.collection)?,
+            ExpressionNode::Cast(_)
+        ) {
+            self.observed(machine, base, hint)?
+        } else {
+            base
+        };
         let Some(array) = self.opened_place(machine, &base, access)? else {
             return Err(refuse(
                 machine,
@@ -823,12 +836,8 @@ impl Program<'_> {
         Ok(match self.data_type(machine, storage)?.shape {
             StorageShape::PrimitiveScalar {
                 scalar_type,
-                policy: None,
-            } => ValueType::Scalar(scalar_type, Qualification::NONE),
-            StorageShape::PrimitiveScalar {
-                scalar_type,
-                policy: Some(policy),
-            } => ValueType::Scalar(scalar_type, Qualification::of_policy(policy)),
+                qualification,
+            } => ValueType::Scalar(scalar_type, qualification),
             _ => ValueType::Record(storage, qualification, crate::lowering::body::Regions::NONE),
         })
     }
@@ -1080,21 +1089,23 @@ impl Program<'_> {
         reference: TypeReferenceHandle,
         value: ValueType,
     ) -> Checked<StructuralTypeId> {
-        let (scalar_type, policy) = match value {
+        // A scalar slot keeps its complete qualification, so an element of
+        // `[u8 in Mark; 4]` is stored, read and written as a `u8 in Mark`.
+        // A storage description lays out bytes and needs only the carrier.
+        let (scalar_type, qualification) = match value {
             ValueType::Scalar(scalar, qualification)
-                if qualification.domains.is_empty()
-                    || self.type_purpose
-                        == super::storage_metadata::TypePurpose::StorageDescription =>
+                if self.type_purpose
+                    == super::storage_metadata::TypePurpose::StorageDescription =>
             {
-                (scalar, qualification.policy)
+                (
+                    scalar,
+                    Qualification {
+                        domains: crate::lowering::body::DomainSet::EMPTY,
+                        ..qualification
+                    },
+                )
             }
-            ValueType::Scalar(..) => {
-                return Err(refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Type("array of elements that carry a declared domain"),
-                ));
-            }
+            ValueType::Scalar(scalar, qualification) => (scalar, qualification),
             ValueType::Record(id, Qualification::NONE, _) => return Ok(id),
             ValueType::Record(id, _, _)
                 if self.type_purpose
@@ -1106,7 +1117,7 @@ impl Program<'_> {
                 return Err(refuse(
                     machine,
                     Construct::Machine,
-                    Unserved::Type("array of elements that carry a declared domain"),
+                    Unserved::Type("storage of a record that carries a declared domain"),
                 ));
             }
             ValueType::Rigid(_) => {
@@ -1118,8 +1129,8 @@ impl Program<'_> {
             }
         };
         if let Some((id, _)) = self.records.iter().find(|(_, row)| {
-            matches!(row.shape, StorageShape::PrimitiveScalar { scalar_type: known, policy: prior }
-                if known == scalar_type && prior == policy)
+            matches!(row.shape, StorageShape::PrimitiveScalar { scalar_type: known, qualification: prior }
+                if known == scalar_type && prior == qualification)
         }) {
             return Ok(id);
         }
@@ -1133,7 +1144,7 @@ impl Program<'_> {
             identity,
             shape: StorageShape::PrimitiveScalar {
                 scalar_type,
-                policy,
+                qualification,
             },
             requires: Vec::new(),
             authored_layout: false,

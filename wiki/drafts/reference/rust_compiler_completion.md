@@ -2,7 +2,7 @@
 
 Finish the Rust reference compiler against the accepted language and toolchain
 contracts, then resume Omega self-hosting. All six gates below must pass on the
-same source revision across the four hosted targets. This document specifies the
+same source revision across the five hosted targets. This document specifies the
 checks; it does not claim they pass.
 
 This is release validation, not the test scope for every pull request. Routine
@@ -14,7 +14,9 @@ fixture corpus, persistent results ledger or second task board.
 
 The product compiles authored `.omg` source through the lowered-form checker and
 Psi publication to hosted native execution on Linux x86-64, Linux AArch64,
-macOS AArch64 and Windows x86-64.
+macOS AArch64, Windows x86-64 and Windows AArch64. The owner added Windows
+AArch64 (`windows_arm64`) on 2026-11-23; `TASKS.md` **WINDOWS-ARM64-TARGET**
+owns its implementation.
 
 The accepted surface is defined by the [specification and guide](../../README.md),
 not whatever the compiler happens to accept. Unsupported constructs are honest
@@ -132,6 +134,7 @@ A documentation edit is not execution evidence.
 | Linux AArch64 | `linux_arm64` | Execute emitted ELF AArch64 programs. Permitted emulation must name the emulator and version. |
 | macOS AArch64 | `macos_arm64` | Execute emitted Mach-O AArch64 programs. |
 | Windows x86-64 | `windows_x86_64` | Execute emitted PE x86-64 programs. |
+| Windows AArch64 | `windows_arm64` | Execute emitted PE AArch64 programs. |
 
 Cross-target byte generation does not replace matching-host execution. A
 platform-specific test may be inapplicable elsewhere; a missing runner,

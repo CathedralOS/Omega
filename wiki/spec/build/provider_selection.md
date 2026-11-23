@@ -117,8 +117,9 @@ declaration, name, or body. There is no implicit same-path target-body family,
 target-sensitive source overload, or additional body-selection pass.
 
 For example, one portable `AudioPlayback` requirement may have Build rows selecting
-`WindowsAudioPlayback` for `windows_x86_64`, `LinuxAudioPlayback` for both Linux
-profiles, and `MacosAudioPlayback` for `macos_arm64`. Applications still call the
+`WindowsAudioPlayback` for both Windows profiles (`windows_x86_64` and
+`windows_arm64`), `LinuxAudioPlayback` for both Linux profiles, and
+`MacosAudioPlayback` for `macos_arm64`. Applications still call the
 same requirement. Shared implementation code and binding-value producers are
 ordinary machines; naming a Windows import does not require a Windows prefix.
 Raw per-OS requirements and Build-owned native bindings remain explicit beneath

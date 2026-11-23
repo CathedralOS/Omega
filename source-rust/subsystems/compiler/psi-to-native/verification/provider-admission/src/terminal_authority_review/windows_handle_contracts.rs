@@ -386,11 +386,12 @@ fn original_windows_import<'a>(
     let NormalizedForeignCallMechanism::Import { locator, .. } = &binding.mechanism else {
         return Ok(None);
     };
-    if locator.target() != target::TargetProfile::WindowsX64 {
+    if !locator.target().imports_through_pe() {
         return Ok(None);
     }
     let actual = crate::terminal_authority_policy::normalized_foreign_terminal_mechanism(
-        locator, &binding.boundary_entry_plan,
+        locator,
+        &binding.boundary_entry_plan,
     )?;
     if context.mechanism(boundary) != Some(&actual) {
         return Err(format!(

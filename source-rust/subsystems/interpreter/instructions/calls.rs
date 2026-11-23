@@ -1433,7 +1433,7 @@ pub(crate) mod component_arguments {
                 if lent
                     && (self.structural_cases.keys().any(within_value)
                         || self.structural_byte_storage.keys().any(within_value)
-                        || self.empty_array_storage.rows.keys().any(within_value))
+                        || self.array_initialization.has_empty_array(&home))
                 {
                     return Err(reject(
                         "component borrowed input needs its original materialized storage carrier",
@@ -1464,7 +1464,8 @@ pub(crate) mod component_arguments {
                     ));
                 }
                 let scalar_backing = lent
-                    && (self.structural_primitive_storage.keys().any(within_value)
+                    && (self.array_initialization.has_zero_record_fields(&home)
+                        || self.structural_primitive_storage.keys().any(within_value)
                         || self
                             .structural_scalar_fields
                             .keys()
@@ -2521,25 +2522,27 @@ pub(crate) mod component_scalar_arguments {
         }
     }
 
-    fn cell<'source>(
-        source: &'source TerminalExecution<'_>,
+    fn cell(
+        source: &TerminalExecution<'_>,
         key: &ScalarStorageAddressKey,
-    ) -> Option<&'source ScalarCell> {
+    ) -> Result<Option<ScalarCell>, TerminalInterpretError> {
         match key {
-            ScalarStorageAddressKey::Scalar(home) => source.structural_primitive_storage.get(home),
-            ScalarStorageAddressKey::Field(field) => source.structural_scalar_fields.get(field),
+            ScalarStorageAddressKey::Scalar(home) => {
+                Ok(source.structural_primitive_storage.get(home).cloned())
+            }
+            ScalarStorageAddressKey::Field(field) => source.scalar_field_cell(field),
         }
     }
 
     fn cell_mut<'source>(
         source: &'source mut TerminalExecution<'_>,
         key: &ScalarStorageAddressKey,
-    ) -> Option<&'source mut ScalarCell> {
+    ) -> Result<Option<&'source mut ScalarCell>, TerminalInterpretError> {
         match key {
             ScalarStorageAddressKey::Scalar(home) => {
-                source.structural_primitive_storage.get_mut(home)
+                Ok(source.structural_primitive_storage.get_mut(home))
             }
-            ScalarStorageAddressKey::Field(field) => source.structural_scalar_fields.get_mut(field),
+            ScalarStorageAddressKey::Field(field) => source.scalar_field_cell_mut(field),
         }
     }
 
@@ -2572,7 +2575,7 @@ pub(crate) mod component_scalar_arguments {
                     return Err(reject());
                 };
                 let source = scalar_key(&destination)?;
-                let actual = cell(self, &source).ok_or_else(reject)?;
+                let actual = cell(self, &source)?.ok_or_else(reject)?;
                 if actual.scalar_type() != stored_scalar {
                     return Err(malformed());
                 }
@@ -2639,7 +2642,7 @@ pub(crate) mod component_scalar_arguments {
                     }
                     previous.clone()
                 } else {
-                    let original = cell_mut(source, &prepared.source).ok_or(malformed())?;
+                    let original = cell_mut(source, &prepared.source)?.ok_or(malformed())?;
                     let borrowed = lifetime.lend(original, self.access)?;
                     views.insert(prepared.source.clone(), (self.access, borrowed.clone()));
                     borrowed
@@ -2701,7 +2704,15 @@ pub(crate) mod component_scalar_arguments {
                     return Err(reject());
                 }
                 let key = scalar_key(&destination)?;
-                let needs_binding = if let Some(existing) = cell(child, &key) {
+                let existing = match &key {
+                    ScalarStorageAddressKey::Scalar(home) => {
+                        child.structural_primitive_storage.get(home)
+                    }
+                    ScalarStorageAddressKey::Field(field) => {
+                        child.structural_scalar_fields.get(field)
+                    }
+                };
+                let needs_binding = if let Some(existing) = existing {
                     if self.access != StructuralAccess::SharedBorrow || existing != original {
                         return Err(malformed());
                     }
@@ -2878,7 +2889,13 @@ impl<'artifact> TerminalExecution<'artifact> {
         let Some(scalar_type) = result.scalar_type.as_integer() else {
             return Err(malformed());
         };
-        if program.catalogs.execution.dynamic_dispatch.table(table).is_none() {
+        if program
+            .catalogs
+            .execution
+            .dynamic_dispatch
+            .table(table)
+            .is_none()
+        {
             return Err(malformed());
         }
         self.values.insert(
@@ -2907,12 +2924,20 @@ impl<'artifact> TerminalExecution<'artifact> {
         else {
             return Err(malformed());
         };
-        if actual_contract != contract || program.catalogs.execution.callables.contract(contract).is_none() {
+        if actual_contract != contract
+            || program
+                .catalogs
+                .execution
+                .callables
+                .contract(contract)
+                .is_none()
+        {
             return Err(malformed());
         }
         let selected = program
             .catalogs
-            .execution.callables
+            .execution
+            .callables
             .descriptor(descriptor)
             .ok_or_else(malformed)?;
         if selected.contract != contract {
@@ -3614,13 +3639,23 @@ impl<'artifact> TerminalExecution<'artifact> {
             && operation.result.structural().is_some_and(|result| {
                 self.supports_provider_reference_result(boundary_declaration, result)
             });
-        let TerminalEffect::BoundaryCall { arguments, .. } = &effect else {
+        // The call took the argument values into its effect; a guarantee
+        // reads a shared borrow through the same values the host was given.
+        let TerminalEffect::BoundaryCall {
+            arguments,
+            structural_arguments: exported_values,
+            ..
+        } = &effect
+        else {
             return Err(malformed());
         };
         crate::boundary::effects::boundary_predicates::validate_output_guarantees(
             boundary_declaration,
             arguments,
             &returned,
+            self,
+            structural_arguments,
+            exported_values,
         )?;
         if matches!(&returned, TerminalEffectResult::Reference(_))
             && !provider_reference
@@ -3878,7 +3913,8 @@ mod finite_family_tests {
             .operations
             .push(operation.clone());
         module
-            .execution.dynamic_dispatch
+            .execution
+            .dynamic_dispatch
             .interfaces
             .push(TerminalDynamicInterface {
                 id: 0,
@@ -3900,12 +3936,16 @@ mod finite_family_tests {
                     })
                     .collect(),
             });
-        module.execution.dynamic_dispatch.tables.push(TerminalDynamicTable {
-            id: 0,
-            interface: 0,
-            implementation_identity,
-            rows,
-        });
+        module
+            .execution
+            .dynamic_dispatch
+            .tables
+            .push(TerminalDynamicTable {
+                id: 0,
+                interface: 0,
+                implementation_identity,
+                rows,
+            });
         for (value, selected) in [
             (integer(-4), Some(2)),
             (integer(16), Some(3)),

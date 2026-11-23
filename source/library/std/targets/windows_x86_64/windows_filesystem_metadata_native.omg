@@ -1,3 +1,9 @@
+use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
+use {omega}/language/core/layout.omg as layout;
+use {omega}/language/core/access/access.omg as access;
+use {omega}/language/core/reflect/reflect.omg as reflect;
+use targets/windows_x86_64/windows_filesystem_metadata.omg as classifier;
+
 // GetFileInformationByHandleEx owns synchronous output completion. Its class
 // selects the complete record, not an untyped byte-count promise. The x64 SDK
 // records are FILE_BASIC_INFO (40 bytes), FILE_STANDARD_INFO (24 bytes), and
@@ -15,7 +21,15 @@ use omega\language\core\FilesystemMetadataQuery;
 // Zero is the failed classifier result; queries also require nonzero.
 domain i64::WindowsDiskFileOrAbsent
 requires self != -1
-established by windows_classify_metadata_disk_file;
+access WindowsDiskFileIssuance;
+
+WindowsDiskFileIssuance satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
+        |access|::new_plan(@schema, |layout|::Issuance::Only { routes: [
+            |reflect|::callable(|classifier|::windows_classify_metadata_disk_file)
+        ] })
+    }
+}
 
 data WindowsNativeFileBasicInfo {
     creation_ticks: u64;
@@ -37,7 +51,7 @@ data WindowsNativeFileAttributeTagInfo { attributes: u32; reparse_tag: u32; }
 
 boundary trait WindowsFilesystemMetadataIo {
     machine file_type(handle: i64) -> u32 reaches FilesystemMetadataQuery blocks crashes none;
-    machine open_attributes(path: @[u16; 4096] in WindowsNativePath, desired_access: u32, sharing: u32, security: u64, disposition: u32, flags: u32, template: u64) -> i64
+    machine open_attributes(path: @[u16; 4096] in |win_io|::WindowsNativePath, desired_access: u32, sharing: u32, security: u64, disposition: u32, flags: u32, template: u64) -> i64
     requires desired_access == 128 && sharing == 7 && security == 0 && disposition == 3
         && (flags == 34603008 || flags == 36700160) && template == 0
     reaches FilesystemMetadataQuery blocks

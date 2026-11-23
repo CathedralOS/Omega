@@ -166,11 +166,7 @@ mod child_batches {
             loop {
                 if ordinal < self.children.len() {
                     let selected = self.children.handle_at(ordinal as u32);
-                    let remaining = self.children.count() - ordinal as u32 - 1;
-                    self.children = HandleSpan::from_parts_or_empty(
-                        self.children.handle_at(ordinal as u32 + 1),
-                        remaining,
-                    );
+                    self.children = self.children.suffix(ordinal as u32 + 1);
                     return Some(selected);
                 }
                 ordinal -= self.children.len();
@@ -728,6 +724,85 @@ mod modules {
             if let super::BindingTarget::Module(import) = &mut binding.target {
                 import.exact_source = false;
             }
+            binding.producer = super::BindingProducer::AuthoredImport;
+            Arc::make_mut(&mut self.source_scoped_top_level_bindings).push(binding);
+            self.binding_source_index.clear();
+        }
+
+        /*
+            Bind `use path.omg as alias;` for syntax-only callers, against the
+            sources this table was given (`wiki/spec/language/modules.md`,
+            "Names and imports"). An unrooted path names a file of the
+            importer's own package, `{omega}/language/core/...` a toolchain
+            Core file, and `{dep}/...` a file of the package the importer's
+            direct dependency `dep` names. The importer's own dependency scope
+            breaks a tie between instances of one file. A compiler-loaded alias
+            already carries exact custody and takes precedence. A path that
+            selects no one file binds nothing, so its uses stay unresolved.
+        */
+        pub fn register_source_file_import(
+            &mut self,
+            reference_source: SourceId,
+            root: Option<&str>,
+            path: &str,
+            alias: &str,
+        ) {
+            enum Owner {
+                Package,
+                Core,
+                Dependency(source_provenance::PackageKeyIdentity),
+            }
+            if self.source_scoped_top_level_bindings.iter().any(|binding| {
+                binding.reference_source == reference_source
+                    && matches!(&binding.target, super::BindingTarget::FileAlias(bound) if bound.as_ref() == alias)
+            }) {
+                return;
+            }
+            let Some(sources) = self.sources.as_deref() else {
+                return;
+            };
+            let Some(importer) = sources.get(reference_source) else {
+                return;
+            };
+            let (owner, relative) = match root {
+                None => (Owner::Package, path),
+                Some("omega") => match path.strip_prefix("language/core/") {
+                    Some(relative) => (Owner::Core, relative),
+                    None => return,
+                },
+                Some(dependency) => match importer
+                    .package_identity
+                    .and_then(|requester| sources.product_dependency_target(requester, dependency))
+                {
+                    Some(target) => (Owner::Dependency(target), path),
+                    None => return,
+                },
+            };
+            let candidates = sources
+                .selected_files()
+                .filter(|file| {
+                    let owned = match owner {
+                        Owner::Package => {
+                            file.package_root == importer.package_root
+                                && file.package_identity == importer.package_identity
+                        }
+                        Owner::Core => file.origin.is_toolchain() && file.path != file.package_root,
+                        Owner::Dependency(target) => file.package_identity == Some(target),
+                    };
+                    owned && file.logical_filename().is_ok_and(|name| name == relative)
+                })
+                .collect::<Vec<_>>();
+            let same_scope = candidates
+                .iter()
+                .filter(|file| file.dependency_scope == importer.dependency_scope)
+                .collect::<Vec<_>>();
+            let target = match (same_scope.as_slice(), candidates.as_slice()) {
+                ([file], _) => file.source_id,
+                ([], [file]) => file.source_id,
+                _ => return,
+            };
+            let mut binding =
+                SourceScopedTopLevelBinding::file_import(reference_source, target, alias);
             binding.producer = super::BindingProducer::AuthoredImport;
             Arc::make_mut(&mut self.source_scoped_top_level_bindings).push(binding);
             self.binding_source_index.clear();

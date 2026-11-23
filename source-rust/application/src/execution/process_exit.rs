@@ -94,6 +94,9 @@ fn trap_presentation(profile: TargetProfile) -> Option<ProcessExitObservation> {
         TargetProfile::WindowsX64 => {
             Some(ProcessExitObservation::Exited(-1073741795)) // STATUS_ILLEGAL_INSTRUCTION
         }
+        // BRK raises a breakpoint exception that ends the process with
+        // STATUS_BREAKPOINT. Not yet observed on a Windows ARM64 host.
+        TargetProfile::WindowsArm64 => Some(ProcessExitObservation::Exited(-2147483645)),
         TargetProfile::UefiX64
         | TargetProfile::CrossPlatformCli
         | TargetProfile::LocalUnchecked

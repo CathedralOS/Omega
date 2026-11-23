@@ -1536,23 +1536,45 @@ mod function_digest_tests {
     }
 
     #[test]
-    fn shared_function_chunks_keep_the_v6_canonical_identity() {
+    fn published_function_digest_tracks_rewritten_storage() {
+        let slot = |id| crate::SelectedLocalStorageSlot {
+            id: crate::LocalStorageSlotId::Spill {
+                register: crate::VirtualRegisterId(id),
+            },
+            byte_size: 8,
+            alignment: 8,
+        };
+        let mut initial = function(1);
+        initial.local_storage_slots.push(slot(0));
+        let mut functions = SelectedFunctions::from(vec![initial]);
+        let original = functions.identity_digests().next().unwrap();
+
+        functions.mutate_preserving_register_prefix(0, |slots, _, _, _| slots.push(slot(1)));
+        let appended = functions.identity_digests().next().unwrap();
+        assert_eq!(appended, super::selected_function_digest(&functions[0]));
+        assert_ne!(appended, original);
+
+        functions[0].local_storage_slots[0].byte_size = 16;
+        functions.mutate_preserving_register_prefix(0, |slots, _, _, _| slots.push(slot(2)));
+        let rewritten = functions.identity_digests().next().unwrap();
+        assert_eq!(rewritten, super::selected_function_digest(&functions[0]));
+        assert_ne!(rewritten, appended);
+    }
+
+    #[test]
+    fn published_and_shared_function_rows_keep_the_v7_identity() {
         let function = function(1);
-        // Function v6 binds structural block parameters. Sharing the function
-        // columns must preserve its exact canonical bytes.
-        let expected = "2dfa2a7372436f71d7c6823c65346e14c21f5c0b654dfcb6159ebdf3548f582a";
-        assert_eq!(
-            crate::digest_encoder::hex(&super::selected_function_digest(&function)),
-            expected
+        // SHA-256 of the v7 function domain followed by the 103-byte body of machine 1.
+        let expected = "94ba8107c7a645295fd9d98f1388403ddf1373030397f7e4734bf74dacef02ba";
+        let shared = super::selected_function_chunks_identity(
+            &function.contracts,
+            function.entry_block,
+            &function.blocks,
         );
-        assert_eq!(
-            crate::digest_encoder::hex(&super::selected_function_chunks_identity(
-                &function.contracts,
-                function.entry_block,
-                &function.blocks
-            )),
-            expected
-        );
+        let functions = SelectedFunctions::from(vec![function]);
+        let published = functions.identity_digests().next().unwrap();
+        assert_eq!(crate::digest_encoder::hex(&shared), expected);
+        assert_eq!(published, shared);
     }
 
     #[test]

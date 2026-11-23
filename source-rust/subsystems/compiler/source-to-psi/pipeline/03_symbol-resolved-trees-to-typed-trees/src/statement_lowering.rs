@@ -1128,6 +1128,7 @@ pub(crate) mod statement {
                 statement_table_mut(&mut lowerer.typed_trees).insert_transition_patterns(patterns);
             Ok(typed::statement::TableTransition {
                 patterns,
+                ends_dispatch: transition.ends_dispatch,
                 target: lower_transition_target(lowerer, transition.target)?,
                 continuation: transition
                     .continuation
@@ -1513,6 +1514,22 @@ pub(crate) mod statement {
         } else {
             lower_type_reference_handle_from_table(lowerer, local_data.type_reference)?
         };
+        // A previous local may hold the instantiated result of a generic call or
+        // field projection. Its inferred type names the record this pattern opens.
+        let inferred_record = if role == language_core::LocalBindingRole::RecordPattern
+            && local_data.type_is_inferred
+        {
+            let subject = infer_initializer_type(lowerer, state, types, local_data.initial_value)?;
+            let table = &lowerer.typed_trees.type_reference_table;
+            subject
+                .and_then(|ty| table.type_head_symbol(table.peeled_type_reference(ty)))
+                .and_then(|symbol| lowerer.source_trees.data_definition_by_symbol(symbol))
+                .and_then(|record| {
+                    crate::typing::data_patterns::defined_record(lowerer.source_trees, record).ok()
+                })
+        } else {
+            None
+        };
         let expressions = crate::typing::tables::resolved_expressions(lowerer.source_trees);
         let written = expressions.match_fields(local_data.pattern_fields);
         let head = if role == language_core::LocalBindingRole::RecordPattern
@@ -1525,7 +1542,7 @@ pub(crate) mod statement {
                 type_references(lowerer.source_trees).type_reference(local_data.type_reference),
             )?)
         } else {
-            None
+            inferred_record
         };
         // Keep the record and fields selected here together. Preparation
         // must not replace them by resolving their display names again.

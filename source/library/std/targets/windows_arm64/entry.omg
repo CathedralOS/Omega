@@ -1,0 +1,138 @@
+use calling.omg as abi;
+use entry_shapes.omg as shapes;
+use {omega}/language/core/extent.omg as storage;
+
+// The Windows loader enters a PE32+ ARM64 executable at its AddressOfEntryPoint
+// as an ordinary AAPCS64 call: the argument registers carry no contractual
+// input at process arrival, the stack is 16-byte aligned, x18 holds the thread
+// environment block and must survive, and the loader maps the value the entry
+// returns in w0 to the process exit code. This surface introduces neither
+// storage roots nor access authority. ProgramStorageEntry remains the separate
+// semantic root crossing; its two Extents are internal bridge inputs, not
+// hosted application arguments. This calling contract supplies no bridge,
+// loader admission, receiver, or numeric stack guarantee. ProviderSelected
+// requires independent backing.
+boundary trait WindowsArm64ProcessEntry {
+    machine enter() -> u32 reaches none crashes Trap crashes Abort;
+}
+
+WindowsArm64CallingPolicy satisfies |abi|::CallingPolicy {
+    machine plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
+        windows_arm64_entry_plan(signature)
+    }
+}
+
+machine windows_arm64_entry_plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult
+    satisfies |abi|::CallingPolicy::plan
+{
+    transition signature.parameter_count {
+        0 -> physical(signature),
+        2 -> semantic(signature),
+        _ -> reject()
+    }
+
+    machine physical(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
+        transition signature.has_result {
+            true -> physical_index(signature, signature.result),
+            _ -> reject()
+        }
+    }
+
+    machine physical_index(signature: |abi|::BoundarySignature, result: u64)
+        -> |abi|::BoundaryPlanResult
+    {
+        transition result < 256 && result < signature.shape_count {
+            true -> physical_shape(signature.shapes[result]),
+            _ -> reject()
+        }
+    }
+
+    machine physical_shape(result: |abi|::ValueShape) -> |abi|::BoundaryPlanResult {
+        transition |shapes|::hosted_entry_integer_shape(@result, 4) {
+            true -> build_physical(),
+            _ -> reject()
+        }
+    }
+
+    machine build_physical() -> |abi|::BoundaryPlanResult {
+        let mutable output: |abi|::BoundaryEntryPlan;
+        output.call.parameter_count = 0;
+        output.call.has_result = true;
+        // Process completion status returns in w0; the loader maps it to the
+        // process exit code.
+        output.call.result = |shapes|::hosted_entry_named_word(4,
+            |abi|::MachineRegister::Aarch64X { index: 0 });
+        transition { _ -> finish(output) }
+    }
+
+    machine semantic(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
+        transition signature.has_result {
+            false -> semantic_indices(signature, signature.parameters[0],
+                signature.parameters[1]),
+            _ -> reject()
+        }
+    }
+
+    machine semantic_indices(signature: |abi|::BoundarySignature, image: u64,
+        storage: u64) -> |abi|::BoundaryPlanResult
+    {
+        transition image < 256 && storage < 256
+            && image < signature.shape_count && storage < signature.shape_count
+        {
+            true -> semantic_shapes(signature.shapes[image],
+                signature.shapes[storage], signature),
+            _ -> reject()
+        }
+    }
+
+    machine semantic_shapes(image: |abi|::ValueShape, storage: |abi|::ValueShape,
+        signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult
+    {
+        transition |shapes|::hosted_entry_extent_shape(image, @signature)
+            && |shapes|::hosted_entry_extent_shape(storage, @signature)
+        {
+            true -> build_semantic(),
+            _ -> reject()
+        }
+    }
+
+    machine build_semantic() -> |abi|::BoundaryPlanResult {
+        let mutable output: |abi|::BoundaryEntryPlan;
+        output.call.parameter_count = 2;
+        // A sixteen-byte composite travels in two consecutive x registers.
+        output.call.parameters[0] = |shapes|::hosted_entry_arm_extent_value(0, 1);
+        output.call.parameters[1] = |shapes|::hosted_entry_arm_extent_value(2, 3);
+        transition { _ -> finish(output) }
+    }
+
+    machine finish(output: |abi|::BoundaryEntryPlan) -> |abi|::BoundaryPlanResult {
+        let mutable plan: |abi|::BoundaryEntryPlan = output;
+        plan.call.convention = |abi|::CallingConvention::Aapcs64;
+        plan.call.stack_alignment = 16;
+        plan.call.entry_control = |abi|::EntryControl::CallReturn;
+        // Standard AAPCS64 volatile banks; x18 holds the TEB and stays fixed.
+        plan.call.ordinary_clobbers = |shapes|::hosted_entry_aarch64_platform_clobbers();
+        plan.state.initial_regime = |abi|::MachineRegime::Aarch64A64 { exception_level: 0 };
+        plan.state.permitted_transitive_use.general_registers = true;
+        plan.state.permitted_transitive_use.vector_registers = true;
+        plan.state.permitted_transitive_use.flags = true;
+        plan.state.permitted_transitive_use.instruction_pointer = true;
+        plan.state.permitted_transitive_use.stack_pointer = true;
+        // A returning import's floating-control envelope restores FPCR, which
+        // the hosted ABI makes callee-preserved.
+        plan.state.permitted_transitive_use.control_state = true;
+        plan.state.stack = |abi|::EntryStack::ProviderSelected;
+        plan.state.preemption = |abi|::Preemption::NotApplicable;
+        |abi|::BoundaryPlanResult::Accepted { plan: plan }
+    }
+
+    machine reject() -> |abi|::BoundaryPlanResult {
+        |abi|::BoundaryPlanResult::Rejected {
+            reason: |abi|::CallingPolicyRejection {
+                reason: "WindowsArm64Application requires exact physical or program-storage entry shapes" as + |abi|::Utf8,
+            },
+        }
+    }
+}
+
+boundary trait WindowsArm64Application: |storage|::ProgramStorageEntry + WindowsArm64ProcessEntry + |abi|::Calling<WindowsArm64CallingPolicy> {}

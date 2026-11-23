@@ -5,6 +5,7 @@ the driver that reads one body statement by statement.
 */
 
 use crate::lowering::body::Qualification;
+use crate::lowering::selection_questions::TransitionRead;
 use crate::source_state::machine::{Machine, MachineBodyStatus, MachinePurpose};
 use crate::source_state::signature::{SignatureContractKind, StateParameter, StateSignature};
 use crate::source_state::state::State;
@@ -20,8 +21,8 @@ use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
 use super::contracts::{ClauseScope, ResultTerm};
 use super::{LocalSummaryBodies, Program, Slot, crash_cause, span};
 use crate::lowering::body::{
-    Body, BorrowedReferent, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target,
-    Termination, ValueType,
+    ArmGuard, Body, BorrowedReferent, CrashCeiling, Expression, ExpressionKind, Signature,
+    Statement, Target, Termination, ValueType,
 };
 use crate::lowering::canonical::{self, Repeated};
 use crate::lowering::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
@@ -130,7 +131,7 @@ impl<'t> Program<'t> {
     pub(super) fn generic_parameters(
         &self,
         id: MachineId,
-        machine: &'t Machine,
+        machine: &Machine,
     ) -> Checked<Vec<&'t crate::source_state::data::TypeParameter>> {
         let own = self.typed.machine_type_parameters(machine);
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
@@ -144,8 +145,7 @@ impl<'t> Program<'t> {
         if enclosing.is_empty() != owner.type_parameters.is_empty()
             || !owner.lifetime_parameters.is_empty()
             || enclosing.iter().any(|parameter| {
-                parameter.kind != crate::source_state::data::TypeParameterKind::Type
-                    || parameter.bounds != crate::source_state::data::DataProperties::default()
+                !super::type_parameters::can_check_implementation_parameter(self.typed, parameter)
             })
         {
             return Err(unserved(
@@ -986,11 +986,25 @@ impl<'t> Program<'t> {
                 !owner.type_parameters.is_empty() || !owner.lifetime_parameters.is_empty()
             })
         {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Machine("witness needs its exact closed trait application"),
-            ));
+            // A body a reference row selects (`Render::paint = red;`) owns
+            // no map, so the requirement it refines is the one the selecting
+            // conformance applies: `Red satisfies Render<u8>` applies
+            // `Render<u8>`. The selected call retains exactly that header.
+            // Without a call there is no application to read it at.
+            declared = expected
+                .filter(|applied| {
+                    self.typed
+                        .closed_requirement_application(applied.symbol)
+                        .map_or(applied.symbol, |closed| closed.template)
+                        == requirement
+                })
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Machine("witness needs its exact closed trait application"),
+                    )
+                })?;
         }
         if expected.is_some_and(|signature| {
             signature.symbol != requirement && self.typed
@@ -1802,11 +1816,11 @@ impl<'t> Program<'t> {
             id,
             "parameter span",
         )?;
-        for parameter in typed.machine_type_parameters(machine) {
+        let parameters = self.generic_parameters(id, machine)?;
+        for parameter in &parameters {
             self.prepare_record_parameter(id, machine.symbol, parameter)?;
         }
-        let binders = typed
-            .machine_type_parameters(machine)
+        let binders = parameters
             .iter()
             .filter_map(|parameter| match parameter.kind {
                 TypeParameterKind::Const { .. }
@@ -1866,9 +1880,8 @@ impl<'t> Program<'t> {
             id,
             "parameter span",
         )?;
-        let binders = typed
-            .data_type_parameters
-            .span_or_empty(requirement.type_parameters)
+        let binders = self
+            .requirement_parameters(id, requirement)?
             .iter()
             .filter_map(|parameter| match parameter.kind {
                 TypeParameterKind::Const { type_reference } => {
@@ -1982,7 +1995,7 @@ impl<'t> Program<'t> {
     /// is an ordinary scalar formal of that type with no definition.
     fn value_binders(&self, id: MachineId, machine: &Machine) -> Checked<Vec<ValueBinder>> {
         let mut binders = Vec::new();
-        for parameter in self.typed.machine_type_parameters(machine) {
+        for parameter in self.generic_parameters(id, machine)? {
             let crate::source_state::data::TypeParameterKind::Const { type_reference } =
                 parameter.kind
             else {
@@ -2723,6 +2736,44 @@ impl<'t> Program<'t> {
         Ok(binders)
     }
 
+    /// A generic provider checks its public method at every argument of the
+    /// enclosing implementation. Those values are inputs to both sides of
+    /// the refinement check, before the method's own static parameters.
+    fn requirement_parameters(
+        &self,
+        id: MachineId,
+        requirement: &StateSignature,
+    ) -> Checked<Vec<&'t crate::source_state::data::TypeParameter>> {
+        use crate::source_state::data::TypeParameterKind;
+        let typed = self.typed;
+        let own = typed
+            .data_type_parameters
+            .span_or_empty(requirement.type_parameters);
+        if own.is_empty() != requirement.type_parameters.is_empty() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("type parameter span"),
+            ));
+        }
+        let mut parameters = Vec::new();
+        if self.rigid
+            && let Some((owner, row)) = self
+                .signature_view_owner
+                .and_then(|member| typed.owned_conformance_realization(member))
+            && row.requirement == requirement.symbol
+        {
+            parameters.extend(
+                typed
+                    .conformance_type_parameters(owner)
+                    .into_iter()
+                    .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. })),
+            );
+        }
+        parameters.extend(own);
+        Ok(parameters)
+    }
+
     /// The value parameters of a trait requirement, in declaration order,
     /// each with its carrier. The type scope holds the type parameters.
     pub(super) fn requirement_binders(
@@ -2731,13 +2782,7 @@ impl<'t> Program<'t> {
         requirement: &StateSignature,
     ) -> Checked<Vec<(SymbolHandle, semantic_vocabulary::ScalarType)>> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
-        let parameters = self
-            .typed
-            .data_type_parameters
-            .span_or_empty(requirement.type_parameters);
-        if parameters.is_empty() != requirement.type_parameters.is_empty() {
-            return unserved("type parameter span");
-        }
+        let parameters = self.requirement_parameters(id, requirement)?;
         let mut binders = Vec::with_capacity(parameters.len());
         for parameter in parameters {
             if parameter.kind == crate::source_state::data::TypeParameterKind::Type
@@ -2775,11 +2820,15 @@ impl<'t> Program<'t> {
                 ));
             }
             let scalar_type = self.scalar_type(id, type_reference)?;
-            if !matches!(scalar_type, semantic_vocabulary::ScalarType::Integer(_)) {
+            if !matches!(
+                scalar_type,
+                semantic_vocabulary::ScalarType::Integer(_)
+                    | semantic_vocabulary::ScalarType::Boolean
+            ) {
                 return Err(refuse(
                     id,
                     Construct::Machine,
-                    Unserved::Parameter("value parameter that is not an integer"),
+                    Unserved::Parameter("value parameter that is not an integer or a Boolean"),
                 ));
             }
             binders.push((parameter.symbol, scalar_type));
@@ -4126,10 +4175,14 @@ impl<'t> Program<'t> {
             }
             ValueType::Record(_, _, _) => None,
             ValueType::Scalar(scalar, _) => Some(
-                Some(
-                    self.typed
-                        .normalized_type_identity_text(self.plain_scalar_reference(id, scalar)?),
-                )
+                Some(self.typed.normalized_type_identity_text(match scalar {
+                    semantic_vocabulary::ScalarType::Integer(integer)
+                        if integer.bits().is_none() =>
+                    {
+                        carrier
+                    }
+                    _ => self.plain_scalar_reference(id, scalar)?,
+                }))
                 .filter(|identity| !identity.is_empty())
                 .ok_or_else(|| {
                     refuse(
@@ -4345,15 +4398,36 @@ impl<'t> Program<'t> {
         self.static_truths.clear();
         let mut position = 0;
         while let Some(statement) = statements.get(position) {
+            let handle = state
+                .statement_nodes
+                .handle_at(u32::try_from(position).map_err(|_| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Statement("statement position exceeds its source arena"),
+                    )
+                })?);
             if statically_completed && let StatementNode::Transition(transition) = statement {
-                // A later target is not executed, but a closed static guard
-                // still has an exact source operator selection. Evaluate only
-                // that static predicate, without reading the target's body.
-                if let crate::source_state::statement::TransitionGuardNode::When(guard) =
-                    transition.guard
-                {
-                    self.read_static_truth(id, symbol, guard, super::types::Reading::Value)?;
-                }
+                // A later closed type predicate still has checked operators.
+                // This specialization reads neither a runtime guard nor its target.
+                let read = match transition.guard {
+                    crate::source_state::statement::TransitionGuardNode::When(guard)
+                        if matches!(
+                            self.read_static_truth(
+                                id,
+                                symbol,
+                                guard,
+                                super::types::Reading::Value
+                            )?,
+                            Some(super::types::TypeTruth::Known(_))
+                        ) =>
+                    {
+                        TransitionRead::Guard
+                    }
+                    _ => TransitionRead::None,
+                };
+                self.completed_operators
+                    .record_transition(machine.symbol, handle, read);
                 position += 1;
                 continue;
             }
@@ -4368,15 +4442,6 @@ impl<'t> Program<'t> {
             // A statement skipped by `continue` may still have read a block.
             self.join_block_slots(&mut slots, &mut slot_names);
             self.block_slot_base = slots.len();
-            let handle = state
-                .statement_nodes
-                .handle_at(u32::try_from(position).map_err(|_| {
-                    refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Statement("statement position exceeds its source arena"),
-                    )
-                })?);
             let read = match statement {
                 StatementNode::Assembly(_) => {
                     return Err(refuse(
@@ -4441,7 +4506,7 @@ impl<'t> Program<'t> {
                                 names.exits.push((span, position));
                             }
                             Statement::Arm {
-                                guard: None,
+                                guard: ArmGuard::Always,
                                 source: expression.source,
                                 target: Target::Value(expression),
                             }
@@ -4502,6 +4567,13 @@ impl<'t> Program<'t> {
                         state.statement_nodes.handles().skip(position),
                         signature.result,
                     )?;
+                    for arm in state.statement_nodes.handles().skip(position).take(taken) {
+                        self.completed_operators.record_transition(
+                            machine.symbol,
+                            arm,
+                            TransitionRead::GuardAndTarget,
+                        );
+                    }
                     completed = true;
                     position += taken.saturating_sub(1);
                     dispatch
@@ -4516,19 +4588,33 @@ impl<'t> Program<'t> {
                         }
                         crate::source_state::statement::TransitionGuardNode::Always => None,
                     };
+                    self.completed_operators.record_transition(
+                        machine.symbol,
+                        handle,
+                        if decided == Some(false) {
+                            TransitionRead::Guard
+                        } else {
+                            TransitionRead::GuardAndTarget
+                        },
+                    );
                     if decided == Some(false) {
                         self.transition_predicate(id, &slots, transition)?;
                         position += 1;
                         continue;
                     }
                     let (guard, target) = self.transition(id, &slots, handle, signature.result)?;
-                    let guard = if decided == Some(true) {
-                        statically_completed = true;
-                        None
-                    } else {
-                        guard
+                    let guard = match (decided, guard) {
+                        (Some(true), _) => {
+                            statically_completed = true;
+                            ArmGuard::Always
+                        }
+                        (_, None) => ArmGuard::Always,
+                        (_, Some(condition)) if transition.ends_dispatch => {
+                            ArmGuard::Final(condition)
+                        }
+                        (_, Some(condition)) => ArmGuard::When(condition),
                     };
-                    completed = guard.is_none();
+                    completed = guard.closes_dispatch();
                     Statement::Arm {
                         guard,
                         target,
@@ -4740,7 +4826,7 @@ fn mutable_formal(
 /// binder.
 fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceSpan, Binder)>) {
     match statement {
-        Statement::Bind { slot, value } => {
+        Statement::Observe { slot, value } | Statement::Bind { slot, value } => {
             if let Some(name) = slot_names.get(*slot) {
                 spans(value, &Binder::Local(name.clone()), out);
             }
@@ -4780,6 +4866,7 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
         | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }
+        | Statement::Observe { .. }
         | Statement::Bind { .. }
         | Statement::Store { .. }
         | Statement::Evaluate { .. } => Vec::new(),

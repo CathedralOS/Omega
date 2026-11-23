@@ -2,9 +2,10 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AdapterEncodingError;
 use AdapterEncodingError as Error;
-use calling_conventions::MachineRegister;
+use calling_conventions::{MachineRegister, gpr_code};
 use post_allocation_machine::adapters::{
-    AdapterInstructions, AdapterOperation, Scalar32Operation, X86AdapterTemplate,
+    AdapterInstructions, AdapterOperation, Scalar32Operation, X86AdapterTemplate, X86Condition,
+    X86DescriptorTable,
 };
 use register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
 use target::Architecture;
@@ -69,14 +70,13 @@ fn view(
             format!("{}{number}", if size == 16 { "q" } else { "d" })
         }
         MachineRegister::X86Xmm(number) if number < 16 => format!("xmm{number}"),
-        register if register.architecture() == Architecture::X86_64 => [
+        register => [
             "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi", "r8", "r9", "r10", "r11",
             "r12", "r13", "r14", "r15",
         ]
-        .get(usize::from(register.codec_index()))
+        .get(usize::from(gpr_code(register).ok_or(AdapterEncodingError)?))
         .ok_or(AdapterEncodingError)?
         .to_string(),
-        _ => return Err(AdapterEncodingError),
     };
     model
         .model()
@@ -265,7 +265,7 @@ pub(crate) fn encode_operation(
             vec![0x48, 0x83, if subtract { 0xec } else { 0xc4 }, amount]
         }
         Op::X86RequireEqual { register, value } => {
-            let code = register.codec_index();
+            let code = gpr_code(register).ok_or(AdapterEncodingError)?;
             vec![
                 0x48 | (code >> 3),
                 0x83,
@@ -278,7 +278,7 @@ pub(crate) fn encode_operation(
             ]
         }
         Op::X86IncrementChecked { register } => {
-            let code = register.codec_index();
+            let code = gpr_code(register).ok_or(AdapterEncodingError)?;
             vec![
                 0x48 | (code >> 3),
                 0x83,
@@ -290,8 +290,12 @@ pub(crate) fn encode_operation(
                 0x0b,
             ]
         }
-        Op::X86DescriptorStore { offset, operation } => {
-            let mut encoded = vec![0x0f, 0x01, 0x84 | (operation << 3), 0x24];
+        Op::X86DescriptorStore { offset, table } => {
+            let modrm = match table {
+                X86DescriptorTable::Global => 0x84,
+                X86DescriptorTable::Interrupt => 0x8c,
+            };
+            let mut encoded = vec![0x0f, 0x01, modrm, 0x24];
             encoded.extend_from_slice(&offset.to_le_bytes());
             encoded
         }
@@ -300,8 +304,13 @@ pub(crate) fn encode_operation(
             encoded.extend_from_slice(&value.to_le_bytes());
             encoded
         }
-        Op::X86Require { condition } => {
-            let mut encoded = vec![condition, 4];
+        Op::X86Require(condition) => {
+            let jump = match condition {
+                X86Condition::Equal => 0x74,
+                X86Condition::NotEqual => 0x75,
+                X86Condition::UnsignedLessOrEqual => 0x76,
+            };
+            let mut encoded = vec![jump, 4];
             encoded.extend_from_slice(&isa_x86_64::PRIVILEGED_STOP_BYTES);
             encoded
         }
@@ -316,8 +325,8 @@ pub(crate) fn encode_operation(
 fn encode_scalar32(operation: Scalar32Operation) -> Result<Vec<u8>, Error> {
     use Scalar32Operation as S;
     let register = |register: MachineRegister| {
-        (register.architecture() == Architecture::X86_64 && register.codec_index() < 8)
-            .then_some(register.codec_index())
+        gpr_code(register)
+            .filter(|code| *code < 8)
             .ok_or(AdapterEncodingError)
     };
     let immediate = |mut bytes: Vec<u8>, value: u32| {
@@ -358,7 +367,7 @@ mod tests {
     use AdapterOperation as Op;
     use MachineRegister as R;
 
-    fn check(architecture: Architecture, operations: Vec<Op>) {
+    fn check(architecture: Architecture, operations: Vec<Op>) -> Vec<u8> {
         let mut program = AdapterInstructions {
             architecture,
             operations,
@@ -377,6 +386,7 @@ mod tests {
         }
         .unwrap();
         assert_eq!(effects, decoded.effects, "{:?}", program.operations);
+        bytes
     }
 
     #[test]
@@ -452,6 +462,51 @@ mod tests {
     }
 
     #[test]
+    fn integer_adapter_checks_require_an_x86_general_purpose_register() {
+        for register in [R::X86Xmm(0), R::Aarch64X(0), R::Aarch64V(0)] {
+            for operation in [
+                Op::X86RequireEqual { register, value: 1 },
+                Op::X86IncrementChecked { register },
+            ] {
+                let program = AdapterInstructions {
+                    architecture: Architecture::X86_64,
+                    operations: vec![operation, Op::Call, Op::Return],
+                };
+                assert_eq!(encode_instructions(&program), Err(AdapterEncodingError));
+            }
+        }
+    }
+
+    #[test]
+    fn installed_adapter_preserves_the_descriptor_table_and_guard_predicate() {
+        for (operation, expected) in [
+            (
+                Op::X86DescriptorStore {
+                    offset: 16,
+                    table: X86DescriptorTable::Global,
+                },
+                &[0x0f, 0x01, 0x84, 0x24, 16, 0, 0, 0][..],
+            ),
+            (
+                Op::X86DescriptorStore {
+                    offset: 16,
+                    table: X86DescriptorTable::Interrupt,
+                },
+                &[0x0f, 0x01, 0x8c, 0x24, 16, 0, 0, 0],
+            ),
+            (Op::X86Require(X86Condition::Equal), &[0x74, 4]),
+            (Op::X86Require(X86Condition::NotEqual), &[0x75, 4]),
+            (
+                Op::X86Require(X86Condition::UnsignedLessOrEqual),
+                &[0x76, 4],
+            ),
+        ] {
+            let bytes = check(Architecture::X86_64, vec![operation]);
+            assert_eq!(&bytes[..expected.len()], expected);
+        }
+    }
+
+    #[test]
     fn installed_adapter_templates_declare_every_register_and_cpu_state_use() {
         use X86AdapterTemplate as T;
         for template in [
@@ -498,12 +553,7 @@ mod tests {
             Op::X86IncrementChecked {
                 register: R::X86R10,
             },
-            Op::X86DescriptorStore {
-                offset: 16,
-                operation: 1,
-            },
             Op::X86CompareEax { value: 4095 },
-            Op::X86Require { condition: 0x74 },
             Op::X86Stop,
         ] {
             check(Architecture::X86_64, vec![operation]);

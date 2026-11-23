@@ -1,3 +1,6 @@
+use targets/windows_x86_64/filesystem/errors.omg as errors;
+use targets/windows_x86_64/filesystem/handles.omg as handles;
+use filesystem_host.omg as paths;
 use ErrorKind;
 use File;
 use IoResult;
@@ -69,45 +72,45 @@ reaches FilesystemContentWrite
     machine stopped(count: i64) -> UnitResult {
         transition count == 0 {
             true -> (UnitResult::Error { kind: ErrorKind::WriteZero }),
-            false -> (UnitResult::Error { kind: windows_filesystem_status_error(count) })
+            false -> (UnitResult::Error { kind: |errors|::windows_filesystem_status_error(count) })
         }
     }
 }
 
-machine windows_filesystem_write_all(path: @[u8] in Path, bytes: @[u8]) -> UnitResult
+machine windows_filesystem_write_all(path: @[u8] in |paths|::Path, bytes: @[u8]) -> UnitResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
-    let acquired: OpenResult = block windows_filesystem_create(path);
+    let acquired: OpenResult = block |handles|::windows_filesystem_create(path);
     transition acquired {
         OpenResult::Error { kind } -> (UnitResult::Error { kind: kind }),
         OpenResult::Ok { file } -> block write(file, bytes)
     }
     machine write(file: File, bytes: @[u8]) -> UnitResult {
         let outcome: UnitResult = block windows_filesystem_write_complete(file, bytes);
-        let released: UnitResult = block windows_filesystem_close(file);
+        let released: UnitResult = block |handles|::windows_filesystem_close(file);
         windows_filesystem_finish_unit(outcome, released)
     }
 }
 
 // Match the portable bounded-read contract: a short read is a successful
 // initialized prefix, not a promise to fill the caller's entire buffer.
-machine windows_filesystem_read_all(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult
+machine windows_filesystem_read_all(path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     transition count <= buffer.length {
         true -> block acquire(path, buffer, count),
         false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
     }
-    machine acquire(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult {
-        let acquired: OpenResult = block windows_filesystem_open(path);
+    machine acquire(path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> IoResult {
+        let acquired: OpenResult = block |handles|::windows_filesystem_open(path);
         transition acquired {
             OpenResult::Error { kind } -> (IoResult::Error { kind: kind }),
             OpenResult::Ok { file } -> block read(file, buffer, count)
         }
     }
     machine read(file: File, buffer: @mutable [u8], count: u64) -> IoResult {
-        let outcome: IoResult = block windows_filesystem_read(file, buffer, count);
-        let released: UnitResult = block windows_filesystem_close(file);
+        let outcome: IoResult = block |handles|::windows_filesystem_read(file, buffer, count);
+        let released: UnitResult = block |handles|::windows_filesystem_close(file);
         windows_filesystem_finish_read(outcome, released)
     }
 }

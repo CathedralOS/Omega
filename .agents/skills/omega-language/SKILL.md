@@ -28,8 +28,8 @@ wrong.
 3. **Prove it.** Run the example through the current compiler, built from the
    current `main` (see `AGENTS.md` Commands; `mbx` is mandatory). Command
    spellings are defined in `wiki/spec/build/command_line.md`; use them as
-   written there. `--check` passing is not enough for runnable code: run it
-   (`omega run --both`) and inspect the actual output.
+   written there. For runnable code, check the expected exit and output streams
+   separately on native and Psi.
 4. **Cite it.** When showing an example to a person, name the file you took the
    form from and say whether you ran it. If you could not run it, say so.
 

@@ -17,8 +17,8 @@ to another logical file changes its public address. Keep the public machine
 at its published address when delegating its implementation to a helper.
 No module header is needed.
 
-Generated source uses the logical filename admitted through
-[`Build::include_source`](../build/execution.md#generated-source-boundary).
+Generated and handwritten files use their logical filenames in the package's
+[frozen source view](../build/execution.md#generated-source-boundary).
 Two different source units cannot occupy one logical filename in the same
 package and source context.
 

@@ -3,14 +3,14 @@
 //! what stage 05 does with it.
 //!
 //! Two modules each declare a public constant named `N`, with different
-//! values. `choose` takes an array of `east\N` bytes and passes it to `pair`,
-//! which requires two. `other` takes an array of `west\N` bytes and passes it
+//! values. `choose` takes an array of `|east|::N` bytes and passes it to `pair`,
+//! which requires two. `other` takes an array of `|west|::N` bytes and passes it
 //! to `triple`, which requires three. `plain` writes its extent as the
 //! literal `2` and names no constant.
 //!
 //! Only the qualified path tells the two constants apart, so a compiler that
 //! picked a constant by its last name would give one machine the other's
-//! extent. With `east\N` at 2 and `west\N` at 3 the program is valid; any
+//! extent. With `|east|::N` at 2 and `|west|::N` at 3 the program is valid; any
 //! other pairing passes an array of the wrong length.
 #![allow(dead_code)]
 
@@ -35,10 +35,12 @@ use source_completion_accounting::SourceCompletionAccounting;
 use source_provenance::DependencyScope;
 use symbols::SymbolHandle;
 
-pub const MAIN: &str = r"machine pair(values: @[u8; 2]) -> u8 { values[0u64] }
+pub const MAIN: &str = r"use east/value.omg as east;
+use west/value.omg as west;
+machine pair(values: @[u8; 2]) -> u8 { values[0u64] }
 machine triple(values: @[u8; 3]) -> u8 { values[0u64] }
-machine choose(values: @[u8; east\N]) -> u8 { pair(values) }
-machine other(values: @[u8; west\N]) -> u8 { triple(values) }
+machine choose(values: @[u8; |east|::N]) -> u8 { pair(values) }
+machine other(values: @[u8; |west|::N]) -> u8 { triple(values) }
 machine plain(values: @[u8; 2]) -> u8 { pair(values) }";
 
 /// The machines that hold an extent under test, in source order.
@@ -142,6 +144,13 @@ pub fn prepare(east: u64, west: u64, initializer: Initializer, entries: &[&str])
         }
     }
     let mut request = resolution::ResolutionRequest::new(syntax.unwrap());
+    request.top_level_bindings = resolution::fixture_file_bindings(
+        &sources,
+        &[
+            ("product/main.omg", "product/east/value.omg", "east"),
+            ("product/main.omg", "product/west/value.omg", "west"),
+        ],
+    );
     request.sources = Some(std::sync::Arc::new(sources));
     let resolved = resolution::resolve(request).unwrap();
     let typed = typing::lower_symbol_resolved_trees(&resolved).unwrap();
@@ -189,6 +198,15 @@ pub fn extent_uses(trees: &TypedTrees) -> Vec<ExtentUse> {
             let [origin] = types.constant_origins(array).unwrap() else {
                 return None;
             };
+            let file = trees
+                .symbols
+                .source_file(origin.reference)
+                .expect("extent reference file");
+            assert_eq!(
+                file.logical_filename().unwrap(),
+                "main.omg",
+                "the extent reference belongs to the file that names the constant"
+            );
             let span = origin.reference.span;
             Some(ExtentUse {
                 array,
@@ -223,7 +241,17 @@ pub fn literal_extents(trees: &TypedTrees) -> Vec<usize> {
 }
 
 pub fn path(trees: &TypedTrees, symbol: SymbolHandle) -> String {
-    trees.symbols.display_path(symbol, "\\")
+    let span = trees
+        .symbols
+        .symbol_source_span(symbol)
+        .expect("constant declaration span");
+    let sources = trees.symbols.source_map().unwrap();
+    let file = sources.file_at(span).unwrap();
+    format!(
+        "{}:{}",
+        file.logical_filename().unwrap(),
+        trees.symbols.name(symbol)
+    )
 }
 
 /// The value recorded on a constant's declaration, if it has been evaluated.

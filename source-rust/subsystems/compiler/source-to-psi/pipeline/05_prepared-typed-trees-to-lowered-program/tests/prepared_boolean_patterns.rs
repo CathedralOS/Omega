@@ -183,7 +183,7 @@ fn a_declaration_value_that_contradicts_its_initializer_is_refused() {
         let fixture = prepare(true, initializer);
         let prepared = &fixture.program;
         let [eastern, western] = both_uses(prepared);
-        // Give `east\ON` the value of `west\ON` and leave everything else,
+        // Give `|east|::ON` the value of `|west|::ON` and leave everything else,
         // including the initializer stage 05 compares that value with.
         let altered = prepared_with(prepared, |trees| {
             let substitute = declaration_mut(trees, western.selected)

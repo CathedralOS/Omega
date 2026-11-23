@@ -23,7 +23,19 @@ fn each_qualified_pattern_arrives_with_its_own_declaration_and_value() {
         for east in [true, false] {
             let prepared = prepare(east, initializer).program;
             let trees = prepared.trees();
-            let path = |symbol| trees.symbols.display_path(symbol, "\\");
+            let path = |symbol| {
+                let span = trees
+                    .symbols
+                    .symbol_source_span(symbol)
+                    .expect("constant declaration span");
+                let sources = trees.symbols.source_map().unwrap();
+                let file = sources.file_at(span).unwrap();
+                format!(
+                    "{}:{}",
+                    file.logical_filename().unwrap(),
+                    trees.symbols.name(symbol)
+                )
+            };
 
             // The request needs exactly the two constants, each frozen with
             // the value its own module gave it.
@@ -35,8 +47,8 @@ fn each_qualified_pattern_arrives_with_its_own_declaration_and_value() {
             assert_eq!(
                 constants,
                 [
-                    ("east\\ON".to_owned(), east),
-                    ("west\\ON".to_owned(), !east)
+                    ("east/value.omg:ON".to_owned(), east),
+                    ("west/value.omg:ON".to_owned(), !east)
                 ],
                 "{initializer:?}"
             );
@@ -49,7 +61,11 @@ fn each_qualified_pattern_arrives_with_its_own_declaration_and_value() {
                 })
                 .collect();
             demanded.sort();
-            assert_eq!(demanded, ["east\\ON", "west\\ON"], "{initializer:?}");
+            assert_eq!(
+                demanded,
+                ["east/value.omg:ON", "west/value.omg:ON"],
+                "{initializer:?}"
+            );
 
             // Each use names the declaration of the path written there. The literal `true` in `plain`
             // is not among them: it selects no constant.
@@ -57,15 +73,18 @@ fn each_qualified_pattern_arrives_with_its_own_declaration_and_value() {
             let [eastern, western] = uses.as_slice() else {
                 panic!("expected the two qualified patterns, found {uses:?}")
             };
-            for (constant, value) in [(eastern, east), (western, !east)] {
-                assert_eq!(path(constant.selected), constant.written, "{initializer:?}");
+            for (constant, value, owner) in [
+                (eastern, east, "east/value.omg:ON"),
+                (western, !east, "west/value.omg:ON"),
+            ] {
+                assert_eq!(path(constant.selected), owner, "{initializer:?}");
                 let declaration = trees
                     .const_declaration_by_symbol(constant.selected)
                     .unwrap();
                 assert_eq!(declared_value(declaration), value, "{initializer:?}");
             }
-            assert_eq!(eastern.written, "east\\ON");
-            assert_eq!(western.written, "west\\ON");
+            assert_eq!(eastern.written, "|east|::ON");
+            assert_eq!(western.written, "|west|::ON");
             assert_ne!(eastern.selected, western.selected);
         }
     }

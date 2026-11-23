@@ -59,10 +59,9 @@ SAMPLE=samples/cli/independent/instrument_hysteresis
 ```
 
 Results, commands, elapsed times, stderr and native stdout are retained under
-`build/`. The current public `--both` contract compares termination only; its
-native stdout is checked against the frozen oracle. It does not expose Terminal
-stdout, so termination agreement does not claim a byte-for-byte Terminal output
-check. The invalid control must fail for the authored value-101 invariant
+`build/`. The CLI compares termination, stdout and stderr between engines. The validator checks
+the forwarded native stdout against the frozen oracle. The invalid control must fail for the
+authored value-101 invariant
 violation, not merely for missing package review or another infrastructure
 failure.
 

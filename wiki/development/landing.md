@@ -117,9 +117,10 @@ acceptance is complete; a checkpoint merge keeps outcome ownership.
 Publish a fresh [warm build](testing.md#warm-build-for-cloud-sessions) from
 `omega-linux` when cloud sessions start too far behind main.
 
-Run the original program on the landed source and follow its next failure on
-the warm worktree. A pre-existing failure remains part of that assignment. If
-the session must stop, record an unfinished handoff under the law of completion.
+The pre-merge fixture result still applies after publication. Continue any
+unmet acceptance on the warm worktree, including a known failure in the
+original program. If the session must stop, record an unfinished handoff
+under the law of completion.
 Keep uncommitted or unsubmitted work, saved producers and evidence;
 never clean another session's files or shared caches.
 

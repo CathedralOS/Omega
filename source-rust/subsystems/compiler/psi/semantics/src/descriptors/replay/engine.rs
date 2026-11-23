@@ -4203,11 +4203,7 @@ impl<'a> Replay<'a> {
                     .collect::<Option<_>>()?,
             });
         }
-        let invalidates_contents = machine.normal_exits.iter().any(|position| {
-            states
-                .get(position)
-                .is_some_and(|state| state.contents_invalidated)
-        });
+        let invalidates_contents = completed.values().any(|state| state.contents_invalidated);
         let result_cases = result_cases.unwrap_or_default();
         let contents = result_contents.unwrap_or_default();
         let summary = Summary {

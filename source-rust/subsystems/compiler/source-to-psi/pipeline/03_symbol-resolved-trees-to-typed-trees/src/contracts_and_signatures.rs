@@ -108,7 +108,7 @@ pub(crate) mod contracts {
 
         /// Every kind a top-level name can select: a written row naming any
         /// of these names something, even when it is not a requirement.
-        const DECLARATION_KINDS: [SymbolKind; 15] = [
+        pub(crate) const DECLARATION_KINDS: [SymbolKind; 16] = [
             SymbolKind::Module,
             SymbolKind::BuiltinType,
             SymbolKind::BuiltinFunction,
@@ -124,6 +124,7 @@ pub(crate) mod contracts {
             SymbolKind::Conformance,
             SymbolKind::Const,
             SymbolKind::WireSchema,
+            SymbolKind::TypeAlias,
         ];
     }
     pub(crate) mod parameter_domains {

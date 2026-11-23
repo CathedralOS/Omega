@@ -96,7 +96,7 @@ def _encode(packages, edges, units, entry_unit, entry_name, paths, build_sources
                       for supplier, path, data in build_sources]
     if len(package_rows) > 64 or len(edge_rows) > 256 or len(unit_rows) > 512:
         raise ValueError('constructor row capacity exceeded')
-    if len(buffer) > 4194304:
+    if len(buffer) > 8 * 1024 * 1024:
         raise ValueError('constructor byte capacity exceeded')
     words = ([] if paths is None else [0, 1]) + [len(package_rows), len(edge_rows), len(unit_rows), entry_unit,
              entry_start, entry_end, len(buffer)]

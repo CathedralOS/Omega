@@ -8,11 +8,12 @@ use super::super::scalar_codec::{decode, encode, scalar_extent};
 use super::original_homes::{exact_layout, rejection};
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, ScalarType, StructuralTypeId};
+use std::cell::OnceCell;
 use terminal_interpreter::{
     TerminalAggregateValue, TerminalBoundaryStorageValue, TerminalEffectRejection, TerminalProgram,
     TerminalStorageContents,
 };
-use terminal_psi::StructuralTypeShape;
+use terminal_psi::{StructuralTypeDeclaration, StructuralTypeShape};
 
 pub(super) struct ScalarField {
     pub path: Vec<Path>,
@@ -36,9 +37,72 @@ pub(super) struct StorageCodec {
     pub references: Vec<ReferenceField>,
 }
 
+/// A native import can receive references into caller-owned storage. Build the
+/// codec for an actual reference when it is first used, using the same resolved
+/// declarations and target layouts that were in effect when the import was bound.
+pub(super) struct ReferenceCodecs {
+    pub layouts: Vec<NativeBorrowedStorageLayout>,
+    types: Vec<ReferenceStorageType>,
+}
+
+struct ReferenceStorageType {
+    declaration: StructuralTypeDeclaration,
+    codec: OnceCell<Option<StorageCodec>>,
+}
+
+impl ReferenceCodecs {
+    pub fn new<'types>(
+        declarations: impl Iterator<Item = &'types StructuralTypeDeclaration>,
+        layouts: &[NativeBorrowedStorageLayout],
+    ) -> Self {
+        let mut types: Vec<_> = declarations
+            .cloned()
+            .map(|declaration| ReferenceStorageType {
+                declaration,
+                codec: OnceCell::new(),
+            })
+            .collect();
+        types.sort_unstable_by_key(|row| row.declaration.id);
+        Self {
+            types,
+            layouts: layouts.to_vec(),
+        }
+    }
+
+    fn storage_type(&self, id: StructuralTypeId) -> Option<&ReferenceStorageType> {
+        let position = self
+            .types
+            .binary_search_by_key(&id, |row| row.declaration.id)
+            .ok()?;
+        self.types.get(position)
+    }
+
+    pub fn get(&self, id: &StructuralTypeId) -> Option<&StorageCodec> {
+        self.storage_type(*id)?
+            .codec
+            .get_or_init(|| {
+                StorageCodec::from_declarations(
+                    |ty| self.storage_type(ty).map(|row| &row.declaration),
+                    &self.layouts,
+                    *id,
+                )
+                .ok()
+            })
+            .as_ref()
+    }
+}
+
 impl StorageCodec {
     pub fn admit(
         program: &TerminalProgram,
+        layouts: &[NativeBorrowedStorageLayout],
+        structural_type: StructuralTypeId,
+    ) -> Result<Self, TerminalEffectRejection> {
+        Self::from_declarations(|id| program.structural_type(id), layouts, structural_type)
+    }
+
+    fn from_declarations<'types>(
+        declaration_for: impl Fn(StructuralTypeId) -> Option<&'types StructuralTypeDeclaration>,
         layouts: &[NativeBorrowedStorageLayout],
         structural_type: StructuralTypeId,
     ) -> Result<Self, TerminalEffectRejection> {
@@ -48,8 +112,7 @@ impl StorageCodec {
                 "native import needs a resident tag or opaque-region codec",
             ));
         }
-        let declaration = program
-            .structural_type(structural_type)
+        let declaration = declaration_for(structural_type)
             .ok_or_else(|| rejection("native codec has no semantic structural declaration"))?;
         if declaration.quotient_carrier.is_some() {
             return Err(rejection("native import needs its exact quotient codec"));
@@ -97,7 +160,7 @@ impl StorageCodec {
                 },
             )?;
         }
-        let semantic = super::record_fields::fields(program, structural_type)?;
+        let semantic = super::record_fields::fields(declaration_for, structural_type)?;
         let mut fields = Vec::new();
         for field in semantic.scalars {
             let path = field.path;

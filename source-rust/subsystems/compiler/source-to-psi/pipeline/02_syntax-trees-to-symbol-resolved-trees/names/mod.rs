@@ -73,6 +73,16 @@ pub(crate) fn select_machine_entry<T>(
 pub(crate) struct NamespaceDeclarations {
     text: syntax_trees::SyntaxTextOwner,
     imports: Vec<Vec<syntax_trees::identifier::Identifier>>,
+    file_imports: Vec<FileImport>,
+}
+
+/// An authored `use path.omg as alias;`, kept for callers that admit sources
+/// without the compiler's file loader.
+struct FileImport {
+    source: source_text::SourceId,
+    root: Option<String>,
+    path: String,
+    alias: String,
 }
 
 impl syntax_trees::SyntaxTextContext for NamespaceDeclarations {
@@ -90,6 +100,31 @@ impl NamespaceDeclarations {
         self.text.retain_from(&syntax.text);
         self.imports
             .push(syntax.items.identifier_path_members(path).to_vec());
+    }
+
+    /// Keep a file import with its filename spelled as the loader spells it.
+    pub(crate) fn record_file_import(
+        &mut self,
+        syntax: &syntax_trees::SyntaxTrees,
+        root: Option<&syntax_trees::identifier::Identifier>,
+        components: arena::HandleSpan<syntax_trees::identifier::Identifier>,
+        alias: &syntax_trees::identifier::Identifier,
+        span: source_text::SourceSpan,
+    ) {
+        let mut path = syntax
+            .items
+            .identifier_path_members(components)
+            .iter()
+            .map(|name| name.as_str(syntax))
+            .collect::<Vec<_>>()
+            .join("/");
+        path.push_str(".omg");
+        self.file_imports.push(FileImport {
+            source: span.source_id,
+            root: root.map(|name| name.as_str(syntax).to_owned()),
+            path,
+            alias: alias.as_str(syntax).to_owned(),
+        });
     }
 
     fn record_import_selections(
@@ -154,6 +189,14 @@ impl NamespaceDeclarations {
             };
             let name = path.joined_path_in(&self.text);
             symbols.register_source_import(first.source_span().source_id, &name);
+        }
+        for import in &self.file_imports {
+            symbols.register_source_file_import(
+                import.source,
+                import.root.as_deref(),
+                &import.path,
+                &import.alias,
+            );
         }
         Ok(())
     }

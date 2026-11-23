@@ -21,6 +21,8 @@ pub mod synchronous_calls;
 pub use content_transformations::{domain_preservation, quotients};
 pub mod control_graph;
 pub mod descriptors;
+mod domain_issuance;
+pub use domain_issuance::DeniedEstablishment;
 pub mod float_meaning_sources;
 pub mod inhabitation;
 mod membership_facts;
@@ -294,11 +296,12 @@ pub use structural::structural_window::{
     structural_window_selects_child,
 };
 pub use structural::zeroed_structural::{
-    EstablishedErasedStructuralField, ZeroedStructuralLeaf,
-    zeroed_projected_byte_qualifications_hold, zeroed_structural_fields_satisfy,
-    zeroed_structural_leaves, zeroed_structural_leaves_modulo_references,
+    EstablishedErasedStructuralField, RepeatedZeroedElement, ZeroedStructuralLeaf,
+    ZeroedStructuralStorage, zeroed_projected_byte_qualifications_hold,
+    zeroed_structural_fields_satisfy, zeroed_structural_leaves,
+    zeroed_structural_leaves_modulo_references,
     zeroed_structural_leaves_with_established_erased_fields, zeroed_structural_shape,
-    zeroed_structural_types_and_fields_satisfy,
+    zeroed_structural_storage, zeroed_structural_types_and_fields_satisfy,
 };
 pub use terminal_psi::types::representation_views::{
     ScalarRepresentationViewPair, ScalarViewValue, declaration as representation_view_declaration,

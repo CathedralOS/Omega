@@ -388,15 +388,16 @@ impl Program<'_> {
                                             "invocation permission lost its exact actual",
                                         )
                                     })?;
-                                if let Some((_, parameter)) = invocation
+                                // An actual that joins several callable
+                                // formals hands the callee each of them.
+                                let forwarded: Vec<_> = invocation
                                     .parameter_arguments
                                     .iter()
-                                    .find(|(argument, _)| *argument == source_position)
-                                {
-                                    union(
-                                        &mut reached.invocations,
-                                        &[Invocation::Parameter(*parameter)],
-                                    );
+                                    .filter(|(argument, _)| *argument == source_position)
+                                    .map(|(_, parameter)| Invocation::Parameter(*parameter))
+                                    .collect();
+                                if !forwarded.is_empty() {
+                                    union(&mut reached.invocations, &forwarded);
                                     continue;
                                 }
                                 let Some(ValueType::Scalar(
@@ -439,10 +440,10 @@ impl Program<'_> {
                             }
                         }
                     }
-                    if let Some(parameter) = invocation.selected_parameter {
+                    for parameter in &invocation.selected_parameters {
                         union(
                             &mut reached.invocations,
-                            &[Invocation::Parameter(parameter)],
+                            &[Invocation::Parameter(*parameter)],
                         );
                     }
                 }
@@ -1005,7 +1006,8 @@ fn union<T: Clone + Ord>(to: &mut Vec<T>, from: &[T]) {
     to.dedup();
 }
 struct Use<'a> {
-    selected_parameter: Option<u32>,
+    /// The caller's callable formals the invoked value may be.
+    selected_parameters: Vec<u32>,
     parameter_arguments: Vec<(usize, u32)>,
     target: &'a CallTarget,
     required_contract: Option<ContractId>,
@@ -1015,8 +1017,10 @@ struct Use<'a> {
 
 struct CallCollector<'a> {
     sites: Vec<Use<'a>>,
-    // Which caller parameter, if any, supplied the value now in each slot.
-    parameters: Vec<Option<u32>>,
+    // Which caller parameters supplied the value now in each slot: one, or
+    // each formal a `match` joined there. Empty when another value may be
+    // there.
+    parameters: Vec<Vec<u32>>,
 }
 
 impl<'a> CallCollector<'a> {
@@ -1028,7 +1032,7 @@ impl<'a> CallCollector<'a> {
     ) -> Checked<Vec<Use<'a>>> {
         let mut collector = Self {
             sites: Vec::new(),
-            parameters: vec![None; body.slots.len()],
+            parameters: vec![Vec::new(); body.slots.len()],
         };
         for (slot, ty) in signature.parameters.iter().enumerate() {
             let scalar = match ty {
@@ -1047,16 +1051,17 @@ impl<'a> CallCollector<'a> {
                 && let Some(binding) = collector.parameters.get_mut(slot)
             {
                 *binding =
-                    Some(u32::try_from(position).map_err(|_| {
+                    vec![u32::try_from(position).map_err(|_| {
                         unavailable(id, "invocation parameter coordinate overflow")
-                    })?);
+                    })?];
             }
         }
         for statement in &body.statements {
             collect_statement(statement, &mut collector);
             // Evaluate the right-hand side against the old binding before replacing it.
             match statement {
-                Statement::Bind { slot, value }
+                Statement::Observe { slot, value }
+                | Statement::Bind { slot, value }
                 | Statement::Store {
                     destination:
                         Expression {
@@ -1066,7 +1071,7 @@ impl<'a> CallCollector<'a> {
                     value,
                     ..
                 } => {
-                    let parameter = collector.parameter(value);
+                    let parameter = collector.parameters(value);
                     *collector
                         .parameters
                         .get_mut(*slot)
@@ -1078,11 +1083,43 @@ impl<'a> CallCollector<'a> {
         Ok(collector.sites)
     }
 
-    fn parameter(&self, expression: &Expression) -> Option<u32> {
-        self.parameters
-            .get(Self::slot(expression)?)
-            .copied()
-            .flatten()
+    /// The caller's formals `expression` may be, or none when some value it
+    /// may be came from elsewhere. A value `match` may be any of its arms,
+    /// and a named machine is no formal: invoking it enters only what its
+    /// callable type permits.
+    fn parameters(&self, expression: &Expression) -> Vec<u32> {
+        let mut found = Vec::new();
+        if self.traced(expression, &mut found) {
+            found.sort_unstable();
+            found.dedup();
+            found
+        } else {
+            Vec::new()
+        }
+    }
+
+    fn traced(&self, expression: &Expression, found: &mut Vec<u32>) -> bool {
+        match &expression.kind {
+            E::Match { arms, default, .. } => {
+                arms.iter().all(|(_, arm)| self.traced(arm, found))
+                    && default
+                        .as_deref()
+                        .is_none_or(|default| self.traced(default, found))
+            }
+            E::Block {
+                statements,
+                value: Some(value),
+            } if statements.is_empty() => self.traced(value, found),
+            E::MachineValue { .. } => true,
+            E::Requalify(value) => self.traced(value, found),
+            _ => match Self::slot(expression).and_then(|slot| self.parameters.get(slot)) {
+                Some(parameters) if !parameters.is_empty() => {
+                    found.extend_from_slice(parameters);
+                    true
+                }
+                _ => false,
+            },
+        }
     }
 
     fn slot(expression: &Expression) -> Option<usize> {
@@ -1096,7 +1133,8 @@ impl<'a> CallCollector<'a> {
 
 fn collect_statement<'a>(statement: &'a Statement, calls: &mut CallCollector<'a>) {
     match statement {
-        Statement::Bind { value, .. }
+        Statement::Observe { value, .. }
+        | Statement::Bind { value, .. }
         | Statement::Evaluate {
             expression: value, ..
         }
@@ -1129,7 +1167,7 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut CallCollector<'a>
             }
         }
         Statement::Arm { guard, target, .. } => {
-            if let Some(guard) = guard {
+            if let Some(guard) = guard.condition() {
                 collect_expression(guard, calls);
             }
             collect_target(target, calls);
@@ -1161,22 +1199,22 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
             static_reach_arguments,
             ..
         } => {
-            let selected_parameter = if let CallTarget::Selected { callable, .. } = callee {
-                let parameter = calls.parameter(callable);
+            let selected_parameters = if let CallTarget::Selected { callable, .. } = callee {
+                let parameters = calls.parameters(callable);
                 collect_expression(callable, calls);
-                parameter
+                parameters
             } else {
-                None
+                Vec::new()
             };
             let mut parameter_arguments = Vec::new();
             for (position, argument) in arguments.iter().enumerate() {
-                if let Some(parameter) = calls.parameter(argument) {
+                for parameter in calls.parameters(argument) {
                     parameter_arguments.push((position, parameter));
                 }
                 collect_expression(argument, calls);
             }
             calls.sites.push(Use {
-                selected_parameter,
+                selected_parameters,
                 parameter_arguments,
                 target: callee,
                 required_contract: *required_contract,
@@ -1205,7 +1243,7 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut CallCollector<
                 && let Some(slot) = CallCollector::slot(place)
                 && let Some(binding) = calls.parameters.get_mut(slot)
             {
-                *binding = None;
+                binding.clear();
             }
         }
         E::Record { fields } | E::Case { fields, .. } => {

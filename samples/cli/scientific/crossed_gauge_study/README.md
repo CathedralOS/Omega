@@ -55,9 +55,9 @@ separate complete project and never imported by the application. `build/` holds
 compiler and execution artifacts and is ignored. Validation passed on the
 recorded Linux x86-64 compiler: source check and native compilation, all 19
 exact-output native fixtures, all eight native/Terminal exit comparisons, and
-the separate bounds rejection control. The CLI comparison observes Terminal
-exits; interpreted stdout is not exposed by this route and is not claimed as
-verified by that CLI route. The documented repository corpus runner additionally
+the separate bounds rejection control. The CLI compares termination and the exact stdout and
+stderr bytes from native and Psi
+execution. The documented repository corpus runner additionally
 passed all 19 native and admitted Terminal stdout, stderr and exit oracles,
 using unchanged copies of the complete application and frozen fixtures. That
 historical corpus matcher allows CRLF-to-LF normalization; separate native

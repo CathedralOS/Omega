@@ -16,7 +16,9 @@ impl Project {
     }
 
     fn write(&self, name: &str, text: &str) {
-        std::fs::write(self.0.path().join(name), text).unwrap();
+        let path = self.0.path().join(name);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
     }
 
     fn observe(&self, arguments: &[&str], build: impl AsRef<Path>) -> Output {
@@ -70,9 +72,10 @@ fn declaration(source: &str, heading: &str) -> String {
     panic!("unterminated declaration {heading}")
 }
 
-fn adapter_operations(library: &Path) -> String {
-    let mut staged = String::new();
-    for (file, headings) in [
+// A declaration's file determines which siblings it can call and what its
+// import aliases mean. Keep each operation at its standard-library filename.
+fn stage_adapter_operations(project: &Project, library: &Path) {
+    let files = [
         (
             "filesystem.omg",
             &[
@@ -110,29 +113,54 @@ fn adapter_operations(library: &Path) -> String {
             "targets/windows_x86_64/filesystem/directory.omg",
             &["machine windows_filesystem_directory_entry("][..],
         ),
-    ] {
+    ];
+    for (file, headings) in files {
         let source = std::fs::read_to_string(library.join(file)).unwrap();
+        let mut staged = String::new();
+        for line in source.lines() {
+            let Some(import) = line.strip_prefix("use ") else {
+                continue;
+            };
+            let path = import.trim_end_matches(';').split_whitespace().next();
+            if files.iter().any(|(name, _)| Some(*name) == path) {
+                staged.push_str(line);
+                staged.push('\n');
+            }
+        }
         for heading in headings {
             staged.push_str(&declaration(&source, heading));
             staged.push('\n');
         }
+        project.write(file, &staged);
     }
-    staged
 }
 
-fn build(dependency: bool) -> String {
-    let std = support::repository_root().join("source/library/std");
-    let dependency = if dependency {
-        format!(
-            "let std_registration: DependencyRegistration = Build::dependency(builder, dependency\\from_source(Source::Path {{ location: \"{}\" }}));",
-            std.to_string_lossy().replace('\\', "/")
-        )
-    } else {
-        String::new()
-    };
-    format!(
-        "machine build(builder: @mutable Build) {{\nBuild::application(builder, \"portable_filesystem_values\");\n{dependency}\nBuild::bind(builder, windows_x86_64\\ProgramEntry, main);\nBuild::bind(builder, linux_x86_64\\ProgramEntry, main);\nBuild::bind(builder, linux_arm64\\ProgramEntry, main);\nBuild::bind(builder, macos_arm64\\ProgramEntry, main);\n}}\n"
-    )
+fn build() -> String {
+    r#"machine build(builder: @mutable Build) {
+Build::application(builder, "portable_filesystem_values");
+Build::bind(builder, windows_x86_64\ProgramEntry, main);
+Build::bind(builder, linux_x86_64\ProgramEntry, main);
+Build::bind(builder, linux_arm64\ProgramEntry, main);
+Build::bind(builder, macos_arm64\ProgramEntry, main);
+}
+"#
+    .to_owned()
+}
+
+#[test]
+fn raw_windows_filesystem_methods_publish_the_shared_path_domain() {
+    let project = Project::new("windows-path-signatures");
+    let library = support::repository_root().join("source/library/std");
+    for file in ["filesystem_host.omg", "windows_filesystem_host.omg"] {
+        project.write(file, &std::fs::read_to_string(library.join(file)).unwrap());
+    }
+    project.write("main.omg", "");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "raw_fs"); }"#,
+    );
+    let output = project.observe(&["--check"], "main.omg");
+    assert!(output.status.success(), "{}", report(&output));
 }
 
 #[test]
@@ -141,21 +169,9 @@ fn windows_adapter_values_preserve_counts_timestamps_and_whole_names() {
     let library = support::repository_root().join("source/library/std");
     let main = include_str!("fixtures/filesystem/run/windows_adapter_values/main.omg");
     project.write("main.omg", main);
-    project.write("operations.omg", &adapter_operations(&library));
-    project.write("build.omg", &build(false));
-    both_zero(project.observe(
-        &[
-            "run",
-            "--both",
-            "--build-input",
-            "main.omg",
-            "--build-input",
-            "operations.omg",
-            "--build-input",
-            "build.omg",
-        ],
-        "build.omg",
-    ));
+    stage_adapter_operations(&project, &library);
+    project.write("build.omg", &build());
+    both_zero(project.observe(&["run", "--both"], "build.omg"));
 
     // Only the requested extent changes: the same copy must refuse byte 766.
     let invalid = main.replacen(
@@ -165,18 +181,7 @@ fn windows_adapter_values_preserve_counts_timestamps_and_whole_names() {
     );
     assert_ne!(invalid, main);
     project.write("main.omg", &invalid);
-    let output = project.observe(
-        &[
-            "--check",
-            "--build-input",
-            "main.omg",
-            "--build-input",
-            "operations.omg",
-            "--build-input",
-            "build.omg",
-        ],
-        "build.omg",
-    );
+    let output = project.observe(&["--check"], "build.omg");
     let text = report(&output);
     assert!(!output.status.success(), "{text}");
     assert!(
@@ -187,23 +192,12 @@ fn windows_adapter_values_preserve_counts_timestamps_and_whole_names() {
 
 #[test]
 fn portable_filesystem_public_calls_preserve_neighboring_bytes() {
+    // The fixture's own Build declares its standard-library edge. The program
+    // runs in a scratch directory, where it creates and removes its files.
+    let build = support::repository_root()
+        .join("source-rust/application/tests/fixtures/filesystem/run/public_values/build.omg");
     let project = Project::new("public");
-    project.write(
-        "main.omg",
-        include_str!("fixtures/filesystem/run/public_values/main.omg"),
-    );
-    project.write("build.omg", &build(true));
-    both_zero(project.observe(
-        &[
-            "run",
-            "--both",
-            "--build-input",
-            "main.omg",
-            "--build-input",
-            "build.omg",
-        ],
-        "build.omg",
-    ));
+    both_zero(project.observe(&["run", "--both"], &build));
 }
 
 // This rule checks POSIX mode bits and consumes its input directory.

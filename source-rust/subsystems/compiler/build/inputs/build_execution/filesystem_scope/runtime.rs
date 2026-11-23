@@ -115,13 +115,16 @@ impl BuildFilesystemRuntime {
         root: FilesystemGrantRootIdentity,
         relative: &[u8],
     ) -> Result<(), String> {
-        if !filesystem_root_relative_path_is_canonical(relative, false) {
-            return Err("Build path is not a canonical relative path".into());
-        }
-        if root != BUILD_OUTPUT_ROOT_IDENTITY
-            && !(root == BUILD_SOURCE_ROOT_IDENTITY && self.effects.scope.live_source.is_some())
-        {
+        let host_backed = root == BUILD_OUTPUT_ROOT_IDENTITY
+            || (root == BUILD_SOURCE_ROOT_IDENTITY && self.effects.scope.live_source.is_some());
+        let canonical = if host_backed {
+            filesystem_root_relative_path_is_canonical(relative, false)
+        } else {
             self.snapshot(root)?;
+            filesystem_authority::source_snapshot_path_is_canonical(relative, false)
+        };
+        if !canonical {
+            return Err("Build path is not a canonical relative path".into());
         }
         Ok(())
     }
@@ -293,15 +296,21 @@ impl BuildFilesystemRuntime {
             .then(|| self.effects.scope.live_source.clone())
             .flatten();
         if live_source.is_none() {
-            match self.snapshot(root)?.lookup(path) {
-                Ok(build_output::SourceSnapshotEntry::File(_)) => {}
-                Ok(build_output::SourceSnapshotEntry::Directory) => {
-                    return Ok(self.complete_attempt(ordinal, -1, 21) as i32);
-                }
-                Ok(build_output::SourceSnapshotEntry::Symlink(_)) => {
-                    return Ok(self.complete_attempt(ordinal, -1, 40) as i32);
-                }
-                _ => return Ok(self.complete_attempt(ordinal, -1, 2) as i32),
+            use build_output::SourceSnapshotError;
+            if let Err(reason) = self.snapshot(root)?.open_file(path) {
+                let error = match reason {
+                    SourceSnapshotError::NotFound => 2,
+                    SourceSnapshotError::NotDirectory => 20,
+                    SourceSnapshotError::NotFile => 21,
+                    SourceSnapshotError::SymlinkTraversal => 40,
+                    SourceSnapshotError::InvalidPath => 22,
+                    SourceSnapshotError::InvalidRange | SourceSnapshotError::NotSymlink => {
+                        return Err(format!(
+                            "unexpected error opening a captured Build source: {reason:?}"
+                        ));
+                    }
+                };
+                return Ok(self.complete_attempt(ordinal, -1, error) as i32);
             }
         }
         let handle = message(self.account.reserve_site(1, 1, path.len() as u64))?;
@@ -794,15 +803,27 @@ mod tests {
                         logical_byte_length: 5,
                     },
                 ),
+                CanonicalFilesystemMetadataRow::new(
+                    b"link",
+                    Kind::Symlink {
+                        target_spelling_logical_byte_length: 5,
+                    },
+                ),
             ],
         )
         .unwrap();
         let input = CapturedBuildSourceInput::from_capture_rows(
             metadata,
-            [(
-                b"asset".to_vec(),
-                CapturedSourceEntry::file(&b"hello"[..], false),
-            )],
+            [
+                (
+                    b"asset".to_vec(),
+                    CapturedSourceEntry::file(&b"hello"[..], false),
+                ),
+                (
+                    b"link".to_vec(),
+                    CapturedSourceEntry::symlink(b"asset".to_vec()),
+                ),
+            ],
         )
         .unwrap();
         let mut scope = BuildMachineFilesystemScope::for_root(
@@ -814,6 +835,81 @@ mod tests {
         .unwrap();
         scope.establish_filesystem_access().unwrap();
         scope
+    }
+
+    #[test]
+    fn source_and_named_inputs_validate_only_the_selected_snapshot() {
+        use build_output::{SourceSnapshotEntry, SourceSnapshotError};
+        let capture = |names: &[&[u8]]| {
+            let rows = std::iter::once(b"".as_slice())
+                .chain(names.iter().copied())
+                .map(|name| CanonicalFilesystemMetadataRow::new(name, Kind::Directory));
+            CapturedBuildSourceInput::from_capture_rows(
+                CanonicalFilesystemMetadataIndex::version_1([42; 32], rows).unwrap(),
+                names
+                    .iter()
+                    .map(|name| (name.to_vec(), CapturedSourceEntry::Directory)),
+            )
+            .unwrap()
+        };
+        let scope = |input: &CapturedBuildSourceInput| {
+            BuildMachineFilesystemScope::for_admitted_root(
+                ".".into(),
+                "out".into(),
+                None,
+                Some(input.canonical_source_metadata().clone()),
+            )
+        };
+        for path in [b"C:notes".as_slice(), b"assets/X:notes", &[0xff]] {
+            let inventory = capture(&[b"assets", b"clean", path]);
+            assert_eq!(
+                inventory.lookup(path),
+                Err(SourceSnapshotError::InvalidPath)
+            );
+            assert!(
+                scope(&inventory)
+                    .with_captured_source_input(inventory.clone())
+                    .is_err()
+            );
+            assert!(
+                crate::BuildSnapshotRequest::new([])
+                    .with_inputs([(b"assets".to_vec(), inventory.clone())])
+                    .is_err()
+            );
+            scope(&inventory)
+                .with_scoped_package_source_input(capture(&[b"clean"]), &inventory)
+                .unwrap();
+        }
+        let name = "7:café".as_bytes();
+        let input = capture(&[name]);
+        assert_eq!(input.lookup(name), Ok(SourceSnapshotEntry::Directory));
+        scope(&input).with_captured_source_input(input).unwrap();
+    }
+
+    #[test]
+    fn snapshot_open_records_why_a_path_cannot_be_read() {
+        let temp = platform_custody::temporary_directory::TemporaryDirectory::create(
+            "snapshot-open",
+            false,
+        )
+        .unwrap();
+        let scope = scope(temp.path(), "session");
+        let mut runtime = scope.begin_filesystem_runtime(account()).unwrap();
+        for path in [
+            b"link".as_slice(),
+            b"link/child",
+            b"asset/child",
+            b"absent/child",
+        ] {
+            assert_eq!(
+                runtime.open(BUILD_SOURCE_ROOT_IDENTITY, path, 0).unwrap(),
+                -1
+            );
+        }
+        let effects = runtime.finish().unwrap();
+        let errors: Vec<_> = effects.attempts.iter().map(|op| op.post_error).collect();
+        // A final or intermediate symlink, an intermediate file, and a missing entry.
+        assert_eq!(errors, [40, 40, 20, 2]);
     }
 
     fn account() -> EvaluationInvocationAccount {

@@ -6,13 +6,13 @@ use semantic_vocabulary::{
     DomainSemanticId, MachineId, ScalarDomainId, ScalarQualificationSetId, ScalarType,
     StructuralDomainId, StructuralTypeId,
 };
+use terminal_check_tables::program::DomainSource;
 use terminal_check_tables::{Checked, Construct};
 use terminal_psi::{
-    NominalDeclarationIdentity, ScalarDomainDeclaration, ScalarDomainEstablishmentRoute,
-    ScalarDomainPredicate, ScalarQualificationCatalog, ScalarQualificationSet,
-    StructuralDomainDeclaration, StructuralDomainPredicate, StructuralEstablishmentRoute,
-    StructuralQualificationChange, TerminalIdentityIndex, TerminalIdentityTable,
-    TerminalIdentityTableBuilder,
+    NominalDeclarationIdentity, ScalarDomainDeclaration, ScalarDomainPredicate,
+    ScalarQualificationCatalog, ScalarQualificationSet, StructuralDomainDeclaration,
+    StructuralDomainPredicate, StructuralEstablishmentRoute, StructuralQualificationChange,
+    TerminalIdentityTable, TerminalIdentityTableBuilder,
 };
 
 use crate::lowering::body::{DomainInstance, DomainSet, Policy, Qualification, ValueType};
@@ -201,7 +201,7 @@ pub(crate) fn publish_access_plans(
 pub(crate) struct Qualifications {
     pub catalog: ScalarQualificationCatalog,
     pub identities: TerminalIdentityTableBuilder,
-    pub domain_names: arena::IdTable<DomainSemanticId, String>,
+    pub domain_sources: arena::IdTable<DomainSemanticId, DomainSource>,
     last_semantic_domain: u64,
     domains: Vec<(DomainInstance, ScalarDomainId)>,
     policies: Vec<(ScalarType, Policy, ScalarDomainId)>,
@@ -215,12 +215,9 @@ pub(crate) struct Qualifications {
     pub structural_changes: Vec<StructuralQualificationChange>,
 }
 
-/// Which declared route an issuer restriction names.
-#[derive(Clone, Copy)]
-enum RouteKind {
-    ExactMachine,
-    CheckedRequirement,
-    BoundaryRequirement,
+struct EstablishmentRoutes {
+    routes: Vec<StructuralEstablishmentRoute>,
+    issuers: Vec<(MachineId, u32)>,
 }
 
 /// A domain's issuer restriction in canonical order, and each body that may
@@ -228,15 +225,14 @@ enum RouteKind {
 /// restriction; `Some` of nothing permits nobody. One builder serves both
 /// domain families, so a scalar and a record domain written the same way
 /// have the same routes.
-fn establishment_routes<R: Ord>(
+fn establishment_routes(
     typed: &crate::source_state::TypedTrees,
     source: &crate::lowering::read::Program<'_>,
     sources: &[(source_text::SourceId, [u8; 32])],
     builder: &mut TerminalIdentityTableBuilder,
     definition: &crate::source_state::domain::DomainDefinition,
     unavailable: &impl Fn(&'static str) -> terminal_check_tables::Refusal,
-    make: impl Fn(RouteKind, NominalDeclarationIdentity, TerminalIdentityIndex) -> R,
-) -> Checked<Option<(Vec<R>, Vec<(MachineId, u32)>)>> {
+) -> Checked<Option<EstablishmentRoutes>> {
     let routes = match definition.issuance() {
         crate::source_state::domain::DomainIssuance::Unrestricted => return Ok(None),
         crate::source_state::domain::DomainIssuance::Planned(_) => {
@@ -268,11 +264,10 @@ fn establishment_routes<R: Ord>(
                     .machine_callable_identity_text(machine)
                     .filter(|text| !text.is_empty())
                     .ok_or_else(|| unavailable("domain issuer has no callable identity"))?;
-                retained.push(make(
-                    RouteKind::ExactMachine,
-                    NominalDeclarationIdentity::new(declaration),
-                    builder.intern(&callable),
-                ));
+                retained.push(StructuralEstablishmentRoute::ExactMachine {
+                    declaration: NominalDeclarationIdentity::new(declaration),
+                    machine_identity: builder.intern(&callable),
+                });
             }
             source_declarations::DomainEstablishmentRoute::CheckedRequirement {
                 trait_definition,
@@ -304,11 +299,10 @@ fn establishment_routes<R: Ord>(
                 );
                 let requirement_identity = builder.intern(&callable);
                 if boundary {
-                    retained.push(make(
-                        RouteKind::BoundaryRequirement,
+                    retained.push(StructuralEstablishmentRoute::BoundaryRequirement {
                         declaration,
                         requirement_identity,
-                    ));
+                    });
                 } else {
                     for (body, symbol) in source.symbols.iter() {
                         if typed.machine_by_symbol(*symbol).is_some_and(|machine| {
@@ -323,11 +317,10 @@ fn establishment_routes<R: Ord>(
                             issuers.push((body, ordinal));
                         }
                     }
-                    retained.push(make(
-                        RouteKind::CheckedRequirement,
+                    retained.push(StructuralEstablishmentRoute::CheckedRequirement {
                         declaration,
                         requirement_identity,
-                    ));
+                    });
                 }
             }
         }
@@ -346,10 +339,10 @@ fn establishment_routes<R: Ord>(
         )
         .map_err(|_| unavailable("domain issuer ordinal overflow"))?;
     }
-    Ok(Some((
-        ordered.into_iter().map(|(_, route)| route).collect(),
+    Ok(Some(EstablishmentRoutes {
+        routes: ordered.into_iter().map(|(_, route)| route).collect(),
         issuers,
-    )))
+    }))
 }
 
 impl Qualifications {
@@ -454,18 +447,11 @@ impl Qualifications {
         // The same logical domain can be displayed by several descriptor
         // carriers. Prepare its semantic ID once; each carrier still retains
         // its own declaration and must pass the existing theory comparison.
-        let key = |instance: DomainInstance| {
-            (
-                instance.declaration.arena_index(),
-                instance.declaration.generation(),
-                instance.identity.0,
-            )
-        };
         let mut structural_instances: Vec<_> = source
             .declared_domains
             .iter()
             .filter(|declared| matches!(declared.carrier, ValueType::Record(..)))
-            .map(|declared| key(declared.instance))
+            .map(|declared| declared.instance.coordinates())
             .collect();
         structural_instances.sort_unstable();
         structural_instances.dedup();
@@ -473,14 +459,29 @@ impl Qualifications {
             .into_iter()
             .map(|instance| (instance, None))
             .collect();
-        let mut domain_names = Vec::with_capacity(source.declared_domains.len());
+        // Byte descriptor carriers can already own a domain before the other
+        // declarations are lowered. Keep that exact application as well.
+        let mut applications = result
+            .structural_domains
+            .iter()
+            .map(|&(application, _, id)| {
+                let row = result
+                    .structural
+                    .binary_search_by_key(&id, |row| row.id)
+                    .map_err(|_| unavailable("byte domain lost its declaration"))?;
+                Ok((result.structural[row].semantic_domain, application))
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        applications.sort_unstable_by_key(|(id, _)| *id);
+        applications.dedup();
+
         for declared in &source.declared_domains {
             let symbol = declared.instance;
             let carrier = match declared.carrier {
                 ValueType::Scalar(carrier, _) => carrier,
                 ValueType::Record(_, _, _) => {
                     let position = structural_semantics
-                        .binary_search_by_key(&key(symbol), |(instance, _)| *instance)
+                        .binary_search_by_key(&symbol.coordinates(), |(instance, _)| *instance)
                         .map_err(|_| {
                             unavailable("structural domain lost its prepared semantic identity")
                         })?;
@@ -489,7 +490,7 @@ impl Qualifications {
                         None => {
                             let id = result.next_semantic_domain(&unavailable)?;
                             structural_semantics[position].1 = Some(id);
-                            domain_names.push((id, source.domain_named(symbol)));
+                            applications.push((id, symbol));
                             id
                         }
                     };
@@ -507,7 +508,7 @@ impl Qualifications {
                 }
             };
             let semantic_domain = result.next_semantic_domain(&unavailable)?;
-            domain_names.push((semantic_domain, source.domain_named(symbol)));
+            applications.push((semantic_domain, symbol));
             let builder = &mut result.identities;
             let id = ScalarDomainId::new(result.catalog.domains.len() as u64 + 1)
                 .ok_or_else(|| unavailable("scalar domain identity overflow"))?;
@@ -537,27 +538,9 @@ impl Qualifications {
                 builder,
                 definition,
                 &unavailable,
-                |kind, declaration, identity| match kind {
-                    RouteKind::ExactMachine => ScalarDomainEstablishmentRoute::ExactMachine {
-                        declaration,
-                        machine_identity: identity,
-                    },
-                    RouteKind::CheckedRequirement => {
-                        ScalarDomainEstablishmentRoute::CheckedRequirement {
-                            declaration,
-                            requirement_identity: identity,
-                        }
-                    }
-                    RouteKind::BoundaryRequirement => {
-                        ScalarDomainEstablishmentRoute::BoundaryRequirement {
-                            declaration,
-                            requirement_identity: identity,
-                        }
-                    }
-                },
             )? {
                 None => None,
-                Some((routes, issuers)) => {
+                Some(EstablishmentRoutes { routes, issuers }) => {
                     result.issuers.extend(
                         issuers
                             .into_iter()
@@ -587,8 +570,17 @@ impl Qualifications {
             });
             result.domains.push((symbol, id));
         }
-        result.domain_names = arena::IdTable::from_rows(domain_names)
-            .map_err(|_| unavailable("domain diagnostic identities are not dense"))?;
+        result.domain_sources =
+            arena::IdTable::from_rows(applications.into_iter().map(|(id, application)| {
+                (
+                    id,
+                    DomainSource {
+                        application,
+                        label: source.domain_named(application),
+                    },
+                )
+            }))
+            .map_err(|_| unavailable("domain source identities are not dense"))?;
         Ok(result)
     }
 
@@ -822,27 +814,9 @@ impl Qualifications {
                 &mut self.identities,
                 definition,
                 &unavailable,
-                |kind, declaration, identity| match kind {
-                    RouteKind::ExactMachine => StructuralEstablishmentRoute::ExactMachine {
-                        declaration,
-                        machine_identity: identity,
-                    },
-                    RouteKind::CheckedRequirement => {
-                        StructuralEstablishmentRoute::CheckedRequirement {
-                            declaration,
-                            requirement_identity: identity,
-                        }
-                    }
-                    RouteKind::BoundaryRequirement => {
-                        StructuralEstablishmentRoute::BoundaryRequirement {
-                            declaration,
-                            requirement_identity: identity,
-                        }
-                    }
-                },
             )? {
                 None => None,
-                Some((routes, issuers)) => {
+                Some(EstablishmentRoutes { routes, issuers }) => {
                     self.structural_issuers.extend(
                         issuers
                             .into_iter()

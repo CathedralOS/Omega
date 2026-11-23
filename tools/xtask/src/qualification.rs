@@ -171,8 +171,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                     return Err(format!("{path}: missing intended-rejection fragments"));
                 }
             } else if !matches!(project.role.as_str(), "program" | "example")
-                || !samples::bound_targets(&project.directory).contains(&target)
-                || samples::parse_header_oracle(entry).0.is_none()
+                || !samples::bound_targets(&project.directory)?.contains(&target)
+                || samples::parse_header_oracle(entry)?.0.is_none()
             {
                 return Err(format!(
                     "{path}: requires a host ProgramEntry and authored Expected exit"

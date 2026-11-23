@@ -114,6 +114,7 @@ fn insert_named_input(
             "named build inputs exceed the activation's captured-inventory limits",
         )]);
     }
+    input.validate_snapshot_paths()?;
     slots.insert(name, input);
     Ok(())
 }

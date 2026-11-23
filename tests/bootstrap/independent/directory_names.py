@@ -432,7 +432,7 @@ machine main()->u8{
     yield "unsupported-later-record-predicate", wire, struct.pack("<BII", 0, 2, rows[3][1])
 
 
-    # SourceSet carries five independent field bounds, including its four-MiB
+    # SourceSet carries five independent field bounds, including its eight-MiB
     # arena. A valid full byte arena cannot establish capacity in the path arena.
     files = [declaration(source, b"public data SourceSet\n")]
     files.extend(copy_declaration(source, name) for name in [b"DependencyRow", b"PackageRow", b"SourceRange", b"DependencyScope"])
@@ -440,14 +440,14 @@ machine main()->u8{
 machine main()->u8{
  let mutable sources:SourceSet;
  sources.unit_count=512;
- sources.byte_count=4194304;
+ sources.byte_count=8388608;
  sources.path_byte_count=16384;
  sources.package_count=64;
  sources.dependency_count=256;
- sources.bytes[4194303]=42;
- transition 512-sources.unit_count==0 && 4194304-sources.byte_count==0 &&
+ sources.bytes[8388607]=42;
+ transition 512-sources.unit_count==0 && 8388608-sources.byte_count==0 &&
    16384-sources.path_byte_count==0 && 64-sources.package_count==0 && 256-sources.dependency_count==0 {
-   true->sources.bytes[4194303],_->1
+   true->sources.bytes[8388607],_->1
  }}"""
     for label, program in [("source-set-field-bounds", reader),
                            ("source-set-path-bound-exceeded", reader.replace(b"path_byte_count=16384", b"path_byte_count=16385"))]:
@@ -844,16 +844,16 @@ def nominal_array_cases(encode):
             dependencies.append((0, 1, library))
         return encode(packages, dependencies, sources, 0, b"main", paths=paths)
 
-    # Compile the unedited declaration and reach both ends of its four-MiB field.
-    definitions = (ROOT / "source/application/construction/main.omg").read_bytes()
+    # Compile the unedited declaration and reach both ends of its eight-MiB field.
+    definitions = (ROOT / "source/application/construction/input.omg").read_bytes()
     storage = declaration(definitions, b"data ConstructionInput {")
     caller = b"""machine main()->u8{
     let mutable a:ConstructionInput;
     a.unit_count=305;
-    a.bytes[4194303]=255;
-    a.bytes[4194302]=41;
+    a.bytes[8388607]=255;
+    a.bytes[8388606]=41;
     a.bytes[0]=42;
-    transition a.unit_count==305 && a.bytes[0]==42 && a.bytes[4194302]==41 && a.bytes[4194303]==255 {true->42,_->7}
+    transition a.unit_count==305 && a.bytes[0]==42 && a.bytes[8388606]==41 && a.bytes[8388607]==255 {true->42,_->7}
 }"""
     data, _, _, _ = packet([(0, caller), (0, storage)], ["caller.omg", "input.omg"])
     yield "forward-product-construction-array", data, 42

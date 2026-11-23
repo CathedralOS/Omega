@@ -501,7 +501,7 @@ fn an_owned_move_before_the_stored_references_last_use_is_rejected() {
     let source = STORED_MODE
         .replace(
             "start(@mutable holder);",
-            "let moved: Mode = engine.mode; start(@mutable holder);",
+            "let moved: Mode = engine.mode; engine.mode = Mode::Idle; start(@mutable holder);",
         )
         .replace("transition engine.mode", "transition moved");
     let result = run(&source).unwrap_err();

@@ -35,6 +35,7 @@ use semantic_vocabulary::{
 use target::{
     ForeignLocatorCandidate, NormalizedComponentLocator, TargetProfile, normalize_foreign_locator,
 };
+use target_vocabulary::identity::structural_types::encode_claim_transfers;
 use target_vocabulary::{
     LegalizedNormalizedForeignCall, LegalizedScalarArgument, LegalizedScalarCall,
     encode_call_binding, encode_call_plan, encode_external_execution, encode_integer,
@@ -280,12 +281,7 @@ pub(super) fn encode_call(
             }
         }
     }
-    length(bytes, call.claim_transfers.len());
-    for transfer in &call.claim_transfers {
-        crate::codec_bytes::push_encoded(bytes, transfer.claim.get().to_le_bytes());
-        crate::codec_bytes::push_encoded(bytes, transfer.argument_index.to_le_bytes());
-        encode_path(bytes, &transfer.path);
-    }
+    encode_claim_transfers(bytes, &call.claim_transfers);
     encode_ids(
         bytes,
         call.requirement_obligations.iter().map(|id| id.get()),
@@ -314,6 +310,18 @@ pub(super) fn decode_native_call_target(
             contract: decode_id(cursor, semantic_vocabulary::CallableContractId::new)?,
         },
         tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+    })
+}
+
+pub(super) fn decode_claim_transfers(
+    cursor: &mut Cursor<'_>,
+) -> Result<Vec<ClaimTransfer>, FixedViewCopyDecodeError> {
+    decode_list(cursor, |cursor| {
+        Ok(ClaimTransfer {
+            claim: decode_id(cursor, ClaimId::new)?,
+            argument_index: cursor.u32()?,
+            path: decode_path(cursor)?,
+        })
     })
 }
 
@@ -405,15 +413,7 @@ pub(super) fn decode_call(
             tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
         });
     }
-    let count = cursor.length()?;
-    let mut claim_transfers = Vec::new();
-    for _ in 0..count {
-        claim_transfers.push(ClaimTransfer {
-            claim: decode_id(cursor, ClaimId::new)?,
-            argument_index: cursor.u32()?,
-            path: decode_path(cursor)?,
-        });
-    }
+    let claim_transfers = decode_claim_transfers(cursor)?;
     let requirement_obligations = decode_ids(cursor, ObligationId::new)?;
     let length = cursor.length()?;
     let crash_continuations = terminal_wire::decode_crash_route_buckets(cursor.take(length)?)

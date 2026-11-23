@@ -206,18 +206,15 @@ fn reference_value_operands_remain_borrows_and_recasts_reject_policy_suffixes() 
             .iter_expressions()
             .any(|(_, expression)| matches!(expression, ExpressionNode::TypeExpression(_)))
     );
+    // Parsing never consults name lookup: `in Wrapping` after a recast is a
+    // domain name here, and name resolution refuses core's policy there.
     for target in ["@u8", "@ @u8", "@mutable @write u8"] {
         let source =
             format!("machine view(value: @u64) -> @u8 {{ value as {target} in Wrapping }}");
-        let tokens = Lexer::new(&source).tokenize().unwrap();
-        let error = parse_syntax_trees(&tokens).expect_err("recast policy must reject");
-        assert!(
-            error.message.contains("takes no arithmetic domain"),
-            "{error:?}"
-        );
-        let without_policy = source.replace(" in Wrapping", "");
-        let tokens = Lexer::new(&without_policy).tokenize().unwrap();
-        parse_syntax_trees(&tokens).expect("the reference target itself is valid syntax");
+        for source in [source.clone(), source.replace(" in Wrapping", "")] {
+            let tokens = Lexer::new(&source).tokenize().unwrap();
+            parse_syntax_trees(&tokens).expect("the reference target itself is valid syntax");
+        }
     }
 }
 

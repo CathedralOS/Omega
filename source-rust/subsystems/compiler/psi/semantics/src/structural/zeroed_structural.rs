@@ -50,6 +50,23 @@ pub enum ZeroedStructuralLeaf {
     },
 }
 
+/// All elements start with the same record fields. Their declaration supplies
+/// ordinary zeroes while each element retains its active case and payload.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepeatedZeroedElement {
+    pub path: Vec<StructuralPathSegment>,
+    pub array_type: StructuralTypeId,
+    pub length: u64,
+    /// Discriminators and payloads still have their ordinary cells.
+    pub represented: Vec<ZeroedStructuralLeaf>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ZeroedStructuralStorage {
+    pub leaves: Vec<ZeroedStructuralLeaf>,
+    pub arrays: Vec<RepeatedZeroedElement>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EstablishedErasedStructuralField {
     pub field_path: Vec<TerminalIdentityIndex>,
@@ -292,14 +309,47 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
     root: StructuralTypeId,
     established_fields: &[EstablishedErasedStructuralField],
 ) -> Option<Vec<ZeroedStructuralLeaf>> {
-    zeroed_structural_leaves_impl(types, root, established_fields, false)
+    zeroed_structural_leaves_impl(types, root, established_fields, false, None)
 }
 
 pub fn zeroed_structural_leaves_modulo_references<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     root: StructuralTypeId,
 ) -> Option<Vec<ZeroedStructuralLeaf>> {
-    zeroed_structural_leaves_impl(types, root, &[], true)
+    zeroed_structural_leaves_impl(types, root, &[], true, None)
+}
+
+pub fn zeroed_structural_storage<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    established_fields: &[EstablishedErasedStructuralField],
+) -> Option<ZeroedStructuralStorage> {
+    let mut arrays = Vec::new();
+    let leaves =
+        zeroed_structural_leaves_impl(types, root, established_fields, false, Some(&mut arrays))?;
+    Some(ZeroedStructuralStorage { leaves, arrays })
+}
+
+fn repeated_element_cells(
+    declarations: &[&StructuralTypeDeclaration],
+    element: StructuralTypeId,
+) -> Option<Vec<ZeroedStructuralLeaf>> {
+    let mut cells = zeroed_structural_leaves(declarations.iter().copied(), element)?;
+    if !cells.iter().all(|cell| {
+        matches!(
+            cell,
+            ZeroedStructuralLeaf::RecordField { .. }
+                | ZeroedStructuralLeaf::CaseField { .. }
+                | ZeroedStructuralLeaf::ArrayScalar { .. }
+                | ZeroedStructuralLeaf::SumSelection { .. }
+        )
+    }) {
+        return None;
+    }
+    let total = cells.len();
+    cells.retain(|cell| !matches!(cell, ZeroedStructuralLeaf::RecordField { path, .. }
+        if path.iter().all(|part| matches!(part, StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)))));
+    (cells.len() < total).then_some(cells)
 }
 
 fn zeroed_structural_leaves_impl<'types>(
@@ -307,6 +357,7 @@ fn zeroed_structural_leaves_impl<'types>(
     root: StructuralTypeId,
     established_fields: &[EstablishedErasedStructuralField],
     modulo_references: bool,
+    mut arrays: Option<&mut Vec<RepeatedZeroedElement>>,
 ) -> Option<Vec<ZeroedStructuralLeaf>> {
     let declarations: Vec<&StructuralTypeDeclaration> = types.collect();
     if !zeroed_declaration_graph(
@@ -323,6 +374,7 @@ fn zeroed_structural_leaves_impl<'types>(
     let mut leaves = Vec::new();
     let mut pending = vec![(root, Vec::new())];
     let mut visited_cells = 0usize;
+    let mut repeated_cells = 0usize;
     while let Some((current, path)) = pending.pop() {
         let declaration = declarations
             .iter()
@@ -441,6 +493,25 @@ fn zeroed_structural_leaves_impl<'types>(
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
             } => {
+                if let Some(arrays) = arrays.as_deref_mut()
+                    && *length > 1
+                    && let Some(represented) = repeated_element_cells(&declarations, *element)
+                {
+                    let extent = usize::try_from(*length).ok()?;
+                    repeated_cells = repeated_cells
+                        .checked_add(1)?
+                        .checked_add(represented.len().checked_mul(extent)?)?;
+                    if repeated_cells.checked_add(leaves.len())? > MAX_ZEROED_LEAVES {
+                        return None;
+                    }
+                    arrays.push(RepeatedZeroedElement {
+                        path,
+                        array_type: current,
+                        length: *length,
+                        represented,
+                    });
+                    continue;
+                }
                 let extent = usize::try_from(*length).ok()?;
                 if leaves
                     .len()
@@ -491,7 +562,9 @@ fn zeroed_structural_leaves_impl<'types>(
             return None;
         }
     }
-    consumed.iter().all(|consumed| *consumed).then_some(leaves)
+    (repeated_cells.checked_add(leaves.len())? <= MAX_ZEROED_LEAVES
+        && consumed.iter().all(|consumed| *consumed))
+    .then_some(leaves)
 }
 
 /// Judge the actual default bytes of each selected carrier. A byte view

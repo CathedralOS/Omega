@@ -223,16 +223,16 @@ public domain Cell::Controlled
     access CellAccess;
 
 CellAccess satisfies AccessPolicy {
-    machine plan(schema: reflect\TypeSchema) -> AccessPlan {
-        let mutable plan: AccessPlan = access\new_plan(
-            @schema,
-            Issuance::Only { routes: [reflect\callable(create_cell)] }
+    machine plan(subject: |reflect|::TypeSchema) -> AccessPlan {
+        let mutable plan: AccessPlan = |access|::new_plan(
+            @subject,
+            Issuance::Only { routes: [|reflect|::callable(create_cell)] }
         );
-        access\allow_readers(
-            @mutable plan, TypeSchema::root(@schema), [reflect\callable(read_cell)]
+        |access|::allow_readers(
+            @mutable plan, subject, [|reflect|::callable(read_cell)]
         );
-        access\allow_writers(
-            @mutable plan, TypeSchema::root(@schema), [reflect\callable(set_cell)]
+        |access|::allow_writers(
+            @mutable plan, subject, [|reflect|::callable(set_cell)]
         );
         plan
     }
@@ -264,13 +264,19 @@ Only `create_cell` may cast to `Controlled`, and only the listed machines may
 read or write. This is a compile-time rule, not secrecy: the layout is still
 public.
 
+Here `subject` describes `Cell`, so the rule covers the whole cell. To restrict
+only its `value` field, pass `|reflect|::field(Cell::value)` as the second
+argument. Passing `|reflect|::fields(Cell)` applies the rule to each declared
+field. For a scalar such as `u32`, the collection is empty. Passing `subject`
+still lets the policy restrict access to the whole integer.
+
 A plan always says who may create values of the domain; there is no way to
 build one without that choice. When that is the only thing you want to
 restrict, use the stock policy and skip writing one:
 
 ```omega
 domain Folder::Writable
-    access IssuedBy<reflect\callable(choose_folder)>;
+    access IssuedBy<|reflect|::callable(choose_folder)>;
 ```
 
 See the

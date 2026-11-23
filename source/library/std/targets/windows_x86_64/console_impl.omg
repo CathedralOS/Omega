@@ -1,8 +1,10 @@
+use calling.omg as abi;
+use targets/windows_x86_64/calling.omg as windows_abi;
 use omega\language\core\StandardInput;
 use omega\language\core\StandardOutput;
 use ByteRead;
-use Calling;
 use ConsoleByteOperations;
+use WindowsConsoleHost;
 // Windows byte I/O uses MSVCRT descriptor calls. Binary mode preserves every
 // authored byte, including CR/LF and Ctrl+Z. Build supplies each DLL locator.
 use omega\language\core\narrow_i32_to_u8_wrapping;
@@ -12,7 +14,7 @@ use omega\language\core\widen_u8_to_i32;
 // package-owned boundary row whose DLL locator lives in `std/build.omg`
 // (`Build::bind<WindowsConsoleIo::...>`). Providers invoke the trait members
 // directly; their raw host dependencies belong to the realization inventory.
-boundary trait WindowsConsoleIo: Calling<WindowsX64ScalarCalling> {
+boundary trait WindowsConsoleIo: |abi|::Calling<|windows_abi|::WindowsX64ScalarCalling> {
     machine write(descriptor: i32, buffer: @mutable i32, count: u32) -> i32
     requires descriptor == 1 && count <= 4
     reaches StandardOutput
@@ -50,7 +52,7 @@ reaches StandardInput
 blocks
 crashes none
 {
-    let mode: i32 = WindowsConsoleIo::set_input_mode(0, 32768);
+    let mode: i32 = WindowsConsoleHost::set_input_mode(0, 32768);
     transition mode == -1 {
         true -> failed(),
         false -> block read()
@@ -58,7 +60,7 @@ crashes none
 
     machine read() -> ByteRead {
         let mutable cell: i32 = 0;
-        let count: i32 = block WindowsConsoleIo::read(0, @mutable cell, 1);
+        let count: i32 = block WindowsConsoleHost::read(0, @mutable cell, 1);
         transition count {
             1 -> byte(cell),
             0 -> end(),
@@ -81,8 +83,32 @@ machine windows_console_write_byte(byte: i32)
 reaches StandardOutput
 {
     let mutable cell: i32 = byte;
-    let mode: i32 = WindowsConsoleIo::set_output_mode(1, 32768);
-    let written: i32 = WindowsConsoleIo::write(1, @mutable cell, 1);
+    let mode: i32 = WindowsConsoleHost::set_output_mode(1, 32768);
+    let written: i32 = WindowsConsoleHost::write(1, @mutable cell, 1);
+}
+
+// Windows x86-64 reaches MSVCRT through the Microsoft x64 placement above.
+WindowsX64ConsoleHost satisfies WindowsConsoleHost {
+    machine write(descriptor: i32, buffer: @mutable i32, count: u32) -> i32
+    requires descriptor == 1 && count <= 4
+    reaches StandardOutput crashes none {
+        WindowsConsoleIo::write(descriptor, buffer, count)
+    }
+    machine read(descriptor: i32, buffer: @mutable i32, count: u32) -> i32
+    requires descriptor == 0 && count <= 4
+    reaches StandardInput blocks crashes none {
+        block WindowsConsoleIo::read(descriptor, buffer, count)
+    }
+    machine set_input_mode(descriptor: i32, mode: i32) -> i32
+    requires descriptor == 0 && mode == 32768
+    reaches StandardInput crashes none {
+        WindowsConsoleIo::set_input_mode(descriptor, mode)
+    }
+    machine set_output_mode(descriptor: i32, mode: i32) -> i32
+    requires descriptor == 1 && mode == 32768
+    reaches StandardOutput crashes none {
+        WindowsConsoleIo::set_output_mode(descriptor, mode)
+    }
 }
 
 WindowsConsoleBytes satisfies ConsoleByteOperations {

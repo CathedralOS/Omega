@@ -323,10 +323,23 @@ machine build_entry() { let v: u64 = check(3u64, 8u64, 8u64); }
 #[test]
 fn bare_subject_bindings_return_the_dispatch_value() {
     for body in [
-        "match 37u32 { observed -> observed }",
-        "transition 37u32 { observed -> observed }",
+        "match next(counter) { observed -> observed }",
+        "transition next(counter) { observed -> observed }",
+        "match next(counter) { _ -> 37u32 }",
     ] {
-        let source = format!("machine build_entry() -> u32 {{ {body} }}");
+        let source = format!(
+            r#"data Counter {{ value: u32; }}
+machine next(counter: @mutable Counter) -> u32 requires counter.value < 2 {{
+    counter.value = counter.value + 1;
+    37u32
+}}
+machine take(counter: @mutable Counter) -> u32 requires counter.value < 2 {{ {body} }}
+machine build_entry() -> u32 {{
+    let mutable counter: Counter;
+    let observed: u32 = take(@mutable counter);
+    match counter.value == 1 {{ true -> observed, false -> 0u32 }}
+}}"#
+        );
         let verdict = judge_build(&source).unwrap();
         let RouteVerdict::Accepted(accepted) = verdict else {
             panic!("{source}: {verdict:?}");

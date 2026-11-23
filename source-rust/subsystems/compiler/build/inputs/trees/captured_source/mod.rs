@@ -199,6 +199,21 @@ impl CapturedBuildSourceInput {
         })
     }
 
+    /// Validate the selected view after narrowing the package inventory.
+    pub fn validate_snapshot_paths(&self) -> Result<(), Vec<Diagnostic>> {
+        if let Some(path) = self
+            .entries
+            .keys()
+            .find(|path| !filesystem_authority::source_snapshot_path_is_canonical(path, false))
+        {
+            return Err(diagnostics(format!(
+                "captured Build input contains an invalid snapshot path: {}",
+                path.escape_ascii()
+            )));
+        }
+        Ok(())
+    }
+
     pub fn canonical_source_metadata(&self) -> &CanonicalFilesystemMetadataIndex {
         &self.canonical_source_metadata
     }

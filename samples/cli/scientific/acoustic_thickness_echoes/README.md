@@ -81,10 +81,9 @@ review and trust admission remain mandatory. A denied acceptance is recorded
 without retry. Generated images, reports and logs belong under ignored `build/`.
 
 The repository native sweep has no fixture stdin surface, so this input-driven sample
-deliberately uses its own complete driver instead of no-input header annotations. The
-CLI's `--both` checks termination agreement; the driver separately checks native stdout
-against the complete frozen output. This is not independent Terminal stdout trace
-validation.
+deliberately uses its own complete driver instead of no-input header annotations. The CLI
+compares termination, stdout and stderr. The driver separately checks native
+stdout against the complete frozen output.
 
 ## Intended-invalid control
 

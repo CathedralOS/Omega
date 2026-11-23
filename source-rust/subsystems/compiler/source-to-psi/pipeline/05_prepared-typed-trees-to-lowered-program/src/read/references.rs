@@ -177,11 +177,11 @@ impl Program<'_> {
         let referent = match self.data_type(machine, referent)?.shape {
             StorageShape::PrimitiveScalar {
                 scalar_type,
-                policy,
+                qualification: stored,
             } => ValueType::Scalar(
                 scalar_type,
                 Qualification {
-                    policy: qualification.policy.or(policy),
+                    policy: qualification.policy.or(stored.policy),
                     domains: qualification.domains,
                 },
             ),

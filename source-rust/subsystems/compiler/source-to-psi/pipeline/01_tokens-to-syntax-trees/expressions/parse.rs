@@ -920,6 +920,9 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
                     evidence_arguments,
                     source,
                 )?;
+                if let Some(qualifiers) = input.file_qualifiers {
+                    qualifiers.mark_build_call(syntax_trees, expression);
+                }
                 self.suffixes(syntax_trees, context, expression, input, frame.source_start)
             }
             ArgumentsPurpose::AppliedRequirement {

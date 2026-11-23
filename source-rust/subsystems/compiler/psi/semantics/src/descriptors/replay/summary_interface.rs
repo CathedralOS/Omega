@@ -68,6 +68,12 @@ impl Replay<'_> {
                 }
             }
         }
+        // A write on a path that exits the process cannot affect a caller
+        // after a normal return. Let ordinary flow analysis decide which
+        // possible writes reach a return.
+        if invalidates_contents {
+            return None;
+        }
         Some(Summary {
             result: ResultObservations::Observed {
                 slots: None,
@@ -76,7 +82,7 @@ impl Replay<'_> {
             },
             result_cases: Default::default(),
             effects: EffectObservations::Observed(Vec::new()),
-            invalidates_contents,
+            invalidates_contents: false,
             storage_frame: StorageFrame::default(),
         })
     }

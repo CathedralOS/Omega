@@ -21,7 +21,8 @@ use terminal_psi::{
 use super::places::Bound;
 use super::{Draft, Evaluation, Lowering, Reached, Value, declaration, successor};
 use crate::lowering::body::{
-    CaseSelector, Expression, ExpressionKind, Selector, Statement, Strict, Target, ValueType,
+    ArmGuard, CaseSelector, Expression, ExpressionKind, Selector, Statement, Strict, Target,
+    ValueType,
 };
 use crate::lowering::canonical;
 use crate::lowering::{SourceOrigin, Unpositioned, Unserved, refuse};
@@ -346,9 +347,13 @@ impl Lowering<'_> {
                 *self.slot_mut(*slot)? = Some(bound);
                 Ok(Reached::Value(()))
             }
+            Statement::Observe { slot, value } => self.observe(*slot, value),
             Statement::CaptureReference { slot, original } => {
                 let bound = *self.slot_mut(*original)?;
-                if !matches!(bound, Some(Bound::Record(_) | Bound::Home(_))) {
+                if !matches!(
+                    bound,
+                    Some(Bound::Record(_) | Bound::Home(_) | Bound::Observed(_))
+                ) {
                     return Err(self.internal("a reference capture has no storage"));
                 }
                 *self.slot_mut(*slot)? = bound;
@@ -406,7 +411,7 @@ impl Lowering<'_> {
                 }
             }
             Statement::Arm {
-                guard: Some(guard),
+                guard: ArmGuard::When(guard),
                 target,
                 source,
             } => {
@@ -448,7 +453,16 @@ impl Lowering<'_> {
                 Ok(Reached::Value(()))
             }
             Statement::Arm {
-                guard: None,
+                guard: ArmGuard::Final(guard),
+                target,
+                source,
+            } => {
+                let condition = continuing!(self.scalar(guard));
+                self.enter_final_arm(condition, guard, *source)?;
+                self.complete(target, *source).map(Reached::Value)
+            }
+            Statement::Arm {
+                guard: ArmGuard::Always,
                 target,
                 source,
             } => {
@@ -645,12 +659,14 @@ impl Lowering<'_> {
     /// Structural values use its ordinary ownership transfer; scalar values
     /// use its scalar lane. An arm that ends at a nonreturning call supplies
     /// no arrival, so it creates neither a result nor a cleanup successor.
+    /// A `result_type` of `None` is a Unit match, whose arms all complete
+    /// with Unit.
     pub(super) fn match_value(
         &mut self,
         subject: &Expression,
         arms: &[(Selector, Expression)],
         default: Option<&Expression>,
-        result_type: ValueType,
+        result_type: Option<ValueType>,
         source: SourceOrigin,
         capture: Option<arena::Handle<crate::source_state::expression::CompletedValueCapture>>,
     ) -> Evaluation<Value> {
@@ -686,9 +702,10 @@ impl Lowering<'_> {
     ) -> Evaluation<()> {
         if let Some(ValueType::Scalar(subject_type, _)) = subject.result {
             // A match without a subject tests only its conditions.
-            let tested = if arms
-                .iter()
-                .all(|(selector, _)| matches!(selector, Selector::Guard(_)))
+            let tested = if capture.is_none()
+                && arms
+                    .iter()
+                    .all(|(selector, _)| matches!(selector, Selector::Guard(_)))
             {
                 None
             } else {
@@ -891,11 +908,9 @@ impl Lowering<'_> {
         default: Option<&Expression>,
         mut finish: impl FnMut(&mut Self, &Expression, Option<PlaceId>) -> Checked<()>,
     ) -> Evaluation<()> {
-        let Some(default) = default else {
-            return Err(self.internal("a scalar match without a default arm"));
-        };
         let mut decided_in = None;
-        for (selector, value) in arms {
+        let mut remaining = arms.iter().peekable();
+        while let Some((selector, value)) = remaining.next() {
             let (condition, pattern) = match (selector, tested) {
                 // A condition arm is its own branch condition.
                 (Selector::Guard(guard), _) => (continuing!(self.scalar(guard)), guard),
@@ -921,6 +936,11 @@ impl Lowering<'_> {
                     return Err(self.internal("a case pattern on a scalar subject"));
                 }
             };
+            if remaining.peek().is_none() && default.is_none() {
+                self.enter_final_arm(condition, pattern, value.source)?;
+                finish(self, value, None)?;
+                return Ok(Reached::Value(()));
+            }
             let here = self.current()?;
             let arm = self.block(value.source);
             let rest = self.block(SourceOrigin::Unpositioned(
@@ -938,12 +958,38 @@ impl Lowering<'_> {
             self.enter(rest);
             decided_in = Some(here);
         }
+        let default = default.ok_or_else(|| self.internal("an empty scalar match"))?;
         if let Some(decided_in) = decided_in {
             let block = self.current()?;
             self.authored_arm(block, decided_in, default.source, default.source);
         }
         finish(self, default, None)?;
         Ok(Reached::Value(()))
+    }
+
+    /// Preserve the final guard's evaluation and source. An ordinary block
+    /// invariant requires every incoming edge to prove the guard true.
+    fn enter_final_arm(
+        &mut self,
+        condition: ValueId,
+        guard: &Expression,
+        arm: SourceOrigin,
+    ) -> Checked<()> {
+        let here = self.current()?;
+        let Some(ValueType::Scalar(ScalarType::Boolean, qualification)) = guard.result else {
+            return Err(self.internal("a final dispatch guard without a Boolean result"));
+        };
+        let formal = ValueId::new(1).expect("first scalar formal");
+        self.establish_predicates(
+            condition,
+            ScalarType::Boolean,
+            qualification,
+            &[self.decision(formal, true)?],
+            Some(&terminal_check_tables::program::EstablishedCondition::DispatchCoverage),
+            guard.source,
+        )?;
+        self.authored_arm(self.current()?, here, arm, guard.source);
+        Ok(())
     }
 
     /// Records an authored arm's entry and the decision point preceding it.
@@ -993,11 +1039,12 @@ impl Lowering<'_> {
     /// whose every path ends at a call that never returns ends there and does
     /// not arrive. The join is made once the arms are lowered, so a `match`
     /// none of whose arms arrives has no join: its every path ended, at the
-    /// last arm's call.
+    /// last arm's call. A Unit match (`result_type` `None`) joins at a block
+    /// with no parameter.
     fn join(
         &mut self,
         arrivals: Arrivals,
-        result_type: ValueType,
+        result_type: Option<ValueType>,
         source: SourceOrigin,
     ) -> Evaluation<Value> {
         if arrivals.values.is_empty() {
@@ -1008,7 +1055,8 @@ impl Lowering<'_> {
         }
         let join = self.block(source);
         let result = match result_type {
-            ValueType::Scalar(scalar_type, _) => {
+            None => Value::Unit,
+            Some(ValueType::Scalar(scalar_type, _)) => {
                 let result = self.value(
                     scalar_type,
                     ValueOrigin::BlockParameter {
@@ -1019,7 +1067,7 @@ impl Lowering<'_> {
                 self.parameter(join, result, scalar_type)?;
                 Value::Scalar(result)
             }
-            ValueType::Record(record, qualification, _) => {
+            Some(ValueType::Record(record, qualification, _)) => {
                 let (place, _) = self.root(
                     semantic_vocabulary::StructuralPlaceKind::BlockParameter {
                         block: join,
@@ -1055,9 +1103,17 @@ impl Lowering<'_> {
                     })?
                     .structural_parameters
                     .push(parameter);
+                // Name what the joined value holds at the join, so the
+                // checker relates each of its leaves, such as a view's
+                // length, to what every arm delivered (`joins::infer`). A
+                // copy of the joined value into a local, which an affine
+                // view needs, then reads those names rather than an
+                // arrival-dependent producer.
+                let named = self.exact_root(place)?;
+                self.name_contents(named, ValueType::record(record))?;
                 Value::Record(place)
             }
-            ValueType::Rigid(_) => {
+            Some(ValueType::Rigid(_)) => {
                 return Err(self.internal("a rigid match result has no established join"));
             }
         };
@@ -1065,9 +1121,10 @@ impl Lowering<'_> {
             self.current = Some(block);
             self.point = Some(point);
             let (scalars, structures) = match (&result, value) {
+                (Value::Unit, Value::Unit) => (Vec::new(), Vec::new()),
                 (Value::Scalar(_), Value::Scalar(value)) => (vec![value], Vec::new()),
                 (Value::Record(_), Value::Record(place)) => {
-                    let ValueType::Record(record, qualification, _) = result_type else {
+                    let Some(ValueType::Record(record, qualification, _)) = result_type else {
                         return Err(self.internal("a record join without a record type"));
                     };
                     let multiplicity = self.records.multiplicity(record, self.id)?;

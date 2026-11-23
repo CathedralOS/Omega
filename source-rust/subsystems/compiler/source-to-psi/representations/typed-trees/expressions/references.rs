@@ -17,7 +17,7 @@ use crate::source_state::{
     machine::TraitConformance,
     proposition::{PropositionApplication, PropositionBinderArgumentKind, PropositionFormula},
     signature::{AuthoredInvocationTarget, SignatureContract},
-    statement::{StatementHandle, StatementNode, TransitionTargetNode},
+    statement::{StatementHandle, StatementNode, StatementRootRole, TransitionTargetNode},
     types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode},
 };
 use symbols::SymbolHandle;
@@ -1383,6 +1383,11 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn statement(&mut self, _: &StatementNode) -> bool {
         true
     }
+    /// A specialized body visits the guard, result and arguments that it read
+    /// for this transition after resolving its static type conditions.
+    fn statement_expression(&mut self, _: StatementRootRole) -> bool {
+        true
+    }
     fn call_arguments(&mut self, _: &TypedTrees, _: StaticArgumentCall<'_>) -> bool {
         true
     }
@@ -1507,6 +1512,9 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
     }
     fn statement(&mut self, statement: &StatementNode) -> bool {
         self.0.statement(statement)
+    }
+    fn statement_expression(&mut self, role: StatementRootRole) -> bool {
+        self.0.statement_expression(role)
     }
     fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
         self.0.call_arguments(program, call)
@@ -3700,18 +3708,21 @@ fn visit_name_path(
         visit_symbol(retained, path.head_symbol);
         visit_symbol(retained, path.symbol);
     }
-    for (index, member) in program
+    let members = program
         .expression_table
-        .name_path_member_symbols(path.member_symbols)
-        .iter()
-        .enumerate()
-    {
-        // The first member is the base name. A reserved result has an owner,
-        // rather than an ordinary symbol, for that slot. Later members must
-        // still resolve, and any present base coordinate must remain visible.
-        if index == 0 && path.reserved_result_of != absent && *member == absent {
-            continue;
-        }
+        .name_path_member_symbols(path.member_symbols);
+    let first_declaration = if path.reserved_result_of != absent {
+        usize::from(members.first() == Some(&absent))
+    } else {
+        // A file or package prefix selects the head declaration. Only the
+        // empty slots before that exact head belong to the import prefix.
+        members
+            .iter()
+            .position(|member| *member != absent)
+            .filter(|&index| members[index] == path.head_symbol)
+            .unwrap_or(0)
+    };
+    for member in &members[first_declaration..] {
         visit_symbol(retained, *member);
     }
     if let Some(argument) = program
@@ -3882,8 +3893,10 @@ fn visit_statement(
     if !retained.statement(statement) {
         return;
     }
-    for (_, expression) in program.tables.expression_roots(statement) {
-        visit_expression(program, retained, expression);
+    for (role, expression) in program.tables.expression_roots(statement) {
+        if retained.statement_expression(role) {
+            visit_expression(program, retained, expression);
+        }
     }
     match statement {
         StatementNode::Assembly(_) => {}
@@ -4796,6 +4809,38 @@ mod declaration_description_tests {
             visit_type_reference(&program, &mut events, reference);
             assert_eq!(events.declarations, [symbol]);
         }
+    }
+
+    #[test]
+    fn a_file_alias_selects_a_declaration_and_keeps_each_required_member() {
+        let head = SymbolHandle::from_parts(1, 1);
+        let member = SymbolHandle::from_parts(2, 1);
+        let absent = SymbolHandle::invalid();
+        let observe = |slots: [SymbolHandle; 3]| {
+            let mut program = TypedTrees::default();
+            let mut names = Default::default();
+            let mut symbols = Default::default();
+            for (name, symbol) in ["|provider|", "Reading", "total"].into_iter().zip(slots) {
+                program
+                    .expression_table
+                    .push_name_path_member(&mut names, Identifier::generated(name));
+                program
+                    .expression_table
+                    .push_name_path_member_symbol(&mut symbols, symbol);
+            }
+            let path = TableNamePath::new(names, symbols, head, member);
+            let mut events = ReferenceEvents::default();
+            visit_name_path(&program, &mut events, &path);
+            events.declarations
+        };
+        assert_eq!(
+            observe([absent, head, member]),
+            [head, member, head, member]
+        );
+        assert!(observe([absent, head, absent]).contains(&absent));
+        assert!(observe([absent, absent, member]).contains(&absent));
+        let stale = SymbolHandle::from_parts(1, 2);
+        assert!(observe([stale, head, member]).contains(&stale));
     }
 
     #[test]

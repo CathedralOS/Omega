@@ -257,6 +257,71 @@ name = "checking_variant_parent_identity"
 path = "pipeline/06_lowered-program-to-checked-program/tests/variant_parent_identity.rs"
 required-features = ["test-support"]
 
+[[test]]
+name = "checking_joined_machine_values"
+path = "pipeline/06_lowered-program-to-checked-program/tests/joined_machine_values.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_cycle_cleanup"
+path = "pipeline/06_lowered-program-to-checked-program/tests/cycle_cleanup.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_contract_clauses"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/contract_clauses.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_calls_and_joins"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/calls_and_joins.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_built_values"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/built_values.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_field_reads"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/field_reads.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_pattern_payloads"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/pattern_payloads.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_indexed_and_member_contracts"
+path = "pipeline/06_lowered-program-to-checked-program/tests/indexed_and_member_contracts.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_obligation_sites"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/obligation_sites.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_imported_suspensions"
+path = "pipeline/06_lowered-program-to-checked-program/tests/imported_suspensions.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_operator_selection"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/operator_selection.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "lowering_qualified_values"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/qualified_values.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_requirement_interfaces"
+path = "pipeline/06_lowered-program-to-checked-program/tests/requirement_interfaces.rs"
+required-features = ["test-support"]
+
 [[example]]
 name = "checking_machine_checks"
 path = "pipeline/06_lowered-program-to-checked-program/examples/machine_checks.rs"

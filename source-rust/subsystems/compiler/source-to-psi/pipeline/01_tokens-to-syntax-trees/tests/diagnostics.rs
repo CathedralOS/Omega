@@ -53,9 +53,9 @@ fn bare_variant_member_spelling_is_retired() {
 }
 
 #[test]
-fn eof_reports_expected_identifier() {
+fn incomplete_import_reports_the_missing_filename() {
     let message = parse_error_message("use ");
-    assert_eq!(message, "expected token, found EOF");
+    assert_eq!(message, "expected a logical filename component");
 }
 
 #[test]

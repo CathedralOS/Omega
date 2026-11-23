@@ -19,6 +19,7 @@
 //! - `cargo xtask sweep [--quick | --cause <text> --previous <sweep>] [--target <name>] [--shard K/N] [--out <file>]`
 //! - `cargo xtask sweep merge --out <file.json> <shard.json>...`
 //! - `cargo xtask sweep fleet <start|status|collect|restart>`
+//! - `cargo xtask vm <start|status|follow> <host> [<label>] ...`
 
 mod alpha_forge;
 mod boundary;
@@ -29,6 +30,7 @@ mod doctor;
 mod execution;
 mod fmt;
 mod gamma_invoke;
+mod host_ceiling;
 mod portable_services;
 mod producer;
 mod provenance;
@@ -39,6 +41,7 @@ mod rust_producer_omission;
 mod samples;
 mod source_closure;
 mod sweep;
+mod vm;
 mod work_interval;
 mod worktree;
 
@@ -80,6 +83,7 @@ verification and gates:
   sweep                     Run omega --check over the programs and group where each one stops;
                             `sweep fleet` splits one target's sweep across machines
   rust-producer-omission    Audit declared bootstrap dependencies (developer-only)
+  vm                        Start a heavy job on a LAN VM under vm-heavy and watch its progress
 
 formatting:
   fmt                       Format all workspace targets in bounded rustfmt chunks
@@ -119,9 +123,11 @@ fn main() -> ExitCode {
         "provenance" => provenance::run(&args),
         "worktree" => worktree::run(&args),
         "alpha-forge" => alpha_forge::run(&args),
-        "gamma-invoke" => gamma_invoke::run(&args),
+        // A Windows evaluator can return a full 32-bit process status.
+        "gamma-invoke" => std::process::exit(gamma_invoke::run(&args)),
         "source-closure" => source_closure::run(&args),
         "sweep" => sweep::run(&args),
+        "vm" => vm::run(&args),
         other => {
             eprintln!("xtask: unknown command `{other}`\n\n{}", usage());
             return ExitCode::from(2);
@@ -161,6 +167,7 @@ mod tests {
             "gamma-invoke",
             "source-closure",
             "sweep",
+            "vm",
         ] {
             assert!(help.contains(cmd), "usage missing subcommand `{cmd}`");
         }

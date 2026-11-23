@@ -1,0 +1,5 @@
+boundary trait ReadProcess {
+    machine read() -> i32 reaches none crashes none;
+}
+
+public machine process_id() -> i32 reaches none { ReadProcess::read() }

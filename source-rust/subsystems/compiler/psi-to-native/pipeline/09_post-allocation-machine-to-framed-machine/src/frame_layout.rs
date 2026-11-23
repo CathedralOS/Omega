@@ -518,7 +518,7 @@ mod tests {
         TargetFrameLayoutPolicy, call_site_stack_contract, frame_unwind_policy, function_layout,
         minimal_aligned_extent, save_region_is_disjoint, spill, stack_commit_granule_bytes,
     };
-    use target::{NativeTarget, ObjectFormat};
+    use target::NativeTarget;
 
     macro_rules! row {
         ($a:expr => $b:expr) => {
@@ -666,12 +666,11 @@ mod tests {
     }
 
     #[test]
-    fn stack_commit_matrix_fails_closed_on_undeclared_pairs() {
-        let target = NativeTarget {
-            object_format: ObjectFormat::Coff,
-            ..NativeTarget::linux_arm64()
-        };
-        assert_eq!(stack_commit_granule_bytes(target), None, "{target:?}");
+    fn windows_arm64_commits_stack_in_four_kibibyte_pages() {
+        assert_eq!(
+            stack_commit_granule_bytes(NativeTarget::windows_arm64()),
+            Some(4_096)
+        );
     }
 
     #[test]
@@ -738,12 +737,18 @@ mod tests {
     }
 
     #[test]
-    fn unwind_matrix_fails_closed_on_undeclared_pairs() {
-        let target = NativeTarget {
-            object_format: ObjectFormat::Coff,
-            ..NativeTarget::linux_arm64()
-        };
-        assert_eq!(frame_unwind_policy(target), None, "{target:?}");
+    fn windows_arm64_unwinds_through_the_link_register_with_x18_reserved() {
+        assert_eq!(
+            frame_unwind_policy(NativeTarget::windows_arm64()),
+            Some(FrameUnwindPolicy {
+                abi: FrameAbiPreservationConvention::DarwinAapcs64,
+                stack_pointer_view: "sp",
+                continuation: FrameContinuationCustody::LinkRegister {
+                    view: "x30",
+                    saved_size_bytes: 8,
+                },
+            })
+        );
     }
 
     #[test]
@@ -841,12 +846,17 @@ mod tests {
                 Vec::new(),
             )
             .unwrap();
-            let first = &layout.local_storage_slots[0];
-            let second = &layout.local_storage_slots[1];
+            let [first, second] = layout.local_storage_slots.as_slice() else {
+                panic!("expected a frame slot for each of the two spilled registers");
+            };
             assert!(first.frame_offset_bytes >= layout.outgoing_abi_area.byte_size);
             assert_eq!(second.frame_offset_bytes, first.frame_offset_bytes + 8);
             assert!(second.frame_offset_bytes + 8 <= layout.frame_size_bytes);
-            assert_eq!(first.id, slots[0].id);
+            assert_eq!(
+                [first.id, second.id],
+                [slots[0].id, slots[1].id],
+                "each spill offset belongs to the register whose value it holds"
+            );
             assert!(
                 function_layout(
                     &environment,

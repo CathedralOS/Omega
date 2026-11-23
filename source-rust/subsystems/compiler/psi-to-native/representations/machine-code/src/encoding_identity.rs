@@ -10,10 +10,6 @@ consolidation or `Arc` sharing.
 
 use crate::encode_units;
 use crate::identity_encoding::{encode_invocation_site, encode_nested_identity, encode_views};
-use crate::{
-    SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
-    SelectedFormInternalMachineFixupState,
-};
 use post_allocation_machine::{
     PostAllocationMachineIdentity, PostAllocationMachineOptimizationCustody,
 };
@@ -217,12 +213,12 @@ fn encode_encoding_row(
         SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup } => {
             hasher.byte(2);
             encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));
-            encode_internal_fixup(hasher, **fixup);
+            fixup.encode_identity(hasher);
         }
         SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup } => {
             hasher.byte(3);
             encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));
-            encode_normalized_foreign_fixup(hasher, fixup);
+            fixup.encode_identity(hasher);
         }
         SelectedFormEncodingState::UnresolvedImageAddress { fixup } => {
             hasher.byte(6);
@@ -282,74 +278,6 @@ fn encode_footprint(
     encode_units(hasher, &footprint.implicit_defs);
     encode_units(hasher, &footprint.implicit_clobbers);
     selected_instructions::encode_machine_encoded_effects_identity(hasher, &footprint.encoded);
-}
-
-pub(super) fn encode_normalized_foreign_fixup(
-    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
-    fixup: &crate::SelectedFormNormalizedForeignCallFixup,
-) {
-    hasher.byte(match fixup.kind {
-        crate::SelectedFormNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1 => 0,
-        crate::SelectedFormNormalizedForeignCallFixupKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1 => 1,
-    });
-    hasher.byte(match fixup.state {
-        crate::SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1 => 0,
-    });
-    hasher.raw(&fixup.boundary.get().to_le_bytes());
-    hasher.raw(&fixup.ordinal.to_le_bytes());
-    hasher.raw(&fixup.opcode_row_offset.to_le_bytes());
-    hasher.raw(&fixup.patch_row_offset.to_le_bytes());
-    hasher.raw(&fixup.reference_row_offset.to_le_bytes());
-    hasher.byte(fixup.patch_byte_width);
-    hasher.raw(&fixup.addend.to_le_bytes());
-    hasher.raw(
-        &u64::try_from(fixup.callbacks.len())
-            .unwrap_or(0)
-            .to_le_bytes(),
-    );
-    for callback in &fixup.callbacks {
-        crate::calls::callbacks::encode_callback_destination_identity(
-            hasher,
-            &callback.destination,
-        );
-        hasher.raw(&callback.code_row_offset.to_le_bytes());
-        hasher.raw(&callback.code_byte_count.to_le_bytes());
-        match callback.encoding {
-            crate::SelectedFormCallbackMaterializationEncoding::X86_64Relative32 {
-                patch_row_offset,
-            } => {
-                hasher.byte(0);
-                hasher.raw(&patch_row_offset.to_le_bytes());
-            }
-            crate::SelectedFormCallbackMaterializationEncoding::Aarch64PageAddress {
-                page_patch_row_offset,
-                page_offset_patch_row_offset,
-            } => {
-                hasher.byte(1);
-                hasher.raw(&page_patch_row_offset.to_le_bytes());
-                hasher.raw(&page_offset_patch_row_offset.to_le_bytes());
-            }
-        }
-    }
-}
-
-pub(super) fn encode_internal_fixup(
-    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
-    fixup: SelectedFormInternalMachineFixup,
-) {
-    hasher.byte(match fixup.kind {
-        SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 => 0,
-        SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => 1,
-    });
-    hasher.byte(match fixup.state {
-        SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1 => 0,
-    });
-    hasher.raw(&fixup.callee.get().to_le_bytes());
-    hasher.raw(&fixup.opcode_row_offset.to_le_bytes());
-    hasher.raw(&fixup.patch_row_offset.to_le_bytes());
-    hasher.raw(&fixup.reference_row_offset.to_le_bytes());
-    hasher.byte(fixup.patch_byte_width);
-    hasher.raw(&fixup.addend.to_le_bytes());
 }
 
 fn encode_counts(

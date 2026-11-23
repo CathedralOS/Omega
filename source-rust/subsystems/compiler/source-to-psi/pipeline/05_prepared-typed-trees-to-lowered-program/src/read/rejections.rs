@@ -68,6 +68,8 @@ pub(super) enum Destination {
     Local,
     /// The place an assignment stores into.
     Assigned,
+    /// The element type of the array an array literal constructs.
+    ArrayElement,
 }
 
 impl Destination {
@@ -79,6 +81,7 @@ impl Destination {
             Self::Field => "the field it initializes",
             Self::Local => "the local it initializes",
             Self::Assigned => "the place it is assigned to",
+            Self::ArrayElement => "the array element it initializes",
         }
     }
 }
@@ -214,16 +217,25 @@ impl Program<'_> {
                 ),
             );
         }
-        if destination == Destination::Result
-            && expected.erased() == found.erased()
-            && self.names_two_own_lifetimes(expected, found)
-        {
+        // Two lifetime parameters of one machine are unrelated wherever the
+        // value goes: a result, a field of a record literal, a local or an
+        // argument that names the other lifetime.
+        if expected.erased() == found.erased() && self.names_two_own_lifetimes(expected, found) {
             return reject(
                 id,
                 at,
-                "this view is of the region of another lifetime of the machine than its result \
-                 names: a result lifetime relates the returned view to the input of that \
-                 lifetime, and nothing relates two lifetimes of one machine",
+                match destination {
+                    Destination::Result => String::from(
+                        "this view is of the region of another lifetime of the machine than its \
+                         result names: a result lifetime relates the returned view to the input \
+                         of that lifetime, and nothing relates two lifetimes of one machine",
+                    ),
+                    other => format!(
+                        "this view is of the region of another lifetime of the machine than {} \
+                         names: nothing relates two lifetimes of one machine",
+                        other.named()
+                    ),
+                },
             );
         }
         refused
@@ -638,7 +650,7 @@ mod tests {
                 scalar_type: ScalarType::Integer(
                     IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
                 ),
-                policy: None,
+                qualification: Qualification::NONE,
             },
             multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
             cleanup: None,

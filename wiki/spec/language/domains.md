@@ -250,16 +250,16 @@ public domain Cell::Controlled
     access CellAccess;
 
 CellAccess satisfies AccessPolicy {
-    machine plan(schema: reflect\TypeSchema) -> AccessPlan {
-        let mutable plan: AccessPlan = access\new_plan(
-            @schema,
-            Issuance::Only { routes: [reflect\callable(create_cell)] }
+    machine plan(subject: |reflect|::TypeSchema) -> AccessPlan {
+        let mutable plan: AccessPlan = |access|::new_plan(
+            @subject,
+            Issuance::Only { routes: [|reflect|::callable(create_cell)] }
         );
-        access\allow_readers(
-            @mutable plan, TypeSchema::root(@schema), [reflect\callable(read_cell)]
+        |access|::allow_readers(
+            @mutable plan, subject, [|reflect|::callable(read_cell)]
         );
-        access\allow_writers(
-            @mutable plan, TypeSchema::root(@schema), [reflect\callable(set_cell)]
+        |access|::allow_writers(
+            @mutable plan, subject, [|reflect|::callable(set_cell)]
         );
         plan
     }
@@ -273,10 +273,11 @@ public data Counter {
 The former `established by`, `read by` and `written by` clauses are retired, not
 parallel ways of configuring the policy. `access` belongs to the domain, not a
 field-private modifier. Fields may use qualified types; a whole-value domain's
-policy may also name individual fields with `reflect\field(Type::field)`.
+policy can also select one field with `|reflect|::field(Type::field)` or apply a
+rule to each field in a collection. See [reader and writer rule subjects](../resources/access.md#access-rule-subjects).
 
 Every plan [states its issuance](../resources/access.md#plans-and-admitted-supply):
-`access\new_plan(@schema, issuance)` takes `Issuance::Only` with the exact
+`|access|::new_plan(@subject, issuance)` takes `Issuance::Only` with the exact
 routes, where an empty list permits nobody, or `Issuance::Unrestricted`.
 Reader and writer lists are independent ceilings: omission leaves that axis
 unrestricted by this policy, an empty list permits nobody, and a nonempty list

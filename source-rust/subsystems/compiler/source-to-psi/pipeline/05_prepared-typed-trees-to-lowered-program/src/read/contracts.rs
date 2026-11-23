@@ -705,6 +705,12 @@ impl Program<'_> {
         let ordered = matches!(left_type, ScalarType::Integer(_));
         match comparison {
             BinaryOperator::Equal => canonical::equal(left, right, id),
+            // Booleans have no order to split a disequality on. `a != b` is
+            // the clause `!(a == b)`, read as the negation above reads it.
+            BinaryOperator::NotEqual if !ordered => Ok(Proposition::Implication {
+                premise: Box::new(canonical::equal(left, right, id)?),
+                conclusion: Box::new(Proposition::Falsehood),
+            }),
             _ if !ordered => unserved("ordering of Booleans"),
             BinaryOperator::Less => Ok(Proposition::LessThan(left, right)),
             BinaryOperator::LessOrEqual => Ok(Proposition::LessOrEqual(left, right)),
@@ -1547,7 +1553,7 @@ impl Program<'_> {
                 let Some(ScalarType::IeeeFloat(format)) = expected else {
                     unreachable!("float landing selected this arm")
                 };
-                let value = self.anonymous_float(id, expression, format)?;
+                let (value, _) = self.anonymous_float(id, expression, format)?;
                 Ok((
                     ScalarTerm::IeeeFloatLiteral(value),
                     ValueType::plain(ScalarType::IeeeFloat(format)),
@@ -1577,7 +1583,11 @@ impl Program<'_> {
                 let Some(ScalarType::IeeeFloat(format)) = expected else {
                     unreachable!("float landing selected this arm")
                 };
-                let value = self.anonymous_float(id, expression, format)?;
+                let (value, operators) = self.anonymous_float(id, expression, format)?;
+                if !operators.is_empty() {
+                    let owner = self.contract_operator_owner(id, scope)?;
+                    self.complete_anonymous_operators(id, owner, &operators)?;
+                }
                 Ok((
                     ScalarTerm::IeeeFloatLiteral(value),
                     ValueType::plain(ScalarType::IeeeFloat(format)),

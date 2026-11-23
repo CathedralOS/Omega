@@ -1,5 +1,10 @@
-use targets\windows_x86_64\filesystem_removal\windows_removal_open_child;
-use targets\windows_x86_64\filesystem_removal\windows_removal_open_root;
+use {omega}/language/core/layout.omg as layout;
+use {omega}/language/core/access/access.omg as access;
+use {omega}/language/core/reflect/reflect.omg as reflect;
+use targets/windows_x86_64/windows_filesystem_directory.omg as directory;
+use targets/windows_x86_64/windows_filesystem_reparse.omg as reparse;
+use targets/windows_x86_64/filesystem_removal/acquisition.omg as removal;
+
 // The shared completion premise for private synchronous nonalert file objects.
 // Each issuer actually opens the object with fixed synchronous options and
 // keeps it private through completion/close; no constructor accepts mode bits
@@ -9,5 +14,15 @@ use targets\windows_x86_64\filesystem_removal\windows_removal_open_root;
 
 domain i64::WindowsPrivateNonalertFileOrAbsent
 requires self != -1
-established by windows_directory_open, windows_open_reparse,
-    windows_removal_open_root, windows_removal_open_child;
+access WindowsPrivateNonalertFileIssuance;
+
+WindowsPrivateNonalertFileIssuance satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
+        |access|::new_plan(@schema, |layout|::Issuance::Only { routes: [
+            |reflect|::callable(|directory|::windows_directory_open),
+            |reflect|::callable(|reparse|::windows_open_reparse),
+            |reflect|::callable(|removal|::windows_removal_open_root),
+            |reflect|::callable(|removal|::windows_removal_open_child)
+        ] })
+    }
+}

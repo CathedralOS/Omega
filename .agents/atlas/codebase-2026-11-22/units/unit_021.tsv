@@ -1,0 +1,7 @@
+source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-elf/src/section_headers.rs	1	3183	3183
+source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-elf/src/shared_component.rs	1	729	729
+source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-elf/src/static_executable.rs	1	372	372
+source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/callable_calls.rs	1	48	48
+source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/companion_images.rs	1	26	26
+source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/entries.rs	1	4550	4550
+source-rust/subsystems/compiler/psi-to-native/pipeline/15_objects-to-image/image-emission/src/entries/hosted_entry_storage.rs	1	283	283

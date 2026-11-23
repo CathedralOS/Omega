@@ -74,7 +74,14 @@ pub(super) fn measurement_violations(root: &Path, changes: &[(char, String)]) ->
                     "{path}: raw run data stays out of git. Commit a .md summary and link the data by a pinned commit, or keep it in the claim note"
                 ));
             } else {
-                let lines = show_git_file(root, "HEAD", path).lines().count();
+                let contents = match show_git_file(root, "HEAD", path) {
+                    Ok(contents) => contents,
+                    Err(error) => {
+                        violations.push(error);
+                        continue;
+                    }
+                };
+                let lines = contents.lines().count();
                 if lines > MEASUREMENT_LINE_LIMIT {
                     violations.push(format!(
                         "{path}: {lines} lines; a measurement summary is at most {MEASUREMENT_LINE_LIMIT}. Keep the numbers that decide something and link the raw data by a pinned commit"

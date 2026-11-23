@@ -168,12 +168,14 @@ impl HandleReplayActivations {
         let mechanism = context
             .mechanism(boundary)
             .ok_or("native handle occurrence lost its admitted physical mechanism")?;
-        let terminal_authority_receipts::TerminalMechanismIdentity::NormalizedForeign(foreign) = *mechanism else {
+        let terminal_authority_receipts::TerminalMechanismIdentity::NormalizedForeign(foreign) =
+            *mechanism
+        else {
             return Err(
                 "Windows handle source occurrence is not an original foreign import".into(),
             );
         };
-        if foreign.target() != target::TargetProfile::WindowsX64
+        if !foreign.target().imports_through_pe()
             || foreign.argument_contract()
                 != terminal_authority_receipts::NormalizedForeignArgumentContract::AdmittedPlan
             || foreign.implementation_contract().is_zero()
@@ -191,7 +193,7 @@ impl HandleReplayActivations {
         else {
             return Err("Windows handle source occurrence is not its settled import".into());
         };
-        if locator.target() != target::TargetProfile::WindowsX64
+        if locator.target() != foreign.target()
             || locator.identity_digest() != foreign.locator_identity()
         {
             return Err(
@@ -2624,14 +2626,10 @@ pub(super) fn checked_calls(
 ) -> Result<Option<CheckedHandleCalls>, String> {
     use semantic_vocabulary::TerminalAuthorityDisposition;
     use terminal_authority_receipts::{
-        CheckedSyscallArgumentContractIdentity,
-        NormalizedForeignArgumentContract,
-        TerminalAuthorityClosureLeafOrigin,
-        TerminalMechanismIdentity,
+        CheckedSyscallArgumentContractIdentity, NormalizedForeignArgumentContract,
+        TerminalAuthorityClosureLeafOrigin, TerminalMechanismIdentity,
     };
-    if context.target_profile() != target::TargetProfile::WindowsX64
-        || context.permission_policy.is_none()
-    {
+    if !context.target_profile().imports_through_pe() || context.permission_policy.is_none() {
         return Ok(None);
     }
     let original = context
@@ -2753,7 +2751,7 @@ pub(super) fn checked_calls(
                 "checked file handle occurrence lost its original normalized import".into(),
             );
         };
-        if original.target() != target::TargetProfile::WindowsX64
+        if !original.target().imports_through_pe()
             || original.argument_contract() != NormalizedForeignArgumentContract::AdmittedPlan
         {
             return Err(
@@ -2763,9 +2761,11 @@ pub(super) fn checked_calls(
         let mut constraint =
             DomainDigestEncoder::new(b"omega.windows.file-handle.checked-occurrence.v1\0");
         constraint.raw(&complete_proof);
-        constraint.bytes(&terminal_authority_receipts::terminal_mechanism_identity_bytes(
-            TerminalMechanismIdentity::NormalizedForeign(*original),
-        ));
+        constraint.bytes(
+            &terminal_authority_receipts::terminal_mechanism_identity_bytes(
+                TerminalMechanismIdentity::NormalizedForeign(*original),
+            ),
+        );
         constraint.u64(occurrence.machine.get());
         let mut site = Vec::with_capacity(9);
         occurrence.site.encode_identity(&mut site);

@@ -1,7 +1,6 @@
 use crate::expressions::static_arguments::parse_static_argument_expression;
 use crate::token_input::cursor::{Input, ParseResult};
 use arena::HandleSpan;
-use numerics::arithmetic::ArithmeticDomain;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionNode;
 use syntax_trees::identifier::Identifier;
@@ -359,22 +358,13 @@ fn apply_in_domain_suffix<'tokens, 'source>(
     loop {
         let (domain_name, rest) = parse_static_name(cursor)?;
         let (arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
-        constraints.push(
-            match ArithmeticDomain::from_name(domain_name.as_str(syntax_trees)) {
-                Some(domain) if arguments.is_empty() => {
-                    TypeConstraintNode::ArithmeticDomain(domain)
-                }
-                Some(_) => {
-                    return Err(
-                        rest.error_here("compiler arithmetic domains do not take index arguments")
-                    );
-                }
-                None => TypeConstraintNode::Domain(DomainConstraint {
-                    name: domain_name,
-                    arguments,
-                }),
-            },
-        );
+        // Parsing never consults name lookup: `in Wrapping` names a domain
+        // like any other. Name resolution decides whether it is the package's
+        // own declaration or core's arithmetic policy.
+        constraints.push(TypeConstraintNode::Domain(DomainConstraint {
+            name: domain_name,
+            arguments,
+        }));
 
         if !rest.at_punctuation(PunctuationKind::Ampersand) {
             cursor = rest;

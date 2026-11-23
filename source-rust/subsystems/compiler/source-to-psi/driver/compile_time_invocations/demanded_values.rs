@@ -154,7 +154,7 @@ pub(crate) fn evaluate_demanded_values(
 ) -> Result<EvaluatedValues, Vec<Diagnostic>> {
     super::constants::retain_evaluation_entries(program)?;
     let mut layouts = super::fixed_layouts::Layouts::demanded(program, demand.layout_scopes)?;
-    let demanded = super::demanded_declarations(program, demand.compilation)
+    let demanded = super::demanded_declarations(program, demand.compilation, demand.layout_scopes)
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     let mut plans = super::domain_access_plans::AccessPlans::demanded(program, &demanded);
     let mut arguments = super::constants::Arguments::demanded(program, &demanded);

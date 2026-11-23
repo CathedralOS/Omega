@@ -80,8 +80,8 @@ compiler build and executes its retained Terminal artifact with original runtime
 provisions and fresh input for every fixture. The driver publishes that same retained native product through the canonical
 product publisher; it does not repeat compilation for native qualification.
 Its 100000000 work sponsor budget
-is explicit. `run --both` compares exits only; it does not validate Terminal
-numeric output. Use both validation routes:
+is explicit. `omega run --both` compares termination and the exact stdout and stderr bytes from
+both engines. Use both validation routes:
 
 ```sh
 # Reuse completed direct captures without recompilation:

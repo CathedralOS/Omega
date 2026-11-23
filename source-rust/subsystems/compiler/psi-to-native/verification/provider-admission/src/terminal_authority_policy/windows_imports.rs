@@ -20,13 +20,11 @@
 use std::sync::OnceLock;
 
 use semantic_vocabulary::{
-    PortableFilesystemAuthorityFacet as Facet,
-    TerminalAuthorityClass as Class,
+    PortableFilesystemAuthorityFacet as Facet, TerminalAuthorityClass as Class,
     TerminalAuthorityDisposition,
 };
 use terminal_authority_receipts::{
-    NormalizedForeignArgumentContract,
-    NormalizedForeignTerminalMechanismIdentity,
+    NormalizedForeignArgumentContract, NormalizedForeignTerminalMechanismIdentity,
 };
 
 use super::TerminalAuthorityPolicyRow;
@@ -102,15 +100,19 @@ fn reviewed_imports() -> &'static [ReviewedImport] {
                 &[Class::FilesystemNamespaceMutation],
             ),
         ];
-        imports
-            .iter()
-            .map(|&(library, export, classes)| {
+        // The same exports mean the same operation on every Windows target;
+        // each target's locator is a distinct reviewed key.
+        target::TargetProfile::ALL
+            .into_iter()
+            .filter(|profile| profile.imports_through_pe())
+            .flat_map(|profile| imports.iter().map(move |row| (profile, row)))
+            .map(|(profile, &(library, export, classes))| {
                 let locator = target::normalize_foreign_locator(
                     target::ForeignLocatorCandidate::PeByName {
                         library: library.to_vec(),
                         export: export.to_vec(),
                     },
-                    target::TargetProfile::WindowsX64,
+                    profile,
                 )
                 .expect("reviewed Windows API locator");
                 ReviewedImport {
@@ -127,7 +129,7 @@ fn reviewed_imports() -> &'static [ReviewedImport] {
 pub(super) fn mechanism_row(
     foreign: NormalizedForeignTerminalMechanismIdentity,
 ) -> Option<TerminalAuthorityPolicyRow> {
-    if foreign.target() != target::TargetProfile::WindowsX64
+    if !foreign.target().imports_through_pe()
         || foreign.implementation_contract().is_zero()
         || foreign.argument_contract() != NormalizedForeignArgumentContract::AdmittedPlan
     {
@@ -213,10 +215,8 @@ mod tests {
         assert!(row.disposition.classes().contains(&Class::ProcessInput));
         assert!(row.disposition.classes().contains(&Class::ProcessOutput));
         assert!(
-            super::super::reviewed_host_operation(
-                imported(b"other.dll", b"ReadFile", 1).into(),
-            )
-            .is_none()
+            super::super::reviewed_host_operation(imported(b"other.dll", b"ReadFile", 1).into(),)
+                .is_none()
         );
 
         let open = imported(b"ntdll.dll", b"NtOpenFile", 1);
@@ -234,19 +234,16 @@ mod tests {
             (b"Sleep".as_slice(), &[][..]),
             (b"ExitProcess", &[Class::ProcessTermination]),
         ] {
-            let row = super::super::reviewed_host_operation(
-                imported(b"kernel32.dll", export, 1).into(),
-            )
-            .unwrap();
+            let row =
+                super::super::reviewed_host_operation(imported(b"kernel32.dll", export, 1).into())
+                    .unwrap();
             assert_eq!(
                 row.disposition,
                 TerminalAuthorityDisposition::from_classes(classes.iter().copied())
             );
             assert!(
-                super::super::reviewed_host_operation(
-                    imported(b"other.dll", export, 1).into(),
-                )
-                .is_none()
+                super::super::reviewed_host_operation(imported(b"other.dll", export, 1).into(),)
+                    .is_none()
             );
         }
     }
@@ -263,10 +260,8 @@ mod tests {
         // descriptors. Refusal must not be replaced by a filesystem-only row.
         for export in [b"_read".as_slice(), b"_write"] {
             assert!(
-                super::super::reviewed_host_operation(
-                    imported(b"msvcrt.dll", export, 1).into(),
-                )
-                .is_none()
+                super::super::reviewed_host_operation(imported(b"msvcrt.dll", export, 1).into(),)
+                    .is_none()
             );
         }
     }

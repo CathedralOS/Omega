@@ -33,8 +33,8 @@ pub const fn frame_protocol_codec(target: NativeTarget) -> Option<FrameProtocolC
         | (Architecture::X86_64, ObjectFormat::Coff)
         | (Architecture::X86_64, ObjectFormat::MachO) => Some(FrameProtocolCodec::X86_64),
         (Architecture::Aarch64, ObjectFormat::Elf)
-        | (Architecture::Aarch64, ObjectFormat::MachO) => Some(FrameProtocolCodec::Aarch64),
-        (Architecture::Aarch64, ObjectFormat::Coff) => None,
+        | (Architecture::Aarch64, ObjectFormat::MachO)
+        | (Architecture::Aarch64, ObjectFormat::Coff) => Some(FrameProtocolCodec::Aarch64),
     }
 }
 

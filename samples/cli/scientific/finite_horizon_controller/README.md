@@ -67,9 +67,9 @@ once and executes the retained native artifact for all 12 inputs, recording its
 SHA-256. It runs one Omega process at a time: 16 Omega invocations and 12 direct
 native executions make 28 sequential commands. It captures every command, stdout,
 stderr and exit under `build/validation/`, checks byte-exact native output and
-recomputes every emitted transition and cost independently. `--both` interprets the
-produced Terminal artifact; the current CLI compares termination only, so Terminal
-agreement here is not a claim of Terminal stdout equivalence.
+recomputes every emitted transition and cost independently. `omega run --both` compares
+termination and the exact stdout and stderr bytes from
+both engines.
 
 The complete positive `reproduction/` preserves the local fixed-byte input loan
 that exposed the compiler gap. Its input `0` plus LF must exit 70 with empty

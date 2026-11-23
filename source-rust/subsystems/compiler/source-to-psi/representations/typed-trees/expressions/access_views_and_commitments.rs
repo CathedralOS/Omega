@@ -1141,6 +1141,19 @@ pub(crate) mod commitments {
     }
 
     impl ClosedConformanceApplication {
+        pub(crate) fn seal_encoding(&mut self, encoding: String) {
+            use sha2::{Digest, Sha256};
+            let mut fingerprint = wire::fnv1a::Fnv1a::new();
+            fingerprint.string_framed(&encoding);
+            let mut digest = Sha256::new();
+            digest.update(b"OMEGA-TYPED-CONFORMANCE-APPLICATION\0");
+            digest.update(encoding.as_bytes());
+            self.report_fingerprint = fingerprint.finish();
+            self.commitment =
+                ClosedConformanceApplicationCommitment::from_digest(digest.finalize().into());
+            self.identity_encoding = std::sync::Arc::from(encoding.into_bytes());
+        }
+
         pub(crate) fn same_selection_metadata(&self, other: &Self) -> bool {
             self.declaration == other.declaration
                 && self.lifetime_arguments == other.lifetime_arguments

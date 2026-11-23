@@ -107,13 +107,7 @@ impl Qualification {
     }
 }
 
-/// One exact domain application. The declaration owns the family and its
-/// routes; the semantic coordinate distinguishes its carrier and indices.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct DomainInstance {
-    pub declaration: symbols::SymbolHandle,
-    pub identity: semantic_vocabulary::SemanticDomainId,
-}
+pub use terminal_check_tables::program::DomainInstance;
 
 /// The declared domains of one type, each by its exact application, kept
 /// sorted so that equal sets are equal values. The set is held inline, as
@@ -143,14 +137,6 @@ impl DomainSet {
         members: [(0, 0, 0); Self::CAPACITY],
     };
 
-    const fn key(domain: DomainInstance) -> (u32, u32, u32) {
-        (
-            domain.declaration.arena_index(),
-            domain.declaration.generation(),
-            domain.identity.0,
-        )
-    }
-
     pub fn members(&self) -> impl Iterator<Item = DomainInstance> + '_ {
         self.members[..usize::from(self.len)]
             .iter()
@@ -165,7 +151,7 @@ impl DomainSet {
     }
 
     pub fn contains(&self, domain: DomainInstance) -> bool {
-        self.members[..usize::from(self.len)].contains(&Self::key(domain))
+        self.members[..usize::from(self.len)].contains(&domain.coordinates())
     }
 
     /// Whether every member of this set is a member of `other`.
@@ -180,7 +166,7 @@ impl DomainSet {
         if self.contains(domain) || count == Self::CAPACITY {
             return None;
         }
-        let key = Self::key(domain);
+        let key = domain.coordinates();
         let position = self.members[..count].partition_point(|member| *member < key);
         self.members.copy_within(position..count, position + 1);
         self.members[position] = key;
@@ -193,7 +179,7 @@ impl DomainSet {
         let count = usize::from(self.len);
         let position = self.members[..count]
             .iter()
-            .position(|member| *member == Self::key(domain))?;
+            .position(|member| *member == domain.coordinates())?;
         self.members.copy_within(position + 1..count, position);
         self.members[count - 1] = (0, 0, 0);
         self.len -= 1;
@@ -401,9 +387,13 @@ pub enum StorageShape {
         length: terminal_psi::ArrayExtent,
     },
     AtomicCell(semantic_vocabulary::AtomicCellType),
+    /// Addressable storage of one scalar, such as an array element. It keeps
+    /// the scalar's complete qualification: an element of `[u8 in Mark; 4]`
+    /// is a `u8 in Mark` wherever it is read, and only such a value may be
+    /// stored there (domains.md, "Carrier-exact membership").
     PrimitiveScalar {
         scalar_type: ScalarType,
-        policy: Option<Policy>,
+        qualification: Qualification,
     },
 }
 
@@ -929,7 +919,8 @@ pub struct Body {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Statement {    /// At this wait the successor still observes these local bindings.
+pub enum Statement {
+    /// At this wait the successor still observes these local bindings.
     ParkedBuildLocals(Vec<usize>, source_text::SourceSpan),
     /// Evaluate `value` and bind `slot` to it: a local's initializer, or an
     /// assignment of a whole value, which rebinds the slot. A scalar slot
@@ -939,6 +930,8 @@ pub enum Statement {    /// At this wait the successor still observes these loca
     /// the statements of a body lie on one spine and a slot has one binding
     /// at each of them.
     Bind { slot: usize, value: Expression },
+    /// Save the address of a borrowed dispatch subject before later operands run.
+    Observe { slot: usize, value: Expression },
     /// Capture an existing reference binding without reading or copying its
     /// referent. Both slots retain the same storage and access authority.
     CaptureReference { slot: usize, original: usize },
@@ -1019,12 +1012,9 @@ pub enum Statement {    /// At this wait the successor still observes these loca
         default: Option<(Target, SourceOrigin)>,
         source: SourceOrigin,
     },
-    /// One transition arm. With a guard, the arm runs when it is true and the
-    /// following statements run when it is false; without one, the arm runs
-    /// and nothing follows it. A `crash` statement is an unguarded arm whose
-    /// target is `Target::Crash`.
+    /// An arm that completes the current invocation.
     Arm {
-        guard: Option<Expression>,
+        guard: ArmGuard,
         target: Target,
         source: SourceOrigin,
     },
@@ -1039,6 +1029,27 @@ impl Statement {
             expression,
             discards_result: true,
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArmGuard {
+    Always,
+    When(Expression),
+    /// The checker must prove the condition on all remaining arrivals.
+    Final(Expression),
+}
+
+impl ArmGuard {
+    pub fn condition(&self) -> Option<&Expression> {
+        match self {
+            Self::Always => None,
+            Self::When(condition) | Self::Final(condition) => Some(condition),
+        }
+    }
+
+    pub fn closes_dispatch(&self) -> bool {
+        !matches!(self, Self::When(_))
     }
 }
 
@@ -1060,7 +1071,8 @@ pub struct Expression {
     /// Source acknowledgements survive primitive folding until position checking.
     pub call_context: Option<terminal_psi::CallAcknowledgement>,
     pub kind: ExpressionKind,
-    /// `None` only for a call of a Unit machine.
+    /// `None` for a Unit result: a call of a Unit machine, or a `match` whose
+    /// arms complete with Unit.
     pub result: Option<ValueType>,
     pub source: SourceOrigin,
 }
@@ -1088,7 +1100,8 @@ impl AtomicOperation {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ExpressionKind {    /// Operand indices refer to the event's source evaluation order.
+pub enum ExpressionKind {
+    /// Operand indices refer to the event's source evaluation order.
     Atomic(AtomicOperation),
     /// Apply the supplied implication to fixed subjects without executing a call.
     TheoremApplication {
@@ -1236,6 +1249,8 @@ pub enum ExpressionKind {    /// Operand indices refer to the event's source eva
     /// `default` is always present: the wildcard, or the last arm of a
     /// Boolean match whose arms name both values (patterns.md: "Boolean
     /// coverage includes true/false").
+    /// A subjectless match retains each guard. Without a wildcard the last
+    /// guard owes coverage on all remaining arrivals.
     Match {
         capture: Option<arena::Handle<crate::source_state::expression::CompletedValueCapture>>,
         subject: Box<Expression>,

@@ -7,7 +7,7 @@ use platform_custody::record_file::{RecordFileLimits, RecordFileRoot, RootRecord
 use std::path::{Path, PathBuf};
 use target::TargetProfile;
 
-pub(super) const PROPOSAL: &str = "proposal";
+pub(super) use crate::lockfile::publication::PROPOSAL_FILE as PROPOSAL;
 pub(super) const LIMITS: RecordFileLimits = RecordFileLimits {
     maximum_bytes: 128 * 1024 * 1024,
 };

@@ -14,7 +14,7 @@ use crate::source_state::callable_values::RuntimeCallBinding;
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
 use crate::source_state::references::StaticArgumentCall;
 use crate::source_state::references::{DeclarationSelection, TypedReferences};
-use crate::source_state::statement::{StatementHandle, StatementNode};
+use crate::source_state::statement::{StatementHandle, StatementNode, StatementRootRole};
 use crate::source_state::types::{ProductTypeInput, TypeOperandOrigin, TypeReferenceHandle};
 use symbols::{SymbolHandle, SymbolKind};
 
@@ -30,14 +30,25 @@ pub(crate) struct CompletedOperators {
     /// conjunction is false and its later conjuncts are not evaluated").
     /// Their operators owe no selection.
     vacuous: Vec<(SymbolHandle, ExpressionHandle)>,
+    // A shared statement needs every operand that at least one body read.
+    transition_reads: Vec<(SymbolHandle, StatementHandle, TransitionRead)>,
 }
 
-fn vacuous_key(row: &(SymbolHandle, ExpressionHandle)) -> (u32, u32, u32, u32) {
+/// A known-false guard has a checked predicate and no target. After a
+/// statically completed arm only another closed type predicate is read.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum TransitionRead {
+    None,
+    Guard,
+    GuardAndTarget,
+}
+
+fn source_location<T>(owner: SymbolHandle, node: arena::Handle<T>) -> (u32, u32, u32, u32) {
     (
-        row.0.arena_index(),
-        row.0.generation(),
-        row.1.arena_index(),
-        row.1.generation(),
+        owner.arena_index(),
+        owner.generation(),
+        node.arena_index(),
+        node.generation(),
     )
 }
 
@@ -143,16 +154,56 @@ impl CompletedOperators {
         self.vacuous.push((owner, expression));
     }
 
+    pub(crate) fn record_transition(
+        &mut self,
+        owner: SymbolHandle,
+        statement: StatementHandle,
+        read: TransitionRead,
+    ) {
+        self.transition_reads.push((owner, statement, read));
+    }
+
+    fn transition_read(&self, owner: SymbolHandle, statement: StatementHandle) -> TransitionRead {
+        self.transition_reads
+            .binary_search_by_key(
+                &source_location(owner, statement),
+                |&(owner, statement, _)| source_location(owner, statement),
+            )
+            .map_or(TransitionRead::GuardAndTarget, |position| {
+                self.transition_reads[position].2
+            })
+    }
+
     pub(crate) fn finish(&mut self) {
         self.reads.sort_unstable_by_key(CompletedOperatorRead::key);
         self.reads.dedup();
-        self.vacuous.sort_unstable_by_key(vacuous_key);
+        self.vacuous
+            .sort_unstable_by_key(|&(owner, expression)| source_location(owner, expression));
         self.vacuous.dedup();
+        if self
+            .transition_reads
+            .iter()
+            .any(|&(_, _, read)| read != TransitionRead::GuardAndTarget)
+        {
+            self.transition_reads
+                .sort_unstable_by_key(|&(owner, statement, read)| {
+                    (source_location(owner, statement), std::cmp::Reverse(read))
+                });
+            self.transition_reads
+                .dedup_by_key(|&mut (owner, statement, _)| source_location(owner, statement));
+            self.transition_reads
+                .retain(|&(_, _, read)| read != TransitionRead::GuardAndTarget);
+        } else {
+            self.transition_reads.clear();
+        }
     }
 
     fn is_vacuous(&self, owner: SymbolHandle, expression: ExpressionHandle) -> bool {
         self.vacuous
-            .binary_search_by_key(&vacuous_key(&(owner, expression)), vacuous_key)
+            .binary_search_by_key(
+                &source_location(owner, expression),
+                |&(owner, expression)| source_location(owner, expression),
+            )
             .is_ok()
     }
 
@@ -181,8 +232,8 @@ pub use lowered_source_publication::selection_questions::{
     RawSelectionQuestions, RawSelectionRole, RawSelectionTarget,
 };
 
-/// Give each anonymous declaration of this form that emits no row of its own
-/// the invocation identity the lowered form uses for it.
+/// Give each anonymous declaration this form selects or names, and that emits
+/// no row of its own, the invocation identity the lowered form uses for it.
 pub(super) fn bind_invocation_declarations(
     mut questions: RawSelectionQuestions,
     typed: &TypedTrees,
@@ -201,10 +252,33 @@ pub(super) fn bind_invocation_declarations(
         emitted.insert(record.declaration);
         emitted.extend(record.fields.iter().map(|field| field.declaration));
     }
+    // Publication names a called entry by its emitted machine. A generic
+    // helper emits only its applications, so a call to it still selects the
+    // template's own entry, which needs an identity here like any other.
+    let named_by_emitted_machine = |symbol: SymbolHandle| {
+        typed.symbols.get(symbol).kind == SymbolKind::State
+            && typed
+                .unique_machine_by_entry_state_symbol(symbol)
+                .is_some_and(|(machine, _)| emitted.contains(&machine.symbol))
+    };
+    let selected = questions
+        .questions
+        .iter()
+        .filter(|question| question.designation.is_none())
+        .filter_map(|question| match question.target {
+            RawSelectionTarget::Declaration(symbol) => Some(symbol),
+            _ => None,
+        })
+        .chain(questions.dependencies.iter().map(|row| row.target));
+    let mut named = questions.declarations.clone();
+    named.extend(selected);
+    named.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    named.dedup();
     let mut identities = std::mem::take(&mut form.module.identities).into_builder();
     let mut bound = Vec::new();
-    for &symbol in &questions.declarations {
+    for symbol in named {
         if !emitted.contains(&symbol)
+            && !named_by_emitted_machine(symbol)
             && typed.symbols.symbol_source_origin(symbol)
                 == Some(source_admission::SourceOrigin::User)
             && typed.symbols.symbol_package_identity(symbol).is_none()
@@ -933,6 +1007,20 @@ impl TypedReferences for Capture<'_> {
         } else {
             self.statement = Some(statement);
         }
+    }
+    fn statement_expression(&mut self, role: StatementRootRole) -> bool {
+        let required = match role {
+            StatementRootRole::TransitionGuard => TransitionRead::Guard,
+            StatementRootRole::TransitionValue | StatementRootRole::TransitionArgument => {
+                TransitionRead::GuardAndTarget
+            }
+            _ => return true,
+        };
+        self.statement.is_none_or(|statement| {
+            self.completed_operators
+                .transition_read(self.owner, statement)
+                >= required
+        })
     }
     fn statement(&mut self, statement: &StatementNode) -> bool {
         self.runtime_statement = None;

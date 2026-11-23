@@ -127,7 +127,7 @@ pub use effects::{
     pre_allocation_machine_effect_identity, saturating_family_tag, trapping_family_tag,
     validate_isa_machine_effect_catalog, validate_machine_effect_catalog,
 };
-pub use functions::SelectedFunctions;
+pub use functions::{AppendOnlyRows, SelectedFunctions};
 pub use identity::{
     AddressFoldIdentity, ConstantBooleanIdentity, ConstantBranchIdentity,
     CopiedCallOperandIdentity, CopyRemovalIdentity, DeadCompareIdentity, EquivalentCompareIdentity,

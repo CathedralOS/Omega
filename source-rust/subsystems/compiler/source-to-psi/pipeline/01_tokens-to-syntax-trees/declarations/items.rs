@@ -2,7 +2,7 @@ use crate::declarations::namespaces::parse_package_declaration;
 
 use crate::declarations::capabilities::parse_capability_definition;
 use crate::declarations::constants::parse_const_definition;
-use crate::declarations::data::{parse_boundary_data_definition, parse_data_definition};
+use crate::declarations::data::{parse_boundary_data_definition, parse_data_family};
 use crate::declarations::domains::parse_domain_definition;
 use crate::declarations::imports::parse_use_item;
 use crate::declarations::machines::parse_machine;
@@ -20,6 +20,8 @@ use tokens::{KeywordKind, PunctuationKind};
 
 pub(crate) enum ParsedDeclaration {
     Item(Item),
+    /// A data declaration followed by the declarations nested in it.
+    DataFamily(Vec<Item>),
     Mathematical(MathematicalDefinition),
 }
 
@@ -147,6 +149,16 @@ pub(crate) fn parse_item<'tokens, 'source>(
         let input = input.take_keyword(KeywordKind::Public, "public")?;
         let (mut declaration, rest) = parse_item(syntax_trees, input)?;
         match &mut declaration {
+            // A nested data declaration inherits its owner's visibility.
+            ParsedDeclaration::DataFamily(items) => {
+                for item in items {
+                    match item {
+                        Item::Data(data) => data.is_public = true,
+                        Item::TypeAlias(alias) => alias.is_public = true,
+                        _ => unreachable!("a data family holds data and type aliases"),
+                    }
+                }
+            }
             ParsedDeclaration::Item(item) => match item {
                 Item::Conformance(conformance) => conformance.is_public = true,
                 Item::Const(constant) => constant.declaration.is_public = true,
@@ -177,6 +189,15 @@ pub(crate) fn parse_item<'tokens, 'source>(
     if input.at_contextual("boundary") {
         let input = input.take_contextual("boundary")?;
         return parse_boundary_item(syntax_trees, input);
+    }
+
+    if input.at_keyword(KeywordKind::Data) {
+        let input = input.take_keyword(KeywordKind::Data, "data")?;
+        let (mut items, rest) = parse_data_family(syntax_trees, input)?;
+        if items.len() == 1 {
+            return Ok((ParsedDeclaration::Item(items.remove(0)), rest));
+        }
+        return Ok((ParsedDeclaration::DataFamily(items), rest));
     }
 
     let (item, rest) = parse_declared_item(syntax_trees, input)?;
@@ -241,11 +262,6 @@ fn parse_declared_item<'tokens, 'source>(
         let input = input.take_keyword(KeywordKind::Use, "use")?;
         let (item, rest) = parse_use_item(syntax_trees, input)?;
         return Ok((Item::Use(item), rest));
-    }
-
-    if input.at_keyword(KeywordKind::Data) {
-        let input = input.take_keyword(KeywordKind::Data, "data")?;
-        return parse_data_definition(syntax_trees, input);
     }
 
     if input.at_contextual("domain") {

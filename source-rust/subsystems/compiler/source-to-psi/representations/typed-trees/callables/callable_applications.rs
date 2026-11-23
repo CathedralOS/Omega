@@ -2347,7 +2347,6 @@ pub(crate) mod namespaces {
             use crate::source_state::static_applications::{
                 StaticMachineBinding, StaticMachineBindingValue,
             };
-            use sha2::{Digest, Sha256};
             let Some((owner, identity)) = self.named_conformance_capture_key(call)? else {
                 return Ok(None);
             };
@@ -2372,29 +2371,9 @@ pub(crate) mod namespaces {
                 .iter()
                 .map(|parameter| parameter.symbol)
                 .collect::<Vec<_>>();
-            let rows = selected
-                .rows
-                .iter()
-                .map(|row| crate::source_state::ClosedConformanceRowIdentity {
-                    declaring_trait: row.declaring_trait,
-                    requirement: row.requirement,
-                    realization_machine: row.realization_machine,
-                    realization_state: row.realization_state,
-                })
-                .collect();
             let scope = self
                 .applied_requirement_scope(owner, call.requirement_application)
                 .ok_or("named application lost its source scope")?;
-            let trait_definition = scope.declaration.symbol;
-            let trait_arguments = self
-                .trait_type_parameters(scope.declaration)
-                .iter()
-                .map(|parameter| {
-                    self.normalized_type_identity_text(
-                        scope.parameter_argument(self, parameter.symbol),
-                    )
-                })
-                .collect();
             let environment = scope.environment();
             let type_arguments = arguments
                 .iter()
@@ -2431,12 +2410,7 @@ pub(crate) mod namespaces {
                 .static_machine_application_mut(application);
             source.lexical_owner = owner;
             source.binding_declaration = declaration;
-            let mut fingerprint = wire::fnv1a::Fnv1a::new();
-            fingerprint.string_framed(&encoding);
-            let mut digest = Sha256::new();
-            digest.update(b"OMEGA-TYPED-CONFORMANCE-APPLICATION\0");
-            digest.update(encoding.as_bytes());
-            Ok(Some(crate::source_state::ClosedConformanceApplication {
+            let closed = crate::source_state::ClosedConformanceApplication {
                 declaration,
                 trait_scope: scope,
                 callable_application: application,
@@ -2445,17 +2419,47 @@ pub(crate) mod namespaces {
                 type_arguments,
                 const_arguments: Vec::new(),
                 machine_arguments: Vec::new(),
-                trait_definition,
-                trait_lifetime_arguments: Vec::new(),
-                trait_arguments,
-                rows,
-                report_fingerprint: fingerprint.finish(),
-                commitment:
-                    crate::source_state::ClosedConformanceApplicationCommitment::from_digest(
-                        digest.finalize().into(),
-                    ),
-                identity_encoding: std::sync::Arc::from(encoding.into_bytes()),
-            }))
+                ..Default::default()
+            };
+            self.finish_conformance_capture(closed, encoding).map(Some)
+        }
+
+        /// A named call and a Build choice bind the same implementation
+        /// constructor. Its declaration supplies every row and its receiver.
+        pub(crate) fn finish_conformance_capture(
+            &self,
+            mut record: crate::source_state::ClosedConformanceApplication,
+            encoding: String,
+        ) -> Result<crate::source_state::ClosedConformanceApplication, &'static str> {
+            let declaration = self
+                .conformance_by_symbol(record.declaration)
+                .ok_or("implementation application lost its source declaration")?;
+            let scope = record
+                .trait_scope
+                .scope(self)
+                .ok_or("implementation application lost its exact trait receiver")?;
+            record.trait_definition = scope.declaration.symbol;
+            record.trait_arguments = self
+                .trait_type_parameters(scope.declaration)
+                .iter()
+                .map(|parameter| {
+                    self.normalized_type_identity_text(
+                        scope.parameter_argument(self, parameter.symbol),
+                    )
+                })
+                .collect();
+            record.rows = declaration
+                .rows
+                .iter()
+                .map(|row| crate::source_state::ClosedConformanceRowIdentity {
+                    declaring_trait: row.declaring_trait,
+                    requirement: row.requirement,
+                    realization_machine: row.realization_machine,
+                    realization_state: row.realization_state,
+                })
+                .collect();
+            record.seal_encoding(encoding);
+            Ok(record)
         }
 
         /// The named operation record, its unique requirement row and that

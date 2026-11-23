@@ -2,7 +2,6 @@ use crate::expressions::context::ExpressionContext;
 use crate::token_input::cursor::Input;
 use numeric_literals::IntegerLiteral;
 use numerics::arithmetic::ArithmeticDomain;
-use syntax_trees::FloatSpelling;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableUnaryExpression,
@@ -318,9 +317,9 @@ pub(crate) fn apply_unary_prefix(
         UnaryPrefix::Negate(span) => {
             let negated = match syntax_trees.expressions.expression(expression) {
                 ExpressionNode::Integer(literal) => ExpressionNode::Integer(literal.negated()),
-                ExpressionNode::Float(text) => ExpressionNode::Float(FloatSpelling::generated(
-                    format!("-{}", text.as_str(syntax_trees)),
-                )),
+                ExpressionNode::Float(spelling) => {
+                    ExpressionNode::Float(spelling.negated(syntax_trees, span))
+                }
                 _ => {
                     let zero = syntax_trees
                         .expressions

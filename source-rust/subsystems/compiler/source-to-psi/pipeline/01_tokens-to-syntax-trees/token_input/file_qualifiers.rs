@@ -1,7 +1,10 @@
 //! Track the context of each written file qualifier while parsing one file.
 
+use language_core::build_operations::BuildOperation;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
+use syntax_trees::SyntaxTrees;
+use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::identifier::Identifier;
 
 #[derive(Default)]
@@ -26,6 +29,42 @@ impl<'source> FileQualifiers<'source> {
                 .get_mut(&head.source_span().span.start)
         {
             *product = true;
+        }
+    }
+
+    /// A static Build call can select a declaration by filename. Its ordinary
+    /// value arguments and any other use of that file still belong to the host.
+    pub(crate) fn mark_build_call(&self, trees: &SyntaxTrees, expression: ExpressionHandle) {
+        let ExpressionNode::Call(call) = trees.expressions.expression(expression) else {
+            return;
+        };
+        if call.machine_arguments.is_empty() || !call.target_is_static || !call.receiver.is_valid()
+        {
+            return;
+        }
+        let ExpressionNode::Name {
+            members,
+            application: None,
+        } = trees.expressions.expression(call.receiver)
+        else {
+            return;
+        };
+        let [owner] = trees.expressions.identifier_path_members(*members) else {
+            return;
+        };
+        if owner.as_str(trees) != "Build" {
+            return;
+        }
+        let Some(operation) = BuildOperation::from_call_target(call.target.as_str(trees)) else {
+            return;
+        };
+        if operation.uses_tests_facet() {
+            return;
+        }
+        for (position, argument) in call.machine_arguments.iter().enumerate() {
+            if operation.product_operand_role(position).is_some() {
+                self.mark_product_operand(&argument.path);
+            }
         }
     }
 

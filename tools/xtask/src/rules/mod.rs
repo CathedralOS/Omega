@@ -18,9 +18,9 @@ mod tests;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 
 use crate::repo_root;
+use crate::repository::git;
 
 use self::board_and_tasks::{
     DANGLING_BASELINE, TASK_BOARDS, TASKS_BOARD, board_task_ids, citing_documents,
@@ -40,26 +40,8 @@ const COMPILER_GUIDE: &str = "source-rust/subsystems/compiler/README.md";
 
 pub(super) const FACTS_ROOT: &str = "samples/cli/facts/";
 
-pub(super) fn git(root: &Path, args: &[&str]) -> Result<String, String> {
-    let out = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(args)
-        .stdin(Stdio::null())
-        .output()
-        .map_err(|e| format!("git {}: {e}", args.join(" ")))?;
-    if !out.status.success() {
-        return Err(format!(
-            "git {}: {}",
-            args.join(" "),
-            String::from_utf8_lossy(&out.stderr).trim()
-        ));
-    }
-    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
-}
-
-pub(super) fn show_git_file(root: &Path, rev: &str, path: &str) -> String {
-    git(root, &["show", &format!("{rev}:{path}")]).unwrap_or_default()
+pub(super) fn show_git_file(root: &Path, rev: &str, path: &str) -> Result<String, String> {
+    git(root, &["show", &format!("{rev}:{path}")])
 }
 
 pub(super) fn pr_diff_base(root: &Path, requested: Option<&str>) -> Result<String, String> {
@@ -76,6 +58,22 @@ pub(super) fn pr_diff_base(root: &Path, requested: Option<&str>) -> Result<Strin
             bases.len()
         )),
     }
+}
+
+fn changed_paths(root: &Path, base: &str) -> Result<Vec<(char, String)>, String> {
+    let diff = git(
+        root,
+        &["diff", "--name-status", "--no-renames", base, "HEAD"],
+    )?;
+    let mut changes = Vec::new();
+    for line in diff.lines() {
+        let (status, path) = line
+            .split_once('\t')
+            .ok_or_else(|| format!("invalid git diff entry: {line}"))?;
+        let status = status.chars().next().ok_or("missing git diff status")?;
+        changes.push((status, path.to_owned()));
+    }
+    Ok(changes)
 }
 
 pub(super) fn is_ident_byte(b: u8) -> bool {
@@ -243,25 +241,13 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         2u8
     })?;
 
-    // Diff checks against `base_rev`
-    if let Ok(diff_out) = git(
-        &root,
-        &["diff", "--name-status", "--no-renames", &base_rev, "HEAD"],
-    ) {
-        let mut changes = Vec::new();
-        for line in diff_out.lines() {
-            if let Some((status, path)) = line.split_once('\t')
-                && let Some(ch) = status.chars().next()
-            {
-                changes.push((ch, path.to_owned()));
-            }
-        }
-        violations.extend(diff_hygiene_violations(&changes));
-        violations.extend(measurement_violations(&root, &changes));
-    }
+    let changes = changed_paths(&root, &base_rev).map_err(report_error)?;
+    violations.extend(diff_hygiene_violations(&changes));
+    violations.extend(measurement_violations(&root, &changes));
 
     let head_tasks = fs::read_to_string(root.join(TASKS_BOARD))
-        .unwrap_or_else(|_| show_git_file(&root, "HEAD", TASKS_BOARD));
+        .or_else(|_| show_git_file(&root, "HEAD", TASKS_BOARD))
+        .map_err(report_error)?;
     violations.extend(tasks_board_violations(&head_tasks));
 
     if let Some(t) = &title {

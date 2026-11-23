@@ -21,6 +21,7 @@ pub enum SourceSnapshotError {
     InvalidPath,
     NotFound,
     NotDirectory,
+    SymlinkTraversal,
     NotFile,
     NotSymlink,
     InvalidRange,
@@ -36,14 +37,19 @@ fn snapshot_entry(entry: &CapturedSourceEntry) -> SourceSnapshotEntry<'_> {
 
 impl CapturedBuildSourceInput {
     pub fn lookup(&self, path: &[u8]) -> Result<SourceSnapshotEntry<'_>, SourceSnapshotError> {
-        if !source_snapshot_path_is_canonical(path) {
+        if !filesystem_authority::source_snapshot_path_is_canonical(path, true) {
             return Err(SourceSnapshotError::InvalidPath);
         }
         for (index, byte) in path.iter().enumerate() {
             if *byte == b'/' {
                 match self.retained_entry(&path[..index]).map(snapshot_entry) {
                     Some(SourceSnapshotEntry::Directory) => {}
-                    Some(_) => return Err(SourceSnapshotError::NotDirectory),
+                    Some(SourceSnapshotEntry::Symlink(_)) => {
+                        return Err(SourceSnapshotError::SymlinkTraversal);
+                    }
+                    Some(SourceSnapshotEntry::File(_)) => {
+                        return Err(SourceSnapshotError::NotDirectory);
+                    }
                     None => return Err(SourceSnapshotError::NotFound),
                 }
             }
@@ -68,10 +74,16 @@ impl CapturedBuildSourceInput {
         })
     }
 
+    pub fn open_file(&self, path: &[u8]) -> Result<&[u8], SourceSnapshotError> {
+        match self.lookup(path)? {
+            SourceSnapshotEntry::File(bytes) => Ok(bytes),
+            SourceSnapshotEntry::Directory => Err(SourceSnapshotError::NotFile),
+            SourceSnapshotEntry::Symlink(_) => Err(SourceSnapshotError::SymlinkTraversal),
+        }
+    }
+
     pub fn read(&self, path: &[u8], offset: u64, count: u64) -> Result<&[u8], SourceSnapshotError> {
-        let SourceSnapshotEntry::File(bytes) = self.lookup(path)? else {
-            return Err(SourceSnapshotError::NotFile);
-        };
+        let bytes = self.open_file(path)?;
         offset
             .checked_add(count)
             .ok_or(SourceSnapshotError::InvalidRange)?;
@@ -114,15 +126,4 @@ impl CapturedBuildSourceInput {
         }
         Ok(children)
     }
-}
-
-fn source_snapshot_path_is_canonical(path: &[u8]) -> bool {
-    std::str::from_utf8(path).is_ok()
-        && !path.contains(&0)
-        && !path.contains(&b'\\')
-        && !(path.len() >= 2 && path[1] == b':')
-        && (path.is_empty()
-            || path
-                .split(|byte| *byte == b'/')
-                .all(|component| !component.is_empty() && component != b"." && component != b".."))
 }

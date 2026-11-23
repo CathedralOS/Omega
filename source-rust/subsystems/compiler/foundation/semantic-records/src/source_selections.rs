@@ -21,10 +21,12 @@ pub enum ProductTarget {
     CrossPlatformCli,
     LocalUnchecked,
     AlphaBootstrap,
+    WindowsArm64,
 }
 
 impl ProductTarget {
-    pub const ALL: [Self; 9] = [
+    /// A target's code is its position here, so new targets append.
+    pub const ALL: [Self; 10] = [
         Self::LinuxArm64,
         Self::LinuxX86_64,
         Self::MacosArm64,
@@ -34,6 +36,7 @@ impl ProductTarget {
         Self::CrossPlatformCli,
         Self::LocalUnchecked,
         Self::AlphaBootstrap,
+        Self::WindowsArm64,
     ];
 
     pub fn from_code(code: u64) -> Option<Self> {
@@ -67,6 +70,7 @@ impl ProductTarget {
             Self::CrossPlatformCli => "cross_platform_cli",
             Self::LocalUnchecked => "local_unchecked",
             Self::AlphaBootstrap => "alpha_bootstrap",
+            Self::WindowsArm64 => "windows_arm64",
         }
     }
 
@@ -81,11 +85,14 @@ impl ProductTarget {
             Self::CrossPlatformCli => "CrossPlatformCli",
             Self::LocalUnchecked => "LocalUnchecked",
             Self::AlphaBootstrap => "AlphaBootstrap",
+            Self::WindowsArm64 => "WindowsArm64",
         }
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record,
+)]
 pub enum CompositionMode {
     #[default]
     Fused,
@@ -240,7 +247,11 @@ pub enum SelectionReference {
 /// actual request and its selected input. Purpose or role alone cannot do so.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectionProductDesignation {
-    pub site: BuildCallSite,
+    /// The emitted Build call that makes this request. Only the published
+    /// module emits one. A generic Build helper's own check form never runs
+    /// its request, so its designation has no site; each application of the
+    /// helper that does run is published with its own.
+    pub site: Option<BuildCallSite>,
     pub operand: u32,
     pub input_selection: [u8; 32],
     pub static_application: Option<[u8; 32]>,

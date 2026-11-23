@@ -1,12 +1,12 @@
 //! Check the host provision roster against an admitted program and retain its runtime facts.
 
 use crate::{AdmittedRuntimeInput, NativeProgramEntrySettlement};
-use target_provider_admission::TerminalTargetProviderProposal;
 use calling_conventions::BoundaryCallingApplication;
 use psi_entry_memory::CheckedPrivateEntryRamRecipe;
+use psi_scalar_applications::AdmittedScalarApplications;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, ScalarType};
 use std::sync::Arc;
-use psi_scalar_applications::AdmittedScalarApplications;
+use target_provider_admission::TerminalTargetProviderProposal;
 use terminal_psi::{BoundaryMachineDeclaration, BoundaryParameterKind, TerminalPsiIdentity};
 
 /// Canonical scalar formals for one admitted call. Runtime admission keeps
@@ -178,7 +178,8 @@ impl TerminalRuntimeHostProvisions<AdmittedRuntimeForeignCall> {
                     );
                 }
                 provision.realization = match import {
-                    target_operations::CompilerImport::WindowsProcessExit => {
+                    target_operations::CompilerImport::WindowsProcessExit
+                    | target_operations::CompilerImport::WindowsArm64ProcessExit => {
                         target_operations::BoundarySettlementRealization::Builtin(
                             target_operations::HostedExitProcessI32Realization.into(),
                         )
@@ -210,14 +211,13 @@ impl TerminalRuntimeHostProvisions<AdmittedRuntimeForeignCall> {
                     .next()
                     .filter(|_| applications.next().is_none())
                     .ok_or("runtime native binding lost its unique calling application")?;
-                let execution =
-                    native_binding_admission::validate_native_binding_execution(
-                        row,
-                        &native.bindings.identities,
-                        module,
-                        profile,
-                        application,
-                    )?;
+                let execution = native_binding_admission::validate_native_binding_execution(
+                    row,
+                    &native.bindings.identities,
+                    module,
+                    profile,
+                    application,
+                )?;
                 if !binding.matches_execution(
                     target_operations::ExternalExecutionBinding::NativeBinding(execution),
                 ) {
@@ -706,7 +706,10 @@ impl NativeRuntimePlan<AdmittedRuntimeForeignCall> {
             entry: checked.terminal_entry(),
             native_entry,
             selected_providers: scope.selected_provider_closure(),
-            source_providers: *scope.source_provider_selection().identity_digest().as_bytes(),
+            source_providers: *scope
+                .source_provider_selection()
+                .identity_digest()
+                .as_bytes(),
             source_native_bindings: scope.source_native_bindings(),
             source_signature_identity: checked.source_signature_identity(),
             target_slot,

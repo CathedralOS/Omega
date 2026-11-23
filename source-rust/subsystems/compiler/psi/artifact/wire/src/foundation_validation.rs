@@ -6237,6 +6237,9 @@ pub(crate) mod scalar_qualifications {
     pub(crate) fn validate(module: &terminal_psi::TerminalModule) -> Result<(), crate::CodecError> {
         use terminal_semantics::scalar_qualifications::ScalarQualificationError as Error;
         terminal_semantics::scalar_qualifications::validate(module).map_err(|error| match error {
+            Error::DeniedEstablishment(_) => crate::CodecError::MalformedStructuralFoundation(
+                "a scalar cast lacks both retained membership and an authorized issuer",
+            ),
             Error::MalformedStructuralFoundation(detail)
             | Error::MalformedMachine { detail, .. }
             | Error::NormalResultMembership { detail, .. } => {

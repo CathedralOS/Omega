@@ -87,8 +87,16 @@ the public requirement. One `CapturedMachineApplication` retains the map's
 constructor bindings, complete argument tuple and supplying owner. It names
 the selected member as its root and records the source and entry of each
 copied private machine. An unused map parameter still contributes to the
-identity of every copy. Map lifetimes, non-type map parameters and
-installation-bound reach rows remain unserved.
+identity of every copy. An ordinary named call still refuses map lifetimes,
+non-type map parameters and installation-bound reach rows.
+
+When a Build chooses a generic provider, the same copier prepares each method
+the implementation supplies. For example, the type and value arguments in
+`FirstReading<[Holder<u64>; 2], 17>` become the bindings for its methods.
+Target choices by the same owner can share those method bodies when the
+implementation and all its arguments agree. The lowered-form checker also
+checks the original method against its public contract with the value
+parameter still free.
 
 The record-pattern pass resolves a subject that names a parameter or a typed
 local whose declared type is a plain, non-generic record. A field path, a call

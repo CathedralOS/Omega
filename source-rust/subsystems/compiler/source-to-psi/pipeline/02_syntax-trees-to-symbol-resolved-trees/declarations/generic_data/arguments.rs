@@ -43,7 +43,6 @@ pub(super) fn complete_argument_tuple(
     base_name: &Identifier,
     supplied: &[TypeReferenceHandle],
     selection: Option<&declaration_selection::ConstantSelection>,
-    warnings: &mut Vec<Diagnostic>,
 ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
     let Some(definition) = syntax.root_item(base_info.declaration).as_data() else {
         return Err(Diagnostic::error(
@@ -59,7 +58,7 @@ pub(super) fn complete_argument_tuple(
         const_parameter_types: &base_info.const_parameter_types,
         type_equations: &base_info.type_equations,
     };
-    complete_equation_arguments(syntax, template, base_name, supplied, selection, warnings)
+    complete_equation_arguments(syntax, template, base_name, supplied, selection)
 }
 
 /*

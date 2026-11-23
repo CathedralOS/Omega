@@ -21,6 +21,22 @@ fn inspect(project: &Path, root: &str, name: &str, artifact: &Path) -> Output {
         .expect("run source inspection")
 }
 
+// The selector label changes from the source name to "artifact" on reopening.
+// The checked entry, operations and fingerprint must all survive.
+fn assert_reopened_inspection(name: &str, source: Output, reopened: Output) {
+    let source = String::from_utf8(source.stdout).unwrap();
+    let reopened = String::from_utf8(reopened.stdout).unwrap();
+    assert_eq!(
+        source
+            .strip_prefix(&format!("terminal selected_machine={name} "))
+            .expect("source inspection names the selected machine"),
+        reopened
+            .strip_prefix("terminal selected_machine=artifact ")
+            .expect("reopened inspection identifies an artifact"),
+        "{name}"
+    );
+}
+
 #[test]
 fn named_inspection_publishes_the_requested_reference_machine() {
     let project = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -42,7 +58,7 @@ fn named_inspection_publishes_the_requested_reference_machine() {
         .and_then(|machine| machine.declaration.as_ref())
         .expect("entry has a source declaration");
     let identity = module.identities.text(declared.machine.identity()).unwrap();
-    assert!(identity.ends_with("path(retained))"), "{identity}");
+    assert!(identity.ends_with("path(main.omg::retained))"), "{identity}");
 
     let loaded = omega(&project)
         .args(["psi", "inspect", "--artifact"])
@@ -50,9 +66,7 @@ fn named_inspection_publishes_the_requested_reference_machine() {
         .output()
         .expect("run artifact inspection");
     assert!(loaded.status.success(), "{:?}", loaded);
-    let source_output = String::from_utf8(output.stdout).unwrap();
-    let artifact_output = String::from_utf8(loaded.stdout).unwrap();
-    assert_eq!(source_output.lines().last(), artifact_output.lines().last());
+    assert_reopened_inspection("retained", output, loaded);
 }
 
 #[test]
@@ -70,9 +84,7 @@ fn named_inspection_reopens_owned_record_sequences_stored_in_locals() {
             .output()
             .expect("reopen the saved sequence artifact");
         assert!(loaded.status.success(), "{name}: {loaded:?}");
-        let source = String::from_utf8(source.stdout).unwrap();
-        let loaded = String::from_utf8(loaded.stdout).unwrap();
-        assert_eq!(source.lines().last(), loaded.lines().last(), "{name}");
+        assert_reopened_inspection("main", source, loaded);
     }
 }
 
@@ -104,7 +116,8 @@ fn saved_console_provider_keeps_the_direct_mutable_byte_window() {
 fn named_inspection_refuses_missing_or_ambiguous_names_before_writing() {
     let scratch = TemporaryDirectory::create("unnamed-psi-inspection", false).unwrap();
     let project = scratch.path();
-    std::fs::write(project.join("main.omg"), "machine retained() -> i32 { 42 }").unwrap();
+    let local = "machine retained() -> i32 { 42 }";
+    std::fs::write(project.join("main.omg"), local).unwrap();
     std::fs::write(
         project.join("other.omg"),
         "machine retained() -> i32 { 17 }",
@@ -115,6 +128,15 @@ fn named_inspection_refuses_missing_or_ambiguous_names_before_writing() {
         r#"machine build(builder: @mutable Build) { Build::package(builder, "inspection_ambiguity"); }"#,
     )
     .unwrap();
+    // A second file on disk joins this lookup only when the package imports it.
+    let unique = inspect(project, "main.omg", "retained", &project.join("local.psi"));
+    assert!(unique.status.success(), "{unique:?}");
+    assert!(
+        String::from_utf8(unique.stdout)
+            .unwrap()
+            .contains("IntegerConstant { value: Signed(42) }")
+    );
+    std::fs::write(project.join("main.omg"), format!("use other.omg;\n{local}")).unwrap();
     let checked = omega(project)
         .args(["--check", "main.omg"])
         .output()
@@ -134,6 +156,42 @@ fn named_inspection_refuses_missing_or_ambiguous_names_before_writing() {
             "{stderr}"
         );
         assert!(!artifact.exists());
+    }
+}
+
+fn assert_hosted_image(target: &str, path: &Path) {
+    let image = std::fs::read(path).expect("read compiled image");
+    match target {
+        "linux_x86_64" | "linux_arm64" => {
+            assert!(
+                image.starts_with(b"\x7fELF\x02\x01"),
+                "{target}: expected 64-bit little-endian ELF"
+            );
+            let machine: u16 = if target == "linux_x86_64" { 62 } else { 183 };
+            assert_eq!(
+                image.get(18..20),
+                Some(machine.to_le_bytes().as_slice()),
+                "{target}: ELF machine"
+            );
+        }
+        "macos_arm64" => {
+            assert!(
+                image.starts_with(b"\xcf\xfa\xed\xfe\x0c\x00\x00\x01"),
+                "{target}: expected 64-bit arm64 Mach-O"
+            );
+        }
+        "windows_x86_64" => {
+            assert!(image.starts_with(b"MZ"), "{target}: expected DOS signature");
+            let offset = image.get(0x3c..0x40).expect("PE header offset");
+            let offset = u32::from_le_bytes(offset.try_into().unwrap()) as usize;
+            assert!(
+                image
+                    .get(offset..)
+                    .is_some_and(|header| header.starts_with(b"PE\0\0\x64\x86")),
+                "{target}: expected AMD64 PE"
+            );
+        }
+        _ => panic!("unknown hosted target {target}"),
     }
 }
 
@@ -261,7 +319,7 @@ fn reopened_program_runs_in_both_engines_after_the_source_is_gone() {
         } else {
             "omega-program"
         };
-        assert!(consumer.path().join(target).join(executable).is_file());
+        assert_hosted_image(target, &consumer.path().join(target).join(executable));
     }
     let observed = command(&["run", "--both", "--trusted-artifact", &manifest]);
     assert!(observed.status.success(), "{observed:?}");

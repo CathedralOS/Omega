@@ -335,8 +335,8 @@ pub struct Discharge {
 
 impl Discharge {
     /// One seal per discharged `OperationSafety` obligation, at an instruction
-    /// or a pre-edge terminator read. The seals travel beside the
-    /// module in memory and are lost on a byte round trip
+    /// or a pre-edge terminator read. Publication saves the seals, with
+    /// their complete certificates, in the artifact's operation evidence
     /// (`ObligationEvidenceSeal`).
     pub fn operation_seals(
         &self,
@@ -1256,6 +1256,14 @@ fn fill_knowledge<'a>(
     // type of that storage states of it, as a payload read would be. The
     // rows hold because that edge was taken and are available on it.
     for block in &lowered.blocks {
+        for (edge, selected) in storage.excluded_dispatch_cases(references, tables, block)? {
+            push_knowledge(
+                tables,
+                Proposition::Falsehood,
+                ProgramPoint::Edge(edge),
+                Justification::ExcludedDispatchCase { edge, selected },
+            );
+        }
         let equations = storage.payload_equations(references, tables, block)?;
         let premises = storage.payload_premises(references, tables, block)?;
         for (edge, proposition) in equations.into_iter().chain(
@@ -2571,6 +2579,7 @@ pub(crate) fn hypotheses(
             | Justification::TheoremGuarantee { .. }
             | Justification::CalleeGuarantee { .. }
             | Justification::BranchCondition { .. }
+            | Justification::ExcludedDispatchCase { .. }
             | Justification::DispatchBinding { .. }
             | Justification::BlockInvariant { .. }
             | Justification::Derived { .. } => {

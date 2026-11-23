@@ -40,7 +40,7 @@ pub(super) const USAGE: &str = concat!(
 );
 
 pub(super) fn parse_arguments(
-    mut arguments: impl Iterator<Item = std::ffi::OsString>,
+    arguments: &mut super::Arguments,
 ) -> Result<Option<CompileArguments>, String> {
     let mut build_dir = None;
     let mut build_inputs = Vec::new();
@@ -60,7 +60,7 @@ pub(super) fn parse_arguments(
     let mut validator_names: Vec<String> = Vec::new();
     let mut every_validator = false;
 
-    while let Some(argument) = arguments.next() {
+    while let Some(argument) = arguments.next_argument() {
         if argument == "--help" || argument == "-h" {
             super::set_flag(&mut help, &argument.to_string_lossy())?;
             continue;
@@ -101,7 +101,7 @@ pub(super) fn parse_arguments(
             if destination.is_some() {
                 return Err(format!("duplicate {option_name}"));
             }
-            let path = option_value(&mut arguments)
+            let path = option_value(arguments)
                 .map(PathBuf::from)
                 .ok_or("installation assumption option requires a review record path")?;
             let metadata = std::fs::metadata(&path).map_err(|error| {
@@ -136,7 +136,7 @@ pub(super) fn parse_arguments(
             if emit_psi.is_some() {
                 return Err("duplicate --emit-psi".into());
             }
-            let path = PathBuf::from(super::take_value(&mut arguments, "--emit-psi")?);
+            let path = PathBuf::from(super::take_value(arguments, "--emit-psi")?);
             if !path
                 .extension()
                 .is_some_and(|ext| ext.eq_ignore_ascii_case("psi"))
@@ -147,14 +147,14 @@ pub(super) fn parse_arguments(
             continue;
         }
         if argument == "--trusted-artifact" {
-            super::parse_trusted_artifact(&mut arguments, &mut trusted_artifact)?;
+            super::parse_trusted_artifact(arguments, &mut trusted_artifact)?;
             continue;
         }
         if argument == "--report-file" {
             if report_file.is_some() {
                 return Err("duplicate --report-file".into());
             }
-            report_file = option_value(&mut arguments).map(PathBuf::from);
+            report_file = option_value(arguments).map(PathBuf::from);
             if report_file.is_none() {
                 return Err("--report-file requires a path".into());
             }
@@ -162,7 +162,10 @@ pub(super) fn parse_arguments(
         }
 
         if argument == "--build-dir" {
-            build_dir = option_value(&mut arguments).map(PathBuf::from);
+            if build_dir.is_some() {
+                return Err("duplicate --build-dir".into());
+            }
+            build_dir = option_value(arguments).map(PathBuf::from);
             if build_dir.is_none() {
                 return Err("--build-dir requires a directory".into());
             }
@@ -170,7 +173,7 @@ pub(super) fn parse_arguments(
         }
 
         if argument == "--target" {
-            let target_name = option_value(&mut arguments)
+            let target_name = option_value(arguments)
                 .and_then(|target_name| target_name.into_string().ok())
                 .ok_or_else(|| "--target requires a UTF-8 target name".to_owned())?;
             if !target_names.contains(&target_name) {
@@ -180,15 +183,12 @@ pub(super) fn parse_arguments(
         }
 
         if argument == "--build-input" || argument == "--optional-build-input" {
-            build_inputs.push(parse_build_input(
-                &mut arguments,
-                &argument.to_string_lossy(),
-            )?);
+            build_inputs.push(parse_build_input(arguments, &argument.to_string_lossy())?);
             continue;
         }
 
         if argument == "--validator" {
-            let name = option_value(&mut arguments)
+            let name = option_value(arguments)
                 .and_then(|name| name.into_string().ok())
                 .ok_or_else(|| "--validator requires one UTF-8 exact validator name".to_owned())?;
             validator_names.push(name);
@@ -201,7 +201,7 @@ pub(super) fn parse_arguments(
         }
 
         if argument == "--disable-optimization" {
-            let Some(name) = option_value(&mut arguments) else {
+            let Some(name) = option_value(arguments) else {
                 return Err("--disable-optimization requires one exact optimization name".into());
             };
             let name = name.into_string().map_err(|_| {
@@ -303,4 +303,26 @@ pub(super) fn parse_arguments(
         optimization_rollback,
         stage_validators,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_arguments;
+    use crate::arguments::Arguments;
+    use std::ffi::OsString;
+
+    #[test]
+    fn repeating_build_dir_is_a_usage_error_even_for_the_same_directory() {
+        for second in ["first", "second"] {
+            let mut arguments = Arguments::new(
+                ["--build-dir", "first", "--build-dir", second, "main.omg"]
+                    .into_iter()
+                    .map(OsString::from),
+            );
+            assert_eq!(
+                parse_arguments(&mut arguments).err().as_deref(),
+                Some("duplicate --build-dir")
+            );
+        }
+    }
 }

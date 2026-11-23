@@ -176,7 +176,7 @@ pub struct Sum {
 
 /// The sum the source names `name`.
 pub fn sum(lowered: &Elaboration, name: &str) -> Sum {
-    let named = format!(r"path\({name}\)");
+    let named = format!(r"path\(main.omg::{name}\)");
     let mut found = lowered.module.types.structural_types.iter().filter(
         |declared: &&StructuralTypeDeclaration| {
             matches!(declared.shape, StructuralTypeShape::Sum { .. })

@@ -116,7 +116,7 @@ fn changing_the_typed_condition_changes_the_branch() {
 }
 
 #[test]
-fn a_match_without_a_subject_or_a_wildcard_is_refused() {
+fn the_last_guard_without_a_wildcard_owes_an_arrival_proof() {
     let fixture = fixture();
     // Typing hands over `larger`'s match without its `_` arm.
     let changed = fixture.prepared_with(|trees| {
@@ -127,13 +127,34 @@ fn a_match_without_a_subject_or_a_wildcard_is_refused() {
         larger.arms = arena::HandleSpan::from_parts(larger.arms.start(), 1);
     });
     let lowered = fixture.lower_program(&changed);
-    let refusal = lowered
+    let lowered = lowered
         .closure
-        .expect_err("no arm applies when the condition is false");
+        .expect("the coverage proof belongs to the checker");
+    let larger = machine(&fixture, &lowered, "larger");
+    let coverage = lowered
+        .sources
+        .get(larger.id)
+        .unwrap()
+        .predicate_establishments
+        .iter()
+        .find(|(_, stated)| {
+            matches!(
+                stated,
+                terminal_check_tables::program::EstablishedCondition::DispatchCoverage
+            )
+        })
+        .expect("the final guard names its coverage obligation")
+        .0;
     assert!(
-        refusal
-            .detail
-            .contains("this match has no `_` arm: when every condition is false no arm applies"),
-        "{refusal:?}"
+        lowered
+            .module
+            .proofs
+            .scalar_block_invariants
+            .iter()
+            .any(|invariant| {
+                invariant.machine == larger.id
+                    && invariant.header == coverage
+                    && !invariant.arrivals.is_empty()
+            })
     );
 }

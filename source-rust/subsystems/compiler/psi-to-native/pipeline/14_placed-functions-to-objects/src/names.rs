@@ -298,14 +298,12 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "no object policy is declared")]
-    fn entry_symbol_name_fails_closed_on_undeclared_pair() {
-        let _ = entry_symbol_name(NativeTarget {
-            architecture: Architecture::Aarch64,
-            object_format: ObjectFormat::Coff,
-            pointer_size: 8,
-            pointer_alignment: 8,
-        });
+    fn windows_arm64_spells_the_coff_entry_symbol() {
+        assert_eq!(entry_symbol_name(NativeTarget::windows_arm64()), "main");
+        assert_eq!(
+            section_name(NativeTarget::windows_arm64(), SectionKind::Text),
+            ".text"
+        );
     }
 
     #[test]

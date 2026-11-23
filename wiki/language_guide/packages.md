@@ -31,6 +31,47 @@ Product dependencies and build helpers are declared separately. In
 dependency and `vec` names one file inside the importing source. [Chapter 15](chapter_15_modules_imports_visibility.md#build-helpers)
 shows the two dependency kinds.
 
+## Giving one dependency a filesystem
+
+Suppose a firmware package's Build reads `expected.sha256`. The parent reads
+the checksum file from its own filesystem, creates an empty memory filesystem,
+and writes a copy of those bytes there as `expected.sha256`. The original
+file stays in place. The parent can then give the firmware package a read-only
+view of that tree. If the child needs writable scratch too, the parent mounts
+a writable directory in the view it supplies.
+
+This parent helper receives the prepared view by value and transfers it to the
+firmware dependency. `Files` is the filesystem implementation the caller
+selected for this backing.
+
+```omega
+machine register_firmware<Backing, const Files: Filesystem<Backing>>(
+    plan: @mutable Build,
+    child_filesystem: Backing
+) -> DependencyRegistration {
+    let source = Source::Path { location: "deps/firmware" };
+    let firmware = |dependency|::from_source(source);
+    let configured = |dependency|::with_filesystem::<Backing, Files>(
+        firmware, child_filesystem
+    );
+    Build::dependency(plan, configured)
+}
+```
+
+When the driver starts the firmware Build, its filesystem argument provides
+the copy under `expected.sha256`. Another dependency registered without an
+override gets its own default view if it asks for a filesystem.
+[Child Build filesystems and borrowing](../spec/build/scoped_execution.md#supplying-a-filesystem-to-a-child-build)
+
+## Packaging several products
+
+An ordinary release program can run `omega build` for each producer and pass
+the finished artifacts to a packer. For example, a release can place two
+separately built executables in an installer. A release tool that links the
+project-build library can request the same builds directly. Each producer's
+own `build.omg` still describes that one project.
+[Releases with independent products](../spec/build/declarations.md#releases-with-independent-products)
+
 ## Install and update
 
 ```text

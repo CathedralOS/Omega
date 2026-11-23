@@ -435,7 +435,7 @@ fn omega_frontend_imports_a_member_of_the_lowered_program_representation() {
     assert!(
         errors.iter().any(|d| d
             .message
-            .contains("type without a symbol while reading the signature of `handle`")),
+            .contains("an unknown type name is an error wherever it appears: `ScalarLayout`")),
         "{errors:?}"
     );
 }
@@ -651,7 +651,7 @@ fn publication_checks_the_same_grammar_in_root_and_imported_files() {
 
 /// A constant computed by a call gives an array its length, and the public
 /// compiler checks that length where another machine requires a different
-/// one. `east\N` and `west\N` share a last name, so each case also fails if
+/// one. `|east|::N` and `|west|::N` share a last name, so each case also fails if
 /// an extent took the other module's value.
 ///
 /// `wiki/spec/language/constants.md`, "Evaluation": "A constant position
@@ -661,10 +661,12 @@ fn publication_checks_the_same_grammar_in_root_and_imported_files() {
 /// and `pipeline/05_prepared-typed-trees-to-lowered-program/tests/prepared_array_extents.rs`.
 #[test]
 fn a_computed_array_extent_is_refused_where_another_length_is_required() {
-    let main = r"machine pair(values: @[u8; 2]) -> u8 { values[0u64] }
+    let main = r"use east/value.omg as east;
+use west/value.omg as west;
+machine pair(values: @[u8; 2]) -> u8 { values[0u64] }
 machine triple(values: @[u8; 3]) -> u8 { values[0u64] }
-machine choose(values: @[u8; east\N]) -> u8 { pair(values) }
-machine other(values: @[u8; west\N]) -> u8 { triple(values) }";
+machine choose(values: @[u8; |east|::N]) -> u8 { pair(values) }
+machine other(values: @[u8; |west|::N]) -> u8 { triple(values) }";
     let package = PackageKeyIdentity::from_digest([0x58; 32]).unwrap();
     let publish = |east: u64, west: u64| {
         let (mut files, root) = captured(package, main);
@@ -696,8 +698,8 @@ machine other(values: @[u8; west\N]) -> u8 { triple(values) }";
         (root, compile(stage, None))
     };
 
-    // `choose` passes `east\N` bytes where two are required, and `other`
-    // passes `west\N` bytes where three are required.
+    // `choose` passes `|east|::N` bytes where two are required, and `other`
+    // passes `|west|::N` bytes where three are required.
     assert!(!publish(2, 3).1.unwrap().to_bytes().is_empty());
     for (east, west, machine, wanted, supplied) in [(3, 3, "choose", 2, 3), (2, 2, "other", 3, 2)] {
         let (root, published) = publish(east, west);
@@ -974,4 +976,57 @@ fn a_file_qualified_domain_still_requires_its_declared_carrier() {
             assert!(errors.iter().any(|error| error.message.contains("Tag")), "{errors:?}");
         }
     }
+}
+
+/// The same three files met in another order publish the same Psi.
+/// `main.omg` uses a record and a machine from each of `a.omg` and
+/// `b.omg`. One compilation captures and imports `a` before `b`, the other
+/// `b` before `a`; nothing else differs, so the published bytes must not.
+///
+/// `wiki/spec/terminal-psi/encoding.md`, "Canonical form": "Unordered sets
+/// are strictly sorted by stable identity or canonical bytes".
+#[test]
+fn the_order_files_are_met_in_does_not_change_the_published_psi() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    let main = "machine main() -> u16 crashes none {
+            let low: u8 = |a|::alpha(|a|::Alpha { v: 3u8 });
+            |b|::beta(|b|::Beta { w: 4u16 })
+        }";
+    let a = "public data Alpha { v: u8; }
+        public machine alpha(x: Alpha) -> u8 crashes none { x.v }";
+    let b = "public data Beta { w: u16; }
+        public machine beta(y: Beta) -> u16 crashes none { y.w }";
+    let publish = |order: [(&str, &str, &str); 2]| {
+        let (mut files, root) = captured(package, main);
+        let mut imported = Vec::new();
+        for (alias, file, text) in order {
+            imported.push((
+                alias,
+                capture_file(&mut files, "product", package, file, text),
+            ));
+        }
+        let mut stage = product(files, root, package, &[]).unwrap();
+        for (alias, source) in imported {
+            stage.parsed.roots.push(source);
+            stage
+                .parsed
+                .imports
+                .push(SourceScopedTopLevelBinding::file_import(
+                    root, source, alias,
+                ));
+        }
+        compile(stage, None).unwrap().to_bytes()
+    };
+    let forward = publish([("a", "a.omg", a), ("b", "b.omg", b)]);
+    let backward = publish([("b", "b.omg", b), ("a", "a.omg", a)]);
+    let differing = forward
+        .iter()
+        .zip(&backward)
+        .filter(|(x, y)| x != y)
+        .count();
+    assert!(
+        forward == backward,
+        "{differing} of {} bytes differ",
+        forward.len()
+    );
 }

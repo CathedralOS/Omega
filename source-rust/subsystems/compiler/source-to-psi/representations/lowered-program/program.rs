@@ -76,6 +76,8 @@ impl SourceOrigin {
 /// The invariant carries the proposition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EstablishedCondition {
+    /// Every remaining arrival must satisfy the last authored guard.
+    DispatchCoverage,
     /// `value as +D` for a domain with predicates
     /// (`wiki/spec/language/domains.md`, "Domain-only casts": "Has
     /// predicates | Prove them for this value."). Holds the domain's stated
@@ -184,6 +186,33 @@ pub struct GenericStorageBinding {
     pub multiplicity: terminal_psi::StructuralMultiplicity,
 }
 
+/// One exact domain application. The declaration owns the family and its
+/// routes; the semantic coordinate distinguishes its carrier and indices.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct DomainInstance {
+    pub declaration: SymbolHandle,
+    pub identity: semantic_vocabulary::SemanticDomainId,
+}
+
+impl DomainInstance {
+    /// Coordinate order of source domain sets within this compilation.
+    pub const fn coordinates(self) -> (u32, u32, u32) {
+        (
+            self.declaration.arena_index(),
+            self.declaration.generation(),
+            self.identity.0,
+        )
+    }
+}
+
+/// The source application assigned a semantic domain in this module. The label is
+/// for diagnostics. A package review compares the exact application.
+#[derive(Debug, Clone)]
+pub struct DomainSource {
+    pub application: DomainInstance,
+    pub label: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct Elaboration {
     /// A proof-only conformance root for an installation-bound requirement.
@@ -207,9 +236,8 @@ pub struct Elaboration {
     /// trees (`names`). Empty for bodies lowered without typed trees
     /// (`lower_bodies`): a message then names identities only.
     pub names: IdTable<MachineId, MachineNames>,
-    /// Authored domain labels, prepared once with their semantic identities.
-    /// Diagnostics may display them; no proof or verdict depends on a label.
-    pub domain_names: IdTable<DomainSemanticId, String>,
+    /// The authored application which each semantic domain lowers.
+    pub domain_sources: IdTable<DomainSemanticId, DomainSource>,
     /// The typed-tree machine each `MachineId` elaborates. The first entry
     /// is 1.
     pub machines: IdTable<MachineId, SymbolHandle>,

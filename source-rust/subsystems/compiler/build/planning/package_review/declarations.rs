@@ -22,7 +22,8 @@ use source_compiler::representations::source_state::evidence::byte_predicates::{
     ByteSequencePredicate, byte_domain_predicate,
 };
 use source_compiler::representations::source_state::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode,
+    BinaryOperator, CollectionMeasure, ExpressionHandle, ExpressionNode, MemberSelection,
+    TableIndexedExpression,
 };
 use source_compiler::representations::source_state::types::TypeReferenceHandle;
 use symbols::SymbolHandle;
@@ -77,7 +78,9 @@ pub(super) fn nominal_identity(
             digest: toolchain_sources[position].1,
         })
     };
-    let path = symbols.display_path(symbol, "::");
+    let path = typed
+        .authored_declaration_path(symbol)
+        .map_err(|reason| unavailable(&reason))?;
     if path.is_empty() {
         return Err(unavailable("a declaration without a stable path"));
     }
@@ -539,6 +542,7 @@ impl<'a> PolicySource<'a> {
         &self,
         expression: ExpressionHandle,
         scope: ContractScope<'_>,
+        depth: usize,
     ) -> Result<(), Vec<Diagnostic>> {
         let typed = self.typed();
         let ExpressionNode::Binary(binary) = typed.expression_table.expression(expression) else {
@@ -556,8 +560,8 @@ impl<'a> PolicySource<'a> {
             )
             .ok_or_else(|| unavailable("an unserved contract operator family"))?;
         let operands = [
-            self.operand_type(binary.left, scope)?,
-            self.operand_type(binary.right, scope)?,
+            self.operand_type(binary.left, scope, depth + 1)?,
+            self.operand_type(binary.right, scope, depth + 1)?,
         ];
         if source_compiler::representations::source_state::operator::has_builtin_spelled_expression_meaning(
             typed,
@@ -578,9 +582,13 @@ impl<'a> PolicySource<'a> {
         &self,
         expression: ExpressionHandle,
         scope: ContractScope<'_>,
+        depth: usize,
     ) -> Result<Option<TypeReferenceHandle>, Vec<Diagnostic>> {
         let typed = self.typed();
         let table = &typed.expression_table;
+        if depth > 128 || !table.expression_is_valid(expression) {
+            return Err(unavailable("an invalid or over-deep contract operand"));
+        }
         let retained = table.constructed_value_type_reference(expression);
         if retained.is_valid() && typed.type_reference_table.contains_type_reference(retained) {
             return Ok(Some(retained));
@@ -630,6 +638,20 @@ impl<'a> PolicySource<'a> {
                     .map(|field| Some(field.type_reference))
                     .ok_or_else(|| unavailable("a contract field's declared type"));
             }
+            ExpressionNode::Member(member)
+                if member.selection
+                    == MemberSelection::CollectionMeasure(CollectionMeasure::Length) =>
+            {
+                (
+                    symbols::BuiltinTypeAtom::U64,
+                    numerics::arithmetic::ArithmeticDomain::Exact,
+                )
+            }
+            ExpressionNode::Indexed(indexed) => {
+                return self
+                    .builtin_index_element_type(expression, indexed, scope, depth)
+                    .map(Some);
+            }
             ExpressionNode::Cast(cast) if cast.result_type.is_valid() => {
                 return Ok(Some(cast.result_type));
             }
@@ -658,8 +680,38 @@ impl<'a> PolicySource<'a> {
                     .type_reference_table
                     .find_arithmetic_result_type_reference(symbol, policy)
             })
-            .ok_or_else(|| unavailable("a literal's canonical declared carrier"))?;
+            .ok_or_else(|| unavailable("a contract operand's canonical declared carrier"))?;
         Ok(Some(reference))
+    }
+
+    fn builtin_index_element_type(
+        &self,
+        expression: ExpressionHandle,
+        indexed: &TableIndexedExpression,
+        scope: ContractScope<'_>,
+        depth: usize,
+    ) -> Result<TypeReferenceHandle, Vec<Diagnostic>> {
+        use source_compiler::representations::source_state::{
+            operator::builtin_index_read_is_spelled,
+            type_system::source_projections::indexed_element_type_reference,
+        };
+        let typed = self.typed();
+        let collection = self
+            .operand_type(indexed.collection, scope, depth + 1)?
+            .ok_or_else(|| unavailable("an indexed contract collection's declared type"))?;
+        let index = self.operand_type(indexed.index, scope, depth + 1)?;
+        if !builtin_index_read_is_spelled(
+            typed,
+            scope.owner,
+            expression,
+            &[Some(collection), index],
+        ) {
+            return Err(unavailable(
+                "a selected or unresolved contract index operator",
+            ));
+        }
+        indexed_element_type_reference(typed, collection, &[])
+            .ok_or_else(|| unavailable("an indexed contract collection's element type"))
     }
 
     pub(super) fn scoped_expression(
@@ -814,6 +866,18 @@ impl<'a> PolicySource<'a> {
                     ));
                 }
             }
+            ExpressionNode::Indexed(indexed) => {
+                self.builtin_index_element_type(expression, indexed, scope, depth)?;
+                Expression::Indexed {
+                    meaning: PackageReviewContractOperatorMeaning::Builtin,
+                    collection: Box::new(self.scoped_expression(
+                        indexed.collection,
+                        scope,
+                        depth + 1,
+                    )?),
+                    index: Box::new(self.scoped_expression(indexed.index, scope, depth + 1)?),
+                }
+            }
             ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::CaseMembership => {
                 let ExpressionNode::Name(case) =
                     self.typed().expression_table.expression(binary.right)
@@ -921,9 +985,6 @@ impl<'a> PolicySource<'a> {
                 }
             }
             ExpressionNode::Member(member) => {
-                use source_compiler::representations::source_state::expression::{
-                    CollectionMeasure, MemberSelection,
-                };
                 let receiver =
                     Box::new(self.scoped_expression(member.receiver, scope, depth + 1)?);
                 match member.selection {
@@ -959,7 +1020,7 @@ impl<'a> PolicySource<'a> {
                 }
             }
             ExpressionNode::Binary(binary) => {
-                self.builtin_operator(expression, scope)?;
+                self.builtin_operator(expression, scope, depth)?;
                 let operator = match binary.operator {
                     BinaryOperator::Add => Output::Add,
                     BinaryOperator::And => Output::And,

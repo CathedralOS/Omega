@@ -97,6 +97,45 @@ fn declared(kind: &str, path: &str, file: usize, offset: usize) -> Selection {
     Some((kind.to_owned(), path.to_owned(), (file, offset)))
 }
 
+#[test]
+fn a_trait_value_argument_reads_the_providers_parameter_or_the_visible_constant() {
+    use crate::source_resolved::types::TypeReference;
+
+    let trees = resolved(&[(
+        "main.omg",
+        r#"
+data K { }
+const Tag: u64 = 29u64;
+public boundary trait Reading<const N: u64> { machine total() -> u64 reaches none crashes none; }
+Own<const K: u64> satisfies Reading<K> { machine total() -> u64 { 1u64 } }
+Fixed satisfies Reading<Tag> { machine total() -> u64 { 2u64 } }
+"#,
+    )]);
+    let global = trees
+        .const_declarations
+        .iter()
+        .find(|row| trees.symbols.name(row.symbol) == "Tag")
+        .unwrap()
+        .symbol;
+    assert!(global.is_valid());
+    assert_eq!(trees.roots.conformances.len(), 2);
+    for provider in trees.roots.conformances.iter() {
+        let [TypeReference::Named { symbol, .. }] = trees.child_type_references(provider.arguments)
+        else {
+            panic!("expected a named value argument");
+        };
+        let expected = match trees.data_type_parameters(provider.type_parameters) {
+            [formal] => {
+                assert!(formal.symbol.is_valid() && formal.symbol != global);
+                formal.symbol
+            }
+            [] => global,
+            _ => panic!("unexpected parameters on provider"),
+        };
+        assert_eq!(*symbol, expected);
+    }
+}
+
 /// `default_port` is nested in `connect`, which has a local also named
 /// `port`. A nested machine cannot read its enclosing machine's runtime
 /// values, so its `port` selects the package constant. The read stays a name
@@ -167,4 +206,35 @@ fn a_local_is_not_in_scope_in_its_own_initializer() {
             declared("Local", "read_count\\entry\\saved", 0, 44)
         )]
     );
+}
+
+/// `use limits.omg;` binds the alias `limits` to that file, and
+/// `|limits|::LIMIT` selects the constant it declares
+/// (`wiki/spec/language/modules.md`, "Names and imports"). Name resolution
+/// binds the file itself when no compiler loader supplied the alias, so a
+/// program checked from its sources alone reads the same declaration the
+/// Build would bind. In the twins only the import changes: under another
+/// alias, or with no import at all, `|limits|::LIMIT` selects nothing, and
+/// the read never falls back to the file's declaration by its name.
+#[test]
+fn a_file_alias_selects_the_declaration_of_the_file_it_imports() {
+    let value = ("limits.omg", "public const LIMIT: u8 = 7;\n");
+    let read = "machine read() -> u8 { |limits|::LIMIT }\n";
+    let imported = format!("use limits.omg;\n{read}");
+    let trees = resolved(&[("main.omg", &imported), value]);
+    assert_eq!(
+        uses(&trees, "|limits|::LIMIT"),
+        [(
+            (0, imported.rfind("|limits|").unwrap()),
+            declared("Const", "LIMIT", 1, 13)
+        )]
+    );
+    for twin in [format!("use limits.omg as other;\n{read}"), read.to_owned()] {
+        let trees = resolved(&[("main.omg", &twin), value]);
+        assert_eq!(
+            uses(&trees, "|limits|::LIMIT"),
+            [((0, twin.rfind("|limits|").unwrap()), None)],
+            "{twin}"
+        );
+    }
 }

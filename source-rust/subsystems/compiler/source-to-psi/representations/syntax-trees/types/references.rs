@@ -207,6 +207,21 @@ impl TypeReferenceTable {
         self.constraints.span_or_empty(span)
     }
 
+    /* Every constraint of the forest, in table order. */
+    pub fn iter_constraints(
+        &self,
+    ) -> impl Iterator<Item = (Handle<TypeConstraintNode>, &TypeConstraintNode)> {
+        self.constraints.iter()
+    }
+
+    pub fn replace_constraint(
+        &mut self,
+        handle: Handle<TypeConstraintNode>,
+        constraint: TypeConstraintNode,
+    ) {
+        *self.constraints.get_mut(handle) = constraint;
+    }
+
     pub fn domain_constraints(&self) -> Vec<DomainConstraint> {
         self.constraints
             .iter()

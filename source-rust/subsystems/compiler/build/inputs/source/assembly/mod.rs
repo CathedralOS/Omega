@@ -86,6 +86,21 @@ impl AssembledSyntax {
         )
     }
 
+    /// The Build stage the whole-file check reads before Build runs, with the
+    /// root's own files under a check-only owner. `None` when a package graph
+    /// already supplies the root's owner.
+    pub fn check_only_build_stage_source(
+        &self,
+    ) -> Result<Option<source_compiler::BuildStageSource>, Vec<Diagnostic>> {
+        let Some(owner) = &self.anonymous_owner else {
+            return Ok(None);
+        };
+        owner
+            .check_only_stage(self.build_stage_source()?)
+            .map(Some)
+            .map_err(|reason| vec![Diagnostic::error(reason)])
+    }
+
     pub fn build_stage_source(&self) -> Result<source_compiler::BuildStageSource, Vec<Diagnostic>> {
         let selection = self.build_source.ok_or_else(|| {
             vec![Diagnostic::error(

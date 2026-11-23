@@ -777,6 +777,9 @@ pub(crate) fn follow_the_lowered_form(
                     Error::Unavailable(unavailable) => {
                         (RefusalReason::Unestablished, unavailable.message())
                     }
+                    Error::Unconsumed { at_join, .. } => {
+                        (RefusalReason::Violation, Error::unconsumed_message(at_join))
+                    }
                     Error::Unsupported { detail, .. } => (RefusalReason::Unsupported, detail),
                     Error::Malformed { detail, .. } => (RefusalReason::ForeignIdentity, detail),
                 };

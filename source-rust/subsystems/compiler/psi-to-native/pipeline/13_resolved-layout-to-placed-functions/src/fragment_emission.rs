@@ -893,6 +893,86 @@ fn check_ordinary_fragments(
     Ok(())
 }
 
+fn check_foreign_call_fixup(
+    selected: &FragmentInstructionOrigin,
+    row: &ResolvedSelectedFormRow,
+    span: &FunctionFragmentInstructionSpan,
+) -> Result<(), ResolvedFragmentEmissionError> {
+    let import_free = *selected.import_free.as_ref().map_err(Clone::clone)?;
+    let (source, placed) = match (
+        &row.normalized_foreign_call_fixup,
+        &span.normalized_foreign_call_fixup,
+    ) {
+        (None, None) if import_free => {
+            return require(row.branch.is_none() && row.internal_machine_fixup.is_none());
+        }
+        (None, None) => return require(selected.foreign.is_none()),
+        (Some(source), Some(placed)) if !import_free => (source, placed),
+        _ => return Err(ResolvedFragmentEmissionError::ArtifactMismatch),
+    };
+    // Replay in the row's coordinate system. The emitter translates in the opposite direction.
+    let matches_offset = |relative: u16, absolute: u64| {
+        absolute.checked_sub(row.offset) == Some(u64::from(relative))
+    };
+    require(
+        selected.foreign == Some((source.boundary, source.ordinal))
+            && row.branch.is_none()
+            && row.internal_machine_fixup.is_none()
+            && placed.boundary == source.boundary
+            && placed.ordinal == source.ordinal
+            && placed.kind == source.kind
+            && source.state == SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1
+            && placed.state
+                == FunctionFragmentNormalizedForeignCallFixupState::UnresolvedImportFieldV1
+            && matches_offset(source.opcode_row_offset, placed.opcode_function_offset)
+            && matches_offset(source.patch_row_offset, placed.patch_function_offset)
+            && matches_offset(
+                source.reference_row_offset,
+                placed.reference_function_offset,
+            )
+            && placed.patch_byte_width == source.patch_byte_width
+            && placed.addend == source.addend
+            && placed.callbacks.len() == source.callbacks.len(),
+    )?;
+    for (source, placed) in source.callbacks.iter().zip(&placed.callbacks) {
+        use machine_code::{
+            FunctionFragmentCallbackMaterializationEncoding as Placed,
+            SelectedFormCallbackMaterializationEncoding as Row,
+        };
+        require(
+            source.destination == placed.destination
+                && matches_offset(source.code_row_offset, placed.code_function_offset)
+                && u64::from(source.code_byte_count) == placed.code_byte_count,
+        )?;
+        require(match (source.encoding, placed.encoding) {
+            (
+                Row::X86_64Relative32 { patch_row_offset },
+                Placed::X86_64Relative32 {
+                    patch_function_offset,
+                },
+            ) => matches_offset(patch_row_offset, patch_function_offset),
+            (
+                Row::Aarch64PageAddress {
+                    page_patch_row_offset,
+                    page_offset_patch_row_offset,
+                },
+                Placed::Aarch64PageAddress {
+                    page_patch_function_offset,
+                    page_offset_patch_function_offset,
+                },
+            ) => {
+                matches_offset(page_patch_row_offset, page_patch_function_offset)
+                    && matches_offset(
+                        page_offset_patch_row_offset,
+                        page_offset_patch_function_offset,
+                    )
+            }
+            _ => false,
+        })?;
+    }
+    Ok(())
+}
+
 fn check_instruction_span(
     selected: &FragmentInstructionOrigin,
     row: &ResolvedSelectedFormRow,
@@ -906,6 +986,7 @@ fn check_instruction_span(
             && span.provenance == selected.provenance,
     )?;
     require(selected.control.as_ref().map_err(Clone::clone)? == &span.control)?;
+    check_foreign_call_fixup(selected, row, span)?;
     let reference = selected.image_reference;
     match (
         row.image_address_fixup(),
@@ -1055,6 +1136,76 @@ mod tests {
             clobbers: Vec::new(),
             provenance: SelectedInstructionProvenance::default(),
         }
+    }
+
+    #[test]
+    fn replay_checks_foreign_call_import_identity_and_callback_offsets() {
+        use machine_code::{
+            CallbackAddressDestination, SelectedFormCallbackMaterialization,
+            SelectedFormCallbackMaterializationEncoding, SelectedFormNormalizedForeignCallFixup,
+            SelectedFormNormalizedForeignCallFixupKind,
+            SelectedFormNormalizedForeignCallFixupState,
+        };
+        let boundary = semantic_vocabulary::BoundaryMachineId::new(3).unwrap();
+        let mut instruction = selected_call(MachineId::new(29).unwrap());
+        instruction.kind = SelectedInstructionKind::NormalizedForeignCall {
+            boundary,
+            ordinal: 4,
+        };
+        let origin = encoding_admission::fragment_origins::prepare_fixup_origin(&instruction);
+        let row = ResolvedSelectedFormRow {
+            instruction: instruction.id,
+            alternative: MachineAlternativeKey {
+                family: MachineAlternativeFamily::NormalizedForeignCall,
+                variant: 0,
+            },
+            offset: 37,
+            bytes: vec![0x48, 0x8d, 0x0d, 0, 0, 0, 0, 0xe8, 0, 0, 0, 0],
+            branch: None,
+            internal_machine_fixup: None,
+            normalized_foreign_call_fixup: Some(Box::new(SelectedFormNormalizedForeignCallFixup {
+                kind: SelectedFormNormalizedForeignCallFixupKind::X86Relative32FromNextInstructionToNormalizedForeignImportV1,
+                state: SelectedFormNormalizedForeignCallFixupState::UnresolvedImportFieldV1,
+                boundary,
+                ordinal: 4,
+                opcode_row_offset: 7,
+                patch_row_offset: 8,
+                reference_row_offset: 12,
+                patch_byte_width: 4,
+                addend: 0,
+                callbacks: vec![SelectedFormCallbackMaterialization {
+                    destination: CallbackAddressDestination::Register(calling_conventions::MachineRegister::X86Rcx),
+                    code_row_offset: 0,
+                    code_byte_count: 7,
+                    encoding: SelectedFormCallbackMaterializationEncoding::X86_64Relative32 { patch_row_offset: 3 },
+                }],
+            })),
+            image_address_fixup: None,
+        };
+        let mut bytes = vec![0; row.offset as usize];
+        let mut span = super::emit_instruction(&origin, &row, &mut bytes).unwrap();
+        super::check_instruction_span(&origin, &row, &span).unwrap();
+        let original = span.normalized_foreign_call_fixup.clone();
+        span.normalized_foreign_call_fixup.as_mut().unwrap().ordinal += 1;
+        assert!(
+            super::check_instruction_span(&origin, &row, &span).is_err(),
+            "changed import"
+        );
+        span.normalized_foreign_call_fixup = original;
+        span.normalized_foreign_call_fixup
+            .as_mut()
+            .unwrap()
+            .callbacks[0]
+            .code_function_offset += 1;
+        assert!(
+            super::check_instruction_span(&origin, &row, &span).is_err(),
+            "changed callback"
+        );
+        span.normalized_foreign_call_fixup = None;
+        assert!(
+            super::check_instruction_span(&origin, &row, &span).is_err(),
+            "missing import"
+        );
     }
 
     #[test]

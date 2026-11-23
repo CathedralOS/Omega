@@ -27,8 +27,8 @@ reproducibility or authenticate external input contents.
 ## Retained execution facts
 
 Retain the selected activation, canonical input identity, attempted operations
-and their actual results where needed for audit/accounting, explicit source
-handoffs, completed output obligations, and bounded diagnostics. Failed attempts
+and their actual results where needed for audit/accounting, the selected source
+view, completed output obligations, and bounded diagnostics. Failed attempts
 remain failures; an absent observation cannot manufacture success or authority.
 These facts neither authorize another activation nor prove a shipped program's
 runtime behavior.
@@ -55,13 +55,11 @@ accounting alongside the tree commitment.
 
 Materialization consumes retained complete content into an existing empty
 destination and re-inspects exact paths, kinds, modes, targets, and bytes.
-A Build publishes generated source by passing its logical filename and exact
-UTF-8 bytes to [`Build::include_source`](execution.md#generated-source-boundary).
-The activation accounts for both the name and the contents. Each logical name
-can be published once. Retain the publication with its generating context so
-the compiler consumes those bytes even if an exported file has the same name
-and different contents. Exporting a file with an `.omg` suffix is independent
-of publishing source.
+The compiler consumes the [source view selected by the plan](execution.md#generated-source-boundary).
+The handoff records the producing context and commits to the view's logical
+paths and exact contents. The next compilation reads that snapshot even if
+the writer subsequently changes a disk file. A required artifact or host
+export with the same filename has its own publication contract.
 
 Scoped grants and deterministic resource accounts alone do not exclude hostile
 same-user processes racing disk-backed storage. Enforce the input/output isolation

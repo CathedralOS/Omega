@@ -21,7 +21,8 @@ We support two entry points:
   - `Both`: runs the produced Terminal Psi artifact on `terminal_runtime`,
     publishes and spawns the native executable, verifies that any
     `private_entry_ram` observations match byte-for-byte, and compares how both
-    runs terminated (`InterpreterComparison`).
+    runs terminated and what each wrote to stdout and stderr
+    (`InterpreterComparison`).
 - `run_project_cases`: compiles the project once on the host, replays every case
   file in `inputs` through the Terminal Psi interpreter (when
   `compare_interpreter` is true) and the native executable, and writes
@@ -70,15 +71,24 @@ Why `--both` captures `stdin` lazily and distinguishes preflight unavailability:
    interpreter exit code even on Unix, where `waitpid` only preserves the low 8
    bits.
 
+4. Output comparison (`output_comparison`):
+   Once both runs finished the same way, their stdout and stderr bytes must
+   also match; otherwise the result is `InterpreterComparison::OutputDisagrees`
+   with the first differing line. A runnable program's output is part of its
+   result, so equal exit statuses alone are not agreement.
+
 */
 
 mod compilation;
+mod output_comparison;
 mod private_observation;
 mod process_exit;
 mod retained_artifacts;
 mod standard_input;
 
 pub use process_exit::ProcessExitObservation;
+
+use output_comparison::{OutputDivergence, ProgramStreams};
 
 use diagnostics::Diagnostic;
 use package_compilation::build_execution::BuildSnapshotRequest;
@@ -135,11 +145,40 @@ pub enum TerminalOutcome {
 pub enum InterpreterComparison {
     NotRequested,
     Declined(String),
-    Agrees { exit_code: i32 },
-    Disagrees { interpreter_exit_code: i32 },
-    AgreesCrash { cause: terminal_psi::CrashCause },
-    DisagreesCrash { cause: terminal_psi::CrashCause },
+    Agrees {
+        exit_code: i32,
+    },
+    Disagrees {
+        interpreter_exit_code: i32,
+    },
+    AgreesCrash {
+        cause: terminal_psi::CrashCause,
+    },
+    DisagreesCrash {
+        cause: terminal_psi::CrashCause,
+    },
+    // Both runs finished the same way but wrote different output.
+    OutputDisagrees {
+        termination: AgreedTermination,
+        divergence: OutputDivergence,
+    },
     Failed(Vec<Diagnostic>),
+}
+
+// How both runs finished when they finished the same way.
+#[derive(Debug, Clone, Copy)]
+pub enum AgreedTermination {
+    Exit(i32),
+    Crash(terminal_psi::CrashCause),
+}
+
+impl AgreedTermination {
+    fn agreement(self) -> InterpreterComparison {
+        match self {
+            Self::Exit(exit_code) => InterpreterComparison::Agrees { exit_code },
+            Self::Crash(cause) => InterpreterComparison::AgreesCrash { cause },
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -241,9 +280,7 @@ pub fn run_project(
     if request.keep_artifacts {
         retained_artifacts::retain(&report, &build_dir)?;
     }
-    let (report, executable) =
-        report.publish(&build_dir)
-            .map_err(RunError::Publication)?;
+    let (report, executable) = report.publish(&build_dir).map_err(RunError::Publication)?;
     let execution = match request.target_name {
         Some(target_name) => ExecutionOutcome::TargetOnly { target_name },
         None => {
@@ -288,7 +325,14 @@ pub fn run_project(
             {
                 retain_terminal_observation(&build_dir, reference, psi_work_budget)?;
             }
-            let comparison = compare_interpretation(exit, interpretation);
+            let comparison = compare_interpretation(
+                exit,
+                ProgramStreams {
+                    stdout: &output.stdout,
+                    stderr: &output.stderr,
+                },
+                interpretation,
+            );
             ExecutionOutcome::Host {
                 private_entry_ram,
                 output,
@@ -462,9 +506,7 @@ pub fn run_project_cases(
     if request.keep_artifacts {
         retained_artifacts::retain(&report, &build_dir)?;
     }
-    let (report, executable) =
-        report.publish(&build_dir)
-            .map_err(RunError::Publication)?;
+    let (report, executable) = report.publish(&build_dir).map_err(RunError::Publication)?;
     let mut interpretations = interpretations.into_iter();
     let mut cases = Vec::new();
     let mut table = String::from("case\tnative\tinterpreter\tinterpreter_exit\n");
@@ -481,12 +523,12 @@ pub fn run_project_cases(
             std::fs::File::open(input).map_err(RunError::StandardInput)?,
         ));
         let (output, private_entry_ram, private_frames) =
-            private_observation::capture(command, report.private_entry_ram()).map_err(
-                |error| RunError::Spawn {
+            private_observation::capture(command, report.private_entry_ram()).map_err(|error| {
+                RunError::Spawn {
                     executable: executable.clone(),
                     error,
-                },
-            )?;
+                }
+            })?;
         let directory = &request.output_directory;
         let write = |suffix: &str, bytes: &[u8]| {
             std::fs::write(directory.join(format!("{name}.{suffix}")), bytes)
@@ -510,7 +552,14 @@ pub fn run_project_cases(
             )?;
         }
         let exit = ProcessExitObservation::observe(&output.status);
-        let comparison = compare_interpretation(exit, interpretation);
+        let comparison = compare_interpretation(
+            exit,
+            ProgramStreams {
+                stdout: &output.stdout,
+                stderr: &output.stderr,
+            },
+            interpretation,
+        );
         let (verdict, interpreter_exit) = comparison_columns(&comparison);
         table.push_str(&format!(
             "{name}\t{}\t{verdict}\t{interpreter_exit}\n",
@@ -540,12 +589,20 @@ fn comparison_columns(comparison: &InterpreterComparison) -> (&'static str, Stri
         InterpreterComparison::DisagreesCrash { cause } => {
             ("disagrees-crash", format!("{cause:?}"))
         }
+        InterpreterComparison::OutputDisagrees { termination, .. } => (
+            "disagrees-output",
+            match termination {
+                AgreedTermination::Exit(exit_code) => exit_code.to_string(),
+                AgreedTermination::Crash(cause) => format!("{cause:?}"),
+            },
+        ),
         InterpreterComparison::Failed(_) => ("failed", String::new()),
     }
 }
 
 fn compare_interpretation(
     native_exit: ProcessExitObservation,
+    native_streams: ProgramStreams<'_>,
     interpretation: Option<
         Result<
             terminal_runtime::TerminalRuntimeObservation,
@@ -553,8 +610,6 @@ fn compare_interpretation(
         >,
     >,
 ) -> InterpreterComparison {
-    use terminal_runtime::{TerminalExecutionResult, TerminalExecutionStatus};
-
     match interpretation {
         None => InterpreterComparison::NotRequested,
         Some(Err(error)) if error.comparison_unavailable() => {
@@ -563,44 +618,82 @@ fn compare_interpretation(
         Some(Err(error)) => {
             InterpreterComparison::Failed(vec![Diagnostic::error(error.to_string())])
         }
-        Some(Ok(outcome)) => {
-            let exit_code = match outcome.status {
-                TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => 0,
-                TerminalExecutionStatus::ExternalCompletion(completion) => completion.return_code,
-                TerminalExecutionStatus::Complete(result) => {
-                    return InterpreterComparison::Declined(format!(
-                        "program entry returned a non-process result: {result:?}"
-                    ));
-                }
-                TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
-                    return InterpreterComparison::Declined(format!(
-                        "Psi reference execution: {exhaustion}; raise --psi-work-budget to permit more work"
-                    ));
-                }
-                TerminalExecutionStatus::AwaitingEffect(site) => {
-                    return InterpreterComparison::Declined(format!(
-                        "Terminal reference execution awaits host readiness at {site:?}"
-                    ));
-                }
-                TerminalExecutionStatus::HostComputationPending(site) => {
-                    return InterpreterComparison::Declined(format!(
-                        "Terminal reference execution has an unfinished host computation at {site:?}"
-                    ));
-                }
-                TerminalExecutionStatus::Crashed(crash) => {
-                    return match native_exit.matches_crash_presentation(crash.cause) {
-                        Some(true) => InterpreterComparison::AgreesCrash { cause: crash.cause },
-                        Some(false) => InterpreterComparison::DisagreesCrash { cause: crash.cause },
-                        None => InterpreterComparison::Declined(format!(
-                            "Terminal observed {:?}; host crash-presentation comparison is unavailable",
-                            crash.cause
-                        )),
-                    };
-                }
-            };
-            compare_exit_status(native_exit, exit_code)
-        }
+        Some(Ok(outcome)) => compare_finished_runs(
+            native_exit,
+            native_streams,
+            outcome.status,
+            ProgramStreams {
+                stdout: &outcome.stdout,
+                stderr: &outcome.stderr,
+            },
+        ),
     }
+}
+
+// Two runs agree when they finished the same way and wrote the same output.
+// Output is compared only after the finish agrees, so a run that already
+// diverged on its exit status or crash reports that first.
+fn compare_finished_runs(
+    native_exit: ProcessExitObservation,
+    native_streams: ProgramStreams<'_>,
+    psi_status: terminal_runtime::TerminalExecutionStatus,
+    psi_streams: ProgramStreams<'_>,
+) -> InterpreterComparison {
+    let termination = match compare_termination(native_exit, psi_status) {
+        InterpreterComparison::Agrees { exit_code } => AgreedTermination::Exit(exit_code),
+        InterpreterComparison::AgreesCrash { cause } => AgreedTermination::Crash(cause),
+        unresolved => return unresolved,
+    };
+    match output_comparison::first_output_difference(native_streams, psi_streams) {
+        None => termination.agreement(),
+        Some(divergence) => InterpreterComparison::OutputDisagrees {
+            termination,
+            divergence,
+        },
+    }
+}
+
+fn compare_termination(
+    native_exit: ProcessExitObservation,
+    psi_status: terminal_runtime::TerminalExecutionStatus,
+) -> InterpreterComparison {
+    use terminal_runtime::{TerminalExecutionResult, TerminalExecutionStatus};
+
+    let exit_code = match psi_status {
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => 0,
+        TerminalExecutionStatus::ExternalCompletion(completion) => completion.return_code,
+        TerminalExecutionStatus::Complete(result) => {
+            return InterpreterComparison::Declined(format!(
+                "program entry returned a non-process result: {result:?}"
+            ));
+        }
+        TerminalExecutionStatus::SponsorExhausted(exhaustion) => {
+            return InterpreterComparison::Declined(format!(
+                "Psi reference execution: {exhaustion}; raise --psi-work-budget to permit more work"
+            ));
+        }
+        TerminalExecutionStatus::AwaitingEffect(site) => {
+            return InterpreterComparison::Declined(format!(
+                "Terminal reference execution awaits host readiness at {site:?}"
+            ));
+        }
+        TerminalExecutionStatus::HostComputationPending(site) => {
+            return InterpreterComparison::Declined(format!(
+                "Terminal reference execution has an unfinished host computation at {site:?}"
+            ));
+        }
+        TerminalExecutionStatus::Crashed(crash) => {
+            return match native_exit.matches_crash_presentation(crash.cause) {
+                Some(true) => InterpreterComparison::AgreesCrash { cause: crash.cause },
+                Some(false) => InterpreterComparison::DisagreesCrash { cause: crash.cause },
+                None => InterpreterComparison::Declined(format!(
+                    "Terminal observed {:?}; host crash-presentation comparison is unavailable",
+                    crash.cause
+                )),
+            };
+        }
+    };
+    compare_exit_status(native_exit, exit_code)
 }
 
 // Unix keeps only the low byte of a process status, so a Psi status outside
@@ -625,14 +718,66 @@ fn compare_exit_status(
 #[cfg(test)]
 mod comparison_tests {
     use super::{
-        InterpreterComparison, ProcessExitObservation, compare_exit_status, compare_interpretation,
+        AgreedTermination, InterpreterComparison, ProcessExitObservation, ProgramStreams,
+        compare_exit_status, compare_finished_runs, compare_interpretation,
     };
-    use terminal_runtime::TerminalRuntimeError;
+    use terminal_runtime::{
+        TerminalExecutionResult, TerminalExecutionStatus, TerminalRuntimeError,
+    };
+
+    const NO_OUTPUT: ProgramStreams<'static> = ProgramStreams {
+        stdout: b"",
+        stderr: b"",
+    };
+
+    // Both runs exit 0. The twins differ only in the Psi run's stdout, which
+    // stands in for an interpreter host service that writes something the
+    // native program did not.
+    fn finished_with_psi_stdout(psi_stdout: &[u8]) -> InterpreterComparison {
+        compare_finished_runs(
+            ProcessExitObservation::Exited(0),
+            ProgramStreams {
+                stdout: b"total 7\n",
+                stderr: b"",
+            },
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit),
+            ProgramStreams {
+                stdout: psi_stdout,
+                stderr: b"",
+            },
+        )
+    }
+
+    #[test]
+    fn equal_output_and_exit_agree() {
+        let comparison = finished_with_psi_stdout(b"total 7\n");
+        assert!(
+            matches!(comparison, InterpreterComparison::Agrees { exit_code: 0 }),
+            "{comparison:?}"
+        );
+    }
+
+    #[test]
+    fn different_output_with_equal_exit_disagrees() {
+        let comparison = finished_with_psi_stdout(b"total 8\n");
+        let InterpreterComparison::OutputDisagrees {
+            termination: AgreedTermination::Exit(0),
+            divergence,
+        } = comparison
+        else {
+            panic!("equal exit statuses with different stdout must not agree: {comparison:?}");
+        };
+        assert_eq!(
+            divergence.to_string(),
+            r#"stdout line 1: native "total 7\n" vs Psi "total 8\n""#
+        );
+    }
 
     #[test]
     fn native_inspection_failure_fails_comparison() {
         let comparison = compare_interpretation(
             ProcessExitObservation::Exited(0),
+            NO_OUTPUT,
             Some(Err(TerminalRuntimeError::NativeArtifactInspection(
                 "corrupt instruction evidence".to_owned(),
             ))),
@@ -652,6 +797,7 @@ mod comparison_tests {
     fn absent_host_capability_still_declines_comparison() {
         let comparison = compare_interpretation(
             ProcessExitObservation::Exited(0),
+            NO_OUTPUT,
             Some(Err(TerminalRuntimeError::MissingProvision {
                 capability: "runtime-provider-installation",
                 reason: "absent".to_owned(),

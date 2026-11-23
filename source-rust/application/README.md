@@ -30,8 +30,14 @@ disposable output on success and failure, and keeps requested output, including
 from an interpreter disagreement. A native run with
 only `--target` compiles without running the image. The Psi engine keeps the
 target but runs through its admitted host adapters. Host
-execution returns raw stdout/stderr bytes and process status; a program the
-interpreter cannot run is a decline, not an agreement.
+execution returns raw stdout/stderr bytes and process status. `--both` agrees
+only when both runs finish the same way and write the same stdout and stderr
+bytes. A mismatch names the stream and its first differing line, and exits 201.
+A Psi run that exhausts its work budget declines the comparison.
+
+A single run also compares the observed bytes of any requested entry RAM.
+**BUILD-TEST-COMPARISON** in [TASKS.md](../../TASKS.md#requirement-based-tests)
+tracks its replacement by [Build test comparison](../../wiki/spec/build/testing.md#comparing-native-and-psi-tests).
 
 Comparisons accept `--both --psi-work-budget <positive-u64>`. Each interpreter
 invocation, including each input case and stdin replay, gets the full budget
@@ -60,7 +66,8 @@ publication. Each case writes `<case>.stdout` and `<case>.stderr`, plus
 `<case>.terminal.stdout` and `<case>.terminal.stderr` when interpreted, and
 `results.tsv` lists each case's native status, comparison verdict and
 interpreter status. The command exits 201 when any case diverges or fails to
-interpret, otherwise 0; the programs' own statuses are in `results.tsv`. Validations that compiled once per
+interpret, 204 if any comparison was declined and none failed, and 0 otherwise.
+The programs' own statuses are in `results.tsv`. Validations that compiled once per
 input, or linked their own capture program, use this.
 A run with `--target` does not read stdin. The command holds stdout/stderr until
 native execution ends, then forwards the original bytes without UTF-8 decoding,
@@ -95,10 +102,8 @@ status. A large transfer is limited to the selected kernel page size, not an
 impossible full-count write.
 
 Descriptor-backed or unbounded waits, CPU clocks and other missing imports
-decline; there is no tree fallback. The CLI compares only the
-termination the host presents, not stdout/stderr or full semantic traces. A
-typed `Trap` is compared with the executing host's architectural trap
-presentation, never with an arbitrary signal death or a numeric exit code.
+decline without a tree fallback. For termination, a typed `Trap` must match
+the executing host's architectural trap presentation.
 Other unmapped crashes and running out of the sponsor's work budget decline
 explicitly. A Windows exception status can share its bits with an authored exit
 code, so matching presentation does not prove the same cause.
@@ -189,8 +194,8 @@ exits 2 only when every refused target is incomplete; any rejection exits 1.
 Argument errors exit 64 (`EX_USAGE`) before compilation starts. `omega run`
 has its own statuses: the program's exit status; 200 when compilation or launch
 fails; 202 when compilation stopped at a named private provision
-(`Incomplete`); and 201 when the `--both` interpreter run disagrees or hits a
-runtime or artifact defect; and 204 when `--both` could not compare the two
+(`Incomplete`); and 201 when the `--both` interpreter run disagrees on its exit,
+crash or stdout/stderr bytes, or hits a runtime or artifact defect; and 204 when `--both` could not compare the two
 runs. That covers a Psi run that ran out of work, waited on the host, returned
 no process result or hit an unsupported construct, and a Psi exit status
 outside 0..=255 that a Unix host shows only as its low byte. Such a run reports

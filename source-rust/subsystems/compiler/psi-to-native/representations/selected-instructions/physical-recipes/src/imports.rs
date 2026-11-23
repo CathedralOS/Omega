@@ -15,7 +15,7 @@ pub struct ImportInstructions {
 pub enum ImportRecipe {
     Empty,
     X86Indirect,
-    Aarch64MachO,
+    Aarch64Indirect,
     X86Elf,
     Aarch64Elf,
 }

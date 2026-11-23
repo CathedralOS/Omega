@@ -73,9 +73,9 @@ omega run --both --keep "$S/main.omg" < "$S/fixtures/births.input"
 omega --check "$S/controls/invalid_rate_type/invalid.omg"
 ```
 
-Native runs compare exact bytes with the frozen output oracle. Terminal replay uses the same
-input; the current documented `--both` CLI compares exit status, so that route establishes
-exit agreement and does not attest Terminal stdout. Startup oracle checks make exit
+Native runs compare exact bytes with the frozen output oracle. The CLI replays the same input
+in Psi and compares termination, stdout and stderr with
+the native run. Startup oracle checks make exit
 agreement also attest 17 independently frozen transitions (all three cohorts and
 births/deaths/migration/before/after values). An internal oracle disagreement exits 4,
 before reading any user input. The intended-invalid control is checked separately, without

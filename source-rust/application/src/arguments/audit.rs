@@ -7,7 +7,6 @@
 use super::{explicit_targets, parse_build_input, set_flag, take_text, take_value};
 use package_compilation::BuildSourceCaptureRequest;
 use package_manager::operations::PackageInspectionOptions;
-use std::ffi::OsString;
 use std::path::PathBuf;
 
 pub(super) const USAGE: &str = "usage: omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...\nChecks current project source with accepted dependency pins; no lock means fresh unaccepted inspection.\n--offline disables package source network acquisition for this invocation.\n--details includes full normalized policy after the readable summary.\nExit 0: checked; 1: unavailable; 3: policy requires review; 64: invalid arguments.\nInspection never accepts changes or resumes a pending publication.";
@@ -23,9 +22,7 @@ pub(crate) struct SourceArguments {
     pub(crate) rev: Option<String>,
 }
 
-pub(super) fn parse(
-    mut arguments: impl Iterator<Item = OsString>,
-) -> Result<Option<ParsedAudit>, String> {
+pub(super) fn parse(arguments: &mut super::Arguments) -> Result<Option<ParsedAudit>, String> {
     let mut project_root = None;
     let mut target_names = Vec::new();
     let mut help = false;
@@ -35,19 +32,19 @@ pub(super) fn parse(
     let mut source_kind = None;
     let mut rev = None;
     let mut locator = None;
-    while let Some(argument) = arguments.next() {
+    while let Some(argument) = arguments.next_argument() {
         match argument.to_str() {
             Some("--help" | "-h") => set_flag(&mut help, &argument.to_string_lossy())?,
             Some("--details") => set_flag(&mut details, "--details")?,
             Some("--offline") => set_flag(&mut offline, "--offline")?,
             Some(flag @ ("--build-input" | "--optional-build-input")) => {
-                build_inputs.push(parse_build_input(&mut arguments, flag)?);
+                build_inputs.push(parse_build_input(arguments, flag)?);
             }
             Some("--kind") => {
                 if source_kind.is_some() {
                     return Err("duplicate --kind".into());
                 }
-                let kind = take_text(&mut arguments, "--kind")?;
+                let kind = take_text(arguments, "--kind")?;
                 if kind != "local" && kind != "git" {
                     return Err(format!("--kind requires `local` or `git`, not `{kind}`"));
                 }
@@ -57,15 +54,15 @@ pub(super) fn parse(
                 if rev.is_some() {
                     return Err("duplicate --rev".into());
                 }
-                rev = Some(take_text(&mut arguments, "--rev")?);
+                rev = Some(take_text(arguments, "--rev")?);
             }
             Some("--project") => {
                 if project_root.is_some() {
                     return Err("duplicate --project".to_owned());
                 }
-                project_root = Some(PathBuf::from(take_value(&mut arguments, "--project")?));
+                project_root = Some(PathBuf::from(take_value(arguments, "--project")?));
             }
-            Some("--target") => target_names.push(take_text(&mut arguments, "--target")?),
+            Some("--target") => target_names.push(take_text(arguments, "--target")?),
             _ => {
                 if argument.as_encoded_bytes().starts_with(b"-") {
                     return Err(format!(

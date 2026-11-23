@@ -67,6 +67,38 @@ mod calls {
                 expression_table,
                 call.receiver,
             );
+            // A file alias scopes the member lookup as well as its data owner.
+            // Keep the receiver in the call so typing can check the selected header.
+            if call.target_is_static
+                && receiver_symbol.is_valid()
+                && symbols.get(receiver_symbol).kind == SymbolKind::Data
+                && let crate::source_resolved::expression::ExpressionNode::Name(path) =
+                    expression_table.expression(call.receiver)
+                && let [owner] = expression_table.name_path_members(path.members)
+                && owner.as_str().starts_with('|')
+            {
+                let qualified = format!("{}::{}", owner.as_str(), call.target.as_str());
+                let attachments = machine.attached_machines;
+                let eligible = attachments.positions_for_owner(receiver_symbol);
+                if let Some(selected) = symbols
+                    .find_top_level_by_name_and_kinds_from_source_matching(
+                        &qualified,
+                        &[SymbolKind::Machine],
+                        call.target.source_span(),
+                        |candidate| {
+                            eligible
+                                .iter()
+                                .any(|&index| attachments.list[index].machine == candidate)
+                        },
+                    )
+                {
+                    return super::super::targets::machine_entry_symbol(
+                        symbols,
+                        selected,
+                        call.target.as_str(),
+                    );
+                }
+            }
             let resolved = resolve_call_target_symbol(
                 machine,
                 parameters,

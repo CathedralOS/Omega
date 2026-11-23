@@ -3,7 +3,6 @@
 use super::{explicit_targets, parse_build_input, take_text, take_value};
 use package_compilation::BuildSourceCaptureRequest;
 use package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions};
-use std::ffi::OsString;
 use std::path::PathBuf;
 
 pub(super) const USAGE: &str = "usage: omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] ...\n       omega packages update [package-or-alias...] [--to <revision>] ...\n       omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] ...\n       omega packages <install|update> --resume [--project <dir>] [--offline]\n       omega packages <install|update> --discard-review [--project <dir>] [--offline]\nRun `omega packages <install|update|audit> --help` for that command's options.";
@@ -21,7 +20,7 @@ pub(super) fn usage(kind: &PackageCommandKind) -> &'static str {
 
 pub(super) fn parse_arguments(
     kind: PackageCommandKind,
-    mut arguments: impl Iterator<Item = OsString>,
+    arguments: &mut super::Arguments,
 ) -> Result<Option<(PackageCommand, PackageCommandOptions, bool)>, String> {
     let mut positionals = Vec::new();
     let mut revision = None;
@@ -35,7 +34,7 @@ pub(super) fn parse_arguments(
     let mut help = false;
     let mut offline = false;
     let mut build_inputs = Vec::new();
-    while let Some(argument) = arguments.next() {
+    while let Some(argument) = arguments.next_argument() {
         let argument = argument
             .into_string()
             .map_err(|_| "package arguments must be UTF-8 (except --project paths)".to_owned())?;
@@ -46,13 +45,13 @@ pub(super) fn parse_arguments(
             "--discard-review" => super::set_flag(&mut discard_review, &argument)?,
             "--dangerously-accept-all" => super::set_flag(&mut accept_all, &argument)?,
             "--build-input" | "--optional-build-input" => {
-                build_inputs.push(parse_build_input(&mut arguments, &argument)?);
+                build_inputs.push(parse_build_input(arguments, &argument)?);
             }
             "--project" => {
                 if project_root.is_some() {
                     return Err("duplicate --project".to_owned());
                 }
-                project_root = Some(PathBuf::from(take_value(&mut arguments, &argument)?));
+                project_root = Some(PathBuf::from(take_value(arguments, &argument)?));
             }
             "--rev" | "--to" => {
                 if !matches!(
@@ -64,7 +63,7 @@ pub(super) fn parse_arguments(
                 if revision.is_some() {
                     return Err(format!("duplicate {argument}"));
                 }
-                revision = Some(take_text(&mut arguments, &argument)?);
+                revision = Some(take_text(arguments, &argument)?);
             }
             "--package" => {
                 if !matches!(kind, PackageCommandKind::Install) {
@@ -73,7 +72,7 @@ pub(super) fn parse_arguments(
                 if package.is_some() {
                     return Err("duplicate --package".to_owned());
                 }
-                package = Some(take_text(&mut arguments, &argument)?);
+                package = Some(take_text(arguments, &argument)?);
             }
             "--as" => {
                 if !matches!(kind, PackageCommandKind::Install) {
@@ -82,9 +81,9 @@ pub(super) fn parse_arguments(
                 if alias.is_some() {
                     return Err("duplicate --as".to_owned());
                 }
-                alias = Some(take_text(&mut arguments, &argument)?);
+                alias = Some(take_text(arguments, &argument)?);
             }
-            "--target" => target_names.push(take_text(&mut arguments, &argument)?),
+            "--target" => target_names.push(take_text(arguments, &argument)?),
             _ if argument.starts_with('-') => {
                 return Err(format!("unrecognized option `{argument}`"));
             }

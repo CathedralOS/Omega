@@ -105,13 +105,10 @@ pub(super) fn bind_receiving_parameters(
         publish(alias.symbol, alias.type_parameters);
     }
     for domain in program.roots.domain_definitions.iter() {
-        let mut binders = domain.type_parameters;
-        let complete = parameters.span_or_empty(binders);
-        let indices = domain.index_binders(complete);
-        if indices.len() != complete.len() {
-            binders = arena::HandleSpan::from_parts_or_empty(binders.handle_at(1), binders.count() - 1);
-        }
-        publish(domain.symbol, binders);
+        let binders = domain.type_parameters;
+        let indices = domain.index_binders(parameters.span_or_empty(binders));
+        let first_index = binders.count() - indices.len() as u32;
+        publish(domain.symbol, binders.suffix(first_index));
     }
 }
 

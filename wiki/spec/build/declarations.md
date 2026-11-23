@@ -89,8 +89,10 @@ Build parameter and any declared execution-backing parameters selected and
 admitted by its invocation. A simple entry remains
 `machine build(builder: @mutable Build)`; a filesystem-using entry may additionally
 take `filesystem: @mutable FilesystemBacking` under an ordinary selected
-`const Files: Filesystem<FilesystemBacking>` binder. These are explicit
-source arguments, not a synthesized receiver or ambient provider. Its kind is explicit:
+`const Files: Filesystem<FilesystemBacking>` binder. The invoking tool supplies
+the root backing. A parent can [supply its child's backing at registration](scoped_execution.md#supplying-a-filesystem-to-a-child-build).
+The driver passes the selected backing as a separate entry argument.
+The Build declares its project role through one of the following operations.
 
 | Build result | Role |
 | --- | --- |
@@ -344,6 +346,28 @@ and dependency handoff.
 
 [Configuration and target selection](configuration.md) defines exact-target
 admissibility, activation-local state, and identity-preserving staged fan-out.
+
+## Releases with independent products
+
+An ordinary release program coordinates independent project builds. For example,
+to package a kernel and a bootloader, it requests each product and passes the
+two successfully published artifacts to an image packer. The packer can be an
+ordinary machine. A separate image project can also consume those artifacts
+as explicit inputs. Each producer's own Build describes its project.
+
+The release program can launch `omega build` as a subprocess if its execution
+environment grants process access, or call the same project-build operation
+through a library. Both routes apply ordinary package resolution and review,
+Build admission, target selection and artifact publication to each request.
+For example, an interpreted release tool with process access can call a native
+compiler executable. A native release tool can instead link the project-build
+library. The release tool supplies each consumer with the producer's committed
+artifact, so a failed producer cannot supply a successful result.
+
+This decision (`independent-product-orchestration`, 2026-11-22) puts coordination
+in the caller. Build has no operation for launching independent product builds
+and joining their outputs. Package dependency registration still prepares a
+dependency's own Build for its registered purpose.
 
 ## Workspaces
 

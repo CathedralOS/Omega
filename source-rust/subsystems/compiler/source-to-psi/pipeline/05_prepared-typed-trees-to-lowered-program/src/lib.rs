@@ -171,15 +171,15 @@ impl SharedProgram {
 
 #[cfg(any(test, feature = "test-support"))]
 pub use body::{
-    Axis, Body, Borrowed, BorrowedReferent, CaseSelector, CaseType, Ceiling, CrashCeiling,
-    DomainInstance, DomainSet, Expression, ExpressionKind, Policy, Qualification, Ranking,
-    RecordField, RecordType, Selector, Signature, Statement, StorageShape, Strict, Target,
+    ArmGuard, Axis, Body, Borrowed, BorrowedReferent, CaseSelector, CaseType, Ceiling,
+    CrashCeiling, DomainInstance, DomainSet, Expression, ExpressionKind, Policy, Qualification,
+    Ranking, RecordField, RecordType, Selector, Signature, Statement, StorageShape, Strict, Target,
     Termination, ValueType, self_place,
 };
 #[cfg(not(any(test, feature = "test-support")))]
 pub use body::{
-    Body, Borrowed, Ceiling, DomainSet, Expression, ExpressionKind, RecordType, Signature,
-    Statement, StorageShape, Target, Termination, ValueType,
+    ArmGuard, Body, Borrowed, Ceiling, DomainSet, Expression, ExpressionKind, RecordType,
+    Signature, Statement, StorageShape, Target, Termination, ValueType,
 };
 pub use callable_formations::check_bound_callable_shapes;
 #[cfg(any(test, feature = "test-support"))]
@@ -940,7 +940,7 @@ pub(crate) fn callable_refinement_body(required: &body::Signature, call: Express
         slots: required.parameters.clone(),
         statements: vec![match required.result {
             Some(_) => Statement::Arm {
-                guard: None,
+                guard: ArmGuard::Always,
                 target: Target::Value(call),
                 source,
             },
@@ -1977,7 +1977,7 @@ fn lower_program<'source>(
             sources,
             boundaries: IdTable::default(),
             names: IdTable::default(),
-            domain_names: qualifications.domain_names,
+            domain_sources: qualifications.domain_sources,
             machines: IdTable::default(),
             private_inputs: Vec::new(),
             local_results: local_summaries.map_or_else(Vec::new, |local| local.result_contracts),
@@ -2059,10 +2059,29 @@ fn finish_storage(
                 ),
                 None => (Construct::Machine, None, None),
             };
+            // A linear value lost on an edge with no written position (the
+            // end of a body) is reported where the value was made: the call
+            // whose result `_ =` drops, or the construction a local holds.
+            let lost_at = match error {
+                terminal_semantics::plain_affine::Error::Unconsumed { place, .. } => origin
+                    .and_then(|origin| origin.span())
+                    .or_else(|| {
+                        let (producer, _) = machine
+                            .structural_place(place)?
+                            .kind
+                            .as_operation_result()?;
+                        sources.get(machine.id)?.operations.get(producer)?.span()
+                    }),
+                _ => None,
+            };
             let (reason, detail) = match error {
                 terminal_semantics::plain_affine::Error::Unavailable(unavailable) => (
                     terminal_check_tables::RefusalReason::Unestablished,
                     unavailable.message(),
+                ),
+                terminal_semantics::plain_affine::Error::Unconsumed { at_join, .. } => (
+                    terminal_check_tables::RefusalReason::Violation,
+                    terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
                 ),
                 terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                     (terminal_check_tables::RefusalReason::Unsupported, detail)
@@ -2075,7 +2094,7 @@ fn finish_storage(
             terminal_check_tables::Refusal {
                 reason,
                 site: terminal_check_tables::RefusalSite::Machine(machine.id, concerns),
-                source_span: None,
+                source_span: lost_at,
                 detail: {
                     let detail = match (operation, origin.and_then(|origin| origin.span())) {
                         (Some(operation), Some(span)) => format!(

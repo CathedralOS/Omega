@@ -18,7 +18,7 @@ API role names and schematic examples below do not establish wire compatibility.
 | Extra host access? | Actual invocation grants and independently accepted authority, never a build-only input registry or an import side effect. |
 | Build failure? | Checked local errors, linear required outputs, sticky explicit failure, and no final result set after interruption or failed checks. |
 | Artifact-only application? | One interpreted Build request, at least one completed artifact, and no executable root/provider selections. |
-| Generated entry or inspection of this build's final executable? | Separate staged compilation; no cycle through this invocation's generated source. |
+| May a Build use code it wrote for the Product? | The next compilation can import that file. The current activation cannot execute it or inspect its unfinished executable. |
 
 Detailed rules below define these requirements. The comparison section
 explains why the compiler owns the boundaries but not application-specific work.
@@ -59,7 +59,7 @@ or evidence systems:
 - [Build declarations](declarations.md): root description, package identity,
   interpreted dependency requests, and static provider-slot readiness.
 - [Build execution](execution.md): admission before effects,
-  generated-source strata, dependency build outputs, and observation custody.
+  frozen Product source views, dependency build outputs, and observation custody.
 - [Modules](../language/modules.md) and
   [package boundaries](../packages/boundaries.md): authored name selection,
   public visibility, and carrying foreign types.
@@ -75,10 +75,10 @@ or evidence systems:
 
 `Build::dependency` registers a product dependency; `Build::build_dependency`
 registers a dependency for interpreted Build code. Both consume a configured
-dependency description and return its exact registration. The description may
-be prepared by ordinary library helpers, including the dependency request’s alias setter;
-registration atomically fixes source selection, purpose, alias and delegated
-execution context before coordination may schedule work. There is no mutable
+dependency description and return its exact registration. Before registration,
+the parent can set an alias and [supply a filesystem to the child's Build](#supplying-a-filesystem-to-a-child-build).
+Registration fixes the source, purpose, alias and delegated execution context
+before the coordinator may schedule work. There is no mutable
 half-registered edge, post-registration alias setter or spelling-based retarget.
 Descriptions and registration receipts grant no host or package authority by
 construction alone. The readable dependency names replace `depend`, `depend_as`,
@@ -377,9 +377,9 @@ packages in the build and product graphs.
 
 Only the frozen authored product frontier and already admitted dependency
 artifacts may be described during the build. Names introduced by this invocation's
-generated source cannot be queried or bound as new build inputs. A generated
-entry therefore needs a separately staged compilation in this first slice;
-an authored wrapper cannot call it to evade the same visibility rule.
+generated files cannot supply new code or declaration descriptions to the
+running Build. In the later compilation, a handwritten Product entry may
+import and call a generated machine from the frozen source view.
 Checking a signature needed by a query cannot depend on the query's own build
 result. Reject that cycle with the participating phases, not an empty schema.
 Final authority closure and executable admission still occur after generation;
@@ -405,9 +405,11 @@ implementation explicitly. Dynamic dispatch is optional, not a condition of
 sandbox transparency.
 
 Every activation receives only its actual invocation/parent grants, explicit
-bounded diagnostics and evaluation resources. The safe default can be a
-read-only view of its exact package snapshot plus private bounded writable
-storage, constructed through the same filesystem interfaces. A root may receive
+bounded diagnostics and evaluation resources. An entry declaring only
+`build(plan)` receives no filesystem argument. For a filesystem-using entry,
+the default view contains the exact read-only package snapshot and private,
+bounded writable storage. The CLI or embedding program supplies the root's
+backing and selected implementation. A root may receive
 broad host backing only when the invocation actually grants it. Root position,
 a package import, a lock acceptance row or a filesystem trait name supplies
 none. Descendants do not inherit home directories, consumer source trees,
@@ -458,9 +460,10 @@ Copy-on-write overlays expose ordinary read-your-own-writes filesystem behavior
 without changing their base. A changeset names additions, modifications and
 deletions relative to its exact base/view. Applying it is a separate operation
 under the destination's authority, with path containment, permissions and
-explicit base/conflict checks; it is not an implicit host commit. Publishing
-generated source/artifacts and exporting files are separate actions. Failure
-can discard an unpublished overlay, not undo already performed host effects.
+explicit base/conflict checks; it is not an implicit host commit. Selecting
+the next stage's source view, publishing an artifact and exporting a file
+are separate actions. Failure can discard an unpublished overlay. Host effects
+already performed remain visible.
 
 The following protocol is the deterministic snapshot/staging library profile,
 not a requirement that every filesystem impersonate that profile or expose
@@ -553,6 +556,38 @@ remain internal owners of reproducible filesystem observations, not authoring
 APIs that turn strings into host access. A missing file or denied operation has
 the selected filesystem's checked result; no fallback grants a broader root.
 
+### Supplying a filesystem to a child Build
+
+To give one child a filesystem, the parent configures its dependency
+description with `|dependency|::with_filesystem`, then passes the description
+to `Build::dependency` or `Build::build_dependency`. That registration
+retains the selected implementation and its backing. The driver binds them
+to the child's [filesystem parameter](declarations.md#project-role) before
+execution. If a required binding is missing or incompatible, the driver
+refuses to start that child. This is the `per-child-filesystem-grant`
+decision of 2026-11-23.
+
+A child that asks for a filesystem gets the [default view](#inputs-and-default-filesystem)
+of its own package snapshot and private scratch when the parent supplies no override.
+An explicit view is the child's entire filesystem argument. The parent
+chooses which files and mounts it exposes and which operations it permits.
+Siblings retain their own views. The compiler can still read the child's
+package to compile its source. Editing the child's mutable Build plan cannot
+change the filesystem grant under which that Build runs.
+
+The parent can move an owned view into the registration. The registration then
+owns it for the child's use, even after the registering helper returns.
+A view may borrow backing when the checker can prove that backing outlives
+every use by the child. The [ordinary borrow rules](../language/ownership.md#borrows-and-aliases)
+apply for the duration of the loan. This applies to a view over a live host directory as well as one
+over memory. All uses must still fit the parent's grant.
+
+A child may still be running when its parent's Build entry returns. The driver
+joins outstanding dependency work at that point. Returning from the helper
+alone cannot end a child's borrow. A helper can transfer a memory filesystem
+it created locally. The checker rejects lending that local to a child that
+can outlive the helper.
+
 ## Execution contexts and reuse
 
 Two consumers can prepare the same source package under different backing,
@@ -619,10 +654,10 @@ information-flow security or protection after an intentionally broad grant.
 
 ## Staged products and failure
 
-Retain the existing generated-source rule: included bytes join a later product
-checking stratum and cannot redefine the already admitted build or introduce
-new build helpers for that invocation. Dependency-generated source enters only
-through the corresponding role/target-bound handoff, never a mutable output path.
+The plan supplies the [frozen source view](execution.md#generated-source-boundary)
+for the next compilation. Handwritten and generated files follow the same
+Product checking rules. The dependency handoff retains the producing
+package, purpose and target.
 
 Add a compiler-issued linear `RequiredOutput` under the owning Build authority.
 `Build::require_artifact(builder, name)` reserves one logical output name and returns its
@@ -683,8 +718,8 @@ success artifacts. Internal scratch writes may occur before failure. Explicitly
 granted live-host effects need their own failure contract and are not magically
 rolled back by discarding staged products.
 
-Publish a complete immutable output-set manifest only after build execution,
-generated-source checking, and all requested product checks succeed. Final
+Publish a complete immutable output-set manifest only after build execution
+and all requested checks on the complete Product inputs succeed. Final
 publication is one committed result identity, not a promise of an atomic rename
 across arbitrary host paths. A failed export into a user-selected directory cannot
 make a partial copy an admitted result; materialization reports its own failure.
@@ -755,16 +790,17 @@ checked initial Build stage and admission
   -> one resumable activation with atomic dependency registration
   -> dependency preparation, then checked/admitted continuations without replay
   -> final dependency join and frozen product-selection frontier
-  -> generated-source incorporation and final target/component checks
+  -> Product checking from the frozen source view and final target/component checks
   -> required-output completion check and committed result set
 ```
 
 Previously completed independent components may feed this sequence as explicit
 immutable input artifacts. Inspecting this invocation's final component during
 its own build is a cycle. A topology project that inspects freshly built services
-therefore uses a separate composition build after those services, not a hidden
-post-compilation callback in their build entry. A build cannot rewrite its own
-dependency or input frontier by serializing a new manifest as output.
+therefore receives their published artifacts from the
+[release program coordinating the builds](declarations.md#releases-with-independent-products).
+A build cannot rewrite its own dependency or input frontier by serializing
+a new manifest as output.
 
 ## Implementation acceptance
 
@@ -786,7 +822,11 @@ dependency or input frontier by serializing a new manifest as output.
 | Application or generated source imports a build-only dependency | Reject, even if build evaluation already loaded its source. |
 | One source package used for host tools and a different product target | Shared acquisition permitted; checked contexts and outputs remain distinct. |
 | Changed build-tool revision or input | Build provenance and affected results change; no stale output reuse. |
-| Dependency generator reads its template and writes generated code | Succeeds using snapshot/staging capabilities without live-host access. |
+| A parent gives one child a read-only schema directory and registers a sibling with defaults | Only the first child can read the supplied directory. Neither child can change that grant by editing its plan. |
+| A helper creates a memory filesystem and returns while the child still needs it | Moving the owned view succeeds. Borrowing the helper's local backing rejects. |
+| A child borrows backing held through its completion | The child can use the view. Conflicting parent access is refused while the loan is live. |
+| A generator writes `parser.omg` into the selected Product view | A handwritten Product file can `use parser.omg;`. The generator needs only its delegated filesystem access. |
+| A generator writes `parser.omg` only to scratch or an export directory outside the selected view | The Product import cannot resolve that file. |
 | Same snapshot with different host file order, mtime, uid, or checkout location | Same logical observations; unsupported metadata is not fabricated. |
 | Missing input, negative lookup, or changed directory membership | Accounted in the input commitment; no stale watch-list-based reuse. |
 | Reads home/consumer secrets, follows an escaping link, fabricates a handle | Explicit refusal before unauthorized host access. |
@@ -823,7 +863,7 @@ checks remain where required; changing names must not remove those guarantees.
 
 The accepted public journey is ordinary inert imports, configured descriptions,
 atomic registration, explicit preparation, checked continuation execution,
-ordinary filesystem capabilities and explicit artifact/source handoff.
+ordinary filesystem capabilities, frozen source views and published artifacts.
 Library helper signatures and protocol encoding must preserve that journey.
 Change retained schema and review identities where context or stage meaning
 changes; reject or explicitly migrate old records rather than reinterpret their bytes.

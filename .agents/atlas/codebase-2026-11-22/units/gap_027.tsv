@@ -1,0 +1,6 @@
+source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/tests/unit/static_argument_delimiters.rs	73	198	126
+source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/tests/unit/static_parameters.rs	1	101	101
+source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/tests/unit/static_targets.rs	1	454	454
+source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/tests/unit/type_constraints.rs	1	358	358
+source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/tests/unit/unannotated_constants.rs	1	102	102
+source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/tests/unit/value_dispatch.rs	1	183	183

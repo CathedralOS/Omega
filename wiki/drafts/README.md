@@ -124,6 +124,9 @@ superseded run is not a current correctness or performance claim.
   checker task, not a superseded experiment pause.
 - [Stage trust](designs/stage_trust.md): current distinctions between accepted
   judgments, seals, independent validation and receiving-host admission.
+- [Proof kernel core audit](designs/proof_kernel_core_audit.md): what #2823's
+  deletion of the mathematical elaborator and old checker left uncovered, and
+  the build order for PROOF-KERNEL-CORE; delete when that task closes.
 - [Deferred callback reach](designs/deferred_callback_reach.md): migrate inferred
   rows and explicit `reaches none` requirements, then delete the plan.
 - [Operational markers and CLI](designs/operational_markers_and_cli.md): call-site

@@ -13,8 +13,8 @@ pub use dependencies::declarations;
 pub use lockfile as lock;
 pub use transaction as package_manager;
 pub use transaction::{
-    PackageCommand, PackageCommandError, PackageCommandKind, PackageCommandOptions,
-    PackageCommandOutcome, PackageCommandPreparation, PackageCommandReview,
+    PackageCommand, PackageCommandAdmission, PackageCommandError, PackageCommandKind,
+    PackageCommandOptions, PackageCommandOutcome, PackageCommandPreparation, PackageCommandReview,
     PackageCommandReviewRequest, PackageCommandStatus, PackageCommandTransaction,
     PreparedPackageCommand, discard_package_review,
 };

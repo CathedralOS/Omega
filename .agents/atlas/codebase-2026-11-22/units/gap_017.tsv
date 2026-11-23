@@ -1,0 +1,3 @@
+source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/src/effects/program.rs	64	1465	1402
+source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/src/effects/program/encoding.rs	1	1998	1998
+source-rust/subsystems/compiler/psi-to-native/representations/selected-instructions/src/effects/program/identity.rs	1	675	675

@@ -429,10 +429,31 @@ impl<'t> Program<'t> {
                 let Some(ScalarType::IeeeFloat(format)) = expected_scalar else {
                     unreachable!("float destination selected this landing");
                 };
-                let value = self.anonymous_float(id, handle, format)?;
+                let (value, _) = self.anonymous_float(id, handle, format)?;
                 (ExpressionKind::Float(value), ScalarType::IeeeFloat(format))
             }
             ExpressionNode::Integer(literal) => {
+                // A literal landed in another carrier than its context
+                // receives, as `1u16` in a `u8` pattern or argument, is the
+                // program's error at the literal: no implicit scalar
+                // conversion happens at a receiving type.
+                if literal.landing().is_some()
+                    && let Some(expected @ ScalarType::Integer(_)) = expected_scalar
+                {
+                    let (_, landed) = self.literal(id, literal, None)?;
+                    if ScalarType::Integer(landed) != expected {
+                        return Err(reject(
+                            id,
+                            source,
+                            format!(
+                                "this literal has scalar carrier `{}` but its context requires \
+                                 `{}`: there is no implicit scalar conversion at a receiving type",
+                                super::rejections::scalar_named(ScalarType::Integer(landed)),
+                                super::rejections::scalar_named(expected),
+                            ),
+                        ));
+                    }
+                }
                 let (value, integer) = self.literal(id, literal, expected_scalar)?;
                 (ExpressionKind::Integer(value), ScalarType::Integer(integer))
             }
@@ -553,7 +574,11 @@ impl<'t> Program<'t> {
                 let Some(ScalarType::IeeeFloat(format)) = expected_scalar else {
                     unreachable!("float destination selected this landing");
                 };
-                let value = self.anonymous_float(id, handle, format)?;
+                let (value, operators) = self.anonymous_float(id, handle, format)?;
+                if !operators.is_empty() {
+                    let owner = self.symbols.get(id).copied().unwrap_or_default();
+                    self.complete_anonymous_operators(id, owner, &operators)?;
+                }
                 (ExpressionKind::Float(value), ScalarType::IeeeFloat(format))
             }
             // A decimal literal is an exact rational, so `1.0e0` lands in an
@@ -933,18 +958,14 @@ impl<'t> Program<'t> {
             .flatten()
             .any(|value| !value.qualification().is_none())
         {
-            return Err(crate::lowering::reject(
+            return Err(reject(
                 id,
                 source,
                 "builtin equality requires unqualified operands",
             ));
         }
         if left.result != right.result {
-            return Err(crate::lowering::reject(
-                id,
-                source,
-                "equality operand types differ",
-            ));
+            return Err(reject(id, source, "equality operand types differ"));
         }
         self.require_intrinsic_tag_equality(id, left_record)?;
         self.require_intrinsic_tag_equality(id, right_record)?;
@@ -1142,7 +1163,7 @@ impl<'t> Program<'t> {
                     .collect(),
                 default,
             },
-            result: Some(result),
+            result,
             source,
         })
     }
@@ -1159,13 +1180,13 @@ impl<'t> Program<'t> {
     ) -> Checked<(
         Vec<(CaseSelector, Expression)>,
         Option<Box<Expression>>,
-        ValueType,
+        Option<ValueType>,
     )> {
         use crate::source_state::expression::MatchPattern;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         let mut arms: Vec<(CaseSelector, Expression)> = Vec::new();
         let mut default = None;
-        let mut result = expected;
+        let mut result = ArmsDeliver::expected(expected);
         let mut wildcard = None;
         let mut full_cases = vec![None; self.data_type(id, record.record())?.cases().len()];
         for arm in self.typed.expression_table.match_arms(matched.arms) {
@@ -1254,64 +1275,101 @@ impl<'t> Program<'t> {
                 }
             }
         }
-        let result = result.ok_or_else(|| unserved("match without an arm"))?;
+        let result = result
+            .result()
+            .ok_or_else(|| unserved("match without an arm"))?;
         Ok((arms, default, result))
     }
 
     /// Each returning arm transfers the destination's exact type, including
     /// its domains and regions. Structural arrival parameters carry those
     /// memberships into the match continuation.
+    ///
+    /// patterns.md, "Coverage and domain tests": "An intentional Unit
+    /// completion is explicit" and "A result-producing context still
+    /// requires a compatible result". So every arm of a `match` completes
+    /// with Unit, such as a call of a Unit machine or `{}`, or every arm
+    /// delivers the one value type; an arm that never returns joins either.
     fn arm_value(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         value: ExpressionHandle,
-        result: &mut Option<ValueType>,
+        result: &mut ArmsDeliver,
     ) -> Checked<Expression> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         // An earlier arm that produces no value supplies no expected type
         // for a later, returning arm. Its own expression remains unchanged.
-        let expected = result.filter(|value_type| !self.type_excludes_values(*value_type));
+        let expected = match *result {
+            ArmsDeliver::Value(value_type) if !self.type_excludes_values(value_type) => {
+                Some(value_type)
+            }
+            _ => None,
+        };
         let value = self.expression(id, slots, value, expected)?;
         if value
             .result
             .is_some_and(|value_type| self.type_excludes_values(value_type))
         {
-            if result.is_none() {
-                *result = value.result;
+            if let (ArmsDeliver::Unread, Some(value_type)) = (*result, value.result) {
+                *result = ArmsDeliver::Value(value_type);
             }
             return Ok(value);
         }
+        let earlier = match *result {
+            ArmsDeliver::Value(value_type) if self.type_excludes_values(value_type) => {
+                ArmsDeliver::Unread
+            }
+            earlier => earlier,
+        };
         let value_type = match value.result {
-            // Every returning arm supplies the same arithmetic policy.
-            // Predicate-domain membership still needs its own arrival proof.
-            Some(value_type @ ValueType::Scalar(_, qualification))
-                if qualification.domains.is_empty() =>
-            {
-                value_type
-            }
-            Some(value_type @ ValueType::Record(..)) => value_type,
-            Some(ValueType::Scalar(..)) => {
-                return Err(unserved("match with a qualified result"));
-            }
+            // Every returning arm supplies the one result type, policy and
+            // domains included; the join's parameter carries that type.
+            Some(value_type @ (ValueType::Scalar(..) | ValueType::Record(..))) => value_type,
             Some(ValueType::Rigid(_)) => {
                 return Err(unserved("match with a result of a rigid type"));
             }
-            None => return Err(unserved("match with a Unit arm")),
+            None => {
+                if let ArmsDeliver::Value(_) = earlier {
+                    return Err(reject(
+                        id,
+                        delivered_at(&value),
+                        String::from(
+                            "this match arm completes with Unit, but the match produces a \
+                             value: every arm of a match must deliver the same result",
+                        ),
+                    ));
+                }
+                *result = ArmsDeliver::Unit;
+                return Ok(value);
+            }
         };
-        if result.is_some_and(|result| {
-            !self.type_excludes_values(result) && !self.agrees(Some(value_type), Some(result))
-        }) {
-            return Err(self.mistyped(
-                id,
-                delivered_at(&value),
-                super::rejections::Destination::MatchArm,
-                *result,
-                value.result,
-                "match arm value type",
-            ));
+        match earlier {
+            ArmsDeliver::Unread => {}
+            ArmsDeliver::Unit => {
+                return Err(reject(
+                    id,
+                    delivered_at(&value),
+                    String::from(
+                        "this match arm produces a value, but an earlier arm completes with \
+                         Unit: every arm of a match must deliver the same result",
+                    ),
+                ));
+            }
+            ArmsDeliver::Value(earlier) => {
+                if !self.agrees(Some(value_type), Some(earlier)) {
+                    return Err(self.mistyped(
+                        id,
+                        delivered_at(&value),
+                        super::rejections::Destination::MatchArm,
+                        Some(earlier),
+                        value.result,
+                        "match arm value type",
+                    ));
+                }
+            }
         }
-        *result = Some(value_type);
+        *result = ArmsDeliver::Value(value_type);
         Ok(value)
     }
 
@@ -1397,7 +1455,7 @@ impl<'t> Program<'t> {
         };
         let mut arms: Vec<(Selector, Expression)> = Vec::new();
         let mut default = None;
-        let mut result = expected;
+        let mut result = ArmsDeliver::expected(expected);
         for arm in self.typed.expression_table.match_arms(matched.arms) {
             if default.is_some() {
                 return Err(unserved("match arm after the wildcard"));
@@ -1461,7 +1519,9 @@ impl<'t> Program<'t> {
             }
             default = arms.pop().map(|(_, value)| Box::new(value));
         }
-        let result = result.ok_or_else(|| unserved("match without an arm"))?;
+        let result = result
+            .result()
+            .ok_or_else(|| unserved("match without an arm"))?;
         Ok(Expression {
             call_context: None,
             kind: ExpressionKind::Match {
@@ -1470,7 +1530,7 @@ impl<'t> Program<'t> {
                 arms,
                 default,
             },
-            result: Some(result),
+            result,
             source,
         })
     }
@@ -1484,12 +1544,8 @@ impl Program<'_> {
     /// value of `ready`"; "Value-position `match` | Subject once; first
     /// matching arm only").
     ///
-    /// Coverage ("Missing runtime coverage is a compile error"): only a
-    /// wildcard closes a ladder of conditions here. patterns.md also lets
-    /// complementary equality and inequality guards over unchanged subjects
-    /// cover their domain; no ladder is judged that way yet, so one without
-    /// `_` is refused, as "Other value/comparison ladders ... require a
-    /// wildcard" requires of the rest.
+    /// Without a wildcard, the final guard must hold on every remaining
+    /// arrival. Lowering records that obligation on the edge into its arm.
     fn guarded_match(
         &mut self,
         id: MachineId,
@@ -1503,7 +1559,7 @@ impl Program<'_> {
         let boolean = ValueType::Scalar(ScalarType::Boolean, Qualification::NONE);
         let mut arms: Vec<(Selector, Expression)> = Vec::new();
         let mut default = None;
-        let mut result = expected;
+        let mut result = ArmsDeliver::expected(expected);
         for arm in self.typed.expression_table.match_arms(matched.arms) {
             if default.is_some() {
                 return Err(unserved("match arm after the wildcard"));
@@ -1537,7 +1593,7 @@ impl Program<'_> {
                 None => default = Some(Box::new(value)),
             }
         }
-        if default.is_none() {
+        if arms.is_empty() && default.is_none() {
             return Err(reject(
                 id,
                 source,
@@ -1546,7 +1602,9 @@ impl Program<'_> {
                 ),
             ));
         }
-        let result = result.ok_or_else(|| unserved("match without an arm"))?;
+        let result = result
+            .result()
+            .ok_or_else(|| unserved("match without an arm"))?;
         Ok(Expression {
             call_context: None,
             kind: ExpressionKind::Match {
@@ -1560,9 +1618,34 @@ impl Program<'_> {
                 arms,
                 default,
             },
-            result: Some(result),
+            result,
             source,
         })
+    }
+}
+
+/// What the arms of a `match` read so far deliver: nothing read yet, Unit,
+/// or one value type (which may be the expected type of the context).
+#[derive(Clone, Copy)]
+enum ArmsDeliver {
+    Unread,
+    Unit,
+    Value(ValueType),
+}
+
+impl ArmsDeliver {
+    fn expected(expected: Option<ValueType>) -> Self {
+        expected.map_or(Self::Unread, Self::Value)
+    }
+
+    /// The match's result: `Some(None)` for a Unit match, `None` when no
+    /// arm was read.
+    fn result(self) -> Option<Option<ValueType>> {
+        match self {
+            Self::Unread => None,
+            Self::Unit => Some(None),
+            Self::Value(value_type) => Some(Some(value_type)),
+        }
     }
 }
 
@@ -1820,7 +1903,7 @@ pub(super) fn binary_selection(
     if suffix.is_some() {
         let operation = crate::lowering::policy::suffixed(operator).map_err(unserved)?;
         if anonymous == (true, true) {
-            return Err(crate::lowering::reject(
+            return Err(reject(
                 id,
                 source,
                 crate::lowering::policy::WHOLLY_ANONYMOUS,
@@ -1830,7 +1913,7 @@ pub(super) fn binary_selection(
             match operand {
                 Some(ValueType::Scalar(ScalarType::Integer(_), Qualification::NONE)) => {}
                 Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
-                    return Err(crate::lowering::reject(
+                    return Err(reject(
                         id,
                         source,
                         crate::lowering::policy::QUALIFIED_OPERAND,
@@ -1846,7 +1929,7 @@ pub(super) fn binary_selection(
         if !crate::lowering::policy::shifts(operation)
             && left.and_then(ValueType::scalar) != right.and_then(ValueType::scalar)
         {
-            return Err(crate::lowering::reject(
+            return Err(reject(
                 id,
                 right_source,
                 "policy operator operand types differ",

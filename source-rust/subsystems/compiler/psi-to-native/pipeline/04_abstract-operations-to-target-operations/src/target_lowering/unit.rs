@@ -10,7 +10,7 @@
 */
 pub(crate) mod argument_roots {
     use crate::target_lowering::LoweringError;
-    use crate::target_lowering::structural_layout::structural_shape;
+    use crate::target_lowering::structural_layout::parameter_storage_shape;
     use crate::target_lowering::structural_type_lookup::StructuralTypeLookup;
     use abstract_operations::AbstractFunction;
     use calling_conventions::ValueShape;
@@ -48,9 +48,14 @@ pub(crate) mod argument_roots {
             .find(|parameter| parameter.place == place)
         {
             let declaration = function.structural_parameter(place).ok_or_else(unknown)?;
+            if declaration.structural_type != parameter.structural_type
+                || declaration.access != parameter.access
+            {
+                return Err(unknown());
+            }
             return Ok(StructuralArgumentRoot {
                 declaration: declaration.clone(),
-                backing_shape: structural_shape(declaration.structural_type, types)?,
+                backing_shape: parameter_storage_shape(declaration, types)?,
                 source: parameter.placement.clone().into(),
             });
         }
@@ -97,7 +102,7 @@ pub(crate) mod argument_roots {
             }
             return Ok(StructuralArgumentRoot {
                 declaration: declaration.clone(),
-                backing_shape: structural_shape(declaration.structural_type, types)?,
+                backing_shape: parameter_storage_shape(declaration, types)?,
                 source: TargetStructuralArgumentSource::BlockParameter { block, place },
             });
         }
@@ -1700,12 +1705,30 @@ pub(crate) mod roster_arguments {
         {
             return Ok(loan);
         }
-        let (selected, selected_shape, source_byte_offset, indices) =
+        let (selected, selected_shape, source_byte_offset, indices) = if argument.path.is_empty()
+            && let Some(parameter) = function.structural_parameter(argument.place)
+        {
+            if parameter.structural_type != source_structural_type {
+                return Err(argument_type_mismatch(callee, argument.place));
+            }
+            (
+                super::super::structural_layout::ProjectedStorage::Declaration(
+                    source_structural_type,
+                ),
+                super::super::structural_layout::parameter_storage_shape(
+                    parameter,
+                    structural_types,
+                )?,
+                0,
+                Vec::new(),
+            )
+        } else {
             super::super::structural_layout::runtime_storage_projection(
                 source_structural_type,
                 &argument.path,
                 structural_types,
-            )?;
+            )?
+        };
         let indices = runtime_indices(indices, function, scalar_sources, structural_types)?;
         let mut byte_field_capacity = None;
         let (projected_type, projected_shape) = match selected {

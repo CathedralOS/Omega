@@ -453,7 +453,7 @@ impl Program<'_> {
                     SourceOrigin::Unpositioned(crate::lowering::Unpositioned::SpanAbsent),
                     SourceOrigin::of,
                 );
-            self.zero_established(id, value_type, source)?;
+            self.zero_established(id, value_type, None, source)?;
             let home = match value_type {
                 ValueType::Rigid(_) => return unserved("local of a rigid type"),
                 // Its home would be declared with the identity of a
@@ -551,6 +551,30 @@ impl Program<'_> {
         let value_type = declared
             .filter(|declared| declared.erased() != value_type.erased())
             .unwrap_or(value_type);
+        // Matching a non-copy field through a borrowed root observes the place.
+        // Moving it into a value local would leave a hole in the lender.
+        if local.role == language_core::LocalBindingRole::DispatchSubject
+            && let ValueType::Record(record, _, _) = value_type
+            && !self.data_type(id, record)?.is_copyable()
+            && let Some(root) = super::storage_path::root_slot(id, &value, &self.captures)?
+            && let Some(access) = slots[root].borrowed
+        {
+            return Ok((
+                Slot {
+                    symbol: local.symbol,
+                    value_type,
+                    assignable: false,
+                    homed: false,
+                    erased: false,
+                    borrowed: Some(access),
+                    borrowed_regions: slots[root].borrowed_regions,
+                },
+                Statement::Observe {
+                    slot: self.next_slot(slots),
+                    value,
+                },
+            ));
+        }
         let slot = Slot {
             symbol: local.symbol,
             value_type,

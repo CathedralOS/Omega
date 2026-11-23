@@ -108,11 +108,13 @@ impl Lowering<'_> {
                 match *self.slot_mut(*slot)? {
                     Some(Bound::Scalar(value)) => Ok(Witness::Value(value, scalar_type)),
                     Some(Bound::Erased(witness)) => Ok(witness),
-                    Some(Bound::Home(_) | Bound::Record(_)) | None => Err(refuse(
-                        self.id,
-                        self.current.map_or(Construct::Machine, Construct::Block),
-                        Unserved::Expression("erased term that reads storage"),
-                    )),
+                    Some(Bound::Home(_) | Bound::Record(_) | Bound::Observed(_)) | None => {
+                        Err(refuse(
+                            self.id,
+                            self.current.map_or(Construct::Machine, Construct::Block),
+                            Unserved::Expression("erased term that reads storage"),
+                        ))
+                    }
                 }
             }
             _ => Err(refuse(
@@ -353,7 +355,9 @@ impl Lowering<'_> {
                         self.read_home(home, scalar_type, source)
                             .map(Reached::Value)
                     }
-                    Some(Bound::Record(_)) => Err(self.internal("a record slot has a scalar type")),
+                    Some(Bound::Record(_) | Bound::Observed(_)) => {
+                        Err(self.internal("a record slot has a scalar type"))
+                    }
                     // The reader refuses a runtime read of an erased
                     // binding, so reaching one here is a broken body.
                     Some(Bound::Erased(_)) => {
@@ -423,12 +427,17 @@ impl Lowering<'_> {
                 arms,
                 default,
             } => {
-                let scalar_type = self.result_type(expression)?;
+                // A Unit match joins no value: each arm that returns
+                // continues at one join block without parameters.
+                let result_type = match expression.result {
+                    None => None,
+                    Some(_) => Some(ValueType::plain(self.result_type(expression)?)),
+                };
                 self.match_value(
                     subject,
                     arms,
                     default.as_deref(),
-                    ValueType::plain(scalar_type),
+                    result_type,
                     source,
                     *capture,
                 )

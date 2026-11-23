@@ -1,15 +1,12 @@
+use filesystem_host.omg as paths;
+use {omega}/language/core/filesystem_authority.omg as authority;
+
 // Portable filesystem values and one routed service slot. Target adapters own
 // raw descriptors, flags, foreign record layouts and operation scratch.
 // Complete target adapters cover both Linux architectures, macos_arm64 and
 // windows_x86_64. Runtime acceptance is recorded per host, not inferred from
 // the availability of a provider or a foreign-target image.
 
-use omega\language\core\FilesystemContentRead;
-use omega\language\core\FilesystemContentWrite;
-use omega\language\core\FilesystemMetadataQuery;
-use omega\language\core\FilesystemMetadataMutation;
-use omega\language\core\DirectoryEnumeration;
-use omega\language\core\FilesystemNamespaceMutation;
 
 public data File [copy] {
     handle: u64;
@@ -274,105 +271,105 @@ public data MetadataResult {
 // stays identical on every target; a nonblocking implementation may fit it but
 // cannot remove the caller's acknowledgement of the portable requirement.
 public boundary trait FilesystemService {
-    machine create(path: @[u8] in Path) -> OpenResult
+    machine create(path: @[u8] in |paths|::Path) -> OpenResult
     blocks
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     crashes none;
-    machine create_new(path: @[u8] in Path) -> OpenResult
+    machine create_new(path: @[u8] in |paths|::Path) -> OpenResult
     blocks
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     crashes none;
-    machine open(path: @[u8] in Path) -> OpenResult
+    machine open(path: @[u8] in |paths|::Path) -> OpenResult
     blocks
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     crashes none;
-    machine append(path: @[u8] in Path) -> OpenResult
+    machine append(path: @[u8] in |paths|::Path) -> OpenResult
     blocks
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     crashes none;
     machine read(file: File, buffer: @mutable [u8], count: u64) -> IoResult
     blocks
-    reaches FilesystemContentRead
+    reaches |authority|::FilesystemContentRead
     crashes none;
     machine write(file: File, bytes: @[u8]) -> IoResult
     blocks
-    reaches FilesystemContentWrite
+    reaches |authority|::FilesystemContentWrite
     crashes none;
     machine close(file: File) -> UnitResult
     reaches none
     blocks
     crashes none;
-    machine write_all(path: @[u8] in Path, bytes: @[u8]) -> UnitResult
+    machine write_all(path: @[u8] in |paths|::Path, bytes: @[u8]) -> UnitResult
     blocks
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     crashes none;
-    machine read_all(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult
+    machine read_all(path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> IoResult
     blocks
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     crashes none;
-    machine copy(from: @[u8] in Path, to: @[u8] in Path, buffer: @mutable [u8], cap: u64) -> IoResult
+    machine copy(from: @[u8] in |paths|::Path, to: @[u8] in |paths|::Path, buffer: @mutable [u8], cap: u64) -> IoResult
     blocks
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::FilesystemMetadataQuery
     crashes none;
-    machine exists(path: @[u8] in Path) -> bool
+    machine exists(path: @[u8] in |paths|::Path) -> bool
     blocks
-    reaches FilesystemMetadataQuery
+    reaches |authority|::FilesystemMetadataQuery
     crashes none;
-    machine try_exists(path: @[u8] in Path) -> ExistsResult
+    machine try_exists(path: @[u8] in |paths|::Path) -> ExistsResult
     blocks
-    reaches FilesystemMetadataQuery
+    reaches |authority|::FilesystemMetadataQuery
     crashes none;
-    machine metadata_path(path: @[u8] in Path) -> MetadataResult
+    machine metadata_path(path: @[u8] in |paths|::Path) -> MetadataResult
     blocks
-    reaches FilesystemMetadataQuery
+    reaches |authority|::FilesystemMetadataQuery
     crashes none;
-    machine symlink_metadata(path: @[u8] in Path) -> MetadataResult
+    machine symlink_metadata(path: @[u8] in |paths|::Path) -> MetadataResult
     blocks
-    reaches FilesystemMetadataQuery
+    reaches |authority|::FilesystemMetadataQuery
     crashes none;
-    machine remove(path: @[u8] in Path) -> UnitResult
+    machine remove(path: @[u8] in |paths|::Path) -> UnitResult
     blocks
-    reaches FilesystemNamespaceMutation
+    reaches |authority|::FilesystemNamespaceMutation
     crashes none;
-    machine create_dir(path: @[u8] in Path) -> UnitResult
+    machine create_dir(path: @[u8] in |paths|::Path) -> UnitResult
     blocks
-    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+    reaches |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     crashes none;
-    machine remove_dir(path: @[u8] in Path) -> UnitResult
+    machine remove_dir(path: @[u8] in |paths|::Path) -> UnitResult
     blocks
-    reaches FilesystemNamespaceMutation
+    reaches |authority|::FilesystemNamespaceMutation
     crashes none;
-    machine create_dir_all(path: @[u8] in Path) -> UnitResult
+    machine create_dir_all(path: @[u8] in |paths|::Path) -> UnitResult
     blocks
-    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
+    reaches |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::FilesystemMetadataQuery
     crashes none;
-    machine read_dir_is_empty(path: @[u8] in Path) -> EmptyResult
+    machine read_dir_is_empty(path: @[u8] in |paths|::Path) -> EmptyResult
     blocks
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::DirectoryEnumeration + |authority|::FilesystemMetadataQuery
     crashes none;
-    machine set_permissions(path: @[u8] in Path, perms: Permissions) -> UnitResult
+    machine set_permissions(path: @[u8] in |paths|::Path, perms: Permissions) -> UnitResult
     blocks
-        reaches FilesystemMetadataQuery + FilesystemMetadataMutation
+        reaches |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation
     crashes none;
-    machine symlink(target: @[u8] in Path, link: @[u8] in Path) -> UnitResult
+    machine symlink(target: @[u8] in |paths|::Path, link: @[u8] in |paths|::Path) -> UnitResult
     blocks
-    reaches FilesystemNamespaceMutation
+    reaches |authority|::FilesystemNamespaceMutation
     crashes none;
-    machine read_link(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult
+    machine read_link(path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> IoResult
     blocks
-    reaches FilesystemMetadataQuery
+    reaches |authority|::FilesystemMetadataQuery
     crashes none;
     machine set_file_permissions(file: File, perms: Permissions) -> UnitResult
     blocks
-        reaches FilesystemMetadataQuery + FilesystemMetadataMutation
+        reaches |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation
     crashes none;
-    machine rename(from: @[u8] in Path, to: @[u8] in Path) -> UnitResult
+    machine rename(from: @[u8] in |paths|::Path, to: @[u8] in |paths|::Path) -> UnitResult
     blocks
-    reaches FilesystemNamespaceMutation
+    reaches |authority|::FilesystemNamespaceMutation
     crashes none;
     machine set_len(file: File, length: i64) -> UnitResult
     blocks
-    reaches FilesystemContentWrite + FilesystemMetadataMutation
+    reaches |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation
     crashes none;
     machine sync(file: File) -> UnitResult
     reaches none
@@ -386,57 +383,57 @@ public boundary trait FilesystemService {
     reaches none
     blocks
     crashes none;
-    machine set_owner(path: @[u8] in Path, uid: i32, gid: i32) -> UnitResult
+    machine set_owner(path: @[u8] in |paths|::Path, uid: i32, gid: i32) -> UnitResult
     blocks
-    reaches FilesystemMetadataMutation
+    reaches |authority|::FilesystemMetadataMutation
     crashes none;
-    machine set_owner_no_follow(path: @[u8] in Path, uid: i32, gid: i32) -> UnitResult
+    machine set_owner_no_follow(path: @[u8] in |paths|::Path, uid: i32, gid: i32) -> UnitResult
     blocks
-    reaches FilesystemMetadataMutation
+    reaches |authority|::FilesystemMetadataMutation
     crashes none;
     machine set_file_owner(file: File, uid: i32, gid: i32) -> UnitResult
     blocks
-    reaches FilesystemMetadataMutation
+    reaches |authority|::FilesystemMetadataMutation
     crashes none;
     machine metadata(file: File) -> MetadataResult
     blocks
-    reaches FilesystemMetadataQuery
+    reaches |authority|::FilesystemMetadataQuery
     crashes none;
-    machine open_with(path: @[u8] in Path, options: OpenOptions) -> OpenResult
+    machine open_with(path: @[u8] in |paths|::Path, options: OpenOptions) -> OpenResult
     blocks
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     crashes none;
-    machine read_dir_count(path: @[u8] in Path) -> IoResult
+    machine read_dir_count(path: @[u8] in |paths|::Path) -> IoResult
     blocks
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::DirectoryEnumeration
     crashes none;
-    machine read_dir_nth(path: @[u8] in Path, n: u64) -> DirEntryResult
+    machine read_dir_nth(path: @[u8] in |paths|::Path, n: u64) -> DirEntryResult
     blocks
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::DirectoryEnumeration + |authority|::FilesystemMetadataQuery
     crashes none;
-    machine remove_dir_all(path: @[u8] in Path) -> UnitResult
+    machine remove_dir_all(path: @[u8] in |paths|::Path) -> UnitResult
     blocks
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::DirectoryEnumeration + |authority|::FilesystemMetadataQuery
     crashes none;
     machine read_at(file: File, buffer: @mutable [u8], count: u64, offset: i64) -> IoResult
     blocks
-    reaches FilesystemContentRead
+    reaches |authority|::FilesystemContentRead
     crashes none;
     machine write_at(file: File, bytes: @[u8], offset: i64) -> IoResult
     blocks
-    reaches FilesystemContentWrite
+    reaches |authority|::FilesystemContentWrite
     crashes none;
-    machine hard_link(original: @[u8] in Path, link: @[u8] in Path) -> UnitResult
+    machine hard_link(original: @[u8] in |paths|::Path, link: @[u8] in |paths|::Path) -> UnitResult
     blocks
-    reaches FilesystemNamespaceMutation
+    reaches |authority|::FilesystemNamespaceMutation
     crashes none;
     machine set_times(file: File, accessed: i64, modified: i64) -> UnitResult
     blocks
-    reaches FilesystemMetadataMutation
+    reaches |authority|::FilesystemMetadataMutation
     crashes none;
-    machine canonicalize(path: @[u8] in Path, buffer: @mutable [u8]) -> UnitResult
+    machine canonicalize(path: @[u8] in |paths|::Path, buffer: @mutable [u8]) -> UnitResult
     blocks
-    reaches FilesystemMetadataQuery
+    reaches |authority|::FilesystemMetadataQuery
     crashes none;
     machine lock(file: File) -> UnitResult
     reaches none

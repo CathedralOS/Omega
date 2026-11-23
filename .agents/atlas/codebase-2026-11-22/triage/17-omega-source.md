@@ -1,0 +1,20 @@
+# Omega-written compiler findings
+
+| Finding | Disposition | Evidence |
+| --- | --- | --- |
+| [Area 17](../digests/17-omega-source.md), section 5 and spot check 7. An invalid span can have the same spelling as a valid run of NUL bytes. | Fixed in the source-set comparison used by name resolution. Both spelling operations check the unit, its retained byte range and the half-open span before reading its length or bytes. | With the product source from `1ab250720c8c`, the source-span fixture hit its failure trap (exit 203). After the repair the same fixture reported `Psi exit 0`. It exercises a real NUL, an empty span at EOF, a missing unit, a reversed range and a range past EOF. Replay with `python source/subsystems/compiler/source_to_psi/tests/source_spans.py <omega executable>`. |
+| Section 5, loan last uses (unit 088). A full 128-slot table forgot the next distinct local. | The ownership checker now refuses that machine with `CheckCapacityExceeded` at the unrecorded use. Repeated uses of a retained local still update its last statement at capacity. | The [last-use fixture](../../../../source/subsystems/compiler/source_to_psi/tests/loan_last_uses.py) runs the product scan with generated name expressions. Both engines accepted the old silent-drop control and rejected the assertion that the 129th use had been diagnosed. The repaired scan passes the diagnostic and retained-row checks on both engines. |
+| A full proof-goal stack can drop work and still claim proof. | Already fixed on main in [#5178](https://github.com/CathedralOS/Omega/pull/5178). | The checker records overflow and refuses the proof. The kept fixture is `source/subsystems/compiler/source_to_psi/tests/fixtures/facts/run/goal_stack/main.omg`. |
+
+Other area 17 findings remain under review.
+
+## Original findings still under review
+
+Sections 5 and 6 contain 68 top-level observations. The linked ranges cover each observation once in this table. Individual dispositions above apply only to their stated conditions.
+
+| Subject | Digest lines | Evidence and open work |
+| --- | --- | --- |
+| Checker and parser inputs | [156–172](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/17-omega-source.md#L156-L172) | 156 is the goal-stack repair and 157 is the loan last-use repair (#5283). Continue with deep place paths, guard purity, call obligations and joins. |
+| Source representations and front end | [173–184](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/17-omega-source.md#L173-L184) | 173 is the source-span repair in #5271. Trace the remaining fallback identities, capacities and caller assumptions. |
+| Bundled libraries | [187–206](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/17-omega-source.md#L187-L206) | 189 needs a distinction between a prefix decoder that returns the next cursor and a whole-document reader. The scalar decode_record API commits its consumed cursor on success. Trace whole-record consumers before changing its trailing-byte policy. |
+| Dropped facts and evidence | [211–229](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/17-omega-source.md#L211-L229) | 216 repeats 157. At 211, proof goals are covered by #5178; the separate question about retaining assumptions remains. The remaining rows include representation capacities, parser fields and lowered bindings. |

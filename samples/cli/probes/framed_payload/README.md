@@ -24,7 +24,7 @@ result: the payload checksum, 60 for this frame (the exit code)
 The program emits no stderr. The CLI separately reports `native exit 60`
 on stderr. `omega run --both` with finite redirected input additionally
 requires `interp exit: 60`; a declined interpreter is not agreement.
-Interpreter comparison currently compares exits, not output bytes.
+The CLI also compares stdout and stderr byte for byte.
 
 The sample declares Windows x86-64, Linux x86-64, Linux ARM64 and macOS
 ARM64 entry points. Run on each matching host: an explicit `--target`

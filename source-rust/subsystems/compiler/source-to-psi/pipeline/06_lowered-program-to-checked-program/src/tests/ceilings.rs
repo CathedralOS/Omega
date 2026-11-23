@@ -408,7 +408,7 @@ machine entry() invokes Handler {}
     assert!(projection.telescope.binders[0].invokes_synchronously);
     let refusal = verdict_kind(&judged(text));
     assert!(
-        refusal.contains("invokes naming a requirement that is not a boundary trait"),
+        refusal.contains("the named effect does not select a boundary service"),
         "{refusal}"
     );
 }

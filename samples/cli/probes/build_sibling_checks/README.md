@@ -6,9 +6,8 @@ package through a nested build edge. Each sibling publishes its own captured
 source bytes and also promises an output file with those bytes. The shared
 build must evaluate once across the sibling batch and across every
 requested target, while each sibling still seals and settles its own
-obligation. Each sibling's generated `*_value()` forwards to its authored `*_seed()`
-(authored source cannot select its own generated declarations). The product
-sums the three constants:
+obligation. Each sibling's generated `*_value()` forwards to its authored
+`*_seed()`. The product sums the three constants:
 
 ```text
 mbx run -p omega -- --check --target linux_x86_64 --target macos_arm64 \

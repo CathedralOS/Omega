@@ -126,6 +126,29 @@ fn point_canonicalizes_candidates_and_facts_without_changing_policy_outcome() {
 }
 
 #[test]
+fn external_skip_reasons_match_the_wire_schema() {
+    let candidate = features(b"skip", 0, AnalysisSet::default(), []);
+    for reason in OptimizationReasonCode::ALL {
+        let point = ExternalDecisionPoint::new(
+            OptimizationUnitIdentity::from_canonical_bytes(b"input"),
+            OptimizationRuleIdentity::from_canonical_bytes(b"rule"),
+            [candidate.clone()],
+            ExternalDecisionAction::Skip(reason),
+        );
+        if reason == OptimizationReasonCode::NotProfitable {
+            let point = point.unwrap();
+            assert_eq!(ExternalDecisionPoint::decode(&point.encode()), Ok(point));
+        } else {
+            assert_eq!(
+                point,
+                Err(ExternalDecisionSchemaError::IllegalAction),
+                "{reason:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn strict_v2_round_trip_binds_context_point_order_and_authoritative_features() {
     let first = point();
     let second_features = features(

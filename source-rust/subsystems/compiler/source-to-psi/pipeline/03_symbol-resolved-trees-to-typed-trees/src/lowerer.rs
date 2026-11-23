@@ -1981,7 +1981,12 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.typed_machines,
         cohort.completed_machines,
-    )
+    )?;
+    crate::typing::undeclared_type_names::defer_undeclared_type_names(
+        lowerer.source_trees,
+        &mut lowerer.typed_trees,
+    );
+    Ok(())
 }
 
 /// Resolve the effect telescope after all its possible owner declarations

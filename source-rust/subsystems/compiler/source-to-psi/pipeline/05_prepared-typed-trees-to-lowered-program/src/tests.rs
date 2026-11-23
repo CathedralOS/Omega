@@ -18,8 +18,8 @@ use terminal_psi::{
 };
 
 use crate::lowering::body::{
-    Body, CaseSelector, CrashCeiling, Expression, ExpressionKind, Selector, Signature, Statement,
-    Strict, Target, Termination, ValueType,
+    ArmGuard, Body, CaseSelector, CrashCeiling, Expression, ExpressionKind, Selector, Signature,
+    Statement, Strict, Target, Termination, ValueType,
 };
 use crate::lowering::outcome::Outcome;
 use crate::lowering::{SourceOrigin, StorageShape, Unpositioned};
@@ -214,7 +214,7 @@ fn strict(
 
 fn returns(value: Expression) -> Statement {
     Statement::Arm {
-        guard: None,
+        guard: ArmGuard::Always,
         target: Target::Value(value),
         source: nowhere(),
     }
@@ -246,7 +246,7 @@ fn emitted_calls_have_behavior_before_any_judgment() {
         statements: vec![
             Statement::discard(call(2, Vec::new(), None)),
             Statement::Arm {
-                guard: None,
+                guard: ArmGuard::Always,
                 target: Target::Unit,
                 source: nowhere(),
             },
@@ -255,7 +255,7 @@ fn emitted_calls_have_behavior_before_any_judgment() {
     bodies.push(Body {
         slots: Vec::new(),
         statements: vec![Statement::Arm {
-            guard: None,
+            guard: ArmGuard::Always,
             target: Target::Unit,
             source: nowhere(),
         }],
@@ -734,7 +734,7 @@ fn every_normal_exit_owes_one_guarantee_per_ensures_clause() {
         slots: scalars(vec![ScalarType::Boolean]),
         statements: vec![
             Statement::Arm {
-                guard: Some(slot(0, ScalarType::Boolean)),
+                guard: ArmGuard::When(slot(0, ScalarType::Boolean)),
                 target: Target::Value(integer(1)),
                 source: nowhere(),
             },
@@ -915,7 +915,7 @@ fn boolean_slot(slot: usize) -> Expression {
 
 fn crash_arm(guard: Option<Expression>, cause: CrashCause) -> Statement {
     Statement::Arm {
-        guard,
+        guard: guard.map_or(ArmGuard::Always, ArmGuard::When),
         target: Target::Crash(cause),
         source: nowhere(),
     }
@@ -954,7 +954,7 @@ fn a_crash_is_a_terminator_with_its_cause_and_incoming_conjunction() {
         slots: scalars(vec![ScalarType::Boolean, ScalarType::Boolean]),
         statements: vec![
             Statement::Arm {
-                guard: Some(boolean_slot(0)),
+                guard: ArmGuard::When(boolean_slot(0)),
                 target: Target::Unit,
                 source: nowhere(),
             },
@@ -2195,7 +2195,7 @@ fn settle_both(
             .map(|step| match *step {
                 Step::Call(callee) => Statement::discard(call(callee, Vec::new(), None)),
                 Step::Tail(callee) => Statement::Arm {
-                    guard: Some(yes()),
+                    guard: ArmGuard::When(yes()),
                     target: Target::Value(call(callee, Vec::new(), None)),
                     source: nowhere(),
                 },
@@ -3975,12 +3975,12 @@ fn a_value_match_joins_its_arms_with_the_result_as_one_block_parameter() {
 fn a_case_test_observes_the_sum_in_place_and_a_payload_read_ends_its_carrier_in_the_case() {
     // f(s: Shape) -> u32 { transition s in Shape::Dot { true -> s.at } 9 }
     let scalar = ValueType::Scalar(u32_type(), Qualification::NONE);
-    let (machine, _) = lower_sums(
+    let (machine, tables) = lower_sums(
         Body {
             slots: vec![shape()],
             statements: vec![
                 Statement::Arm {
-                    guard: Some(is_case(place(0, shape()), DOT)),
+                    guard: ArmGuard::When(is_case(place(0, shape()), DOT)),
                     target: Target::Value(payload(place(0, shape()), DOT, 0, scalar)),
                     source: nowhere(),
                 },
@@ -3988,6 +3988,18 @@ fn a_case_test_observes_the_sum_in_place_and_a_payload_read_ends_its_carrier_in_
             ],
         },
         weighs(),
+    );
+    let input = tables.roots.get(id(1)).unwrap();
+    let children = &tables.places.get(*input).unwrap().children;
+    assert!(
+        children
+            .iter()
+            .any(|(segment, _)| *segment == case_segment(1))
+    );
+    assert!(
+        children
+            .iter()
+            .all(|(segment, _)| *segment != case_segment(4))
     );
     let [test] = block(&machine, 1).operations.as_slice() else {
         panic!("one operation");

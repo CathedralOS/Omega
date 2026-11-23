@@ -1731,6 +1731,23 @@ impl DeclaredExpressionTypes {
                 let receiver = self.get(program, owner, member.receiver)?;
                 selected_member_value_type(program, receiver, member.selection)
             }
+            // A value `match` has the one type all its arms have. Arms that
+            // disagree give no type here; the receiving judgment reports
+            // them.
+            ExpressionNode::Match(dispatch) => {
+                let mut joined: Option<TypeReferenceHandle> = None;
+                for arm in table.match_arms(dispatch.arms) {
+                    let candidate = self.get(program, owner, arm.value)?;
+                    if joined.is_some_and(|previous| {
+                        program.normalized_type_identity(previous)
+                            != program.normalized_type_identity(candidate)
+                    }) {
+                        return None;
+                    }
+                    joined.get_or_insert(candidate);
+                }
+                joined
+            }
             ExpressionNode::Integer(_)
             | ExpressionNode::Float(_)
             | ExpressionNode::Boolean(_)

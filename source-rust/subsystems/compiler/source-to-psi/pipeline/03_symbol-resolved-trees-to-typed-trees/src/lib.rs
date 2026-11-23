@@ -48,12 +48,16 @@ mod runtime_callables;
 mod statement_lowering;
 mod type_reference;
 mod typing_queries;
+mod undeclared_type_names;
 
 #[cfg(test)]
 mod ranking_defaults_tests;
 
 #[cfg(test)]
 mod qualified_operator_home_tests;
+
+#[cfg(test)]
+mod undeclared_type_name_tests;
 
 #[cfg(test)]
 mod bodyless_headers_tests;

@@ -14,11 +14,11 @@ pub(super) struct SelectedMethods {
 }
 
 impl SelectedMethods {
-    pub(super) fn new(program: &TypedTrees, selections: &[SymbolHandle]) -> Self {
+    pub(super) fn new(program: &TypedTrees, selections: &[crate::SelectedProvider]) -> Self {
         let mut providers = Vec::new();
         let mut selected = selections
             .iter()
-            .map(|selection| program.implementation_value_head(*selection))
+            .map(|selection| program.implementation_value_head(selection.declaration))
             .collect::<Vec<_>>();
         selected.sort_unstable_by_key(|symbol| symbol_order(*symbol));
         selected.dedup();

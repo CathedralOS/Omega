@@ -2,6 +2,8 @@
 //! A package may disclose its public requirement without installing a
 //! realization.
 
+mod field_domains;
+
 use super::declarations::unavailable;
 use super::input::PolicySource;
 use super::provider_rows::{ChoiceKey, ProviderChoice};
@@ -196,6 +198,113 @@ impl<'module> AcceptedDeclarations<'module> {
             authored_reach_owners,
             services,
         }
+    }
+
+    fn validate_parameter_domains(
+        &self,
+        signature: &StateSignature,
+        requirement: &PackageReviewNominalIdentity,
+        boundary: &BoundaryMachineDeclaration,
+        contracts: &[review_evidence::record::PackageReviewCallableContract],
+    ) -> Result<(), Vec<Diagnostic>> {
+        use terminal_psi::{BoundaryParameterKind, StructuralDomainRequirement};
+        use terminal_semantics::scalar_qualifications::{
+            primitive_qualifications, qualification_domains, scalar_domain,
+        };
+        let mismatch = || {
+            unavailable(format!(
+                "the parameter domain applications of boundary requirement `{}`",
+                requirement.path()
+            ))
+        };
+        if !boundary.has_valid_parameter_order()
+            || !StructuralDomainRequirement::declared_roots(&boundary.structural_parameters)
+                .eq(boundary.requires.iter().cloned())
+        {
+            return Err(mismatch());
+        }
+        let module = self.accepted.module();
+        let origins = &self.accepted.closure().elaboration().domain_sources;
+        let scalar_source = |id| {
+            scalar_domain(module, id)
+                .and_then(|domain| origins.get(domain.semantic_domain))
+                .map(|source| source.application)
+                .ok_or_else(mismatch)
+        };
+        let scalar_positions: Vec<_> = boundary
+            .parameter_positions(BoundaryParameterKind::Scalar)
+            .collect();
+        let structural_positions: Vec<_> = boundary
+            .parameter_positions(BoundaryParameterKind::Structural)
+            .collect();
+        let mut actual = Vec::new();
+        for row in &boundary.scalar_domain_requirements {
+            let position = *scalar_positions
+                .get(row.argument_index as usize)
+                .ok_or_else(mismatch)?;
+            actual.push((position, scalar_source(row.domain)?));
+        }
+        for formal in &boundary.structural_parameters {
+            let position = *structural_positions
+                .get(formal.position as usize)
+                .ok_or_else(mismatch)?;
+            let parameter = self
+                .accepted
+                .source()
+                .state_signature_parameters(signature)
+                .get(position)
+                .ok_or_else(mismatch)?;
+            if !field_domains::retained(self.accepted, formal, parameter.type_reference) {
+                return Err(mismatch());
+            }
+            for &id in &formal.qualifications {
+                let domain = module
+                    .structural_domain(id)
+                    .and_then(|d| origins.get(d.semantic_domain))
+                    .ok_or_else(mismatch)?;
+                actual.push((position, domain.application));
+            }
+            // A borrowed scalar carries its domains on the referent's primitive storage.
+            let home = primitive_qualifications(module, formal.structural_type);
+            for &id in qualification_domains(module, home).ok_or_else(mismatch)? {
+                actual.push((position, scalar_source(id)?));
+            }
+        }
+        use review_evidence::record::{
+            PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
+        };
+        let declared_membership = contracts.iter().any(|clause| {
+            clause.kind == PackageReviewContractKind::Requires
+                && matches!(
+                    &clause.fact,
+                    PackageReviewContractFact::Membership {
+                        value: PackageReviewContractExpression::Parameter(_),
+                        ..
+                    }
+                )
+        });
+        // Typing records each domain-qualified formal as a required membership.
+        // If both sides have empty roots, unrelated unavailable metadata (for
+        // example a generic result) is outside this comparison.
+        let source = match self.accepted.requirement_review(signature.symbol) {
+            Ok(metadata) => metadata,
+            Err(_) if actual.is_empty() && !declared_membership => return Ok(()),
+            Err(reason) => return Err(unavailable(reason)),
+        };
+        actual.sort_unstable_by_key(|(position, domain)| (*position, domain.coordinates()));
+        if boundary.parameter_order.len() != source.parameter_types.len()
+            || !structural_positions.iter().copied().eq(source
+                .structural_parameter_positions
+                .iter()
+                .map(|&position| position as usize))
+            || !actual.into_iter().eq(source
+                .parameter_qualifications
+                .iter()
+                .map(|&(position, application)| (position as usize, application)))
+        {
+            return Err(mismatch());
+        }
+        Ok(())
     }
 
     fn has_authored_reach(&self, owner: SymbolHandle) -> bool {
@@ -1161,14 +1270,26 @@ impl PolicySource<'_> {
             requirement.clone(),
             declarations,
         )?;
-        let parameters = self.requirement_parameters(signature)?;
-        let result = signature
-            .return_type
-            .is_valid()
-            .then(|| {
-                self.type_identity_for_private_contract(signature.symbol, signature.return_type)
-            })
-            .transpose()?;
+        let (parameters, result) = if signature.symbol == declared_signature.symbol {
+            (callable.parameters.clone(), callable.return_type.clone())
+        } else {
+            // An applied method has its own types in the selected provider row.
+            // Its declaration's binders cannot stand in for applied lifetimes.
+            if callable.lifetime_parameter_count != 0 {
+                return Err(unavailable(
+                    "the applied requirement's lifetime substitution",
+                ));
+            }
+            let parameters = self.requirement_parameters(signature)?;
+            let result = signature
+                .return_type
+                .is_valid()
+                .then(|| {
+                    self.type_identity_for_private_contract(signature.symbol, signature.return_type)
+                })
+                .transpose()?;
+            (parameters, result)
+        };
         let invocation_authority = callable
             .declared_synchronous_invocations
             .clone()
@@ -1196,7 +1317,10 @@ impl PolicySource<'_> {
                 schema_lifetime_arguments: Vec::new(),
                 application_lifetime_parameter_count: 0,
                 requirement_lifetime_arguments: Vec::new(),
-                requirement_lifetime_parameter_count: 0,
+                requirement_lifetime_parameter_count: u32::try_from(
+                    callable.lifetime_parameter_count,
+                )
+                .map_err(|_| unavailable("a portable requirement lifetime count"))?,
                 static_parameters: callable.type_parameters.clone(),
                 parameters,
                 result,
@@ -1283,47 +1407,134 @@ impl PolicySource<'_> {
         let authored_routes = source.state_signature_contracts(signature).iter().any(|clause| {
             matches!(clause.kind, source_compiler::representations::source_state::signature::SignatureContractKind::Crashes { .. })
         });
-        if !signature.lifetime_parameters.is_empty()
-            || !signature.conformance_bounds.is_empty()
-            || signature.spelling.is_some()
-            || signature.is_default
-            || !signature.native_callback_parameters.is_empty()
-            || signature.declares_no_crash_route == authored_routes
-            || signature.declares_no_crash_route != boundary.crash_routes.is_empty()
-            || boundary.role != BoundaryDeclarationRole::Callable
-            || declaration.execution != CheckedBoundaryExecution::Provider
-            || boundary.structural_parameters.iter().any(|parameter| {
-                !parameter.is_unqualified_root()
-                    || !parameter.additional_input_qualifications.is_empty()
-            })
-            || ((!boundary.requires.is_empty() || !boundary.scalar_requires.is_empty())
-                && !contracts.iter().any(|clause| {
-                    clause.kind == review_evidence::record::PackageReviewContractKind::Requires
-                }))
-            || (!boundary.scalar_ensures.is_empty()
-                && !contracts.iter().any(|clause| {
-                    clause.kind == review_evidence::record::PackageReviewContractKind::Ensures
-                }))
-            || !boundary.normal_qualifications.is_empty()
-            || !boundary.scalar_domain_requirements.is_empty()
-            || !boundary.reference_outputs.is_empty()
-            || !boundary.program_local_root_introductions.is_empty()
-            || !boundary.content_guarantees.is_empty()
-            || !boundary.result_reference_regions.is_empty()
-            || matches!(&boundary.result, terminal_psi::BoundaryMachineResult::Structural(result)
-                if (completes_normally && result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted)
-                    || !result.qualifications.is_empty()
-                    || !result.projected_qualifications.is_empty())
-            || boundary
-                .result_lifetimes
-                .as_ref()
-                .is_some_and(|rows| !rows.is_empty())
-        {
-            return Err(unavailable(
-                "the boundary requirement's complete published contract",
-            ));
+        declarations.validate_parameter_domains(signature, &requirement, boundary, &contracts)?;
+        use review_evidence::record::PackageReviewContractKind;
+        let has_clause = |kind| contracts.iter().any(|clause| clause.kind == kind);
+        let mut fields = Vec::new();
+        macro_rules! unretained {
+            ($field:expr, $when:expr) => {
+                if $when {
+                    fields.push(stringify!($field));
+                }
+            };
+            ($field:expr) => {
+                unretained!($field, !$field.is_empty());
+            };
         }
-        let parameters = self.requirement_parameters(signature)?;
+        unretained!(signature.conformance_bounds);
+        unretained!(signature.spelling, signature.spelling.is_some());
+        unretained!(signature.is_default, signature.is_default);
+        unretained!(signature.native_callback_parameters);
+        unretained!(
+            signature.declares_no_crash_route,
+            signature.declares_no_crash_route == authored_routes
+        );
+        unretained!(
+            boundary.crash_routes,
+            signature.declares_no_crash_route != boundary.crash_routes.is_empty()
+        );
+        unretained!(
+            boundary.role,
+            boundary.role != BoundaryDeclarationRole::Callable
+        );
+        unretained!(
+            declaration.execution,
+            declaration.execution != CheckedBoundaryExecution::Provider
+        );
+        for parameter in &boundary.structural_parameters {
+            unretained!(
+                parameter.multiplicity,
+                !matches!(
+                    parameter.multiplicity,
+                    terminal_psi::nonlinear_multiplicity_pair_pattern!()
+                )
+            );
+            unretained!(parameter.additional_input_qualifications);
+        }
+        unretained!(
+            boundary.scalar_requires,
+            !boundary.scalar_requires.is_empty() && !has_clause(PackageReviewContractKind::Requires)
+        );
+        unretained!(
+            boundary.scalar_ensures,
+            !boundary.scalar_ensures.is_empty() && !has_clause(PackageReviewContractKind::Ensures)
+        );
+        unretained!(boundary.normal_qualifications);
+        unretained!(boundary.reference_outputs);
+        unretained!(boundary.program_local_root_introductions);
+        unretained!(boundary.content_guarantees);
+        unretained!(boundary.result_reference_regions);
+        if let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result {
+            unretained!(
+                result.multiplicity,
+                completes_normally
+                    && result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            );
+            unretained!(result.qualifications);
+            unretained!(result.projected_qualifications);
+        }
+        if !fields.is_empty() {
+            fields.sort_unstable();
+            fields.dedup();
+            return Err(unavailable(format!(
+                "{} on boundary requirement `{}`",
+                fields.join(", "),
+                requirement.path()
+            )));
+        }
+        let groups = terminal_semantics::references::boundary_result_lifetimes(
+            &declarations.accepted.module().types.structural_types,
+            boundary,
+        )
+        .map_err(unavailable)?;
+        let metadata = declarations.accepted.requirement_review(signature.symbol);
+        let scoped = !groups.is_empty()
+            || !signature.lifetime_parameters.is_empty()
+            || metadata
+                .as_ref()
+                .is_ok_and(|row| row.lifetime_parameter_count != 0);
+        let (parameters, return_type, lifetime_parameter_count) = if scoped {
+            let metadata = metadata.map_err(unavailable)?;
+            if !groups.is_empty() {
+                let result = metadata.result_type.as_deref().ok_or_else(|| {
+                    unavailable("a declared result for the boundary lifetime groups")
+                })?;
+                let declared =
+                    terminal_semantics::references::boundary_result_lifetimes_from_signature(
+                        declarations.accepted.module(),
+                        boundary,
+                        metadata.lifetime_parameter_count,
+                        &metadata.parameter_types,
+                        result,
+                    )
+                    .map_err(unavailable)?;
+                if declared != groups {
+                    return Err(unavailable(
+                        "boundary result lifetime groups matching the declared signature",
+                    ));
+                }
+            }
+            let parameters = self.scoped_requirement_parameters(
+                    signature, &metadata.parameter_types,
+                    review_evidence::record::PackageReviewSemanticDependencyExposure::PrivateImplementation,
+                )?;
+            let result = metadata.result_type.as_ref().map(|canonical| {
+                review_evidence::record::PackageReviewTypeIdentity {
+                    canonical: canonical.clone(),
+                }
+            });
+            (parameters, result, metadata.lifetime_parameter_count)
+        } else {
+            let parameters = self.requirement_parameters(signature)?;
+            let return_type = signature
+                .return_type
+                .is_valid()
+                .then(|| {
+                    self.type_identity_for_private_contract(signature.symbol, signature.return_type)
+                })
+                .transpose()?;
+            (parameters, return_type, 0)
+        };
         let type_parameters = source
             .state_signature_type_parameters(signature)
             .iter()
@@ -1352,13 +1563,6 @@ impl PolicySource<'_> {
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        let return_type = signature
-            .return_type
-            .is_valid()
-            .then(|| {
-                self.type_identity_for_private_contract(signature.symbol, signature.return_type)
-            })
-            .transpose()?;
         let termination = if boundary.unconditional_termination {
             PackagePolicyTermination::Terminates {
                 premises: Vec::new(),
@@ -1387,7 +1591,7 @@ impl PolicySource<'_> {
             identity: requirement,
             supply: PackageReviewCallableSupply::Boundary,
             spelling: signature.spelling,
-            lifetime_parameter_count: 0,
+            lifetime_parameter_count,
             type_parameters,
             conformance_bounds: Vec::new(),
             parameters,

@@ -270,7 +270,7 @@ machine d(x: i8, y: i8) -> bool { x > -y }
 /// The field ids of the record `name` declares, by field name.
 fn record_fields(lowered: &program::Lowered<'_>, name: &str) -> Vec<(String, StructuralFieldId)> {
     let module = &lowered.elaboration.module;
-    let named = format!(r"path\({name}\)");
+    let named = format!(r"path\(main.omg::{name}\)");
     let declared = module
         .types
         .structural_types

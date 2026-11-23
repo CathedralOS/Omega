@@ -2602,7 +2602,6 @@ pub(crate) fn complete_equation_arguments(
     base_name: &Identifier,
     supplied: &[TypeReferenceHandle],
     selection: Option<&declaration_selection::ConstantSelection>,
-    warnings: &mut Vec<Diagnostic>,
 ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
     complete_equation_arguments_with_types(
         syntax,
@@ -2611,7 +2610,6 @@ pub(crate) fn complete_equation_arguments(
         supplied,
         &[],
         selection,
-        warnings,
     )
 }
 
@@ -2632,7 +2630,6 @@ pub(crate) fn complete_equation_arguments_with_types(
     supplied: &[TypeReferenceHandle],
     ordinary_types: &[(TypeReferenceHandle, TypeReferenceHandle)],
     selection: Option<&declaration_selection::ConstantSelection>,
-    warnings: &mut Vec<Diagnostic>,
 ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
     let bindings = {
         let mut solver = Solver::new(&mut *syntax, base_info, base_name, supplied, selection);
@@ -2648,7 +2645,7 @@ pub(crate) fn complete_equation_arguments_with_types(
                 solver.match_type_structure(formal, actual, base_name.source_span())?;
             }
         }
-        solver.solve(warnings)?;
+        solver.solve()?;
         solver.bindings
     };
     let mut tuple = supplied.to_vec();
@@ -2790,7 +2787,7 @@ impl<'a, 's> Solver<'a, 's> {
         self.base_info.parameter_names[index].as_str()
     }
 
-    fn solve(&mut self, warnings: &mut Vec<Diagnostic>) -> Result<(), Diagnostic> {
+    fn solve(&mut self) -> Result<(), Diagnostic> {
         loop {
             let mut progress = false;
             for index in 0..self.base_info.type_equations.len() {
@@ -2798,7 +2795,7 @@ impl<'a, 's> Solver<'a, 's> {
                     continue;
                 }
                 let equation = self.base_info.type_equations[index].clone();
-                if let Outcome::Settled = self.apply(&equation, warnings)? {
+                if let Outcome::Settled = self.apply(&equation)? {
                     self.settled[index] = true;
                     progress = true;
                 }
@@ -2885,7 +2882,6 @@ impl<'a, 's> Solver<'a, 's> {
     fn apply(
         &mut self,
         equation: &TypeEquation,
-        warnings: &mut Vec<Diagnostic>,
     ) -> Result<Outcome, Diagnostic> {
         match &equation.shape {
             EquationShape::Boolean {
@@ -2897,7 +2893,7 @@ impl<'a, 's> Solver<'a, 's> {
                 if matches!(operator, TypeBooleanOperator::And) {
                     let mut settled = true;
                     for operand in operands {
-                        settled &= matches!(self.apply(operand, warnings)?, Outcome::Settled);
+                        settled &= matches!(self.apply(operand)?, Outcome::Settled);
                     }
                     return Ok(if settled {
                         Outcome::Settled
@@ -2905,7 +2901,7 @@ impl<'a, 's> Solver<'a, 's> {
                         Outcome::Deferred
                     });
                 }
-                match self.predicate_value(equation, warnings)? {
+                match self.predicate_value(equation)? {
                     Some(true) => Ok(Outcome::Settled),
                     Some(false) => Err(self
                         .reject(
@@ -2943,7 +2939,7 @@ impl<'a, 's> Solver<'a, 's> {
                 }
                 match self.bindings[*binder].clone() {
                     Some(Binding::Type(handle)) => {
-                        self.match_structure(*binder, handle, structure, *span, warnings)
+                        self.match_structure(*binder, handle, structure, *span)
                     }
                     Some(Binding::NamedType(name)) => {
                         let Structure::Name {
@@ -2967,7 +2963,7 @@ impl<'a, 's> Solver<'a, 's> {
                             self.binder_name(*binder)
                         ))
                         .with_source_span(*span)),
-                    None => self.recover_binder(*binder, structure, *span, warnings),
+                    None => self.recover_binder(*binder, structure, *span),
                 }
             }
         }
@@ -2982,7 +2978,6 @@ impl<'a, 's> Solver<'a, 's> {
     fn predicate_value(
         &mut self,
         equation: &TypeEquation,
-        warnings: &mut Vec<Diagnostic>,
     ) -> Result<Option<bool>, Diagnostic> {
         match &equation.shape {
             EquationShape::Boolean {
@@ -2990,7 +2985,7 @@ impl<'a, 's> Solver<'a, 's> {
             } => {
                 let values = operands
                     .iter()
-                    .map(|operand| self.predicate_value(operand, warnings))
+                    .map(|operand| self.predicate_value(operand))
                     .collect::<Result<Vec<_>, _>>()?;
                 Ok(match (*operator, values.as_slice()) {
                     (TypeBooleanOperator::Not, [Some(value)]) => Some(!value),
@@ -3005,7 +3000,7 @@ impl<'a, 's> Solver<'a, 's> {
                 span,
             } => {
                 let actual = self.bindings[*binder].clone();
-                let formed = self.recover_binder(*binder, structure, *span, warnings);
+                let formed = self.recover_binder(*binder, structure, *span);
                 let expected = self.bindings[*binder].clone();
                 self.bindings[*binder] = actual.clone();
                 if matches!(formed?, Outcome::Deferred) {
@@ -3065,7 +3060,6 @@ impl<'a, 's> Solver<'a, 's> {
         binder: usize,
         structure: &Structure,
         span: SourceSpan,
-        _warnings: &mut Vec<Diagnostic>,
     ) -> Result<Outcome, Diagnostic> {
         let (name, other) = match structure {
             Structure::TypeOperand(expression) => {
@@ -3108,7 +3102,6 @@ impl<'a, 's> Solver<'a, 's> {
         handle: TypeReferenceHandle,
         structure: &Structure,
         span: SourceSpan,
-        _warnings: &mut Vec<Diagnostic>,
     ) -> Result<Outcome, Diagnostic> {
         match structure {
             Structure::TypeOperand(expression) => {

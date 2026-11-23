@@ -1142,10 +1142,9 @@ mod assignment {
         for (owner, target, arguments) in applications {
             let local = runtime_callable_types::lexical_parameters(program, &captured, owner)
                 .map_err(|diagnostic| vec![diagnostic])?;
-            let Some(target) = program.trait_definition(target) else {
+            if program.trait_definition(target).is_none() {
                 continue;
-            };
-            let slots = target.type_parameters;
+            }
             let tables = &mut program.tables;
             let declarations = &mut tables.declarations;
             let context = scopes::ContractScopeContext {
@@ -1181,22 +1180,11 @@ mod assignment {
             super::value_expressions::assign_type_argument_value_expression_symbols(
                 &program.symbols,
                 &scope,
+                target,
                 &mut tables.bodies.expressions,
                 actuals,
                 arguments,
             );
-            for (formal, actual) in declarations
-                .data_type_parameters
-                .span_or_empty(slots)
-                .iter()
-                .zip(arguments.handles())
-            {
-                if introduces_value(&formal.kind)
-                    && let TypeReference::Named { symbol, name, .. } = actuals.get_mut(actual)
-                {
-                    *symbol = resolve_value_in_type_symbol(&program.symbols, &local, name);
-                }
-            }
         }
         Ok(())
     }
@@ -1229,7 +1217,7 @@ mod assignment {
         machine's complete lexical scope, so a parameter or local still hides a
         same-spelled constant.
     */
-    fn resolve_value_in_type_symbol(
+    pub(super) fn resolve_value_in_type_symbol(
         symbols: &SymbolTable,
         local_type_parameters: &[TypeParameter],
         name: &DiagnosticName,
@@ -1243,7 +1231,7 @@ mod assignment {
             .unwrap_or_else(|| top_level_symbol_for_source(symbols, SymbolKind::Const, name))
     }
 
-    fn introduces_value(kind: &TypeParameterKind) -> bool {
+    pub(super) fn introduces_value(kind: &TypeParameterKind) -> bool {
         matches!(
             kind,
             TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
@@ -1475,6 +1463,7 @@ mod value_expressions {
             assign_type_argument_value_expression_symbols(
                 symbols,
                 &scope,
+                conformance.trait_symbol,
                 &mut program.tables.bodies.expressions,
                 &mut declarations.child_type_references,
                 conformance.arguments,
@@ -1647,6 +1636,7 @@ mod value_expressions {
     pub(in crate::resolution::names) fn assign_type_argument_value_expression_symbols(
         symbols: &SymbolTable,
         scope: &MachineScope<'_>,
+        target: SymbolHandle,
         expressions: &mut ExpressionTable,
         child_types: &mut crate::source_resolved::types::TypeReferenceArena,
         arguments: arena::HandleSpan<TypeReference>,
@@ -1663,6 +1653,42 @@ mod value_expressions {
                 &mut reference,
             );
             *child_types.get_mut(argument) = reference;
+        }
+        if target.is_valid()
+            && let Some(declaration) = scope.traits.iter().find(|row| row.symbol == target)
+        {
+            bind_named_value_arguments(
+                scope
+                    .data_type_parameters
+                    .span_or_empty(declaration.type_parameters),
+                child_types,
+                arguments,
+                |name| {
+                    Some(super::assignment::resolve_value_in_type_symbol(
+                        symbols,
+                        scope.type_parameters,
+                        name,
+                    ))
+                },
+            );
+        }
+    }
+
+    /// The selected declaration determines which operands are values. Resolve a
+    /// bare name in one of those positions in the scope that supplied the operand.
+    fn bind_named_value_arguments(
+        parameters: &[crate::source_resolved::data::TypeParameter],
+        child_types: &mut crate::source_resolved::types::TypeReferenceArena,
+        arguments: arena::HandleSpan<TypeReference>,
+        lookup: impl Fn(&DiagnosticName) -> Option<SymbolHandle>,
+    ) {
+        for (formal, actual) in parameters.iter().zip(arguments.handles()) {
+            if super::assignment::introduces_value(&formal.kind)
+                && let TypeReference::Named { symbol, name, .. } = child_types.get_mut(actual)
+                && let Some(selected) = lookup(name)
+            {
+                *symbol = selected;
+            }
         }
     }
 
@@ -1808,23 +1834,12 @@ mod value_expressions {
                     _ => None,
                 };
                 if let Some(header) = header {
-                    let telescope = machine.data_type_parameters.span_or_empty(header);
-                    for (parameter, argument) in telescope.iter().zip(generic.arguments.handles()) {
-                        if !matches!(
-                            parameter.kind,
-                            crate::source_resolved::data::TypeParameterKind::Value { .. }
-                                | crate::source_resolved::data::TypeParameterKind::Const { .. }
-                        ) {
-                            continue;
-                        }
-                        if let TypeReference::Named { symbol, name, .. } =
-                            child_types.get_mut(argument)
-                            && let Some(selected) =
-                                resolve_index_subject(symbols, machine, parameters, name)
-                        {
-                            *symbol = selected;
-                        }
-                    }
+                    bind_named_value_arguments(
+                        machine.data_type_parameters.span_or_empty(header),
+                        child_types,
+                        generic.arguments,
+                        |name| resolve_index_subject(symbols, machine, parameters, name),
+                    );
                 }
             }
             TypeReference::Constrained(constrained) => {

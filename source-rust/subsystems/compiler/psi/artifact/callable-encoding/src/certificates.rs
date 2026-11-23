@@ -478,6 +478,8 @@ fn read_proof_row(
                 1 => PrimitiveJudgment::ReflexiveEquality,
                 2 => PrimitiveJudgment::ClosedIntegerRelation,
                 3 => PrimitiveJudgment::IntegerCarrierBound,
+                4 => PrimitiveJudgment::ClosedIeeeFloatRelation,
+                5 => PrimitiveJudgment::ClosedFloatIntegerRelation,
                 _ => return Err(CodecError::NonCanonicalEncoding),
             };
             read_node(reader, children, 0, |_| R::Primitive(judgment))
@@ -672,6 +674,34 @@ fn read_proof_row(
                 R::IntegerCorrelatedForbiddenRoots { witness }
             })
         }
+        28 => read_node(reader, children, 1, |children| R::IntegerPowerOfTwoOrder {
+            order: one(children),
+        }),
+        29 => {
+            let count = crate::wire::bounded_count(reader, 4)?;
+            read_node(reader, children, count, R::IeeeFloatOrderChain)
+        }
+        30 => {
+            let count = crate::wire::bounded_count(reader, 4)?;
+            read_node(reader, children, count, R::FloatMeaningNormalization)
+        }
+        // The flag selects the one-premise form or the form that also
+        // transports a separately checked computed goal.
+        31 => {
+            let total = match reader.u8()? {
+                0 => 1,
+                1 => 2,
+                _ => return Err(CodecError::NonCanonicalEncoding),
+            };
+            read_node(reader, children, total, |children| {
+                let mut children = children.into_iter();
+                R::FloatIntegerConversion {
+                    premise: Box::new(children.next().expect("checked child count")),
+                    computed: children.next().map(Box::new),
+                }
+            })
+        }
+        32 => read_node(reader, children, 0, |_| R::IntegerFloatExact),
         _ => Err(CodecError::NonCanonicalEncoding),
     }
 }

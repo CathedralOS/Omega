@@ -9,7 +9,7 @@
 //! source text alone, in well under a second and without building anything.
 //!
 //! For each `Build::select_provider::<Service, Provider>(builder, target)` row in
-//! `std/build.omg` that covers all four hosted targets, it reads each target's
+//! `std/build.omg` that covers all five hosted targets, it reads each target's
 //! provider block, follows the top-level machines each member calls inside
 //! that target's files, and collects four kinds of fact:
 //! - `refuse K`: an `ErrorKind::K }` the adapter returns itself;
@@ -38,12 +38,16 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-pub const HOSTED_TARGETS: [&str; 4] = [
+pub const HOSTED_TARGETS: [&str; 5] = [
     "linux_x86_64",
     "linux_arm64",
     "macos_arm64",
     "windows_x86_64",
+    "windows_arm64",
 ];
+/// Both Windows targets compile the Windows adapters kept in this directory;
+/// a target's own directory adds only what its ABI changes.
+const SHARED_WINDOWS_ADAPTERS: &str = "windows_x86_64";
 const STD_ROOT: &str = "source/library/std";
 const BASELINE: &str = "tools/ratchets/portable_services.txt";
 const CONCERNS: &str = "OWNER_CODE_CONCERNS.md";
@@ -385,10 +389,47 @@ fn read(path: &Path) -> Result<String, String> {
     fs::read_to_string(path).map_err(|error| format!("cannot read {}: {error}", path.display()))
 }
 
+/// `use <file>.omg as <alias>;` lines, as alias -> package-relative file.
+fn file_aliases(build: &str) -> HashMap<&str, &str> {
+    build
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("use "))
+        .filter_map(|rest| rest.strip_suffix(';')?.split_once(" as "))
+        .map(|(file, alias)| (alias.trim(), file.trim()))
+        .collect()
+}
+
+/// A provider as `dir\Name` relative to `std`. `|alias|::Name` names a
+/// declaration in the file the alias imports, so it takes that file's
+/// directory; a bare or backslash path is already relative.
+fn provider_path(name: &str, aliases: &HashMap<&str, &str>) -> String {
+    let Some((alias, declaration)) = name
+        .strip_prefix('|')
+        .and_then(|rest| rest.split_once("|::"))
+    else {
+        return name.to_string();
+    };
+    let directory = aliases
+        .get(alias)
+        .and_then(|file| file.rsplit_once('/'))
+        .map(|(directory, _)| directory.replace('/', "\\"));
+    match directory {
+        Some(directory) => format!("{directory}\\{declaration}"),
+        None => declaration.to_string(),
+    }
+}
+
+/// A service by its declared name, without the alias or path that reached it.
+fn service_name(name: &str) -> &str {
+    let name = name.rsplit("::").next().unwrap_or(name);
+    name.rsplit('\\').next().unwrap_or(name)
+}
+
 /// `Build::select_provider::<Service, Provider>(builder, target)` rows, as
 /// service -> target -> provider.
 fn provider_selections(build: &str) -> BTreeMap<String, BTreeMap<String, String>> {
     const CALL: &str = "Build::select_provider::<";
+    let aliases = file_aliases(build);
     let mut out: BTreeMap<String, BTreeMap<String, String>> = BTreeMap::new();
     let mut rest = build;
     while let Some(start) = rest.find(CALL) {
@@ -402,18 +443,20 @@ fn provider_selections(build: &str) -> BTreeMap<String, BTreeMap<String, String>
         let Some(end) = args.find(')') else { continue };
         let args: Vec<&str> = args[..end].split(',').map(str::trim).collect();
         if let ([service, provider], [_, target]) = (generics.as_slice(), args.as_slice()) {
-            out.entry(service.to_string())
+            out.entry(service_name(service).to_string())
                 .or_default()
-                .insert(target.to_string(), provider.to_string());
+                .insert(target.to_string(), provider_path(provider, &aliases));
         }
     }
     out
 }
 
 /// The `.omg` files one target compiles from `std`: the shared root files,
-/// minus root files another family owns by prefix, plus the target directory.
+/// minus root files another family owns by prefix, plus the target directory
+/// and, for Windows, the shared Windows adapter directory.
 fn family_files(std_root: &Path, target: &str) -> Result<Vec<PathBuf>, String> {
-    let posix = target != "windows_x86_64";
+    let windows = target.starts_with("windows_");
+    let posix = !windows;
     let mut files = Vec::new();
     let entries = fs::read_dir(std_root)
         .map_err(|error| format!("cannot list {}: {error}", std_root.display()))?;
@@ -426,7 +469,7 @@ fn family_files(std_root: &Path, target: &str) -> Result<Vec<PathBuf>, String> {
             continue;
         }
         let owned_elsewhere = (name.starts_with("posix_") && !posix)
-            || (name.starts_with("windows_") && target != "windows_x86_64")
+            || (name.starts_with("windows_") && !windows)
             || ((name.starts_with("darwin_") || name.starts_with("macos_"))
                 && target != "macos_arm64");
         if !owned_elsewhere {
@@ -439,6 +482,12 @@ fn family_files(std_root: &Path, target: &str) -> Result<Vec<PathBuf>, String> {
     collect_omg(&target_dir, &mut nested)?;
     if nested.is_empty() {
         return Err(format!("{} holds no .omg files", target_dir.display()));
+    }
+    if windows && target != SHARED_WINDOWS_ADAPTERS {
+        collect_omg(
+            &std_root.join("targets").join(SHARED_WINDOWS_ADAPTERS),
+            &mut nested,
+        )?;
     }
     nested.sort();
     files.extend(nested);
@@ -623,9 +672,12 @@ fn classify(line: &str) -> Option<TopLevel<'_>> {
     if let Some(after) = rest.strip_prefix("satisfies")
         && after.starts_with(|c: char| c.is_whitespace())
     {
-        let trait_name = ident(after.trim_start());
-        let tail = trait_name.map(|t| after.trim_start()[t.len()..].trim_start());
-        if tail.is_some_and(|tail| tail.starts_with('{')) {
+        // The trait may be a bare name or a path such as `|alias|::Trait`.
+        let after = after.trim_start();
+        let path_end = after
+            .find(|c: char| c.is_whitespace() || c == '{')
+            .unwrap_or(after.len());
+        if path_end > 0 && after[path_end..].trim_start().starts_with('{') {
             return Some(TopLevel::Provider(first));
         }
         if first.starts_with(|c: char| c.is_ascii_uppercase()) {
@@ -912,6 +964,38 @@ fn top_level_arguments(text: &str) -> Vec<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn aliased_selections_resolve_to_their_file_directory() {
+        let build = "use linux_arm64_clock.omg as linux_arm64_clock;\n\
+            use targets/linux_arm64/clock_impl.omg as wait;\n\
+            machine build(builder: @mutable Build) {\n\
+            Build::select_provider::<|clock|::Clock, |linux_arm64_clock|::LinuxClock>(builder, linux_arm64);\n\
+            Build::select_provider::<|clock|::Clock, |wait|::Nested>(builder, macos_arm64);\n\
+            }\n";
+        let selections = provider_selections(build);
+        assert_eq!(selections["Clock"]["linux_arm64"], "LinuxClock");
+        assert_eq!(
+            selections["Clock"]["macos_arm64"],
+            r"targets\linux_arm64\Nested"
+        );
+    }
+
+    #[test]
+    fn providers_name_bare_and_aliased_traits() {
+        assert!(matches!(
+            classify("FilesystemPosixProvider satisfies |filesystem|::FilesystemService {"),
+            Some(TopLevel::Provider("FilesystemPosixProvider"))
+        ));
+        assert!(matches!(
+            classify("public WindowsConsole satisfies Console {"),
+            Some(TopLevel::Provider("WindowsConsole"))
+        ));
+        assert!(matches!(
+            classify("Policy satisfies |abi|::CallingPolicy"),
+            Some(TopLevel::Other)
+        ));
+    }
 
     #[test]
     fn facts_read_refusals_limits_constants_and_clamps() {

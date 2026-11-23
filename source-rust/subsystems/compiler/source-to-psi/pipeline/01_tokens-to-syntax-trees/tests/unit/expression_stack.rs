@@ -4,6 +4,23 @@ use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 
 #[test]
+fn nested_negation_keeps_the_float_literal_and_its_format() {
+    let tokens = Lexer::new("-(-1.25e+1f32)").tokenize().unwrap();
+    let source = source_text::SourceId::default();
+    let mut parsed = SyntaxTrees::new(source);
+    let input = crate::token_input::cursor::Input::new(source, &tokens, &mut parsed);
+    let (handle, rest) = parse_expression_handle(&mut parsed, input).unwrap();
+    assert!(rest.tokens.is_empty());
+    let ExpressionNode::Float(spelling) = parsed.expressions.expression(handle) else {
+        panic!("nested signs should fold to a float literal")
+    };
+    assert_eq!(spelling.as_str(&parsed), "1.25e+1f32");
+    let literal = spelling.literal(&parsed).unwrap();
+    assert_eq!(literal.landing(), Some(numeric_literals::FloatFormat::F32));
+    assert_eq!(literal.value_f32(), 12.5);
+}
+
+#[test]
 fn nested_aggregates_and_grouped_unary_prefixes_use_the_default_stack() {
     let value = (0..64).fold("compute(source)".to_owned(), |value, _| {
         format!("~({value})")

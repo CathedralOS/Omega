@@ -40,6 +40,7 @@
 mod fleet;
 mod record;
 
+use crate::repository::{RUST_ROOT, git};
 use record::{Header, Journal, Shard, Status};
 use std::collections::BTreeMap;
 use std::fs;
@@ -189,25 +190,19 @@ fn quick_selection(programs: &[String]) -> Vec<String> {
 /// The programs to check: tracked `main.omg` files under `samples/` and
 /// shared and owner-local fixture directories, as paths relative to the repository root.
 fn tracked_programs(root: &Path) -> Result<Vec<String>, String> {
-    let output = Command::new("git")
-        .args([
+    let owner_fixtures = format!("{RUST_ROOT}/*/tests/fixtures/*main.omg");
+    let output = git(
+        root,
+        &[
             "ls-files",
             "--",
             "samples/*main.omg",
             "tests/fixtures/*main.omg",
-            "source-rust/*/tests/fixtures/*main.omg",
+            &owner_fixtures,
             "tools/*/tests/fixtures/*main.omg",
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("git ls-files: {error}"))?;
-    if !output.status.success() {
-        return Err(format!(
-            "git ls-files failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
-    let mut programs: Vec<String> = String::from_utf8_lossy(&output.stdout)
+        ],
+    )?;
+    let mut programs: Vec<String> = output
         .lines()
         .filter(|line| !line.is_empty())
         .map(str::to_owned)
@@ -579,48 +574,37 @@ impl Reason {
     }
 }
 
-/// The repository paths changed between `rev` and the working tree.
+/// A moved file names both its old folder and its new one.
 fn changed_files(root: &Path, rev: &str) -> Result<Vec<String>, String> {
-    let output = Command::new("git")
-        // Without rename detection a moved file names both its old folder,
-        // whose program no longer compiles it, and its new one.
-        .args([
+    let output = git(
+        root,
+        &[
             "diff",
             "--name-only",
             "--no-renames",
             &format!("{rev}...HEAD"),
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("git diff: {error}"))?;
-    if !output.status.success() {
-        return Err(format!(
-            "git diff {rev}...HEAD failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
-    Ok(String::from_utf8_lossy(&output.stdout)
+        ],
+    )?;
+    Ok(output
         .lines()
         .filter(|line| !line.is_empty())
         .map(str::to_owned)
         .collect())
 }
 
-/// String literals on the changed lines of the compiler sources in the diff,
-/// split at format placeholders: the error messages a change touched.
+/// The error messages a change touched, split at format placeholders.
 fn changed_messages(root: &Path, rev: &str) -> Result<Vec<String>, String> {
-    let output = Command::new("git")
-        .args([
+    let output = git(
+        root,
+        &[
             "diff",
             "--unified=0",
             &format!("{rev}...HEAD"),
             "--",
             "*.rs",
-        ])
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("git diff: {error}"))?;
-    Ok(messages_in(&String::from_utf8_lossy(&output.stdout)))
+        ],
+    )?;
+    Ok(messages_in(&output))
 }
 
 /// The message fragments on a unified diff's changed lines.
@@ -672,7 +656,16 @@ fn direct_dependencies(root: &Path, folder: &str) -> Vec<String> {
         .split("location:")
         .skip(1)
         .filter_map(|rest| rest.split('"').nth(1))
-        .filter(|location| location.starts_with('.'))
+        .filter(|location| {
+            matches!(
+                Path::new(location).components().next(),
+                Some(
+                    std::path::Component::CurDir
+                        | std::path::Component::ParentDir
+                        | std::path::Component::Normal(_)
+                )
+            )
+        })
         .map(|location| normal(&format!("{folder}/{location}")))
         .collect()
 }
@@ -719,10 +712,13 @@ fn blast_zone(
         *entry = (*entry).min(reason);
     };
     let compiler = changed.iter().any(|path| {
-        path.starts_with("omega-rust/")
-            || path == "Cargo.toml"
-            || path == "Cargo.lock"
-            || path == "rust-toolchain.toml"
+        // The Rust tree also owns sample fixtures, which follow the ordinary
+        // program and dependency selection below.
+        (Path::new(path).starts_with(RUST_ROOT) && !path.contains("/tests/fixtures/"))
+            || matches!(
+                path.as_str(),
+                "Cargo.toml" | "Cargo.lock" | "rust-toolchain.toml"
+            )
     });
     let library = changed
         .iter()
@@ -1356,8 +1352,7 @@ mod tests {
 
     #[test]
     fn dependencies_are_followed_to_the_end() {
-        // app depends on lib, lib on base, and base back on lib: the closure
-        // is both packages, once each.
+        // The child package leads outside its parent to base, which cycles back to lib.
         let root = std::env::temp_dir().join(format!("sweep-deps-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         let build = |folder: &str, location: &str| {
@@ -1369,11 +1364,17 @@ mod tests {
             .unwrap();
         };
         build("samples/app", "../../packages/lib");
-        build("packages/lib", "../base");
+        build("packages/lib/vendor", "../../base");
         build("packages/base", "../lib");
-        let roots = dependency_roots(&root, "samples/app/main.omg");
+        for location in ["./vendor", "vendor"] {
+            build("packages/lib", location);
+            assert_eq!(
+                dependency_roots(&root, "samples/app/main.omg"),
+                ["packages/base", "packages/lib", "packages/lib/vendor"],
+                "transitive dependencies through {location}"
+            );
+        }
         let _ = fs::remove_dir_all(&root);
-        assert_eq!(roots, ["packages/base", "packages/lib"]);
     }
 
     #[test]

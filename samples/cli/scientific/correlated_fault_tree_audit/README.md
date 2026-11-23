@@ -57,9 +57,9 @@ Native validation first uses the public CLI to compile, run and retain the
 program, then reuses that exact native image for all remaining fixture inputs.
 The image SHA-256 and build directory are recorded with its first result.
 Run only one compiler execution at a time. `--both` uses finite stdin for native
-and Terminal replay. The CLI compares termination, not interpreted stdout;
-byte-exact native output checks and recorded Terminal agreement are distinct
-evidence. Unsupported or declined interpretation is not a pass.
+and Terminal replay. The CLI compares termination, stdout and stderr between engines. The validator
+separately checks the native bytes against the fixture. Unsupported or declined interpretation
+is not a pass.
 
 `controls/intended_invalid/` is a separate complete program with its own Build entry
 binding. It deliberately writes element 3 of a three-element array. The required rejection

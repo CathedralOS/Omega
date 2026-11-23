@@ -944,7 +944,7 @@ pub(crate) mod runtime_spill {
         use register_environment::ValidatedTargetRegisterEnvironment;
         use register_model::RegisterOperandAccess;
         use selected_instructions::{
-            LocalStorageSlotId, SelectedCasePayloadTransport, SelectedInstruction,
+            AppendOnlyRows, LocalStorageSlotId, SelectedCasePayloadTransport, SelectedInstruction,
             SelectedLocalStorageSlot, SelectedStructuralTransport, SelectedValueTransport,
             VirtualRegister, VirtualRegisterId,
         };
@@ -962,7 +962,7 @@ pub(crate) mod runtime_spill {
             register: VirtualRegisterId,
             share: bool,
             open: &mut Option<VirtualRegisterId>,
-            virtual_registers: &mut Vec<VirtualRegister>,
+            virtual_registers: &mut AppendOnlyRows<'_, VirtualRegister>,
             instructions: &mut Vec<SelectedInstruction>,
             next_instruction: &mut u32,
             next_register: &mut u32,
@@ -1162,7 +1162,7 @@ pub(crate) mod runtime_spill {
                                     |instruction_index: usize,
                                      original: &selected_instructions::SelectedInstruction,
                                      open_reload: &mut Option<VirtualRegisterId>,
-                                     virtual_registers: &mut Vec<VirtualRegister>,
+                                     virtual_registers: &mut AppendOnlyRows<'_, VirtualRegister>,
                                      instructions: &mut Vec<selected_instructions::SelectedInstruction>,
                                      next_instruction: &mut u32,
                                      next_register: &mut u32|

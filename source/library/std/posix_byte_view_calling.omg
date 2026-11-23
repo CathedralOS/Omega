@@ -177,13 +177,13 @@ machine posix_byte_view_parameter(signature: @|abi|::BoundarySignature, plan: @m
             _ -> 7
         }
     }
-    machine place(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan, ordinal: u64, word: u64, shape: @|abi|::ValueShape, pair: bool) -> u64
+    machine place(signature: @|abi|::BoundarySignature, plan: @mutable |abi|::BoundaryEntryPlan, ordinal: u64, word: u64, shape: @|abi|::ValueShape, needs_two_words: bool) -> u64
     requires ordinal < 6, word < 6
     {
         plan.call.parameters[ordinal].shape = |abi|::AbiValueShape {
             class: |abi|::AbiValueClass::Integer, byte_size: shape.byte_size, alignment: shape.alignment
         };
-        transition pair {
+        transition needs_two_words {
             true -> pair(signature, plan, ordinal, word),
             _ -> single(signature, plan, ordinal, word, shape.byte_size)
         }

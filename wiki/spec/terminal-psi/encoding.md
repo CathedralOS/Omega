@@ -1723,8 +1723,8 @@ terminal-input record uses `OMGNTI39` and rejects predecessor schemas
 `OMGNTI33`, `OMGNTI35`, `OMGNTI36`, `OMGNTI37` and `OMGNTI38`, as well as other stale versions. Calling applications
 retain an optional exact semantic formal for dispatch-only table use rather
 than the retired omitted-prefix count. Proof-system marker 9 separately
-records the integer-to-float representability rule and fingerprint tag 32;
-it does not add a stored certificate decoder or change the `PSICORE` envelope.
+records the integer-to-float representability rule and certificate tag 32,
+which the stored certificate decoder reads; it does not change the `PSICORE` envelope.
 
 Native record `OMGNTI39` also retains the classified `IntegerAggregate` ABI
 case for Darwin non-HFA composites. It distinguishes their whole-eight-byte
@@ -2103,8 +2103,10 @@ An absent machine upper bound differs from an explicit empty bound. Vocabulary
 marker 142 describes this combined schema. The incompatible predecessor schemas
 marked 280 through 285, including independent layouts that shared marker 280, and
 every earlier semantic format reject before payload interpretation.
-The `OMGFCV\0\0` fixed-view recovery envelope uses version 117 for this semantic
-vocabulary; versions 103 through 116 reject at the recovery header.
+Version 117 of the `OMGFCV\0\0` fixed-view recovery envelope encoded this
+semantic vocabulary. Version 119 binds each transferred claim's structural path
+in the transformed instruction plan identity. The reader rejects earlier
+recovery envelopes at the header.
 
 Semantic schema images use version 2. Declaration shape 4 describes an exact
 compiler-owned scalar: its payload retains Boolean, integer sign and width,

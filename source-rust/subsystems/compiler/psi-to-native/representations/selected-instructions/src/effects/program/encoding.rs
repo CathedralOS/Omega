@@ -1062,125 +1062,16 @@ mod v6 {
             let implicit_unit_uses = decode_units(cursor)?;
             let implicit_unit_defs = decode_units(cursor)?;
             let implicit_unit_clobbers = decode_units(cursor)?;
-            let memory = match cursor.byte()? {
-                19 if allow_scalar_call => MachineEncodedMemoryEffect::ReadTableFieldV1 {
-                    pointer_operand: cursor.u16()?,
-                    byte_offset: cursor.u32()?,
-                },
-                12 => MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
-                    stack_pointer: register_model::RegisterViewId(cursor.u16()?),
-                    byte_count: cursor.u16()?,
-                },
-
-                18 => MachineEncodedMemoryEffect::AtomicFenceV1,
-                19 => MachineEncodedMemoryEffect::CatalogFenceV1,
-                20 => MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1,
-                11 => MachineEncodedMemoryEffect::AtomicPointerV1 {
-                    pointer_operand: cursor.u16()?,
-                    form: crate::AtomicForm::from_ordinal(cursor.byte()?)
-                        .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
-                },
-                8 => MachineEncodedMemoryEffect::HostedReadByteV1 {
-                    stack_pointer: register_model::RegisterViewId(cursor.u16()?),
-                },
-                6 => MachineEncodedMemoryEffect::HostedWriteByteV1 {
-                    stack_pointer: register_model::RegisterViewId(cursor.u16()?),
-                },
-                9 => MachineEncodedMemoryEffect::CopyBytesV1 {
-                    source_pointer_operand: cursor.u16()?,
-                    destination_pointer_operand: cursor.u16()?,
-                    count_operand: cursor.u16()?,
-                },
-                16 => MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
-                    pointer_operand: cursor.u16()?,
-                    codec_operand: cursor.u16()?,
-                },
-                17 => MachineEncodedMemoryEffect::WriteEncodedScalarV1 {
-                    pointer_operand: cursor.u16()?,
-                    codec_operand: cursor.u16()?,
-                },
-                13 => MachineEncodedMemoryEffect::ScanByteSequenceV1 {
-                    base_pointer_operand: cursor.u16()?,
-                    count_operand: cursor.u16()?,
-                },
-                14 => MachineEncodedMemoryEffect::CompareByteSequencesV1 {
-                    left_base_operand: cursor.u16()?,
-                    left_count_operand: cursor.u16()?,
-                    right_base_operand: cursor.u16()?,
-                    right_count_operand: cursor.u16()?,
-                },
-                15 => MachineEncodedMemoryEffect::ZeroBytesV1 {
-                    destination_pointer_operand: cursor.u16()?,
-                    count_operand: cursor.u16()?,
-                },
-                0 => MachineEncodedMemoryEffect::NoneV1,
-                25 => MachineEncodedMemoryEffect::InstalledInterruptCpuCheckV1 {
-                    table_pointer_operand: cursor.u16()?,
-                    task_pointer_operand: cursor.u16()?,
-                    scratch_pointer_operand: cursor.u16()?,
-                    stack_pointer: register_model::RegisterViewId(cursor.u16()?),
-                },
-                26 => MachineEncodedMemoryEffect::InstalledInterruptTaskCommitV1 {
-                    table_pointer_operand: cursor.u16()?,
-                    task_pointer_operand: cursor.u16()?,
-                    scratch_pointer_operand: cursor.u16()?,
-                    stack_pointer: register_model::RegisterViewId(cursor.u16()?),
-                },
-                27 => MachineEncodedMemoryEffect::InstalledInterruptTablePublicationV1 {
-                    table_pointer_operand: cursor.u16()?,
-                    scratch_pointer_operand: cursor.u16()?,
-                },
-                22 => MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
-                    table_pointer_operand: cursor.u16()?,
-                    table_byte_count_operand: cursor.u16()?,
-                    task_pointer_operand: cursor.u16()?,
-                    selector_operand: cursor.u16()?,
-                    scratch_pointer_operand: cursor.u16()?,
-                    stack_pointer: register_model::RegisterViewId(cursor.u16()?),
-                },
-                23 => MachineEncodedMemoryEffect::SegmentDescriptorReloadV1 {
-                    table_pointer_operand: cursor.u16()?,
-                    table_byte_count_operand: cursor.u16()?,
-                    selector_operand: cursor.u16()?,
-                    scratch_pointer_operand: cursor.u16()?,
-                    stack_pointer: register_model::RegisterViewId(cursor.u16()?),
-                },
-                21 => MachineEncodedMemoryEffect::WriteFixedPointerV1 {
-                    pointer_operand: cursor.u16()?,
-                    byte_count: cursor.u16()?,
-                },
-                7 => MachineEncodedMemoryEffect::WritePointerV1 {
-                    pointer_operand: cursor.u16()?,
-                },
-                5 => MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
-                    pointer_operand: cursor.u16()?,
-                    index_operand: cursor.u16()?,
-                    byte_count: cursor.u16()?,
-                },
-                3 => MachineEncodedMemoryEffect::ReadPointerV1 {
-                    pointer_operand: cursor.u16()?,
-                    byte_count: cursor.u16()?,
-                },
-                4 => MachineEncodedMemoryEffect::WriteFrameStorageV1 {
-                    stack_pointer: register_model::RegisterViewId(cursor.u16()?),
-                    byte_count: cursor.u16()?,
-                },
-                10 => MachineEncodedMemoryEffect::ReadFrameStorageV1 {
-                    stack_pointer: register_model::RegisterViewId(cursor.u16()?),
-                    byte_count: cursor.u16()?,
-                },
-                1 => MachineEncodedMemoryEffect::ReadActivationStackV1 {
-                    stack_pointer: register_model::RegisterViewId(cursor.u16()?),
-                    byte_count: cursor.u16()?,
-                },
-                2 if allow_scalar_call => {
-                    MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
-                        stack_pointer: register_model::RegisterViewId(cursor.u16()?),
-                        byte_count: cursor.u16()?,
-                    }
-                }
-                _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
-            };
+            let memory = MachineEncodedMemoryEffect::decode(cursor)?;
+            if !allow_scalar_call
+                && matches!(
+                    memory,
+                    MachineEncodedMemoryEffect::ReadTableFieldV1 { .. }
+                        | MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 { .. }
+                )
+            {
+                return Err(PreAllocationMachineEffectDecodeError::InvalidField);
+            }
             let stack = match cursor.byte()? {
                 3 => MachineEncodedStackEffect::TemporaryBytesV1 {
                     stack_pointer: register_model::RegisterViewId(cursor.u16()?),
@@ -1983,7 +1874,7 @@ mod v6 {
     pub use values::{decode_target, decode_units};
 
     const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
-    const VERSION: u32 = 51;
+    const VERSION: u32 = 52;
 }
 
 pub use cursor::Cursor;

@@ -1047,6 +1047,10 @@ fn examine(
                     terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
                         (RefusalReason::Unestablished, unavailable.message())
                     }
+                    terminal_semantics::plain_affine::Error::Unconsumed { at_join, .. } => (
+                        RefusalReason::Violation,
+                        terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
+                    ),
                     terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                         (RefusalReason::Unsupported, detail)
                     }
@@ -1089,6 +1093,10 @@ fn examine(
                         terminal_semantics::plain_affine::Error::Unavailable(unavailable) => {
                             (RefusalReason::Unestablished, unavailable.message())
                         }
+                        terminal_semantics::plain_affine::Error::Unconsumed { at_join, .. } => (
+                            RefusalReason::Violation,
+                            terminal_semantics::plain_affine::Error::unconsumed_message(at_join),
+                        ),
                         terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                             (RefusalReason::Unsupported, detail)
                         }

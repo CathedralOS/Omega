@@ -107,7 +107,8 @@ APP=samples/cli/independent/spectrometer_attribution
 The installed host providers are the ordinary std console. Build metadata binds
 exact hosted program-entry slots. Linux x86-64 is the execution acceptance host;
 other bindings are portability declarations, not unexecuted test claims.
-`run --both` compares native and Terminal termination only. The optional corpus
+`omega run --both` compares termination and the exact stdout and stderr bytes from
+both engines. The optional corpus
 validation route checks each engine's stdout and stderr independently against
 the same frozen files; it never substitutes checked-tree execution for Terminal.
 

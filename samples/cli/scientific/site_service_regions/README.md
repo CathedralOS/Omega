@@ -61,10 +61,10 @@ omega --check samples/cli/independent/site_service_regions/invalid/negative_quot
 Only resume after reviewing and accepting the precise pending package decisions.
 Generated binaries, outputs, diagnostic logs and run receipts go in ignored
 `build/`. Terminal `interp exit: <expected status>` must be observed explicitly; a
-`DECLINED` is reported as an unsupported comparison. The public CLI compares
-termination and forwards native stdout. Thus the output oracles verify native
-streams, while Terminal acceptance checks execution and the application’s
-internal geometry assertions; it does not establish equal Terminal stdout.
+`DECLINED` is reported as an unsupported comparison. The CLI compares termination, stdout and
+stderr between engines and forwards the
+native streams. The output oracles check those streams against expected values. Both
+engines run the application’s geometry assertions.
 
 ## Semantic overlap review
 

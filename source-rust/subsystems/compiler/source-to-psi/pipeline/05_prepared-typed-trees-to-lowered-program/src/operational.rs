@@ -96,7 +96,8 @@ fn statements(machine: MachineId, statements: &[Statement]) -> Checked<()> {
     }
     for statement in statements {
         match statement {
-            Statement::Bind { value, .. }
+            Statement::Observe { value, .. }
+            | Statement::Bind { value, .. }
             | Statement::Decompose { subject: value }
             | Statement::Evaluate {
                 expression: value, ..
@@ -128,7 +129,7 @@ fn statements(machine: MachineId, statements: &[Statement]) -> Checked<()> {
             Statement::Arm {
                 guard, target: arm, ..
             } => {
-                if let Some(guard) = guard {
+                if let Some(guard) = guard.condition() {
                     expression(machine, guard)?;
                 }
                 target(machine, arm)?;

@@ -1,0 +1,6 @@
+source-rust/subsystems/compiler/psi/artifact/wire/src/foundation_validation.rs	1	13836	13836
+source-rust/subsystems/compiler/psi/artifact/wire/src/identity_formations.rs	1	333	333
+source-rust/subsystems/compiler/psi/artifact/wire/src/lib.rs	1	153	153
+source-rust/subsystems/compiler/psi/artifact/wire/src/mathematical_proof_actual.rs	1	951	951
+source-rust/subsystems/compiler/psi/artifact/wire/src/module_wire.rs	1	4217	4217
+source-rust/subsystems/compiler/psi/artifact/wire/src/obligation_evidence.rs	1	1913	1913

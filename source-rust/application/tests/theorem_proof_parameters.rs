@@ -23,11 +23,16 @@ fn invoke(wrong_proof: bool) -> (Output, String) {
     };
     std::fs::write(scratch.path().join("main.omg"), source).unwrap();
     std::fs::copy(fixture.join("build.omg"), scratch.path().join("build.omg")).unwrap();
+    std::fs::write(scratch.path().join("empty.stdin"), []).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
         .args([
             "run",
             "--both",
             "--keep",
+            "--input",
+            "empty.stdin",
+            "--outputs",
+            "observations",
             "--build-input",
             "build.omg",
             "--build-input",
@@ -44,6 +49,30 @@ fn invoke(wrong_proof: bool) -> (Output, String) {
         String::from_utf8_lossy(&output.stderr),
     );
     eprintln!("{report}");
+    if !wrong_proof {
+        assert!(output.status.success(), "{report}");
+        let observations = scratch.path().join("observations");
+        let table = std::fs::read_to_string(observations.join("results.tsv")).unwrap();
+        let rows: Vec<_> = table.lines().collect();
+        assert_eq!(rows.len(), 2, "{table}");
+        let columns: Vec<_> = rows[1].split('\t').collect();
+        assert_eq!(columns.len(), 4, "{table}");
+        assert_eq!(columns[0], "empty", "{table}");
+        assert_eq!(columns[1], "0", "native must exit zero: {table}");
+        assert_eq!(columns[3], "0", "Psi must exit zero: {table}");
+        assert_eq!(columns[2], "agrees", "{table}");
+        for stream in ["stdout", "stderr"] {
+            let native = std::fs::read(observations.join(format!("empty.{stream}"))).unwrap();
+            let psi = std::fs::read(observations.join(format!("empty.terminal.{stream}"))).unwrap();
+            assert!(
+                native.is_empty(),
+                "native {stream} must be empty: {native:?}"
+            );
+            assert!(psi.is_empty(), "Psi {stream} must be empty: {psi:?}");
+            assert_eq!(native, psi, "{stream}");
+        }
+        eprintln!("{table}both engines produced the expected empty stdout and stderr");
+    }
     (output, report)
 }
 
@@ -51,9 +80,6 @@ fn invoke(wrong_proof: bool) -> (Output, String) {
 fn an_explicit_named_theorem_runs_without_a_callback() {
     let (output, report) = invoke(false);
     assert!(output.status.success(), "{report}");
-    for receipt in ["native exit 0", "interp exit: 0"] {
-        assert!(report.lines().any(|line| line == receipt), "{report}");
-    }
 }
 
 #[test]

@@ -1681,6 +1681,7 @@ pub mod control_flow {
                                     target,
                                     continuation,
                                     guard,
+                                    ends_dispatch: transition.ends_dispatch,
                                     proof_selectors: self
                                         .statement_table
                                         .outcome_proof_selectors
@@ -2697,6 +2698,8 @@ pub mod control_flow {
             pub guard: TransitionGuardNode,
             pub proof_selectors: HandleSpan<OutcomeProofSelector>,
             pub exit: TransitionExit,
+            /// The last arm of this authored dispatch owes coverage on every remaining arrival.
+            pub ends_dispatch: bool,
             pub source_span: SourceSpan,
         }
 
@@ -2717,6 +2720,7 @@ pub mod control_flow {
                     guard: TransitionGuardNode::Always,
                     proof_selectors: HandleSpan::empty(),
                     exit: TransitionExit::Ordinary,
+                    ends_dispatch: false,
                     source_span: Default::default(),
                 }
             }

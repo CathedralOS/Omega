@@ -19,6 +19,35 @@ use terminal_psi::{
 
 mod definition;
 
+/// Recover the groups described by the original signature using the lowered
+/// boundary’s structural parameters and result.
+pub fn boundary_result_lifetimes_from_signature(
+    module: &TerminalModule,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+    lifetimes: usize,
+    parameters: &[String],
+    result: &str,
+) -> Result<Vec<DeclaredResultLifetime>, &'static str> {
+    let terminal_psi::BoundaryMachineResult::Structural(output) = &boundary.result else {
+        return Err("a result lifetime requires a structural boundary result");
+    };
+    if !boundary.has_valid_parameter_order() || parameters.len() != boundary.parameter_order.len() {
+        return Err("boundary lifetime signature differs from its published formal namespace");
+    }
+    let formals = boundary
+        .parameter_positions(terminal_psi::BoundaryParameterKind::Structural)
+        .zip(&boundary.structural_parameters)
+        .map(|(position, formal)| (position, formal.structural_type, formal.access));
+    definition::signature_result_lifetimes(
+        module,
+        u32::try_from(lifetimes).map_err(|_| "boundary lifetime namespace exceeds u32")?,
+        parameters,
+        result,
+        output.structural_type,
+        formals,
+    )
+}
+
 /// A call's public reference result: the declared lifetime groups of the
 /// contract it invokes, validated against that contract's result frontier.
 pub struct DeclaredReferenceResult<'module> {

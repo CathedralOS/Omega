@@ -17,7 +17,7 @@ pub(crate) enum InspectTerminalArguments {
 }
 
 pub(super) fn parse_arguments(
-    mut arguments: impl Iterator<Item = std::ffi::OsString>,
+    arguments: &mut super::Arguments,
 ) -> Result<Option<InspectTerminalArguments>, String> {
     let mut help = false;
     let mut machine = None;
@@ -25,38 +25,32 @@ pub(super) fn parse_arguments(
     let mut target_name = None;
     let mut artifact_path = None;
     let mut output = None;
-    while let Some(argument) = arguments.next() {
+    while let Some(argument) = arguments.next_argument() {
         match argument.to_str() {
             Some("--help" | "-h") => super::set_flag(&mut help, &argument.to_string_lossy())?,
             Some("--output") => {
                 if output.is_some() {
                     return Err("duplicate --output".into());
                 }
-                output = Some(PathBuf::from(super::take_value(
-                    &mut arguments,
-                    "--output",
-                )?));
+                output = Some(PathBuf::from(super::take_value(arguments, "--output")?));
             }
             Some("--artifact") => {
                 if artifact_path.is_some() {
                     return Err("duplicate --artifact".into());
                 }
-                artifact_path = Some(PathBuf::from(super::take_value(
-                    &mut arguments,
-                    "--artifact",
-                )?));
+                artifact_path = Some(PathBuf::from(super::take_value(arguments, "--artifact")?));
             }
             Some("--machine") => {
                 if machine.is_some() {
                     return Err("duplicate --machine".into());
                 }
-                machine = Some(super::take_text(&mut arguments, "--machine")?);
+                machine = Some(super::take_text(arguments, "--machine")?);
             }
             Some("--target") => {
                 if target_name.is_some() {
                     return Err("duplicate --target".into());
                 }
-                target_name = Some(super::take_text(&mut arguments, "--target")?);
+                target_name = Some(super::take_text(arguments, "--target")?);
             }
             _ => {
                 if argument.as_encoded_bytes().starts_with(b"-") {

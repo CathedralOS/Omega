@@ -11,8 +11,7 @@
     The check reads the resolved declarations once: every case of a selected
     data declaration and every selected domain attached to one, sorted by
     owner and name, then compared with its neighbour. Fields are not members
-    of this namespace. Nested data declarations do not parse yet; when they
-    do, they join these rows.
+    of this namespace. A nested data declaration joins as its owner's member.
 */
 
 use diagnostics::Diagnostic;
@@ -26,6 +25,7 @@ use crate::source_resolved::types::TypeReference;
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MemberKind {
     Case,
+    NestedData,
     Domain,
 }
 
@@ -33,6 +33,7 @@ impl MemberKind {
     const fn named(self) -> &'static str {
         match self {
             Self::Case => "case",
+            Self::NestedData => "nested data declaration",
             Self::Domain => "attached domain",
         }
     }
@@ -80,6 +81,31 @@ pub(crate) fn reject_member_collisions(
                 });
             }
         }
+    }
+    // The parser names a nested declaration `Owner::Name` beside its owner
+    // in the same file; the member is its last segment.
+    for nested in program
+        .data_definitions
+        .iter()
+        .filter(|definition| selected(definition.symbol))
+    {
+        let path = nested.name.as_str();
+        let Some((owner_path, name)) = path.rsplit_once("::") else {
+            continue;
+        };
+        let span = nested.name.source_span();
+        let Some(owner) = program.data_definitions.iter().find(|owner| {
+            owner.name.as_str() == owner_path
+                && owner.name.source_span().source_id == span.source_id
+        }) else {
+            continue;
+        };
+        members.push(Member {
+            owner: owner.symbol,
+            name,
+            kind: MemberKind::NestedData,
+            span,
+        });
     }
     for domain in program
         .domain_definitions

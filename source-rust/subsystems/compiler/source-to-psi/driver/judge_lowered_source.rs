@@ -24,7 +24,7 @@ use typed_trees_to_prepared_typed_trees as preparation;
 pub(crate) struct SettledSource {
     pub(crate) program: crate::source_state::TypedTrees,
     pub(crate) values: Vec<preparation::ValueInputs>,
-    pub(crate) selected_providers: Vec<symbols::SymbolHandle>,
+    pub(crate) selected_providers: Vec<preparation::SelectedProvider>,
     pub(crate) accounting: crate::compile_time_invocations::SourceCompletionAccounting,
 }
 

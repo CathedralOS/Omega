@@ -27,6 +27,10 @@ fn refusal(build: &str) -> String {
     match judge_build(build) {
         Err(crate::checking::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
+        // A program the compiler rejects reads as its one violation.
+        Ok(RouteVerdict::Rejected { violations, .. }) if violations.len() == 1 => {
+            violations[0].statement.clone()
+        }
         other => panic!("{other:?}"),
     }
 }
@@ -111,7 +115,7 @@ machine named<'storage, 'other>(holder: @mutable Holder<'storage>, name: @'other
 machine build_entry() {{ }}
 "
         )),
-        "typing assigned value type while reading the body of `named`"
+        "this view is of the region of another lifetime of the machine than the place it is assigned to names: nothing relates two lifetimes of one machine while reading the body of `named`"
     );
 }
 
@@ -131,7 +135,7 @@ fn a_view_moves_between_records_only_at_one_region() {
                 "{HOLDER}machine build_entry() {{ }}\n\
                  machine exchange{signature} {{ long.name = short.name; }}\n"
             )),
-            "typing assigned value type while reading the body of `exchange`",
+            "this view is of the region of another lifetime of the machine than the place it is assigned to names: nothing relates two lifetimes of one machine while reading the body of `exchange`",
             "{signature}"
         );
     }
@@ -279,12 +283,13 @@ fn a_lifetime_requirement_is_checked_once_for_every_argument() {
 #[test]
 fn selected_generic_helpers_keep_their_ordinary_lifetime_obligations() {
     let source = r#"
-machine make<'storage>(bytes: @'storage [u8]) -> u64 { bytes.length }
-machine relay<'storage, Kind, machine Make>(bytes: @'storage [u8], other: @'storage [u8], count: @mutable u64) -> u64
-requires machine Make(bytes: @'storage [u8]) -> u64 reaches none crashes none;
-{ let length: u64 = Make(bytes); count = length; length }
-machine entry(left: @[u8], right: @[u8], count: @mutable u64) {
-    let selected: u64 = relay::<u32, make>(left, left, count);
+data Action = machine() reaches none crashes none;
+machine make<'storage>(action: Action, bytes: @'storage [u8]) -> u64 { bytes.length }
+machine relay<'storage, Kind, machine Make>(action: Action, bytes: @'storage [u8], other: @'storage [u8], count: @mutable u64) -> u64
+requires machine Make(action: Action, bytes: @'storage [u8]) -> u64 reaches none crashes none;
+{ let length: u64 = Make(action, bytes); count = length; length }
+machine entry(action: Action, left: @[u8], right: @[u8], count: @mutable u64) {
+    let selected: u64 = relay::<u32, make>(action, left, left, count);
 }
 "#;
     let judged = |text: &str| {
@@ -365,14 +370,13 @@ machine entry(left: @[u8], right: @[u8], count: @mutable u64) {
             2,
             "preparation keeps the exact application even when its callable has open lifetimes"
         );
-        let verdicts = super::boundary_calls::compilation_results_for_subjects(&prepared, &[]);
-        assert!(
-            verdicts.len() > 1,
-            "the selected application and its declaration are both judged: {verdicts:?}"
-        );
-        verdicts
+        super::boundary_calls::compilation_results_for_subjects(&prepared, &[])
     };
     let accepted = judged(source);
+    assert!(
+        accepted.len() > 1,
+        "the selected application and its declaration are both judged: {accepted:?}"
+    );
     for (position, verdict) in accepted.iter().enumerate() {
         assert!(
             matches!(verdict, Ok(RouteVerdict::Accepted(_))),
@@ -415,14 +419,31 @@ machine entry(left: @[u8], right: @[u8], count: @mutable u64) {
     );
     let entering = source.replace(
         "-> u64 reaches none crashes none;",
-        "-> u64 reaches none crashes none invokes bytes;",
+        "-> u64 reaches none crashes none invokes action;",
+    );
+    let outside = format!(
+        "boundary trait Foreign {{}}\n{}",
+        entering.replace(
+            "-> u64 { bytes.length }",
+            "-> u64 invokes Foreign { bytes.length }"
+        )
+    );
+    let refused = judged(&outside);
+    assert!(
+        refused.iter().any(|verdict| matches!(
+            verdict,
+            Err(crate::checking::CompilationRefusal::Elaboration(refusal))
+                if refusal.reason == RefusalReason::Conflict
+                    && refusal.detail == "selected machine exceeds the callable invocation ceiling"
+        )),
+        "the selected callback's unrelated entry exceeds the published binder: {refused:?}"
     );
     let erased = entering
         .replace(
-            "(bytes: @'storage [u8])",
-            "(prior [erased]: u32, bytes: @'storage [u8])",
+            "(action: Action, bytes: @'storage [u8])",
+            "(prior [erased]: u32, action: Action, bytes: @'storage [u8])",
         )
-        .replace("Make(bytes)", "Make(0u32, bytes)");
+        .replace("Make(action, bytes)", "Make(0u32, action, bytes)");
     for (text, erased_formal) in [(&entering, false), (&erased, true)] {
         let mut checked_parameter = false;
         let entering = judged(text);
@@ -505,7 +526,10 @@ machine entry(left: @[u8], right: @[u8], count: @mutable u64) {
             "the source schema must retain its exact parameter-entry permission"
         );
     }
-    let refused = judged(&source.replace("(left, left, count)", "(left, right, count)"));
+    let refused = judged(&source.replace(
+        "(action, left, left, count)",
+        "(action, left, right, count)",
+    ));
     assert!(
         refused.iter().any(|verdict| match verdict {
             Err(crate::checking::CompilationRefusal::Elaboration(refusal))

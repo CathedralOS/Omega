@@ -15,8 +15,8 @@ justify its name.
 
 ```text
 omega [--check [--floor-only]] [--verify] [--validator <ExactName>]... [--every-validator] <root.omg>
-omega build <root.omg>
-omega run [--engine native|psi | --both] [--target <name>] <root.omg>
+omega build [--compare-tests] <root.omg>
+omega run [--engine native|psi] [--target <name>] <root.omg>
 omega source parse [--] <file>
 omega source rewrite <ExactRule>... [--check] <root.omg>
 omega packages audit --kind <local|git> <locator> [--rev <rev>]
@@ -29,6 +29,8 @@ omega psi inspect --artifact <file>
 
 These forms show routing, not an exhaustive restatement of existing options.
 Build and run share the same [initial entry selection](#build-first-entry-selection).
+`omega build --compare-tests` requests [native/Psi comparison of registered
+tests](testing.md#comparing-native-and-psi-tests). This replaces `omega run --both`.
 `omega source parse` checks the syntax of the whole file. Success
 exits silently with status 0. File-read, lexer and parser errors go to stderr
 with status 1. Source refusals include the path, one-based line and byte
@@ -100,8 +102,9 @@ indirectly, forms a cycle and is refused.
 The compiler checks the whole source file with the inputs available to each
 stage before running its selected entry. If `build` generates a type named
 `Schema` and a same-file `main` uses it, checking the build stage fails at the
-use of `Schema`. A build can instead put that `main` and the generated type
-together in the product stage's inputs.
+use of `Schema`. A handwritten Product entry in a separate source file can
+import the generated type normally once both files belong to the
+[Product source view](execution.md#generated-source-boundary).
 
 ## Public Psi naming
 
@@ -117,12 +120,8 @@ unrelated terminology and keep their ordinary meaning.
 
 The interpreted engine spelling is `--engine psi`. The interpreted work limit
 is `--psi-work-budget <positive-u64>` wherever that budget is applicable.
-This renames public selectors only: work semantics, `--both` comparison,
-wire identities, internal stage names and crate paths do not change.
-
-Omit `--target` to compare native and Psi execution on the host with `--both`.
-See [execution selection](embedding.md#standalone-execution-selection) for
-how an explicit target interacts with each engine.
+See [standalone execution selection](embedding.md#standalone-execution-selection)
+for the effect of an explicit target on a single-engine run.
 
 ## Source rewriting
 

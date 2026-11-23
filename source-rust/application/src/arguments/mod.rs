@@ -3,11 +3,11 @@
 Command-line parser for the `omega` binary.
 
 We parse the entire invocation into an `Invocation` value before any compiler
-or package work starts. The first argument selects the command surface
-(`packages`, `psi`, `source`, `build`, `run`, `--help`, or `--version`); anything else
-is passed to `compile::parse_arguments` with that first token put back at the
-front of the iterator, because `omega <root.omg>` and `omega --check <root.omg>`
-are the default command. Flat `install`/`update`, action-first `audit`, and
+or package work starts. After any global flags, the first argument selects
+the command surface (`packages`, `psi`, `source`, `build`, `run`, `--help`, or
+`--version`). Any other first token goes back on the argument list for
+`compile::parse_arguments`, because `omega <root.omg>` and
+`omega --check <root.omg>` are the default command. Flat `install`/`update`, action-first `audit`, and
 `inspect-terminal` are rejected. They are not aliases of the subsystem forms
 in `wiki/spec/build/command_line.md`.
 
@@ -52,9 +52,11 @@ pub(crate) use compile::CompileArguments;
 pub(crate) use inspect::InspectTerminalArguments;
 pub(crate) use run::RunArguments;
 
+use crate::diagnostic_output::DiagnosticOutput;
 use package_compilation::BuildSourceCaptureObligation;
 use package_manager::operations::PackageInspectionOptions;
 use package_manager::{PackageCommand, PackageCommandKind, PackageCommandOptions};
+use std::collections::VecDeque;
 use std::ffi::OsString;
 
 pub(crate) const USAGE_ERROR_EXIT: u8 = 64;
@@ -76,8 +78,51 @@ pub(crate) enum Invocation {
 
 const SOURCE_REWRITE_USAGE: &str = "usage: omega source rewrite <ExactRule>... [--check] <root.omg>\nSource rewriting is specified and not implemented by this compiler.";
 
-pub(crate) fn parse(mut arguments: impl Iterator<Item = OsString>) -> Result<Invocation, String> {
-    let first = arguments.next();
+struct Arguments {
+    remaining: VecDeque<OsString>,
+    verbose: bool,
+}
+
+impl Arguments {
+    fn new(tokens: impl Iterator<Item = OsString>) -> Self {
+        Self {
+            remaining: tokens.collect(),
+            verbose: false,
+        }
+    }
+
+    // The command owns the next token when it asks for an option's value.
+    // Only recognize global flags while looking for another argument.
+    fn next_argument(&mut self) -> Option<OsString> {
+        while let Some(argument) = self.next_value() {
+            if argument != "--verbose" {
+                return Some(argument);
+            }
+            self.verbose = true;
+        }
+        None
+    }
+
+    fn next_value(&mut self) -> Option<OsString> {
+        self.remaining.pop_front()
+    }
+}
+
+pub(crate) fn parse(
+    tokens: impl Iterator<Item = OsString>,
+) -> Result<(Invocation, DiagnosticOutput), String> {
+    let mut arguments = Arguments::new(tokens);
+    let command = parse_command(&mut arguments)?;
+    Ok((
+        command,
+        DiagnosticOutput {
+            verbose: arguments.verbose,
+        },
+    ))
+}
+
+fn parse_command(arguments: &mut Arguments) -> Result<Invocation, String> {
+    let first = arguments.next_argument();
     match first.as_deref().and_then(std::ffi::OsStr::to_str) {
         Some("packages") => parse_packages_subsystem(arguments),
         Some("psi") => parse_psi_subsystem(arguments),
@@ -105,21 +150,26 @@ pub(crate) fn parse(mut arguments: impl Iterator<Item = OsString>) -> Result<Inv
         }
         Some("--help" | "-h" | "help") => Ok(Invocation::Help(compile::USAGE)),
         Some("--version" | "-V") => {
-            if arguments.next().is_some() {
+            if arguments.next_argument().is_some() {
                 return Err("omega --version takes no arguments".to_owned());
             }
             Ok(Invocation::Version)
         }
-        _ => finish_subcommand(
-            compile::parse_arguments(first.into_iter().chain(arguments)),
-            compile::USAGE,
-            Invocation::Compile,
-        ),
+        _ => {
+            if let Some(first) = first {
+                arguments.remaining.push_front(first);
+            }
+            finish_subcommand(
+                compile::parse_arguments(arguments),
+                compile::USAGE,
+                Invocation::Compile,
+            )
+        }
     }
 }
 
 fn parse_trusted_artifact(
-    arguments: &mut impl Iterator<Item = OsString>,
+    arguments: &mut Arguments,
     slot: &mut Option<String>,
 ) -> Result<(), String> {
     if slot.is_some() {
@@ -164,7 +214,7 @@ fn finish_subcommand<T>(
 
 fn parse_package(
     kind: PackageCommandKind,
-    arguments: impl Iterator<Item = OsString>,
+    arguments: &mut Arguments,
 ) -> Result<Invocation, String> {
     let usage = packages::usage(&kind);
     finish_subcommand(
@@ -178,10 +228,8 @@ fn parse_package(
     )
 }
 
-fn parse_packages_subsystem(
-    mut arguments: impl Iterator<Item = OsString>,
-) -> Result<Invocation, String> {
-    let action = arguments.next();
+fn parse_packages_subsystem(arguments: &mut Arguments) -> Result<Invocation, String> {
+    let action = arguments.next_argument();
     match action.as_deref().and_then(std::ffi::OsStr::to_str) {
         Some("install") => parse_package(PackageCommandKind::Install, arguments),
         Some("update") => parse_package(PackageCommandKind::Update, arguments),
@@ -206,10 +254,8 @@ fn parse_packages_subsystem(
     }
 }
 
-fn parse_psi_subsystem(
-    mut arguments: impl Iterator<Item = OsString>,
-) -> Result<Invocation, String> {
-    let action = arguments.next();
+fn parse_psi_subsystem(arguments: &mut Arguments) -> Result<Invocation, String> {
+    let action = arguments.next_argument();
     match action.as_deref().and_then(std::ffi::OsStr::to_str) {
         Some("inspect") => finish_subcommand(
             inspect::parse_arguments(arguments),
@@ -227,10 +273,10 @@ fn parse_psi_subsystem(
     }
 }
 
-fn parse_source_subsystem(arguments: impl Iterator<Item = OsString>) -> Result<Invocation, String> {
+fn parse_source_subsystem(arguments: &mut Arguments) -> Result<Invocation, String> {
     let mut help = false;
     let mut action = None;
-    for argument in arguments {
+    while let Some(argument) = arguments.next_argument() {
         if argument == "--help" || argument == "-h" {
             help = true;
             continue;
@@ -280,18 +326,15 @@ fn explicit_targets(names: &[String]) -> Result<Vec<target::TargetProfile>, Stri
         })
 }
 
-fn option_value(arguments: &mut impl Iterator<Item = OsString>) -> Option<OsString> {
+fn option_value(arguments: &mut Arguments) -> Option<OsString> {
     arguments
-        .next()
+        .next_value()
         .filter(|value| !value.is_empty() && !value.as_encoded_bytes().starts_with(b"--"))
 }
 
-fn take_value(
-    arguments: &mut impl Iterator<Item = OsString>,
-    flag: &str,
-) -> Result<OsString, String> {
+fn take_value(arguments: &mut Arguments, flag: &str) -> Result<OsString, String> {
     let value = arguments
-        .next()
+        .next_value()
         .ok_or_else(|| format!("{flag} requires a value"))?;
     if value.is_empty() || value.as_encoded_bytes().starts_with(b"-") {
         return Err(format!("{flag} requires a nonempty value, not an option"));
@@ -299,14 +342,14 @@ fn take_value(
     Ok(value)
 }
 
-fn take_text(arguments: &mut impl Iterator<Item = OsString>, flag: &str) -> Result<String, String> {
+fn take_text(arguments: &mut Arguments, flag: &str) -> Result<String, String> {
     take_value(arguments, flag)?
         .into_string()
         .map_err(|_| format!("{flag} requires a UTF-8 value"))
 }
 
 fn parse_build_input(
-    arguments: &mut impl Iterator<Item = OsString>,
+    arguments: &mut Arguments,
     flag: &str,
 ) -> Result<(Vec<u8>, BuildSourceCaptureObligation), String> {
     let path = option_value(arguments)
@@ -327,7 +370,51 @@ mod tests {
     use std::ffi::OsString;
 
     fn parse_slice(arguments: &[&str]) -> Result<Invocation, String> {
-        parse(arguments.iter().map(OsString::from))
+        parse(arguments.iter().map(OsString::from)).map(|(command, _)| command)
+    }
+
+    #[test]
+    fn verbose_is_global_between_arguments() {
+        for command in [
+            &["--verbose", "--check", "main.omg"][..],
+            &["run", "--engine", "psi", "--verbose", "main.omg"],
+            &[
+                "packages",
+                "--verbose",
+                "audit",
+                "--project",
+                ".",
+                "--verbose",
+            ],
+            &["psi", "--verbose", "inspect", "--help"],
+            &["--version", "--verbose"],
+        ] {
+            let (_, output) = parse(command.iter().map(OsString::from)).unwrap();
+            assert!(output.verbose, "{command:?}");
+        }
+        let (_, output) = parse(["--version"].into_iter().map(OsString::from)).unwrap();
+        assert!(!output.verbose);
+    }
+
+    #[test]
+    fn option_values_see_the_token_immediately_after_the_option() {
+        for (command, expected) in [
+            (
+                &["--report-file", "--verbose", "report.txt", "main.omg"][..],
+                "--report-file requires a path",
+            ),
+            (
+                &["run", "--engine", "--verbose", "psi", "main.omg"],
+                "--engine requires",
+            ),
+            (
+                &["packages", "audit", "--project", "--verbose", "."],
+                "--project requires",
+            ),
+        ] {
+            let error = parse_slice(command).err().expect("missing option value");
+            assert!(error.starts_with(expected), "{command:?}: {error}");
+        }
     }
 
     #[test]

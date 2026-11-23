@@ -2,7 +2,8 @@
 
 The package manager starts a project Build with `project_build::prepare` and passes the captured source to [the project-build crate root](project_build.rs). `project_build::interpret` resumes the authored Build when it requests a dependency or provider. Its returned stage opens the selected Product with `open_product`. [Product planning](planning/product.rs) passes the selected source, bindings and settings to the source and native compilers.
 
-Open design questions cover [building independent products together](../../../../OWNER_QUESTIONS.md#independent-product-builds), [supplying a child's filesystem view](../../../../OWNER_QUESTIONS.md#per-child-filesystem-grant) and [build-time network and subprocess access](../../../../OWNER_QUESTIONS.md#build-network-and-subprocess-grants).
+An ordinary [release program](../../../../wiki/spec/build/declarations.md#releases-with-independent-products) coordinates independent products.
+The [child filesystem contract](../../../../wiki/spec/build/scoped_execution.md#supplying-a-filesystem-to-a-child-build) specifies how a parent supplies an owned or borrowed view. The [implementation task](../../../../TASKS.md#immediate-product-closure) tracks the handoff. [Build-time network and subprocess access](../../../../OWNER_QUESTIONS.md#build-network-and-subprocess-grants) remains open.
 
 | Directory | Responsibility |
 | --- | --- |

@@ -509,8 +509,10 @@ produced it. Use the first
 byte of the primary retained span: declaration start for declaration failures,
 token/expression start for those failures, source extent for EOF. A generated
 unit failure uses a generated-source reason anchored at the request-resolvable
-authored `Build::include_source` handoff. Its generated path/internal offset
-may appear in local diagnostics, not as an invented request ordinal.
+authored handoff of the [Product source view](execution.md#generated-source-boundary).
+Local diagnostics may show the generated file's logical path and internal
+offset. Only a source actually present in the incoming request has a request
+source ordinal.
 
 Each private capacity has one named scalar resource and one `(limit, requested)`
 pair. Public limits, requested amounts, and primary coordinates lie in

@@ -1,0 +1,46 @@
+// Expected exit: 0
+use pipeline/source_files_to_tokens/lexer.omg;
+use representations/tokens/tokens.omg;
+
+// The first byte separates tokens. The following six bytes spell a quoted hex escape.
+machine scan_escape(scanner: @mutable |lexer|::Lexer, digit: u8) {
+    |lexer|::lexer_initialize(scanner, 7 as +Trapping);
+    |lexer|::append_source_byte(scanner, 32);
+    |lexer|::append_source_byte(scanner, 34);
+    |lexer|::append_source_byte(scanner, 92);
+    |lexer|::append_source_byte(scanner, 120);
+    |lexer|::append_source_byte(scanner, 52);
+    |lexer|::append_source_byte(scanner, digit);
+    |lexer|::append_source_byte(scanner, 34);
+    |lexer|::tokenize(scanner);
+}
+
+machine start() crashes Trap {
+    let mutable scanner: |lexer|::Lexer;
+    scan_escape(@mutable scanner, 49);
+    transition scanner.output.accepted && scanner.output.token_count == 1
+        && scanner.output.tokens[0].start == 1 && scanner.output.tokens[0].end == 7
+        && scanner.output.decoded_length == 1 && scanner.output.decoded[0] == 65 {
+        true -> check_invalid(@mutable scanner),
+        _ -> wrong()
+    }
+
+    machine check_invalid(scanner: @mutable |lexer|::Lexer) {
+        scan_escape(scanner, 71);
+        transition scanner.output.diagnostic.code {
+            |tokens|::LexDiagnosticCode::InvalidHexEscapeDigit -> check_span(scanner),
+            _ -> wrong()
+        }
+    }
+
+    machine check_span(scanner: @|lexer|::Lexer) {
+        transition !scanner.output.accepted && scanner.output.token_count == 0
+            && scanner.output.diagnostic.source_span.span.start == 5
+            && scanner.output.diagnostic.source_span.span.end == 6 {
+            true -> done(),
+            _ -> wrong()
+        }
+    }
+    machine wrong() crashes Trap { crash Trap; }
+    machine done() {}
+}

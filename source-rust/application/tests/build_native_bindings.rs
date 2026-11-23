@@ -262,6 +262,37 @@ fn a_program_receives_the_bindings_of_the_standard_library() {
     );
 }
 
+/// The same Console program cross-compiles for Windows ARM64: std selects its
+/// shared Windows console adapter there, reached through MSVCRT imports placed
+/// by AAPCS64. No ARM64 host runs it here.
+#[test]
+fn windows_arm64_console_emits_with_its_authored_imports() {
+    let directory = support::repository_root()
+        .join("tests/fixtures/providers/run/default_console_provider_reached");
+    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+        .args([
+            "run",
+            "--both",
+            "--target",
+            "windows_arm64",
+            "--build-input",
+            "build.omg",
+            "--build-input",
+            "main.omg",
+            "build.omg",
+        ])
+        .current_dir(directory)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("omega runs");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{stderr}");
+    assert!(
+        stderr.contains("compiled for target `windows_arm64`"),
+        "{stderr}"
+    );
+}
+
 #[test]
 fn windows_console_emits_with_its_authored_imports() {
     let directory = support::repository_root()

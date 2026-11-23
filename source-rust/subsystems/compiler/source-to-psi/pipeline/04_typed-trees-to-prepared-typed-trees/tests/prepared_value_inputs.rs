@@ -75,7 +75,7 @@ fn a_constant_read_inside_a_called_machine_is_an_input_of_the_caller() {
     assert_eq!(integer(prepared.value("PLAIN")), Some(5));
 }
 
-const WIDTH: &str = "machine width(n: u8) -> u8 crashes none { n +% 1u8 }";
+const WIDTH: &str = "public machine width(n: u8) -> u8 crashes none { n +% 1u8 }";
 
 /// `A` and `B` call `width` from two files, so their initializers are the
 /// first expression of their own file and share expression numbers and
@@ -83,11 +83,25 @@ const WIDTH: &str = "machine width(n: u8) -> u8 crashes none { n +% 1u8 }";
 /// either file order.
 #[test]
 fn calls_in_two_files_are_evaluated_with_their_own_operands() {
-    let a = ("a.omg", "const A: u8 = width(7u8);");
-    let b = ("b.omg", "const B: u8 = width(9u8);");
+    let a = (
+        "a.omg",
+        "use machines.omg; const A: u8 = |machines|::width(7u8);",
+    );
+    let b = (
+        "b.omg",
+        "use machines.omg; const B: u8 = |machines|::width(9u8);",
+    );
     let machines = ("machines.omg", WIDTH);
     for files in [[a, b, machines], [machines, b, a]] {
-        let prepared = prepare(&files, Demand::Package).unwrap();
+        let prepared = package::prepare_with_imports(
+            &files,
+            Demand::Package,
+            &[
+                ("product/a.omg", "product/machines.omg", "machines"),
+                ("product/b.omg", "product/machines.omg", "machines"),
+            ],
+        )
+        .unwrap();
         assert_eq!(integer(prepared.value("A")), Some(8), "{files:?}");
         assert_eq!(integer(prepared.value("B")), Some(10), "{files:?}");
         assert_eq!(
@@ -234,4 +248,57 @@ fn stage_04_refuses_inputs_it_cannot_match_to_this_program() {
             .collect::<Vec<_>>(),
         ["source preparation lost a demanded constant declaration"]
     );
+}
+
+/// `a.omg` and `b.omg` each declare `three`, `four` and `SIZE`, with
+/// different bodies, and neither imports the other. `a.omg`'s `SIZE` calls
+/// its own file's machine, so it freezes to 3 or 4 by the name written,
+/// never to the 5 or 6 that `b.omg`'s machines return, and `b.omg`'s `SIZE`
+/// keeps its own 8. The file each frozen value belongs to is the one its
+/// initializer was written in.
+#[test]
+fn a_call_freezes_the_value_of_the_machine_in_its_own_file() {
+    let other = (
+        "b.omg",
+        "machine three() -> u64 crashes none { 5u64 } \
+         machine four() -> u64 crashes none { 6u64 } \
+         const SIZE: u64 = 8u64;",
+    );
+    for (selected, expected) in [("three", 3), ("four", 4)] {
+        let own = format!(
+            "machine three() -> u64 crashes none {{ 3u64 }} \
+             machine four() -> u64 crashes none {{ 4u64 }} \
+             const SIZE: u64 = {selected}();"
+        );
+        for files in [
+            [("a.omg", own.as_str()), other],
+            [other, ("a.omg", own.as_str())],
+        ] {
+            let prepared = prepare(&files, Demand::Package).unwrap();
+            let mut frozen: Vec<_> = prepared
+                .program
+                .trees()
+                .const_declarations()
+                .iter()
+                .filter(|declaration| prepared.path(declaration.symbol) == "SIZE")
+                .map(|declaration| {
+                    (
+                        prepared
+                            .file_at(declaration.initializer_source_span)
+                            .to_owned(),
+                        integer(package::declared_value(declaration)),
+                    )
+                })
+                .collect();
+            frozen.sort();
+            assert_eq!(
+                frozen,
+                [
+                    ("a.omg".to_owned(), Some(expected)),
+                    ("b.omg".to_owned(), Some(8)),
+                ],
+                "SIZE = {selected}() in {files:?}"
+            );
+        }
+    }
 }

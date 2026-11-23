@@ -75,7 +75,7 @@ its literal -1 violates nonnegative_tolerance's `requires value >= 0`.
 Its expected diagnostic is pinned separately; unrelated rejection is not a pass.
 
 `ORACLE_FREEZE.md` records its immutable digest; validation refuses changed oracle
-inputs. Numerical absolute and relative tolerances are zero. `--both` uses the
-produced Terminal artifact; the CLI compares termination statuses only, so AGREED
-is not evidence of Terminal stdout equality. Its limitation is reported
+inputs. Numerical absolute and relative tolerances are zero. `omega run --both` compares
+termination and the exact stdout and stderr bytes from
+both engines. Its limitation is reported
 explicitly.

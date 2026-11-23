@@ -36,9 +36,10 @@ pub fn settle_rejoined_build_slice(
             "no product route yet: Build admission folded a constant under its provider plans, and settling it on a Product frontier typed after Build ran requires the constant evaluator",
         )].into());
     }
-    // A whole subject awaiting its owner still owes a check even when Build read no constants.
+    // A subject checked under a provisional owner still owes the check under
+    // its real owner, even when it read no constants.
     if constants.read.is_empty()
-        && subject_validation != BuildSubjectValidation::AwaitingPackageOwner
+        && subject_validation != BuildSubjectValidation::CheckedUnderProvisionalOwner
     {
         return Ok(Default::default());
     }
@@ -133,6 +134,87 @@ fn compare_rejoined_constants(
         )]);
     }
     Ok(())
+}
+
+/*
+The compiler checks the whole Build file before Build runs
+(`wiki/spec/build/command_line.md`). A root without a package graph has no
+owner until Build returns, so `check_only` is the same Build stage typed with
+the root's own files under the capture's provisional owner, and the boundaries
+it declares can be named. Nothing this judgment produces runs or is published:
+its invocation and its evaluation receipts are dropped here. Its verdict stands,
+and the constants it read are anchored again on the unowned sources Build runs,
+so the check under the real owner compares the same full set.
+*/
+pub(crate) fn check_subject_before_execution(
+    check_only: &source_compiler::representations::source_state::TypedTrees,
+    executed: &source_compiler::representations::source_state::TypedTrees,
+    build_source: package_compilation::BuildSourceSelection,
+    anonymous_source: &package_compilation::AnonymousSourceCapture,
+    timings: &mut artifacts::compile_timings::CompileTimings,
+) -> Result<BuildConstants, CompileFailure> {
+    let owner = anonymous_source
+        .provisional_check_owner()
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+    let entry =
+        package_compilation::build_execution::select_build_machine(check_only, build_source)?
+            .symbol;
+    let judged = timings
+        .record_result(BUILD_SOURCE_JUDGMENT, || {
+            source_compiler::CheckedBuildInvocation::judge(check_only, entry, &[Some(owner)], None)
+        })
+        .map_err(|failure| CompileFailure::from(failure.diagnostics))?;
+    let unowned = executed.symbols.source_map().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "the executed Build has no source map to anchor its constants",
+        )]
+    })?;
+    let read = judged
+        .constants
+        .into_iter()
+        .map(|read| unbind_provisional_owner(read, &unowned, owner))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(BuildConstants {
+        folded_under_providers: false,
+        read,
+    })
+}
+
+/// Anchor a constant read by the check-only judgment on the same file Build
+/// runs. The two files must differ only in the provisional owner.
+fn unbind_provisional_owner(
+    read: source_compiler::publication::ConstantRead,
+    unowned: &source_compiler::representations::source_inputs::SourceMap,
+    owner: semantic_vocabulary::PackageKeyIdentity,
+) -> Result<source_compiler::publication::ConstantRead, Vec<Diagnostic>> {
+    let Some(declaration) = &read.declaration else {
+        return Ok(read);
+    };
+    let checked = declaration.source();
+    let file = unowned
+        .get(checked.source_id)
+        .filter(|file| {
+            let mut unbound = checked.clone();
+            if unbound.package_identity == Some(owner) && file.package_identity.is_none() {
+                unbound.package_identity = None;
+            }
+            **file == unbound
+        })
+        .ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "Build constant `{}` was read from a source the executed Build does not hold",
+                read.name
+            ))]
+        })?;
+    let declaration = source_admission::RetainedDeclaration::from_source_occurrence(
+        file.clone(),
+        declaration.span(),
+        declaration.kind(),
+    );
+    Ok(source_compiler::publication::ConstantRead {
+        declaration: Some(declaration),
+        ..read
+    })
 }
 
 pub(crate) fn prepare_admitted_build(

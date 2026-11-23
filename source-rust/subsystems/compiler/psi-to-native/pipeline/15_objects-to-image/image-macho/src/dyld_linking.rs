@@ -310,19 +310,20 @@ pub(crate) mod imports {
             let pointer_address = layout.data_address + thunk.data_offset as u64;
             match isa {
                 MachoIsa::Aarch64 => {
-                    patch_aarch64_adrp(
-                        &mut image.memory.text,
-                        thunk.text_offset,
+                    let end = thunk.text_offset + isa.import_thunk_size();
+                    let bytes = image
+                        .memory
+                        .text
+                        .get_mut(thunk.text_offset..end)
+                        .ok_or_else(|| {
+                            thunk_diagnostic(&thunk.symbol, "patch offset is out of bounds")
+                        })?;
+                    target_aarch64::import_thunk::patch_aarch64_import_thunk(
+                        bytes,
                         instruction_address,
                         pointer_address,
-                    )?;
-                    patch_aarch64_ldr_x_from_page(
-                        &mut image.memory.text,
-                        thunk.text_offset + 4,
-                        pointer_address,
-                        16,
-                        16,
-                    )?;
+                    )
+                    .map_err(|reason| thunk_diagnostic(&thunk.symbol, reason))?;
                 }
                 MachoIsa::X86_64 => {
                     let displacement = i64::try_from(pointer_address)
@@ -386,12 +387,7 @@ pub(crate) mod imports {
                 .ok_or_else(|| thunk_diagnostic(&thunk.symbol, "is out of final .text bounds"))?;
             let canonical = match isa {
                 MachoIsa::Aarch64 => {
-                    let adrp = u32::from_le_bytes(bytes[0..4].try_into().expect("four-byte ADRP"));
-                    let ldr = u32::from_le_bytes(bytes[4..8].try_into().expect("four-byte LDR"));
-                    let br = u32::from_le_bytes(bytes[8..12].try_into().expect("four-byte BR"));
-                    adrp & 0x9f00_001f == 0x9000_0010
-                        && ldr & 0xffc0_03ff == 0xf940_0210
-                        && br == 0xd61f_0200
+                    target_aarch64::import_thunk::decode_aarch64_import_thunk(bytes)
                 }
                 MachoIsa::X86_64 => {
                     target_x86_64::import_thunk::decode_x86_64_import_thunk(bytes).is_some()
@@ -456,81 +452,6 @@ pub(crate) mod imports {
         }
 
         Ok(bytes)
-    }
-
-    fn patch_aarch64_adrp(
-        text: &mut [u8],
-        offset: usize,
-        instruction_address: u64,
-        symbol_address: u64,
-    ) -> Result<(), Diagnostic> {
-        let instruction_page = instruction_address & !0xfff;
-        let symbol_page = symbol_address & !0xfff;
-        let page_delta = (symbol_page as i64 - instruction_page as i64) / 4096;
-
-        if !(-(1 << 20)..(1 << 20)).contains(&page_delta) {
-            return Err(Diagnostic::error(format!(
-                "Mach-O AArch64 import thunk ADRP is out of range: {page_delta} page(s)"
-            )));
-        }
-
-        let immediate = (page_delta as u32) & 0x1f_ffff;
-        let immediate_low = immediate & 0b11;
-        let immediate_high = (immediate >> 2) & 0x7ffff;
-        let instruction = read_instruction(text, offset)?;
-        if instruction != 0x9000_0010 {
-            return Err(Diagnostic::error(
-                "Mach-O import ADRP is not an encoded zero placeholder",
-            ));
-        }
-        let instruction = instruction | (immediate_low << 29) | (immediate_high << 5);
-        write_u32_at(text, offset, instruction)
-    }
-
-    fn patch_aarch64_ldr_x_from_page(
-        text: &mut [u8],
-        offset: usize,
-        symbol_address: u64,
-        register: u8,
-        base_register: u8,
-    ) -> Result<(), Diagnostic> {
-        let page_offset = symbol_address & 0xfff;
-        if !page_offset.is_multiple_of(8) {
-            return Err(Diagnostic::error(
-                "Mach-O AArch64 import thunk pointer is not 8-byte aligned",
-            ));
-        }
-        let scaled_offset = u32::try_from(page_offset / 8)
-            .expect("Mach-O AArch64 import thunk pointer offset overflow");
-        if scaled_offset > 0xfff {
-            return Err(Diagnostic::error(
-                "Mach-O AArch64 import thunk pointer page offset is too large",
-            ));
-        }
-        let instruction = read_instruction(text, offset)?;
-        if instruction != 0xf940_0000 | (u32::from(base_register) << 5) | u32::from(register) {
-            return Err(Diagnostic::error(
-                "Mach-O import LDR is not an encoded zero placeholder",
-            ));
-        }
-        let instruction = instruction | (scaled_offset << 10);
-        write_u32_at(text, offset, instruction)
-    }
-
-    fn read_instruction(text: &[u8], offset: usize) -> Result<u32, Diagnostic> {
-        text.get(offset..offset + 4)
-            .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
-            .ok_or_else(|| Diagnostic::error("Mach-O import operand is out of bounds"))
-    }
-
-    fn write_u32_at(text: &mut [u8], offset: usize, value: u32) -> Result<(), Diagnostic> {
-        let Some(slot) = text.get_mut(offset..offset + 4) else {
-            return Err(Diagnostic::error(format!(
-                "Mach-O AArch64 import thunk patch offset {offset} is out of bounds"
-            )));
-        };
-        slot.copy_from_slice(&value.to_le_bytes());
-        Ok(())
     }
 
     pub fn validate_macho_import_binding_pairing(

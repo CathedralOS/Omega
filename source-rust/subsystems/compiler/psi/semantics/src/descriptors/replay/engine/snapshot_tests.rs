@@ -674,6 +674,46 @@ fn bare_machine(
 }
 
 #[test]
+fn an_unresolved_write_only_invalidates_returns_it_can_reach() {
+    use crate::descriptor_lifetimes::{DescriptorFlowEdge, DescriptorFlowStep};
+
+    let identity = MachineId::new(1).unwrap();
+    let mut machine = bare_machine(identity, Vec::new(), BTreeMap::new(), BTreeSet::new());
+    let entry = machine.entry;
+    let write = (entry.0, 1);
+    let normal = (entry.0, 2);
+    let exits_process = (entry.0, 3);
+    let step = |targets: &[DescriptorPosition]| DescriptorFlowStep {
+        successors: targets
+            .iter()
+            .map(|&target| DescriptorFlowEdge {
+                target,
+                edge: None,
+                effects: Vec::new(),
+                definitions: Vec::new(),
+                parameters: Vec::new(),
+                bindings: Vec::new(),
+            })
+            .collect(),
+        ..Default::default()
+    };
+    machine.normal_exits.push(normal);
+    machine.flow = BTreeMap::from([
+        (entry, step(&[normal, write])),
+        (write, step(&[exits_process])),
+        (normal, step(&[])),
+        (exits_process, step(&[])),
+    ]);
+    // An unknown write at a normal exit counts, including its cleanup.
+    for (site, invalidates_return) in [(write, false), (normal, true), (entry, true)] {
+        machine.unresolved_contents_writes = BTreeSet::from([site]);
+        let mut replay = Replay::new(&[], std::slice::from_ref(&machine));
+        let summary = replay.summary(identity, 0).expect("valid descriptor graph");
+        assert_eq!(summary.invalidates_contents, invalidates_return);
+    }
+}
+
+#[test]
 fn returned_storage_borrows_keep_the_resident_argument_after_replacement() {
     let scalar = StructuralTypeId::new(1).unwrap();
     let array = StructuralTypeId::new(2).unwrap();

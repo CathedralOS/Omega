@@ -7,7 +7,7 @@ mod error;
 use PublishReviewedPackageChangeError as Error;
 pub(crate) use error::PublishReviewedPackageChangeError;
 
-use super::PackageFileTransaction;
+use super::{PackageFileTransaction, ReviewedProposal};
 use crate::declarations::BuildFileReplacement;
 use crate::lock::{PackageLock, PackageLockRecoveryLimits};
 use crate::resolution::graph::PackageRootSourceRequest;
@@ -20,6 +20,7 @@ use source_acquisition::{SourceContentDigest, SourceLineage};
 
 pub fn publish_reviewed_package_change(
     transaction: &mut PackageFileTransaction,
+    proposal: ReviewedProposal,
     replacement: &BuildFileReplacement,
     stage: &StagedLocalSnapshot,
     reviews: &[(&PackageChangeReview, &PackagePolicyResolution)],
@@ -106,6 +107,7 @@ pub fn publish_reviewed_package_change(
         .map_err(Error::Source)?;
     transaction
         .publish(
+            proposal,
             &before_build,
             replacement.replacement_source().as_bytes(),
             before_lock.as_deref(),

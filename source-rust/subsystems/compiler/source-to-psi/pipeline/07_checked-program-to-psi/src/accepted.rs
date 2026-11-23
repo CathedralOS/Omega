@@ -169,7 +169,15 @@ pub struct DeclaredBoundaryRequirement {
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub requirement: symbols::SymbolHandle,
     pub slot: symbols::SymbolHandle,
+    pub(crate) application: Option<DeclaredRequirementApplication>,
     pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DeclaredRequirementApplication {
+    pub template: symbols::SymbolHandle,
+    pub receiving_trait: String,
+    pub callable: String,
 }
 
 impl AcceptedTerminalSource {
@@ -294,17 +302,17 @@ impl AcceptedTerminalSource {
         )
         .map_err(|diagnostic| vec![diagnostic])?;
         let mut provenance = psi_publication_records::TerminalMachineProvenance::default();
-        for (machine, symbol) in elaboration.machines.iter() {
+        for (machine, _) in elaboration.machines.iter() {
             let name = elaboration.names.get(machine).ok_or_else(|| {
                 vec![Diagnostic::error(
                     "no product route yet: accepted machine lost its source name correspondence",
                 )]
             })?;
-            let span = self
-                .source()
-                .symbols
-                .symbol_source_span(self.source().symbols.authored_origin(*symbol));
-            provenance.name(machine, name.machine.clone(), span);
+            // The saved name carries no source span: a span's `SourceId` is
+            // the capture number this invocation gave the file, which means
+            // nothing to a reader of the saved artifact and would make the
+            // published bytes depend on the order the loader met the files.
+            provenance.name(machine, name.machine.clone(), None);
         }
         // A declaration module has no entry: every machine keeps its name,
         // and there is no call chain from a root to record.
@@ -402,10 +410,35 @@ impl AcceptedTerminalSource {
                 .trait_machine_signature(*symbol)
                 .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == *symbol)
                 .ok_or_else(|| lost("lost the boundary trait that owns a requirement"))?;
+            let application = self
+                .source()
+                .closed_requirement_application(*symbol)
+                .map(|closed| {
+                    let receiving_trait = self
+                        .source()
+                        .type_identity_text(closed.portable_trait_application_identity)
+                        .filter(|identity| !identity.is_empty())
+                        .ok_or_else(|| lost("lost the complete application of a boundary trait"))?;
+                    let callable = self
+                        .source()
+                        .trait_requirement_callable_identity_text(owner, requirement);
+                    if callable.is_empty() {
+                        return Err(lost(
+                            "lost the complete application of a boundary requirement",
+                        ));
+                    }
+                    Ok(DeclaredRequirementApplication {
+                        template: closed.template,
+                        receiving_trait,
+                        callable,
+                    })
+                })
+                .transpose()?;
             declared.push(DeclaredBoundaryRequirement {
                 boundary,
                 requirement: *symbol,
                 slot: owner.symbol,
+                application,
                 name: format!("{}::{}", owner.name.as_str(), requirement.name.as_str()),
             });
         }

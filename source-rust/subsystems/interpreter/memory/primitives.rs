@@ -1616,10 +1616,8 @@ pub(crate) mod primitive_storage {
                 endpoint: &PrimitiveStorageEndpoint,
             ) -> Result<TerminalScalarValue, TerminalInterpretError> {
                 let value = match endpoint {
-            PrimitiveStorageEndpoint::Scalar(place) => self.structural_primitive_storage.get(place),
-            PrimitiveStorageEndpoint::ScalarField(field) => {
-                self.structural_scalar_fields.get(field)
-            }
+            PrimitiveStorageEndpoint::Scalar(place) => self.structural_primitive_storage.get(place).cloned(),
+            PrimitiveStorageEndpoint::ScalarField(field) => self.scalar_field_cell(field)?,
             _ => return Err(malformed()),
         }
         .ok_or(
@@ -2291,7 +2289,7 @@ pub(crate) mod primitive_storage {
                     }
                 }
                 PrimitiveStorageEndpoint::ScalarField(field) => {
-                    let stored = execution.structural_scalar_fields.get(field).ok_or(
+                    let stored = execution.scalar_field_cell(field)?.ok_or(
                         TerminalInterpretError::StructuralScalarFieldMissing {
                             source: destination,
                             field: field.field,
@@ -4194,15 +4192,12 @@ pub(crate) mod primitive_storage {
                     .read_primitive_storage(source, storage, logical_scalar, scalar_type, false)
                     .map(Some);
             }
-            let mut value = self
-                .structural_scalar_fields
-                .get(&observed.cell)
-                .map(crate::storage::scalar_storage::ScalarCell::read)
-                .transpose()?
-                .ok_or(TerminalInterpretError::StructuralScalarFieldMissing {
+            let mut value = self.scalar_field_contents(&observed.cell)?.ok_or(
+                TerminalInterpretError::StructuralScalarFieldMissing {
                     source,
                     field: observed.declaration.id,
-                })?;
+                },
+            )?;
             if value.scalar_type() != observed.stored_type {
                 return Err(malformed());
             }
@@ -4414,10 +4409,7 @@ pub(crate) mod primitive_storage {
                         source,
                     )),
                 PrimitiveStorageEndpoint::ScalarField(field) => self
-                    .structural_scalar_fields
-                    .get(&field)
-                    .map(crate::storage::scalar_storage::ScalarCell::read)
-                    .transpose()?
+                    .scalar_field_contents(&field)?
                     .ok_or(TerminalInterpretError::StructuralScalarFieldMissing {
                         source,
                         field: field.field,
@@ -4636,7 +4628,7 @@ pub(crate) mod primitive_storage {
                 }
                 PrimitiveStorageEndpoint::ScalarField(field) => {
                     self.invalidate_stored_provenance(&field.parent);
-                    let stored = self.structural_scalar_fields.get_mut(&field).ok_or(
+                    let stored = self.scalar_field_cell_mut(&field)?.ok_or(
                         TerminalInterpretError::StructuralScalarFieldMissing {
                             source: destination,
                             field: field.field,

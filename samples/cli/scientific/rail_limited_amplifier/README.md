@@ -114,9 +114,9 @@ per-command sandbox escalation; that is independent of package acceptance.
 The private `validation/terminal.rs` driver calls the existing complete accepted
 project compilation operation, executes its produced admitted Terminal artifact with
 finite fixture input and captures stdout/stderr/status, then publishes that same
-native artifact. It uses neither a tree interpreter nor a synthetic exit. The normal
-CLI `--both` compares exit alone; this driver supplies the separate Terminal trace
-oracle. Generated artifacts belong under ignored `build/`; a transfer bundle carries
+native artifact. It uses neither a tree interpreter nor a synthetic exit. The CLI compares
+termination and both output streams. This driver checks the Psi trace
+against its own oracle. Generated artifacts belong under ignored `build/`; a transfer bundle carries
 evidence separately.
 
 Observed execution status: all 27 fixtures pass on both native and Terminal,
