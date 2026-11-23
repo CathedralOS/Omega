@@ -1,0 +1,63 @@
+// Expected exit: 0
+use pipeline/symbol_resolved_trees_to_typed_trees/literals.omg;
+use representations/source_files/source.omg;
+use representations/syntax_trees/syntax_trees.omg as trees;
+use representations/tokens/numeric.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg as names;
+
+machine start() crashes Trap {
+    check_integers();
+    check_quoted_bytes();
+}
+
+machine check_integers() crashes Trap {
+    let mutable syntax: |trees|::SyntaxTrees;
+    syntax.integer_literal_count = 3;
+    syntax.integer_literals[0] = |trees|::IntegerLiteral {
+        magnitude: 65535 as +Wrapping, exact: true, empty_digits: false, suffix: |numeric|::IntegerSuffix::U16
+    };
+    syntax.integer_literals[1] = |trees|::IntegerLiteral {
+        magnitude: 37 as +Wrapping, exact: true, empty_digits: false, suffix: |numeric|::IntegerSuffix::None
+    };
+    syntax.integer_literals[2] = |trees|::IntegerLiteral {
+        magnitude: 0 as +Wrapping, exact: false, empty_digits: false, suffix: |numeric|::IntegerSuffix::U64
+    };
+    let suffixed: |literals|::LiteralValue = |literals|::literal_value(@syntax, 0 as +Trapping);
+    let anonymous = |literals|::literal_value(@syntax, 1 as +Trapping);
+    let inexact = |literals|::literal_value(@syntax, 2 as +Trapping);
+    transition suffixed.valid && suffixed.has_suffix && suffixed.suffix == |names|::BuiltinType::U16
+        && suffixed.magnitude == 65535 && anonymous.valid && !anonymous.has_suffix
+        && anonymous.magnitude == 37 && !inexact.valid {
+        true -> done(), _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+
+machine check_quoted_bytes() crashes Trap {
+    let mutable sources: |source|::SourceSet;
+    sources.unit_count = 1;
+    sources.byte_count = 6;
+    sources.units[0] = |source|::SourceRange { start: 0 as +Trapping, length: 6 as +Trapping };
+    // The source spells a quoted hexadecimal escape, first 41 and then C0.
+    sources.bytes[0] = 34u8;
+    sources.bytes[1] = 92u8;
+    sources.bytes[2] = 120u8;
+    sources.bytes[3] = 52u8;
+    sources.bytes[4] = 49u8;
+    sources.bytes[5] = 34u8;
+    let span = |source|::SourceSpan {
+        source: |source|::SourceId { value: 0 as +Trapping },
+        span: |source|::Span { start: 0 as +Trapping, end: 6 as +Trapping }
+    };
+    let length: u64 in Trapping = |literals|::quoted_length(@sources, span);
+    let ascii: u64 in Trapping = |literals|::quoted_roster(@sources, span);
+    sources.bytes[3] = 67u8;
+    sources.bytes[4] = 48u8;
+    let invalid_utf8: u64 in Trapping = |literals|::quoted_roster(@sources, span);
+    transition length == 1 && ascii == 15 && invalid_utf8 == 10 {
+        true -> done(), _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

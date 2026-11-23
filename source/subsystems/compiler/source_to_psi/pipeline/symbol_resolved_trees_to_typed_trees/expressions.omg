@@ -1,3 +1,4 @@
+use pipeline/symbol_resolved_trees_to_typed_trees/literals.omg;
 use foundation\ExactInteger;
 use foundation\Rational;
 use foundation\RationalResult;
@@ -184,7 +185,7 @@ crashes Trap
     }
 
     machine integer(typer: @mutable Typer, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression) {
-        let value: LiteralValue = literal_value(syntax, expression.literal);
+        let value: |literals|::LiteralValue = |literals|::literal_value(syntax, expression.literal);
         let anonymous: ExactInteger = ExactInteger { negative: false, magnitude: value.magnitude };
         transition value.valid {
             true -> integer_valid(typer, index, expression, value, anonymous),
@@ -192,7 +193,7 @@ crashes Trap
         }
     }
 
-    machine integer_valid(typer: @mutable Typer, index: u64 in Trapping, expression: Expression, value: LiteralValue, anonymous: ExactInteger) {
+    machine integer_valid(typer: @mutable Typer, index: u64 in Trapping, expression: Expression, value: |literals|::LiteralValue, anonymous: ExactInteger) {
         typing_set_value(@mutable typer.output, index, anonymous);
         transition value.has_suffix {
             true -> suffixed(typer, index, expression, value, anonymous),
@@ -206,7 +207,7 @@ crashes Trap
     }
 
     // A suffix lands its literal at that occurrence.
-    machine suffixed(typer: @mutable Typer, index: u64 in Trapping, expression: Expression, value: LiteralValue, anonymous: ExactInteger) {
+    machine suffixed(typer: @mutable Typer, index: u64 in Trapping, expression: Expression, value: |literals|::LiteralValue, anonymous: ExactInteger) {
         let fits: bool = exact_integer_fits(value.suffix, anonymous);
         let mutable row: TypeRow = type_row_of(TypeKind::Builtin);
         row.builtin = value.suffix;
@@ -240,9 +241,9 @@ crashes Trap
         reference_row.inner = view;
         let handle: u64 in Trapping = typer_intern(typer, reference_row, expression.source_span);
         set_expression_type(@mutable typer.output, index, handle);
-        let length: u64 in Trapping = quoted_length(sources, expression.source_span);
+        let length: u64 in Trapping = |literals|::quoted_length(sources, expression.source_span);
         typing_set_value(@mutable typer.output, index, exact_integer_of((length as -Trapping) as +Wrapping));
-        let roster: u64 in Trapping = quoted_roster(sources, expression.source_span);
+        let roster: u64 in Trapping = |literals|::quoted_roster(sources, expression.source_span);
         set_roster(@mutable typer.output, index, roster);
     }
 
