@@ -419,7 +419,7 @@ mod tests {
         .append(&mut syntax, &mut CompileTimings::default())
         .unwrap();
         let unit = &parsed.sources.span_or_empty(parsed.batch)[0];
-        let members = &unit.imports[0].members;
+        let source_compiler::SourceImportTarget::Namespace(members) = &unit.imports[0].target else { panic!("expected a namespace import") };
         let core = super::super::bundled_core_root().unwrap();
         let path = core.join("nested/unit.omg");
         let relative = reconciled_package_import(
