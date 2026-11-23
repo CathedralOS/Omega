@@ -53,7 +53,7 @@ pub(crate) struct CompletedSource {
 pub struct SourceExtensionRequest {
     syntax: Arc<syntax_trees::SyntaxTrees>,
     pub sources: Arc<crate::source_inputs::SourceMap>,
-    top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
+    pub top_level_bindings: Vec<crate::source_symbols::SourceScopedTopLevelBinding>,
 }
 
 impl SourceExtensionRequest {

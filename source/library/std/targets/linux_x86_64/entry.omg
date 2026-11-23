@@ -1,22 +1,6 @@
-use BoundaryEntryPlan;
-use BoundaryPlanResult;
-use BoundarySignature;
-use Calling;
-use CallingConvention;
-use CallingPolicy;
-use CallingPolicyRejection;
-use EntryControl;
-use EntryStack;
-use MachineRegime;
-use MachineRegister;
-use Preemption;
-use ValueShape;
-use hosted_entry_extent_shape;
-use hosted_entry_integer_shape;
-use hosted_entry_named_word;
-use hosted_entry_register_extent_value;
-use omega_language_std;
-use omega\language\core\ProgramStorageEntry;
+use calling.omg as abi;
+use entry_shapes.omg as shapes;
+use {omega}/language/core/extent.omg as storage;
 
 // The Linux kernel enters a static ELF executable with rsp pointing at the
 // initial process-stack image ([argc][argv...][NULL][envp...][NULL][auxv...])
@@ -31,14 +15,14 @@ boundary trait LinuxX86_64PhysicalEntry {
     machine enter(initial_stack: addr) -> i32 reaches none crashes Trap crashes Abort;
 }
 
-LinuxX86_64CallingPolicy satisfies CallingPolicy {
-    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+LinuxX86_64CallingPolicy satisfies |abi|::CallingPolicy {
+    machine plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
         linux_x86_64_entry_plan(signature)
     }
 }
 
-machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResult
-    satisfies CallingPolicy::plan
+machine linux_x86_64_entry_plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult
+    satisfies |abi|::CallingPolicy::plan
 {
     transition signature.parameter_count {
         1 -> physical(signature),
@@ -46,7 +30,7 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
         _ -> reject()
     }
 
-    machine physical(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine physical(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
         transition signature.has_result {
             true -> physical_indices(signature, signature.parameters[0],
                 signature.result),
@@ -54,8 +38,8 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
         }
     }
 
-    machine physical_indices(signature: BoundarySignature, initial_stack: u64,
-        result: u64) -> BoundaryPlanResult
+    machine physical_indices(signature: |abi|::BoundarySignature, initial_stack: u64,
+        result: u64) -> |abi|::BoundaryPlanResult
     {
         transition initial_stack < 256 && result < 256
             && initial_stack < signature.shape_count && result < signature.shape_count
@@ -66,32 +50,32 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
         }
     }
 
-    machine physical_shapes(initial_stack: ValueShape, result: ValueShape)
-        -> BoundaryPlanResult
+    machine physical_shapes(initial_stack: |abi|::ValueShape, result: |abi|::ValueShape)
+        -> |abi|::BoundaryPlanResult
     {
-        transition hosted_entry_integer_shape(@initial_stack, 8)
-            && hosted_entry_integer_shape(@result, 4)
+        transition |shapes|::hosted_entry_integer_shape(@initial_stack, 8)
+            && |shapes|::hosted_entry_integer_shape(@result, 4)
         {
             true -> build_physical(),
             _ -> reject()
         }
     }
 
-    machine build_physical() -> BoundaryPlanResult {
-        let mutable output: BoundaryEntryPlan;
+    machine build_physical() -> |abi|::BoundaryPlanResult {
+        let mutable output: |abi|::BoundaryEntryPlan;
         output.call.parameter_count = 1;
         // The kernel arrival supplies the initial process-stack image base
         // in rsp; it is an input observation, not a writable argument object.
-        output.call.parameters[0] = hosted_entry_named_word(8,
-            MachineRegister::X86Rsp);
+        output.call.parameters[0] = |shapes|::hosted_entry_named_word(8,
+            |abi|::MachineRegister::X86Rsp);
         output.call.has_result = true;
         // Process completion status leaves in edi under exit_group.
-        output.call.result = hosted_entry_named_word(4,
-            MachineRegister::X86Rdi);
+        output.call.result = |shapes|::hosted_entry_named_word(4,
+            |abi|::MachineRegister::X86Rdi);
         transition { _ -> finish(output, true) }
     }
 
-    machine semantic(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine semantic(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
         transition signature.has_result {
             false -> semantic_indices(signature, signature.parameters[0],
                 signature.parameters[1]),
@@ -99,8 +83,8 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
         }
     }
 
-    machine semantic_indices(signature: BoundarySignature, image: u64,
-        storage: u64) -> BoundaryPlanResult
+    machine semantic_indices(signature: |abi|::BoundarySignature, image: u64,
+        storage: u64) -> |abi|::BoundaryPlanResult
     {
         transition image < 256 && storage < 256
             && image < signature.shape_count && storage < signature.shape_count
@@ -111,34 +95,34 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
         }
     }
 
-    machine semantic_shapes(image: ValueShape, storage: ValueShape,
-        signature: BoundarySignature) -> BoundaryPlanResult
+    machine semantic_shapes(image: |abi|::ValueShape, storage: |abi|::ValueShape,
+        signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult
     {
-        transition hosted_entry_extent_shape(image, @signature)
-            && hosted_entry_extent_shape(storage, @signature)
+        transition |shapes|::hosted_entry_extent_shape(image, @signature)
+            && |shapes|::hosted_entry_extent_shape(storage, @signature)
         {
             true -> build_semantic(),
             _ -> reject()
         }
     }
 
-    machine build_semantic() -> BoundaryPlanResult {
-        let mutable output: BoundaryEntryPlan;
+    machine build_semantic() -> |abi|::BoundaryPlanResult {
+        let mutable output: |abi|::BoundaryEntryPlan;
         output.call.parameter_count = 2;
         // The generated bridge passes the image and initial-storage roots in
         // the first four System V integer registers.
-        output.call.parameters[0] = hosted_entry_register_extent_value(
-            MachineRegister::X86Rdi, MachineRegister::X86Rsi);
-        output.call.parameters[1] = hosted_entry_register_extent_value(
-            MachineRegister::X86Rdx, MachineRegister::X86Rcx);
+        output.call.parameters[0] = |shapes|::hosted_entry_register_extent_value(
+            |abi|::MachineRegister::X86Rdi, |abi|::MachineRegister::X86Rsi);
+        output.call.parameters[1] = |shapes|::hosted_entry_register_extent_value(
+            |abi|::MachineRegister::X86Rdx, |abi|::MachineRegister::X86Rcx);
         transition { _ -> finish(output, false) }
     }
 
-    machine finish(output: BoundaryEntryPlan, supervisor: bool)
-        -> BoundaryPlanResult
+    machine finish(output: |abi|::BoundaryEntryPlan, supervisor: bool)
+        -> |abi|::BoundaryPlanResult
     {
-        let mutable plan: BoundaryEntryPlan = output;
-        plan.call.convention = CallingConvention::SystemVAMD64;
+        let mutable plan: |abi|::BoundaryEntryPlan = output;
+        plan.call.convention = |abi|::CallingConvention::SystemVAMD64;
         plan.call.stack_alignment = 16;
         transition supervisor {
             true -> finish_supervisor(plan),
@@ -146,86 +130,86 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
         }
     }
 
-    machine finish_supervisor(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
-        let mutable output: BoundaryEntryPlan = plan;
+    machine finish_supervisor(plan: |abi|::BoundaryEntryPlan) -> |abi|::BoundaryPlanResult {
+        let mutable output: |abi|::BoundaryEntryPlan = plan;
         // The kernel supplies no return continuation; the physical contract
         // completes through exit_group (rax = 231) with status in edi.
-        output.call.entry_control = EntryControl::SupervisorCall {
-            number_register: MachineRegister::X86Rax,
+        output.call.entry_control = |abi|::EntryControl::SupervisorCall {
+            number_register: |abi|::MachineRegister::X86Rax,
             immediate: 231,
         };
         transition { _ -> seal(output) }
     }
 
-    machine finish_call(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
-        let mutable output: BoundaryEntryPlan = plan;
-        output.call.entry_control = EntryControl::CallReturn;
+    machine finish_call(plan: |abi|::BoundaryEntryPlan) -> |abi|::BoundaryPlanResult {
+        let mutable output: |abi|::BoundaryEntryPlan = plan;
+        output.call.entry_control = |abi|::EntryControl::CallReturn;
         transition { _ -> seal(output) }
     }
 
-    machine seal(plan: BoundaryEntryPlan) -> BoundaryPlanResult {
-        let mutable output: BoundaryEntryPlan = plan;
+    machine seal(plan: |abi|::BoundaryEntryPlan) -> |abi|::BoundaryPlanResult {
+        let mutable output: |abi|::BoundaryEntryPlan = plan;
         // System V AMD64 caller-saved banks; the bridge may also observe the
         // incoming stack pointer before switching to its private stack.
         output.call.ordinary_clobbers.register_count = 25;
-        output.call.ordinary_clobbers.registers[0] = MachineRegister::X86Rax;
-        output.call.ordinary_clobbers.registers[1] = MachineRegister::X86Rcx;
-        output.call.ordinary_clobbers.registers[2] = MachineRegister::X86Rdx;
-        output.call.ordinary_clobbers.registers[3] = MachineRegister::X86Rsi;
-        output.call.ordinary_clobbers.registers[4] = MachineRegister::X86Rdi;
-        output.call.ordinary_clobbers.registers[5] = MachineRegister::X86R8;
-        output.call.ordinary_clobbers.registers[6] = MachineRegister::X86R9;
-        output.call.ordinary_clobbers.registers[7] = MachineRegister::X86R10;
-        output.call.ordinary_clobbers.registers[8] = MachineRegister::X86R11;
-        output.call.ordinary_clobbers.registers[9] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[0] = |abi|::MachineRegister::X86Rax;
+        output.call.ordinary_clobbers.registers[1] = |abi|::MachineRegister::X86Rcx;
+        output.call.ordinary_clobbers.registers[2] = |abi|::MachineRegister::X86Rdx;
+        output.call.ordinary_clobbers.registers[3] = |abi|::MachineRegister::X86Rsi;
+        output.call.ordinary_clobbers.registers[4] = |abi|::MachineRegister::X86Rdi;
+        output.call.ordinary_clobbers.registers[5] = |abi|::MachineRegister::X86R8;
+        output.call.ordinary_clobbers.registers[6] = |abi|::MachineRegister::X86R9;
+        output.call.ordinary_clobbers.registers[7] = |abi|::MachineRegister::X86R10;
+        output.call.ordinary_clobbers.registers[8] = |abi|::MachineRegister::X86R11;
+        output.call.ordinary_clobbers.registers[9] = |abi|::MachineRegister::X86Xmm {
             index: 0
         };
-        output.call.ordinary_clobbers.registers[10] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[10] = |abi|::MachineRegister::X86Xmm {
             index: 1
         };
-        output.call.ordinary_clobbers.registers[11] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[11] = |abi|::MachineRegister::X86Xmm {
             index: 2
         };
-        output.call.ordinary_clobbers.registers[12] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[12] = |abi|::MachineRegister::X86Xmm {
             index: 3
         };
-        output.call.ordinary_clobbers.registers[13] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[13] = |abi|::MachineRegister::X86Xmm {
             index: 4
         };
-        output.call.ordinary_clobbers.registers[14] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[14] = |abi|::MachineRegister::X86Xmm {
             index: 5
         };
-        output.call.ordinary_clobbers.registers[15] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[15] = |abi|::MachineRegister::X86Xmm {
             index: 6
         };
-        output.call.ordinary_clobbers.registers[16] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[16] = |abi|::MachineRegister::X86Xmm {
             index: 7
         };
-        output.call.ordinary_clobbers.registers[17] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[17] = |abi|::MachineRegister::X86Xmm {
             index: 8
         };
-        output.call.ordinary_clobbers.registers[18] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[18] = |abi|::MachineRegister::X86Xmm {
             index: 9
         };
-        output.call.ordinary_clobbers.registers[19] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[19] = |abi|::MachineRegister::X86Xmm {
             index: 10
         };
-        output.call.ordinary_clobbers.registers[20] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[20] = |abi|::MachineRegister::X86Xmm {
             index: 11
         };
-        output.call.ordinary_clobbers.registers[21] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[21] = |abi|::MachineRegister::X86Xmm {
             index: 12
         };
-        output.call.ordinary_clobbers.registers[22] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[22] = |abi|::MachineRegister::X86Xmm {
             index: 13
         };
-        output.call.ordinary_clobbers.registers[23] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[23] = |abi|::MachineRegister::X86Xmm {
             index: 14
         };
-        output.call.ordinary_clobbers.registers[24] = MachineRegister::X86Xmm {
+        output.call.ordinary_clobbers.registers[24] = |abi|::MachineRegister::X86Xmm {
             index: 15
         };
-        output.state.initial_regime = MachineRegime::X86Long64;
+        output.state.initial_regime = |abi|::MachineRegime::X86Long64;
         output.state.permitted_transitive_use.general_registers = true;
         output.state.permitted_transitive_use.vector_registers = true;
         output.state.permitted_transitive_use.flags = true;
@@ -234,18 +218,18 @@ machine linux_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanRes
         // A returning import's floating-control envelope restores MXCSR/FPCR,
         // which the hosted ABI makes callee-preserved.
         output.state.permitted_transitive_use.control_state = true;
-        output.state.stack = EntryStack::ProviderSelected;
-        output.state.preemption = Preemption::NotApplicable;
-        BoundaryPlanResult::Accepted { plan: output }
+        output.state.stack = |abi|::EntryStack::ProviderSelected;
+        output.state.preemption = |abi|::Preemption::NotApplicable;
+        |abi|::BoundaryPlanResult::Accepted { plan: output }
     }
 
-    machine reject() -> BoundaryPlanResult {
-        BoundaryPlanResult::Rejected {
-            reason: CallingPolicyRejection {
-                reason: "LinuxX86_64Application requires exact physical or program-storage entry shapes" as +Utf8,
+    machine reject() -> |abi|::BoundaryPlanResult {
+        |abi|::BoundaryPlanResult::Rejected {
+            reason: |abi|::CallingPolicyRejection {
+                reason: "LinuxX86_64Application requires exact physical or program-storage entry shapes" as + |abi|::Utf8,
             },
         }
     }
 }
 
-boundary trait LinuxX86_64Application: ProgramStorageEntry + LinuxX86_64PhysicalEntry + Calling<LinuxX86_64CallingPolicy> {}
+boundary trait LinuxX86_64Application: |storage|::ProgramStorageEntry + LinuxX86_64PhysicalEntry + |abi|::Calling<LinuxX86_64CallingPolicy> {}

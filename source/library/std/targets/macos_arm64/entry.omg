@@ -1,24 +1,6 @@
-use AbiValueClass;
-use BoundaryEntryPlan;
-use BoundaryPlanResult;
-use BoundarySignature;
-use Calling;
-use CallingConvention;
-use CallingPolicy;
-use CallingPolicyRejection;
-use EntryControl;
-use EntryStack;
-use MachineRegime;
-use MachineRegister;
-use Preemption;
-use ValueLocation;
-use ValuePlacement;
-use ValueShape;
-use hosted_entry_arm_extent_value;
-use hosted_entry_extent_shape;
-use hosted_entry_integer_shape;
-use omega_language_std;
-use omega\language\core\ProgramStorageEntry;
+use calling.omg as abi;
+use entry_shapes.omg as shapes;
+use {omega}/language/core/extent.omg as storage;
 
 // Apple's dyld calls appMain(argc, argv, envp, apple) and receives an int:
 // https://github.com/apple-oss-distributions/dyld/blob/main/dyld/dyldMain.cpp
@@ -31,14 +13,14 @@ boundary trait MacosArm64PhysicalEntry {
     machine enter(argc: i32, argv: addr, envp: addr, apple: addr) -> i32 reaches none crashes Trap crashes Abort;
 }
 
-MacosArm64CallingPolicy satisfies CallingPolicy {
-    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
+MacosArm64CallingPolicy satisfies |abi|::CallingPolicy {
+    machine plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
         macos_arm64_entry_plan(signature)
     }
 }
 
-machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResult
-    satisfies CallingPolicy::plan
+machine macos_arm64_entry_plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult
+    satisfies |abi|::CallingPolicy::plan
 {
     transition signature.parameter_count {
         4 -> physical(signature),
@@ -46,7 +28,7 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
         _ -> reject()
     }
 
-    machine physical(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine physical(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
         transition signature.has_result {
             true -> physical_indices(signature, signature.parameters[0],
                 signature.parameters[1], signature.parameters[2],
@@ -55,8 +37,8 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
         }
     }
 
-    machine physical_indices(signature: BoundarySignature, argc: u64,
-        argv: u64, envp: u64, apple: u64, result: u64) -> BoundaryPlanResult
+    machine physical_indices(signature: |abi|::BoundarySignature, argc: u64,
+        argv: u64, envp: u64, apple: u64, result: u64) -> |abi|::BoundaryPlanResult
     {
         transition argc < 256 && argv < 256 && envp < 256 && apple < 256
             && result < 256 && argc < signature.shape_count
@@ -69,22 +51,22 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
         }
     }
 
-    machine physical_shapes(argc: ValueShape, argv: ValueShape, envp: ValueShape,
-        apple: ValueShape, result: ValueShape) -> BoundaryPlanResult
+    machine physical_shapes(argc: |abi|::ValueShape, argv: |abi|::ValueShape, envp: |abi|::ValueShape,
+        apple: |abi|::ValueShape, result: |abi|::ValueShape) -> |abi|::BoundaryPlanResult
     {
-        transition hosted_entry_integer_shape(@argc, 4)
-            && hosted_entry_integer_shape(@argv, 8)
-            && hosted_entry_integer_shape(@envp, 8)
-            && hosted_entry_integer_shape(@apple, 8)
-            && hosted_entry_integer_shape(@result, 4)
+        transition |shapes|::hosted_entry_integer_shape(@argc, 4)
+            && |shapes|::hosted_entry_integer_shape(@argv, 8)
+            && |shapes|::hosted_entry_integer_shape(@envp, 8)
+            && |shapes|::hosted_entry_integer_shape(@apple, 8)
+            && |shapes|::hosted_entry_integer_shape(@result, 4)
         {
             true -> build_physical(),
             _ -> reject()
         }
     }
 
-    machine build_physical() -> BoundaryPlanResult {
-        let mutable output: BoundaryEntryPlan;
+    machine build_physical() -> |abi|::BoundaryPlanResult {
+        let mutable output: |abi|::BoundaryEntryPlan;
         output.call.parameter_count = 4;
         // X-register identity plus a four-byte fragment denotes W0.
         output.call.parameters[0] = macos_arm64_entry_word(4, 0);
@@ -96,15 +78,15 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
         transition { _ -> finish(output) }
     }
 
-    machine semantic(signature: BoundarySignature) -> BoundaryPlanResult {
+    machine semantic(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
         transition signature.has_result {
             false -> semantic_indices(signature, signature.parameters[0], signature.parameters[1]),
             _ -> reject()
         }
     }
 
-    machine semantic_indices(signature: BoundarySignature, image: u64,
-        storage: u64) -> BoundaryPlanResult
+    machine semantic_indices(signature: |abi|::BoundarySignature, image: u64,
+        storage: u64) -> |abi|::BoundaryPlanResult
     {
         transition image < 256 && storage < 256
             && image < signature.shape_count && storage < signature.shape_count
@@ -114,71 +96,71 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
         }
     }
 
-    machine semantic_shapes(image: ValueShape, storage: ValueShape, signature: BoundarySignature) -> BoundaryPlanResult {
-        transition hosted_entry_extent_shape(image, @signature) && hosted_entry_extent_shape(storage, @signature) {
+    machine semantic_shapes(image: |abi|::ValueShape, storage: |abi|::ValueShape, signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
+        transition |shapes|::hosted_entry_extent_shape(image, @signature) && |shapes|::hosted_entry_extent_shape(storage, @signature) {
             true -> build_semantic(),
             _ -> reject()
         }
     }
 
-    machine build_semantic() -> BoundaryPlanResult {
-        let mutable output: BoundaryEntryPlan;
+    machine build_semantic() -> |abi|::BoundaryPlanResult {
+        let mutable output: |abi|::BoundaryEntryPlan;
         output.call.parameter_count = 2;
-        output.call.parameters[0] = hosted_entry_arm_extent_value(0, 1);
-        output.call.parameters[1] = hosted_entry_arm_extent_value(2, 3);
+        output.call.parameters[0] = |shapes|::hosted_entry_arm_extent_value(0, 1);
+        output.call.parameters[1] = |shapes|::hosted_entry_arm_extent_value(2, 3);
         transition { _ -> finish(output) }
     }
 
-    machine finish(output: BoundaryEntryPlan) -> BoundaryPlanResult {
-        let mutable plan: BoundaryEntryPlan = output;
-        plan.call.convention = CallingConvention::Aapcs64;
+    machine finish(output: |abi|::BoundaryEntryPlan) -> |abi|::BoundaryPlanResult {
+        let mutable plan: |abi|::BoundaryEntryPlan = output;
+        plan.call.convention = |abi|::CallingConvention::Aapcs64;
         plan.call.stack_alignment = 16;
-        plan.call.entry_control = EntryControl::CallReturn;
+        plan.call.entry_control = |abi|::EntryControl::CallReturn;
         // Standard AAPCS64 volatile banks; x18 is platform-reserved.
         plan.call.ordinary_clobbers.register_count = 42;
-        plan.call.ordinary_clobbers.registers[0] = MachineRegister::Aarch64X { index: 0 };
-        plan.call.ordinary_clobbers.registers[1] = MachineRegister::Aarch64X { index: 1 };
-        plan.call.ordinary_clobbers.registers[2] = MachineRegister::Aarch64X { index: 2 };
-        plan.call.ordinary_clobbers.registers[3] = MachineRegister::Aarch64X { index: 3 };
-        plan.call.ordinary_clobbers.registers[4] = MachineRegister::Aarch64X { index: 4 };
-        plan.call.ordinary_clobbers.registers[5] = MachineRegister::Aarch64X { index: 5 };
-        plan.call.ordinary_clobbers.registers[6] = MachineRegister::Aarch64X { index: 6 };
-        plan.call.ordinary_clobbers.registers[7] = MachineRegister::Aarch64X { index: 7 };
-        plan.call.ordinary_clobbers.registers[8] = MachineRegister::Aarch64X { index: 8 };
-        plan.call.ordinary_clobbers.registers[9] = MachineRegister::Aarch64X { index: 9 };
-        plan.call.ordinary_clobbers.registers[10] = MachineRegister::Aarch64X { index: 10 };
-        plan.call.ordinary_clobbers.registers[11] = MachineRegister::Aarch64X { index: 11 };
-        plan.call.ordinary_clobbers.registers[12] = MachineRegister::Aarch64X { index: 12 };
-        plan.call.ordinary_clobbers.registers[13] = MachineRegister::Aarch64X { index: 13 };
-        plan.call.ordinary_clobbers.registers[14] = MachineRegister::Aarch64X { index: 14 };
-        plan.call.ordinary_clobbers.registers[15] = MachineRegister::Aarch64X { index: 15 };
-        plan.call.ordinary_clobbers.registers[16] = MachineRegister::Aarch64X { index: 16 };
-        plan.call.ordinary_clobbers.registers[17] = MachineRegister::Aarch64X { index: 17 };
-        plan.call.ordinary_clobbers.registers[18] = MachineRegister::Aarch64V { index: 0 };
-        plan.call.ordinary_clobbers.registers[19] = MachineRegister::Aarch64V { index: 1 };
-        plan.call.ordinary_clobbers.registers[20] = MachineRegister::Aarch64V { index: 2 };
-        plan.call.ordinary_clobbers.registers[21] = MachineRegister::Aarch64V { index: 3 };
-        plan.call.ordinary_clobbers.registers[22] = MachineRegister::Aarch64V { index: 4 };
-        plan.call.ordinary_clobbers.registers[23] = MachineRegister::Aarch64V { index: 5 };
-        plan.call.ordinary_clobbers.registers[24] = MachineRegister::Aarch64V { index: 6 };
-        plan.call.ordinary_clobbers.registers[25] = MachineRegister::Aarch64V { index: 7 };
-        plan.call.ordinary_clobbers.registers[26] = MachineRegister::Aarch64V { index: 16 };
-        plan.call.ordinary_clobbers.registers[27] = MachineRegister::Aarch64V { index: 17 };
-        plan.call.ordinary_clobbers.registers[28] = MachineRegister::Aarch64V { index: 18 };
-        plan.call.ordinary_clobbers.registers[29] = MachineRegister::Aarch64V { index: 19 };
-        plan.call.ordinary_clobbers.registers[30] = MachineRegister::Aarch64V { index: 20 };
-        plan.call.ordinary_clobbers.registers[31] = MachineRegister::Aarch64V { index: 21 };
-        plan.call.ordinary_clobbers.registers[32] = MachineRegister::Aarch64V { index: 22 };
-        plan.call.ordinary_clobbers.registers[33] = MachineRegister::Aarch64V { index: 23 };
-        plan.call.ordinary_clobbers.registers[34] = MachineRegister::Aarch64V { index: 24 };
-        plan.call.ordinary_clobbers.registers[35] = MachineRegister::Aarch64V { index: 25 };
-        plan.call.ordinary_clobbers.registers[36] = MachineRegister::Aarch64V { index: 26 };
-        plan.call.ordinary_clobbers.registers[37] = MachineRegister::Aarch64V { index: 27 };
-        plan.call.ordinary_clobbers.registers[38] = MachineRegister::Aarch64V { index: 28 };
-        plan.call.ordinary_clobbers.registers[39] = MachineRegister::Aarch64V { index: 29 };
-        plan.call.ordinary_clobbers.registers[40] = MachineRegister::Aarch64V { index: 30 };
-        plan.call.ordinary_clobbers.registers[41] = MachineRegister::Aarch64V { index: 31 };
-        plan.state.initial_regime = MachineRegime::Aarch64A64 { exception_level: 0 };
+        plan.call.ordinary_clobbers.registers[0] = |abi|::MachineRegister::Aarch64X { index: 0 };
+        plan.call.ordinary_clobbers.registers[1] = |abi|::MachineRegister::Aarch64X { index: 1 };
+        plan.call.ordinary_clobbers.registers[2] = |abi|::MachineRegister::Aarch64X { index: 2 };
+        plan.call.ordinary_clobbers.registers[3] = |abi|::MachineRegister::Aarch64X { index: 3 };
+        plan.call.ordinary_clobbers.registers[4] = |abi|::MachineRegister::Aarch64X { index: 4 };
+        plan.call.ordinary_clobbers.registers[5] = |abi|::MachineRegister::Aarch64X { index: 5 };
+        plan.call.ordinary_clobbers.registers[6] = |abi|::MachineRegister::Aarch64X { index: 6 };
+        plan.call.ordinary_clobbers.registers[7] = |abi|::MachineRegister::Aarch64X { index: 7 };
+        plan.call.ordinary_clobbers.registers[8] = |abi|::MachineRegister::Aarch64X { index: 8 };
+        plan.call.ordinary_clobbers.registers[9] = |abi|::MachineRegister::Aarch64X { index: 9 };
+        plan.call.ordinary_clobbers.registers[10] = |abi|::MachineRegister::Aarch64X { index: 10 };
+        plan.call.ordinary_clobbers.registers[11] = |abi|::MachineRegister::Aarch64X { index: 11 };
+        plan.call.ordinary_clobbers.registers[12] = |abi|::MachineRegister::Aarch64X { index: 12 };
+        plan.call.ordinary_clobbers.registers[13] = |abi|::MachineRegister::Aarch64X { index: 13 };
+        plan.call.ordinary_clobbers.registers[14] = |abi|::MachineRegister::Aarch64X { index: 14 };
+        plan.call.ordinary_clobbers.registers[15] = |abi|::MachineRegister::Aarch64X { index: 15 };
+        plan.call.ordinary_clobbers.registers[16] = |abi|::MachineRegister::Aarch64X { index: 16 };
+        plan.call.ordinary_clobbers.registers[17] = |abi|::MachineRegister::Aarch64X { index: 17 };
+        plan.call.ordinary_clobbers.registers[18] = |abi|::MachineRegister::Aarch64V { index: 0 };
+        plan.call.ordinary_clobbers.registers[19] = |abi|::MachineRegister::Aarch64V { index: 1 };
+        plan.call.ordinary_clobbers.registers[20] = |abi|::MachineRegister::Aarch64V { index: 2 };
+        plan.call.ordinary_clobbers.registers[21] = |abi|::MachineRegister::Aarch64V { index: 3 };
+        plan.call.ordinary_clobbers.registers[22] = |abi|::MachineRegister::Aarch64V { index: 4 };
+        plan.call.ordinary_clobbers.registers[23] = |abi|::MachineRegister::Aarch64V { index: 5 };
+        plan.call.ordinary_clobbers.registers[24] = |abi|::MachineRegister::Aarch64V { index: 6 };
+        plan.call.ordinary_clobbers.registers[25] = |abi|::MachineRegister::Aarch64V { index: 7 };
+        plan.call.ordinary_clobbers.registers[26] = |abi|::MachineRegister::Aarch64V { index: 16 };
+        plan.call.ordinary_clobbers.registers[27] = |abi|::MachineRegister::Aarch64V { index: 17 };
+        plan.call.ordinary_clobbers.registers[28] = |abi|::MachineRegister::Aarch64V { index: 18 };
+        plan.call.ordinary_clobbers.registers[29] = |abi|::MachineRegister::Aarch64V { index: 19 };
+        plan.call.ordinary_clobbers.registers[30] = |abi|::MachineRegister::Aarch64V { index: 20 };
+        plan.call.ordinary_clobbers.registers[31] = |abi|::MachineRegister::Aarch64V { index: 21 };
+        plan.call.ordinary_clobbers.registers[32] = |abi|::MachineRegister::Aarch64V { index: 22 };
+        plan.call.ordinary_clobbers.registers[33] = |abi|::MachineRegister::Aarch64V { index: 23 };
+        plan.call.ordinary_clobbers.registers[34] = |abi|::MachineRegister::Aarch64V { index: 24 };
+        plan.call.ordinary_clobbers.registers[35] = |abi|::MachineRegister::Aarch64V { index: 25 };
+        plan.call.ordinary_clobbers.registers[36] = |abi|::MachineRegister::Aarch64V { index: 26 };
+        plan.call.ordinary_clobbers.registers[37] = |abi|::MachineRegister::Aarch64V { index: 27 };
+        plan.call.ordinary_clobbers.registers[38] = |abi|::MachineRegister::Aarch64V { index: 28 };
+        plan.call.ordinary_clobbers.registers[39] = |abi|::MachineRegister::Aarch64V { index: 29 };
+        plan.call.ordinary_clobbers.registers[40] = |abi|::MachineRegister::Aarch64V { index: 30 };
+        plan.call.ordinary_clobbers.registers[41] = |abi|::MachineRegister::Aarch64V { index: 31 };
+        plan.state.initial_regime = |abi|::MachineRegime::Aarch64A64 { exception_level: 0 };
         plan.state.permitted_transitive_use.general_registers = true;
         plan.state.permitted_transitive_use.vector_registers = true;
         plan.state.permitted_transitive_use.flags = true;
@@ -187,31 +169,31 @@ machine macos_arm64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResu
         // A returning import's floating-control envelope restores MXCSR/FPCR,
         // which the hosted ABI makes callee-preserved.
         plan.state.permitted_transitive_use.control_state = true;
-        plan.state.stack = EntryStack::ProviderSelected;
-        plan.state.preemption = Preemption::NotApplicable;
-        BoundaryPlanResult::Accepted { plan: plan }
+        plan.state.stack = |abi|::EntryStack::ProviderSelected;
+        plan.state.preemption = |abi|::Preemption::NotApplicable;
+        |abi|::BoundaryPlanResult::Accepted { plan: plan }
     }
 
-    machine reject() -> BoundaryPlanResult {
-        BoundaryPlanResult::Rejected {
-            reason: CallingPolicyRejection {
-                reason: "MacosApplication requires exact physical or program-storage entry shapes" as +Utf8,
+    machine reject() -> |abi|::BoundaryPlanResult {
+        |abi|::BoundaryPlanResult::Rejected {
+            reason: |abi|::CallingPolicyRejection {
+                reason: "MacosApplication requires exact physical or program-storage entry shapes" as + |abi|::Utf8,
             },
         }
     }
 }
 
-machine macos_arm64_entry_word(bytes: u64, register: u64) -> ValuePlacement {
-    let mutable value: ValuePlacement;
-    value.shape.class = AbiValueClass::Integer;
+machine macos_arm64_entry_word(bytes: u64, register: u64) -> |abi|::ValuePlacement {
+    let mutable value: |abi|::ValuePlacement;
+    value.shape.class = |abi|::AbiValueClass::Integer;
     value.shape.byte_size = bytes;
     value.shape.alignment = bytes;
     value.location_count = 1;
-    value.locations[0] = ValueLocation::Register {
-        register: MachineRegister::Aarch64X { index: register },
+    value.locations[0] = |abi|::ValueLocation::Register {
+        register: |abi|::MachineRegister::Aarch64X { index: register },
         value_byte_offset: 0, byte_size: bytes,
     };
     value
 }
 
-boundary trait MacosApplication: ProgramStorageEntry + MacosArm64PhysicalEntry + Calling<MacosArm64CallingPolicy> {}
+boundary trait MacosApplication: |storage|::ProgramStorageEntry + MacosArm64PhysicalEntry + |abi|::Calling<MacosArm64CallingPolicy> {}
