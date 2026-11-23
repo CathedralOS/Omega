@@ -137,7 +137,7 @@ fn declared_refinement_module() -> TerminalModule {
     let mut sources = SourceMap::default();
     let source = sources
         .add_with_metadata(
-            PathBuf::from("selected.omg"),
+            PathBuf::from("package/selected.omg"),
             "Selected entry amount Callback".to_owned(),
             PathBuf::from("package"),
             package,
@@ -259,8 +259,9 @@ fn declared_refinement_module() -> TerminalModule {
             bindings: &[],
         },
     );
-    let RouteVerdict::Accepted(closure) = crate::checking::judge(elaborated).unwrap() else {
-        panic!("the source-owned selected body must be accepted");
+    let verdict = crate::checking::judge(elaborated).unwrap();
+    let RouteVerdict::Accepted(closure) = verdict else {
+        panic!("the source-owned selected body must be accepted: {verdict:?}");
     };
     assert!(closure.elaboration.undeclared.is_empty());
     let mut module = closure.elaboration.module;
