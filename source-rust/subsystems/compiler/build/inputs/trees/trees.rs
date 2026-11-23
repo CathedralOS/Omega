@@ -19,7 +19,7 @@ reproducing its exact digest, entry count, and unique file-byte count.
 /*
 Module layout:
 - `staged_output_tree`: the canonical tree carrier, domain-separated commitment,
-  generated-source selection (`select_included_sources`), and completed-output
+  legacy source recovery (`recover_included_output_sources`), and completed-output
   subset selection (`select_files`).
 - `capture`: physical host-tree acquisition with open-file identity and
   link-count custody checks.
@@ -47,12 +47,13 @@ mod tree_from_entries;
 
 pub use capture::capture;
 pub use captured_source::{
-    BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory,
-    CapturedBuildSourceInput, CapturedSourceEntry, CapturedSourceEntryKind, SourceSnapshotEntry,
-    SourceSnapshotError, SourceSnapshotMetadata,
+    BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory, CapturedBuildSourceInput,
+    CapturedSourceEntry, CapturedSourceEntryKind, SourceSnapshotEntry, SourceSnapshotError,
+    SourceSnapshotMetadata,
 };
 pub(crate) use staged_output_tree::BuildStagedOutputMaterializationError;
 pub use staged_output_tree::{
     BuildStagedOutputEntryInput, BuildStagedOutputEntryKind, BuildStagedOutputTree,
-    BuildStagedOutputTreeCommitment, PackageGeneratedSource, empty, select_included_sources,
+    BuildStagedOutputTreeCommitment, PackageGeneratedSource, empty,
+    recover_included_output_sources,
 };

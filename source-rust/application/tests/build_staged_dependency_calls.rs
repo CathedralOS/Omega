@@ -1066,7 +1066,8 @@ fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparati
     let mutable first: [u8; 1] = [0u8];
     let first_count: i64 = BuildSource::read(@builder.source, reader, @mutable first[..], 1u64);
     let saw_first: bool = first_count == 1i64 && first[0] == 109u8;
-    let output: BuildPath = BuildOutput::resolve(@builder.output, "joined.omg");
+    let promised: RequiredOutput = BuildOutput::require(@mutable builder.output, "joined.txt");
+    let output: BuildPath = BuildOutput::resolve(@builder.output, "joined.txt");
     let writer: i32 = BuildOutput::create(@mutable builder.output, output, 0);
     _ = BuildOutput::write(@mutable builder.output, writer, "machine joined() -> i32 { ");"#;
     let after = r#"    let selected: i32 = kit\v();
@@ -1076,9 +1077,20 @@ fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparati
     let denied: i32 = BuildSource::open(@builder.source, input, 1);
     _ = BuildOutput::write(@mutable builder.output, writer, "7i32 }");
     _ = BuildOutput::close(@mutable builder.output, writer);
-    BuildOutput::include_source(@mutable builder.output, output);
-    transition selected == 7 && saw_first && second_count == 1i64 && second[0] == 97u8 && denied == -1 {
-        true -> carried(builder), _ -> wrong(builder)
+    Build::include_source(builder, "joined.omg", "machine joined() -> i32 { 7i32 }");
+    let ready: bool = selected == 7 && saw_first && second_count == 1i64 && second[0] == 97u8 && denied == -1;
+    let completion: OutputCompletion = BuildOutput::complete(@mutable builder.output, promised, output);
+    transition completion {
+        OutputCompletion::Sealed { receipt } -> checked(builder, ready),
+        OutputCompletion::Retry { obligation, file } -> failed(builder, obligation)
+    }
+    machine failed(builder: @mutable Build, obligation: RequiredOutput) {
+        BuildOutput::fail(@mutable builder.output, obligation, "staged bytes did not settle");
+    }
+    machine checked(builder: @mutable Build, ready: bool) {
+        transition ready {
+            true -> carried(builder), _ -> wrong(builder)
+        }
     }"#;
     let (ran, report) = check_with_dependency_build(
         "open-files-across-mount",
@@ -1092,11 +1104,41 @@ fn an_open_reader_and_writer_keep_their_cursor_and_staged_bytes_across_preparati
         ran && report.contains("native exit 0") && report.contains("interp exit: 0"),
         "{report}"
     );
-    let forged = after.replace(
-        "BuildOutput::include_source(@mutable builder.output, output)",
-        "BuildOutput::include_source(@mutable builder.output, BuildPath {})",
+    let output = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "open-writer-completed-output",
+        false,
+    )
+    .unwrap();
+    let (built, report) = check_with_dependency_build(
+        "open-files-export",
+        before,
+        after,
+        7,
+        "",
+        &["--build-dir", output.path().to_str().unwrap(), "build.omg"],
     );
-    let (ran, report) = check("unissued-output-path-after-mount", before, &forged, 7);
+    assert!(built, "{report}");
+    let completed = report
+        .lines()
+        .find_map(|line| line.strip_prefix("published completed build outputs to "))
+        .expect("the Build must export the file it completed");
+    assert_eq!(
+        std::fs::read(std::path::Path::new(completed).join("files/joined.txt")).unwrap(),
+        b"machine joined() -> i32 { 7i32 }",
+    );
+
+    let forged = after.replace(
+        "promised, output);",
+        "promised, BuildPath {});",
+    );
+    let (ran, report) = check_with_dependency_build(
+        "unissued-output-path-after-mount",
+        before,
+        &forged,
+        7,
+        "",
+        &["--check", "build.omg"],
+    );
     assert!(
         !ran && report.contains("filesystem value was not issued by this activation"),
         "{report}"
@@ -1628,6 +1670,47 @@ machine build(builder: @mutable Build) suspends {
     let (ok, report) = invoke(&called, &["--check", "build.omg"]);
     assert!(
         !ok && report.contains("Alias `kit` was prepared as a Product dependency"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_dependency_publishes_source_bytes_under_the_name_the_product_imports() {
+    let target = target::TargetProfile::host_if_supported()
+        .unwrap()
+        .target_name();
+    let build = r#"use {kit}/generated/start.omg as entry;
+machine build(builder: @mutable Build) suspends {
+    Build::application(builder, "generated_entry");
+    let mutable source: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
+    dependency\with_alias(@mutable source, "kit");
+    let registered: DependencyRegistration = Build::dependency(builder, source);
+    suspend Build::prepare_dependency(builder, registered);
+    Build::bind(builder, HOST\ProgramEntry, |entry|::start);
+}"#.replace("HOST", target);
+    let publish = r#"Build::include_source(builder, "generated/start.omg", "use main.omg as seed; public machine start() crashes Trap { transition |seed|::v() == 7 { true -> done(), _ -> bad() } machine done() {} machine bad() { crash Trap; } }");"#;
+    let run =
+        |name, body: &str| check_project(name, &build, 7, body, &["run", "--both", "build.omg"]);
+    let (ok, report) = run("published-source-bytes", publish);
+    assert!(
+        ok && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
+    let outside = publish.replace("generated/start.omg", "../start.omg");
+    let (ok, report) = run("published-source-outside", &outside);
+    assert!(
+        !ok && report.contains("invalid generated source filename `../start.omg`"),
+        "{report}"
+    );
+}
+
+#[test]
+fn a_build_cannot_publish_the_same_filename_again_after_a_dependency_wait() {
+    let publish = r#"Build::include_source(builder, "generated/value.omg", "const SEVEN: i32 = 7;");"#;
+    let resumed = format!("{publish}\n    carried(builder);");
+    let (ok, report) = check("duplicate-source-after-wait", publish, &resumed, 7);
+    assert!(
+        !ok && report.contains("generated/value.omg") && report.contains("already"),
         "{report}"
     );
 }

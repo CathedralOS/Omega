@@ -9,6 +9,7 @@ version.workspace = true
 path = "trees.rs"
 
 [dependencies]
+language-core = { path = "../../../foundation/language-core" }
 wire = { path = "../../../../../foundation/wire" }
 record-storage = { path = "../../../../../foundation/record-storage" }
 filesystem-authority = { path = "../../evaluation/authority/filesystem" }

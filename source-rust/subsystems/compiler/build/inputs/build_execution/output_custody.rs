@@ -1,15 +1,8 @@
-// Staged-output obligation settlement (`settle_build_output_obligations`) and
-// generated-source selection (`select_generated_sources`). Verifies that every
-// linear `BuildOutput::require` obligation completed against its exact receipt,
-// underwent no post-completion mutations, and resides as a sealed regular file
-// in `BuildStagedOutputTree`.
+//! Required output files must match the exact completed receipt and remain sealed.
 
 use super::filesystem_scope::BUILD_OUTPUT_ROOT_IDENTITY;
-use super::observations::{BuildIncludedSourceHandoff, BuildRequiredOutputSettlement};
-use build_output::{
-    BuildStagedOutputEntryKind, BuildStagedOutputTree, PackageGeneratedSource,
-    select_included_sources,
-};
+use super::observations::BuildRequiredOutputSettlement;
+use build_output::{BuildStagedOutputEntryKind, BuildStagedOutputTree};
 use diagnostics::Diagnostic;
 
 pub(super) fn settle_build_output_obligations(
@@ -88,26 +81,4 @@ pub(super) fn settle_build_output_obligations(
         });
     }
     Ok(settlements)
-}
-
-pub(super) fn select_generated_sources(
-    staged_output_tree: Option<&BuildStagedOutputTree>,
-    included_source_handoffs: &[BuildIncludedSourceHandoff],
-    machine_name: &str,
-) -> Result<Vec<PackageGeneratedSource>, Vec<Diagnostic>> {
-    Ok(match staged_output_tree {
-        Some(tree) => {
-            let included_source_paths = included_source_handoffs
-                .iter()
-                .map(|handoff| handoff.relative_path.clone())
-                .collect::<Vec<_>>();
-            select_included_sources(tree, &included_source_paths)?
-        }
-        None if included_source_handoffs.is_empty() => Vec::new(),
-        None => {
-            return Err(vec![Diagnostic::error(format!(
-                "build-time evaluation of `{machine_name}` handed off generated source without sponsored staged-output custody"
-            ))]);
-        }
-    })
 }

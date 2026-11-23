@@ -228,7 +228,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Implement exact-file imports in both compilers. A file, a value and a type can share a name: `|cell|::read` selects the file, `cell.read` the value and `cell::Stored` the type. Check visibility, direct package dependencies and file-local imports. [Name resolution](wiki/spec/language/modules.md#names-and-imports)
   - Run the [file import example](samples/cli/probes/direct_file_imports) in the Omega-written compiler. The private machine must return 7 and the supplied callable must return 9.
   - Check public declaration addresses across file moves in the Omega-written compiler.
-  - Check generated files under their admitted paths.
+  - Import generated files by their admitted package-relative filenames in the Omega-written compiler.
   - Migrate sources and fixtures to exact filenames and explicit qualifiers. Reject directory and item imports, backslash paths, and old module headers. [Files and imports](wiki/language_guide/chapter_15_modules_imports_visibility.md#files-and-imports)
 
 - **DOMAIN-ACCESS-AUTHORITY.** (covers **DOMAIN-CARRIER-FORMATION**, **NOMINAL-FIELD-FLOW**, **DOMAIN-ISSUER-ROUTES**) Complete [carrier membership](wiki/spec/language/domains.md#carrier-exact-membership) for record, generic and indexed carriers (lowering already refuses `x in D` when a scalar `x` has another carrier than `D`), `[u8; N] in D`, [domain `access Policy`](wiki/spec/resources/access.md), and [repair facts](wiki/drafts/designs/invariant_repair_facts.md).
