@@ -1922,7 +1922,7 @@ mod tests {
             ),
             (
                 "client.omg",
-                "machine ordinary(bytes: @mutable [u8; 3]) { kit\\pick(bytes[..]); } \
+                "use kit/overloads.omg as kit; machine ordinary(bytes: @mutable [u8; 3]) { |kit|::pick(bytes[..]); } \
                  machine exclusive(bytes: @mutable [u8; 3]) { sink(@mutable bytes[..]); } \
                  machine sink(value: @mutable [u8]) {}",
             ),
@@ -2217,13 +2217,14 @@ mod tests {
             (
                 "client.omg",
                 r#"
+                use operations.omg as ops;
                 use converted;
                 use converted\pick;
                 machine namespace_call(value: u32) {
                     let selected: u32 in Saturating = converted\pick(value);
                 }
                 machine data_call(value: u32) {
-                    let selected: u32 in Saturating = Owned::pick(value);
+                    let selected: u32 in Saturating = |ops|::Owned::pick(value);
                 }
             "#,
             ),

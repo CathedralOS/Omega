@@ -105,6 +105,50 @@ pub(crate) fn packages(
             )
         })
         .collect::<Vec<_>>();
+    // Bind each authored file alias to its selected source, as package admission does.
+    for ((owner, _, _), unit) in units.iter().zip(&parsed_units) {
+        for item in unit.root_items() {
+            let syntax_trees::item::Item::Use(syntax_trees::item::UseItem::File {
+                root,
+                components,
+                alias,
+                ..
+            }) = item
+            else {
+                continue;
+            };
+            let mut components = unit
+                .items
+                .identifier_path_members(*components)
+                .iter()
+                .map(|part| part.as_str(unit));
+            let target_owner = if let Some(root) = root {
+                assert_eq!(root.as_str(unit), "omega");
+                assert_eq!(
+                    (components.next(), components.next()),
+                    (Some("language"), Some("core"))
+                );
+                0
+            } else {
+                *owner
+            };
+            let mut path = components.collect::<std::path::PathBuf>();
+            path.set_extension("omg");
+            let target = units
+                .iter()
+                .position(|(owner, file, _)| {
+                    *owner == target_owner && std::path::Path::new(file) == path
+                })
+                .expect("the fixture supplies the imported file");
+            top_level_bindings.push(
+                crate::source_symbols::SourceScopedTopLevelBinding::file_import(
+                    unit.source_id,
+                    source_ids[target],
+                    alias.as_str(unit),
+                ),
+            );
+        }
+    }
     // Package 0 contains the admitted Core fixtures. Each file keeps its own
     // authored imports; caller associations remain explicitly supplied above.
     if let Some(anchor) = units.iter().position(|(package, _, _)| *package == 0) {

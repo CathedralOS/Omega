@@ -75,7 +75,7 @@ fn a_constant_read_inside_a_called_machine_is_an_input_of_the_caller() {
     assert_eq!(integer(prepared.value("PLAIN")), Some(5));
 }
 
-const WIDTH: &str = "machine width(n: u8) -> u8 crashes none { n +% 1u8 }";
+const WIDTH: &str = "public machine width(n: u8) -> u8 crashes none { n +% 1u8 }";
 
 /// `A` and `B` call `width` from two files, so their initializers are the
 /// first expression of their own file and share expression numbers and
@@ -83,11 +83,25 @@ const WIDTH: &str = "machine width(n: u8) -> u8 crashes none { n +% 1u8 }";
 /// either file order.
 #[test]
 fn calls_in_two_files_are_evaluated_with_their_own_operands() {
-    let a = ("a.omg", "const A: u8 = width(7u8);");
-    let b = ("b.omg", "const B: u8 = width(9u8);");
+    let a = (
+        "a.omg",
+        "use machines.omg; const A: u8 = |machines|::width(7u8);",
+    );
+    let b = (
+        "b.omg",
+        "use machines.omg; const B: u8 = |machines|::width(9u8);",
+    );
     let machines = ("machines.omg", WIDTH);
     for files in [[a, b, machines], [machines, b, a]] {
-        let prepared = prepare(&files, Demand::Package).unwrap();
+        let prepared = package::prepare_with_imports(
+            &files,
+            Demand::Package,
+            &[
+                ("product/a.omg", "product/machines.omg", "machines"),
+                ("product/b.omg", "product/machines.omg", "machines"),
+            ],
+        )
+        .unwrap();
         assert_eq!(integer(prepared.value("A")), Some(8), "{files:?}");
         assert_eq!(integer(prepared.value("B")), Some(10), "{files:?}");
         assert_eq!(

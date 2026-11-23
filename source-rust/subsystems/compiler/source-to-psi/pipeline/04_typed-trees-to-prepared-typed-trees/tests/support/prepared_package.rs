@@ -69,6 +69,10 @@ fn compilation<'a>(
 
 /// The typed trees of `files`, each `(path, text)` under one package root.
 pub fn typed(files: &[(&str, &str)]) -> TypedTrees {
+    typed_with_imports(files, &[])
+}
+
+fn typed_with_imports(files: &[(&str, &str)], imports: &[(&str, &str, &str)]) -> TypedTrees {
     let package = PackageKeyIdentity::from_digest(PACKAGE).unwrap();
     let mut sources = SourceMap::default();
     let mut syntax = None;
@@ -99,6 +103,7 @@ pub fn typed(files: &[(&str, &str)]) -> TypedTrees {
         }
     }
     let mut request = resolution::ResolutionRequest::new(syntax.expect("at least one file"));
+    request.top_level_bindings = resolution::fixture_file_bindings(&sources, imports);
     request.sources = Some(std::sync::Arc::new(sources));
     let resolved = resolution::resolve(request)
         .unwrap_or_else(|refusal| panic!("resolution refused: {refusal:?}"));
@@ -112,7 +117,15 @@ pub fn prepare(
     files: &[(&str, &str)],
     demand: Demand<'_>,
 ) -> Result<Prepared, Vec<(String, String)>> {
-    let typed = typed(files);
+    prepare_with_imports(files, demand, &[])
+}
+
+pub fn prepare_with_imports(
+    files: &[(&str, &str)],
+    demand: Demand<'_>,
+    imports: &[(&str, &str, &str)],
+) -> Result<Prepared, Vec<(String, String)>> {
+    let typed = typed_with_imports(files, imports);
     let entries: Vec<_> = match demand {
         Demand::Package => Vec::new(),
         Demand::Entries(names) => names

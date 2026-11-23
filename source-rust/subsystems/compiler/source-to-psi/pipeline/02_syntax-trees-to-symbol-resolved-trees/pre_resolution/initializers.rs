@@ -207,8 +207,7 @@ mod tests {
             })
             .unwrap(),
         );
-        let text =
-            "machine local(value: u64) -> u64 { bound(value) }\nconst Count: u64 = local(3u64);";
+        let text = "use base.omg; machine local(value: u64) -> u64 { |base|::bound(value) }\nconst Count: u64 = local(3u64);";
         let source = sources
             .add("initializers/current.omg".into(), text.into())
             .source_id;
@@ -216,7 +215,13 @@ mod tests {
         let selected = prepare_const_initializer_selection(ResolutionRequest {
             syntax: syntax.clone(),
             sources: Some(Arc::new(sources)),
-            top_level_bindings: Vec::new(),
+            top_level_bindings: vec![
+                crate::source_symbols::SourceScopedTopLevelBinding::file_import(
+                    source,
+                    base_source,
+                    "base",
+                ),
+            ],
             retained_base: Some(base),
         })
         .unwrap();
@@ -323,7 +328,10 @@ mod tests {
         .unwrap();
 
         // Reopen each predecessor before appending a file. The last file contains no aliases.
-        let extend = |base: &SymbolResolvedTrees, path: &str, text: &str| {
+        let extend = |base: &SymbolResolvedTrees,
+                      path: &str,
+                      text: &str,
+                      imports: &[(&str, &str, &str)]| {
             let bytes = record_storage::encode(base, Default::default()).unwrap();
             let base: SymbolResolvedTrees =
                 record_storage::decode(&bytes, Default::default()).unwrap();
@@ -333,18 +341,22 @@ mod tests {
                 crate::resolution::resolve_extension(crate::resolution::ExtensionRequest {
                     base: Arc::new(base),
                     syntax: parse(text, source),
+                    top_level_bindings: crate::resolution::fixture_file_bindings(&sources, imports),
                     sources: Arc::new(sources),
-                    top_level_bindings: Vec::new(),
                 });
             (result, source)
         };
 
-        let (middle, _) = extend(&base, "middle.omg", "public data Byte = u8;");
+        let (middle, _) = extend(&base, "middle.omg", "public data Byte = u8;", &[]);
         let middle = middle.unwrap();
         let (extended, _) = extend(
             middle.trees(),
             "use.omg",
-            "public data Holder { value: Pair<Byte>; }",
+            "use base.omg; use middle.omg; public data Holder { value: |base|::Pair<|middle|::Byte>; }",
+            &[
+                ("use.omg", "base.omg", "base"),
+                ("use.omg", "middle.omg", "middle"),
+            ],
         );
         let extended = extended.unwrap();
         let trees = extended.trees();
@@ -373,10 +385,16 @@ mod tests {
         };
         assert_eq!(trees.symbols.name(*symbol), "u8");
 
-        let invalid = "public data Holder { value: Pair; }";
-        let (refused, source) = extend(middle.trees(), "missing-argument.omg", invalid);
-        let start = invalid.find("Pair").unwrap();
-        let span = SourceSpan::new(source, Span::new(start, start + "Pair".len()));
+        let invalid = "use base.omg; public data Holder { value: |base|::Pair; }";
+        let (refused, source) = extend(
+            middle.trees(),
+            "missing-argument.omg",
+            invalid,
+            &[("missing-argument.omg", "base.omg", "base")],
+        );
+        let reference = "|base|::Pair";
+        let start = invalid.find(reference).unwrap();
+        let span = SourceSpan::new(source, Span::new(start, start + reference.len()));
         let Err(diagnostics) = refused else {
             panic!("Pair requires a type argument");
         };

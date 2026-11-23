@@ -1,7 +1,7 @@
 //! One program for testing what stage 04 hands stage 05 about a constant used
 //! as a match pattern. Two modules each declare a public Boolean constant
-//! named `ON`, with opposite values. `choose` tests `east\ON`, `other` tests
-//! `west\ON`, and `plain` tests the literal `true` and names no constant.
+//! named `ON`, with opposite values. `choose` tests `|east|::ON`, `other` tests
+//! `|west|::ON`, and `plain` tests the literal `true` and names no constant.
 //!
 //! Only the qualified path tells the two constants apart, so a compiler that
 //! picked a constant by its last name would give one machine the other's
@@ -25,11 +25,13 @@ use source_compiler::test_support::{
 use source_provenance::DependencyScope;
 use symbols::SymbolHandle;
 
-pub const MAIN: &str = r"machine choose(x: bool) -> u8 {
-    match x { east\ON -> 17u8, _ -> 23u8, }
+pub const MAIN: &str = r"use east/value.omg as east;
+use west/value.omg as west;
+machine choose(x: bool) -> u8 {
+    match x { |east|::ON -> 17u8, _ -> 23u8, }
 }
 machine other(x: bool) -> u8 {
-    match x { west\ON -> 17u8, _ -> 23u8, }
+    match x { |west|::ON -> 17u8, _ -> 23u8, }
 }
 machine plain(x: bool) -> u8 {
     match x { true -> 17u8, _ -> 23u8, }
@@ -94,7 +96,7 @@ fn compilation<'a>(
 
 /// Run the program through the lexer, parser, resolver, typer and the source
 /// driver's constant evaluation, then stage 04. `east` is the value of
-/// `east\ON`; `west\ON` gets the opposite.
+/// `|east|::ON`; `|west|::ON` gets the opposite.
 pub fn prepare(east: bool, initializer: Initializer) -> Prepared {
     let package = PackageKeyIdentity::from_digest([0x45; 32]).unwrap();
     let eastern = initializer.module(east);
@@ -126,6 +128,13 @@ pub fn prepare(east: bool, initializer: Initializer) -> Prepared {
         }
     }
     let mut request = resolution::ResolutionRequest::new(syntax.unwrap());
+    request.top_level_bindings = resolution::fixture_file_bindings(
+        &sources,
+        &[
+            ("product/main.omg", "product/east/value.omg", "east"),
+            ("product/main.omg", "product/west/value.omg", "west"),
+        ],
+    );
     request.sources = Some(std::sync::Arc::new(sources));
     let resolved = resolution::resolve(request).unwrap();
     let typed = typing::lower_symbol_resolved_trees(&resolved).unwrap();
