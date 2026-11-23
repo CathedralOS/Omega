@@ -99,11 +99,9 @@ pub(super) fn reject_unprojected_dependency_syntax(
                 if is_dependency_call(
                     expression_owner(syntax_trees, call.receiver),
                     call.target.as_str(syntax_trees),
-                ) =>
+                ) && !accepted_calls.contains(&expression_handle) =>
             {
-                if !accepted_calls.contains(&expression_handle) {
-                    return Err(DependencyProjectionError::UnsupportedDependencyShape);
-                }
+                return Err(DependencyProjectionError::UnsupportedDependencyShape);
             }
             _ => {}
         }

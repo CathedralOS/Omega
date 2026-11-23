@@ -380,7 +380,6 @@ dependencies = [
  "diagnostics",
  "filesystem-authority",
  "language-core",
- "optimization-selections",
  "record-storage",
  "wire",
 ]

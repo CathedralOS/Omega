@@ -22,7 +22,7 @@ use std::process::id;
 mod bindings;
 mod order;
 pub use bindings::PackageSourceBindings;
-pub(crate) use order::{dependency_first_package_order, package_build_root};
+pub(crate) use order::dependency_first_package_order;
 
 use crate::review::CompileResolvedPackageReviewsError;
 use evaluation_accounting::BuildEvaluationSponsor;
@@ -158,16 +158,6 @@ impl PackageBuildSession {
         ))
     }
 
-    pub(crate) fn create_occurrence_directory(
-        &mut self,
-        key: &crate::declarations::PackageKey,
-        resolution: &source_acquisition::ImmutableSourceResolution,
-        purpose: crate::declarations::DependencyPurpose,
-    ) -> Result<PathBuf, CompileResolvedPackageReviewsError> {
-        let base = package_build_root(&self.root, key, resolution, purpose);
-        self.create_build_directory(base)
-    }
-
     /// Run an acquired Build under this command's retained resource grants.
     pub fn source_build_inputs(
         &mut self,
@@ -243,10 +233,6 @@ impl PackageBuildSession {
                 error: io::Error::other("package build invocation is already closed"),
             },
         ))
-    }
-
-    pub(crate) fn filesystem_sponsor(&self) -> &FilesystemSponsor {
-        &self.filesystem_sponsor
     }
 
     pub fn evaluation_sponsor(&self) -> &BuildEvaluationSponsor {
