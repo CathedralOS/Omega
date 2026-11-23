@@ -1,46 +1,47 @@
-use targets\windows_x86_64\WindowsTimeRead;
-use omega\language\core\narrow_i64_to_u64_saturating;
+use time_host.omg as time_host;
+use targets/windows_x86_64/time_host_impl.omg as raw_time;
+use {omega}/language/core/numeric_conversion.omg as numeric;
 
-public WindowsTimeHost satisfies TimeHost {
+public WindowsTimeHost satisfies |time_host|::TimeHost {
     // Failed reads return zero; Time owns degraded-clock handling.
     machine monotonic_ticks() -> u64
-    reaches TimeHost
-    invokes WindowsTimeRead
+    reaches |time_host|::TimeHost
+    invokes |raw_time|::WindowsTimeRead
     {
         let mutable counter: i64 = 0;
-        let status: i32 = WindowsTimeRead::query_performance_counter(@mutable counter);
+        let status: i32 = |raw_time|::WindowsTimeRead::query_performance_counter(@mutable counter);
         transition status == 0 {
             true -> degraded(),
             _ -> measured(counter)
         }
 
-        machine measured(counter: i64) -> u64 { narrow_i64_to_u64_saturating(counter) }
+        machine measured(counter: i64) -> u64 { |numeric|::narrow_i64_to_u64_saturating(counter) }
 
         machine degraded() -> u64 { 0 }
     }
 
     machine monotonic_ticks_per_second() -> u64
-    reaches TimeHost
-    invokes WindowsTimeRead
+    reaches |time_host|::TimeHost
+    invokes |raw_time|::WindowsTimeRead
     {
         let mutable frequency: i64 = 0;
-        let status: i32 = WindowsTimeRead::query_performance_frequency(@mutable frequency);
+        let status: i32 = |raw_time|::WindowsTimeRead::query_performance_frequency(@mutable frequency);
         transition status == 0 {
             true -> degraded(),
             _ -> measured(frequency)
         }
 
-        machine measured(frequency: i64) -> u64 { narrow_i64_to_u64_saturating(frequency) }
+        machine measured(frequency: i64) -> u64 { |numeric|::narrow_i64_to_u64_saturating(frequency) }
 
         machine degraded() -> u64 { 0 }
     }
 
     machine wall_clock_raw() -> u64
-    reaches TimeHost
-    invokes WindowsTimeRead
+    reaches |time_host|::TimeHost
+    invokes |raw_time|::WindowsTimeRead
     {
         let mutable file_time: u64 = 0;
-        WindowsTimeRead::system_time_as_file_time(@mutable file_time);
+        |raw_time|::WindowsTimeRead::system_time_as_file_time(@mutable file_time);
         transition { _ -> measured(file_time) }
 
         machine measured(file_time: u64) -> u64 { file_time }
@@ -62,8 +63,8 @@ public WindowsTimeHost satisfies TimeHost {
     // durations to exactly that count, so the maximum waits in two finite
     // halves and returns like the POSIX providers' split waits.
     machine sleep(milliseconds: u32)
-    reaches TimeHost
-    invokes WindowsTimeRead
+    reaches |time_host|::TimeHost
+    invokes |raw_time|::WindowsTimeRead
     blocks
     {
         transition milliseconds == 4294967295 {
@@ -72,13 +73,13 @@ public WindowsTimeHost satisfies TimeHost {
         }
 
         machine at_once(milliseconds: u32) {
-            block WindowsTimeRead::sleep(milliseconds);
+            block |raw_time|::WindowsTimeRead::sleep(milliseconds);
         }
 
         // 2147483647 + 2147483648 == 4294967295.
         machine in_halves() {
-            block WindowsTimeRead::sleep(2147483647);
-            block WindowsTimeRead::sleep(2147483648);
+            block |raw_time|::WindowsTimeRead::sleep(2147483647);
+            block |raw_time|::WindowsTimeRead::sleep(2147483648);
         }
     }
 }

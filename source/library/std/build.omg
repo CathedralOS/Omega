@@ -1,3 +1,12 @@
+use time_host.omg as time_host;
+use linux_x86_64_time_host.omg as linux_x86_64_time_host;
+use targets/linux_x86_64/time_host_impl.omg as linux_x86_64_time_read;
+use linux_arm64_time_host.omg as linux_arm64_time_host;
+use targets/linux_arm64/time_host_impl.omg as linux_arm64_time_read;
+use macos_arm64_time_host.omg as macos_arm64_time_host;
+use targets/macos_arm64/time_host_impl.omg as macos_arm64_time_read;
+use windows_x86_64_time_host.omg as windows_x86_64_time_host;
+use targets/windows_x86_64/time_host_impl.omg as windows_x86_64_time_read;
 use clock.omg as clock;
 use linux_arm64_clock.omg as linux_arm64_clock;
 use targets/linux_arm64/clock_impl.omg as linux_arm64_wait;
@@ -134,50 +143,50 @@ machine configure_clock(builder: @mutable Build) {
 // TimeHost owns one target-keyed provider map and its package-local raw supply.
 // Ordinary helpers keep the activation's original mutable Build value.
 machine configure_time_host(builder: @mutable Build) {
-    Build::bind::<targets\windows_x86_64\WindowsTimeRead::query_performance_counter>(builder, windows_x86_64,
+    Build::bind::<|windows_x86_64_time_read|::WindowsTimeRead::query_performance_counter>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "QueryPerformanceCounter"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsTimeRead::query_performance_frequency>(builder, windows_x86_64,
+    Build::bind::<|windows_x86_64_time_read|::WindowsTimeRead::query_performance_frequency>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "QueryPerformanceFrequency"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsTimeRead::system_time_as_file_time>(builder, windows_x86_64,
+    Build::bind::<|windows_x86_64_time_read|::WindowsTimeRead::system_time_as_file_time>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "GetSystemTimePreciseAsFileTime"
         } });
-    Build::bind::<targets\windows_x86_64\WindowsTimeRead::sleep>(builder, windows_x86_64,
+    Build::bind::<|windows_x86_64_time_read|::WindowsTimeRead::sleep>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "Sleep"
         } });
-    Build::select_provider::<TimeHost, WindowsTimeHost>(builder, windows_x86_64);
-    Build::select_provider::<TimeHost, LinuxX8664TimeHost>(builder, linux_x86_64);
-    Build::select_provider::<TimeHost, LinuxArm64TimeHost>(builder, linux_arm64);
-    Build::select_provider::<TimeHost, DarwinTimeHost>(builder, macos_arm64);
-    Build::select_provider::<TimeHost, DarwinTimeHost>(builder, macos_x86_64);
-    Build::bind::<targets\macos_arm64\DarwinTimeRead::clock_nanoseconds>(builder, macos_arm64,
+    Build::select_provider::<|time_host|::TimeHost, |windows_x86_64_time_host|::WindowsTimeHost>(builder, windows_x86_64);
+    Build::select_provider::<|time_host|::TimeHost, |linux_x86_64_time_host|::LinuxX8664TimeHost>(builder, linux_x86_64);
+    Build::select_provider::<|time_host|::TimeHost, |linux_arm64_time_host|::LinuxArm64TimeHost>(builder, linux_arm64);
+    Build::select_provider::<|time_host|::TimeHost, |macos_arm64_time_host|::DarwinTimeHost>(builder, macos_arm64);
+    Build::select_provider::<|time_host|::TimeHost, |macos_arm64_time_host|::DarwinTimeHost>(builder, macos_x86_64);
+    Build::bind::<|macos_arm64_time_read|::DarwinTimeRead::clock_nanoseconds>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
         } });
-    Build::bind::<targets\macos_arm64\DarwinTimeRead::poll>(builder, macos_arm64,
+    Build::bind::<|macos_arm64_time_read|::DarwinTimeRead::poll>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
         } });
-    Build::bind::<targets\macos_arm64\DarwinTimeRead::clock_nanoseconds>(builder, macos_x86_64,
+    Build::bind::<|macos_arm64_time_read|::DarwinTimeRead::clock_nanoseconds>(builder, macos_x86_64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_clock_gettime_nsec_np"
         } });
-    Build::bind::<targets\macos_arm64\DarwinTimeRead::poll>(builder, macos_x86_64,
+    Build::bind::<|macos_arm64_time_read|::DarwinTimeRead::poll>(builder, macos_x86_64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
         } });
-    Build::bind::<targets\linux_x86_64\LinuxX64TimeRead::clock_gettime>(builder, linux_x86_64,
+    Build::bind::<|linux_x86_64_time_read|::LinuxX64TimeRead::clock_gettime>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 228 });
-    Build::bind::<targets\linux_x86_64\LinuxX64TimeRead::poll>(builder, linux_x86_64,
+    Build::bind::<|linux_x86_64_time_read|::LinuxX64TimeRead::poll>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 7 });
-    Build::bind::<targets\linux_arm64\LinuxArm64TimeRead::clock_gettime>(builder, linux_arm64,
+    Build::bind::<|linux_arm64_time_read|::LinuxArm64TimeRead::clock_gettime>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 113 });
-    Build::bind::<targets\linux_arm64\LinuxArm64TimeRead::nanosleep>(builder, linux_arm64,
+    Build::bind::<|linux_arm64_time_read|::LinuxArm64TimeRead::nanosleep>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 101 });
 }
 
