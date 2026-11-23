@@ -965,27 +965,20 @@ mod modules {
                 })
         }
 
-        /*
-            Whether an authored domain reference may select `domain` from
-            `reference` under module name law. A fully qualified spelling always
-            selects its exact declaration. A relative spelling reaches a
-            module-owned domain inside its own module or through an exposing
-            import. Both an exact declaration import and its declaring module
-            expose the domain's leaf and declared carrier-qualified spelling.
-            The carrier-qualified form additionally requires the
-            authored carrier to resolve to the exact carrier the declaring context
-            attached the domain to -- importing the carrier type, an ordinary
-            sibling declaration, or merely loading another source exposes nothing.
-            Module-less domains belong to their checked package's root module;
-            merely loading a foreign root does not expose its domains.
-            Resolution-stratum and package visibility stay with the caller.
-        */
+        /// Resolve a domain in the importing file or against the carrier named at the use.
         pub fn domain_name_reaches(
             &self,
             domain: SymbolHandle,
             authored: &str,
             reference: SourceSpan,
         ) -> bool {
+            if authored.starts_with('|') {
+                return self.find_top_level_by_name_and_kinds_from_source(
+                    authored,
+                    &[SymbolKind::Domain],
+                    reference,
+                ) == Some(domain);
+            }
             let qualified = self.indexed_display_path(domain);
             if qualified.as_ref() == authored {
                 return if authored.contains("::") {
@@ -1690,7 +1683,7 @@ mod modules {
                     carrier_domain_matches.push(candidate);
                 }
                 if installed_path
-                    || (direct_path && same_file)
+                    || (direct_path && (same_file || (reference.span.start == reference.span.end && same_package)))
                     || imported_path
                     || (!qualified
                         && is_module
