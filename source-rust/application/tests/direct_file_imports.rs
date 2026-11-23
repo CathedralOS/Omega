@@ -1,4 +1,4 @@
-//! Exercise direct and stored calls when a file, a value and a type share one name.
+//! Exercise file-qualified declarations in calls and conformance member selections.
 mod support;
 
 use platform_custody::temporary_directory::TemporaryDirectory;
@@ -71,5 +71,51 @@ fn run_example(source: &str) {
     assert!(output.status.success(), "{report}");
     for receipt in ["native exit 0", "interp exit: 0"] {
         assert!(report.lines().any(|line| line == receipt), "{report}");
+    }
+}
+
+#[test]
+fn a_selection_row_names_the_exact_file_that_declares_its_requirement() {
+    let scratch = TemporaryDirectory::create("file-selected-requirement", false).unwrap();
+    let root = scratch.path();
+    let contract = "public trait Step { machine apply(value: u32) -> u32; }";
+    for (path, source) in [
+        (
+            "build.omg",
+            "machine build(builder: @mutable Build) { Build::package(builder, \"rows\"); }",
+        ),
+        ("selected.omg", contract),
+        ("other.omg", contract),
+        (
+            "action.omg",
+            "public machine keep(value: u32) -> u32 { value }",
+        ),
+    ] {
+        std::fs::write(root.join(path), source).unwrap();
+    }
+    for (owner, accepted) in [
+        ("|renamed|::Step", true),
+        ("|other|::Step", false),
+        ("Step", false),
+    ] {
+        let source = format!(
+            "use selected.omg; use selected.omg as renamed; use other.omg; use action.omg;\n\
+             Whole satisfies |selected|::Step {{ {owner}::apply = |action|::keep; }}"
+        );
+        std::fs::write(root.join("main.omg"), source).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(["--check", "--offline", "main.omg"])
+            .current_dir(root)
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        let report = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.success(), accepted, "{report}");
+        if !accepted {
+            assert!(
+                report.contains(&format!("no inherited requirement slot `{owner}::apply`")),
+                "{report}"
+            );
+        }
     }
 }

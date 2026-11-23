@@ -24,6 +24,7 @@ mod assignment {
     use crate::source_resolved::name::DiagnosticName;
     use crate::source_resolved::proposition::PropositionBinderKind;
     use crate::source_resolved::proposition::PropositionBody;
+    use crate::source_resolved::trait_definition::ConformanceRowSource;
     use crate::source_resolved::types::FixedArrayLength;
     use crate::source_resolved::types::TypeConstraint;
     use crate::source_resolved::types::TypeReference;
@@ -528,11 +529,16 @@ mod assignment {
                 .span_or_empty(conformance.type_parameters)
                 .to_vec();
             conformance.trait_symbol =
-                crate::resolution::names::lookup::top_level_symbol_for_source(
-                    symbols,
-                    SymbolKind::Trait,
-                    &conformance.trait_name,
-                );
+                top_level_symbol_for_source(symbols, SymbolKind::Trait, &conformance.trait_name);
+            for row in &mut conformance.rows {
+                if row.source == ConformanceRowSource::Reference {
+                    row.declaring_trait = top_level_symbol_for_source(
+                        symbols,
+                        SymbolKind::Trait,
+                        &row.declaring_trait_name,
+                    );
+                }
+            }
             assign_type_parameter_constraint_symbols(
                 symbols,
                 child_type_references,

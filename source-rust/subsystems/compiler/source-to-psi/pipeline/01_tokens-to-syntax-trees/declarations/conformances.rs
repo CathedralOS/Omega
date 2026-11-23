@@ -71,7 +71,7 @@ fn parse_conformance_members<'tokens, 'source>(
             // A selection row fills one slot with an existing machine. It
             // carries no visibility or boundary marker of its own: both
             // belong to the selected declaration.
-            let Ok((declaring_trait, rest)) = input.take_identifier() else {
+            let Ok((declaring_trait, rest)) = input.take_path_head() else {
                 return Err(input.error_here(
                     "a named implementation member is an inline `machine` or a selection \
                          row `Trait::member = Existing::machine;`",
