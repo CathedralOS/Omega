@@ -2327,7 +2327,7 @@ fn decide(
     if let Some(narrowed) = connected(&goal, &hypotheses)
         && let Ok(certificate) = search_certificate(
             context,
-            &tables.values,
+            &*tables.values,
             id,
             obligation,
             &goal,
@@ -2341,7 +2341,7 @@ fn decide(
     }
     let certificate = search_certificate(
         context,
-        &tables.values,
+        &*tables.values,
         id,
         obligation,
         &goal,

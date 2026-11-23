@@ -1762,6 +1762,7 @@ fn lower_program<'source>(
         records: source_records,
         ..SourceFormCorrespondence::default()
     };
+    let mut loop_rows = terminal_check_tables::LoopCheckingRows::default();
     let mut static_reach_applications = Vec::new();
     for position in 1..=bodies.len() as u64 {
         let id = MachineId::new(position).ok_or_else(|| {
@@ -1811,6 +1812,9 @@ fn lower_program<'source>(
         // Machines are lowered in identity order and each machine's heads in
         // block order, which is the order the module's roster requires.
         module.proofs.scalar_block_invariants.extend(lowered.invariants);
+        if component.len() > 1 {
+            loop_rows.retain(&mut lowered.tables);
+        }
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
         source.designated.push(lowered.designated);
