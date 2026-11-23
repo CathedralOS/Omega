@@ -1,135 +1,13 @@
+mod write_frames;
+pub use write_frames::{WriteFrameError, inferred_write_frames, validate_write_frames};
+
 use crate::scalars::scalar_ordering::ScalarOrdering;
-use arena::IdTable;
-use semantic_vocabulary::{BlockId, MachineId, PlaceId, ValueId};
+use semantic_vocabulary::{BlockId, PlaceId, ValueId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::StructuralPathSegment;
 
 pub type Position = (BlockId, u32);
 pub type AliasSources = BTreeMap<PlaceId, Vec<(PlaceId, Projection)>>;
-
-/// Prepare each body's frame once from the same canonical storage flow
-/// used for captured aliases and descriptor custody. A missing analysis
-/// leaves the ownership ceiling intact; it never means no writes.
-pub fn inferred_write_frames(
-    module: &terminal_psi::TerminalModule,
-) -> Result<IdTable<MachineId, terminal_psi::PublishedWriteFrame>, String> {
-    use crate::descriptor_results::{
-        DescriptorAnalysis, DescriptorGraphError, DescriptorSlotKind,
-    };
-    use crate::descriptors::descriptor_lifetimes::DescriptorPathSegment;
-
-    let mut frames = IdTable::default();
-    for machine in &module.machines {
-        if frames.push(None) != machine.id {
-            return Err("write-frame machines are not at their declared positions".to_owned());
-        }
-    }
-    let mut graph = Vec::new();
-    for row in crate::descriptor_results::terminal_graph_rows(
-        module,
-        module.machines.iter().map(|machine| machine.id),
-        DescriptorSlotKind::BorrowedStorage,
-        &[],
-    ) {
-        match row {
-            Ok(body) => graph.push(body),
-            Err(DescriptorGraphError::IncompleteMachine { .. }) => {}
-            Err(DescriptorGraphError::MissingOrAmbiguousMachine(machine)) => {
-                return Err(format!("write frame has no unique machine {machine:?}"));
-            }
-        }
-    }
-    // Later local summaries may strengthen scalar entry and result facts.
-    // They must not silently narrow a published storage-effect contract.
-    // Retain the actual alias/custody flow and infer a conservative frame
-    // without those scalar premises on either producer or receiver.
-    for machine in &mut graph {
-        machine.payload_entry_predicates = None;
-        machine.payload_scalar_postconditions.clear();
-        machine.scalar_payload_writes.clear();
-    }
-    let mut analysis =
-        DescriptorAnalysis::with_borrowed_storage_slots(&module.types.structural_types, &graph);
-    for body in &graph {
-        // The frame roster above checked dense module positions before
-        // graph construction, so this is the same original body owner.
-        let position = usize::try_from(body.id.get() - 1)
-            .map_err(|_| "write-frame machine position cannot be represented")?;
-        let machine = module
-            .machines
-            .get(position)
-            .ok_or("write-frame source machine disappeared")?;
-        let Some(written) = analysis
-            .write_frame(machine.id)
-            .map_err(|detail| format!("write frame for {:?}: {detail}", machine.id))?
-        else {
-            continue;
-        };
-        let mut paths = Vec::with_capacity(written.len());
-        for region in written {
-            let mut parameters = machine
-                .structural_parameters
-                .iter()
-                .enumerate()
-                .filter(|(_, parameter)| parameter.place == region.root);
-            let (position, _) = parameters
-                .next()
-                .ok_or("write frame names storage outside its structural formals")?;
-            if parameters.next().is_some() {
-                return Err("write frame has an ambiguous structural formal".to_owned());
-            }
-            let position = u32::try_from(position)
-                .map_err(|_| "write-frame formal ordinal cannot be represented")?;
-            let mut fields = Vec::with_capacity(region.path.len());
-            for segment in &region.path {
-                let DescriptorPathSegment::Field(field) = segment else {
-                    return Err("published write frame contains a non-field step".to_owned());
-                };
-                fields.push(*field);
-            }
-            paths.push((position, fields));
-        }
-        paths.sort_unstable();
-        paths.dedup();
-        *frames
-            .get_mut(machine.id)
-            .ok_or("write-frame owner disappeared")? = Some(paths);
-    }
-    Ok(frames)
-}
-
-/// A supplied frame is usable only when the canonical body derives it.
-/// Omitting a summary keeps the ceiling and grants no precision. A
-/// bodyless header cannot invent an empty or narrowed write promise.
-pub fn validate_write_frames(module: &terminal_psi::TerminalModule) -> Result<(), String> {
-    if module
-        .execution.declaration_contracts
-        .iter()
-        .any(|contract| contract.published_writes.is_some())
-    {
-        return Err("a bodyless contract claims an inferred write frame".to_owned());
-    }
-    if module
-        .machines
-        .iter()
-        .all(|machine| machine.contract.published_writes.is_none())
-    {
-        return Ok(());
-    }
-    let inferred = inferred_write_frames(module)?;
-    for machine in &module.machines {
-        let Some(published) = &machine.contract.published_writes else {
-            continue;
-        };
-        if inferred.get(machine.id).and_then(Option::as_ref) != Some(published) {
-            return Err(format!(
-                "published write frame for {:?} differs from its body",
-                machine.id
-            ));
-        }
-    }
-    Ok(())
-}
 
 /// The referents a callee can store into through the `@mutable` references
 /// carried by a value it receives with `access`: one path per reference,

@@ -543,6 +543,18 @@ ensures result == 9
         Some(vec![(0, vec![*left])])
     );
 
+    let mut bodyless = terminal_psi::TerminalModule::declarations();
+    bodyless
+        .execution
+        .declaration_contracts
+        .push(callee.contract.clone());
+    let error = terminal_semantics::borrowed_storage::validate_write_frames(&bodyless).unwrap_err();
+    assert_eq!(error.machine, None);
+    assert_eq!(
+        error.detail,
+        "a bodyless contract claims an inferred write frame"
+    );
+
     // A failed descriptor row cannot erase an independent helper's frame.
     // It must still reject a complete-closure request and cannot claim a
     // precise frame of its own, even when its supplied header says otherwise.
@@ -594,10 +606,12 @@ ensures result == 9
         .unwrap()
         .contract
         .published_writes = Some(Vec::new());
-    assert!(
-        terminal_semantics::borrowed_storage::validate_write_frames(&incomplete)
-            .unwrap_err()
-            .contains("differs from its body")
+    let error =
+        terminal_semantics::borrowed_storage::validate_write_frames(&incomplete).unwrap_err();
+    assert_eq!(error.machine, Some(unserved_id));
+    assert_eq!(
+        error.detail,
+        "cannot read the storage used by a body with a published write frame"
     );
 
     let mut omitted = program.clone();
@@ -611,8 +625,12 @@ ensures result == 9
         .published_writes = Some(Vec::new());
     let refused = judge(Ok(omitted)).unwrap_err();
     assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
+    assert_eq!(
+        refused.site.in_machine(),
+        Some((call.callee, Construct::Machine))
+    );
     assert!(
-        refused.detail.contains("published write frame"),
+        refused.detail.contains("published write frame differs from its body"),
         "{refused:?}"
     );
     let mut forged = received.clone();

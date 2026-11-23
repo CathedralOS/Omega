@@ -292,18 +292,28 @@ pub fn case_payload_scalar_types(
     path: &[terminal_psi::StructuralPathSegment],
     case: semantic_vocabulary::StructuralCaseId,
     fields: &[semantic_vocabulary::StructuralFieldId],
-) -> Option<Vec<semantic_vocabulary::ScalarType>> {
-    let carrier = runtime_structural_path_tip(types.iter(), root, path)?;
-    terminal_psi::find_structural_case(carrier.shape.sum_cases()?, case)?;
+) -> Result<Vec<semantic_vocabulary::ScalarType>, &'static str> {
+    let carrier = runtime_structural_path_tip(types.iter(), root, path)
+        .ok_or("the dispatch subject has no type at its selected path")?;
+    let cases = carrier
+        .shape
+        .sum_cases()
+        .ok_or("the dispatch subject is not a sum")?;
+    terminal_psi::find_structural_case(cases, case)
+        .ok_or("the selected case does not belong to the dispatch subject's sum")?;
     let mut selected = path.to_vec();
     selected.push(terminal_psi::StructuralPathSegment::Case(case));
     fields
         .iter()
         .map(|field| {
             let declaration =
-                crate::projected_field_declaration(types.iter(), root, &selected, *field)?;
-            (!declaration.relevance.is_erased()).then_some(())?;
+                crate::projected_field_declaration(types.iter(), root, &selected, *field)
+                    .ok_or("the selected case does not declare this payload field")?;
+            if declaration.relevance.is_erased() {
+                return Err("the selected case passes an erased field as a scalar");
+            }
             declaration.field_type.scalar_type()
+                .ok_or("the selected case passes a non-scalar field as a scalar")
         })
         .collect()
 }

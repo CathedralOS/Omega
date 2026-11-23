@@ -3,6 +3,7 @@ mod call_result_selection_tests;
 mod constant_use_tests;
 mod domain_lookup_tests;
 mod pattern_binding_name_tests;
+mod resolved_name_handoff;
 mod primitive_family_binding_tests;
 
 /// Supply the exact authored file used both to parse and to resume body resolution.
