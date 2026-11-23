@@ -334,8 +334,8 @@ pub struct Discharge {
 
 impl Discharge {
     /// One seal per discharged `OperationSafety` obligation, at an instruction
-    /// or a pre-edge terminator read. The seals travel beside the
-    /// module in memory and are lost on a byte round trip
+    /// or a pre-edge terminator read. Publication saves the seals, with
+    /// their complete certificates, in the artifact's operation evidence
     /// (`ObligationEvidenceSeal`).
     pub fn operation_seals(
         &self,

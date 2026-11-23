@@ -1715,8 +1715,8 @@ terminal-input record uses `OMGNTI39` and rejects predecessor schemas
 `OMGNTI33`, `OMGNTI35`, `OMGNTI36`, `OMGNTI37` and `OMGNTI38`, as well as other stale versions. Calling applications
 retain an optional exact semantic formal for dispatch-only table use rather
 than the retired omitted-prefix count. Proof-system marker 9 separately
-records the integer-to-float representability rule and fingerprint tag 32;
-it does not add a stored certificate decoder or change the `PSICORE` envelope.
+records the integer-to-float representability rule and certificate tag 32,
+which the stored certificate decoder reads; it does not change the `PSICORE` envelope.
 
 Native record `OMGNTI39` also retains the classified `IntegerAggregate` ABI
 case for Darwin non-HFA composites. It distinguishes their whole-eight-byte

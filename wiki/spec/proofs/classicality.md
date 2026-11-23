@@ -185,13 +185,14 @@ The certificate proof-system marker is 9 and accepts only the current rule
 vocabulary. `ClosedIeeeFloatRelation` decides exact same-format literal leaves
 using IEEE semantics; it does not infer reflexivity for an unknown value.
 `IeeeFloatOrderChain` checks every supplied premise certificate and retains its
-assumption and semantic-axiom closure. These certificates and seals are held in
-memory; their canonical fingerprint encoding appends primitive tag 4 and rule
-tag 29, including every ordered child. `FloatMeaningNormalization` appends rule
+assumption and semantic-axiom closure. Their canonical encoding, which seal
+fingerprints cover and a saved artifact's operation evidence stores, appends
+primitive tag 4 and rule tag 29, including every ordered child. `FloatMeaningNormalization` appends rule
 tag 30 with every ordered premise certificate and retains their full dependency
 closure. `FloatIntegerConversion` appends rule tag 31, a Boolean selecting
 its one- or two-child form, and every ordered child; its closed primitive uses
 tag 5. The primitive distinguishes undefined conversion from evaluation failure.
 `IntegerFloatExact` appends rule tag 32 and has no premise children; its integer substitutions use the ordinary checked equality rule.
-These rule extensions add no stored `ProofNode` decoder
-and do not themselves change the stored module or native record envelopes. The new integer exactness proposition separately advances those envelopes.
+The stored certificate decoder reads each of these rule tags and primitive
+judgments exactly as written. These rule extensions do not themselves change the
+stored module or native record envelopes. The new integer exactness proposition separately advances those envelopes.
