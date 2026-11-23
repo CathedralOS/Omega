@@ -1,10 +1,7 @@
-use DirEntry;
-use DirEntryResult;
+use filesystem.omg as filesystem;
+use windows_filesystem_host.omg as win_fs;
 use EmptyResult;
-use ErrorKind;
 use IoResult;
-use WindowsDirectoryEntry;
-use WindowsDirectoryEntryResult;
 use WindowsFilesystemHost;
 use omega_language_std;
 // Names-only counting does not decode into DirEntry's bounded UTF-8 spelling
@@ -39,27 +36,27 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 // Retain the enumeration record's no-follow classification. Reparse points
 // are neither ordinary files nor directories here, including directory links;
 // querying a child path afterward could classify a replacement object instead.
-machine windows_filesystem_read_dir_nth(path: @[u8] in Path, ordinal: u64) -> DirEntryResult
+machine windows_filesystem_read_dir_nth(path: @[u8] in Path, ordinal: u64) -> |filesystem|::DirEntryResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 {
-    let result: WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth(path, ordinal);
+    let result: |win_fs|::WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth(path, ordinal);
     transition result {
-        WindowsDirectoryEntryResult::Error { code } -> (DirEntryResult::Error { kind: windows_filesystem_error(code) }),
-        WindowsDirectoryEntryResult::End -> DirEntryResult::End,
-        WindowsDirectoryEntryResult::Entry { entry } -> (windows_filesystem_directory_entry(entry))
+        |win_fs|::WindowsDirectoryEntryResult::Error { code } -> (|filesystem|::DirEntryResult::Error { kind: windows_filesystem_error(code) }),
+        |win_fs|::WindowsDirectoryEntryResult::End -> |filesystem|::DirEntryResult::End,
+        |win_fs|::WindowsDirectoryEntryResult::Entry { entry } -> (windows_filesystem_directory_entry(entry))
     }
 }
 
 // A native entry becomes a portable value only after its complete name fits.
 // Keep the no-follow classification from that same enumeration record.
-machine windows_filesystem_directory_entry(record: WindowsDirectoryEntry) -> DirEntryResult {
+machine windows_filesystem_directory_entry(record: |win_fs|::WindowsDirectoryEntry) -> |filesystem|::DirEntryResult {
     transition record.name_len > 0 && record.name_len <= 765 {
-        true -> (DirEntryResult::Ok { entry: DirEntry {
+        true -> (|filesystem|::DirEntryResult::Ok { entry: |filesystem|::DirEntry {
             name: record.name,
             name_len: record.name_len,
             is_dir: (record.attributes & 1040) == 16,
             is_file: (record.attributes & 1040) == 0
         } }),
-        false -> (DirEntryResult::Error { kind: ErrorKind::Other })
+        false -> (|filesystem|::DirEntryResult::Error { kind: |filesystem|::ErrorKind::Other })
     }
 }

@@ -1,5 +1,4 @@
-use WindowsDirectoryEntry;
-use WindowsDirectoryEntryResult;
+use windows_filesystem_host.omg as win_fs;
 use omega_language_std;
 // Ordinal selection owns one private directory object and skips only dot rows.
 // Metadata comes from that enumeration record, not a second pathname lookup
@@ -15,49 +14,49 @@ use omega\language\core\narrow_u64_to_i32_exact;
 use omega\language\core\narrow_i32_to_u64_exact;
 use omega\language\core\narrow_i64_to_u64_wrapping;
 
-machine windows_filesystem_native_directory_nth(path: @[u8] in Path, ordinal: u64) -> WindowsDirectoryEntryResult
+machine windows_filesystem_native_directory_nth(path: @[u8] in Path, ordinal: u64) -> |win_fs|::WindowsDirectoryEntryResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery {
     let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_directory_open(path);
     transition (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block query(handle, ordinal), false -> (windows_directory_entry_error()) }
-    machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64) -> WindowsDirectoryEntryResult
+    machine query(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64) -> |win_fs|::WindowsDirectoryEntryResult
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 {
-        let result: WindowsDirectoryEntryResult = block windows_directory_select(handle, ordinal);
+        let result: |win_fs|::WindowsDirectoryEntryResult = block windows_directory_select(handle, ordinal);
         let released: i32 = block windows_filesystem_native_close_handle(narrow_i64_to_u64_wrapping(handle as -WindowsPrivateNonalertFileOrAbsent));
         transition released == 0 { true -> (result), false -> failed_close(result) }
     }
-    machine failed_close(result: WindowsDirectoryEntryResult) -> WindowsDirectoryEntryResult {
+    machine failed_close(result: |win_fs|::WindowsDirectoryEntryResult) -> |win_fs|::WindowsDirectoryEntryResult {
         transition result {
-            WindowsDirectoryEntryResult::Error { code } -> (WindowsDirectoryEntryResult::Error { code: code }),
+            |win_fs|::WindowsDirectoryEntryResult::Error { code } -> (|win_fs|::WindowsDirectoryEntryResult::Error { code: code }),
             _ -> (windows_directory_entry_error())
         }
     }
 }
 
-machine windows_directory_entry_error() -> WindowsDirectoryEntryResult {
+machine windows_directory_entry_error() -> |win_fs|::WindowsDirectoryEntryResult {
     let code: u32 = WindowsFilesystemIo::c_get_last_error();
     transition code != 0 {
-        true -> (WindowsDirectoryEntryResult::Error { code: code }),
-        false -> (WindowsDirectoryEntryResult::Error { code: 31 })
+        true -> (|win_fs|::WindowsDirectoryEntryResult::Error { code: code }),
+        false -> (|win_fs|::WindowsDirectoryEntryResult::Error { code: 31 })
     }
 }
 
-machine windows_directory_select(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64) -> WindowsDirectoryEntryResult
+machine windows_directory_select(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64) -> |win_fs|::WindowsDirectoryEntryResult
 requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0
 reaches DirectoryEnumeration + FilesystemMetadataQuery {
     let mutable output: WindowsNativeDirectoryEntryInfo;
     transition { _ -> block next(handle, ordinal, @mutable output, 0) }
     machine next(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
-        output: @mutable WindowsNativeDirectoryEntryInfo, position: u64) -> WindowsDirectoryEntryResult
+        output: @mutable WindowsNativeDirectoryEntryInfo, position: u64) -> |win_fs|::WindowsDirectoryEntryResult
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && position <= ordinal {
         let step: WindowsDirectoryStep = block windows_directory_next_entry(handle, output, 0);
         transition step {
-            WindowsDirectoryStep::Error { code } -> (WindowsDirectoryEntryResult::Error { code: code }),
-            WindowsDirectoryStep::End -> WindowsDirectoryEntryResult::End,
+            WindowsDirectoryStep::Error { code } -> (|win_fs|::WindowsDirectoryEntryResult::Error { code: code }),
+            WindowsDirectoryStep::End -> |win_fs|::WindowsDirectoryEntryResult::End,
             WindowsDirectoryStep::Name { length } -> block name(handle, ordinal, output, position, length)
         }
     }
     machine name(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
-        output: @mutable WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
+        output: @mutable WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> |win_fs|::WindowsDirectoryEntryResult
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && position <= ordinal {
         transition windows_directory_entry_dot(output, length) {
             true -> block next(handle, ordinal, output, position),
@@ -65,7 +64,7 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery {
         }
     }
     machine selected(handle: i64 in WindowsPrivateNonalertFileOrAbsent, ordinal: u64,
-        output: @mutable WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> WindowsDirectoryEntryResult
+        output: @mutable WindowsNativeDirectoryEntryInfo, position: u64, length: u64) -> |win_fs|::WindowsDirectoryEntryResult
     requires (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 && position <= ordinal {
         transition position < ordinal {
             true -> block next(handle, ordinal, output, position + 1),
@@ -121,12 +120,12 @@ machine windows_directory_entry_dot(output: @WindowsNativeDirectoryEntryInfo, le
     }
 }
 
-machine windows_directory_encode_entry(source: @WindowsNativeDirectoryEntryInfo, characters: u64) -> WindowsDirectoryEntryResult {
+machine windows_directory_encode_entry(source: @WindowsNativeDirectoryEntryInfo, characters: u64) -> |win_fs|::WindowsDirectoryEntryResult {
     transition characters > 0 && characters <= 255 {
         true -> encode(source, characters),
-        false -> (WindowsDirectoryEntryResult::Error { code: 31 })
+        false -> (|win_fs|::WindowsDirectoryEntryResult::Error { code: 31 })
     }
-    machine encode(source: @WindowsNativeDirectoryEntryInfo, characters: u64) -> WindowsDirectoryEntryResult
+    machine encode(source: @WindowsNativeDirectoryEntryInfo, characters: u64) -> |win_fs|::WindowsDirectoryEntryResult
     requires characters > 0 && characters <= 255 {
         let mutable encoded: [u8; 765];
         let native_count: i32 = narrow_u64_to_i32_exact(characters);
@@ -137,23 +136,23 @@ machine windows_directory_encode_entry(source: @WindowsNativeDirectoryEntryInfo,
             false -> (windows_directory_entry_error())
         }
     }
-    machine extent(encoded: @[u8; 765], written: i32, attributes: u32) -> WindowsDirectoryEntryResult
+    machine extent(encoded: @[u8; 765], written: i32, attributes: u32) -> |win_fs|::WindowsDirectoryEntryResult
     requires written > 0 {
         let count: u64 = narrow_i32_to_u64_exact(written);
         transition count <= 765 {
             true -> (windows_directory_copy_entry(encoded, count, attributes)),
-            false -> (WindowsDirectoryEntryResult::Error { code: 122 })
+            false -> (|win_fs|::WindowsDirectoryEntryResult::Error { code: 122 })
         }
     }
 }
 
-machine windows_directory_copy_entry(source: @[u8; 765], count: u64, attributes: u32) -> WindowsDirectoryEntryResult
+machine windows_directory_copy_entry(source: @[u8; 765], count: u64, attributes: u32) -> |win_fs|::WindowsDirectoryEntryResult
 requires count <= 765 {
-    let mutable selected: WindowsDirectoryEntry;
+    let mutable selected: |win_fs|::WindowsDirectoryEntry;
     selected.name_len = count;
     selected.attributes = attributes;
     windows_directory_copy_name(source, count, @mutable selected.name);
-    WindowsDirectoryEntryResult::Entry { entry: selected }
+    |win_fs|::WindowsDirectoryEntryResult::Entry { entry: selected }
 }
 
 machine windows_directory_copy_name(source: @[u8; 765], count: u64, name: @mutable [u8; 765])

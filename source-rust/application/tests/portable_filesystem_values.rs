@@ -16,7 +16,9 @@ impl Project {
     }
 
     fn write(&self, name: &str, text: &str) {
-        std::fs::write(self.0.path().join(name), text).unwrap();
+        let path = self.0.path().join(name);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
     }
 
     fn observe(&self, arguments: &[&str], build: impl AsRef<Path>) -> Output {
@@ -70,9 +72,10 @@ fn declaration(source: &str, heading: &str) -> String {
     panic!("unterminated declaration {heading}")
 }
 
-fn adapter_operations(library: &Path) -> String {
-    let mut staged = String::new();
-    for (file, headings) in [
+// A declaration's file determines which siblings it can call and what its
+// import aliases mean. Keep each operation at its standard-library filename.
+fn stage_adapter_operations(project: &Project, library: &Path) {
+    let files = [
         (
             "filesystem.omg",
             &[
@@ -110,14 +113,26 @@ fn adapter_operations(library: &Path) -> String {
             "targets/windows_x86_64/filesystem/directory.omg",
             &["machine windows_filesystem_directory_entry("][..],
         ),
-    ] {
+    ];
+    for (file, headings) in files {
         let source = std::fs::read_to_string(library.join(file)).unwrap();
+        let mut staged = String::new();
+        for line in source.lines() {
+            let Some(import) = line.strip_prefix("use ") else {
+                continue;
+            };
+            let path = import.trim_end_matches(';').split_whitespace().next();
+            if files.iter().any(|(name, _)| Some(*name) == path) {
+                staged.push_str(line);
+                staged.push('\n');
+            }
+        }
         for heading in headings {
             staged.push_str(&declaration(&source, heading));
             staged.push('\n');
         }
+        project.write(file, &staged);
     }
-    staged
 }
 
 fn build(dependency: bool) -> String {
@@ -141,21 +156,9 @@ fn windows_adapter_values_preserve_counts_timestamps_and_whole_names() {
     let library = support::repository_root().join("source/library/std");
     let main = include_str!("fixtures/filesystem/run/windows_adapter_values/main.omg");
     project.write("main.omg", main);
-    project.write("operations.omg", &adapter_operations(&library));
+    stage_adapter_operations(&project, &library);
     project.write("build.omg", &build(false));
-    both_zero(project.observe(
-        &[
-            "run",
-            "--both",
-            "--build-input",
-            "main.omg",
-            "--build-input",
-            "operations.omg",
-            "--build-input",
-            "build.omg",
-        ],
-        "build.omg",
-    ));
+    both_zero(project.observe(&["run", "--both"], "build.omg"));
 
     // Only the requested extent changes: the same copy must refuse byte 766.
     let invalid = main.replacen(
@@ -165,18 +168,7 @@ fn windows_adapter_values_preserve_counts_timestamps_and_whole_names() {
     );
     assert_ne!(invalid, main);
     project.write("main.omg", &invalid);
-    let output = project.observe(
-        &[
-            "--check",
-            "--build-input",
-            "main.omg",
-            "--build-input",
-            "operations.omg",
-            "--build-input",
-            "build.omg",
-        ],
-        "build.omg",
-    );
+    let output = project.observe(&["--check"], "build.omg");
     let text = report(&output);
     assert!(!output.status.success(), "{text}");
     assert!(
