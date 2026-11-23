@@ -7,10 +7,43 @@ use crate::record::{
     PackageReviewPropositionBinderKind, PackageReviewPropositionEvidence,
 };
 
-pub(in crate::record) fn contract(
+use std::collections::BTreeMap;
+
+type RequiresWitnesses<'a> = BTreeMap<u32, &'a PackageReviewEvidenceInterface>;
+
+pub(in crate::record) fn roster(
+    clauses: &[PackageReviewCallableContract],
+    scope: &Scope<'_>,
+    nesting: usize,
+) -> Result {
+    let mut witnesses = RequiresWitnesses::new();
+    for clause in clauses {
+        let Some(position) = clause.evidence_lane_position else {
+            continue;
+        };
+        if clause.kind == PackageReviewContractKind::Requires {
+            let PackageReviewContractFact::Proposition(application) = &clause.fact else {
+                return Err("requires evidence lane has no proposition witness");
+            };
+            let PackageReviewPropositionEvidence::Witness(interface) = &application.evidence else {
+                return Err("requires evidence lane has no proposition witness");
+            };
+            if witnesses.insert(position, interface).is_some() {
+                return Err("callable repeats a requires evidence lane position");
+            }
+        }
+    }
+    for clause in clauses {
+        contract(clause, scope, nesting, &witnesses)?;
+    }
+    Ok(())
+}
+
+fn contract(
     value: &PackageReviewCallableContract,
     scope: &Scope<'_>,
     nesting: usize,
+    witnesses: &RequiresWitnesses,
 ) -> Result {
     if let Some(binding) = &value.binding {
         text(binding)?;
@@ -25,13 +58,22 @@ pub(in crate::record) fn contract(
         result: scope.result && value.kind == PackageReviewContractKind::Ensures,
         ..*scope
     };
-    fact(&value.fact, &clause, nesting)
+    scoped_fact(&value.fact, &clause, nesting, witnesses)
 }
 
 pub(in crate::record) fn fact(
     value: &PackageReviewContractFact,
     scope: &Scope<'_>,
     nesting: usize,
+) -> Result {
+    scoped_fact(value, scope, nesting, &RequiresWitnesses::new())
+}
+
+fn scoped_fact(
+    value: &PackageReviewContractFact,
+    scope: &Scope<'_>,
+    nesting: usize,
+    witnesses: &RequiresWitnesses,
 ) -> Result {
     match value {
         PackageReviewContractFact::Expression(value) => expression(value, scope, nesting)?,
@@ -58,7 +100,7 @@ pub(in crate::record) fn fact(
             }
         }
         PackageReviewContractFact::Proposition(application) => {
-            proposition(application, scope, nesting)?
+            proposition(application, scope, nesting, witnesses)?
         }
     }
     Ok(())
@@ -68,6 +110,7 @@ fn proposition(
     value: &PackageReviewPropositionApplication,
     scope: &Scope<'_>,
     nesting: usize,
+    witnesses: &RequiresWitnesses,
 ) -> Result {
     value.declaration.validate_resolved()?;
     if value.binders.len() != value.binder_arguments.len()
@@ -114,11 +157,23 @@ fn proposition(
                 declaring_trait,
                 declaring_trait_arguments,
                 requirement,
-                ..
+                source_kind,
+                source_lane_position,
             } if expected == Kind::Machine => {
-                owned_pair(declaring_trait, requirement)?;
-                for argument in declaring_trait_arguments {
-                    value_type(argument)?;
+                if *source_kind != PackageReviewContractKind::Requires {
+                    return Err("machine projection must name a requires evidence lane");
+                }
+                let interface = witnesses
+                    .get(source_lane_position)
+                    .ok_or("machine projection names an unknown requires evidence lane")?;
+                let mut members = interface.requirements.iter().filter(|member| {
+                    member.declaring_trait == *declaring_trait && member.requirement == *requirement
+                });
+                let (Some(member), None) = (members.next(), members.next()) else {
+                    return Err("machine projection requires one exact witness member");
+                };
+                if member.declaring_trait_arguments != *declaring_trait_arguments {
+                    return Err("machine projection changes the witness member trait arguments");
                 }
             }
             _ => return Err("proposition value does not inhabit its binder category"),
