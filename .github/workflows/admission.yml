@@ -1,6 +1,7 @@
 name: Admission
 
-# Root workspace compilation and tests are paused, so admission compiles nothing.
+# Admission stays light and compiles nothing: heavy checks run on the LAN VMs,
+# never on a GitHub runner (AGENTS.md#heavy-checks-run-on-the-lan-vms).
 # It checks that the shared specification exists and that active code stays out of the archive.
 on:
   pull_request:

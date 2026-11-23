@@ -21,8 +21,6 @@ name: Branch cleanup
 #   gh-readonly-queue/ GitHub merge-queue branches
 #   any branch a tracked file on main links to by github.com URL (for example
 #   the evidence/ branch cited in samples/cli/facts/c_layout_scalar_record)
-# warm-build.yml publishes to ghcr.io and post-merge-check.yml reads main only;
-# neither uses another branch.
 
 on:
   workflow_dispatch:

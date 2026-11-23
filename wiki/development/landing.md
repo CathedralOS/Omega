@@ -2,11 +2,12 @@
 
 Finish the change, run its focused checks, and squash-merge its pull request
 when `admission` passes. The session that did the work lands it and confirms
-it arrived; main is checked after merge.
+it arrived.
 
-Follow [AGENTS.md](../../AGENTS.md#sessions-and-subagents) for ownership and the
-[CI rebuild plan](../drafts/designs/ci_rebuild_plan.md) for the direction of
-CI work; implemented behavior is in [.github/workflows/](../../.github/workflows/).
+Follow [AGENTS.md](../../AGENTS.md#sessions-and-subagents) for ownership;
+what CI runs is in [.github/workflows/](../../.github/workflows/). Heavy checks
+run on the LAN VMs, never on a GitHub runner
+([AGENTS.md](../../AGENTS.md#heavy-checks-run-on-the-lan-vms)).
 There is no merge queue. Workers review and land their own work; a
 coordinator may review a change, but its approval is not required.
 
@@ -65,8 +66,8 @@ do not create releases or tags for it.
 
 ## Squash-merge after admission
 
-`admission` compiles and tests no Rust code while root workspace builds are
-paused. It checks that the shared specification exists, that archived files
+`admission` stays light and compiles and tests no Rust code. It checks that
+the shared specification exists, that archived files
 live in the repository-root [`_recycling/`](../../_recycling/) and that active
 Cargo and Rust paths stay outside it.
 
@@ -113,8 +114,8 @@ local source head need not be an ancestor of main.
 Only then note the result. Release the work claim when the original assignment's
 acceptance is complete; a checkpoint merge keeps outcome ownership.
 
-Root post-merge checks and warm builds can be started manually once the root
-workspace builds again.
+Publish a fresh [warm build](testing.md#warm-build-for-cloud-sessions) from
+`omega-linux` when cloud sessions start too far behind main.
 
 Run the original program on the landed source and follow its next failure on
 the warm worktree. A pre-existing failure remains part of that assignment. If
@@ -126,6 +127,6 @@ never clean another session's files or shared caches.
 
 Read the current [AGENTS.md](../../AGENTS.md) at a safe checkpoint and keep the
 existing source, tests and evidence. The old `compiler-check`, `workspace-clippy`,
-`corpus-gate`, Post-merge smoke and merge queue are retired. Do not wait for,
+`corpus-gate`, Post-merge smoke, post-merge check and merge queue are retired. Do not wait for,
 dispatch or recreate them, and do not use `xtask land` or the old queue helpers.
 Finish the authorized work through admission and a squash merge instead.

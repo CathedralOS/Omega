@@ -2,14 +2,15 @@
 # Start managed cloud sessions with the compiler already built.
 #
 # A cloud session is a fresh 4-CPU container, and building the compiler from
-# nothing there takes about 11 minutes. CI on main builds the same compiler in
-# an identical container and publishes the build directory to the GitHub
-# Container Registry (ghcr.io/cathedralos/omega-warm-build, one tag per slot);
-# a session unpacks it before its first build and compiles only what changed
-# since. The archive is about 300 MB, so the restore takes seconds.
+# nothing there takes about 11 minutes. The omega-linux VM builds the same
+# compiler in an identical container and publishes the build directory to the
+# GitHub Container Registry (ghcr.io/cathedralos/omega-warm-build, one tag per
+# slot); a session unpacks it before its first build and compiles only what
+# changed since. The archive is about 300 MB, so the restore takes seconds.
 #
-#   bash tools/warm_build.sh pack <slot> <out-dir>   # CI: archive the build and generated files
-#   bash tools/warm_build.sh publish <slot> <out-dir> # CI: push it to the registry
+#   bash tools/warm_build.sh publish-from-vm [commit] # on omega-linux: build both slots and publish
+#   bash tools/warm_build.sh pack <slot> <out-dir>   # in the container: archive the build and generated files
+#   bash tools/warm_build.sh publish <slot> <out-dir> # in the container: push it to the registry
 #   bash tools/warm_build.sh restore <slot> [replace-stale] # unpack into the slot
 #   bash tools/warm_build.sh session-start           # SessionStart hook, cloud only
 #
@@ -24,8 +25,8 @@
 # the rustflags twice; a build made in one place is never reused in the other.
 #   primary  the checkout itself, where `cargo xtask worktree acquire` first runs
 #   worker   .agents/worktree/worker-1, the first pool slot
-# CI builds each slot in a container set up like a session: as root, at the
-# same paths, with the tools tools/agent_setup.sh installs.
+# publish-from-vm builds each slot in a container set up like a session: as
+# root, at the same paths, with the tools tools/agent_setup.sh installs.
 #
 # The restore pays off only at the published commit. Most of the 11 minutes is
 # this workspace's own 89 crates, and a change to a foundation crate such as
@@ -206,6 +207,68 @@ JSON
   echo "warm build: published $slot as ghcr.io/$PACKAGE:$slot"
 }
 
+# One slot's build and publication, run inside a fresh ubuntu:24.04 container
+# as root, the way a cloud session is set up. publish_from_vm sends this
+# function's text into the container, so it uses nothing else from this file.
+container_publish() {
+  set -euo pipefail
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get update -qq
+  apt-get install -y -qq --no-install-recommends build-essential pkg-config git curl ca-certificates zstd > /dev/null
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain none
+  export PATH=/root/.cargo/bin:$PATH
+  git config --global --add safe.directory '*'
+  git clone -q --filter=blob:none "https://github.com/$REPOSITORY" /workspace/Omega
+  git -C /workspace/Omega checkout -q --detach "$COMMIT"
+  local build=/workspace/Omega
+  if [ "$SLOT" = worker ]; then
+    build=/workspace/Omega/.agents/worktree/worker-1
+    git -C /workspace/Omega worktree add -q --detach "$build" "$COMMIT"
+  fi
+  # From the checkout, so rustup resolves the pinned toolchain.
+  cd /workspace/Omega && bash tools/agent_setup.sh
+  # mbx deletes build directories when free space falls under 10% of the
+  # disk's size, which a VM disk with a few gigabytes free is already below.
+  mbx settings set gc.min_free_size 5GiB > /dev/null
+  cd "$build"
+  CARGO_TARGET_DIR=$PWD/target mbx build --locked -p omega < /dev/null
+  ./target/debug/omega --version
+  bash tools/warm_build.sh pack "$SLOT" /tmp/warm
+  bash tools/warm_build.sh publish "$SLOT" /tmp/warm
+}
+
+# publish_from_vm [commit]: build and publish both slots of a commit on main,
+# by default main's tip, each in its own container. Run it on omega-linux under
+# vm-heavy with GH_TOKEN set for the command only to a token that may write
+# packages; the token reaches the container through the environment and is
+# never written to a file.
+publish_from_vm() {
+  local commit=${1:-} slot cache
+  local -a docker=(docker)
+  [ -n "${GH_TOKEN:-}" ] ||
+    fail "publish-from-vm: set GH_TOKEN for this command, for example GH_TOKEN=\"\$(gh auth token)\""
+  command -v docker > /dev/null || fail "publish-from-vm: docker is not installed"
+  # The VM's user is not in the docker group; its administrator rights reach the daemon.
+  docker info > /dev/null 2>&1 || docker=(sudo -n --preserve-env=GH_TOKEN docker)
+  "${docker[@]}" info > /dev/null 2>&1 || fail "publish-from-vm: cannot reach the docker daemon"
+  if [ -z "$commit" ]; then
+    commit=$(git ls-remote "https://github.com/$REPOSITORY" refs/heads/main | cut -f1)
+  fi
+  [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || fail "publish-from-vm: '$commit' is not a full commit ID"
+  # The verified mbx build is kept between runs.
+  cache=${XDG_CACHE_HOME:-$HOME/.cache}/omega-warm-build-vm/mbx-install
+  mkdir -p "$cache"
+  for slot in primary worker; do
+    echo "warm build: building $slot at ${commit:0:12}"
+    "${docker[@]}" run --rm -e GH_TOKEN -e SLOT="$slot" -e COMMIT="$commit" \
+      -e REPOSITORY="$REPOSITORY" -e OMEGA_MBX_INSTALL_CACHE=/tmp/omega-mbx-install \
+      -e MBX_SCHEDULER_CPUS="${MBX_SCHEDULER_CPUS:-12}" \
+      -v "$cache:/tmp/omega-mbx-install" ubuntu:24.04 \
+      bash -c "$(declare -f container_publish); container_publish" ||
+      fail "publish-from-vm: the $slot build or publication failed"
+  done
+}
+
 # stale_restore <slot> <dir> <published-commit>: whether $dir/target is a
 # restored build of another commit that nothing has built on, so a newer
 # published build may replace it. A cloud environment can start a session from
@@ -231,7 +294,7 @@ stale_restore() {
 # Checksum freshness covers what rustc reads, but Cargo still judges a build
 # script's rerun-if-changed inputs by modification time. The compiler crate's
 # build script watches every file under omega-rust/ and source/library/, and a
-# fresh clone writes all of them after CI built: without this, the first build
+# fresh clone writes all of them after the publisher built: without this, the first build
 # reruns that script and recompiles compiler, package-manager, orchestration
 # and omega (21-35 s). Only a clean checkout at the published commit holds the
 # exact bytes that build read, so any other checkout keeps its real times.
@@ -242,7 +305,7 @@ settle_source_times() {
   # The compiler also reads ignored files in these trees. Preserve their times.
   extra_inputs=$(git -C "$dir" ls-files --others --directory -- omega-rust source/library .cargo) || return 0
   [ -z "$extra_inputs" ] || return 0
-  # The commit exists before CI starts building it, so its time is older than
+  # The commit exists before the publisher builds it, so its time is older than
   # every timestamp the build recorded.
   when=$(git -C "$dir" log -1 --format=%ct "$commit") || return 0
   (cd "$dir" && git ls-files -z | xargs -0 -r touch -h -c -d "@$when" &&
@@ -388,10 +451,12 @@ session_start() {
 
 case "${1:-}:$#" in
   pack:3) pack "$2" "$3" ;;
+  publish-from-vm:1) publish_from_vm ;;
+  publish-from-vm:2) publish_from_vm "$2" ;;
   publish:3) publish "$2" "$3" ;;
   restore:2) restore "$2" ;;
   restore:3) [ "$3" = replace-stale ] || fail "restore: the third argument can only be replace-stale"; restore "$2" "$3" ;;
   # A hook must never block or fail a session; the cold build still works.
   session-start:1) session_start || true ;;
-  *) fail "usage: warm_build.sh pack|publish <slot> <out-dir> | restore <slot> [replace-stale] | session-start" ;;
+  *) fail "usage: warm_build.sh publish-from-vm [commit] | pack|publish <slot> <out-dir> | restore <slot> [replace-stale] | session-start" ;;
 esac

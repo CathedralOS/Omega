@@ -9,8 +9,8 @@ The platform ABI documents are the answer key; clang is only a cross-check.
 Every admitted signature must agree. A mismatch or unreadable clang output
 fails the test; refused signatures are reported separately.
 
-It needs clang with the AArch64 and X86 backends, so it is `#[ignore]`d and
-the post-merge workflow runs it:
+It needs clang with the AArch64 and X86 backends, so it is `#[ignore]`d; run
+it by hand on a LAN VM that has clang:
 `mbx test -p calling-conventions --lib clang_crosscheck -- --ignored --nocapture`.
 Set `OMEGA_CLANG` to choose the clang binary.
 */
@@ -62,7 +62,7 @@ const TARGETS: [HostedTarget; 4] = [
 ];
 
 #[test]
-#[ignore = "needs clang; the post-merge workflow runs it with --ignored"]
+#[ignore = "needs clang; run it on a LAN VM with --ignored"]
 fn clang_crosscheck() {
     let started = std::time::Instant::now();
     let clang = std::env::var("OMEGA_CLANG").unwrap_or_else(|_| "clang".to_string());

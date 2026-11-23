@@ -80,5 +80,5 @@ fixed generated C signatures on all four hosted targets. The platform
 ABI documents stay the answer key. Every admitted signature must agree;
 refused signatures are counted separately, and any mismatch or unreadable
 clang output fails the test. It needs clang, so it is ignored by
-default; the post-merge workflow runs it report-only:
+default; run it by hand on a LAN VM that has clang:
 `mbx test -p calling-conventions --lib clang_crosscheck -- --ignored --nocapture`.

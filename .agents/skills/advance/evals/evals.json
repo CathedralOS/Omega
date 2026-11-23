@@ -399,12 +399,12 @@
       "name": "moving-main-retains-author-evidence",
       "prompt": "The change is validated and independently reviewed. Main advanced after validation. Publish it.",
       "status": "Not run against this revision",
-      "expected_output": "Publish the fixed reviewed source through a ready PR and squash merge after admission, retaining applicable receipts; verify remote main and observe post-merge checks without a local integration build solely because main moved.",
+      "expected_output": "Publish the fixed reviewed source through a ready PR and squash merge after admission, retaining applicable receipts; verify remote main without a local integration build solely because main moved.",
       "files": [],
       "assertions": [
         "Does not pull, rebase, rebuild, requalify or repeat review solely because main moved",
         "Completes admission and authored focused validation before squash-merging the reviewed PR head",
-        "Verifies the merged PR source head and published squash commit on fetched main, then observes post-merge checks"
+        "Verifies the merged PR source head and published squash commit on fetched main"
       ]
     },
     {
