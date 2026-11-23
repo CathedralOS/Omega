@@ -111,7 +111,9 @@ xtask, program gates:
 - `sample-gate` counts `no-oracle`, `checked` and `not-host-runnable` as passes (`samples.rs:693-772`, `:1049`, `:1066`). Stated only by the verdict words. `qualify` records the same states as failures (`qualification.rs:82-84`).
 - `settle_review` rewrites every `decision row <id> pending` to `accept` (`samples.rs:325-345`, `:406-418`). Open.
 - `sweep --changed` treats only paths under `omega-rust/` and three root files as compiler changes, so an edit under `source-rust/` skips the `--previous` regression guard (`sweep/mod.rs:721-726`, `:758-773`). Traced, and checked.
+  - Resolved on 2026-11-23. On compiler change `c446aac578f`, the old sweep selected zero programs from a baseline containing the confirmed `exact_divisor_unproven` rejection. The sweep now uses the current Rust tree and rechecks earlier passing and correctly rejected programs. With the same baseline and compiler binary it selected the fixture and recorded the expected rejection again. A fixture-only edit still selects the affected program directly.
 - `changed_messages` ignores the exit status of `git diff` (`sweep/mod.rs:612-623`). Open.
+  - Resolved on 2026-11-23. File selection and diagnostic matching now use the same checked Git reader. The CLI regression `changed_compiler_sweep_guards_programs_from_the_invocation_checkout` exercises a failing diff and verifies that the sweep stops. A successful diff selects the guarded program and the blocked program whose diagnostic changed.
 - `dependency_roots` follows only locations that begin with `.` (`sweep/mod.rs:675`). Traced.
 - After writing TSV output, `write_output` compares only row counts (`sweep/record.rs:341-349`, `:364-368`). Traced.
 - `matches_run` accepts a header commit that is any non-empty prefix of the run commit, down to one character (`sweep/fleet.rs:1085`). Traced, and checked.

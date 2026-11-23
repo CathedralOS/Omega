@@ -250,3 +250,85 @@ fn worktree_status_shows_a_claim_before_the_first_commit() {
     assert_eq!(released[2], claimed[2]);
     assert_eq!(released[3], "idle");
 }
+
+#[test]
+fn changed_compiler_sweep_guards_programs_from_the_invocation_checkout() {
+    let invocation = Invocation::new(true);
+    invocation.git(&["init", "-q"]);
+    invocation.git(&["config", "user.name", "Sweep test"]);
+    invocation.git(&["config", "user.email", "sweep@example.invalid"]);
+    let mut previous = String::new();
+    for (name, outcome, detail) in [
+        ("guard", "Checked", ""),
+        ("target", "Blocked", "specific compiler diagnostic"),
+        ("other", "Blocked", "unrelated reason"),
+    ] {
+        let program = format!("samples/{name}/main.omg");
+        let path = invocation.0.join(&program);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, "").unwrap();
+        previous.push_str(&format!("{program}\t0\t1\t{outcome}\tOther\t\t{detail}\n"));
+    }
+    invocation.git(&["add", "."]);
+    invocation.git(&["commit", "-qm", "programs"]);
+    let source = invocation
+        .0
+        .join("source-rust/subsystems/compiler/check.rs");
+    fs::create_dir_all(source.parent().unwrap()).unwrap();
+    fs::write(
+        source,
+        r#"const ERROR: &str = "specific compiler diagnostic";"#,
+    )
+    .unwrap();
+    invocation.git(&["add", "source-rust"]);
+    invocation.git(&["commit", "-qm", "compiler change"]);
+    fs::write(invocation.0.join("previous.tsv"), previous).unwrap();
+
+    let sweep = |extra: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_xtask"))
+            .current_dir(invocation.0.join("nested"))
+            .args(["sweep", "--list", "--changed", "HEAD^", "--omega"])
+            .arg(env!("CARGO_BIN_EXE_xtask")) // List selection never executes the compiler.
+            .args(extra)
+            .output()
+            .unwrap()
+    };
+    let missing = sweep(&[]);
+    assert!(!missing.status.success());
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("--previous"));
+    let arguments = ["--previous", "../previous.tsv"];
+    let selected = sweep(&arguments);
+    assert!(
+        selected.status.success(),
+        "{}",
+        String::from_utf8_lossy(&selected.stderr)
+    );
+    assert_eq!(
+        String::from_utf8(selected.stdout)
+            .unwrap()
+            .lines()
+            .collect::<Vec<_>>(),
+        ["samples/guard/main.omg", "samples/target/main.omg"]
+    );
+    invocation.git(&[
+        "config",
+        "diff.external",
+        "missing-omega-sweep-diff-for-test",
+    ]);
+    let failed = sweep(&arguments);
+    assert!(!failed.status.success());
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("git diff"));
+
+    let fixture = "source-rust/subsystems/compiler/tests/fixtures/valid/main.omg";
+    let path = invocation.0.join(fixture);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, "").unwrap();
+    invocation.git(&["add", fixture]);
+    invocation.git(&["commit", "-qm", "fixture change"]);
+    let fixture_only = sweep(&[]);
+    assert!(fixture_only.status.success());
+    assert_eq!(
+        String::from_utf8(fixture_only.stdout).unwrap().trim(),
+        fixture
+    );
+}
