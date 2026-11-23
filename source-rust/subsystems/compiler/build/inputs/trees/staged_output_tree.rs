@@ -425,7 +425,7 @@ pub fn recover_included_output_sources(
             .rsplit(|byte| *byte == b'/')
             .next()
             .is_some_and(|name| name.ends_with(b".omg") && name.len() > 4);
-        if !is_omega_source {
+        if !is_omega_source || std::str::from_utf8(relative_path).is_err() {
             return Err(diagnostics(format!(
                 "included build source `{}` must name a regular .omg file",
                 String::from_utf8_lossy(relative_path)
@@ -463,12 +463,16 @@ pub fn recover_included_output_sources(
                 String::from_utf8_lossy(relative_path)
             )));
         }
-        let digest: [u8; 32] = crate::digest_encoder::content_identity(bytes.as_ref());
-        selected.push(PackageGeneratedSource {
-            relative_path: relative_path.clone(),
-            bytes: Arc::clone(bytes),
-            digest,
-        });
+        std::str::from_utf8(bytes).map_err(|_| {
+            diagnostics(format!(
+                "generated source \"{}\" must contain UTF-8 bytes",
+                relative_path.escape_ascii()
+            ))
+        })?;
+        selected.push(PackageGeneratedSource::from_retained_parts(
+            relative_path.clone(),
+            Arc::clone(bytes),
+        ));
     }
     Ok(selected)
 }
