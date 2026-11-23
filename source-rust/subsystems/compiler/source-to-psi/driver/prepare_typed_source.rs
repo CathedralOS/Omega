@@ -124,7 +124,17 @@ impl<'request> SourcePreparationRequest<'request> {
                     .layout_scopes
                     .iter()
                     .flat_map(|scope| scope.provider_declarations.iter())
-                    .map(|selection| selection.provider_type.symbol)
+                    .map(|selection| {
+                        let provider = &selection.provider_type;
+                        typed_trees_to_prepared_typed_trees::SelectedProvider {
+                            declaration: provider.symbol,
+                            application: provider.applied.then(|| {
+                                checked_program_to_psi::provider_choice_inputs::source_application(
+                                    provider.application,
+                                )
+                            }),
+                        }
+                    })
                     .collect(),
                 values,
             }),

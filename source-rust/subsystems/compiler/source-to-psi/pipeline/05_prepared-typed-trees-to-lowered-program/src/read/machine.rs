@@ -128,7 +128,7 @@ impl<'t> Program<'t> {
     pub(super) fn generic_parameters(
         &self,
         id: MachineId,
-        machine: &'t Machine,
+        machine: &Machine,
     ) -> Checked<Vec<&'t crate::source_state::data::TypeParameter>> {
         let own = self.typed.machine_type_parameters(machine);
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
@@ -142,8 +142,7 @@ impl<'t> Program<'t> {
         if enclosing.is_empty() != owner.type_parameters.is_empty()
             || !owner.lifetime_parameters.is_empty()
             || enclosing.iter().any(|parameter| {
-                parameter.kind != crate::source_state::data::TypeParameterKind::Type
-                    || parameter.bounds != crate::source_state::data::DataProperties::default()
+                !super::type_parameters::can_check_implementation_parameter(self.typed, parameter)
             })
         {
             return Err(unserved(
@@ -1802,11 +1801,11 @@ impl<'t> Program<'t> {
             id,
             "parameter span",
         )?;
-        for parameter in typed.machine_type_parameters(machine) {
+        let parameters = self.generic_parameters(id, machine)?;
+        for parameter in &parameters {
             self.prepare_record_parameter(id, machine.symbol, parameter)?;
         }
-        let binders = typed
-            .machine_type_parameters(machine)
+        let binders = parameters
             .iter()
             .filter_map(|parameter| match parameter.kind {
                 TypeParameterKind::Const { .. }
@@ -1866,9 +1865,8 @@ impl<'t> Program<'t> {
             id,
             "parameter span",
         )?;
-        let binders = typed
-            .data_type_parameters
-            .span_or_empty(requirement.type_parameters)
+        let binders = self
+            .requirement_parameters(id, requirement)?
             .iter()
             .filter_map(|parameter| match parameter.kind {
                 TypeParameterKind::Const { type_reference } => {
@@ -1982,7 +1980,7 @@ impl<'t> Program<'t> {
     /// is an ordinary scalar formal of that type with no definition.
     fn value_binders(&self, id: MachineId, machine: &Machine) -> Checked<Vec<ValueBinder>> {
         let mut binders = Vec::new();
-        for parameter in self.typed.machine_type_parameters(machine) {
+        for parameter in self.generic_parameters(id, machine)? {
             let crate::source_state::data::TypeParameterKind::Const { type_reference } =
                 parameter.kind
             else {
@@ -2722,6 +2720,44 @@ impl<'t> Program<'t> {
         Ok(binders)
     }
 
+    /// A generic provider checks its public method at every argument of the
+    /// enclosing implementation. Those values are inputs to both sides of
+    /// the refinement check, before the method's own static parameters.
+    fn requirement_parameters(
+        &self,
+        id: MachineId,
+        requirement: &StateSignature,
+    ) -> Checked<Vec<&'t crate::source_state::data::TypeParameter>> {
+        use crate::source_state::data::TypeParameterKind;
+        let typed = self.typed;
+        let own = typed
+            .data_type_parameters
+            .span_or_empty(requirement.type_parameters);
+        if own.is_empty() != requirement.type_parameters.is_empty() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("type parameter span"),
+            ));
+        }
+        let mut parameters = Vec::new();
+        if self.rigid
+            && let Some((owner, row)) = self
+                .signature_view_owner
+                .and_then(|member| typed.owned_conformance_realization(member))
+            && row.requirement == requirement.symbol
+        {
+            parameters.extend(
+                typed
+                    .conformance_type_parameters(owner)
+                    .into_iter()
+                    .filter(|parameter| matches!(parameter.kind, TypeParameterKind::Const { .. })),
+            );
+        }
+        parameters.extend(own);
+        Ok(parameters)
+    }
+
     /// The value parameters of a trait requirement, in declaration order,
     /// each with its carrier. The type scope holds the type parameters.
     pub(super) fn requirement_binders(
@@ -2730,13 +2766,7 @@ impl<'t> Program<'t> {
         requirement: &StateSignature,
     ) -> Checked<Vec<(SymbolHandle, semantic_vocabulary::ScalarType)>> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
-        let parameters = self
-            .typed
-            .data_type_parameters
-            .span_or_empty(requirement.type_parameters);
-        if parameters.is_empty() != requirement.type_parameters.is_empty() {
-            return unserved("type parameter span");
-        }
+        let parameters = self.requirement_parameters(id, requirement)?;
         let mut binders = Vec::with_capacity(parameters.len());
         for parameter in parameters {
             if parameter.kind == crate::source_state::data::TypeParameterKind::Type
@@ -2774,11 +2804,15 @@ impl<'t> Program<'t> {
                 ));
             }
             let scalar_type = self.scalar_type(id, type_reference)?;
-            if !matches!(scalar_type, semantic_vocabulary::ScalarType::Integer(_)) {
+            if !matches!(
+                scalar_type,
+                semantic_vocabulary::ScalarType::Integer(_)
+                    | semantic_vocabulary::ScalarType::Boolean
+            ) {
                 return Err(refuse(
                     id,
                     Construct::Machine,
-                    Unserved::Parameter("value parameter that is not an integer"),
+                    Unserved::Parameter("value parameter that is not an integer or a Boolean"),
                 ));
             }
             binders.push((parameter.symbol, scalar_type));

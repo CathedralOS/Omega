@@ -11,6 +11,9 @@ The obsolete checked-source production request interfaces have been removed.
 #![forbid(unsafe_code)]
 
 mod accepted;
+#[cfg(test)]
+pub(crate) use accepted::DeclaredRequirementApplication;
+
 mod invocation_site;
 pub use invocation_site::{CheckedSourceCall, SourceInvocationSite};
 mod application;

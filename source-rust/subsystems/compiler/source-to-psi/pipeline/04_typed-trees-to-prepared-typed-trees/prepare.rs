@@ -20,6 +20,15 @@ use crate::source_state::TypedTrees;
 use diagnostics::Diagnostic;
 use prepared_source_issuer::PREPARATION;
 
+/// A provider whose bodies the selected target needs. A generic provider
+/// keeps its complete argument tuple in the typed source's application table.
+#[derive(Clone, Copy)]
+pub struct SelectedProvider {
+    pub declaration: symbols::SymbolHandle,
+    pub application:
+        Option<arena::Handle<source_state::product_operand::ProductOperandApplication>>,
+}
+
 /// Prepare the typed program that stage 05 will lower.
 ///
 /// Cloning the result retains the same source owner for later judgments.
@@ -33,7 +42,7 @@ use prepared_source_issuer::PREPARATION;
 pub fn prepare_typed_trees(
     mut program: TypedTrees,
     values: &[ValueInputs],
-    selected_providers: &[symbols::SymbolHandle],
+    selected_providers: &[SelectedProvider],
 ) -> Result<PreparedTypedTrees, Vec<Diagnostic>> {
     passes::specialization::prepare_with_providers(&mut program, selected_providers)?;
     program

@@ -65,70 +65,75 @@ impl<'source> Program<'source> {
                     "selected provider is not a complete named implementation record",
                 )
             })?;
-            let (provider_scope, provider_application) = if let Some(application) =
-                selected.provider_application
-            {
-                if !typed.product_operand_applications.is_valid(application) {
-                    return Err(services::unavailable(
-                        context,
-                        "provider choice has a stale complete static application",
-                    ));
-                }
-                let actual = typed.product_operand_applications.get(application);
-                if actual.role != Some(crate::declaration_selection::ProductOperandRole::Provider) {
-                    return Err(services::unavailable(
-                        context,
-                        "provider choice application has a different source operand role",
-                    ));
-                }
-                let implementation = actual.implementation.as_ref().ok_or_else(|| {
-                    services::unavailable(
-                        context,
-                        "provider choice application has no exact closed implementation record",
-                    )
-                })?;
-                if implementation.declaration != provider {
-                    return Err(services::unavailable(
-                        context,
-                        "provider choice application selects another declaration",
-                    ));
-                }
-                let provider_scope = implementation.trait_scope.scope(typed).ok_or_else(|| {
-                    services::unavailable(
-                        context,
-                        "provider choice lost its actual closed implementation namespace",
-                    )
-                })?;
-                let identity = typed
-                    .product_operand_application_identity(application)
-                    .map_err(|reason| services::unavailable(context, reason))?
-                    .filter(|identity| !identity.is_empty())
-                    .ok_or_else(|| {
+            let (provider_scope, provider_application, implementation_record) =
+                if let Some(application) = selected.provider_application {
+                    if !typed.product_operand_applications.is_valid(application) {
+                        return Err(services::unavailable(
+                            context,
+                            "provider choice has a stale complete static application",
+                        ));
+                    }
+                    let actual = typed.product_operand_applications.get(application);
+                    if actual.role
+                        != Some(crate::declaration_selection::ProductOperandRole::Provider)
+                    {
+                        return Err(services::unavailable(
+                            context,
+                            "provider choice application has a different source operand role",
+                        ));
+                    }
+                    let implementation = actual.implementation.as_ref().ok_or_else(|| {
                         services::unavailable(
                             context,
-                            "provider choice has no complete portable static record identity",
+                            "provider choice application has no exact closed implementation record",
                         )
                     })?;
-                (provider_scope, Some(identity))
-            } else {
-                if !declaration.type_parameters.is_empty()
-                    || !declaration.lifetime_parameters.is_empty()
-                {
-                    return Err(services::unavailable(
-                        context,
-                        "selected provider requires its complete static application namespace",
-                    ));
-                }
-                (
-                    AppliedTraitScope::from_conformance(typed, declaration).ok_or_else(|| {
-                        services::unavailable(
+                    if implementation.declaration != provider {
+                        return Err(services::unavailable(
                             context,
-                            "provider has no complete declared schema application",
-                        )
-                    })?,
-                    None,
-                )
-            };
+                            "provider choice application selects another declaration",
+                        ));
+                    }
+                    let provider_scope =
+                        implementation.trait_scope.scope(typed).ok_or_else(|| {
+                            services::unavailable(
+                                context,
+                                "provider choice lost its actual closed implementation namespace",
+                            )
+                        })?;
+                    let identity = typed
+                        .product_operand_application_identity(application)
+                        .map_err(|reason| services::unavailable(context, reason))?
+                        .filter(|identity| !identity.is_empty())
+                        .ok_or_else(|| {
+                            services::unavailable(
+                                context,
+                                "provider choice has no complete portable static record identity",
+                            )
+                        })?;
+                    (provider_scope, Some(identity), Some(implementation))
+                } else {
+                    if !declaration.type_parameters.is_empty()
+                        || !declaration.lifetime_parameters.is_empty()
+                    {
+                        return Err(services::unavailable(
+                            context,
+                            "selected provider requires its complete static application namespace",
+                        ));
+                    }
+                    (
+                        AppliedTraitScope::from_conformance(typed, declaration).ok_or_else(
+                            || {
+                                services::unavailable(
+                                    context,
+                                    "provider has no complete declared schema application",
+                                )
+                            },
+                        )?,
+                        None,
+                        None,
+                    )
+                };
             let supplied = provider_scope
                 .declaring_scope(typed, scope.declaration.symbol)
                 .ok_or_else(|| {
@@ -142,7 +147,11 @@ impl<'source> Program<'source> {
             }
             // The shared reader forms the complete implementation and retains
             // every operation's actual refinement question and body root.
-            if !self.conformance_declaration(context, provider)? {
+            if !self.applied_conformance_declaration(
+                context,
+                provider,
+                implementation_record.zip(provider_application.as_deref()),
+            )? {
                 return Err(services::unavailable(
                     context,
                     "provider choice has no exact implementation declaration",
@@ -180,7 +189,7 @@ impl<'source> Program<'source> {
             // than reading the choice again as a bare trait nomination.
             let questions = self
                 .static_contracts
-                .conformance_questions(provider)
+                .conformance_questions(provider, provider_application.as_deref())
                 .ok_or_else(|| {
                     services::unavailable(
                         context,
@@ -226,9 +235,12 @@ impl<'source> Program<'source> {
                 schema_application: application,
                 surface: projected.declaration,
                 provider_declaration: provider,
-                provider_identity: typed
-                    .normalized_hermetic_symbol_identity(provider)
-                    .map_err(|reason| services::unavailable(context, reason))?,
+                provider_identity: match &provider_application {
+                    Some(identity) => identity.clone(),
+                    None => typed
+                        .normalized_hermetic_symbol_identity(provider)
+                        .map_err(|reason| services::unavailable(context, reason))?,
+                },
                 provider_application,
                 provider_package: typed.symbols.symbol_package_identity(provider),
                 provider_custody: crate::lowering::selection_questions::declaration_custody(

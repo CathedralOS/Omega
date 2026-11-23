@@ -18661,6 +18661,18 @@
     },
     {
       "consumers": [
+        "Build requirement matching",
+        "target supply preparation"
+      ],
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
+      "item": "SelectionDeclarationKey::Requirement::field:2#1",
+      "kind": "carried_record",
+      "meaning": "The selected callable’s complete application when the Build chooses a specific requirement.",
+      "producer": "Checked-program-to-Psi provider preparation",
+      "signature": "879e276d449554b582d74fea654df8823bc5b4140adda3e28f07081b326ae217"
+    },
+    {
+      "consumers": [
         "01 source provider fact issuance",
         "compiler source provider inspection"
       ],
@@ -18685,63 +18697,15 @@
     },
     {
       "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
+        "Build requirement matching",
+        "target supply preparation"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "SettledRequirement::field:reached#1",
+      "item": "SelectionDeclarationKey::Slot::field:2#1",
       "kind": "carried_record",
-      "meaning": "The declared boundary requirement actually reached by the target request.",
-      "producer": "01 source compilation",
-      "signature": "d7398db7e3ad7fe5a703adf70fb9a86bc90ef174fd14dc1b93975ea8bf6e61a0"
-    },
-    {
-      "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
-      ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "SettledRequirement::field:realization#1",
-      "kind": "carried_record",
-      "meaning": "The exact selected source implementation machine when the supply has a source body.",
-      "producer": "01 source compilation",
-      "signature": "abdec1ecf6f08c0dd9334a40e568343849a7092730fa21680c2514e1f797029b"
-    },
-    {
-      "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
-      ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "SettledRequirement::field:supply#1",
-      "kind": "carried_record",
-      "meaning": "The unique supply settled for this reached source requirement.",
-      "producer": "01 source compilation",
-      "signature": "0d370bc277fa896a691ad542098ab1de72b95c7456b90b8b7bb536c02cafdc9f"
-    },
-    {
-      "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
-      ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "SettledTargetSupply::field:requirements#1",
-      "kind": "carried_record",
-      "meaning": "The prepared or settled source requirements in the order captured by the owner.",
-      "producer": "01 source compilation",
-      "signature": "b29dd299d63c1a2422d5f8974bbf04f33acd10976f28cc186ca02469f55f7aa1"
-    },
-    {
-      "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
-      ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "SettledTargetSupply::field:target#1",
-      "kind": "carried_record",
-      "meaning": "Exact selected target, or absence of target on an unscoped request.",
-      "producer": "01 source compilation",
-      "signature": "34ca61bab1bc3362118565b01c17e90f56bb26080760ab5d59496ff114da7062"
+      "meaning": "The selected trait receiver’s complete application when the Build chooses a specific receiver.",
+      "producer": "Checked-program-to-Psi provider preparation",
+      "signature": "879e276d449554b582d74fea654df8823bc5b4140adda3e28f07081b326ae217"
     },
     {
       "consumers": [
@@ -18906,9 +18870,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
       "item": "enum:SelectionDeclarationKey#1",
       "kind": "definition",
-      "meaning": "The exact slot or requirement declaration coordinates used to match explicit Build selections.",
+      "meaning": "Identifies a source trait or a particular requirement, including any complete application named by a Build.",
       "producer": "01 source compilation",
-      "signature": "650a0a17193411d81773646125b2fdca448e3efff1c2cb59c2870c7841e24c75"
+      "signature": "655155c9ee6a0ff43aea3db6ab2f38e95458e4206b6a218c13c03edc99f91706"
     },
     {
       "consumers": [
@@ -18966,9 +18930,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
       "item": "function:explicit_build_requirements#1",
       "kind": "producer",
-      "meaning": "Collect and order only requirements named by exact Build declaration coordinates for this deployment.",
+      "meaning": "Finds requirements that the Build selects for this deployment by matching the declarations and applications it actually names.",
       "producer": "01 source compilation",
-      "signature": "75888311c7c4bfa5da8fbe9d98e243bb2c9f9008b9831faec8727c6137a4dfc7"
+      "signature": "c62abc7720650a04cef905abf118da023d57ceab9214b2f1ff1da27882a6d62d"
     },
     {
       "consumers": [
@@ -18990,9 +18954,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
       "item": "function:names_requirement#1",
       "kind": "checker",
-      "meaning": "Compare a Build selection subject with the actual source requirement or its owning slot.",
+      "meaning": "Matches a declared requirement to the selected trait, callable or operator family, including the complete application of a generic choice.",
       "producer": "01 source compilation",
-      "signature": "117dc9449a3495c255c054dea416c2c9a49bac122265c7b1ebedfd756b383a6e"
+      "signature": "dbf1c872920e97d0f2b4c89553a21f8ff79f1ae6e3725b2e5bdb398072b77762"
     },
     {
       "consumers": [
@@ -19026,9 +18990,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
       "item": "function:selection_declarations#1",
       "kind": "producer",
-      "meaning": "Project all declaration coordinates named by a checked Build selection for exact root matching.",
+      "meaning": "Reads the exact declaration and optional application named by an authored Build choice.",
       "producer": "01 source compilation",
-      "signature": "cdbda00d864f6568faafe5de6a4c6093d425bc6188bb89cf68d01bde59f3447a"
+      "signature": "f1d6399fd421f79a046dd2c24e7c75c2235ecba59f39186e4730ecfc140e9711"
     },
     {
       "consumers": [
@@ -19088,19 +19052,7 @@
       "kind": "definition",
       "meaning": "Prepare source-owned target supply from the accepted typed source and its exact closed publication requirements.",
       "producer": "checked source publication",
-      "signature": "e47adb56c477b60c2aed97e0e65a8644ec5741e7a07dea2e0394056012c97456"
-    },
-    {
-      "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
-      ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "impl:PreparedTargetSupply::implementation#2",
-      "kind": "definition",
-      "meaning": "Methods for the PreparedTargetSupply contract in 01 source compilation.",
-      "producer": "01 source compilation",
-      "signature": "da31759a5cec15f93877112c670805f685ffbea077e90c1af4af643ac534b6b0"
+      "signature": "5bb78afd250c4a84fd6e2f20fedbaf32bb98f02407df80a5f51f7e20cb667856"
     },
     {
       "consumers": [
@@ -19122,9 +19074,9 @@
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
       "item": "impl:PreparedTargetSupply::method:prepare#1",
       "kind": "producer",
-      "meaning": "Choose target-scoped candidates with the existing precedence rules; match native bindings through the checked method/application query without granting source authority.",
+      "meaning": "Resolves each reached requirement using the target selection and its priority. A generic provider must have a checked candidate for its full application on that boundary.",
       "producer": "checked source publication",
-      "signature": "c5aba6e58a97ad39bbf684dbb76727b5d239d23b3193ad67303a3e44566d9dd0"
+      "signature": "f1974066ff500da29a892f0c2d52c778acae3f167b7fca0a6956c92e54a107b3"
     },
     {
       "consumers": [
@@ -19137,18 +19089,6 @@
       "meaning": "Read the exact reached or settled requirements recorded by this owner.",
       "producer": "01 source compilation",
       "signature": "af77d4926a80f179d362e3cb18ba1d0aa2944a3ec3f8e70a28ba590579312db5"
-    },
-    {
-      "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
-      ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "impl:PreparedTargetSupply::method:settle#1",
-      "kind": "producer",
-      "meaning": "Check every reached requirement and issue the target-specific, settled source supply.",
-      "producer": "01 source compilation",
-      "signature": "ddcdc7c1b9f4391c2ff7c87b5aef94ed837dc599f01a641fbd62868ac4006225"
     },
     {
       "consumers": [
@@ -19172,7 +19112,7 @@
       "kind": "definition",
       "meaning": "Methods for the ProviderSupply contract in 01 source compilation.",
       "producer": "01 source compilation",
-      "signature": "ccad36bfe06e40cdf55558ea65d656c8ace5946ae529484e30d5eaaec7cf9d2c"
+      "signature": "649e3e20fe5eedec27b26cf5ec8f36b31ebd86c11f132647fed961206cc0f62c"
     },
     {
       "consumers": [
@@ -19188,87 +19128,74 @@
     },
     {
       "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
+        "Source provider choice diagnostics"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
       "item": "impl:ProviderSupply::method:description#1",
       "kind": "host_operation",
-      "meaning": "Render the declared source or native supply for a diagnostic.",
+      "meaning": "Names the checked provider or supplying native binding for a conflicting Build choice.",
       "producer": "01 source compilation",
-      "signature": "fc99c4ed5348463b6a21bbb65d8b826818c78c2d5b44fb7d815b558407ebb4cd"
+      "signature": "51888367ce66724ef8939bf2cd790077502e919dc72b5676699b2df45977690b"
     },
     {
       "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
+        "Build requirement matching",
+        "target supply preparation"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "impl:SelectionDeclarationKey::implementation#1",
+      "item": "impl:ReachedBoundaryRequirement::implementation#1",
       "kind": "definition",
-      "meaning": "Methods for the SelectionDeclarationKey contract in 01 source compilation.",
-      "producer": "01 source compilation",
-      "signature": "6323851139934ba1a8ab4420978ce60166e7518ea86283427ca2879186f51371"
+      "meaning": "States how the Build can select a reached boundary requirement.",
+      "producer": "Checked-program-to-Psi provider preparation",
+      "signature": "c147dfe71688da9cb981e8228453dacdf173d51386e2d3d7e4c6a8f18aded484"
     },
     {
       "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
+        "Build requirement matching",
+        "target supply preparation"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "impl:SelectionDeclarationKey::method:requirement#1",
+      "item": "impl:ReachedBoundaryRequirement::method:selection_declarations#1",
+      "kind": "producer",
+      "meaning": "Exposes the owning trait and requirement coordinates, plus the exact applied receiver and callable when present.",
+      "producer": "Checked-program-to-Psi provider preparation",
+      "signature": "47ab5768300061e3e172026cc67ed552d0a3698ea72e124910f9fb5ee0b2c034"
+    },
+    {
+      "consumers": [
+        "Build requirement matching",
+        "target supply preparation"
+      ],
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
+      "item": "impl:SelectionDeclarationKey < 'a >::implementation#1",
       "kind": "definition",
-      "meaning": "Construct the requirement variant from the exact source declaration index and generation.",
-      "producer": "01 source compilation",
-      "signature": "07a9ff8b3f01f48b08aea9f614cf2df02b91be9bf9ab7799844454ecf4b4726c"
+      "meaning": "Constructs keys for matching declared requirements to Build choices.",
+      "producer": "Checked-program-to-Psi provider preparation",
+      "signature": "6af5f08e8c20ff031b06dea1b4ddba5e6c6767658be066e329a0b2b61a1bbc85"
     },
     {
       "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
+        "Build requirement matching",
+        "target supply preparation"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "impl:SelectionDeclarationKey::method:slot#1",
+      "item": "impl:SelectionDeclarationKey < 'a >::method:requirement#1",
       "kind": "definition",
-      "meaning": "Construct the slot variant from the exact source declaration index and generation.",
-      "producer": "01 source compilation",
-      "signature": "5c4e9f09e0bee36b8138d454fe33dc84e47d468338af1549136e7e67073b3ce0"
+      "meaning": "Combines a requirement declaration’s index and generation with the selected callable application.",
+      "producer": "Checked-program-to-Psi provider preparation",
+      "signature": "aabeed144be1656a7b7d68e788b2ec703ffacd5da51ad81f144f00b9b3cb3cb4"
     },
     {
       "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
+        "Build requirement matching",
+        "target supply preparation"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "impl:SettledTargetSupply::implementation#1",
+      "item": "impl:SelectionDeclarationKey < 'a >::method:slot#1",
       "kind": "definition",
-      "meaning": "Methods for the SettledTargetSupply contract in 01 source compilation.",
-      "producer": "01 source compilation",
-      "signature": "38c8b2dc99aa068a9a8e4b980a04f47854b39936ac5eaa5b3aaa45a36806458b"
-    },
-    {
-      "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
-      ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "impl:SettledTargetSupply::method:requirements#1",
-      "kind": "carried_record",
-      "meaning": "Read the exact reached or settled requirements recorded by this owner.",
-      "producer": "01 source compilation",
-      "signature": "f7b9cf31b11dcccbe3abd42ba2963178fb8a9ed0020931b4a6a023ec520ba8f2"
-    },
-    {
-      "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
-      ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "impl:SettledTargetSupply::method:target#1",
-      "kind": "carried_record",
-      "meaning": "Read the deployment under which these source choices were prepared.",
-      "producer": "01 source compilation",
-      "signature": "6447e3a6e5d05f69d3e29950af230a8a97ccc2e9beebdfe72880cc1a6b89059a"
+      "meaning": "Combines a trait declaration’s index and generation with the selected receiver application.",
+      "producer": "Checked-program-to-Psi provider preparation",
+      "signature": "79b3c8176fc2d45744ccb1b8fd18380669658ff49d9aaf805da943a1460e9e73"
     },
     {
       "consumers": [
@@ -19320,6 +19247,18 @@
     },
     {
       "consumers": [
+        "Build requirement matching",
+        "target supply preparation"
+      ],
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
+      "item": "module:tests#1",
+      "kind": "definition",
+      "meaning": "Tests how a Build choice for one complete receiver matches a reached requirement.",
+      "producer": "Checked-program-to-Psi provider preparation",
+      "signature": "f07752b0a4c457ab0704746df8c86e56958e315c3149240e09a6cdb0d3dc2a02"
+    },
+    {
+      "consumers": [
         "01 source provider fact issuance",
         "compiler source provider inspection"
       ],
@@ -19365,30 +19304,6 @@
       "meaning": "The declared choice for a requirement together with its supplying authority.",
       "producer": "01 source compilation",
       "signature": "0f8bfb606d1a835726b2fcab4db3c57f906aeb10f93d234eec3ff44d1fc5eb8c"
-    },
-    {
-      "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
-      ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "struct:SettledRequirement#1",
-      "kind": "carried_record",
-      "meaning": "The one source-level supply chosen for a reached requirement.",
-      "producer": "01 source compilation",
-      "signature": "18e24b3943cc6ce2b91ef457bcc3270cd70e0406cd5dfe2f6331b1a60e54fe60"
-    },
-    {
-      "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
-      ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "struct:SettledTargetSupply#1",
-      "kind": "carried_record",
-      "meaning": "Complete, target-specific source requirement allocation.",
-      "producer": "01 source compilation",
-      "signature": "51385021da7862dece599307e983f705c7677a8aeb2b20c487b2427a0ca3834d"
     },
     {
       "consumers": [
@@ -19452,6 +19367,17 @@
     },
     {
       "consumers": [
+        "checked source publication"
+      ],
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
+      "item": "use:demand :: SourceProviderFacts#1",
+      "kind": "definition",
+      "meaning": "Prepare the facts for this source judgment and target.",
+      "producer": "source provider supply preparation",
+      "signature": "1e23932624afd2b05c6fa3170b1f3d62fdd5571b24ae4e30fdfc4ecb20b4d187"
+    },
+    {
+      "consumers": [
         "01 source provider fact issuance",
         "compiler source provider inspection"
       ],
@@ -19461,6 +19387,17 @@
       "meaning": "Bring the existing diagnostics::Diagnostic declarations into the 01 source compilation module.",
       "producer": "01 source compilation",
       "signature": "6dc8da6fc569f66b7943fd1feb5863110373769abb3ac891cbccc6139b87d785"
+    },
+    {
+      "consumers": [
+        "checked source publication"
+      ],
+      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
+      "item": "use:psi_provider_selections :: logical_reach :: ClosedLogicalProviderReach#1",
+      "kind": "definition",
+      "meaning": "Pass closed logical reach from Psi provider selection to source publication.",
+      "producer": "source provider supply preparation",
+      "signature": "2eab3ee8fa89edf266421d90007e043859cf48f5908ec845d75a76ce1e5a5730"
     },
     {
       "consumers": [
@@ -19476,29 +19413,6 @@
     },
     {
       "consumers": [
-        "01 source provider fact issuance",
-        "compiler source provider inspection"
-      ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "use:terminal_psi :: TerminalModule#1",
-      "kind": "definition",
-      "meaning": "Bring the existing terminal_psi::TerminalModule declarations into the 01 source compilation module.",
-      "producer": "01 source compilation",
-      "signature": "e82b15bbd1598ad59242c887e5dce4f36c7f0355f2726cc7ea71e1e377ec15df"
-    },
-    {
-      "consumers": [
-        "checked source publication"
-      ],
-      "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "use:demand :: SourceProviderFacts#1",
-      "kind": "definition",
-      "meaning": "Prepare the facts for this source judgment and target.",
-      "producer": "source provider supply preparation",
-      "signature": "1e23932624afd2b05c6fa3170b1f3d62fdd5571b24ae4e30fdfc4ecb20b4d187"
-    },
-    {
-      "consumers": [
         "checked source publication"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
@@ -19510,14 +19424,15 @@
     },
     {
       "consumers": [
-        "checked source publication"
+        "01 source provider fact issuance",
+        "compiler source provider inspection"
       ],
       "file": "source-rust/subsystems/compiler/source-to-psi/pipeline/07_checked-program-to-psi/src/provider_supply/mod.rs",
-      "item": "use:psi_provider_selections :: logical_reach :: ClosedLogicalProviderReach#1",
+      "item": "use:terminal_psi :: TerminalModule#1",
       "kind": "definition",
-      "meaning": "Pass closed logical reach from Psi provider selection to source publication.",
-      "producer": "source provider supply preparation",
-      "signature": "2eab3ee8fa89edf266421d90007e043859cf48f5908ec845d75a76ce1e5a5730"
+      "meaning": "Bring the existing terminal_psi::TerminalModule declarations into the 01 source compilation module.",
+      "producer": "01 source compilation",
+      "signature": "e82b15bbd1598ad59242c887e5dce4f36c7f0355f2726cc7ea71e1e377ec15df"
     },
     {
       "consumers": [

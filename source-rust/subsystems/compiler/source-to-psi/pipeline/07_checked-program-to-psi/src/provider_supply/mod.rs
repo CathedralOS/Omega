@@ -297,11 +297,27 @@ impl PreparedTargetSupply {
                     continue;
                 }
                 let realization = choose_supply(&supplies).ok().and_then(|supply| {
-                    let provider = supply.checked()?.provider_type.symbol;
+                    let provider = &supply.checked()?.provider_type;
                     judged
                         .iter()
                         .find(|row| {
-                            row.provider == provider && row.requirement == requirement.requirement
+                            row.provider == provider.symbol
+                                && row.requirement == requirement.requirement
+                                && provider
+                                    .application_identity
+                                    .as_ref()
+                                    .is_none_or(|identity| {
+                                        module.interfaces.provider_candidates.iter().any(
+                                            |candidate| {
+                                                candidate.boundary == boundary
+                                                    && candidate.candidate == row.machine
+                                                    && module
+                                                        .identities
+                                                        .text(candidate.provider_identity)
+                                                        == Some(identity.as_str())
+                                            },
+                                        )
+                                    })
                         })
                         .map(|row| row.machine)
                 });
@@ -406,14 +422,9 @@ pub fn explicit_build_requirements(
     let mut requirements = declared
         .iter()
         .filter(|requirement| {
-            selections
-                .binary_search(&SelectionDeclarationKey::slot(requirement.slot))
-                .is_ok()
-                || selections
-                    .binary_search(&SelectionDeclarationKey::requirement(
-                        requirement.requirement,
-                    ))
-                    .is_ok()
+            requirement
+                .selection_declarations()
+                .any(|key| selections.binary_search(&key).is_ok())
         })
         .map(|requirement| requirement.boundary)
         .collect::<Vec<_>>();
@@ -429,45 +440,66 @@ fn names_requirement(
     subject: &ProviderSelectionSubject,
     requirement: &ReachedBoundaryRequirement,
 ) -> bool {
-    let slot = SelectionDeclarationKey::slot(requirement.slot);
-    let member = SelectionDeclarationKey::requirement(requirement.requirement);
-    selection_declarations(subject).any(|declaration| declaration == slot || declaration == member)
+    selection_declarations(subject).any(|selected| {
+        requirement
+            .selection_declarations()
+            .any(|declared| declared == selected)
+    })
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum SelectionDeclarationKey {
-    Slot(u32, u32),
-    Requirement(u32, u32),
+enum SelectionDeclarationKey<'a> {
+    Slot(u32, u32, Option<&'a str>),
+    Requirement(u32, u32, Option<&'a str>),
 }
 
-impl SelectionDeclarationKey {
-    fn slot(symbol: symbols::SymbolHandle) -> Self {
-        Self::Slot(symbol.arena_index(), symbol.generation())
+impl<'a> SelectionDeclarationKey<'a> {
+    fn slot(symbol: symbols::SymbolHandle, application: Option<&'a str>) -> Self {
+        Self::Slot(symbol.arena_index(), symbol.generation(), application)
     }
 
-    fn requirement(symbol: symbols::SymbolHandle) -> Self {
-        Self::Requirement(symbol.arena_index(), symbol.generation())
+    fn requirement(symbol: symbols::SymbolHandle, application: Option<&'a str>) -> Self {
+        Self::Requirement(symbol.arena_index(), symbol.generation(), application)
     }
 }
 
-// Root preparation indexes only the selected family. Ordinary supply matching
-// consumes these same identities and application guards without allocating.
+impl ReachedBoundaryRequirement {
+    fn selection_declarations(&self) -> impl Iterator<Item = SelectionDeclarationKey<'_>> {
+        // A whole-trait choice covers its members. A choice for Reading<17>
+        // covers only the members whose receiver has that same application.
+        let declared = [
+            SelectionDeclarationKey::slot(self.slot, None),
+            SelectionDeclarationKey::requirement(self.requirement, None),
+        ];
+        let applied = self.application.as_ref().map(|application| {
+            [
+                SelectionDeclarationKey::slot(self.slot, Some(&application.receiving_trait)),
+                SelectionDeclarationKey::requirement(
+                    application.template,
+                    Some(&application.callable),
+                ),
+            ]
+        });
+        declared.into_iter().chain(applied.into_iter().flatten())
+    }
+}
+
 fn selection_declarations(
     subject: &ProviderSelectionSubject,
-) -> impl Iterator<Item = SelectionDeclarationKey> {
+) -> impl Iterator<Item = SelectionDeclarationKey<'_>> {
     let (single, family) = match subject {
         ProviderSelectionSubject::BoundaryTrait(identity) => (
-            identity
-                .application_identity
-                .is_none()
-                .then_some(SelectionDeclarationKey::slot(identity.symbol)),
+            Some(SelectionDeclarationKey::slot(
+                identity.symbol,
+                identity.application_identity.as_deref(),
+            )),
             &[] as &[_],
         ),
         ProviderSelectionSubject::BoundaryRequirement(identity) => (
-            identity
-                .application_identity
-                .is_none()
-                .then_some(SelectionDeclarationKey::requirement(identity.symbol)),
+            Some(SelectionDeclarationKey::requirement(
+                identity.symbol,
+                identity.application_identity.as_deref(),
+            )),
             &[] as &[_],
         ),
         ProviderSelectionSubject::BoundaryOperatorFamily(family) => (None, family.coordinates()),
@@ -475,7 +507,7 @@ fn selection_declarations(
     single.into_iter().chain(
         family
             .iter()
-            .map(|coordinate| SelectionDeclarationKey::requirement(coordinate.symbol)),
+            .map(|coordinate| SelectionDeclarationKey::requirement(coordinate.symbol, None)),
     )
 }
 
@@ -586,3 +618,6 @@ fn require_numeric_support(
         "canonical float operation `{requirement}` has no realization on target `{target}`: {constraint}"
     ))])
 }
+
+#[cfg(test)]
+mod tests;
