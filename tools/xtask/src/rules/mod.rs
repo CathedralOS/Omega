@@ -40,8 +40,8 @@ const COMPILER_GUIDE: &str = "source-rust/subsystems/compiler/README.md";
 
 pub(super) const FACTS_ROOT: &str = "samples/cli/facts/";
 
-pub(super) fn show_git_file(root: &Path, rev: &str, path: &str) -> String {
-    git(root, &["show", &format!("{rev}:{path}")]).unwrap_or_default()
+pub(super) fn show_git_file(root: &Path, rev: &str, path: &str) -> Result<String, String> {
+    git(root, &["show", &format!("{rev}:{path}")])
 }
 
 pub(super) fn pr_diff_base(root: &Path, requested: Option<&str>) -> Result<String, String> {
@@ -246,7 +246,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     violations.extend(measurement_violations(&root, &changes));
 
     let head_tasks = fs::read_to_string(root.join(TASKS_BOARD))
-        .unwrap_or_else(|_| show_git_file(&root, "HEAD", TASKS_BOARD));
+        .or_else(|_| show_git_file(&root, "HEAD", TASKS_BOARD))
+        .map_err(report_error)?;
     violations.extend(tasks_board_violations(&head_tasks));
 
     if let Some(t) = &title {

@@ -228,6 +228,24 @@ impl Drop for ScratchRepository {
 }
 
 #[test]
+fn measurement_checks_distinguish_empty_contents_from_a_failed_read() {
+    let repo = ScratchRepository::new();
+    let summary = "wiki/drafts/measurements/empty.md";
+    repo.commit(&[(summary, Some(""))]);
+    assert!(
+        super::diff_hygiene::measurement_violations(&repo.root, &[('A', summary.into())])
+            .is_empty()
+    );
+    let missing = "wiki/drafts/measurements/missing.md";
+    let violations =
+        super::diff_hygiene::measurement_violations(&repo.root, &[('A', missing.into())]);
+    assert!(
+        violations.iter().any(|message| message.contains(missing)),
+        "{violations:?}"
+    );
+}
+
+#[test]
 fn unreadable_diff_cannot_pass_as_an_empty_change_set() {
     let repo = ScratchRepository::new();
     let base = repo.commit(&[("existing.md", Some("first"))]);
@@ -293,7 +311,10 @@ fn pr_scope_preserves_ancestor_and_admission_merge_parent_diffs() {
     .unwrap();
     let parent = pr_diff_base(&repo.root, Some("HEAD^1")).unwrap();
     assert_eq!(repo.changes_since(&parent), [('A', "topic.md".to_owned())]);
-    assert_eq!(show_git_file(&repo.root, &main, "main.md"), "main change\n");
+    assert_eq!(
+        show_git_file(&repo.root, &main, "main.md").unwrap(),
+        "main change\n"
+    );
     // Admission checks a shallow checkout of GitHub's synthetic merge.
     git(
         &repo.root,
