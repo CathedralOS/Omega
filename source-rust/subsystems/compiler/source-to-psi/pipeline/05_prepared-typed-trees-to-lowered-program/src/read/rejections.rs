@@ -28,6 +28,9 @@ program of that form, and each rule here names its sentence:
 - `wiki/spec/language/generics.md`, "Static type equality": equal layout
   or bytes do not identify different nominal types. A value of one declared
   data type cannot supply a destination of another declared data type.
+  Under "Closed applications and canonical identity", the value of a closed
+  const argument also identifies the application. Two different values for
+  the same binder distinguish the types.
 - `wiki/spec/language/lifetimes.md`, "Returned views": "An explicit result
   lifetime relates its reference leaves to the corresponding input lifetime
   ... A signature does not authorize returning unrelated storage", and the
@@ -147,15 +150,8 @@ impl Program<'_> {
                 ),
             );
         }
-        if let Some((wanted, carried)) = self.different_implementation_arguments(expected, found) {
-            return reject(
-                id,
-                at,
-                format!(
-                    "{} expects `{wanted}` but got `{carried}`; these types select different implementations",
-                    destination.named()
-                ),
-            );
+        if let Some(reason) = self.different_static_arguments(destination, expected, found) {
+            return reject(id, at, reason);
         }
         let nominal = |value| {
             let ValueType::Record(record, _, _) = value else {
@@ -220,15 +216,15 @@ impl Program<'_> {
         refused
     }
 
-    /// An implementation argument is part of the type application's identity.
-    /// Two concrete declarations cannot unify, even when their outputs agree.
-    /// An unresolved binder or a different application of one implementation
-    /// may need substitution or proof and does not establish this mismatch.
-    fn different_implementation_arguments(
+    /// A closed scalar value or a selected implementation can distinguish
+    /// applications of the same declaration. Other arguments can still need
+    /// substitution or proof before the checker knows whether they differ.
+    fn different_static_arguments(
         &self,
+        destination: Destination,
         expected: ValueType,
         found: ValueType,
-    ) -> Option<(String, String)> {
+    ) -> Option<String> {
         use crate::source_state::{data::TypeParameterKind, types::TypeReferenceNode};
 
         let applied = |value| {
@@ -283,24 +279,73 @@ impl Program<'_> {
         for ((parameter, wanted_arg), carried_arg) in
             parameters.iter().zip(wanted_args).zip(carried_args)
         {
-            if parameter.kind == TypeParameterKind::Implementation
-                && let Ok(wanted_arg) =
-                    wanted_scope.supplied_type_reference(self.typed, *wanted_arg)
-                && let Ok(carried_arg) =
-                    carried_scope.supplied_type_reference(self.typed, *carried_arg)
-                && let (Some(left), Some(right)) = (
-                    implementation(wanted_arg.reference),
-                    implementation(carried_arg.reference),
-                )
-                && left != right
-            {
-                return Some((
-                    self.typed.display_type_reference(wanted),
-                    self.typed.display_type_reference(carried),
-                ));
+            let (Ok(left), Ok(right)) = (
+                wanted_scope.supplied_type_reference(self.typed, *wanted_arg),
+                carried_scope.supplied_type_reference(self.typed, *carried_arg),
+            ) else {
+                continue;
+            };
+            match parameter.kind {
+                TypeParameterKind::Implementation => {
+                    if let (Some(left), Some(right)) = (
+                        implementation(left.reference),
+                        implementation(right.reference),
+                    ) && left != right
+                    {
+                        return Some(format!(
+                            "{} expects `{}` but got `{}`; these types select different implementations",
+                            destination.named(),
+                            self.typed.display_type_reference(wanted),
+                            self.typed.display_type_reference(carried),
+                        ));
+                    }
+                }
+                TypeParameterKind::Const { type_reference } => {
+                    if let Some((expected, actual)) =
+                        self.different_const_values(type_reference, left.reference, right.reference)
+                    {
+                        return Some(format!(
+                            "type mismatch: {} requires `{}` with `{} = {expected}` but this value supplies {actual}",
+                            destination.named(),
+                            definition.name.as_str(),
+                            parameter.name.as_str(),
+                        ));
+                    }
+                }
+                _ => {}
             }
         }
         None
+    }
+
+    fn different_const_values(
+        &self,
+        carrier: crate::source_state::types::TypeReferenceHandle,
+        expected: crate::source_state::types::TypeReferenceHandle,
+        found: crate::source_state::types::TypeReferenceHandle,
+    ) -> Option<(String, String)> {
+        use crate::source_state::expression::ExpressionNode;
+
+        let carrier = self.typed.primitive_type_reference(carrier)?;
+        let value = |reference| {
+            let operand = self
+                .typed
+                .static_operand_from_type_reference(reference)
+                .ok()?;
+            self.typed
+                .prepare_callable_scalar_argument(carrier, &operand)
+                .ok()
+        };
+        match (value(expected)?, value(found)?) {
+            (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => {
+                let (left, right) = (left.value_bignum()?, right.value_bignum()?);
+                (left != right).then(|| (left.to_string(), right.to_string()))
+            }
+            (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => {
+                (left != right).then(|| (left.to_string(), right.to_string()))
+            }
+            _ => None,
+        }
     }
 
     /// Only an exact local-storage ceiling supplies this error. Unknown fixed

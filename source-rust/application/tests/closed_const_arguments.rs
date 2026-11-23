@@ -5,11 +5,8 @@
 //! comparison has to use the value, not the spelling.
 //!
 //! The twin differs in one line: `width` adds 2, so the argument is
-//! `Buffer<9>` and the call must be refused. Today it is refused with a "not
-//! supported yet" message at the name of the calling machine, not with a type
-//! mismatch at the call. The verdict is right and the reason is wrong;
-//! `TASKS.md` (**NEGATIVE-TWIN-REASONS**) records it. The test pins today's
-//! message so a change to it is seen.
+//! `Buffer<9>`. The compiler must explain the different values at the argument
+//! that supplies the wrong type.
 //!
 //! `wiki/spec/language/generics.md`, "Typed static parameters", and
 //! `wiki/spec/language/constants.md`, "Evaluation": "A constant position
@@ -63,15 +60,25 @@ fn runs_in_both_engines(source: &str) {
     }
 }
 
-fn is_refused_in_computed(source: &str) {
+fn refuses_at_buffer_argument(source: &str, expected: &str) {
     let (output, report) = invoke(source, &["--check"]);
     assert!(!output.status.success(), "{report}");
-    let expected = std::fs::read_to_string(fixture("fail").join("expected.txt")).unwrap();
-    assert!(report.contains(expected.trim_end()), "{report}");
-    // Today the refusal points at the name of the machine that holds the
-    // call, `computed`, not at `literal(buffer)`.
-    assert!(report.contains("main.omg:4:9"), "{report}");
-    assert!(source.lines().nth(3).unwrap()[8..].starts_with("computed("));
+    let (line, call) = source
+        .lines()
+        .enumerate()
+        .find(|(_, line)| line.contains("literal(buffer)"))
+        .unwrap();
+    let column = call.find("literal(buffer)").unwrap() + "literal(".len() + 1;
+    let location = format!("main.omg:{}:{column}", line + 1);
+    let message = format!("error: {expected} while reading the body of `computed`");
+    let mut lines = report.lines();
+    assert!(
+        lines.any(|line| line.trim() == message)
+            && lines
+                .next()
+                .is_some_and(|line| line.trim_end().ends_with(&location)),
+        "{report}"
+    );
 }
 
 #[test]
@@ -82,7 +89,8 @@ fn a_call_argument_and_the_literal_it_evaluates_to_are_one_type() {
 #[test]
 fn a_call_argument_that_evaluates_to_another_number_is_refused() {
     assert_eq!(read("run").replace("n +% 1u8", "n +% 2u8"), read("fail"));
-    is_refused_in_computed(&read("fail"));
+    let expected = std::fs::read_to_string(fixture("fail").join("expected.txt")).unwrap();
+    refuses_at_buffer_argument(&read("fail"), expected.trim_end());
 }
 
 /// The same handoff for a `bool` parameter: `Flag<enabled()>` is `Flag<true>`
@@ -100,8 +108,8 @@ fn a_boolean_call_argument_closes_to_its_value() {
             .replace("Buffer<width(7u8)>", "Buffer<width()>")
     };
     runs_in_both_engines(&flags("true"));
-    let (output, report) = invoke(&flags("false"), &["--check"]);
-    assert!(!output.status.success(), "{report}");
-    let expected = std::fs::read_to_string(fixture("fail").join("expected.txt")).unwrap();
-    assert!(report.contains(expected.trim_end()), "{report}");
+    refuses_at_buffer_argument(
+        &flags("false"),
+        "type mismatch: the parameter it is passed for requires `Buffer` with `N = true` but this value supplies false",
+    );
 }

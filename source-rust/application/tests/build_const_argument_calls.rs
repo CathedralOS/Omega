@@ -92,7 +92,10 @@ fn a_call_with_another_value_gives_another_type() {
     // `leaf` returns 5, so the field is a `Buffer<5>`: not what `four` takes.
     let (compiled, stderr) = check("five", &storage("5"), LEND);
     assert!(!compiled);
-    assert!(stderr.contains("argument types"), "{stderr}");
+    assert!(
+        stderr.contains("type mismatch: the parameter it is passed for requires `Buffer` with `Capacity = 4` but this value supplies 5"),
+        "{stderr}"
+    );
 }
 
 #[test]
