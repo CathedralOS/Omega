@@ -118,7 +118,8 @@ Evidence: [Ubuntu worker](https://app.devin.ai/sessions/3aed8451c84649e19fce5ebb
 Per-slot verification builds were the dominant build-pool demand in the first
 wide local wave: every worktree built its own test runner (and sometimes `omega`)
 for its first gate run, producing median 17-minute and worst 75-minute pool
-waits with 25-45 waiters. Batch them instead:
+waits with 25-45 waiters. For a batch that needs the compiler executable,
+share a build across those checks. Layer fixtures can run directly.
 
 1. Pick the sub-batch base revision G and create the sub-batch worktrees **at G**.
 2. Build ONE `omega` binary at G as one
@@ -130,10 +131,9 @@ waits with 25-45 waiters. Batch them instead:
    wall time.
 3. Every slot uses the published binary instead of building: program runs via
    `<gen>/omega run --both ...`.
-4. Validity: a generation is valid for a worktree whose base B has the same
-   compiler source as G, that is, `git diff G..B -- omega-rust` is empty. Basing the sub-batch at G makes this
-   true by construction. After psi landings, re-roll the generation for the next
-   sub-batch: one build per batch, not per slot. Re-point the generation
+4. Check whether the producer inputs relevant to the next sample differ
+   between G and its worktree. If they do, build the executable that sample
+   needs. Re-point the generation
    worktree (`git reset --hard G`) rather than creating a new one.
 5. Reuse a generation only while its relevant producer inputs remain applicable.
    A source repair needs a producer built from the changed source for its focused
@@ -154,7 +154,8 @@ sequential steps in one shell under one
 [host build budget](../../../../wiki/development/build_slot.md#one-hold-for-a-whole-chain).
 Finish before submitting or waiting for GitHub admission, and release local
 build resources while waiting. Validation follows
-[testing](../../../../wiki/development/testing.md); main is checked after merge.
+[testing](../../../../wiki/development/testing.md). After merge, confirm the
+published commit on main.
 
 Two habits keep a killed lane cheap to resume, learned across two host
 restarts in one day:

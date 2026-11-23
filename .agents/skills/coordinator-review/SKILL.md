@@ -131,15 +131,14 @@ the file and line:
   history prose.
 - **Checkpoint continuity:** For a progress PR, identify the original program
   and expected result, its observed remaining failure and the continuing owner.
-  A base failure does not end ownership. After merging, that owner reruns the
-  original program on landed source and follows its next failure. If the session
+  That owner follows any remaining failure shown by pre-merge testing,
+  including one that was already present on the base. If the session
   must stop, use the unfinished handoff in the law of completion.
 
 ## 3. Review Verdict Actions
 
-- **If the diff passes all 5 points:** squash-merge it, then return to the
-  original program in the same worktree. Follow its next failure until its
-  original acceptance is complete before choosing another requirement.
+- **If the diff passes all 5 points:** squash-merge it and confirm publication.
+  Continue in the same worktree if the original acceptance has unmet requirements.
 - **If it fails a point:** fix it on the same branch and review again. A
   coordinator tells the worker the exact file, line and point.
 

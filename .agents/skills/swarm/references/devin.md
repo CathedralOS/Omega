@@ -15,5 +15,5 @@ Session ownership, execution and publication follow [AGENTS.md](../../../../AGEN
 
 ## 2. Continue on Warm Sessions
 
-1. Dispatch each session with its capability, witness, fixed base, and instruction to test the change and verify it on main after landing. Retain the PR URL, submitted head, published commit and observed limits in its completion report.
+1. Dispatch each session with its capability, witness, fixed base, and instruction to run the focused checks before merge and confirm the published commit on main. Retain the PR URL, submitted head, published commit and observed limits in its completion report.
 2. Reuse the same Devin session (keeping its warm checkout and build cache) for the next requirement of the parent capability; compact only after the parent capability's full acceptance is met and the session switches to a new outcome.
