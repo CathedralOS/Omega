@@ -43,10 +43,13 @@ script call -> typed adapter -> native host call
 ```text
 omega run --engine native main.omg     (the default)
 omega run --engine psi main.omg        (interpreted)
-omega run --both main.omg              (run both and compare)
 ```
 
-Ordinary Omega code runs under both engines unchanged.
+Ordinary Omega code runs under both engines unchanged. To compare a project's
+registered tests, use `omega build --compare-tests build.omg`. For example,
+if both executions exit zero but print different answers, the comparison fails.
+If their observations match but the answer is wrong, the runs agree and the test fails.
+See [comparing native and Psi tests](../spec/build/testing.md#comparing-native-and-psi-tests).
 
 ## Loading and calling from a host
 

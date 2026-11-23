@@ -68,8 +68,7 @@ This skill lists **only** the steps. The shared rules, including the
    the worktree root (`CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p omega < /dev/null`).
    Let mbx place `target/` so it can rebuild it after cache cleanup.
 2. **See the failure first:** Run the focused test for the affected mechanism
-   or the witness (`omega run --both` or
-   `mbx xtask sample-gate --filter <sample_path>`).
+   or its witness through `mbx xtask sample-gate --filter <sample_path>`.
 3. **Read the spec, then shrink the failing program:** Read the `wiki/spec/`
    page for the feature first. Cut the program down to the refused construct
    and use the spec to decide whether the language forbids it or the compiler
@@ -111,7 +110,7 @@ Never make a kept test program pass by changing its fact, bound or operation
    - Then a very small area around it: the tests that exercise the same mechanism
      (for the lowered-form checker, the `lowered_route_*` tests in
      `omega-rust/omega/compilation/compiler/tests/`), and the witness the
-     `TASKS.md` item names with `omega run --both`.
+     `TASKS.md` item names. Check its expected observations on each engine.
    - If that is fine, land.
    - If it is not, investigate that failure: run the same test at the base
      commit to learn whether your change caused it. A pre-existing failure in

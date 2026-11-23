@@ -24,7 +24,7 @@ Every board task follows three steps:
 2. **The task is written as an end-to-end outcome.** It names the existing
    runnable sample or customer program, its negative twins (see the
    [glossary](../../../AGENTS.md)), and what must work through the lowered-form
-   checker, Terminal Psi, and native/Psi execution (`omega run --both`). Assign
+   checker, Terminal Psi, and native/Psi execution. Assign
    repairs to the current stage owners in [AGENTS.md](../../../AGENTS.md#law-of-completion);
    the old tree checker is removed, so never route a repair to it. Do not list
    places to cover one by one ([sample loop](../../../AGENTS.md#the-sample-loop)).
@@ -65,7 +65,8 @@ duplicates learning, and produces competing partial fixes.
   item phrased as one internal pass edit, representation change, or single-stage
   job ("restore X in compile-time evaluator", "wire Y into backend plan")
   becomes an outcome around the runnable sample or customer program that proves
-  the requirement with `omega run --both` and its negative twins. Internal
+  the requirement. Check the program's expected output on both engines and
+  the refusal of its negative twin. Internal
   symbols and stage owners stay as notes, not as the definition of done. Only
   development-health problems such as slow builds or missing test coverage,
   bootstrap proofs, and external host or release gates may be accepted without

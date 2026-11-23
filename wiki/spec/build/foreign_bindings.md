@@ -242,8 +242,8 @@ Use existing qualification/custody and marshaling mechanisms, not new allocator
 intrinsics, UEFI-specific checks, or arbitrary field-extraction recipes in the
 binding.
 
-Supported interpreter routes must agree under `omega run --both`. Unsupported
-bindings must refuse explicitly without native fallback; implementing a new
+Exercise supported interpreter routes in [native/Psi comparison tests](testing.md#comparing-native-and-psi-tests).
+Unsupported bindings must refuse explicitly without native fallback; implementing a new
 interpreter foreign-call route is not a prerequisite for retiring the legacy
 surface. The migration removes both legacy table forms and their positional
 handling from downstream consumers, not just their parser spelling.
