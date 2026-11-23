@@ -1,8 +1,8 @@
-//! Compile a cache miss using the Product opened by its original package Build.
+//! Review the Product selected by this package Build.
 use super::{
-    AssembledOccurrence, CachedOccurrenceFacts, CompileResolvedPackageReviewsError,
+    AssembledOccurrence, OccurrenceFacts, CompileResolvedPackageReviewsError,
     CompilerIssuedPackageReview, CompletedOccurrence, PackageCompilationInputs,
-    PackageReviewOccurrence, PackageReviewRound, TargetEntryDiscovery, compiled_review_key,
+    PackageReviewOccurrence, PackageReviewRound, TargetEntryDiscovery,
 };
 
 impl PackageReviewRound<'_> {
@@ -13,41 +13,15 @@ impl PackageReviewRound<'_> {
         assembled: AssembledOccurrence,
         product: project_build::PlannedProduct,
     ) -> Result<(), CompileResolvedPackageReviewsError> {
-        let (checked, bytes) = self.compile_occurrence(&occurrence, &product)?;
-        let cache_write = occurrence
-            .custody
-            .compiled_review_cache_dir()
-            .and_then(|directory| {
-                let cache =
-                    super::super::super::review_cache::CompiledReviewCache::open(directory)?;
-                let key = compiled_review_key(
-                    occurrence.key.identity(),
-                    occurrence.purpose,
-                    occurrence.checked_target,
-                    self.execution_profile,
-                    &assembled.entry,
-                    &inputs,
-                    &assembled.build_snapshot,
-                )?;
-                let record = super::super::super::review_cache::record_compiled_review(
-                    &checked.review,
-                    (*checked.facts).clone(),
-                    bytes,
-                )?;
-                Some((cache, key, record))
-            });
-        self.retain_occurrence(&occurrence, &inputs, &assembled, checked)?;
-        if let Some((cache, key, record)) = cache_write {
-            cache.store(&key, &record, false);
-        }
-        Ok(())
+        let checked = self.compile_occurrence(&occurrence, &product)?;
+        self.retain_occurrence(&occurrence, &inputs, &assembled, checked)
     }
 
     fn compile_occurrence(
         &mut self,
         occurrence: &PackageReviewOccurrence<'_>,
         product: &project_build::PlannedProduct,
-    ) -> Result<(CompletedOccurrence, Vec<u8>), CompileResolvedPackageReviewsError> {
+    ) -> Result<CompletedOccurrence, CompileResolvedPackageReviewsError> {
         let key = occurrence.key;
         let profile = occurrence.checked_target;
         let invalid = || {
@@ -112,7 +86,7 @@ impl PackageReviewRound<'_> {
         let policy =
             super::super::super::review_set::encode_policy(&checked.policy).map_err(encoding)?;
         let policy_bytes = policy.bytes.len();
-        let facts = CachedOccurrenceFacts {
+        let facts = OccurrenceFacts {
             consumed_units: subject.consumed_units().to_vec(),
             source_consumption_commitment,
             component_description: checked.component_description,
@@ -133,13 +107,10 @@ impl PackageReviewRound<'_> {
             policy_rows: policy.rows,
             policy_commitment: policy.commitment,
         };
-        Ok((
-            CompletedOccurrence {
-                review,
-                facts: Box::new(facts),
-                policy_bytes,
-            },
-            policy.bytes,
-        ))
+        Ok(CompletedOccurrence {
+            review,
+            facts: Box::new(facts),
+            policy_bytes,
+        })
     }
 }

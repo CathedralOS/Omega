@@ -322,9 +322,9 @@ fn run(
                     request_ordinal: request.request_ordinal,
                     package: root,
                 };
-                let inputs = package_compilation::review_cache_inputs_digest(&dependency.inputs);
+                let inputs = dependency.inputs.identity_digest();
                 let child_build_source = dependency.child_build_source.map(|commitment| commitment.digest());
-                let handoff = dependency.generated.as_ref().map(package_compilation::package_build_handoff_digest);
+                let handoff = dependency.generated.as_ref().map(package_compilation::PackageBuildHandoff::identity_digest);
                 let prepared_product_alias = match request.purpose {
                     DependencyPurpose::Build => {
                         mount_build_dependency(build_dependencies, dependency)?;

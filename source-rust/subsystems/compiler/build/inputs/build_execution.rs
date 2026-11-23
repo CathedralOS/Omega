@@ -29,8 +29,6 @@ See `build_admission.rs` for machine selection and service-reach checks,
 */
 
 mod build_admission;
-#[doc(hidden)]
-pub mod build_record_codec;
 pub mod build_value;
 mod completed_outputs;
 mod execution_inputs;
