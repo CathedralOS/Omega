@@ -582,35 +582,44 @@ fn runtime_evidence_roster_rejoins_full_meaning_and_exact_subjects() {
     assert!(!roster_valid(&application));
 }
 
-/// A terminal path selects its nested machine even when a scalar local has
-/// the same spelling. An operational marker retains that target and remains
-/// separate from the binding of an ordinary evaluated call operand.
+/// A block acknowledgement keeps the ordinary lexical callee. A terminal
+/// call can select a nested machine, but a local sharing its name wins in
+/// both terminal and ordinary call position.
 #[test]
 fn acknowledged_terminal_paths_keep_nominal_targets_and_scalar_calls_stay_invalid() {
-    let source = |body: &str| {
+    let source = |local: &str, body: &str| {
         format!(
             r#"
 machine build_entry(value: u32) -> u32 {{
-    let root: u64 = 1;
+    let {local}: u64 = 1;
     {body}
     machine root(value: u32) -> u32 {{ value }}
 }}
 "#
         )
     };
-    let positive = source("transition { _ -> block root(value) }");
+    let positive = source("other", "transition { _ -> block root(value) }");
     let verdict = super::build_purpose::judge_build(&positive).unwrap();
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("acknowledged nested transfer must be judged: {verdict:?}");
     };
     accepted.publish_invocation().unwrap();
 
-    let negative = source("let result: u32 = block root(value); result");
+    for body in [
+        "transition { _ -> block root(value) }",
+        "let result: u32 = block root(value); result",
+    ] {
+        let negative = source("root", body);
+        assert_scalar_callee_refused(&negative);
+    }
+}
+
+fn assert_scalar_callee_refused(negative: &str) {
     let mut sources = crate::source_inputs::SourceMap::default();
     let source_id = sources
         .add_checked_instance(
             "package/build.omg".into(),
-            negative.as_str(),
+            negative,
             "package".into(),
             semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]),
             source_admission::SourceOrigin::User,
@@ -618,7 +627,7 @@ machine build_entry(value: u32) -> u32 {{
             source_provenance::DependencyScope::Build,
         )
         .source_id;
-    let tokens = crate::checking::frontend_fixture::Lexer::new(&negative)
+    let tokens = crate::checking::frontend_fixture::Lexer::new(negative)
         .tokenize()
         .unwrap();
     let syntax =

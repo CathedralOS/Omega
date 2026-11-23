@@ -6,7 +6,7 @@ mod argument_types;
 
 use crate::lowering::body::Qualification;
 use crate::source_state::SourceTypeApplication;
-use crate::source_state::expression::{ExpressionHandle, TableIndexedExpression};
+use crate::source_state::expression::{ExpressionHandle, ExpressionNode, TableIndexedExpression};
 use crate::source_state::types::{FixedArrayLength, TypeReferenceHandle};
 use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType, StructuralTypeId};
 use symbols::SymbolHandle;
@@ -655,6 +655,16 @@ impl Program<'_> {
         let range = self.typed.expression_table.range_node(indexed.index);
         let hint = range.and(hint);
         let base = self.place(machine, slots, indexed.collection, hint, access)?;
+        // A domain cast preserves the reference descriptor. Indexing projects
+        // into its referent, including when the cast removed a domain.
+        let base = if matches!(
+            self.node(machine, indexed.collection)?,
+            ExpressionNode::Cast(_)
+        ) {
+            self.observed(machine, base, hint)?
+        } else {
+            base
+        };
         let Some(array) = self.opened_place(machine, &base, access)? else {
             return Err(refuse(
                 machine,

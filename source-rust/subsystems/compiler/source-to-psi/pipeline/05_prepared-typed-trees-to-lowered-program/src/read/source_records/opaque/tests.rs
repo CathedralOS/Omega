@@ -24,7 +24,7 @@ fn selection() -> (TypedTrees, TypeReferenceHandle, TypeReferenceHandle) {
     let text = "Receipt Word Representation bits Permit";
     let source = sources
         .add_with_metadata(
-            PathBuf::from("receipt.omg"),
+            PathBuf::from("package/receipt.omg"),
             text.into(),
             PathBuf::from("package"),
             PackageKeyIdentity::from_digest([73; 32]),

@@ -254,11 +254,11 @@ machine entry() {{ let reply: u32 = Service::go(3); }}
 fn an_unserved_inherited_whole_trait_supply_is_not_vacuously_accepted() {
     let text = "boundary trait Parent { machine go() reaches none crashes none; }
         boundary trait Service: Parent {}
-        Native satisfies Parent { machine go() reaches none crashes none {} }
+        Native satisfies Service { machine go() reaches none crashes none {} }
         machine entry() {}";
     let error = supplied(text, "Service").unwrap_err();
     assert!(
-        error.contains("whole-trait supply with parameters, parents or refinements"),
+        error.contains("whole-trait supply with inherited methods"),
         "{error}"
     );
 }
@@ -439,7 +439,7 @@ fn a_named_provider_selection_needs_no_edge_on_its_machine() {
 }
 
 #[test]
-fn a_provider_supply_refuses_duplicate_rows_for_one_requirement() {
+fn a_provider_supply_requires_exactly_one_row_for_each_requirement() {
     let mut typed = typed(&referenced_provider(CONTRACT));
     let implementation = typed
         .tables
@@ -456,7 +456,17 @@ fn a_provider_supply_refuses_duplicate_rows_for_one_requirement() {
         slot: row.requirement,
         provider: implementation.symbol,
     };
-    implementation.rows.push(row.clone());
+    let row = row.clone();
+    implementation.rows.clear();
+    assert_eq!(
+        supply.realization(&typed, supply.slot).unwrap_err(),
+        "provider does not give the supplied requirement exactly one machine"
+    );
+    let implementation = typed
+        .tables
+        .conformances
+        .get_mut(typed.roots.conformances.start());
+    implementation.rows.extend([row.clone(), row]);
     assert_eq!(
         supply.realization(&typed, supply.slot).unwrap_err(),
         "provider does not give the supplied requirement exactly one machine"
@@ -525,12 +535,12 @@ fn a_provider_that_does_not_refine_its_requirement_is_not_accepted() {
 /// A supply the route cannot pair with exactly one machine per requirement
 /// is refused by name, never accepted unjudged.
 #[test]
-fn a_supply_without_one_machine_per_requirement_is_refused_by_name() {
+fn a_provider_cannot_supply_an_unrelated_trait_or_a_data_type() {
     let text = program(CONTRACT, CONTRACT, "value + 1");
-    // `Other` has a requirement `Native` gives no machine.
+    // Other's requirements belong to a different nominal trait application.
     let uncovered = supplied(&text, "Other").unwrap_err();
     assert!(
-        uncovered.contains("provider does not give the supplied requirement exactly one machine"),
+        uncovered.contains("supply lost its declaring trait application"),
         "{uncovered}"
     );
     // A data type is not a slot.

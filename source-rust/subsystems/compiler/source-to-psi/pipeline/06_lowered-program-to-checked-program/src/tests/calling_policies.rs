@@ -977,26 +977,27 @@ fn a_data_clause_that_tests_a_case_is_published() {
 #[test]
 fn generic_calling_policies_publish_in_their_own_proof_scope() {
     use terminal_psi::TargetMachineCallable;
-    let text = format!(
-        r#"{VOCABULARY}
-Policy satisfies CallingPolicy {{
-    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {{
-        let plan: BoundaryEntryPlan;
-        BoundaryPlanResult::Accepted {{ plan: plan }}
-    }}
-}}
-boundary trait Service: Calling<Policy> {{
+    let source = typed_hosted_policy(
+        r#"
+Policy satisfies |abi|::CallingPolicy {
+    machine plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
+        let plan: |abi|::BoundaryEntryPlan;
+        |abi|::BoundaryPlanResult::Accepted { plan: plan }
+    }
+}
+boundary trait Service: |abi|::Calling<Policy> {
     machine read() -> u32 reaches none crashes none terminates;
-}}
-trait Operations {{
+}
+trait Operations {
     machine apply() -> u32 reaches Service crashes none terminates;
-}}
+}
 machine entry<const Selected: Operations>() -> u32
-reaches Service crashes none terminates {{ Selected::apply() }}
-"#
+reaches Service crashes none terminates { Selected::apply() }
+"#,
     );
-    let source = typed(&text);
-    let form = crate::lowering::elaborate_generic(&source, super::boundary_calls::entry(&source))
+    let source = crate::prepare_fixture(source);
+    let typed = source.trees();
+    let form = crate::lowering::elaborate_generic(typed, super::boundary_calls::entry(typed))
         .expect("publish the generic form's actual Calling declarations");
     assert!(!form.module.interfaces.calling_policy_requests.is_empty());
     assert!(!form.module.interfaces.service_schemas.is_empty());

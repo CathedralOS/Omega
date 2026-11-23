@@ -79,7 +79,7 @@ machine build_entry(session: @mutable Session) { session.ready = true; }
         ),
         "this type names the lifetime `'other`, which its declaration does not declare: \
          undeclared lifetime tags reject while reading the record application \
-         `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Session\\)\\)))` \
+         `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(build.omg::Session\\)\\)))` \
          while reading the signature of `build_entry`"
     );
 }
@@ -112,7 +112,7 @@ fn a_field_states_the_lifetimes_of_data_it_names_behind_a_reference() {
         assert_eq!(
             refusal(&holder(field, binders)),
             "typing data field that elides a lifetime argument while reading the record application \
-             `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Holder\\)\\)))` \
+             `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(build.omg::Holder\\)\\)))` \
              while reading the signature of `hold`",
             "{field}"
         );
@@ -148,7 +148,7 @@ fn a_field_that_elides_its_views_lifetime_is_refused_by_name() {
     assert_eq!(
         refusal(&label("", "@[u8]", "Label")),
         "typing data field that elides a view's lifetime while reading the record application \
-         `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Label\\)\\)))` \
+         `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(build.omg::Label\\)\\)))` \
          while reading the signature of `label`"
     );
     let verdict = judge_build(&label("<'name>", "@'name [u8]", "Label<'storage>")).unwrap();
@@ -284,7 +284,7 @@ machine build_entry(session: @mutable Session) { session.ready = true; }
         ),
         "this type names the lifetime `'missing`, which its declaration does not declare: \
          undeclared lifetime tags reject while reading the record application \
-         `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(Session\\)\\)))` \
+         `named(name(nominal\\(package-owner\\(32:0707070707070707070707070707070707070707070707070707070707070707\\)\\,path\\(build.omg::Session\\)\\)))` \
          while reading the signature of `build_entry`"
     );
 }

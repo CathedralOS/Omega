@@ -92,7 +92,7 @@ pub(crate) fn declared_record<'program>(
 }
 
 /// The fields of one data definition, when it declares fields and no case.
-fn defined_record<'program>(
+pub(crate) fn defined_record<'program>(
     program: &'program resolved::SymbolResolvedTrees,
     definition: &'program DataDefinition,
 ) -> Result<Record<'program>, NoRecord<'program>> {

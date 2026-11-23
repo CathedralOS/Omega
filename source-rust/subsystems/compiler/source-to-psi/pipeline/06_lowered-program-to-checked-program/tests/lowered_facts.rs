@@ -230,6 +230,88 @@ fn a_call_owes_one_requirement_for_each_clause_of_its_callee() {
     }
 }
 
+/// Either byte is a legal return. Lowering decides which formal the source names.
+#[test]
+fn a_scalar_return_keeps_its_authored_operand_and_the_checker_judges_its_type() {
+    for (name, index) in [("left", 0), ("right", 1)] {
+        let program = Program::of(&format!(
+            "machine pick(left: u8, right: u8) -> u8 {{ {name} }}"
+        ));
+        let machine = program.machine("pick");
+        assert_eq!(
+            support::returned(machine),
+            machine.contract.parameters[index].id
+        );
+        program.judged(|_| {}).accepted();
+        let other = machine.contract.parameters[1 - index].id;
+        program
+            .judged_in("pick", |body| {
+                for block in &mut body.blocks {
+                    if let Terminator::Return { value, .. } = &mut block.terminator {
+                        *value = other;
+                    }
+                }
+            })
+            .accepted();
+    }
+}
+
+/// Even when both views have exactly one byte, the length used by a read
+/// must come from measuring the descriptor that supplies that byte.
+#[test]
+fn a_byte_read_keeps_its_own_measurement_when_the_other_length_is_equal() {
+    let program = Program::of(
+        "machine read(left: @[u8], right: @[u8]) -> u8 requires left.length == 1u64 && right.length == 1u64 { left[0u64] }",
+    );
+    let machine = program.machine("read");
+    let left = machine.structural_parameters[0].place;
+    let right = machine.structural_parameters[1].place;
+    assert_ne!(left, right);
+    let read = the_operation(machine, |kind| {
+        matches!(kind, OperationKind::ByteSequenceRead { .. })
+    });
+    let OperationKind::ByteSequenceRead { source, length, .. } = &read.kind else {
+        unreachable!()
+    };
+    assert_eq!(*source, left);
+    let measure = machine
+        .operations()
+        .find(|op| {
+            op.result
+                .scalar_ref()
+                .is_some_and(|value| value.id == *length)
+        })
+        .unwrap();
+    assert!(
+        matches!(&measure.kind, OperationKind::ByteSequenceLength { source } if source.place == left && source.path.is_empty())
+    );
+    program.judged(|_| {}).accepted();
+
+    let verdict = program.judged_in("read", |body| {
+        let changed = body
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+            .find(|op| op.id == measure.id)
+            .unwrap();
+        let OperationKind::ByteSequenceLength { source } = &mut changed.kind else {
+            unreachable!()
+        };
+        source.place = right;
+    });
+    let Verdict::Unserved(refusal) = verdict else {
+        panic!("expected a measurement refusal, got {verdict:?}")
+    };
+    assert_eq!(
+        in_machine(&refusal),
+        (machine.id, Construct::Operation(read.id))
+    );
+    assert!(
+        refusal.detail.contains("measurement directly before it"),
+        "{refusal:?}"
+    );
+}
+
 /// `first` returns its `bool` formal where it declares a `u8` result. The
 /// checker refuses the module and names `first`, not `other`, which is the
 /// module's first machine and is unchanged.

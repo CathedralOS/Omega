@@ -427,7 +427,7 @@ machine entry() -> bool {{ farther(issue(8), issue(7)) }}
 
 #[test]
 fn removing_a_domain_does_not_authorize_its_reintroduction() {
-    let refused = invocation(&format!(
+    let source = format!(
         r#"
 {DOMAIN}
 machine rebuild(handle: i64 in Classified) -> i64 in Classified {{
@@ -435,14 +435,17 @@ machine rebuild(handle: i64 in Classified) -> i64 in Classified {{
 }}
 machine entry() -> i64 in Classified {{ rebuild(issue(7)) }}
 "#
-    ))
-    .unwrap_err();
-    assert!(matches!(refused.reason, RefusalReason::Violation));
+    );
+    let verdict = judge(invocation(&source)).unwrap();
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("the checker must reject reintroduction without authority");
+    };
     assert!(
-        refused
-            .detail
-            .contains("not one of the domain's establishment routes"),
-        "{refused:?}"
+        violations.iter().any(|row| row
+            .statement
+            .contains("not one of the domain's establishment routes")
+            && row.site.is_some()),
+        "{violations:?}"
     );
 }
 

@@ -1548,6 +1548,41 @@ impl Program<'_> {
         true
     }
 
+    /// Evaluate one exact rational and retain every admitted operator folded into it.
+    fn anonymous_calculation(
+        &self,
+        id: MachineId,
+        expression: ExpressionHandle,
+    ) -> Checked<(closed_numeric::AnonymousNumericValue, Vec<ExpressionHandle>)> {
+        let typed = self.typed;
+        let mut operators = Vec::new();
+        let Some(evaluated) = closed_numeric::evaluate_anonymous_value::<true>(
+            typed,
+            expression,
+            &[],
+            &mut |expression| {
+                let admitted = closed_numeric::has_anonymous_operator_meaning(typed, expression);
+                if admitted
+                    && typed
+                        .expression_table
+                        .authored_selection_occurrences(expression)
+                        .next()
+                        .is_some()
+                {
+                    operators.push(expression);
+                }
+                admitted
+            },
+        ) else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Expression("anonymous operation without an exact meaning"),
+            ));
+        };
+        Ok((evaluated, operators))
+    }
+
     /// The value a wholly anonymous binary tree lands as in `expected`.
     /// numeric_values.md: anonymous integer-literal division "is rational
     /// division, not truncation", and the tree keeps "exact rational
@@ -1571,27 +1606,7 @@ impl Program<'_> {
     ) -> Checked<AnonymousValue> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let typed = self.typed;
-        let mut operators = Vec::new();
-        let Some(evaluated) = closed_numeric::evaluate_anonymous_value::<true>(
-            typed,
-            expression,
-            &[],
-            &mut |expression| {
-                let admitted = closed_numeric::has_anonymous_operator_meaning(typed, expression);
-                if admitted
-                    && typed
-                        .expression_table
-                        .authored_selection_occurrences(expression)
-                        .next()
-                        .is_some()
-                {
-                    operators.push(expression);
-                }
-                admitted
-            },
-        ) else {
-            return unserved("anonymous operation without an exact meaning");
-        };
+        let (evaluated, operators) = self.anonymous_calculation(id, expression)?;
         // Only an integer destination makes these errors in the program;
         // without one the reader cannot say what the value lands as.
         let Some(ScalarType::Integer(integer)) = expected else {
@@ -1675,26 +1690,10 @@ impl Program<'_> {
         id: MachineId,
         expression: ExpressionHandle,
         format: semantic_vocabulary::IeeeFloatFormat,
-    ) -> Checked<semantic_vocabulary::IeeeFloatValue> {
-        let evaluated = closed_numeric::evaluate_anonymous_value::<true>(
-            self.typed,
-            expression,
-            &[],
-            &mut |expression| {
-                closed_numeric::has_anonymous_operator_meaning(self.typed, expression)
-            },
-        )
-        .ok_or_else(|| {
-            refuse(
-                id,
-                Construct::Machine,
-                Unserved::Expression("anonymous operation without an exact meaning"),
-            )
-        })?;
-        Ok(round_float(
-            format,
-            bignum::ExactFloat::Finite(evaluated.value),
-        ))
+    ) -> Checked<(semantic_vocabulary::IeeeFloatValue, Vec<ExpressionHandle>)> {
+        let (evaluated, operators) = self.anonymous_calculation(id, expression)?;
+        let value = round_float(format, bignum::ExactFloat::Finite(evaluated.value));
+        Ok((value, operators))
     }
 
     /// A literal keeps its explicit format, or lands in its receiving format.
