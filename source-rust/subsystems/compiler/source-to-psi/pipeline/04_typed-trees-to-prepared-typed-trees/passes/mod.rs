@@ -2,5 +2,4 @@
 //! in `preparation.rs`.
 
 pub(crate) mod domain_applications;
-pub(crate) mod record_patterns;
 pub(crate) mod specialization;

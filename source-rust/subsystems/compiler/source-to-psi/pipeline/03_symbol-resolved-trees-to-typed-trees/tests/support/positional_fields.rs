@@ -44,6 +44,10 @@ machine by_name(pair: Pair) -> u8 {
 
 pub const MACHINES: [&str; 4] = ["by_place", "with_rest", "in_arm", "by_name"];
 
+pub const REFERENCED: &str = include_str!(
+    "../../../../tests/fixtures/pattern_field_identity/pass/borrowed_and_projected/main.omg"
+);
+
 pub const PACKAGE: [u8; 32] = [0x50; 32];
 
 /// The source map and the typed trees of `text`, or typing's refusal as the
@@ -179,26 +183,49 @@ fn rows(fields: &[TableMatchField]) -> Vec<Row> {
         .collect()
 }
 
-/// The roster of the one `let` pattern in the machine `name`.
-pub fn let_roster(trees: &TypedTrees, name: &str) -> Vec<Row> {
+/// The one `let` pattern in the machine `name`.
+pub fn let_pattern_handle(
+    trees: &TypedTrees,
+    name: &str,
+) -> source_compiler::representations::source_state::statement::StatementHandle {
     let machine = trees.realized_machine_named(name).unwrap();
     let mut markers = trees
         .machine_states(machine)
         .iter()
-        .flat_map(|state| state.statement_nodes.handles())
-        .filter_map(|handle| match trees.statement_table.statement(handle) {
-            StatementNode::LocalData(local)
-                if local.role == language_core::LocalBindingRole::RecordPattern =>
-            {
-                Some(local)
-            }
-            _ => None,
+        .flat_map(|state| trees.body_statement_spans(state.statement_nodes))
+        .flat_map(|span| span.handles())
+        .filter(|&handle| {
+            matches!(
+                trees.statement_table.statement(handle),
+                StatementNode::LocalData(local)
+                    if local.role == language_core::LocalBindingRole::RecordPattern
+            )
         });
     let marker = markers
         .next()
         .unwrap_or_else(|| panic!("`{name}` has no pattern"));
     assert!(markers.next().is_none(), "`{name}` has one pattern");
-    rows(trees.expression_table.match_fields(marker.pattern_fields))
+    marker
+}
+
+pub fn let_pattern<'trees>(
+    trees: &'trees TypedTrees,
+    name: &str,
+) -> &'trees source_compiler::representations::source_state::statement::TableLocalData {
+    trees
+        .statement_table
+        .statement(let_pattern_handle(trees, name))
+        .as_local_data()
+        .unwrap()
+}
+
+/// The roster of the one `let` pattern in the machine `name`.
+pub fn let_roster(trees: &TypedTrees, name: &str) -> Vec<Row> {
+    rows(
+        trees
+            .expression_table
+            .match_fields(let_pattern(trees, name).pattern_fields),
+    )
 }
 
 /// The roster and `has_rest` of the one destructuring match arm in `MAIN`.

@@ -1,5 +1,5 @@
 //! Prepare typed source for lowering. Specialization binds static calls, then the
-//! domain and record passes resolve the declarations used by those bodies.
+//! domain pass resolves the declarations used by those bodies.
 
 #![forbid(unsafe_code)]
 
@@ -43,7 +43,6 @@ pub fn prepare_typed_trees(
         .settle_applied_service_lineage()
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     passes::domain_applications::prepare(&mut program);
-    passes::record_patterns::prepare(&mut program);
     PreparedTypedTrees::new(PREPARATION, program, values)
 }
 

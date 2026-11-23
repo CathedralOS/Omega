@@ -1515,23 +1515,34 @@ pub(crate) mod statement {
         };
         let expressions = crate::typing::tables::resolved_expressions(lowerer.source_trees);
         let written = expressions.match_fields(local_data.pattern_fields);
-        if role == language_core::LocalBindingRole::RecordPattern && !local_data.type_is_inferred {
-            crate::typing::data_patterns::check_head(
+        let head = if role == language_core::LocalBindingRole::RecordPattern
+            && !local_data.type_is_inferred
+        {
+            Some(crate::typing::data_patterns::check_head(
                 lowerer.source_trees,
                 expressions,
                 local_data.initial_value,
                 type_references(lowerer.source_trees).type_reference(local_data.type_reference),
-            )?;
-        }
-        // A positional row and a final `..` name no field. The subject's
-        // record gives each of them its fields here, so preparation and the
-        // checker receive the same named roster a named pattern writes.
-        let placed = crate::typing::data_patterns::field_rows(
-            lowerer.source_trees,
-            expressions,
-            local_data.initial_value,
-            written,
-        )?;
+            )?)
+        } else {
+            None
+        };
+        // Keep the record and fields selected here together. Preparation
+        // must not replace them by resolving their display names again.
+        let placed = if role == language_core::LocalBindingRole::RecordPattern {
+            crate::typing::data_patterns::field_rows(
+                lowerer.source_trees,
+                expressions,
+                local_data.initial_value,
+                written,
+                head,
+            )?
+        } else {
+            None
+        };
+        let pattern_subject = placed
+            .as_ref()
+            .map_or_else(symbols::SymbolHandle::invalid, |placed| placed.record);
         let roster = {
             use resolved::expression::MatchFieldAction as Authored;
             use typed::expression::{MatchFieldAction, TableMatchField};
@@ -1543,6 +1554,7 @@ pub(crate) mod statement {
             };
             match placed {
                 Some(placed) => placed
+                    .fields
                     .iter()
                     .map(|row| TableMatchField {
                         component: language_core::PatternComponent::Fields,
@@ -1566,7 +1578,7 @@ pub(crate) mod statement {
             .insert_match_fields(roster);
         Ok(TableLocalData {
             pattern_fields,
-            pattern_subject: symbols::SymbolHandle::invalid(),
+            pattern_subject,
             role,
             symbol: local_data.symbol,
             name: crate::typing::lowerer::name::lower_name(&local_data.name),

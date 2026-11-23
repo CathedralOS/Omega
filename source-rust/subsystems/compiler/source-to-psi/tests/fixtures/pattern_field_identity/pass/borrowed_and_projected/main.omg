@@ -1,0 +1,20 @@
+data Pair [copy] { zeta: u8; alpha: u8; }
+data Holder [copy] { held: Pair; }
+machine through_borrow(pair: @Pair) -> u8 {
+    let { zeta as _, alpha } = pair;
+    alpha
+}
+machine through_field(holder: Holder) -> u8 {
+    let { zeta as _, alpha } = holder.held;
+    alpha
+}
+machine through_block(pair: Pair, tag: u8) -> u8 {
+    match tag {
+        0 -> {
+            let local: Pair = pair;
+            let { zeta as _, alpha } = local;
+            alpha
+        },
+        _ -> 0,
+    }
+}
