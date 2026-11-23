@@ -740,7 +740,7 @@ machine with_alias<'storage, 'other>(description: @mutable Description<'storage>
 }
 "#
         ),
-        "typing assigned value type while reading the body of `with_alias`"
+        "rejected"
     );
 }
 

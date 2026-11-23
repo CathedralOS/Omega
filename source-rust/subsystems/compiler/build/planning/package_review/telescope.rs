@@ -13,7 +13,8 @@ use source_compiler::representations::source_state::{
 };
 use source_compiler::representations::source_state::{
     type_identity::{
-        ExactOwnerTypeIdentityRequest, LifetimeParameterIdentity, declaration_lifetime_parameters,
+        AppliedTypeIdentityScope, ExactOwnerTypeIdentityRequest, LifetimeParameterIdentity,
+        declaration_lifetime_parameters,
     },
     types::TypeReferenceHandle,
 };
@@ -213,6 +214,16 @@ impl PolicySource<'_> {
         reference: TypeReferenceHandle,
         scope: &SignatureScope,
     ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
+        self.applied_scoped_type(owner, reference, scope, &[])
+    }
+
+    pub(super) fn applied_scoped_type(
+        &self,
+        owner: SymbolHandle,
+        reference: TypeReferenceHandle,
+        scope: &SignatureScope,
+        applications: &[AppliedTypeIdentityScope<'_>],
+    ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
         let program = self.typed();
         self.require_type_dependencies(
             owner,
@@ -227,7 +238,7 @@ impl PolicySource<'_> {
             exact_toolchain_sources: self.sources().exact_toolchain_sources(),
         };
         let canonical = program
-            .exact_owner_type_identity(request)
+            .exact_applied_owner_type_identity(request, applications)
             .and_then(|identity| program.type_identity_text(identity))
             .ok_or_else(|| unavailable("a signature type in its generic declaration"))?;
         Ok(PackageReviewTypeIdentity { canonical })

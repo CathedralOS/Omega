@@ -27,6 +27,10 @@ fn refusal(build: &str) -> String {
     match judge_build(build) {
         Err(crate::checking::CompilationRefusal::Elaboration(refusal))
         | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
+        // A program the compiler rejects reads as its one violation.
+        Ok(RouteVerdict::Rejected { violations, .. }) if violations.len() == 1 => {
+            violations[0].statement.clone()
+        }
         other => panic!("{other:?}"),
     }
 }
@@ -111,7 +115,7 @@ machine named<'storage, 'other>(holder: @mutable Holder<'storage>, name: @'other
 machine build_entry() {{ }}
 "
         )),
-        "typing assigned value type while reading the body of `named`"
+        "this view is of the region of another lifetime of the machine than the place it is assigned to names: nothing relates two lifetimes of one machine while reading the body of `named`"
     );
 }
 
@@ -131,7 +135,7 @@ fn a_view_moves_between_records_only_at_one_region() {
                 "{HOLDER}machine build_entry() {{ }}\n\
                  machine exchange{signature} {{ long.name = short.name; }}\n"
             )),
-            "typing assigned value type while reading the body of `exchange`",
+            "this view is of the region of another lifetime of the machine than the place it is assigned to names: nothing relates two lifetimes of one machine while reading the body of `exchange`",
             "{signature}"
         );
     }

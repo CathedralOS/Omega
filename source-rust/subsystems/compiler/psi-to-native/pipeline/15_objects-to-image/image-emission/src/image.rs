@@ -1770,6 +1770,9 @@ pub(crate) mod image_output {
         output: &EmittedImageOutput,
     ) -> Result<(), Diagnostic> {
         crate::object::function_fragments::replay::validate(artifact)?;
+        if artifact.target().object_format == ObjectFormat::Coff {
+            crate::unwind_check::validate(artifact, output)?;
+        }
         if image.companions != crate::companion_images::emit(artifact)
             || artifact.psi() != image.psi()
             || artifact.target() != image.target()

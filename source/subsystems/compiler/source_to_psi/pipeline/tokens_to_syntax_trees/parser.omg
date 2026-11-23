@@ -1,3 +1,4 @@
+use pipeline/tokens_to_syntax_trees/expression_frames.omg as frames;
 use representations\source_files\SourceId;
 use representations\source_files\SourceSpan;
 use representations\source_files\Span;
@@ -168,7 +169,7 @@ requires
     expression_operand_depth: u64;
     expression_operators: [PendingOperator; 64];
     expression_operator_depth: u64;
-    expression_frames: [ExpressionFrame; 32];
+    expression_frames: [|frames|::ExpressionFrame; 32];
     expression_frame_depth: u64;
     pending_arguments: [u64 in Trapping; 256];
     pending_argument_count: u64;

@@ -196,14 +196,12 @@ mod argument_types {
                         const_parameter_types: &const_types,
                         type_equations: &equations,
                     };
-                    let mut warnings = Vec::new();
                     let completed = type_equations::complete_equation_arguments(
                         syntax,
                         template,
                         &base_name,
                         &arguments,
                         Some(selection),
-                        &mut warnings,
                     )
                     .and_then(|tuple| {
                         type_equations::materialize_completed_type(
@@ -923,7 +921,6 @@ mod completion {
             }
             arguments.push(reference);
         }
-        let mut warnings = Vec::new();
         let declaration_name = declaration.name.as_str(syntax).to_owned();
         let tuple = type_equations::complete_equation_arguments_with_types(
             syntax,
@@ -940,7 +937,6 @@ mod completion {
             &arguments,
             ordinary_types,
             Some(selection),
-            &mut warnings,
         )?;
         let result_type = result_type
             .map(|result| {
@@ -962,13 +958,6 @@ mod completion {
                 )
             })
             .transpose()?;
-        // Landing errors reject; see report_preparation_diagnostics.
-        if let Some(error) = warnings.iter().find(|warning| warning.is_error()) {
-            return Err(error.clone());
-        }
-        for warning in warnings {
-            eprintln!("{warning}");
-        }
         let mut completed = supplied.to_vec();
         for ((index, reference), parameter) in
             equation_positions.iter().zip(&tuple).zip(&parameters)
@@ -1349,16 +1338,7 @@ pub(crate) fn complete(
     for &root in &completed_type_roots {
         super::generic_data::collect_type_positions(syntax, root, &mut positions, false);
     }
-    let mut warnings = Vec::new();
-    super::generic_data::desugar_generic_data_instances_in(
-        syntax,
-        &mut warnings,
-        Some(selection),
-        super::generic_data::GenericDataWorkDomain {
-            type_roots: &completed_type_roots,
-            declarations: &[],
-        },
-    )?;
+    super::generic_data::materialize_type_roots(syntax, selection, &completed_type_roots)?;
     if positions.iter().any(|reference| {
         matches!(
             syntax.type_references.type_reference(*reference),
@@ -1368,9 +1348,6 @@ pub(crate) fn complete(
         return Err(vec![Diagnostic::error(
             "machine equation type argument retains an unnormalized data application",
         )]);
-    }
-    for warning in warnings {
-        eprintln!("{warning}");
     }
     Ok(())
 }

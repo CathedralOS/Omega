@@ -16,6 +16,20 @@ pub(crate) fn lower_measure_definition(
     syntax_trees: &SyntaxTrees,
     measure: &syntax::item::MeasureDefinition,
 ) -> Result<MeasureDefinition, Diagnostic> {
+    if !measure.lexicographic && (!measure.parameter.is_valid() || !measure.return_type.is_valid())
+    {
+        let mut diagnostic = Diagnostic::error(
+            "a computed measure requires exactly one subject parameter and a result type",
+        );
+        if let Some(name) = syntax_trees
+            .items
+            .identifier_path_members(measure.name)
+            .last()
+        {
+            diagnostic = diagnostic.with_source_span(name.source_span());
+        }
+        return Err(diagnostic);
+    }
     let name = lower_operator_path_name(lowerer, syntax_trees, measure.name);
 
     let parameter = measure

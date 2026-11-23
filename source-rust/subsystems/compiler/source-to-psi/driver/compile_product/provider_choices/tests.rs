@@ -279,10 +279,10 @@ fn supply_is_ranked_by_authority_and_keyed_by_target() {
 
     defaults[0].target = Some("windows_x86_64".to_owned());
     let choices = prepare(&fixture, &[], defaults).unwrap();
-    assert!(
-        choices.selections.is_empty(),
-        "another target's default supplies no Linux row"
-    );
+    let [windows] = choices.selections.as_slice() else {
+        panic!("the source retains exactly the Windows choice");
+    };
+    assert_eq!(windows.target, "windows_x86_64");
     let accepted = judge(&fixture, &choices);
     assert_unsupplied(&accepted, programs::FOREIGN_DEFAULT);
 }

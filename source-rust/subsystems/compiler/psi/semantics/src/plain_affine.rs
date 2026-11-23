@@ -52,6 +52,18 @@ impl Unavailable {
 pub enum Error {
     /// A supported ownership check found unavailable storage at an exact site.
     Unavailable(Unavailable),
+    /// A linear value is still live where a normal edge ends its storage, or
+    /// is live on only some of the paths that meet at a join. ownership.md:
+    /// "Every normal path accounts for each live linear obligation by
+    /// transfer or an authorized terminal disposition", and "At an actual
+    /// reconvergence, predecessor paths must agree on the live ownership
+    /// frontier". This is the program's error, never a limit of the check.
+    Unconsumed {
+        /// The storage root that still holds the linear value.
+        place: PlaceId,
+        at_join: bool,
+        site: Option<Site>,
+    },
     Unsupported {
         detail: &'static str,
         site: Option<Site>,
@@ -77,6 +89,15 @@ impl Error {
     fn at(self, at: Site) -> Self {
         match self {
             Self::Unavailable(unavailable) => Self::Unavailable(unavailable),
+            Self::Unconsumed {
+                place,
+                at_join,
+                site,
+            } => Self::Unconsumed {
+                place,
+                at_join,
+                site: site.or(Some(at)),
+            },
             Self::Unsupported { detail, site } => Self::Unsupported {
                 detail,
                 site: site.or(Some(at)),
@@ -91,7 +112,22 @@ impl Error {
     pub const fn site(&self) -> Option<Site> {
         match self {
             Self::Unavailable(unavailable) => Some(unavailable.site),
-            Self::Unsupported { site, .. } | Self::Malformed { site, .. } => *site,
+            Self::Unconsumed { site, .. }
+            | Self::Unsupported { site, .. }
+            | Self::Malformed { site, .. } => *site,
+        }
+    }
+
+    /// What every consumer reports for an unconsumed linear value.
+    pub const fn unconsumed_message(at_join: bool) -> &'static str {
+        if at_join {
+            "a linear value is still held on one path that reaches this join but not on \
+             another: every path that meets here must have passed on or ended the same \
+             linear values"
+        } else {
+            "a linear value is still held when this path leaves its storage, and nothing \
+             consumes it: every path must pass it on, return it or end it by its declared \
+             disposition, and neither `_ =` nor leaving scope can discard it"
         }
     }
 }
@@ -3701,6 +3737,71 @@ impl<'a> Analysis<'a> {
         Ok(declaration.owns_linear_claim || !self.vacant_region(place, region, &[])?)
     }
 
+    /// Whether the part of a `ty` value that `region` still holds contains a
+    /// linear obligation no declared cleanup ends: an intact linear value or
+    /// linear claim. A sum's payloads are searched in every case, which only
+    /// matters for a partly moved sum; an answer of `false` leaves the caller
+    /// with its refusal as a limit of the check.
+    fn holds_live_linear(&self, ty: StructuralTypeId, region: &Region) -> Result<bool, Error> {
+        let declaration = &self.types[index(ty.get())?];
+        if !region.base && region.children.is_empty() {
+            return Ok(false);
+        }
+        if declaration.nominal_cleanup.is_some() {
+            return Ok(false);
+        }
+        // A claim the value itself owns stays live until the whole value is
+        // consumed: moving its fields out does not end it.
+        if declaration.owns_linear_claim
+            || region.whole
+                && declaration.multiplicity == terminal_psi::StructuralMultiplicity::Linear
+        {
+            return Ok(true);
+        }
+        for (case, field) in declaration.shape.fields_with_case() {
+            if field.relevance.is_erased() {
+                continue;
+            }
+            let Some(child) = field.field_type.as_structural() else {
+                continue;
+            };
+            let held = match case {
+                Some(case) => region.view(&[Segment::Case(case.id), Segment::Field(field.id)]),
+                None => region.view(&[Segment::Field(field.id)]),
+            };
+            if self.holds_live_linear(child, &held)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    /// Whether an arrival holding `held` keeps a linear obligation in a part
+    /// the join's `joined` region has vacant.
+    fn loses_live_linear(
+        &self,
+        ty: StructuralTypeId,
+        held: &Region,
+        joined: &Region,
+    ) -> Result<bool, Error> {
+        let mut vacant = Vec::new();
+        joined.vacancies(&mut Vec::new(), &mut vacant);
+        for path in vacant {
+            let tip = if path.is_empty() {
+                Some(ty)
+            } else {
+                crate::canonical_structural_path_tip(self.types.iter(), ty, &path)
+                    .map(|declaration| declaration.id)
+            };
+            if let Some(tip) = tip
+                && self.holds_live_linear(tip, &held.view(&path))?
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     /// Ending a wrapper does not end any intact linear component inside it.
     fn components_need_disposition(
         &mut self,
@@ -3832,6 +3933,13 @@ impl<'a> Analysis<'a> {
             .ok_or(Error::malformed("missing affine owner"))?;
         let declaration = &self.types[index(info.structural_type.get())?];
         if self.needs_explicit_disposition(place, region)? {
+            if self.holds_live_linear(info.structural_type, region)? {
+                return Err(Error::Unconsumed {
+                    place,
+                    at_join: false,
+                    site: None,
+                });
+            }
             return Err(Error::unsupported(
                 "normal edge cannot implicitly dispose storage without an authorized disposition",
             ));
@@ -3950,6 +4058,13 @@ impl<'a> Analysis<'a> {
         if info.multiplicity == terminal_psi::StructuralMultiplicity::Linear
             || !self.can_dispose(info.structural_type)?
         {
+            if self.loses_live_linear(info.structural_type, held, joined)? {
+                return Err(Error::Unconsumed {
+                    place,
+                    at_join: true,
+                    site: None,
+                });
+            }
             return Err(Error::unsupported(
                 "reconvergence cannot implicitly dispose storage without an authorized disposition",
             ));

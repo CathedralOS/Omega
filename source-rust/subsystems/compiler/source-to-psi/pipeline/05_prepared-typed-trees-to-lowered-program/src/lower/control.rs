@@ -1103,6 +1103,14 @@ impl Lowering<'_> {
                     })?
                     .structural_parameters
                     .push(parameter);
+                // Name what the joined value holds at the join, so the
+                // checker relates each of its leaves, such as a view's
+                // length, to what every arm delivered (`joins::infer`). A
+                // copy of the joined value into a local, which an affine
+                // view needs, then reads those names rather than an
+                // arrival-dependent producer.
+                let named = self.exact_root(place)?;
+                self.name_contents(named, ValueType::record(record))?;
                 Value::Record(place)
             }
             Some(ValueType::Rigid(_)) => {

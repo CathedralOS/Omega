@@ -303,18 +303,23 @@ fn complete_patterns_end_linear_wrappers_without_forgetting_components() {
         ),
         (
             "data Zero [linear] {} data Pair [linear] { left: Zero; right: Zero; } machine consume(value: Pair) { let { left, right } = move value; let {} = move left; }",
-            "normal edge cannot implicitly dispose storage without an authorized disposition",
+            "a linear value is still held when this path leaves its storage",
         ),
     ];
     for (source, expected) in refused {
-        let refusal = match judged(source) {
+        // A linear value left unconsumed is the program's error: the
+        // compiler rejects it rather than refusing it as unsupported.
+        let detail = match judged(source) {
             Err(crate::checking::CompilationRefusal::Elaboration(refusal))
-            | Ok(RouteVerdict::FallBack(refusal)) => refusal,
+            | Ok(RouteVerdict::FallBack(refusal)) => refusal.detail,
+            Ok(RouteVerdict::Rejected { violations, .. }) if violations.len() == 1 => {
+                violations[0].statement.clone()
+            }
             other => panic!("expected ownership refusal {expected}, got {other:?}: {source}"),
         };
         assert!(
-            refusal.detail.contains(expected),
-            "expected {expected}, got {refusal:?}: {source}"
+            detail.contains(expected),
+            "expected {expected}, got {detail}: {source}"
         );
     }
 }
@@ -396,6 +401,7 @@ fn linear_cleanup_transfers_the_receipt_claim_exactly_once() {
     ));
     let no_consumer = source.replace(" dropped by finish", "");
     assert!(matches!(judged(&no_consumer),
-        Err(crate::checking::CompilationRefusal::Elaboration(ref refusal)) | Ok(RouteVerdict::FallBack(ref refusal))
-            if refusal.detail.contains("without an authorized disposition")));
+        Ok(RouteVerdict::Rejected { ref violations, .. })
+            if violations.len() == 1
+                && violations[0].statement.contains("a linear value is still held")));
 }

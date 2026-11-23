@@ -35,15 +35,12 @@ use classification::{
     CLOSED_POLICY_ROW_COUNT, classify_compiler_intrinsic, classify_from_inventory,
     committed_policy_mechanisms,
 };
+use native_intrinsics::{CompilerAccessorScalarOperation, CompilerIntrinsicExecutionIdentity};
 use semantic_vocabulary::{TerminalAuthorityClass, TerminalAuthorityDisposition};
 use terminal_authority_receipts::{
-    CheckedPhysicalOperationIdentity,
-    NormalizedForeignArgumentContract,
-    TerminalAuthorityPolicyIdentity,
-    TerminalMechanismIdentity,
-    terminal_mechanism_identity_bytes,
+    CheckedPhysicalOperationIdentity, NormalizedForeignArgumentContract,
+    TerminalAuthorityPolicyIdentity, TerminalMechanismIdentity, terminal_mechanism_identity_bytes,
 };
-use native_intrinsics::{CompilerAccessorScalarOperation, CompilerIntrinsicExecutionIdentity};
 
 pub(crate) use external_mechanisms::{
     conservative_syscall_terminal_mechanism, normalized_foreign_terminal_mechanism,
@@ -284,12 +281,14 @@ pub(crate) fn reviewed_host_operation(
 ) -> Option<TerminalAuthorityPolicyRow> {
     match mechanism {
         TerminalMechanismIdentity::NormalizedForeign(import)
-            if import.target() == target::TargetProfile::WindowsX64 =>
+            if import.target().imports_through_pe() =>
         {
             windows_imports::mechanism_row(import)
         }
         // Darwin poll gains its wait classification from checked call arguments.
-        TerminalMechanismIdentity::NormalizedForeign(import) if darwin_poll::is_poll(import) => None,
+        TerminalMechanismIdentity::NormalizedForeign(import) if darwin_poll::is_poll(import) => {
+            None
+        }
         _ => posix_operations::mechanism_row(mechanism),
     }
 }
@@ -361,10 +360,7 @@ fn encode_parameterized_commitment(hasher: &mut DomainDigestEncoder) {
     for family in [INTEGER_COMPARISON_POLICY_V1, FLOAT_CONVERSION_POLICY_V1] {
         hasher.raw(&(family.len() as u32).to_be_bytes());
         hasher.raw(family);
-        hasher.raw(
-            &(numerics::intrinsics::NumericType::ENCODED_SIZE as u32)
-                .to_be_bytes(),
-        );
+        hasher.raw(&(numerics::intrinsics::NumericType::ENCODED_SIZE as u32).to_be_bytes());
         hasher.raw(&0_u32.to_be_bytes());
     }
 }
@@ -469,14 +465,13 @@ mod interrupt_control_tests {
         TerminalAuthorityPermissionPolicyRow, terminal_authority_permission_policy_with_rows,
     };
     use super::*;
+    use language_core::BuiltinFunction;
+    use provider_plans::{ProviderPlanDigest, ServiceSchemaDigest};
+    use selected_provider_plans::SelectedProviderPlanFacts;
     use terminal_authority_receipts::{
-        TerminalAuthorityClosureLeaf,
-        TerminalAuthorityClosureLeafOrigin,
+        TerminalAuthorityClosureLeaf, TerminalAuthorityClosureLeafOrigin,
         TerminalAuthorityClosureReviewReceipt,
     };
-    use selected_provider_plans::SelectedProviderPlanFacts;
-    use provider_plans::{ProviderPlanDigest, ServiceSchemaDigest};
-    use language_core::BuiltinFunction;
 
     #[test]
     fn mask_intrinsics_have_only_interrupt_control() {

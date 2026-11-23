@@ -535,6 +535,8 @@ pub(crate) fn invocation<'a>(
             // A formal's own domains are its type, judged with every call's
             // structural arguments. Additional provider obligations still
             // need their independent proof and publication.
+            // Call formation checks projected result domains at each field path.
+            // Provider admission requires those same field/domain pairs.
             // Formation checks scalar input domains against exact actual
             // types; scalar requires remain ordinary call obligations below.
             if boundary
@@ -542,7 +544,7 @@ pub(crate) fn invocation<'a>(
                 .iter()
                 .any(|formal| !formal.additional_input_qualifications.is_empty())
                 || matches!(&boundary.result, terminal_psi::BoundaryMachineResult::Structural(result)
-                if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty())
+                if !result.qualifications.is_empty())
             {
                 return Err(crate::checking::refusal(
                     RefusalReason::Unsupported,

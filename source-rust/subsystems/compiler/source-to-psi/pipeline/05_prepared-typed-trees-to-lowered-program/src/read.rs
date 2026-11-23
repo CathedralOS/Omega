@@ -872,7 +872,7 @@ mod tests {
         });
         assert!(matches!(
             program
-                .zero_value(machine(), ValueType::record(empty), source)
+                .zero_value(machine(), ValueType::record(empty), None, source)
                 .unwrap()
                 .kind,
             ExpressionKind::Record { fields } if fields.is_empty()
@@ -903,14 +903,14 @@ mod tests {
                 ..plain_record()
             });
             let refusal = program
-                .zero_value(machine(), ValueType::record(record), source)
+                .zero_value(machine(), ValueType::record(record), None, source)
                 .unwrap_err();
             assert!(refusal.detail.contains(expected), "{}", refusal.detail);
         }
         let missing = semantic_vocabulary::StructuralTypeId::new(999).unwrap();
         assert!(
             program
-                .zero_value(machine(), ValueType::record(missing), source)
+                .zero_value(machine(), ValueType::record(missing), None, source)
                 .is_err()
         );
     }

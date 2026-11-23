@@ -219,3 +219,100 @@ machine call(x: u8) -> u8 {{ Selected::id(x) }}"
         program.judged(|_| {}).accepted();
     }
 }
+
+/// `Red` selects the plain machine `red` for `Render::paint`, over a
+/// `Render` with no parameters and over `Render<u8>`.
+fn applied_render(applied: bool, red_requires: &str) -> String {
+    let (declared, applied, carrier) = if applied {
+        ("Render<T>", "Render<u8>", "T")
+    } else {
+        ("Render", "Render", "u8")
+    };
+    format!(
+        "trait {declared} {{ machine paint(x: {carrier}, n: u8) -> {carrier}; }}
+Red satisfies {applied} {{ Render::paint = red; }}
+machine red(x: u8, n: u8) -> u8 {red_requires} {{ x }}
+machine call(x: u8) -> u8 {{ Red::paint(x, 0u8) }}"
+    )
+}
+
+/// `Red satisfies Render<u8>` selects the plain machine `red` for
+/// `Render::paint`, and `Red::paint(x, 0)` calls `red`. `red` must refine
+/// `paint` as `Render<u8>` applies it, exactly as it refines a `Render`
+/// with no parameters: one that asks for nothing more is accepted, and the
+/// twin whose `red` also requires `n != 0`, which the requirement does not
+/// promise, is refused for that precondition.
+#[test]
+fn a_member_of_an_applied_trait_refines_the_application_its_conformance_names() {
+    for applied in [false, true] {
+        let program = Program::of(&applied_render(applied, ""));
+        let call = program::the_operation(program.machine("call"), |kind| {
+            matches!(kind, OperationKind::Call { .. })
+        });
+        let OperationKind::Call { callee, .. } = call.kind else {
+            unreachable!()
+        };
+        assert_eq!(program.machine_named(callee), "red");
+        program.judged(|_| {}).accepted();
+
+        let twin = format!("{:?}", verdict(&applied_render(applied, "requires n != 0")));
+        assert!(
+            twin.contains("cannot prove the input precondition of `red`"),
+            "{applied}: {twin}"
+        );
+    }
+}
+
+/// `Local` supplies `keep` and `pick<const N: u8>` with its own bodies.
+/// `keep` is the generic `keep<T>` or, for comparison, a plain member over
+/// `u8`; `requires` is what `Local::keep` asks beyond the requirement.
+fn generic_members(generic: bool, requires: &str) -> String {
+    let (keep, carrier, call) = if generic {
+        ("keep<T>", "T", "keep::<u8>")
+    } else {
+        ("keep", "u8", "keep")
+    };
+    format!(
+        "trait Keep {{ machine {keep}(x: {carrier}, n: u8) -> {carrier}; machine pick<const N: u8>(x: u8) -> u8; }}
+Local satisfies Keep {{
+    machine {keep}(x: {carrier}, n: u8) -> {carrier} {requires} {{ x }}
+    machine pick<const N: u8>(x: u8) -> u8 {{ x +% N }}
+}}
+machine call(x: u8) -> u8 {{ Local::pick::<4>(Local::{call}(x, 0u8)) }}"
+    )
+}
+
+/// `Local::keep::<u8>(x, 0)` and `Local::pick::<4>(…)` each enter the body
+/// prepared for that call's own arguments, not the generic declaration, and
+/// the program is accepted. The twin whose `keep` also requires `n != 0`,
+/// which `0` breaks, gets the same verdict as the same twin over a plain
+/// `keep`: the instance is judged as an ordinary member is.
+#[test]
+fn a_named_call_of_a_generic_member_enters_the_instance_for_its_arguments() {
+    let program = Program::of(&generic_members(true, ""));
+    let entered = program
+        .machine("call")
+        .operations()
+        .filter_map(|operation| match operation.kind {
+            OperationKind::Call { callee, .. } => Some(program.machine_named(callee)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(entered.len(), 2, "{entered:?}");
+    assert!(
+        entered.iter().all(|callee| callee.contains("$specialized")),
+        "{entered:?}"
+    );
+    program.judged(|_| {}).accepted();
+
+    let generic = verdict(&generic_members(true, "requires n != 0")).rejected();
+    let plain = verdict(&generic_members(false, "requires n != 0")).rejected();
+    assert_eq!(format!("{generic:?}"), format!("{plain:?}"));
+    assert!(
+        generic
+            .unproved
+            .iter()
+            .any(|kind| kind.starts_with("CallRequirement")),
+        "{generic:?}"
+    );
+}

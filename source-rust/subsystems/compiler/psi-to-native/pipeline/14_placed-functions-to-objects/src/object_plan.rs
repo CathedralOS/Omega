@@ -20,6 +20,15 @@ pub struct ObjectFileLayout {
     pub function_symbols: Arena<FunctionSymbolPlan>,
     pub normalized_imports: Vec<NormalizedImportPlan>,
     pub entry_symbol: ObjectSymbolHandle,
+    /// The frame each compiled function establishes, for container unwind records.
+    pub function_unwinds: Vec<FunctionUnwindPlan>,
+}
+
+/// One defined function symbol and the frame its prologue and epilogues establish.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FunctionUnwindPlan {
+    pub symbol: ObjectSymbolHandle,
+    pub frame: calling_conventions::frame_unwind::FunctionFrameUnwind,
 }
 
 impl ObjectFileLayout {
@@ -36,6 +45,7 @@ impl ObjectFileLayout {
             function_symbols,
             normalized_imports,
             entry_symbol,
+            function_unwinds: Vec::new(),
         }
     }
 

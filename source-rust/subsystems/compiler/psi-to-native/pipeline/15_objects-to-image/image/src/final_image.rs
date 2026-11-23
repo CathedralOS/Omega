@@ -1616,6 +1616,16 @@ mod root {
         pub relocation_table: FinalImageRelocationTable,
         pub executable_regions: Vec<FinalExecutableRegion>,
         pub data_regions: Vec<FinalDataRegion>,
+        /// Frames of compiled functions, keyed by their defining text symbol.
+        pub function_unwinds: Vec<FinalFunctionUnwind>,
+    }
+
+    /// The frame one text function establishes. Container writers that need
+    /// unwind records (PE `.pdata`/`.xdata`) place them from this.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct FinalFunctionUnwind {
+        pub symbol: FinalImageSymbolHandle,
+        pub frame: calling_conventions::frame_unwind::FunctionFrameUnwind,
     }
 
     impl Default for FinalImage {
@@ -1652,6 +1662,7 @@ mod root {
                 relocation_table: FinalImageRelocationTable::with_capacity(relocation_capacity),
                 executable_regions: Vec::new(),
                 data_regions: Vec::new(),
+                function_unwinds: Vec::new(),
             }
         }
     }
@@ -1863,7 +1874,7 @@ pub use executable_regions::{
 pub use layout::FinalImageLayout;
 pub use memory::FinalImageMemory;
 pub use relocations::{FinalImageRelocation, FinalImageRelocationTable};
-pub use root::FinalImage;
+pub use root::{FinalFunctionUnwind, FinalImage};
 pub(crate) use symbols::FinalImageSymbolTable;
 pub use symbols::{
     FinalImageImport, FinalImageImportPlan, FinalImageSection, FinalImageSymbol,

@@ -38,6 +38,7 @@ mod borrowed_storage;
 mod boundary_application;
 mod boundary_values;
 mod callback_materializations;
+pub mod frame_unwind;
 mod host_operations;
 mod plans;
 pub mod process_entry;

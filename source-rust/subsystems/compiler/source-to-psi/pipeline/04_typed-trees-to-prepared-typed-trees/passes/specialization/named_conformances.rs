@@ -108,6 +108,96 @@ pub(super) fn serve(
     Ok(true)
 }
 
+/// Selecting an implementation supplies all of its owned rows. Use the same
+/// body copy and argument substitution as a source call to a named member.
+pub(super) fn prepare_selected(
+    program: &mut TypedTrees,
+    selection: crate::SelectedProvider,
+) -> Served<()> {
+    let Some(handle) = selection.application else {
+        return Ok(());
+    };
+    if !program.product_operand_applications.is_valid(handle) {
+        return Err(unserved(
+            "selected provider has a stale implementation application",
+        ));
+    }
+    let operand = program.product_operand_applications.get(handle);
+    if operand.declaration != selection.declaration {
+        return Err(unserved(
+            "selected provider application belongs to another declaration",
+        ));
+    }
+    if operand.implementation.is_some() {
+        return Ok(());
+    }
+    let supplier = operand.supplying_application;
+    let owner = operand.owner;
+    let record = program.prepare_selected_provider_capture(handle)?;
+    let existing = {
+        let mut matching = program
+            .captured_machine_applications
+            .iter()
+            .filter(|(_, capture)| {
+                capture.conformance_application.declaration == record.declaration
+                    && capture.conformance_application.identity_encoding == record.identity_encoding
+                    && program
+                        .expression_table
+                        .static_machine_application(capture.binding_application())
+                        .lexical_owner
+                        == owner
+            })
+            .map(|(handle, _)| handle);
+        let first = matching.next();
+        if matching.next().is_some() {
+            return Err(unserved("selected provider has ambiguous prepared bodies"));
+        }
+        first
+    };
+    let group = existing.unwrap_or_else(|| {
+        program
+            .captured_machine_applications
+            .insert(CapturedMachineApplication {
+                declarations: Vec::new(),
+                supplying_application: supplier,
+                conformance_application: record,
+            })
+    });
+    let capture = program.captured_machine_applications.get(group);
+    let binding = capture.binding_application();
+    let record = capture.conformance_application.clone();
+    let provider = program
+        .conformance_by_symbol(record.declaration)
+        .ok_or_else(|| unserved("selected provider lost its declared members"))?;
+    let parameters = program.conformance_type_parameters(provider).to_vec();
+    let mut missing = Vec::new();
+    for row in &provider.rows {
+        if row.source.owns_realization()
+            && capture
+                .declaration(row.realization_machine)
+                .map_err(Stop::Defect)?
+                .is_none()
+        {
+            missing.push(row.realization_machine);
+        }
+    }
+    missing.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    missing.dedup();
+    for member in missing {
+        let declarations = copy_member(program, member, &parameters, binding)?;
+        program
+            .captured_machine_applications
+            .get_mut(group)
+            .declarations
+            .extend(declarations);
+    }
+    program
+        .product_operand_applications
+        .get_mut(handle)
+        .implementation = Some(record);
+    Ok(())
+}
+
 fn copy_member(
     program: &mut TypedTrees,
     declared: symbols::SymbolHandle,

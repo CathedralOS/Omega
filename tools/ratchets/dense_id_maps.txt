@@ -106,8 +106,6 @@
 1 source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/typed_trees.rs
 1 source-rust/subsystems/interpreter/embedding/boundary_effects.rs
 4 source-rust/subsystems/interpreter/embedding/program.rs
-1 source-rust/subsystems/interpreter/host/src/execution/host_imports/native_provider/original_homes.rs
-1 source-rust/subsystems/interpreter/host/src/execution/host_imports/native_provider/reference_outputs.rs
 2 source-rust/subsystems/interpreter/instructions/calls.rs
 5 source-rust/subsystems/interpreter/instructions/execution.rs
 3 source-rust/subsystems/interpreter/instructions/terminators.rs

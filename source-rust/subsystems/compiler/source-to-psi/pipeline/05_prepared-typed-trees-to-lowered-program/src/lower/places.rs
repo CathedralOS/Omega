@@ -173,7 +173,10 @@ fn zero_eligibility(
                 return if element.requires.is_empty()
                     && matches!(
                         element.shape,
-                        StorageShape::PrimitiveScalar { policy: None, .. }
+                        StorageShape::PrimitiveScalar {
+                            qualification: Qualification::NONE,
+                            ..
+                        }
                     ) {
                     Ok(Vec::new())
                 } else {
@@ -628,12 +631,9 @@ pub(crate) fn declare<'a, 'b>(
         .filter_map(|(id, row)| match row.shape {
             crate::lowering::StorageShape::PrimitiveScalar {
                 scalar_type,
-                policy,
+                qualification,
             } => Some((
-                policy.map_or(
-                    ValueType::Scalar(scalar_type, Qualification::NONE),
-                    |policy| ValueType::Scalar(scalar_type, Qualification::of_policy(policy)),
-                ),
+                ValueType::Scalar(scalar_type, qualification),
                 row.identity.clone(),
                 id,
             )),
@@ -2009,12 +2009,8 @@ impl<'a> Lowering<'a> {
         Ok(match self.record_type(storage)?.shape {
             StorageShape::PrimitiveScalar {
                 scalar_type,
-                policy: None,
-            } => ValueType::Scalar(scalar_type, Qualification::NONE),
-            StorageShape::PrimitiveScalar {
-                scalar_type,
-                policy: Some(policy),
-            } => ValueType::Scalar(scalar_type, Qualification::of_policy(policy)),
+                qualification,
+            } => ValueType::Scalar(scalar_type, qualification),
             _ => ValueType::Record(
                 storage,
                 record_qualification,
@@ -5518,7 +5514,7 @@ mod tests {
             identity: "wrapping-u32".into(),
             shape: StorageShape::PrimitiveScalar {
                 scalar_type: scalar,
-                policy: Some(Policy::Wrapping),
+                qualification: Qualification::of_policy(Policy::Wrapping),
             },
             requires: Vec::new(),
             authored_layout: false,

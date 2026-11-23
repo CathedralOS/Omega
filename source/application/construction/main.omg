@@ -1,293 +1,113 @@
-use omega\language\core\StandardInput;
-use omega\language\core\StandardOutput;
-use omega\language\core\ProcessExit;
-use omega_compiler\Compilation;
-use omega_compiler\CompilationStatus;
-use omega_language_std\ByteRead;
-use omega_language_std\Console;
-use psi\pipeline\source_files_to_tokens\Lexer;
-use psi\pipeline\source_files_to_tokens\append_source_byte;
-use psi\pipeline\source_files_to_tokens\lexer_initialize;
-use psi\representations\source_files\DependencyScope;
-use psi\representations\source_files\ModulePath;
-use psi\representations\source_files\add_dependency;
-use psi\representations\source_files\add_package;
-use psi\representations\source_files\module_path_append;
-use psi\representations\source_files\module_path_clear;
-use wire\u32_from_le_bytes;
-
-// The construction stream supplies package, dependency and source rows.
-// Version 1 unit rows carry a package-relative file path in the byte arena.
-// Legacy rows place every source in its package root.
-data ConstructionInput {
-    package_count: u32;
-    edge_count: u32;
-    unit_count: u32;
-    entry_unit: u32;
-    entry_name_start: u32;
-    entry_name_end: u32;
-    buffer_length: u32;
-    unit_row_words: u32;
-    has_build_sources: bool;
-    build_unit_count: u32;
-    // Three Product tables (3776), up to 64 two-word Build entry selections,
-    // and up to 512 five-word Build source rows.
-    rows: [u32; 6464];
-    bytes: [u8; 4194304];
-}
-
-machine malformed() reaches ProcessExit crashes none {
-    ProcessExit::exit_process(253);
-}
-
-machine read_byte() -> u8 reaches ProcessExit + StandardInput crashes Trap blocks {
-    let input: ByteRead = block Console::read_byte();
-    transition input {
-        ByteRead::Byte { value } -> byte(value),
-        _ -> truncated()
-    }
-    machine byte(value: i32) -> u8
-    requires value >= 0 && value <= 255
-    { value as u8 }
-    machine truncated() -> u8 {
-        ProcessExit::exit_process(253);
-    }
-}
-
-machine read_word() -> u32 reaches ProcessExit + StandardInput crashes Trap blocks {
-    let b0: u8 = block read_byte();
-    let b1: u8 = block read_byte();
-    let b2: u8 = block read_byte();
-    let b3: u8 = block read_byte();
-    u32_from_le_bytes(b0, b1, b2, b3)
-}
-
-machine read_input(input: @mutable ConstructionInput)
-reaches ProcessExit + StandardInput crashes Trap blocks
-{
-    input.has_build_sources = false;
-    input.build_unit_count = 0;
-    let first: u32 = block read_word();
-    transition first {
-        0 -> block version(input),
-        _ -> block header(input, first, 3)
-    }
-    machine version(input: @mutable ConstructionInput) {
-        let version_word: u32 = block read_word();
-        transition version_word {
-            1 -> block version_one(input),
-            2 -> block version_two(input),
-            _ -> malformed()
-        }
-    }
-    machine version_one(input: @mutable ConstructionInput) {
-        let packages_word: u32 = block read_word();
-        transition { _ -> block header(input, packages_word, 5) }
-    }
-    machine version_two(input: @mutable ConstructionInput) {
-        input.has_build_sources = true;
-        transition { _ -> block version_one(input) }
-    }
-    machine header(input: @mutable ConstructionInput, packages_word: u32, unit_words: u32)
-    requires unit_words <= 5
-    {
-        input.package_count = packages_word;
-        input.unit_row_words = unit_words;
-        input.edge_count = block read_word();
-        input.unit_count = block read_word();
-        input.entry_unit = block read_word();
-        input.entry_name_start = block read_word();
-        input.entry_name_end = block read_word();
-        input.buffer_length = block read_word();
-        transition input.has_build_sources {
-            true -> block build_count(input, unit_words),
-            _ -> block layout(input, unit_words, 0)
-        }
-    }
-    machine build_count(input: @mutable ConstructionInput, unit_words: u32)
-    requires unit_words <= 5
-    {
-        input.build_unit_count = block read_word();
-        transition input.package_count <= 64 && input.build_unit_count > 0 && input.build_unit_count <= 512 {
-            true -> block build_layout(input, unit_words),
-            _ -> malformed()
-        }
-    }
-    machine build_layout(input: @mutable ConstructionInput, unit_words: u32)
-    requires unit_words <= 5, input.package_count <= 64, input.build_unit_count <= 512
-    {
-        let extra: u64 = input.package_count as u64 * 2 + input.build_unit_count as u64 * 5;
-        transition { _ -> block layout(input, unit_words, extra) }
-    }
-    machine layout(input: @mutable ConstructionInput, unit_words: u32, extra: u64)
-    requires unit_words <= 5, extra <= 2688
-    {
-        let packages: u64 = input.package_count as u64;
-        let edges: u64 = input.edge_count as u64;
-        let units: u64 = input.unit_count as u64;
-        let row_count: u64 = packages * 3 + edges * 4 + units * unit_words as u64 + extra;
-        transition input.package_count > 0 && input.package_count <= 64
-            && input.edge_count <= 256
-            && row_count <= 6464
-            && input.unit_count > 0 && input.unit_count <= 512
-            && input.entry_unit < input.unit_count
-            && input.buffer_length <= 4194304
-            && input.entry_name_start < input.entry_name_end
-            && input.entry_name_end <= input.buffer_length
-            && input.entry_name_end - input.entry_name_start <= 256 {
-            true -> block rows(input, 0, row_count),
-            _ -> malformed()
-        }
-    }
-    machine rows(input: @mutable ConstructionInput, index: u64, count: u64) {
-        transition index < count && index < 6464 {
-            true -> block row(input, index, count),
-            _ -> block bytes(input, 0)
-        }
-    }
-    machine row(input: @mutable ConstructionInput, index: u64, count: u64)
-    requires index < 6464
-    {
-        input.rows[index] = block read_word();
-        transition { _ -> block rows(input, index + 1, count) }
-    }
-    machine bytes(input: @mutable ConstructionInput, index: u64) {
-        transition index < input.buffer_length as u64 && index < 4194304 {
-            true -> block byte(input, index),
-            _ -> block end()
-        }
-    }
-    machine byte(input: @mutable ConstructionInput, index: u64)
-    requires index < 4194304
-    {
-        input.bytes[index] = block read_byte();
-        transition { _ -> block bytes(input, index + 1) }
-    }
-    machine end() {
-        let trailing: ByteRead = block Console::read_byte();
-        transition trailing {
-            ByteRead::Eof -> done(),
-            _ -> malformed()
-        }
-    }
-    machine done() {}
-}
+use input.omg as input_packet;
+use input_reader.omg;
+use build_sources.omg;
+use {omega}/language/core/process_authority.omg;
+use {omega}/language/core/process_exit.omg;
+use {omega_compiler}/compiler.omg as driver;
+use {omega_language_std}/console.omg;
+use {psi}/pipeline/source_files_to_tokens/lexer.omg;
+use {psi}/representations/source_files/source.omg as source_files;
 
 // Metadata access never substitutes zero for an invalid coordinate. A bad
 // row, span, package index or role terminates before any tape is published.
-machine row_word(input: @ConstructionInput, index: u64) -> u32
-reaches ProcessExit crashes Trap
+machine copy_name(input: @|input_packet|::ConstructionInput, name: @mutable |source_files|::ModulePath, start: u32, end: u32)
+reaches |process_exit|::ProcessExit crashes Trap
 {
-    transition index < 6464 {
-        true -> word(input, index),
-        _ -> invalid()
-    }
-    machine word(input: @ConstructionInput, index: u64) -> u32
-    requires index < 6464
-    { input.rows[index] }
-    machine invalid() -> u32 {
-        ProcessExit::exit_process(253);
-    }
-}
-
-machine copy_name(input: @ConstructionInput, name: @mutable ModulePath, start: u32, end: u32)
-reaches ProcessExit crashes Trap
-{
-    module_path_clear(name);
+    |source_files|::module_path_clear(name);
     transition start <= end && end <= input.buffer_length && end - start <= 256 {
         true -> next(input, name, start as u64, end as u64),
-        _ -> malformed()
+        _ -> |input_packet|::malformed()
     }
-    machine next(input: @ConstructionInput, name: @mutable ModulePath, index: u64, end: u64) {
-        transition index < end && index < 4194304 {
+    machine next(input: @|input_packet|::ConstructionInput, name: @mutable |source_files|::ModulePath, index: u64, end: u64) {
+        transition index < end && index < 8388608 {
             true -> append(input, name, index, end),
             _ -> done()
         }
     }
-    machine append(input: @ConstructionInput, name: @mutable ModulePath, index: u64, end: u64)
-    requires index < 4194304
+    machine append(input: @|input_packet|::ConstructionInput, name: @mutable |source_files|::ModulePath, index: u64, end: u64)
+    requires index < 8388608
     {
-        let retained: bool = module_path_append(name, input.bytes[index]);
+        let retained: bool = |source_files|::module_path_append(name, input.bytes[index]);
         transition retained {
             true -> next(input, name, index + 1, end),
-            _ -> malformed()
+            _ -> |input_packet|::malformed()
         }
     }
     machine done() {}
 }
 
-machine add_packages(input: @ConstructionInput, compilation: @mutable Compilation)
-reaches ProcessExit crashes Trap
+machine add_packages(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation)
+reaches |process_exit|::ProcessExit crashes Trap
 {
     transition { _ -> next(input, compilation, 0) }
-    machine next(input: @ConstructionInput, compilation: @mutable Compilation, index: u64) {
+    machine next(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation, index: u64) {
         transition input.package_count <= 64 && index < input.package_count as u64 {
             true -> package(input, compilation, index),
             _ -> done()
         }
     }
-    machine package(input: @ConstructionInput, compilation: @mutable Compilation, index: u64)
+    machine package(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation, index: u64)
     requires index < 64
     {
-        let start: u32 = row_word(input, index * 3);
-        let end: u32 = row_word(input, index * 3 + 1);
-        let role: u32 = row_word(input, index * 3 + 2);
+        let start: u32 = |input_packet|::row_word(input, index * 3);
+        let end: u32 = |input_packet|::row_word(input, index * 3 + 1);
+        let role: u32 = |input_packet|::row_word(input, index * 3 + 2);
         transition role <= 2 {
             true -> retain(input, compilation, index, start, end, role),
-            _ -> malformed()
+            _ -> |input_packet|::malformed()
         }
     }
-    machine retain(input: @ConstructionInput, compilation: @mutable Compilation, index: u64, start: u32, end: u32, role: u32)
+    machine retain(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation, index: u64, start: u32, end: u32, role: u32)
     requires index < 64
     {
-        let mutable name: ModulePath;
+        let mutable name: |source_files|::ModulePath;
         copy_name(input, @mutable name, start, end);
-        let retained: bool = add_package(@mutable compilation.sources, @name, role == 1);
+        let retained: bool = |source_files|::add_package(@mutable compilation.sources, @name, role == 1);
         transition retained {
             true -> next(input, compilation, index + 1),
             _ -> full()
         }
     }
-    machine full() { ProcessExit::exit_process(252); }
+    machine full() { |process_exit|::ProcessExit::exit_process(252); }
     machine done() {}
 }
 
-machine add_edges(input: @ConstructionInput, compilation: @mutable Compilation)
-reaches ProcessExit crashes Trap
+machine add_edges(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation)
+reaches |process_exit|::ProcessExit crashes Trap
 {
     transition { _ -> next(input, compilation, 0) }
-    machine next(input: @ConstructionInput, compilation: @mutable Compilation, index: u64) {
+    machine next(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation, index: u64) {
         transition input.package_count <= 64 && input.edge_count <= 256 && index < input.edge_count as u64 {
             true -> edge(input, compilation, index, input.package_count as u64 * 3 + index * 4),
             _ -> done()
         }
     }
-    machine edge(input: @ConstructionInput, compilation: @mutable Compilation, index: u64, row: u64)
+    machine edge(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation, index: u64, row: u64)
     requires index < 256, row <= 3772
     {
-        let requester: u32 = row_word(input, row);
-        let target: u32 = row_word(input, row + 1);
-        let start: u32 = row_word(input, row + 2);
-        let end: u32 = row_word(input, row + 3);
+        let requester: u32 = |input_packet|::row_word(input, row);
+        let target: u32 = |input_packet|::row_word(input, row + 1);
+        let start: u32 = |input_packet|::row_word(input, row + 2);
+        let end: u32 = |input_packet|::row_word(input, row + 3);
         transition requester < input.package_count && target < input.package_count {
             true -> retain(input, compilation, index, requester, target, start, end),
-            _ -> malformed()
+            _ -> |input_packet|::malformed()
         }
     }
-    machine retain(input: @ConstructionInput, compilation: @mutable Compilation, index: u64, requester: u32, target: u32, start: u32, end: u32)
+    machine retain(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation, index: u64, requester: u32, target: u32, start: u32, end: u32)
     requires index < 256
     {
-        let mutable alias: ModulePath;
+        let mutable alias: |source_files|::ModulePath;
         copy_name(input, @mutable alias, start, end);
-        let retained: bool = add_dependency(@mutable compilation.sources,
-            (requester as u64) as +Trapping, DependencyScope::Product,
+        let retained: bool = |source_files|::add_dependency(@mutable compilation.sources,
+            (requester as u64) as +Trapping, |source_files|::DependencyScope::Product,
             @alias, (target as u64) as +Trapping);
         transition retained {
             true -> next(input, compilation, index + 1),
             _ -> full()
         }
     }
-    machine full() { ProcessExit::exit_process(252); }
+    machine full() { |process_exit|::ProcessExit::exit_process(252); }
     machine done() {}
 }
 
@@ -343,12 +163,12 @@ machine directory_name(name: @[u8]) -> bool crashes Trap {
     machine no() -> bool { false }
 }
 
-machine package_namespace(path: @[u8], name: @mutable ModulePath)
-reaches ProcessExit crashes Trap
+machine package_namespace(path: @[u8], name: @mutable |source_files|::ModulePath)
+reaches |process_exit|::ProcessExit crashes Trap
 {
-    module_path_clear(name);
+    |source_files|::module_path_clear(name);
     transition { _ -> scan(path, name, 0, 0) }
-    machine scan(path: @[u8], name: @mutable ModulePath, start: u64, index: u64)
+    machine scan(path: @[u8], name: @mutable |source_files|::ModulePath, start: u64, index: u64)
     requires start <= index, index <= path.length
     {
         transition index < path.length {
@@ -356,27 +176,27 @@ reaches ProcessExit crashes Trap
             _ -> basename(@path[start..index])
         }
     }
-    machine byte(path: @[u8], name: @mutable ModulePath, start: u64, index: u64)
+    machine byte(path: @[u8], name: @mutable |source_files|::ModulePath, start: u64, index: u64)
     requires start <= index, index < path.length
     {
         let value: u8 = path[index];
         transition value {
-            0 -> malformed(),  // NUL
-            92 -> malformed(), // Backslash is outside the POSIX wire spelling.
+            0 -> |input_packet|::malformed(),  // NUL
+            92 -> |input_packet|::malformed(), // Backslash is outside the POSIX wire spelling.
             47 -> directory(path, name, start, index), // Forward slash ends a directory.
             _ -> scan(path, name, start, index + 1)
         }
     }
-    machine directory(path: @[u8], name: @mutable ModulePath, start: u64, end: u64)
+    machine directory(path: @[u8], name: @mutable |source_files|::ModulePath, start: u64, end: u64)
     requires start <= end, end < path.length
     {
         let accepted: bool = directory_name(@path[start..end]);
         transition accepted && end <= 256 {
             true -> separator(path, name, start, end),
-            _ -> malformed()
+            _ -> |input_packet|::malformed()
         }
     }
-    machine separator(path: @[u8], name: @mutable ModulePath, start: u64, end: u64)
+    machine separator(path: @[u8], name: @mutable |source_files|::ModulePath, start: u64, end: u64)
     requires start <= end, end < path.length
     {
         transition start > 0 {
@@ -384,17 +204,17 @@ reaches ProcessExit crashes Trap
             _ -> copy(path, name, start, end)
         }
     }
-    machine append_separator(path: @[u8], name: @mutable ModulePath, start: u64, end: u64)
+    machine append_separator(path: @[u8], name: @mutable |source_files|::ModulePath, start: u64, end: u64)
     requires start <= end, end < path.length
     {
         // ModulePath joins components with a backslash.
-        let retained: bool = module_path_append(name, 92);
+        let retained: bool = |source_files|::module_path_append(name, 92);
         transition retained {
             true -> copy(path, name, start, end),
-            _ -> malformed()
+            _ -> |input_packet|::malformed()
         }
     }
-    machine copy(path: @[u8], name: @mutable ModulePath, index: u64, end: u64)
+    machine copy(path: @[u8], name: @mutable |source_files|::ModulePath, index: u64, end: u64)
     requires index <= end, end < path.length
     {
         transition index < end {
@@ -402,82 +222,82 @@ reaches ProcessExit crashes Trap
             _ -> scan(path, name, end + 1, end + 1)
         }
     }
-    machine append(path: @[u8], name: @mutable ModulePath, index: u64, end: u64)
+    machine append(path: @[u8], name: @mutable |source_files|::ModulePath, index: u64, end: u64)
     requires index < end, end < path.length
     {
-        let retained: bool = module_path_append(name, path[index]);
+        let retained: bool = |source_files|::module_path_append(name, path[index]);
         transition retained {
             true -> copy(path, name, index + 1, end),
-            _ -> malformed()
+            _ -> |input_packet|::malformed()
         }
     }
     machine basename(name: @[u8]) {
         transition name.length > 0 && name != "." && name != ".." {
             true -> done(),
-            _ -> malformed()
+            _ -> |input_packet|::malformed()
         }
     }
     machine done() {}
 }
 
-machine unit_namespace(input: @ConstructionInput, row: u64, name: @mutable ModulePath)
+machine unit_namespace(input: @|input_packet|::ConstructionInput, row: u64, name: @mutable |source_files|::ModulePath)
 requires row <= 3771
-reaches ProcessExit crashes Trap
+reaches |process_exit|::ProcessExit crashes Trap
 {
     transition input.unit_row_words {
         5 -> path(input, row, name),
         _ -> root(name)
     }
-    machine path(input: @ConstructionInput, row: u64, name: @mutable ModulePath)
+    machine path(input: @|input_packet|::ConstructionInput, row: u64, name: @mutable |source_files|::ModulePath)
     requires row <= 3771
     {
-        let start: u32 = row_word(input, row + 3);
-        let end: u32 = row_word(input, row + 4);
-        transition start < end && end <= input.buffer_length && end <= 4194304 {
+        let start: u32 = |input_packet|::row_word(input, row + 3);
+        let end: u32 = |input_packet|::row_word(input, row + 4);
+        transition start < end && end <= input.buffer_length && end <= 8388608 {
             true -> namespace(input, name, start as u64, end as u64),
-            _ -> malformed()
+            _ -> |input_packet|::malformed()
         }
     }
-    machine namespace(input: @ConstructionInput, name: @mutable ModulePath, start: u64, end: u64)
-    requires start < end, end <= 4194304
+    machine namespace(input: @|input_packet|::ConstructionInput, name: @mutable |source_files|::ModulePath, start: u64, end: u64)
+    requires start < end, end <= 8388608
     { package_namespace(@input.bytes[start..end], name); }
-    machine root(name: @mutable ModulePath) { module_path_clear(name); }
+    machine root(name: @mutable |source_files|::ModulePath) { |source_files|::module_path_clear(name); }
 }
 
-machine load_unit_source(input: @ConstructionInput, lexer: @mutable Lexer, unit: u32, start: u32, end: u32)
-requires start <= end, end <= 4194304
+machine load_unit_source(input: @|input_packet|::ConstructionInput, lexer: @mutable |lexer|::Lexer, unit: u32, start: u32, end: u32)
+requires start <= end, end <= 8388608
 crashes Trap
 {
-    lexer_initialize(lexer, unit as +Trapping);
+    |lexer|::lexer_initialize(lexer, unit as +Trapping);
     transition { _ -> bytes(input, lexer, start as u64, end as u64) }
-    machine bytes(input: @ConstructionInput, lexer: @mutable Lexer, offset: u64, end: u64)
-    requires end <= 4194304
+    machine bytes(input: @|input_packet|::ConstructionInput, lexer: @mutable |lexer|::Lexer, offset: u64, end: u64)
+    requires end <= 8388608
     {
         transition offset < end {
             true -> byte(input, lexer, offset, end),
             _ -> done()
         }
     }
-    machine byte(input: @ConstructionInput, lexer: @mutable Lexer, offset: u64, end: u64)
-    requires offset < end, end <= 4194304
+    machine byte(input: @|input_packet|::ConstructionInput, lexer: @mutable |lexer|::Lexer, offset: u64, end: u64)
+    requires offset < end, end <= 8388608
     {
-        append_source_byte(lexer, input.bytes[offset]);
+        |lexer|::append_source_byte(lexer, input.bytes[offset]);
         transition { _ -> bytes(input, lexer, offset + 1, end) }
     }
     machine done() {}
 }
 
-machine add_units(input: @ConstructionInput, compilation: @mutable Compilation, lexer: @mutable Lexer)
-reaches ProcessExit crashes Trap
+machine add_units(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation, lexer: @mutable |lexer|::Lexer)
+reaches |process_exit|::ProcessExit crashes Trap
 {
     transition { _ -> next(input, compilation, lexer, 0) }
-    machine next(input: @ConstructionInput, compilation: @mutable Compilation, lexer: @mutable Lexer, index: u64) {
+    machine next(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation, lexer: @mutable |lexer|::Lexer, index: u64) {
         transition compilation.status {
-            CompilationStatus::Collecting -> remaining(input, compilation, lexer, index),
+            |driver|::CompilationStatus::Collecting -> remaining(input, compilation, lexer, index),
             _ -> done()
         }
     }
-    machine remaining(input: @ConstructionInput, compilation: @mutable Compilation, lexer: @mutable Lexer, index: u64) {
+    machine remaining(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation, lexer: @mutable |lexer|::Lexer, index: u64) {
         transition input.package_count <= 64 && input.edge_count <= 256
             && input.unit_count <= 512 && index < input.unit_count as u64 && input.unit_row_words <= 5 {
             true -> unit(input, compilation, lexer, index,
@@ -485,93 +305,93 @@ reaches ProcessExit crashes Trap
             _ -> done()
         }
     }
-    machine unit(input: @ConstructionInput, compilation: @mutable Compilation, lexer: @mutable Lexer, index: u64, row: u64)
+    machine unit(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation, lexer: @mutable |lexer|::Lexer, index: u64, row: u64)
     requires index < 512, row <= 3771
     {
-        let package: u32 = row_word(input, row);
-        let start: u32 = row_word(input, row + 1);
-        let end: u32 = row_word(input, row + 2);
-        transition package < input.package_count && start <= end && end <= input.buffer_length && end <= 4194304 {
+        let package: u32 = |input_packet|::row_word(input, row);
+        let start: u32 = |input_packet|::row_word(input, row + 1);
+        let end: u32 = |input_packet|::row_word(input, row + 2);
+        transition package < input.package_count && start <= end && end <= input.buffer_length && end <= 8388608 {
             true -> size(input, compilation, lexer, index, row, package, start, end),
-            _ -> malformed()
+            _ -> |input_packet|::malformed()
         }
     }
-    machine size(input: @ConstructionInput, compilation: @mutable Compilation, lexer: @mutable Lexer, index: u64, row: u64, package: u32, start: u32, end: u32)
-    requires index < 512, row <= 3771, start <= end, end <= 4194304
+    machine size(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation, lexer: @mutable |lexer|::Lexer, index: u64, row: u64, package: u32, start: u32, end: u32)
+    requires index < 512, row <= 3771, start <= end, end <= 8388608
     {
         transition end - start <= 131072 {
             true -> retain(input, compilation, lexer, index, row, package, start, end),
             _ -> full()
         }
     }
-    machine retain(input: @ConstructionInput, compilation: @mutable Compilation, lexer: @mutable Lexer, index: u64, row: u64, package: u32, start: u32, end: u32)
-    requires index < 512, row <= 3771, start <= end, end <= 4194304
+    machine retain(input: @|input_packet|::ConstructionInput, compilation: @mutable |driver|::Compilation, lexer: @mutable |lexer|::Lexer, index: u64, row: u64, package: u32, start: u32, end: u32)
+    requires index < 512, row <= 3771, start <= end, end <= 8388608
     {
-        let mutable module_path: ModulePath;
+        let mutable module_path: |source_files|::ModulePath;
         unit_namespace(input, row, @mutable module_path);
         load_unit_source(input, lexer, index as u32, start, end);
-        omega_compiler\compilation_add_unit(compilation, lexer, (package as u64) as +Trapping, @module_path);
+        |driver|::compilation_add_unit(compilation, lexer, (package as u64) as +Trapping, @module_path);
         transition { _ -> next(input, compilation, lexer, index + 1) }
     }
-    machine full() { ProcessExit::exit_process(252); }
+    machine full() { |process_exit|::ProcessExit::exit_process(252); }
     machine done() {}
 }
 
-machine exit_status(status: CompilationStatus) -> i32 {
+machine exit_status(status: |driver|::CompilationStatus) -> i32 {
     transition status {
-        CompilationStatus::Complete -> code(0),
-        CompilationStatus::Capacity -> code(252),
-        CompilationStatus::Lexical -> code(251),
-        CompilationStatus::Parsing -> code(250),
-        CompilationStatus::Resolution -> code(248),
-        CompilationStatus::Typing -> code(249),
-        CompilationStatus::Checking -> code(247),
+        |driver|::CompilationStatus::Complete -> code(0),
+        |driver|::CompilationStatus::Capacity -> code(252),
+        |driver|::CompilationStatus::Lexical -> code(251),
+        |driver|::CompilationStatus::Parsing -> code(250),
+        |driver|::CompilationStatus::Resolution -> code(248),
+        |driver|::CompilationStatus::Typing -> code(249),
+        |driver|::CompilationStatus::Checking -> code(247),
         _ -> code(246)
     }
     machine code(value: i32) -> i32 { value }
 }
 
-machine publish(compilation: @Compilation) reaches ProcessExit + StandardOutput crashes Trap {
+machine publish(compilation: @|driver|::Compilation) reaches |process_exit|::ProcessExit + |process_authority|::StandardOutput crashes Trap {
     let status: i32 = exit_status(compilation.status);
     transition status == 0 {
         true -> bounded(compilation),
         _ -> refused(status)
     }
-    machine bounded(compilation: @Compilation) {
+    machine bounded(compilation: @|driver|::Compilation) {
         transition compilation.output.length <= 2097152 {
             true -> next(compilation, 0),
             _ -> refused(252)
         }
     }
-    machine next(compilation: @Compilation, index: u64) {
+    machine next(compilation: @|driver|::Compilation, index: u64) {
         transition index < compilation.output.length && index < 2097152 {
             true -> byte(compilation, index),
             _ -> complete()
         }
     }
-    machine byte(compilation: @Compilation, index: u64)
+    machine byte(compilation: @|driver|::Compilation, index: u64)
     requires index < 2097152
     {
-        Console::write_byte(compilation.output.bytes[index] as i32);
+        |console|::Console::write_byte(compilation.output.bytes[index] as i32);
         transition { _ -> next(compilation, index + 1) }
     }
-    machine complete() { ProcessExit::exit_process(0); }
-    machine refused(status: i32) { ProcessExit::exit_process(status); }
+    machine complete() { |process_exit|::ProcessExit::exit_process(0); }
+    machine refused(status: i32) { |process_exit|::ProcessExit::exit_process(status); }
 }
 
-machine entry_start() reaches ProcessExit + StandardInput + StandardOutput crashes Trap blocks {
-    let mutable input: ConstructionInput;
-    block read_input(@mutable input);
-    check_build_input(@input);
-    let mutable compilation: Compilation;
-    omega_compiler\compilation_clear(@mutable compilation);
+machine entry_start() reaches |process_exit|::ProcessExit + |process_authority|::StandardInput + |process_authority|::StandardOutput crashes Trap blocks {
+    let mutable input: |input_packet|::ConstructionInput;
+    block |input_reader|::read_input(@mutable input);
+    |build_sources|::check_build_input(@input);
+    let mutable compilation: |driver|::Compilation;
+    |driver|::compilation_clear(@mutable compilation);
     add_packages(@input, @mutable compilation);
     add_edges(@input, @mutable compilation);
-    let mutable lexer: Lexer;
+    let mutable lexer: |lexer|::Lexer;
     add_units(@input, @mutable compilation, @mutable lexer);
-    let mutable entry_name: ModulePath;
+    let mutable entry_name: |source_files|::ModulePath;
     copy_name(@input, @mutable entry_name, input.entry_name_start, input.entry_name_end);
-    omega_compiler\compilation_finish(@mutable compilation, input.entry_unit,
+    |driver|::compilation_finish(@mutable compilation, input.entry_unit,
         @entry_name.bytes[0..entry_name.length]);
     publish(@compilation);
 }

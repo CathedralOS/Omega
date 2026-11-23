@@ -282,32 +282,46 @@ fn a_record_field_is_writable_only_through_a_mutable_binding() {
 
 /// A linear value must be consumed. A linear local left at the end of its
 /// machine, a linear field of a local record, and a linear formal left
-/// unconsumed are each refused, because no edge may dispose of them; the
+/// unconsumed are each rejected, because no edge may dispose of them; the
 /// affine twin is disposed of on the way out and accepted.
 #[test]
-fn a_linear_value_left_unconsumed_is_refused() {
+fn a_linear_value_left_unconsumed_is_rejected() {
     Program::of(
         "data Point { x: u8; } machine make() { let mutable p = (Point { x: 1 }); p.x = 2; }",
     )
     .judged(|_| {})
     .accepted();
-    for source in [
-        "data Point [linear] { x: u8; } machine make() { let mutable p = (Point { x: 1 }); p.x = 2; }",
-        "data Lease [linear] {} data Held { a: Lease; } machine keep() { let h = Held { a: Lease {} }; }",
-        "data Lease [linear] {} machine stop(l: Lease) {}",
+    // The linear twin that consumes its value by a complete consuming
+    // pattern is accepted.
+    Program::of("data Lease [linear] { n: u8; } machine stop(l: Lease) { let { n } = move l; }")
+        .judged(|_| {})
+        .accepted();
+    // Each is rejected at the value that is lost: the construction a local
+    // holds, or, for a formal, the machine as a whole.
+    for (source, at) in [
+        (
+            "data Point [linear] { x: u8; } machine make() { let mutable p = (Point { x: 1 }); p.x = 2; }",
+            "Point { x: 1 }",
+        ),
+        (
+            "data Lease [linear] {} data Held { a: Lease; } machine keep() { let h = Held { a: Lease {} }; }",
+            "Held { a: Lease {} }",
+        ),
+        ("data Lease [linear] {} machine stop(l: Lease) {}", ""),
     ] {
         let refusal = refused(source);
         assert_eq!(
-            (refusal.stage, refusal.message.as_str()),
-            (
-                "lowering",
-                "Unsupported: while checking control-flow edge: normal edge cannot \
-                 implicitly dispose storage without an authorized disposition"
-            ),
+            (refusal.stage, refusal.message.as_str(), refusal.at.as_str()),
+            ("lowering", UNCONSUMED, at),
             "{source}"
         );
     }
 }
+
+const UNCONSUMED: &str = "Violation: while checking control-flow edge: a linear value is still \
+     held when this path leaves its storage, and nothing consumes it: every path must pass it \
+     on, return it or end it by its declared disposition, and neither `_ =` nor leaving scope \
+     can discard it";
 
 /// `Cell<u8>` written in a local's annotation and in a formal is one
 /// structural type: `build`'s record and `accept`'s parameter share it.
@@ -339,9 +353,9 @@ fn one_applied_record_is_one_structural_type_wherever_it_is_written() {
 
 /// `..` gives a sum field the first case and no payload. When only a later
 /// case holds a reference, the zero is still fine; a reference in a record
-/// field below `..` has no zero, and the literal is refused.
+/// field below `..` has no zero, and the literal is rejected.
 #[test]
-fn an_omitted_sum_takes_its_first_case_and_an_omitted_reference_is_refused() {
+fn an_omitted_sum_takes_its_first_case_and_an_omitted_reference_is_rejected() {
     let program = Program::of(
         "data Slot { case Empty; case Entry(value: u8); } data Plan { id: u8; first: Slot; } \
          machine build(id: u8) -> Plan { Plan { id: id, .. } }",
@@ -368,14 +382,19 @@ fn an_omitted_sum_takes_its_first_case_and_an_omitted_reference_is_refused() {
         "data Reach<'r> { at: @'r u8; n: u64; } data Plan<'r> { id: u8; reach: Reach<'r>; } \
          machine build<'r>(id: u8) { let plan: Plan<'r> = Plan { id: id, .. }; }",
     );
+    // data_and_literals.md, "Explicit field omission": "The marker supplies
+    // no authority, borrowed reference, callable or proof witness merely
+    // because storage can be zeroed." The literal is the program's error.
     assert_eq!(
         (reference.stage, reference.at.as_str()),
-        ("lowering", "plan")
+        ("lowering", "Plan { id: id, .. }")
     );
     assert!(
-        reference
-            .message
-            .starts_with("Unsupported: statement zero-established reference without backing"),
+        reference.message.starts_with(
+            "Violation: `..` cannot supply the field `reach`: its value holds a borrowed \
+             reference, and zeroed storage supplies no borrowed reference; write the field's \
+             value"
+        ),
         "{reference:?}"
     );
 }
@@ -457,4 +476,33 @@ fn a_literal_of_another_carrier_is_refused_at_the_literal() {
     Program::of("machine choose(x: u8) -> bool { match x { 1u8 -> true, _ -> false, } }")
         .judged(|_| {})
         .accepted();
+}
+
+/// A record literal's borrowed field must hold a view of the lifetime its
+/// declared type names for that field. `Pair<'a, 'b>` puts `'b` on `left`
+/// and `'a` on `right`, so `Pair { left: y, right: x }` is accepted, and
+/// its twin `Pair { left: x, right: y }` hands `left` a view of `'a`: nothing
+/// relates two lifetimes of one machine, so the literal is rejected at the
+/// field's value (`wiki/spec/language/lifetimes.md`: the language has no
+/// authored outlives bounds).
+#[test]
+fn a_record_literal_field_of_the_other_lifetime_is_rejected() {
+    let program = |fields: &str| {
+        format!(
+            "data Pair<'first, 'second> {{ left: @'second [u8]; right: @'first [u8]; }} \
+             machine make<'a, 'b>(x: @'a [u8], y: @'b [u8]) -> Pair<'a, 'b> {{ Pair {{ {fields} }} }}"
+        )
+    };
+    Program::of(&program("left: y, right: x"))
+        .judged(|_| {})
+        .accepted();
+    let refusal = refused(&program("left: x, right: y"));
+    assert_eq!((refusal.stage, refusal.at.as_str()), ("lowering", "x"));
+    assert!(
+        refusal.message.starts_with(
+            "Violation: this view is of the region of another lifetime of the machine than \
+             the field it initializes names: nothing relates two lifetimes of one machine"
+        ),
+        "{refusal:?}"
+    );
 }

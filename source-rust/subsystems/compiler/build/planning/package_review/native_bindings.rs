@@ -8,6 +8,7 @@ use super::{
     providers::{AcceptedDeclarations, symbol_key},
 };
 use diagnostics::Diagnostic;
+use package_compilation::{NativeBindingProducer, PackageDependencyClosure};
 use provider_plans::{EvaluatedNativeBinding, ServiceSchema};
 use review_evidence::record::{
     PackagePolicyCallable, PackagePolicyEvaluatedBindingProducer, PackagePolicyNativeBinding,
@@ -21,6 +22,7 @@ use target::TargetProfile;
 /// An authored binding's source identity and checked method. Its final calling
 /// plan and native receipt arrive with the selected target.
 pub(super) struct PreparedNativeBindings {
+    package: PackageKeyIdentity,
     target: TargetProfile,
     rows: Vec<NativeDeclaration>,
     declared: Vec<(PackagePolicyServiceMethod, PackagePolicyCallable)>,
@@ -51,6 +53,7 @@ pub(super) fn prepare(
     let mut declared = Vec::new();
     if supplies.clone().next().is_none() {
         return Ok(PreparedNativeBindings {
+            package,
             target,
             rows,
             declared: Vec::new(),
@@ -94,13 +97,13 @@ pub(super) fn prepare(
             Ok::<_, Vec<Diagnostic>>((slot, schema, methods))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let product = input
+        .sources()
+        .dependency_closure()
+        .ok_or_else(|| unavailable("the native binding's Product dependency closure"))?;
     for supply in supplies {
         let selection = &supply.selection;
-        if selection.supplier_package != package || selection.producer.package != package {
-            return Err(unavailable(
-                "the native binding's complete local Build custody",
-            ));
-        }
+        let producer = binding_producer(product, selection.supplier_package, &selection.producer)?;
         let index = requirements
             .binary_search_by_key(
                 &(
@@ -182,14 +185,6 @@ pub(super) fn prepare(
                 "the native binding's exact original schema method",
             ));
         }
-        let producer = PackagePolicyEvaluatedBindingProducer {
-            declaration: PackageReviewNominalIdentity {
-                owner: PackageReviewNominalOwner::Package(package),
-                path: selection.producer.declaration_path.clone(),
-            },
-            package: Some(package),
-            callable_identity: selection.producer.callable_identity.clone(),
-        };
         let schema_index = schemas
             .binary_search_by_key(&symbol_key(declaration.slot), |(slot, _, _)| {
                 symbol_key(*slot)
@@ -252,9 +247,30 @@ pub(super) fn prepare(
         })
         .collect();
     Ok(PreparedNativeBindings {
+        package,
         target,
         rows,
         declared,
+    })
+}
+
+fn binding_producer(
+    product: &PackageDependencyClosure,
+    supplier: PackageKeyIdentity,
+    producer: &NativeBindingProducer,
+) -> Result<PackagePolicyEvaluatedBindingProducer, Vec<Diagnostic>> {
+    if producer.package != supplier || product.packages().binary_search(&supplier).is_err() {
+        return Err(unavailable(
+            "the native binding's supplying Build in the Product dependency closure",
+        ));
+    }
+    Ok(PackagePolicyEvaluatedBindingProducer {
+        declaration: PackageReviewNominalIdentity {
+            owner: PackageReviewNominalOwner::Package(supplier),
+            path: producer.declaration_path.clone(),
+        },
+        package: Some(supplier),
+        callable_identity: producer.callable_identity.clone(),
     })
 }
 
@@ -349,6 +365,11 @@ impl PreparedNativeBindings {
             method
                 .calling
                 .push(calling::project(application, &method, target)?);
+            // Every supply participates in target settlement. Its trust row belongs to the
+            // package occurrence whose Build supplied it, including runtime-unselected rows.
+            if source.producer.package != Some(self.package) {
+                continue;
+            }
             policies.push((
                 PackagePolicyNativeBinding {
                     application: source.application.clone(),
@@ -412,5 +433,42 @@ fn binding_policy(
                 producer,
             }),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn producer_must_belong_to_its_supplier_in_the_product_closure() {
+        let root = PackageKeyIdentity::from_digest([1; 32]).unwrap();
+        let dependency = PackageKeyIdentity::from_digest([2; 32]).unwrap();
+        let outsider = PackageKeyIdentity::from_digest([3; 32]).unwrap();
+        let product = PackageDependencyClosure::from_canonical_parts(
+            root,
+            package_compilation::BuildDeclarationKind::Application,
+            vec![root, dependency],
+            vec![package_compilation::PackageDependencyBinding::new(
+                root, "dep", dependency,
+            )],
+        )
+        .unwrap();
+        let producer = |package| NativeBindingProducer {
+            package,
+            declaration_path: "build.omg::build".to_owned(),
+            callable_identity: "build".to_owned(),
+        };
+        for supplier in [root, dependency] {
+            let reviewed = binding_producer(&product, supplier, &producer(supplier)).unwrap();
+            assert_eq!(reviewed.package, Some(supplier));
+            assert_eq!(
+                reviewed.declaration.owner,
+                PackageReviewNominalOwner::Package(supplier)
+            );
+        }
+        assert!(binding_producer(&product, dependency, &producer(root)).is_err());
+        assert!(binding_producer(&product, root, &producer(dependency)).is_err());
+        assert!(binding_producer(&product, outsider, &producer(outsider)).is_err());
     }
 }

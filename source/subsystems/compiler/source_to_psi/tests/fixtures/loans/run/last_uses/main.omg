@@ -1,0 +1,66 @@
+public data Ownership {
+    use_count: u64;
+    use_locals: [u64; 128];
+    use_last: [u64; 128];
+}
+data Checks { machine_accepted: bool; code: CheckDiagnosticCode; span: u64 in Trapping; }
+data Checker { ownership: Ownership; output: Checks; }
+data CheckDiagnosticCode [copy] { case None; case CheckCapacityExceeded; }
+data ExpressionKind [copy] { case Name; case Other; }
+data Expression [copy] { kind: ExpressionKind; first_row: u64 in Trapping; source_span: u64 in Trapping; }
+data ValueBinding [copy] { case Local(statement: u64 in Trapping); case None; }
+data SyntaxTrees { names: bool; }
+data NameResolution { locals: bool; }
+
+machine syntax_trees_expression(syntax: @SyntaxTrees, handle: u64 in Trapping) -> Expression {
+    transition syntax.names { true -> named(handle), _ -> other(handle) }
+    machine named(handle: u64 in Trapping) -> Expression { Expression { kind: ExpressionKind::Name, first_row: handle, source_span: handle } }
+    machine other(handle: u64 in Trapping) -> Expression { Expression { kind: ExpressionKind::Other, first_row: handle, source_span: handle } }
+}
+machine value_binding(resolution: @NameResolution, handle: u64 in Trapping) -> ValueBinding {
+    transition resolution.locals { true -> local(handle), _ -> absent() }
+    machine local(handle: u64 in Trapping) -> ValueBinding { ValueBinding::Local { statement: handle } }
+    machine absent() -> ValueBinding { ValueBinding::None }
+}
+machine checks_reject(output: @mutable Checks, code: CheckDiagnosticCode, span: u64 in Trapping) {
+    output.machine_accepted = false;
+    output.code = code;
+    output.span = span;
+}
+
+machine start() crashes Trap {
+    let mutable checker: Checker;
+    let syntax: SyntaxTrees = SyntaxTrees { names: true };
+    let resolution: NameResolution = NameResolution { locals: true };
+    checker.output.machine_accepted = true;
+    checker.ownership.use_count = 0;
+    transition { _ -> fill(@mutable checker, @syntax, @resolution, 0 as +Trapping) }
+
+    machine fill(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution, row: u64 in Trapping) {
+        record_tree_uses(checker, syntax, resolution, row, row);
+        transition row < 127 {
+            true -> fill(checker, syntax, resolution, row + 1),
+            _ -> repeat(checker, syntax, resolution)
+        }
+    }
+
+    machine repeat(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution) {
+        record_tree_uses(checker, syntax, resolution, 127 as +Trapping, 150 as +Trapping);
+        transition checker.output.machine_accepted && checker.ownership.use_count == 128 && checker.ownership.use_last[127] == 150 {
+            true -> extra(checker, syntax, resolution),
+            _ -> wrong()
+        }
+    }
+
+    machine extra(checker: @mutable Checker, syntax: @SyntaxTrees, resolution: @NameResolution) {
+        record_tree_uses(checker, syntax, resolution, 128 as +Trapping, 151 as +Trapping);
+        transition !checker.output.machine_accepted && checker.output.code == CheckDiagnosticCode::CheckCapacityExceeded
+            && checker.output.span == 128 && checker.ownership.use_count == 128 {
+            true -> done(),
+            _ -> wrong()
+        }
+    }
+
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}

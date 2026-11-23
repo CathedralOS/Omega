@@ -2240,14 +2240,13 @@ pub(crate) mod element_view {
                     }
                     self.established_element_window(
                         *root_structural_type,
-                        &argument.path,
+                        argument,
                         *element,
                         *source_byte_offset,
                         indices,
                         *extent,
                         *element_stride,
                         expected_region,
-                        argument.access,
                     )?;
                     true
                 }
@@ -2434,24 +2433,28 @@ pub(crate) mod element_view {
         fn established_element_window(
             &self,
             root_structural_type: semantic_vocabulary::StructuralTypeId,
-            path: &[terminal_psi::StructuralPathSegment],
+            argument: &terminal_psi::StructuralArgument,
             element: semantic_vocabulary::StructuralTypeId,
             source_byte_offset: u32,
             indices: &[target_operations::TargetStructuralRuntimeIndex],
             extent: target_operations::TargetViewExtent,
             element_stride: u32,
             region: terminal_psi::ElementViewRegion,
-            access: terminal_psi::StructuralAccess,
         ) -> Result<(), &'static str> {
+            let path = argument.path.as_slice();
+            let access = argument.access;
             let (collection_path, byte_window) = match path.last() {
                 Some(terminal_psi::StructuralPathSegment::FixedRange { start, end }) => {
                     (&path[..path.len() - 1], Some((*start, *end)))
                 }
                 _ => (path, None),
             };
-            let Some(projected) =
-                projected_collection(root_structural_type, collection_path, self.types)
-            else {
+            let Some(projected) = projected_collection(
+                root_structural_type,
+                self.optimized.arrival_parameter(argument.place),
+                collection_path,
+                self.types,
+            ) else {
                 return Err("view source collection projection is unresolved");
             };
             let collection = projected.shape;

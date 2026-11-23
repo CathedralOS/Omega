@@ -2,7 +2,9 @@
 
 End-to-end CLI check that a package may choose a provider whose slot and
 implementation are applied to compile-time arguments, and hand that choice to
-the program that depends on it (`omega --check`).
+the program that depends on it. Building the executable for Linux checks that
+the target has the method the consumer calls. The same package also names a
+different provider application for macOS.
 
 `Reading<const Tag: u64>` is one requirement per tag, and an implementation
 `FirstReading<T, const Tag: u64>` satisfies `Reading<Tag>` for whatever tag it
@@ -12,11 +14,9 @@ written once in a helper generic in `Tag` and called with `(8u64 + 9u64)`,
 chooses `FirstReading<[Holder<u64>; 2], 17>` for `Reading<17>` and for no
 other tag.
 
-The first test stages that package and a program depending on it; both Builds
-must complete and the program must compile. The twins change one thing each
-in the package's Build and must be rejected there: a provider applied to a
-different tag than the slot, an application with one argument too many, and a
-tag written as a literal of another integer type.
+The consumer calls the chosen method at tag 17. The controls change the
+requested tag, one argument of the package’s Build, or the provider’s result
+at a different tag. The same public result bound applies to every tag.
 
 */
 
@@ -34,6 +34,10 @@ data Holder<T> { value: T; }
 /// Checks a staged program that depends on a staged package whose Build
 /// helper, generic in `Tag` and called at `(8u64 + 9u64)`, runs `choice`.
 fn check(name: &str, choice: &str) -> (bool, String) {
+    check_tag(name, choice, PACKAGE, 17)
+}
+
+fn check_tag(name: &str, choice: &str, package: &str, tag: u64) -> (bool, String) {
     let build = format!(
         "machine build(builder: @mutable Build) {{
     Build::package(builder, \"reading\");
@@ -44,10 +48,17 @@ machine configure<const Tag: u64>(builder: @mutable Build) {{
 }}
 "
     );
-    check_package(name, &build, &[("main.omg", PACKAGE)])
+    let main = format!(
+        "use {{reading}}/main.omg as provider;
+machine main() reaches |provider|::Reading<{tag}u64> crashes none {{
+    let result: u64 = |provider|::Reading::<{tag}u64>::total();
+}}
+"
+    );
+    check_package(name, &build, &[("main.omg", package)], &main)
 }
 
-fn check_package(name: &str, build: &str, files: &[(&str, &str)]) -> (bool, String) {
+fn check_package(name: &str, build: &str, files: &[(&str, &str)], main: &str) -> (bool, String) {
     let root = std::env::temp_dir().join(format!(
         "omega-build-applied-provider-{}-{name}",
         std::process::id()
@@ -63,7 +74,7 @@ fn check_package(name: &str, build: &str, files: &[(&str, &str)]) -> (bool, Stri
         std::fs::write(path, source).expect("staged package source");
     }
     std::fs::write(package.join("build.omg"), build).expect("staged package Build");
-    std::fs::write(program.join("main.omg"), "machine main() { }\n").expect("staged program");
+    std::fs::write(program.join("main.omg"), main).expect("staged program");
     std::fs::write(
         program.join("build.omg"),
         "machine build(builder: @mutable Build) {
@@ -75,7 +86,7 @@ fn check_package(name: &str, build: &str, files: &[(&str, &str)]) -> (bool, Stri
     )
     .expect("staged program Build");
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["--check", "main.omg", "--target", "linux_x86_64"])
+        .args(["--target", "linux_x86_64", "build.omg"])
         .current_dir(&program)
         .stdin(std::process::Stdio::null())
         .output()
@@ -91,9 +102,41 @@ fn check_package(name: &str, build: &str, files: &[(&str, &str)]) -> (bool, Stri
 fn a_package_chooses_an_applied_provider_and_its_consumer_receives_the_choice() {
     let (compiled, stderr) = check(
         "chosen",
-        "Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
+        "Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);
+        Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u32>; 2], Tag>>(builder, macos_arm64);",
     );
     assert!(compiled, "{stderr}");
+}
+
+#[test]
+fn a_consumer_cannot_use_the_choice_for_a_different_tag() {
+    let (compiled, stderr) = check_tag(
+        "unselected_tag",
+        "Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
+        PACKAGE,
+        29,
+    );
+    assert!(!compiled, "{stderr}");
+    assert!(
+        stderr.contains("Reading::total") && stderr.contains("has no provider"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn the_implementation_owes_its_result_bound_at_unselected_tags() {
+    let package = PACKAGE.replace("_ -> 1129u64", "_ -> 0u64");
+    let (compiled, stderr) = check_tag(
+        "unselected_branch",
+        "Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
+        &package,
+        17,
+    );
+    assert!(!compiled, "{stderr}");
+    assert!(
+        stderr.contains("cannot prove ensures contract") && stderr.contains("total"),
+        "{stderr}"
+    );
 }
 
 #[test]
@@ -161,6 +204,7 @@ machine build(builder: @mutable Build) {
             ("kit/build.omg", r#"machine build(builder: @mutable Build) { Build::package(builder, "kit"); }"#),
             ("kit/math.omg", "public machine answer() -> u64 { 42 }"),
         ],
+        "machine main() { }\n",
     );
     assert!(compiled, "{stderr}");
 }

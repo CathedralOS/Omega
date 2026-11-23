@@ -522,17 +522,17 @@ impl<'a> HandleStorageGeometry<'a> {
         let carrier = self
             .carrier(location)?
             .ok_or("handle case observation has no original sum carrier")?;
-        let mut geometry =
-            ReferenceStorageGeometry::new(self.module.types.structural_types.iter(), |application| {
-                Err(StorageGeometryError::UnresolvedExtent(application))
-            })
-            .with_target_carriers(Some(runtime_abi::target_carrier_layout(
-                self.profile.native_target(),
-            )))
-            .with_record_storage(layout::TerminalRecordStorage {
-                module: self.module,
-                target: self.profile,
-            });
+        let mut geometry = ReferenceStorageGeometry::new(
+            self.module.types.structural_types.iter(),
+            |application| Err(StorageGeometryError::UnresolvedExtent(application)),
+        )
+        .with_target_carriers(Some(runtime_abi::target_carrier_layout(
+            self.profile.native_target(),
+        )))
+        .with_record_storage(layout::TerminalRecordStorage {
+            module: self.module,
+            target: self.profile,
+        });
         let sum = geometry.sum_layout(carrier).map_err(|reason| {
             format!("handle case tag has no closed selected geometry: {reason:?}")
         })?;
@@ -614,7 +614,9 @@ impl<'a> HandleStorageGeometry<'a> {
             .ok_or("untyped handle content source is not a byte carrier".into())
     }
     pub(super) fn primitive_scalar(&self, carrier: StructuralTypeId) -> Option<ScalarType> {
-        match terminal_psi::find_structural_type(&self.module.types.structural_types, carrier)?.shape {
+        match terminal_psi::find_structural_type(&self.module.types.structural_types, carrier)?
+            .shape
+        {
             StructuralTypeShape::PrimitiveScalar(scalar) => Some(scalar),
             _ => None,
         }
@@ -796,8 +798,11 @@ impl<'a> HandleStorageGeometry<'a> {
     fn is_byte_view(&self, location: &DescriptorLocation) -> Result<bool, String> {
         let carrier = match self.carrier(location)? {
             Some(carrier) => {
-                match terminal_psi::find_structural_type(&self.module.types.structural_types, carrier)
-                    .map(|declaration| &declaration.shape)
+                match terminal_psi::find_structural_type(
+                    &self.module.types.structural_types,
+                    carrier,
+                )
+                .map(|declaration| &declaration.shape)
                 {
                     Some(StructuralTypeShape::ByteSequence(carrier)) => *carrier,
                     _ => return Ok(false),
@@ -812,19 +817,19 @@ impl<'a> HandleStorageGeometry<'a> {
     }
 
     pub(super) fn element_stride(&self, element: StructuralTypeId) -> Result<u64, String> {
-        let (size, alignment) =
-            ReferenceStorageGeometry::new(self.module.types.structural_types.iter(), |application| {
-                Err(StorageGeometryError::UnresolvedExtent(application))
-            })
-            .with_target_carriers(Some(runtime_abi::target_carrier_layout(
-                self.profile.native_target(),
-            )))
-            .with_record_storage(layout::TerminalRecordStorage {
-                module: self.module,
-                target: self.profile,
-            })
-            .layout(element)
-            .map_err(|reason| format!("handle view element has no selected layout: {reason}"))?;
+        let (size, alignment) = ReferenceStorageGeometry::new(
+            self.module.types.structural_types.iter(),
+            |application| Err(StorageGeometryError::UnresolvedExtent(application)),
+        )
+        .with_target_carriers(Some(runtime_abi::target_carrier_layout(
+            self.profile.native_target(),
+        )))
+        .with_record_storage(layout::TerminalRecordStorage {
+            module: self.module,
+            target: self.profile,
+        })
+        .layout(element)
+        .map_err(|reason| format!("handle view element has no selected layout: {reason}"))?;
         size.checked_add(
             alignment
                 .checked_sub(1)
@@ -1062,7 +1067,12 @@ impl<'a> HandleStorageGeometry<'a> {
         expected: StructuralTypeId,
         access: terminal_psi::StructuralAccess,
     ) -> bool {
-        unchanged_storage_presentation(&self.module.types.structural_types, actual, expected, access)
+        unchanged_storage_presentation(
+            &self.module.types.structural_types,
+            actual,
+            expected,
+            access,
+        )
     }
 
     pub(super) fn matches_resident_copy(
@@ -1151,7 +1161,7 @@ impl<'a> HandleStorageGeometry<'a> {
         if body.id != graph.id || graph.entry != (body.entry, 0) {
             return Err("handle storage geometry belongs to another canonical body".into());
         }
-        if profile != target::TargetProfile::WindowsX64 {
+        if !profile.imports_through_pe() {
             return Err("Windows handle storage has another selected target profile".into());
         }
         Ok(Self {
@@ -1171,17 +1181,17 @@ impl<'a> HandleStorageGeometry<'a> {
     ) -> Result<ReferenceStorageRegion, String> {
         let path = descriptor_path(&self.module.types.structural_types, root, path)
             .ok_or("handle storage path has no complete original typed projection")?;
-        let mut geometry =
-            ReferenceStorageGeometry::new(self.module.types.structural_types.iter(), |application| {
-                Err(StorageGeometryError::UnresolvedExtent(application))
-            })
-            .with_target_carriers(Some(runtime_abi::target_carrier_layout(
-                self.profile.native_target(),
-            )))
-            .with_record_storage(layout::TerminalRecordStorage {
-                module: self.module,
-                target: self.profile,
-            });
+        let mut geometry = ReferenceStorageGeometry::new(
+            self.module.types.structural_types.iter(),
+            |application| Err(StorageGeometryError::UnresolvedExtent(application)),
+        )
+        .with_target_carriers(Some(runtime_abi::target_carrier_layout(
+            self.profile.native_target(),
+        )))
+        .with_record_storage(layout::TerminalRecordStorage {
+            module: self.module,
+            target: self.profile,
+        });
         geometry.region(root, &path).ok_or_else(|| {
             format!("handle storage {root:?}/{path:?} has no closed selected byte geometry")
         })

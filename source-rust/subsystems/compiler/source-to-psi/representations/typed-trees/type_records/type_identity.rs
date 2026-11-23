@@ -2239,11 +2239,8 @@ pub(crate) mod identity_context {
                         *argument,
                         Self {
                             application_scopes: &self.application_scopes[..ordinal],
-                            application_owner: if self.application_argument_owner.is_valid() {
-                                self.application_argument_owner
-                            } else {
-                                self.application_owner
-                            },
+                            application_owner: scope.argument_owner,
+                            application_argument_owner: scope.argument_owner,
                             ..*self
                         },
                     ));
@@ -2298,11 +2295,6 @@ pub(crate) mod identity_context {
             if let Some((region, _)) = super::applied_lifetime_parameter_identity_with_supplier(
                 program,
                 self.application_owner,
-                if self.application_argument_owner.is_valid() {
-                    self.application_argument_owner
-                } else {
-                    self.application_owner
-                },
                 name,
                 self.application_scopes,
             ) {
@@ -2349,11 +2341,6 @@ pub(crate) mod identity_context {
             let Some((region, _)) = super::apply_resolved_lifetime_parameter_identity(
                 program,
                 region,
-                if self.application_argument_owner.is_valid() {
-                    self.application_argument_owner
-                } else {
-                    self.application_owner
-                },
                 self.application_scopes,
             ) else {
                 if let Some(invalid) = self.invalid_application {
@@ -3752,20 +3739,13 @@ pub(crate) mod lifetime_parameters {
         name: &str,
         scopes: &[super::AppliedTypeIdentityScope<'_>],
     ) -> Option<LifetimeParameterIdentity> {
-        applied_lifetime_parameter_identity_with_supplier(
-            program,
-            lexical_owner,
-            lexical_owner,
-            name,
-            scopes,
-        )
-        .map(|(identity, _)| identity)
+        applied_lifetime_parameter_identity_with_supplier(program, lexical_owner, name, scopes)
+            .map(|(identity, _)| identity)
     }
 
     pub fn applied_lifetime_parameter_identity_with_supplier(
         program: &TypedTrees,
         lexical_owner: SymbolHandle,
-        argument_owner: SymbolHandle,
         name: &str,
         scopes: &[super::AppliedTypeIdentityScope<'_>],
     ) -> Option<(LifetimeParameterIdentity, bool)> {
@@ -3784,13 +3764,7 @@ pub(crate) mod lifetime_parameters {
                 .iter()
                 .find(|(parameter, _)| parameter == name)
             {
-                return applied_lifetime_parameter_identity(
-                    program,
-                    argument_owner,
-                    argument,
-                    &scopes[..ordinal],
-                )
-                .map(|identity| (identity, true));
+                return supplied_lifetime_parameter(program, scope, argument, &scopes[..ordinal]);
             }
             if let Some(region) = lifetime_parameter_identity(program, scope.declaration, name)
                 && region.declaration == program.lifetime_declaration_owner(scope.declaration)
@@ -3804,7 +3778,6 @@ pub(crate) mod lifetime_parameters {
     pub fn apply_resolved_lifetime_parameter_identity(
         program: &TypedTrees,
         region: LifetimeParameterIdentity,
-        argument_owner: SymbolHandle,
         scopes: &[super::AppliedTypeIdentityScope<'_>],
     ) -> Option<(LifetimeParameterIdentity, bool)> {
         let parameter = lifetime_parameter_name(program, region)?;
@@ -3819,15 +3792,20 @@ pub(crate) mod lifetime_parameters {
             else {
                 return Some((region, false));
             };
-            return applied_lifetime_parameter_identity(
-                program,
-                argument_owner,
-                argument,
-                &scopes[..ordinal],
-            )
-            .map(|actual| (actual, true));
+            return supplied_lifetime_parameter(program, scope, argument, &scopes[..ordinal]);
         }
         Some((region, false))
+    }
+
+    fn supplied_lifetime_parameter(
+        program: &TypedTrees,
+        frame: &super::AppliedTypeIdentityScope<'_>,
+        argument: &str,
+        outer: &[super::AppliedTypeIdentityScope<'_>],
+    ) -> Option<(LifetimeParameterIdentity, bool)> {
+        let actual = lifetime_parameter_identity(program, frame.argument_owner, argument)?;
+        apply_resolved_lifetime_parameter_identity(program, actual, outer)
+            .map(|(region, _)| (region, true))
     }
 
     pub fn lifetime_parameter_identity(
@@ -8869,6 +8847,8 @@ pub enum IndexIdentityArgument<'argument> {
 #[derive(Clone, Copy)]
 pub struct AppliedTypeIdentityScope<'argument> {
     pub declaration: SymbolHandle,
+    /// The declaration where the supplied arguments were written.
+    pub argument_owner: SymbolHandle,
     pub arguments: &'argument [(SymbolHandle, IndexIdentityArgument<'argument>)],
     pub lifetimes: &'argument [(String, String)],
 }
@@ -10461,6 +10441,16 @@ impl TypedTrees {
         &self,
         request: ExactOwnerTypeIdentityRequest<'_>,
     ) -> Option<NormalizedTypeIdentity> {
+        self.exact_applied_owner_type_identity(request, &[])
+    }
+
+    /// Normalize an argument written in an applied declaration using the
+    /// enclosing owner's canonical binders and exact nominal source identities.
+    pub fn exact_applied_owner_type_identity(
+        &self,
+        request: ExactOwnerTypeIdentityRequest<'_>,
+        scopes: &[AppliedTypeIdentityScope<'_>],
+    ) -> Option<NormalizedTypeIdentity> {
         let missing_exact_nominal_owner = Cell::new(false);
         let invalid = Cell::new(false);
         let (lifetime_owner, lifetime_binders) = request
@@ -10481,7 +10471,10 @@ impl TypedTrees {
             request.type_reference,
             &TypeIdentityContext {
                 binders: request.binders,
-                application_owner: lifetime_owner,
+                application_scopes: scopes,
+                application_owner: scopes
+                    .last()
+                    .map_or(lifetime_owner, |scope| scope.declaration),
                 application_argument_owner: lifetime_owner,
                 lifetime_binders,
                 invalid_application: request.lifetime_scope.map(|_| &invalid),
@@ -11362,6 +11355,7 @@ mod declared_array_extent_tests {
             let arguments = [(n, argument)];
             let scopes = [AppliedTypeIdentityScope {
                 declaration: fixture.symbol("Container"),
+                argument_owner: fixture.symbol("size"),
                 arguments: &arguments,
                 lifetimes: &[],
             }];
@@ -11419,6 +11413,7 @@ mod declared_array_extent_tests {
             let arguments = [(n, argument)];
             let scopes = [AppliedTypeIdentityScope {
                 declaration: fixture.symbol("Container"),
+                argument_owner: fixture.symbol("size"),
                 arguments: &arguments,
                 lifetimes: &[],
             }];

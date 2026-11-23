@@ -217,12 +217,34 @@ impl Program<'_> {
     /// declared on a constructed field owes its predicates through the owning
     /// data type. Issuance is separate: zero construction must be authorized by
     /// the same exact route as an explicit domain addition.
+    ///
+    /// `omitted` names the field a literal's `..` zeroes. data_and_literals.md,
+    /// "Explicit field omission": "The marker supplies no authority, borrowed
+    /// reference, callable or proof witness merely because storage can be
+    /// zeroed", so a zero that would have to hold a reference or a mutable
+    /// view is the program's error at that literal.
     pub(super) fn zero_established(
         &mut self,
         id: MachineId,
         value_type: ValueType,
+        omitted: Option<&str>,
         source: crate::lowering::SourceOrigin,
     ) -> Checked<()> {
+        let no_zero = |held: &str, unserved: &'static str| match omitted {
+            Some(field) => Err(crate::lowering::reject(
+                id,
+                source,
+                format!(
+                    "`..` cannot supply the field `{field}`: its value holds {held}, and \
+                     zeroed storage supplies no borrowed reference; write the field's value"
+                ),
+            )),
+            None => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Statement(unserved),
+            )),
+        };
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Statement(what)));
         // Each type with whether it is a field of a record in the value.
         let mut pending = vec![(value_type, false)];
@@ -277,10 +299,13 @@ impl Program<'_> {
                     ..
                 } => {}
                 StorageShape::ElementView { .. } => {
-                    return unserved("zero-established mutable sequence");
+                    return no_zero("a mutable view", "zero-established mutable sequence");
                 }
                 StorageShape::Reference { .. } => {
-                    return unserved("zero-established reference without backing");
+                    return no_zero(
+                        "a borrowed reference",
+                        "zero-established reference without backing",
+                    );
                 }
                 StorageShape::AtomicCell(_)
                 | StorageShape::ByteSequence(_)

@@ -1,0 +1,21 @@
+// Expected: refused where lowering demands a declaration that writes `Pick`:
+// "this type name has no visible declaration in its source scope ...: `Pick`".
+// The `run/declared` twin with the declaration renamed, so no `Pick` is visible.
+data Other [copy] { v: u8; }
+data Choice [copy] { case Some(value: Pick); case Empty; }
+
+machine select(a: Pick) -> Pick { a }
+
+machine second(values: [Pick; 2]) -> Pick { values[1] }
+
+machine main() crashes Trap {
+    let picked: Pick = select(Pick { v: 7 });
+    let choice: Choice = Choice::Some { value: picked };
+    let last: Pick = second([picked, Pick { v: 9 }]);
+    transition picked.v == 7 && last.v == 9 && choice in Choice::Some {
+        true -> done(),
+        false -> bad(),
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
