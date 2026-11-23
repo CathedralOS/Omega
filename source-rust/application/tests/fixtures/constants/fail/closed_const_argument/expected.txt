@@ -1,1 +1,1 @@
-not supported yet: typing argument types while reading the body of `computed`
+type mismatch: the parameter it is passed for requires `Buffer` with `N = 8` but this value supplies 9
