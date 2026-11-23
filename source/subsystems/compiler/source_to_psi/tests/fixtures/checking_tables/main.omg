@@ -1,0 +1,72 @@
+use representations/checks/checks.omg as checks;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg as names;
+use representations/typed_trees/typed_trees.omg as types;
+
+machine start() crashes Trap {
+    check_routes();
+    check_resolution();
+    check_types();
+}
+
+machine check_routes() crashes Trap {
+    let mutable table: |checks|::Checks;
+    table.machine_count = 2;
+    let mutable route: |checks|::CrashRoutes;
+    route.trap = true;
+    |checks|::set_routes(@mutable table, 1 as +Trapping, route);
+    table.slot_qualification_count = 63;
+    let added = |checks|::push_slot_qualification(@mutable table, 17 as +Trapping, 23 as +Trapping);
+    let full = |checks|::push_slot_qualification(@mutable table, 31 as +Trapping, 37 as +Trapping);
+    let recorded = |checks|::slot_qualification(@table, 63 as +Trapping);
+    let neighbor = |checks|::slot_qualification(@table, 62 as +Trapping);
+    let selected = |checks|::checks_routes(@table, 1 as +Trapping);
+    let first = |checks|::checks_routes(@table, 0 as +Trapping);
+    transition added && !full && table.slot_qualification_count == 64
+        && recorded.parameter_index == 17 && recorded.domain_item == 23
+        && neighbor.parameter_index == 0 && neighbor.domain_item == 0
+        && selected.trap && !first.trap {
+        true -> done(),
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+
+machine check_resolution() crashes Trap {
+    let mutable table: |names|::NameResolution;
+    let entry = |names|::BinderContract { present: true, contract: 41 as +Trapping };
+    |names|::set_binder_contract(@mutable table, 255 as +Trapping, entry);
+    let last = |names|::binder_contract(@table, 255 as +Trapping);
+    let neighbor = |names|::binder_contract(@table, 254 as +Trapping);
+    let absent = |names|::binder_contract(@table, 256 as +Trapping);
+    transition last.present && last.contract == 41 && !neighbor.present
+        && !absent.present && absent.contract == 0 {
+        true -> done(),
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
+
+machine check_types() crashes Trap {
+    let mutable table: |types|::TypeTable;
+    table.row_count = 1;
+    let row = |types|::type_row_of(|types|::TypeKind::Unit);
+    let handle: u64 in Trapping = |types|::type_table_intern(@mutable table, row);
+    let again: u64 in Trapping = |types|::type_table_intern(@mutable table, row);
+    let stored = |types|::type_table_row(@table, handle);
+    let empty = |types|::type_table_row(@table, 0 as +Trapping);
+    table.argument_count = 4095;
+    let added = |types|::type_table_push_argument(@mutable table, handle);
+    let full = |types|::type_table_push_argument(@mutable table, 29 as +Trapping);
+    let last: u64 in Trapping = |types|::type_table_argument(@table, 4095 as +Trapping);
+    let neighbor: u64 in Trapping = |types|::type_table_argument(@table, 4094 as +Trapping);
+    transition handle == 1 && again == handle && table.row_count == 2
+        && stored.kind == |types|::TypeKind::Unit && empty.kind == |types|::TypeKind::Absent
+        && added && !full && table.argument_count == 4096 && last == handle && neighbor == 0 {
+        true -> done(),
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() crashes Trap { crash Trap; }
+}
