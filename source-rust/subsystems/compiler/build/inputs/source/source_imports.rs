@@ -1,29 +1,12 @@
-/*
-We discover `use` imports in authored order across parsed sources and retain their exact module-import bindings (`ResolvedSourceImport`, `PendingPackageImport`).
-
-We provide two import discovery routes:
-1. `discover_imports` resolves standalone imports by authored logical names within the project or reserved `omega::language::core` mount.
-2. `discover_package_imports` resolves imports exclusively through the reconciled `PackageCompilationInputs` graph in two phases: `TargetIndependent` (captured logical source discovery during checkpoint preparation) and `ExactTarget` (joining dependency-generated source bundles and rejecting physical/generated collisions).
-*/
-
-/*
-Why every discovered import carries its importer's `DependencyScope`:
-In Omega's two-checked-context model (`Build` vs `Product`), a source file imported by both contexts loads as two distinct checked instances that share immutable source bytes and `PackageKeyIdentity` but never share `SourceId` coordinates or symbol tables. Propagating `parsed_source.scope` on every discovered import ensures a `Build`-scope helper's transitive imports stay in the `Build` host context rather than leaking into `Product`.
-*/
-
-/*
-Provenance:
-- Import occurrence custody and `SourceScopedTopLevelBinding` construction: `source/source_imports/bindings.rs`.
-- Conditional `<build-prelude>` injection: `source/source_imports/build_prelude.rs`.
-- Multi-target `ProgramEntry` contract source seeding: `source/source_imports/entry_contract_seed.rs`.
-- Source frontier storage (`SourceStorage`) and `SourceCatalogue` cohort selection: `source/source_imports/frontier.rs`.
-- Generated-source extension and dependency handoff admission: `source/source_imports/generated.rs`.
-- Captured logical module inventory on registered owner rows: `source/source_imports/logical.rs`.
-- Scope-keyed `(PathBuf, DependencyScope)` import queue: `source/source_imports/import_queue.rs`.
-- Reconciled package alias resolution and missing-edge diagnostics: `source/source_imports/package_selection.rs`.
-- Reserved toolchain mount recognition and captured-path normalization: `source/source_imports/paths.rs`.
-- Paused `Build` product-query dependency mounting and discovery: `source/source_imports/product_queries.rs`.
-*/
+//! Resolve the imports written in each source file. A standalone program
+//! uses its captured source root. A packaged program also has the dependency
+//! grants of its checked Build or Product. A file checked in both contexts
+//! has a separate set of imports in each.
+//!
+//! `files` selects exact filenames. `logical` finds declarations for legacy
+//! namespace imports and inventories package operators. `package_selection`
+//! checks dependencies before and after a target is chosen. `bindings` records
+//! which file each import selected for name resolution.
 
 mod bindings;
 mod build_prelude;
@@ -43,7 +26,7 @@ pub use product_queries::{ProductQueryDependency, ProductQueryInputs};
 
 pub(crate) use bindings::{
     PendingPackageImport, ResolvedSourceImport, pending_build_imports,
-    retain_module_import_bindings,
+    retain_import_bindings,
 };
 pub(crate) use build_prelude::prepare_build_prelude;
 pub(crate) use entry_contract_seed::EntryContractSource;
