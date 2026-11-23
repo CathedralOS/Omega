@@ -133,6 +133,7 @@ pub(crate) mod expression_stack;
 pub(crate) mod inline_assembly;
 pub(crate) mod items_and_selections;
 pub(crate) mod mathematical_definitions;
+pub(crate) mod nested_data;
 pub(crate) mod numbered_data;
 pub(crate) mod properties_and_requirements;
 pub(crate) mod source_parsing;
