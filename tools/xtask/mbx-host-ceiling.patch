@@ -1,0 +1,606 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 4deafe7..2bca019 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1443,7 +1443,7 @@ checksum = "4050469837a6ff301cd14c1f8f24f88549e6d548f24f64e2148eb0f72cebc51f"
+ 
+ [[package]]
+ name = "mbx"
+-version = "1.29.2-omega.2"
++version = "1.29.2-omega.3"
+ dependencies = [
+  "bytesize",
+  "cargo-config2",
+diff --git a/crates/mbx/Cargo.toml b/crates/mbx/Cargo.toml
+index 4803315..935beb4 100644
+--- a/crates/mbx/Cargo.toml
++++ b/crates/mbx/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "mbx"
+-version = "1.29.2-omega.2"
++version = "1.29.2-omega.3"
+ description = "A build cache for Rust projects"
+ edition.workspace = true
+ rust-version.workspace = true
+@@ -70,6 +70,7 @@ windows-sys = { version = "0.61", features = [
+   "Win32_Security_Authorization",
+   "Win32_Storage_FileSystem",
+   "Win32_System_Console",
++  "Win32_System_JobObjects",
+   "Win32_System_SystemInformation",
+   "Win32_System_Threading",
+ ] }
+diff --git a/crates/mbx/src/cli/launch.rs b/crates/mbx/src/cli/launch.rs
+index 67268bb..d7071e3 100644
+--- a/crates/mbx/src/cli/launch.rs
++++ b/crates/mbx/src/cli/launch.rs
+@@ -50,10 +50,13 @@ pub(super) fn plain_launch(
+     if let Some(caller) = CALLER.get() {
+         command.env_clear().envs(caller);
+         // The caller's snapshot predates this shim entry. Dropping the loop
+-        // guard's counters would restart them in every re-entry.
++        // guard's counters would restart them in every re-entry, and dropping
++        // the host ceiling's record would make a nested mbx apply it again.
+         for name in [
+             super::shim::CARGO_SHIM_DEPTH_ENV,
+             super::shim::CARGO_SHIM_CHAIN_ENV,
++            crate::host_ceiling::CEILING_ENV,
++            crate::host_ceiling::CEILING_CPUS_ENV,
+         ] {
+             if let Some(value) = std::env::var_os(name) {
+                 command.env(name, value);
+diff --git a/crates/mbx/src/cli/mod.rs b/crates/mbx/src/cli/mod.rs
+index 3fd01e6..07521bc 100644
+--- a/crates/mbx/src/cli/mod.rs
++++ b/crates/mbx/src/cli/mod.rs
+@@ -308,6 +308,18 @@ pub fn run() -> Result<ExitCode> {
+         return settings::run(args);
+     }
+     let (config, settings) = Config::load_for_cli()?;
++    if matches!(
++        cli.command,
++        Commands::Explain(_)
++            | Commands::Prefetch(_)
++            | Commands::Exec(_)
++            | Commands::Reserve(_)
++            | Commands::Cargo(_)
++    ) {
++        // Before anything starts, so every process this command runs, and
++        // every process those start, inherits the machine-wide ceiling.
++        crate::host_ceiling::enter(&config.scheduler);
++    }
+     match cli.command {
+         Commands::Completion { .. } => {
+             unreachable!("completion was handled before configuration loading")
+diff --git a/crates/mbx/src/cli/shim.rs b/crates/mbx/src/cli/shim.rs
+index d3a5cdc..bf25092 100644
+--- a/crates/mbx/src/cli/shim.rs
++++ b/crates/mbx/src/cli/shim.rs
+@@ -172,6 +172,7 @@ fn run_cargo_shim_inner() -> Result<ExitCode> {
+         Some(loaded) => loaded,
+         None => Config::load_for_cli()?,
+     };
++    crate::host_ceiling::enter(&config.scheduler);
+     super::cargo::run_with_roots(&config, &settings, &string_arguments, roots)
+ }
+ 
+diff --git a/crates/mbx/src/host_ceiling.rs b/crates/mbx/src/host_ceiling.rs
+new file mode 100644
+index 0000000..4439231
+--- /dev/null
++++ b/crates/mbx/src/host_ceiling.rs
+@@ -0,0 +1,500 @@
++//! Hold every process an mbx command starts below one machine-wide CPU ceiling.
++//!
++//! The scheduler pool counts permits, not threads: one permit can run a
++//! compiler with many threads, and test binaries and the programs they start
++//! run outside the pool. Several agents sharing a workstation could therefore
++//! hold every CPU at 100% while each stayed inside its permits. When
++//! `scheduler.cpus` minus `scheduler.reserve_cpus` leaves fewer CPUs than the
++//! machine has, every mbx command that runs work limits itself before it
++//! starts anything, and every descendant (Cargo, rustc, test binaries and the
++//! programs they spawn) inherits the limit:
++//!
++//! - Windows: a Job Object keeps the tree off the lowest-numbered reserved
++//!   CPUs (an affinity mask) and in the Idle priority class. Every mbx picks
++//!   the same CPUs, so the reserved ones stay free whichever agent runs. Each
++//!   mbx uses its own job rather than one named, shared job: a process already
++//!   inside one job hierarchy cannot join a job another hierarchy owns, and
++//!   agent shells sit in different hierarchies. Nested jobs, such as a test
++//!   harness's kill-on-close job, stay inside the limit. When the job cannot
++//!   be created, mbx sets the same mask and class on its own process.
++//! - Linux: the systemd user slice `omega-host.slice` with
++//!   `CPUQuota=<budget>00%` and `CPUWeight=idle`, shared by every mbx of the
++//!   user. Without a lingering systemd user manager (containers, cloud
++//!   sessions, or a login whose manager stops when the last session ends and
++//!   would take detached builds with it), the process keeps off the
++//!   lowest-numbered CPUs with an affinity mask at nice 19 instead.
++//! - macOS: no hard ceiling exists. The process tree runs under the Darwin
++//!   background policy, which lowers its CPU and I/O priority and keeps it on
++//!   efficiency cores.
++//!
++//! When the budget covers every CPU (the default, and dedicated build
++//! machines), nothing changes. A failure warns and keeps building: a missing
++//! ceiling must not stop work.
++
++use crate::config::SchedulerSettings;
++
++/// The ceiling an ancestor mbx applied, inherited by nested mbx commands and
++/// read by health checks.
++pub const CEILING_ENV: &str = "MBX_HOST_CEILING";
++/// The budget that ancestor applied. A nested mbx reuses it instead of
++/// recounting CPUs from inside the ceiling, which would shrink it again.
++pub const CEILING_CPUS_ENV: &str = "MBX_HOST_CEILING_CPUS";
++
++#[cfg(target_os = "linux")]
++pub const SLICE: &str = "omega-host.slice";
++
++/// How many CPUs the work may use out of how many the machine has.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub struct Budget {
++    pub cpus: u64,
++    pub logical: u64,
++}
++
++/// The budget the settings ask for, or `None` when it covers every CPU.
++pub fn budget(
++    settings: &SchedulerSettings,
++    inherited: Option<u64>,
++    logical: u64,
++) -> Option<Budget> {
++    let cpus = inherited.unwrap_or_else(|| settings.permits()).max(1);
++    (cpus < logical).then_some(Budget { cpus, logical })
++}
++
++/// The lowest `logical - cpus` CPUs stay free: CPU 0 takes most interrupts,
++/// and a fixed choice makes every mbx on the machine keep off the same CPUs.
++pub fn affinity_mask(budget: Budget) -> Option<u64> {
++    if budget.logical > 64 {
++        return None;
++    }
++    let all = if budget.logical == 64 {
++        u64::MAX
++    } else {
++        (1u64 << budget.logical) - 1
++    };
++    let reserved = budget.logical - budget.cpus;
++    Some(all & !((1u64 << reserved) - 1))
++}
++
++/// Apply the ceiling the scheduler settings ask for, if any.
++pub fn enter(settings: &SchedulerSettings) {
++    let inherited = std::env::var(CEILING_CPUS_ENV)
++        .ok()
++        .and_then(|value| value.parse::<u64>().ok());
++    let Some(budget) = budget(settings, inherited, platform::logical_cpus()) else {
++        return;
++    };
++    // A nested mbx, such as `mbx test` under `mbx xtask`, already runs inside
++    // the limit its ancestor applied.
++    if std::env::var_os(CEILING_ENV).is_some() && platform::holds(budget) {
++        return;
++    }
++    match platform::enter(budget) {
++        Ok(description) => {
++            // SAFETY: CLI dispatch is single-threaded here, before any child
++            // process or cache session has started.
++            unsafe {
++                std::env::set_var(CEILING_ENV, description);
++                std::env::set_var(CEILING_CPUS_ENV, budget.cpus.to_string());
++            }
++        }
++        Err(error) => eprintln!(
++            "mbx[warning]: could not hold this command to {} of {} CPUs: {error:#}",
++            budget.cpus, budget.logical
++        ),
++    }
++}
++
++#[cfg(windows)]
++mod platform {
++    use super::{Budget, affinity_mask};
++    use eyre::{Result, WrapErr, eyre};
++    use std::ffi::c_void;
++    use std::mem::size_of;
++    use std::ptr::null;
++    use windows_sys::Win32::Foundation::CloseHandle;
++    use windows_sys::Win32::System::JobObjects::{
++        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_AFFINITY,
++        JOB_OBJECT_LIMIT_PRIORITY_CLASS, JOBOBJECT_BASIC_LIMIT_INFORMATION,
++        JobObjectBasicLimitInformation, SetInformationJobObject,
++    };
++    use windows_sys::Win32::System::Threading::{
++        ALL_PROCESSOR_GROUPS, GetActiveProcessorCount, GetActiveProcessorGroupCount,
++        GetCurrentProcess, GetPriorityClass, GetProcessAffinityMask, IDLE_PRIORITY_CLASS,
++        SetPriorityClass, SetProcessAffinityMask,
++    };
++
++    pub(super) fn logical_cpus() -> u64 {
++        u64::from(unsafe { GetActiveProcessorCount(ALL_PROCESSOR_GROUPS) }).max(1)
++    }
++
++    /// A job's and a process's affinity mask cover one processor group, so a
++    /// machine with more than one gets only the Idle priority class.
++    fn mask(budget: Budget) -> Option<u64> {
++        (unsafe { GetActiveProcessorGroupCount() } == 1)
++            .then(|| affinity_mask(budget))
++            .flatten()
++    }
++
++    pub(super) fn holds(budget: Budget) -> bool {
++        let process = unsafe { GetCurrentProcess() };
++        let (mut affinity, mut system) = (0usize, 0usize);
++        let masked = match mask(budget) {
++            Some(mask) => {
++                (unsafe { GetProcessAffinityMask(process, &mut affinity, &mut system) } != 0)
++                    && affinity as u64 & !mask == 0
++            }
++            None => true,
++        };
++        masked && unsafe { GetPriorityClass(process) } == IDLE_PRIORITY_CLASS
++    }
++
++    pub(super) fn enter(budget: Budget) -> Result<String> {
++        let process = unsafe { GetCurrentProcess() };
++        let Some(mask) = mask(budget) else {
++            if unsafe { SetPriorityClass(process, IDLE_PRIORITY_CLASS) } == 0 {
++                return Err(std::io::Error::last_os_error()).wrap_err("SetPriorityClass");
++            }
++            return Ok(format!(
++                "windows-priority cpus={}/{} idle (no hard ceiling: more than one processor group)",
++                budget.cpus, budget.logical
++            ));
++        };
++        match join_job(mask) {
++            Ok(()) => Ok(format!(
++                "windows-job cpus={}/{} affinity={mask:#x} idle",
++                budget.cpus, budget.logical
++            )),
++            Err(job_error) => {
++                if unsafe { SetPriorityClass(process, IDLE_PRIORITY_CLASS) } == 0
++                    || unsafe { SetProcessAffinityMask(process, mask as usize) } == 0
++                {
++                    let error = std::io::Error::last_os_error();
++                    return Err(job_error.wrap_err(error));
++                }
++                Ok(format!(
++                    "windows-process cpus={}/{} affinity={mask:#x} idle (job unavailable: {job_error:#})",
++                    budget.cpus, budget.logical
++                ))
++            }
++        }
++    }
++
++    /// Put this process in a new Job Object whose limits its descendants
++    /// cannot widen. The job carries no kill-on-close: its handle stays open
++    /// for this process's lifetime, and children outliving it keep the limit.
++    fn join_job(mask: u64) -> Result<()> {
++        let job = unsafe { CreateJobObjectW(null(), null()) };
++        if job.is_null() {
++            return Err(std::io::Error::last_os_error()).wrap_err("CreateJobObjectW");
++        }
++        let limits = JOBOBJECT_BASIC_LIMIT_INFORMATION {
++            LimitFlags: JOB_OBJECT_LIMIT_PRIORITY_CLASS | JOB_OBJECT_LIMIT_AFFINITY,
++            PriorityClass: IDLE_PRIORITY_CLASS,
++            Affinity: mask as usize,
++            ..Default::default()
++        };
++        let size = size_of::<JOBOBJECT_BASIC_LIMIT_INFORMATION>() as u32;
++        let configured = unsafe {
++            SetInformationJobObject(
++                job,
++                JobObjectBasicLimitInformation,
++                (&limits as *const JOBOBJECT_BASIC_LIMIT_INFORMATION).cast::<c_void>(),
++                size,
++            )
++        } != 0;
++        let result = if !configured {
++            Err(std::io::Error::last_os_error()).wrap_err("SetInformationJobObject")
++        } else if unsafe { AssignProcessToJobObject(job, GetCurrentProcess()) } == 0 {
++            Err(std::io::Error::last_os_error()).wrap_err_with(|| eyre!("AssignProcessToJobObject"))
++        } else {
++            Ok(())
++        };
++        if result.is_err() {
++            unsafe { CloseHandle(job) };
++        }
++        result
++    }
++}
++
++#[cfg(target_os = "linux")]
++mod platform {
++    use super::{Budget, SLICE};
++    use eyre::{Result, WrapErr, bail, eyre};
++    use std::process::{Command, Stdio};
++    use std::time::{Duration, Instant};
++
++    pub(super) fn logical_cpus() -> u64 {
++        let online = unsafe { libc::sysconf(libc::_SC_NPROCESSORS_ONLN) };
++        u64::try_from(online).unwrap_or(1).max(1)
++    }
++
++    pub(super) fn holds(budget: Budget) -> bool {
++        in_slice() || allowed_cpus().is_ok_and(|cpus| cpus.len() as u64 <= budget.cpus)
++    }
++
++    pub(super) fn enter(budget: Budget) -> Result<String> {
++        if in_slice() {
++            return Ok(described_slice(budget));
++        }
++        match join_slice(budget) {
++            Ok(()) => Ok(described_slice(budget)),
++            Err(slice_error) => restrict_affinity(budget)
++                .map(|kept| {
++                    format!(
++                        "linux-affinity cpus={kept}/{} nice=19 (slice unavailable: {slice_error:#})",
++                        budget.logical
++                    )
++                })
++                .wrap_err_with(|| format!("slice unavailable: {slice_error:#}")),
++        }
++    }
++
++    fn described_slice(budget: Budget) -> String {
++        format!(
++            "linux-slice {SLICE} cpus={}/{} CPUQuota={}% CPUWeight=idle",
++            budget.cpus,
++            budget.logical,
++            budget.cpus * 100
++        )
++    }
++
++    fn in_slice() -> bool {
++        std::fs::read_to_string("/proc/self/cgroup")
++            .is_ok_and(|groups| super::cgroup_names_slice(&groups, SLICE))
++    }
++
++    fn output(program: &str, arguments: &[&str]) -> Result<String> {
++        let output = Command::new(program)
++            .args(arguments)
++            .stdin(Stdio::null())
++            .output()
++            .wrap_err_with(|| format!("could not start {program}"))?;
++        if !output.status.success() {
++            bail!(
++                "{program} failed: {}",
++                String::from_utf8_lossy(&output.stderr).trim()
++            );
++        }
++        Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
++    }
++
++    /// Ask the user's systemd manager to cap the shared slice, then move this
++    /// process into a new scope inside it. systemd performs the move, so it
++    /// works from an ssh session scope that the user cannot write to.
++    fn join_slice(budget: Budget) -> Result<()> {
++        let uid = unsafe { libc::getuid() }.to_string();
++        // Without lingering, systemd stops the user manager, and every scope
++        // in it, when the user's last login ends: a detached build would die.
++        let linger = output(
++            "loginctl",
++            &["show-user", &uid, "--property=Linger", "--value"],
++        )?;
++        if linger != "yes" {
++            bail!("lingering is off for this user, so a logout would stop the slice");
++        }
++        let quota = format!("CPUQuota={}%", budget.cpus * 100);
++        output(
++            "systemctl",
++            &[
++                "--user",
++                "set-property",
++                "--runtime",
++                SLICE,
++                &quota,
++                "CPUWeight=idle",
++            ],
++        )?;
++        let pid = std::process::id().to_string();
++        let stamp = std::time::SystemTime::now()
++            .duration_since(std::time::UNIX_EPOCH)
++            .map_or(0, |elapsed| elapsed.as_nanos());
++        let scope = format!("omega-host-mbx-{pid}-{stamp}.scope");
++        output(
++            "busctl",
++            &[
++                "--user",
++                "call",
++                "org.freedesktop.systemd1",
++                "/org/freedesktop/systemd1",
++                "org.freedesktop.systemd1.Manager",
++                "StartTransientUnit",
++                "ssa(sv)a(sa(sv))",
++                &scope,
++                "fail",
++                "3",
++                "PIDs",
++                "au",
++                "1",
++                &pid,
++                "Slice",
++                "s",
++                SLICE,
++                "CollectMode",
++                "s",
++                "inactive-or-failed",
++                "0",
++            ],
++        )?;
++        // The start job runs asynchronously; wait for the move to land before
++        // starting children, which inherit the cgroup at fork.
++        let deadline = Instant::now() + Duration::from_secs(5);
++        while !in_slice() {
++            if Instant::now() > deadline {
++                return Err(eyre!("systemd did not move this process into {SLICE}"));
++            }
++            std::thread::sleep(Duration::from_millis(10));
++        }
++        Ok(())
++    }
++
++    fn allowed_cpus() -> Result<Vec<usize>> {
++        let mut allowed: libc::cpu_set_t = unsafe { std::mem::zeroed() };
++        let size = std::mem::size_of::<libc::cpu_set_t>();
++        if unsafe { libc::sched_getaffinity(0, size, &mut allowed) } != 0 {
++            return Err(std::io::Error::last_os_error()).wrap_err("sched_getaffinity");
++        }
++        Ok((0..libc::CPU_SETSIZE as usize)
++            .filter(|cpu| unsafe { libc::CPU_ISSET(*cpu, &allowed) })
++            .collect())
++    }
++
++    /// Keep this process and its later children off the lowest-numbered CPUs
++    /// it may use, at nice 19. Returns the number of CPUs kept.
++    fn restrict_affinity(budget: Budget) -> Result<u64> {
++        let cpus = allowed_cpus()?;
++        let keep = usize::try_from(budget.cpus).unwrap_or(usize::MAX);
++        let mut restricted: libc::cpu_set_t = unsafe { std::mem::zeroed() };
++        for cpu in &cpus[cpus.len().saturating_sub(keep)..] {
++            unsafe { libc::CPU_SET(*cpu, &mut restricted) };
++        }
++        let size = std::mem::size_of::<libc::cpu_set_t>();
++        // Affinity and niceness belong to each thread, and children inherit
++        // them from the thread that forks, so apply both to every thread.
++        for task in std::fs::read_dir("/proc/self/task").wrap_err("/proc/self/task")? {
++            let Some(tid) = task?
++                .file_name()
++                .to_str()
++                .and_then(|name| name.parse::<libc::pid_t>().ok())
++            else {
++                continue;
++            };
++            if cpus.len() > keep && unsafe { libc::sched_setaffinity(tid, size, &restricted) } != 0
++            {
++                return Err(std::io::Error::last_os_error()).wrap_err("sched_setaffinity");
++            }
++            unsafe { libc::setpriority(libc::PRIO_PROCESS, tid as libc::id_t, 19) };
++        }
++        Ok(cpus.len().min(keep) as u64)
++    }
++}
++
++#[cfg(target_os = "macos")]
++mod platform {
++    use super::Budget;
++    use eyre::Result;
++
++    pub(super) fn logical_cpus() -> u64 {
++        std::thread::available_parallelism().map_or(1, |cpus| cpus.get() as u64)
++    }
++
++    pub(super) fn holds(_budget: Budget) -> bool {
++        (unsafe { libc::getpriority(libc::PRIO_DARWIN_PROCESS, 0) }) == 1
++    }
++
++    /// macOS has no CPU quota or affinity API. The Darwin background policy,
++    /// which children inherit, is the strongest limit it offers.
++    pub(super) fn enter(budget: Budget) -> Result<String> {
++        if unsafe { libc::setpriority(libc::PRIO_DARWIN_PROCESS, 0, libc::PRIO_DARWIN_BG) } != 0 {
++            return Err(std::io::Error::last_os_error().into());
++        }
++        Ok(format!(
++            "macos-background cpus={}/{} (no hard ceiling)",
++            budget.cpus, budget.logical
++        ))
++    }
++}
++
++#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
++mod platform {
++    use super::Budget;
++    use eyre::{Result, bail};
++
++    pub(super) fn logical_cpus() -> u64 {
++        std::thread::available_parallelism().map_or(1, |cpus| cpus.get() as u64)
++    }
++
++    pub(super) fn holds(_budget: Budget) -> bool {
++        false
++    }
++
++    pub(super) fn enter(_budget: Budget) -> Result<String> {
++        bail!("this platform has no host CPU ceiling")
++    }
++}
++
++/// Whether a `/proc/self/cgroup` listing places the process under `slice`.
++#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
++fn cgroup_names_slice(groups: &str, slice: &str) -> bool {
++    groups
++        .lines()
++        .any(|line| line.starts_with("0::") && line.split('/').any(|component| component == slice))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    fn settings(cpus: u64, reserve_cpus: u64) -> SchedulerSettings {
++        SchedulerSettings {
++            cpus,
++            reserve_cpus,
++            ..SchedulerSettings::default()
++        }
++    }
++
++    #[test]
++    fn a_budget_that_covers_every_cpu_applies_nothing() {
++        assert_eq!(budget(&settings(32, 0), None, 32), None);
++        assert_eq!(budget(&settings(64, 0), None, 32), None);
++    }
++
++    #[test]
++    fn reserved_cpus_and_a_smaller_pool_both_set_the_ceiling() {
++        let expected = Some(Budget {
++            cpus: 28,
++            logical: 32,
++        });
++        assert_eq!(budget(&settings(32, 4), None, 32), expected);
++        assert_eq!(budget(&settings(28, 0), None, 32), expected);
++    }
++
++    #[test]
++    fn a_nested_mbx_keeps_the_budget_its_ancestor_applied() {
++        // Inside a cgroup quota, the pool's default CPU count shrinks to the
++        // quota; subtracting the reserve again would tighten the ceiling.
++        assert_eq!(
++            budget(&settings(28, 4), Some(28), 32),
++            Some(Budget {
++                cpus: 28,
++                logical: 32
++            })
++        );
++    }
++
++    #[test]
++    fn the_affinity_mask_leaves_the_lowest_cpus_free() {
++        let mask = |cpus, logical| affinity_mask(Budget { cpus, logical });
++        assert_eq!(mask(28, 32), Some(0xFFFF_FFF0));
++        assert_eq!(mask(18, 24), Some(0x00FF_FFC0));
++        assert_eq!(mask(60, 64), Some(0xFFFF_FFFF_FFFF_FFF0));
++        assert_eq!(mask(100, 128), None);
++    }
++
++    #[test]
++    fn reads_slice_membership_from_the_unified_hierarchy() {
++        let inside = "0::/user.slice/user-1001.slice/user@1001.service/omega.slice/omega-host.slice/omega-host-mbx-7.scope\n";
++        assert!(cgroup_names_slice(inside, "omega-host.slice"));
++        let session = "0::/user.slice/user-1001.slice/session-8502.scope\n";
++        assert!(!cgroup_names_slice(session, "omega-host.slice"));
++    }
++}
+diff --git a/crates/mbx/src/lib.rs b/crates/mbx/src/lib.rs
+index 67e1380..61c52b2 100644
+--- a/crates/mbx/src/lib.rs
++++ b/crates/mbx/src/lib.rs
+@@ -34,6 +34,8 @@ pub(crate) mod events;
+ #[doc(hidden)]
+ pub mod explain;
+ #[doc(hidden)]
++pub mod host_ceiling;
++#[doc(hidden)]
+ pub mod logging;
+ pub mod phase_timing;
+ #[doc(hidden)]

@@ -3,7 +3,8 @@
 set -euo pipefail
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 version=$(tr -d '[:space:]' < "$repo/tools/mbx-version")
-patch="$repo/tools/xtask/mbx-checksum.patch"
+# Patches apply in this order: checksum caching, then the host CPU ceiling.
+patches=(mbx-checksum.patch mbx-host-ceiling.patch)
 # The release supplies only the verified bootstrap compiler wrapper. The
 # installed tool comes from this exact commit with the repository's patch.
 upstream_version=1.29.2
@@ -13,11 +14,16 @@ upstream_revision=7fa83b28d239bd39d1079127ffd2f8b0f92df00a
 build_recipe='release;opt=3;debug=0;lto=false;codegen-units=16;panic=unwind;strip=symbols;windows-bundled-lld;content-fingerprints;build-script-execution=false'
 if command -v sha256sum >/dev/null; then hash=(sha256sum); else hash=(shasum -a 256); fi
 hash_file() { "${hash[@]}" "$1" | awk '{print $1}'; }
-patch_digest=$(hash_file "$patch")
+patches_digest() {
+  local name
+  for name in "${patches[@]}"; do hash_file "$repo/tools/xtask/$name"; done |
+    "${hash[@]}" | awk '{print $1}'
+}
+patch_digest=$(patches_digest)
 toolchain_digest=$(hash_file "$repo/rust-toolchain.toml")
 installer_digest=$(hash_file "$repo/tools/xtask/bootstrap-mbx.sh")
 recipe_unchanged() {
-  if [ "$(hash_file "$patch")" != "$patch_digest" ] ||
+  if [ "$(patches_digest)" != "$patch_digest" ] ||
      [ "$(hash_file "$repo/rust-toolchain.toml")" != "$toolchain_digest" ] ||
      [ "$(hash_file "$repo/tools/xtask/bootstrap-mbx.sh")" != "$installer_digest" ] ||
      [ "$(tr -d '[:space:]' < "$repo/tools/mbx-version")" != "$version" ]; then
@@ -96,8 +102,9 @@ if ! valid_artifact; then
   # and acquiring the shared build workspace.
   if ! valid_artifact; then
     scratch=$(mktemp -d "$cache/.download.XXXXXX")
-    cp "$patch" "$scratch/mbx-checksum.patch"
-    [ "$(hash_file "$scratch/mbx-checksum.patch")" = "$patch_digest" ]
+    for name in "${patches[@]}"; do cp "$repo/tools/xtask/$name" "$scratch/$name"; done
+    [ "$(for name in "${patches[@]}"; do hash_file "$scratch/$name"; done |
+      "${hash[@]}" | awk '{print $1}')" = "$patch_digest" ]
     recipe_unchanged
     release="https://github.com/jdx/mr-boxington/releases/download/v$upstream_version"
     if [ -n "$exe" ]; then archive="mbx-$target.zip"; else archive="mbx-$target.tar.gz"; fi
@@ -133,8 +140,10 @@ if ! valid_artifact; then
     # build lock. Targets live beside it, so patch updates reuse dependencies.
     git -C "$source" reset --hard "$upstream_revision" >/dev/null
     git -C "$source" clean -fdx >/dev/null
-    git -C "$source" apply --check "$scratch/mbx-checksum.patch"
-    git -C "$source" apply "$scratch/mbx-checksum.patch"
+    for name in "${patches[@]}"; do
+      git -C "$source" apply --check "$scratch/$name"
+      git -C "$source" apply "$scratch/$name"
+    done
     printf '%s\n' "$compiler" > "$work/compiler.txt"
     cargo_target="$build_target"
     if [ -n "$exe" ]; then cargo_target=$(cygpath -m "$cargo_target"); fi

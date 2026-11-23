@@ -78,11 +78,11 @@ syntax; a `.ps1` is not itself macOS support. Do not globally change Git config.
    same host/source/profile and comparable cache state. Record wall/CPU, peak RAM,
    queue delay, disk/cache growth and required behavior. Adopt only a real gain
    in useful outcome throughput without unacceptable E2E latency or pressure.
-5. On a workstation its owner is using, set the
+5. On a workstation its owner is using, check the
    [host build budget](../../../../wiki/development/build_slot.md#on-a-workstation-someone-is-using)
-   before the first build and put it in every worker prompt. Agent width may
-   stay wide there; build load may not. A limit the owner states replaces any
-   default.
+   before the first build: `mbx xtask doctor` reports the host CPU ceiling the
+   pinned mbx applies to every build. Agent width may stay wide there; build
+   load may not. A limit the owner states replaces any default.
    Stop the experiment once the adequate envelope is established.
 5. Keep worktree paths stable during an ongoing outcome. Reuse a completed slot
    only after preserving its branch/artifacts and verifying completion or that

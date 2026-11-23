@@ -266,6 +266,18 @@ fn check_mbx_version(version: String, pinned: &str) -> CheckEntry {
             Some(mbx_install_fix()),
         );
     }
+    // An earlier repository build lacks later patches, such as the host CPU
+    // ceiling that 1.29.2-omega.3 added.
+    if version.contains("-omega.") && version.trim() != format!("mbx {pinned}") {
+        return check(
+            "mbx",
+            "warn",
+            format!(
+                "{version} is not the {pinned} pinned in {MBX_VERSION_FILE}; it lacks that build's patches"
+            ),
+            Some(mbx_install_fix()),
+        );
+    }
     if version.trim() != format!("mbx {pinned}") {
         return check(
             "mbx",
@@ -390,6 +402,7 @@ pub fn collect_checks(root: &Path) -> Vec<CheckEntry> {
         check_nextest(root),
         check_claims_remote(root),
         check_host(),
+        crate::host_ceiling::check(root),
     ]
 }
 
@@ -492,6 +505,13 @@ mod tests {
             check_mbx_version("mbx 1.28.0".into(), pinned).status,
             "fail"
         );
+    }
+
+    #[test]
+    fn an_earlier_repository_build_is_reported_as_stale() {
+        let stale = check_mbx_version("mbx 1.29.2-omega.2".into(), "1.29.2-omega.3");
+        assert_eq!(stale.status, "warn");
+        assert!(stale.detail.contains("is not the 1.29.2-omega.3 pinned"));
     }
 
     #[test]
