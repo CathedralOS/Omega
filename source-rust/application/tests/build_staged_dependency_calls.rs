@@ -376,7 +376,7 @@ machine build(builder: @mutable Build) suspends {{
             (
                 "annotation",
                 r"let item: kit\Number = kit\Number { value: 7 }; item.value",
-                "type without a symbol",
+                "this type name has no visible declaration in its source scope",
             ),
             (
                 "constructor",

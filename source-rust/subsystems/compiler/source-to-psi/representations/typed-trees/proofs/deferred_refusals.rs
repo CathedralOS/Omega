@@ -129,6 +129,11 @@ pub enum DeferredRequest {
     CaseCalledAsMachine,
     /// Applying these static arguments violates the selected declaration.
     InvalidStaticApplication,
+    /// A written type name that selects no declaration of any kind where it
+    /// is written. A violation, as for a call or value name: a name selects
+    /// from the declarations visible at its use (`modules.md`, "Names and
+    /// imports"), and none answers this one.
+    UndeclaredTypeName,
 }
 
 impl DeferredRequest {
@@ -140,6 +145,7 @@ impl DeferredRequest {
             self,
             Self::UndeclaredCallName
                 | Self::UndeclaredValueName
+                | Self::UndeclaredTypeName
                 | Self::CaseCalledAsMachine
                 | Self::CallResultDomainMismatch
                 | Self::InvalidStaticApplication
@@ -214,6 +220,10 @@ impl DeferredRequest {
             Self::UndeclaredValueName => {
                 "this expression has no visible value declaration in its source scope: an unknown name is \
                  an error wherever it appears"
+            }
+            Self::UndeclaredTypeName => {
+                "this type name has no visible declaration in its source scope, and an unknown \
+                 type name is an error wherever it appears"
             }
             Self::CaseCalledAsMachine => {
                 "this call names a case of a sum, and a case is not a machine: a sum value is \
