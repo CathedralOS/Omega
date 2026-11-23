@@ -40,6 +40,7 @@ pub(crate) mod requirement_namespaces;
 mod scopes;
 pub(crate) use scopes::{owned_conformance_namespace, owned_conformance_realization};
 mod paths;
+pub(crate) use paths::constant_owner_path;
 mod statements;
 pub(crate) mod target_machine_families;
 pub(crate) mod target_siblings;

@@ -47,3 +47,36 @@ fn repeated_constant_uses_name_one_declaration_and_keep_their_own_source_selecti
     assert_eq!(selected.len(), 2);
     assert_ne!(selected[0], selected[1]);
 }
+
+#[test]
+fn a_nested_use_of_a_type_scoped_constant_retains_its_carrier() {
+    use crate::source_resolved::expression::ExpressionNode;
+
+    let source = "data Paint [copy] { value: u32; }
+        const Paint::TOP: Paint = Paint { value: 9 };
+        machine make() -> Paint { selected() machine selected() -> Paint { Paint::TOP } }";
+    let trees = crate::resolution::resolve(super::source_request(source)).unwrap();
+    let carrier = trees
+        .data_definitions
+        .iter()
+        .find(|data| data.name.as_str() == "Paint")
+        .unwrap();
+    let constant = trees.roots.const_declarations.iter().next().unwrap();
+    let table = &trees.tables.bodies.expressions;
+    let start = source.rfind("Paint::TOP").unwrap();
+    let path = table
+        .iter_expressions()
+        .find_map(|(handle, node)| match node {
+            ExpressionNode::Name(path) if table.source_span(handle).span.start == start => {
+                Some(path)
+            }
+            _ => None,
+        })
+        .expect("selected type-scoped constant");
+    assert_eq!(path.head_symbol, carrier.symbol);
+    assert_eq!(path.symbol, constant.symbol);
+    assert_eq!(
+        table.name_path_member_symbols(path.member_symbols),
+        &[carrier.symbol, constant.symbol]
+    );
+}

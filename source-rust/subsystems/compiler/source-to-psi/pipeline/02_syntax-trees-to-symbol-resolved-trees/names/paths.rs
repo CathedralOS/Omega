@@ -211,6 +211,21 @@ pub(super) fn resolve_path_members_from_head(
     resolved
 }
 
+/// The constant is selected by its complete name. Its carrier and any
+/// enclosing path members still identify declarations at this use.
+pub(crate) fn constant_owner_path(
+    symbols: &SymbolTable,
+    members: &[crate::source_resolved::name::DiagnosticName],
+    head: SymbolHandle,
+) -> Vec<SymbolHandle> {
+    match members {
+        [_, middle @ .., _] if head.is_valid() => {
+            resolve_path_members_from_head(symbols, head, middle)
+        }
+        _ => Vec::new(),
+    }
+}
+
 /*
     Resolve a run of authored path members to the lexical head and the selected
     leaf. `indexed_last_member` is the walk's only variation: when present, the

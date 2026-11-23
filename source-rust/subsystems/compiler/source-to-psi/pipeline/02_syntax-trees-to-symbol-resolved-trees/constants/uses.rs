@@ -125,6 +125,23 @@ pub(crate) fn bind_constant_uses(
         };
         path.symbol = selected;
         let member_symbols = path.member_symbols;
+        if member_symbols.count() == 1 {
+            path.head_symbol = selected;
+        }
+        let head = path.head_symbol;
+        let members = path.members;
+        let owner_path = crate::resolution::names::constant_owner_path(
+            &program.symbols,
+            expressions.name_path_members(members),
+            head,
+        );
+        for (index, member) in owner_path.into_iter().enumerate() {
+            expressions.set_name_path_member_symbol_at_offset(
+                member_symbols,
+                index.try_into().expect("name path member count overflow"),
+                member,
+            );
+        }
         expressions.set_name_path_member_symbol_at_offset(
             member_symbols,
             member_symbols.count() - 1,
