@@ -198,6 +198,15 @@ pub fn extent_uses(trees: &TypedTrees) -> Vec<ExtentUse> {
             let [origin] = types.constant_origins(array).unwrap() else {
                 return None;
             };
+            let file = trees
+                .symbols
+                .source_file(origin.reference)
+                .expect("extent reference file");
+            assert_eq!(
+                file.logical_filename().unwrap(),
+                "main.omg",
+                "the extent reference belongs to the file that names the constant"
+            );
             let span = origin.reference.span;
             Some(ExtentUse {
                 array,
