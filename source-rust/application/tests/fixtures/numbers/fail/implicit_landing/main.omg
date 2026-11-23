@@ -1,0 +1,12 @@
+machine five() -> u8 { (5 / 2) * 2 }
+machine seven() -> i32 { (7 / 2 + 7 / 2) as i32 }
+machine one() -> u8 { 1.0e0 }
+machine nine() -> u8 ensures result == ((9 / 2) * 2) as u8 { 9 }
+machine main() crashes Trap {
+    transition five() == 5 && seven() == 7 && one() == 1 && nine() == 9 {
+        true -> done(),
+        false -> failed(),
+    }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

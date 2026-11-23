@@ -43,14 +43,14 @@ fn a_refusal_inside_a_dependency_names_its_machine_and_file_position() {
 ",
     )
     .expect("staged Build");
-    // `7 / 2` lands a fractional value in an integer: the checker does not
-    // read that expression yet. The expression has no span of its own on the
+    // `7 % 2` is an anonymous remainder, which the checker cannot give an
+    // exact meaning yet. The expression has no span of its own on the
     // refusal, so the refusal is placed at the machine's name, line 3
     // column 16.
     std::fs::write(
         root.join("dep").join("main.omg"),
         "// A dependency machine the checker cannot read yet.\n\n\
-         public machine value() -> i32 {\n    7 / 2\n}\n",
+         public machine value() -> i32 {\n    7 % 2\n}\n",
     )
     .expect("staged dependency");
     std::fs::write(
@@ -70,7 +70,11 @@ fn a_refusal_inside_a_dependency_names_its_machine_and_file_position() {
     assert!(!output.status.success(), "{stderr}");
     let refusal = stderr
         .lines()
-        .position(|line| line.contains("not supported yet: expression fractional anonymous value"))
+        .position(|line| {
+            line.contains(
+                "not supported yet: expression anonymous operation without an exact meaning",
+            )
+        })
         .unwrap_or_else(|| panic!("the checker refuses the dependency's machine: {stderr}"));
     let lines: Vec<&str> = stderr.lines().collect();
     assert!(

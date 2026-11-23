@@ -1424,10 +1424,10 @@ mod tests {
     /// integer-literal division "is rational division, not truncation"). An
     /// `i32` context gets `(2147483647 + 1) - 1` as the literal 2147483647,
     /// where `i32` operations would overflow. `7 / 2` is `7/2`, which no
-    /// `i32` holds, so it is refused rather than truncated to 3; `(10 / 4) *
-    /// 2` is 5 but lands only through an `as`; and a value outside the
-    /// context's type and a remainder, which has no anonymous meaning, are
-    /// refused too.
+    /// `i32` holds, so it is rejected rather than truncated to 3; `(10 / 4) *
+    /// 2` is 5 but lands only through an `as`; a value outside the context's
+    /// type is rejected too; and a remainder, which has no anonymous meaning,
+    /// is refused as unsupported.
     #[test]
     fn wholly_anonymous_arithmetic_lands_exactly_or_is_refused() {
         let i32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Signed, 32).unwrap());
@@ -1488,24 +1488,55 @@ mod tests {
                 crate::lowering::body::Qualification::NONE
             ))
         );
-        for (handle, expected) in [
-            (half, "expression fractional anonymous value"),
+        // The spec makes the first three errors in the program, so they are
+        // rejected; a remainder is an operator the reader has no anonymous
+        // meaning for.
+        use terminal_check_tables::RefusalReason::{Unsupported, Violation};
+        for (handle, reason, expected) in [
+            (
+                half,
+                Violation,
+                "this anonymous calculation has the exact value 7/2 and lands in `i32`",
+            ),
             (
                 cancelled,
-                "expression anonymous value with a fractional intermediate",
+                Violation,
+                "this part of an anonymous calculation is fractional, and the calculation lands its exact value 5 in `i32` without `as`",
             ),
-            (outside, "expression anonymous value outside its type"),
+            (
+                outside,
+                Violation,
+                "this anonymous calculation has the exact value 2147483654, which does not fit in `i32`",
+            ),
             (
                 remainder,
+                Unsupported,
                 "expression anonymous operation without an exact meaning",
             ),
         ] {
             let refusal = read(&mut program, handle).unwrap_err();
-            assert_eq!(
-                refusal.reason,
-                terminal_check_tables::RefusalReason::Unsupported
-            );
-            assert_eq!(refusal.detail, expected);
+            assert_eq!(refusal.reason, reason);
+            assert!(refusal.detail.starts_with(expected), "{}", refusal.detail);
+        }
+        // `as` acknowledges the fractional intermediate, and only that: the
+        // completed value must still be an integer that fits.
+        let explicit = |handle| {
+            program.anonymous_value(
+                machine(),
+                handle,
+                Some(i32_type),
+                super::types::AnonymousLanding::ExplicitAs,
+            )
+        };
+        assert!(matches!(
+            explicit(cancelled).unwrap().value,
+            IntegerValue::Signed(5)
+        ));
+        for handle in [half, outside] {
+            assert!(matches!(
+                explicit(handle),
+                Err(refusal) if refusal.reason == Violation
+            ));
         }
     }
 
