@@ -2,7 +2,7 @@
 
 The source is the language target for [file imports](../../../../wiki/spec/language/modules.md#names-and-imports).
 `result()` must return 7. The package-private machine in `m/value-cell.omg`
-reads the stored 7. The callable supplied in the record returns 9. Both the
+reads the stored 7. The other case calls the function supplied in the record and checks that it returns 9. Both the
 record and the imported file are named `cell`, and `cell::Stored` names a case
 of a data type with that same spelling.
 

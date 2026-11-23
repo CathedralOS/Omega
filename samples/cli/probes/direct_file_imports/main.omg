@@ -22,7 +22,8 @@ machine result() -> i32 {
     let item: |b|::B = |b|::B { value: |cell|::A { value: 7 } };
     let cell: Reader = Reader { read: supplied };
     let stored: Read = select_read(cell, cell::Stored);
-    transition cell.read(item.value) == 9 && |numeric|::widen_u8_to_u32(7u8) == 7 {
+    let alternate: Read = select_read(cell, cell::Supplied);
+    transition alternate(item.value) == 9 && |numeric|::widen_u8_to_u32(7u8) == 7 {
         true -> stored(item.value),
         false -> 0
     }
