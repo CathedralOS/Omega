@@ -56,6 +56,10 @@ pub fn prepare_replay<'source>(
                     machine.unwrap_or_else(fallback),
                     format!("domain guarantee for the returned value: {detail}"),
                 ),
+                terminal_semantics::scalar_qualifications::ScalarQualificationError::MalformedMachine { machine, detail } => (
+                    machine,
+                    format!("invalid declared scalar qualifications: {detail}"),
+                ),
                 other => (fallback(), format!("invalid declared scalar qualifications: {other:?}")),
             };
             crate::checking::refusal(RefusalReason::ForeignIdentity, machine, Construct::Machine, &detail)

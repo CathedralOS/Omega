@@ -18,6 +18,11 @@ pub enum ScalarQualificationError {
         detail: &'static str,
     },
     MalformedStructuralFoundation(&'static str),
+    /// A malformed declaration found in the body of `machine`.
+    MalformedMachine {
+        machine: MachineId,
+        detail: &'static str,
+    },
     MalformedProposition(semantic_vocabulary::PropositionError),
     MalformedScalarReturnFoundation {
         machine: String,
@@ -27,6 +32,19 @@ pub enum ScalarQualificationError {
         result: ValueId,
         reason: String,
     },
+}
+
+impl ScalarQualificationError {
+    /// The same error, naming the machine whose body it was found in, so a
+    /// refusal reports that machine rather than the first of the module.
+    fn in_machine(self, machine: MachineId) -> Self {
+        match self {
+            Self::MalformedStructuralFoundation(detail) => {
+                Self::MalformedMachine { machine, detail }
+            }
+            other => other,
+        }
+    }
 }
 
 fn malformed<T>(detail: &'static str) -> Result<T, ScalarQualificationError> {
@@ -153,7 +171,6 @@ impl<'a> ScalarValues<'a> {
 }
 
 fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualificationError> {
-    use terminal_psi::{OperationKind, TargetMachineCallable};
     let catalog = &module.types.scalar_qualifications;
     validate_field_types(module)?;
     for contract in module
@@ -201,140 +218,148 @@ fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualification
         }
     }
     for machine in &module.machines {
-        let declared = ScalarValues::new(machine)?;
-        for declaration in values(machine)
-            .chain(machine.result.scalar_ref())
-            .chain(&machine.erased_scalar_formals)
-        {
-            for id in qualification_domains(module, declaration.qualifications).ok_or(
-                ScalarQualificationError::MalformedStructuralFoundation(
-                    "scalar value names an absent qualification set",
-                ),
-            )? {
-                if scalar_domain(module, *id)
-                    .is_none_or(|domain| domain.carrier != declaration.scalar_type)
-                {
-                    return malformed("scalar value's domain has a different carrier");
+        validate_machine_transfers(module, machine)
+            .map_err(|error| error.in_machine(machine.id))?;
+    }
+    Ok(())
+}
+
+/// The scalar declarations, payload bindings, returns, arguments and
+/// stores of one lowered machine.
+fn validate_machine_transfers(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+) -> Result<(), ScalarQualificationError> {
+    use terminal_psi::{OperationKind, TargetMachineCallable};
+    let declared = ScalarValues::new(machine)?;
+    for declaration in values(machine)
+        .chain(machine.result.scalar_ref())
+        .chain(&machine.erased_scalar_formals)
+    {
+        for id in qualification_domains(module, declaration.qualifications).ok_or(
+            ScalarQualificationError::MalformedStructuralFoundation(
+                "scalar value names an absent qualification set",
+            ),
+        )? {
+            if scalar_domain(module, *id)
+                .is_none_or(|domain| domain.carrier != declaration.scalar_type)
+            {
+                return malformed("scalar value's domain has a different carrier");
+            }
+        }
+    }
+    for block in &machine.blocks {
+        if let Terminator::StructuralCase { cases, .. } = &block.terminator {
+            for case in cases {
+                let target = machine
+                    .blocks
+                    .iter()
+                    .find(|block| block.id == case.target)
+                    .ok_or(ScalarQualificationError::MalformedStructuralFoundation(
+                        "scalar payload binding lost its destination",
+                    ))?;
+                if target.parameters.len() != case.payload_fields.len() {
+                    return malformed(
+                        "scalar payload binding has a different declared field roster",
+                    );
+                }
+                for (field, parameter) in case.payload_fields.iter().zip(&target.parameters) {
+                    if parameter.qualifications != field_qualifications(module, *field) {
+                        return malformed(
+                            "scalar payload binding does not preserve its complete declared type",
+                        );
+                    }
                 }
             }
         }
-        for block in &machine.blocks {
-            if let Terminator::StructuralCase { cases, .. } = &block.terminator {
-                for case in cases {
-                    let target = machine
-                        .blocks
-                        .iter()
-                        .find(|block| block.id == case.target)
+        if let Terminator::Return {
+            edge,
+            value: source,
+            ..
+        } = &block.terminator
+        {
+            let source = declared.get(*source)?;
+            let Some(result) = machine.result.scalar_ref() else {
+                return malformed("scalar return has no declared scalar result");
+            };
+            if !same_type(source, result)
+                && !checked_introduction(
+                    module,
+                    machine.id,
+                    *edge,
+                    source,
+                    result,
+                    ScalarReturnSite::NormalExit,
+                )?
+            {
+                return malformed(
+                    "normal return does not preserve its complete declared scalar type",
+                );
+            }
+        }
+        if let Some((_, inputs)) = block.terminator.declared_invocation() {
+            validate_arguments(module, &declared, inputs)?;
+        }
+        for operation in &block.operations {
+            if let Some(inputs) = operation.declared_invocation() {
+                validate_arguments(module, &declared, inputs)?;
+                if let TargetMachineCallable::Machine(callee) = inputs.callee {
+                    let contract = module
+                        .invocation_machine_contract(callee, inputs.required_contract)
                         .ok_or(ScalarQualificationError::MalformedStructuralFoundation(
-                            "scalar payload binding lost its destination",
+                            "scalar call lost its exact declared contract",
                         ))?;
-                    if target.parameters.len() != case.payload_fields.len() {
-                        return malformed(
-                            "scalar payload binding has a different declared field roster",
-                        );
+                    match (operation.result.scalar_ref(), contract.result.scalar_ref()) {
+                        (Some(actual), Some(formal)) if same_type(actual, formal) => {}
+                        (None, None) => {}
+                        _ => {
+                            return malformed("scalar call result differs from its declared type");
+                        }
                     }
-                    for (field, parameter) in case.payload_fields.iter().zip(&target.parameters) {
-                        if parameter.qualifications != field_qualifications(module, *field) {
+                } else if let TargetMachineCallable::Boundary(boundary) = inputs.callee {
+                    let boundary = module.boundary_machine(boundary).ok_or(
+                        ScalarQualificationError::MalformedStructuralFoundation(
+                            "scalar call lost its boundary declaration",
+                        ),
+                    )?;
+                    match (operation.result.scalar_ref(), &boundary.result) {
+                        (Some(actual), terminal_psi::BoundaryMachineResult::Scalar(formal))
+                            if actual.scalar_type == formal.scalar_type
+                                && actual.qualifications == formal.qualifications => {}
+                        (
+                            None,
+                            terminal_psi::BoundaryMachineResult::Unit
+                            | terminal_psi::BoundaryMachineResult::Structural(_),
+                        ) => {}
+                        _ => {
                             return malformed(
-                                "scalar payload binding does not preserve its complete declared type",
+                                "boundary scalar result differs from its declared type",
                             );
                         }
                     }
                 }
+                continue;
             }
-            if let Terminator::Return {
-                edge,
-                value: source,
-                ..
-            } = &block.terminator
-            {
-                let source = declared.get(*source)?;
-                let Some(result) = machine.result.scalar_ref() else {
-                    return malformed("scalar return has no declared scalar result");
-                };
-                if !same_type(source, result)
-                    && !checked_introduction(
-                        module,
-                        machine.id,
-                        *edge,
-                        source,
-                        result,
-                        ScalarReturnSite::NormalExit,
-                    )?
-                {
+            let check_write = |field, value| {
+                if declared.get(value)?.qualifications != field_qualifications(module, field) {
                     return malformed(
-                        "normal return does not preserve its complete declared scalar type",
+                        "scalar field write does not preserve its complete declared type",
                     );
                 }
-            }
-            if let Some((_, inputs)) = block.terminator.declared_invocation() {
-                validate_arguments(module, &declared, inputs)?;
-            }
-            for operation in &block.operations {
-                if let Some(inputs) = operation.declared_invocation() {
-                    validate_arguments(module, &declared, inputs)?;
-                    if let TargetMachineCallable::Machine(callee) = inputs.callee {
-                        let contract = module
-                            .invocation_machine_contract(callee, inputs.required_contract)
-                            .ok_or(ScalarQualificationError::MalformedStructuralFoundation(
-                                "scalar call lost its exact declared contract",
-                            ))?;
-                        match (operation.result.scalar_ref(), contract.result.scalar_ref()) {
-                            (Some(actual), Some(formal)) if same_type(actual, formal) => {}
-                            (None, None) => {}
-                            _ => {
-                                return malformed(
-                                    "scalar call result differs from its declared type",
-                                );
-                            }
-                        }
-                    } else if let TargetMachineCallable::Boundary(boundary) = inputs.callee {
-                        let boundary = module.boundary_machine(boundary).ok_or(
-                            ScalarQualificationError::MalformedStructuralFoundation(
-                                "scalar call lost its boundary declaration",
-                            ),
-                        )?;
-                        match (operation.result.scalar_ref(), &boundary.result) {
-                            (Some(actual), terminal_psi::BoundaryMachineResult::Scalar(formal))
-                                if actual.scalar_type == formal.scalar_type
-                                    && actual.qualifications == formal.qualifications => {}
-                            (
-                                None,
-                                terminal_psi::BoundaryMachineResult::Unit
-                                | terminal_psi::BoundaryMachineResult::Structural(_),
-                            ) => {}
-                            _ => {
-                                return malformed(
-                                    "boundary scalar result differs from its declared type",
-                                );
-                            }
-                        }
-                    }
-                    continue;
-                }
-                let check_write = |field, value| {
-                    if declared.get(value)?.qualifications != field_qualifications(module, field) {
-                        return malformed(
-                            "scalar field write does not preserve its complete declared type",
-                        );
-                    }
-                    Ok(())
-                };
-                match &operation.kind {
-                    OperationKind::EstablishZeroedStructural {} => {
-                        let result = operation.result.structural().ok_or(
-                            ScalarQualificationError::MalformedStructuralFoundation(
-                                "zero provisioning lost its structural result",
-                            ),
-                        )?;
-                        if !crate::zeroed_structural_types_and_fields_satisfy(
-                            module.types.structural_types.iter(),
-                            result.structural_type,
-                            |ty| {
-                                qualification_domains(
-                                    module,
-                                    primitive_qualifications(module, ty.id),
-                                )
+                Ok(())
+            };
+            match &operation.kind {
+                OperationKind::EstablishZeroedStructural {} => {
+                    let result = operation.result.structural().ok_or(
+                        ScalarQualificationError::MalformedStructuralFoundation(
+                            "zero provisioning lost its structural result",
+                        ),
+                    )?;
+                    if !crate::zeroed_structural_types_and_fields_satisfy(
+                        module.types.structural_types.iter(),
+                        result.structural_type,
+                        |ty| {
+                            qualification_domains(module, primitive_qualifications(module, ty.id))
                                 .is_some_and(|domains| {
                                     domains.iter().all(|id| {
                                         scalar_domain(module, *id).is_some_and(|domain| {
@@ -344,12 +369,9 @@ fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualification
                                         })
                                     })
                                 })
-                            },
-                            |field| {
-                                qualification_domains(
-                                    module,
-                                    field_qualifications(module, field.id),
-                                )
+                        },
+                        |field| {
+                            qualification_domains(module, field_qualifications(module, field.id))
                                 .is_some_and(|domains| {
                                     domains.iter().all(|id| {
                                         scalar_domain(module, *id).is_some_and(|domain| {
@@ -358,166 +380,154 @@ fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualification
                                         })
                                     })
                                 })
-                            },
-                        ) {
+                        },
+                    ) {
+                        return malformed(
+                            "zero provisioning cannot establish routed scalar field membership",
+                        );
+                    }
+                }
+                OperationKind::EstablishPrimitiveLocal { value, .. } => {
+                    let result = operation.result.structural().ok_or(
+                        ScalarQualificationError::MalformedStructuralFoundation(
+                            "primitive initialization lost its storage declaration",
+                        ),
+                    )?;
+                    let expected = primitive_qualifications(module, result.structural_type);
+                    let source = declared.get(*value)?;
+                    if source.qualifications != expected {
+                        let zero = machine.operations().any(|definition| {
+                            definition
+                                .result
+                                .scalar_ref()
+                                .is_some_and(|result| result.id == source.id)
+                                && matches!(
+                                    definition.kind,
+                                    OperationKind::IntegerConstant {
+                                        value: semantic_vocabulary::IntegerValue::Signed(0)
+                                            | semantic_vocabulary::IntegerValue::Unsigned(0)
+                                    } | OperationKind::BooleanConstant { value: false }
+                                )
+                        });
+                        let free = qualification_domains(module, expected).is_some_and(|domains| {
+                            domains.iter().all(|id| {
+                                scalar_domain(module, *id).is_some_and(|domain| {
+                                    domain.predicate.is_none()
+                                        && domain.establishment_routes.is_none()
+                                        && domain.has_no_required_memberships()
+                                })
+                            })
+                        });
+                        if !source.qualifications.is_empty() || !zero || !free {
                             return malformed(
-                                "zero provisioning cannot establish routed scalar field membership",
+                                "primitive initialization cannot mint its declared scalar membership",
                             );
                         }
                     }
-                    OperationKind::EstablishPrimitiveLocal { value, .. } => {
-                        let result = operation.result.structural().ok_or(
-                            ScalarQualificationError::MalformedStructuralFoundation(
-                                "primitive initialization lost its storage declaration",
-                            ),
-                        )?;
-                        let expected = primitive_qualifications(module, result.structural_type);
-                        let source = declared.get(*value)?;
-                        if source.qualifications != expected {
-                            let zero = machine.operations().any(|definition| {
-                                definition
-                                    .result
-                                    .scalar_ref()
-                                    .is_some_and(|result| result.id == source.id)
-                                    && matches!(
-                                        definition.kind,
-                                        OperationKind::IntegerConstant {
-                                            value: semantic_vocabulary::IntegerValue::Signed(0)
-                                                | semantic_vocabulary::IntegerValue::Unsigned(0)
-                                        } | OperationKind::BooleanConstant { value: false }
-                                    )
-                            });
-                            let free =
-                                qualification_domains(module, expected).is_some_and(|domains| {
-                                    domains.iter().all(|id| {
-                                        scalar_domain(module, *id).is_some_and(|domain| {
-                                            domain.predicate.is_none()
-                                                && domain.establishment_routes.is_none()
-                                                && domain.has_no_required_memberships()
-                                        })
-                                    })
-                                });
-                            if !source.qualifications.is_empty() || !zero || !free {
-                                return malformed(
-                                    "primitive initialization cannot mint its declared scalar membership",
-                                );
-                            }
-                        }
-                    }
-                    OperationKind::EstablishScalarArray { elements } => {
-                        let result = operation.result.structural().ok_or(
-                            ScalarQualificationError::MalformedStructuralFoundation(
-                                "scalar array initialization lost its storage declaration",
-                            ),
-                        )?;
-                        let (leaf, count) = crate::scalar_array_leaf_declaration(
-                            module.types.structural_types.iter(),
-                            result.structural_type,
-                        )
-                        .ok_or(
-                            ScalarQualificationError::MalformedStructuralFoundation(
-                                "scalar array has no exact primitive leaf declaration",
-                            ),
-                        )?;
-                        let expected = primitive_qualifications(module, leaf.id);
-                        if count != elements.len() as u64 {
-                            return malformed("scalar array has a different declared leaf count");
-                        }
-                        for element in elements {
-                            if declared.get(*element)?.qualifications != expected {
-                                return malformed(
-                                    "scalar array element does not preserve its declared membership",
-                                );
-                            }
-                        }
-                    }
-                    OperationKind::StructuralScalarFieldStore { field, value, .. } => {
-                        check_write(*field, *value)?
-                    }
-                    OperationKind::EstablishRecord { fields }
-                    | OperationKind::EstablishStructuralCase { fields, .. } => {
-                        for field in fields {
-                            if let terminal_psi::RecordFieldValue::Scalar { value, .. } =
-                                field.value
-                            {
-                                check_write(field.field, value)?;
-                            }
-                        }
-                    }
-                    OperationKind::EstablishScalarCase { fields, .. } => {
-                        for field in fields {
-                            check_write(field.field, field.value)?;
-                        }
-                    }
-                    OperationKind::WriteOnlyPrimitiveStore {
-                        destination,
-                        path,
-                        value,
-                        ..
-                    } if declared.get(*value)?.qualifications
-                        != storage_qualifications(module, machine, *destination, path)? =>
-                    {
-                        return malformed(
-                            "scalar storage write does not preserve its complete declared type",
-                        );
-                    }
-                    _ => {}
                 }
-                let Some(result) = operation.result.scalar_ref() else {
-                    continue;
-                };
-                let qualified = !result.qualifications.is_empty();
-                let stored = match &operation.kind {
-                    OperationKind::ScalarStructuralField { field, .. }
-                    | OperationKind::BooleanStructuralField { field, .. } => {
-                        Some(field_qualifications(module, *field))
+                OperationKind::EstablishScalarArray { elements } => {
+                    let result = operation.result.structural().ok_or(
+                        ScalarQualificationError::MalformedStructuralFoundation(
+                            "scalar array initialization lost its storage declaration",
+                        ),
+                    )?;
+                    let (leaf, count) = crate::scalar_array_leaf_declaration(
+                        module.types.structural_types.iter(),
+                        result.structural_type,
+                    )
+                    .ok_or(
+                        ScalarQualificationError::MalformedStructuralFoundation(
+                            "scalar array has no exact primitive leaf declaration",
+                        ),
+                    )?;
+                    let expected = primitive_qualifications(module, leaf.id);
+                    if count != elements.len() as u64 {
+                        return malformed("scalar array has a different declared leaf count");
                     }
-                    OperationKind::PrimitiveScalarRead { source, path }
-                    | OperationKind::StructuralLeafCopy { source, path } => {
-                        Some(storage_qualifications(module, machine, *source, path)?)
+                    for element in elements {
+                        if declared.get(*element)?.qualifications != expected {
+                            return malformed(
+                                "scalar array element does not preserve its declared membership",
+                            );
+                        }
                     }
-                    OperationKind::ElementViewRead { source, path, .. } => {
-                        let root = machine.structural_place_type(source.place).ok_or(
-                            ScalarQualificationError::MalformedStructuralFoundation(
-                                "scalar element view lost its declared root",
-                            ),
-                        )?;
-                        let view = crate::runtime_structural_path_tip(
-                            module.types.structural_types.iter(),
-                            root,
-                            &source.path,
-                        )
-                        .ok_or(
-                            ScalarQualificationError::MalformedStructuralFoundation(
-                                "scalar element view lost its declared carrier",
-                            ),
-                        )?;
-                        let element = match view.shape {
-                            terminal_psi::StructuralTypeShape::ElementView { element, .. }
-                            | terminal_psi::StructuralTypeShape::FixedArray { element, .. } => {
-                                element
-                            }
-                            _ => {
-                                return malformed(
-                                    "scalar element view has no declared element type",
-                                );
-                            }
-                        };
-                        Some(storage_type_qualifications(module, element, path)?)
+                }
+                OperationKind::StructuralScalarFieldStore { field, value, .. } => {
+                    check_write(*field, *value)?
+                }
+                OperationKind::EstablishRecord { fields }
+                | OperationKind::EstablishStructuralCase { fields, .. } => {
+                    for field in fields {
+                        if let terminal_psi::RecordFieldValue::Scalar { value, .. } = field.value {
+                            check_write(field.field, value)?;
+                        }
                     }
-                    _ => None,
-                };
-                if let Some(expected) = stored {
-                    if result.qualifications != expected {
-                        return malformed(
-                            "scalar field read differs from its declared qualification",
-                        );
+                }
+                OperationKind::EstablishScalarCase { fields, .. } => {
+                    for field in fields {
+                        check_write(field.field, field.value)?;
                     }
-                } else if qualified {
+                }
+                OperationKind::WriteOnlyPrimitiveStore {
+                    destination,
+                    path,
+                    value,
+                    ..
+                } if declared.get(*value)?.qualifications
+                    != storage_qualifications(module, machine, *destination, path)? =>
+                {
                     return malformed(
-                        "ordinary scalar operation cannot establish a declared domain",
+                        "scalar storage write does not preserve its complete declared type",
                     );
                 }
+                _ => {}
+            }
+            let Some(result) = operation.result.scalar_ref() else {
+                continue;
+            };
+            let qualified = !result.qualifications.is_empty();
+            let stored = match &operation.kind {
+                OperationKind::ScalarStructuralField { field, .. }
+                | OperationKind::BooleanStructuralField { field, .. } => {
+                    Some(field_qualifications(module, *field))
+                }
+                OperationKind::PrimitiveScalarRead { source, path }
+                | OperationKind::StructuralLeafCopy { source, path } => {
+                    Some(storage_qualifications(module, machine, *source, path)?)
+                }
+                OperationKind::ElementViewRead { source, path, .. } => {
+                    let root = machine.structural_place_type(source.place).ok_or(
+                        ScalarQualificationError::MalformedStructuralFoundation(
+                            "scalar element view lost its declared root",
+                        ),
+                    )?;
+                    let view = crate::runtime_structural_path_tip(
+                        module.types.structural_types.iter(),
+                        root,
+                        &source.path,
+                    )
+                    .ok_or(
+                        ScalarQualificationError::MalformedStructuralFoundation(
+                            "scalar element view lost its declared carrier",
+                        ),
+                    )?;
+                    let element = match view.shape {
+                        terminal_psi::StructuralTypeShape::ElementView { element, .. }
+                        | terminal_psi::StructuralTypeShape::FixedArray { element, .. } => element,
+                        _ => {
+                            return malformed("scalar element view has no declared element type");
+                        }
+                    };
+                    Some(storage_type_qualifications(module, element, path)?)
+                }
+                _ => None,
+            };
+            if let Some(expected) = stored {
+                if result.qualifications != expected {
+                    return malformed("scalar field read differs from its declared qualification");
+                }
+            } else if qualified {
+                return malformed("ordinary scalar operation cannot establish a declared domain");
             }
         }
     }

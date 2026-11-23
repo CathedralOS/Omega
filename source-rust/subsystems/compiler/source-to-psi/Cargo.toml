@@ -163,6 +163,11 @@ path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/selected_opera
 required-features = ["test-support"]
 
 [[test]]
+name = "checking_lowered_facts"
+path = "pipeline/06_lowered-program-to-checked-program/tests/lowered_facts.rs"
+required-features = ["test-support"]
+
+[[test]]
 name = "checking_owned_place_transfers"
 path = "pipeline/06_lowered-program-to-checked-program/tests/owned_place_transfers.rs"
 required-features = ["test-support"]
