@@ -2339,6 +2339,8 @@ impl<'a> Storage<'a> {
 
     /// Whether every leaf of an element shares the array's storage. A
     /// reference, view or independently managed value keeps its own checks.
+    /// Permission to retire descriptors does not mean a value contains one.
+    /// The field types determine that.
     fn inline_array_element(
         &self,
         element: StructuralTypeId,
@@ -2346,16 +2348,15 @@ impl<'a> Storage<'a> {
         known: &mut BTreeMap<StructuralTypeId, bool>,
     ) -> Checked<bool> {
         let declaration = self.declaration(element, concerns)?;
-        if matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_)) {
-            return Ok(true);
-        }
         if !declaration.is_copyable()
             || declaration.owns_linear_claim
-            || declaration.descriptor_cleanup
             || declaration.nominal_cleanup.is_some()
             || declaration.quotient_carrier.is_some()
         {
             return Ok(false);
+        }
+        if matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_)) {
+            return Ok(true);
         }
         if let Some(&inline) = known.get(&element) {
             return Ok(inline);
