@@ -32,6 +32,21 @@ pub use source_semantics::{
     PatternComponent, PatternSelector, ReferenceAccess,
 };
 
+/// Imports and generated sources use the same package-relative filenames.
+pub mod logical_filename {
+    pub fn is_component(text: &str) -> bool {
+        !text.is_empty()
+            && text
+                .chars()
+                .all(|character| character.is_alphanumeric() || matches!(character, '_' | '-'))
+    }
+
+    pub fn is_valid(text: &str) -> bool {
+        text.strip_suffix(".omg")
+            .is_some_and(|stem| stem.split('/').all(is_component))
+    }
+}
+
 pub mod activation_storage {
     pub const ACTIVATION_CORE_SOURCE: &str = "activation.omg";
 
