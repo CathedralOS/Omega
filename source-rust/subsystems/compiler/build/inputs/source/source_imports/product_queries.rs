@@ -477,13 +477,7 @@ impl ProductQueryInputs {
         &self,
         parsed: &ParsedSourceBatch,
         storage: &mut SourceStorage,
-    ) -> Result<
-        Vec<(
-            PathBuf,
-            source_provenance::DependencyScope,
-        )>,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<Vec<(PathBuf, source_provenance::DependencyScope)>, Vec<Diagnostic>> {
         let mut imports = Vec::new();
         for authored in parsed.sources.span_or_empty(parsed.batch) {
             let owner = self
@@ -491,32 +485,38 @@ impl ProductQueryInputs {
                 .find(|inputs| inputs.package_for_source(&authored.path).is_some());
             for import in &authored.imports {
                 let ordinal = import.ordinal;
-                let members = &import.members;
+                let contract = storage.toolchain_contract_custody.root_for(&authored.path);
+                let mounted_owner = owner.is_some_and(|inputs| !self.original.as_ref().is_some_and(|original| std::ptr::eq(original, inputs)));
+                let importer = if mounted_owner { source_provenance::DependencyScope::Product } else { authored.scope };
+                let purpose = |inputs: &PackageCompilationInputs| {
+                    if mounted_owner { DependencyPurpose::Product } else { super::source_import_scope(inputs, authored.scope, &authored.path) }
+                };
+                if let Some(file) = super::files::FileImport::from(authored, import) {
+                    let mounted = file.root.and_then(|alias| self.mounted_for(authored.scope, alias)).map(|dependency| &dependency.inputs);
+                    let selected = if let Some(inputs) = owner {
+                        file.reconciled(inputs, inputs.package_for_source(&authored.path), purpose(inputs), contract, &storage.filesystem)?
+                    } else {
+                        let core = super::bundled_core_root()?;
+                        let local = contract.or_else(|| authored.path.starts_with(&core).then_some(core.as_path()))
+                            .or_else(|| authored.path.starts_with(storage.default_package_root()).then_some(storage.default_package_root()))
+                            .ok_or_else(|| vec![Diagnostic::error("Product query file has no admitted package owner")])?;
+                        file.standalone(local, mounted, &storage.filesystem)?
+                    };
+                    let selected = match selected {
+                        super::files::FileSelection::Selected(file) => vec![file],
+                        super::files::FileSelection::Package(pending) => pending.resolve_for_exact_target(owner.or(mounted).expect("a package import has an admitted graph"), &mut storage.package_roots)?,
+                        super::files::FileSelection::Unprepared => continue,
+                    };
+                    for resolved in selected {
+                        imports.push((resolved.path.clone(), authored.scope));
+                        storage.resolved_imports.push(resolved);
+                    }
+                    continue;
+                }
+                let source_compiler::SourceImportTarget::Namespace(members) = &import.target else { unreachable!() };
                 let (root, paths, prefix) = if let Some(inputs) = owner {
                     let requester = inputs.package_for_source(&authored.path);
-                    // A mounted dependency's sources resolve through its own
-                    // Product edges and by the Product acquisition rule,
-                    // whichever context loaded them: "A build dependency's
-                    // ordinary dependencies are its library implementation
-                    // dependencies in the host/build graph", and "Its own
-                    // build dependencies belong to its separate build
-                    // activation" (scoped_execution.md, "Two checked
-                    // contexts").
-                    let mounted = !self
-                        .original
-                        .as_ref()
-                        .is_some_and(|original| std::ptr::eq(original, inputs));
-                    let (purpose, importer) = if mounted {
-                        (
-                            DependencyPurpose::Product,
-                            source_provenance::DependencyScope::Product,
-                        )
-                    } else {
-                        (
-                            super::source_import_scope(inputs, authored.scope, &authored.path),
-                            authored.scope,
-                        )
-                    };
+                    let purpose = purpose(inputs);
                     let selected = reconciled_package_import(
                         &authored.path,
                         members,
