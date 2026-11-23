@@ -1309,32 +1309,9 @@ mod transitions {
             child_type_references,
             named.callee,
         );
-        if crate::source_resolved::callable_values::callee_uses_value_binding(
-            symbols, expression_table, named.callee,
-        ) && let Some(name) = statement_path_members.span_or_empty(named.path).last()
+        if let Some(expression) =
+            stored_call_expression(symbols, statement_path_members, expression_table, named)
         {
-            use crate::source_resolved::expression::{ExpressionNode, TableCallExpression};
-
-            let expression = expression_table.insert(ExpressionNode::Call(TableCallExpression {
-                callee: named.callee,
-                target_is_static: true,
-                authored_call_binding: None,
-                receiver: Default::default(),
-                target_symbol: SymbolHandle::invalid(),
-                target: name.clone(),
-                requirement_application: Default::default(),
-                machine_arguments: Box::default(),
-                arguments: named.arguments,
-                evidence_arguments: std::mem::take(&mut named.storage.evidence_arguments),
-                operational_acknowledgement: named.operational_acknowledgement,
-            }));
-            expression_table.set_source_span(expression, named.source_span);
-            if let Some(exposure) = expression_table.authored_expression_exposure(named.callee) {
-                expression_table.set_authored_expression_exposure(expression, exposure);
-            }
-            if let Some(partition) = expression_table.compiler_selection_partition(named.callee) {
-                expression_table.set_compiler_selection_partition(expression, partition);
-            }
             *target = crate::source_resolved::statement::TransitionTarget::Value(expression);
             assign_statement_expression_symbols(
                 symbols,
@@ -1430,6 +1407,44 @@ mod transitions {
         if body_coordinate && named.head_symbol == symbol {
             named.head_symbol = SymbolHandle::invalid();
         }
+    }
+
+    /// A call through a value has the same argument, evidence and effect checks
+    /// in a transition arm as in an ordinary expression.
+    fn stored_call_expression(
+        symbols: &SymbolTable,
+        path_members: &Arena<crate::source_resolved::name::DiagnosticName>,
+        expressions: &mut crate::source_resolved::expression::ExpressionTable,
+        named: &mut crate::source_resolved::statement::NamedTransitionTarget,
+    ) -> Option<crate::source_resolved::expression::ExpressionHandle> {
+        use crate::source_resolved::callable_values::callee_uses_value_binding;
+        use crate::source_resolved::expression::{ExpressionNode, TableCallExpression};
+
+        if !callee_uses_value_binding(symbols, expressions, named.callee) {
+            return None;
+        }
+        let name = path_members.span_or_empty(named.path).last()?;
+        let expression = expressions.insert(ExpressionNode::Call(TableCallExpression {
+            callee: named.callee,
+            target_is_static: true,
+            authored_call_binding: None,
+            receiver: Default::default(),
+            target_symbol: SymbolHandle::invalid(),
+            target: name.clone(),
+            requirement_application: Default::default(),
+            machine_arguments: Box::default(),
+            arguments: named.arguments,
+            evidence_arguments: std::mem::take(&mut named.storage.evidence_arguments),
+            operational_acknowledgement: named.operational_acknowledgement,
+        }));
+        expressions.set_source_span(expression, named.source_span);
+        if let Some(exposure) = expressions.authored_expression_exposure(named.callee) {
+            expressions.set_authored_expression_exposure(expression, exposure);
+        }
+        if let Some(partition) = expressions.compiler_selection_partition(named.callee) {
+            expressions.set_compiler_selection_partition(expression, partition);
+        }
+        Some(expression)
     }
 
     /*
