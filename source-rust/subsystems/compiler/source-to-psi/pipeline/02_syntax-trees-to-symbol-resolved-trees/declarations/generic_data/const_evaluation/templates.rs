@@ -706,7 +706,12 @@ fn visit_type_positions(
     include_domain_arguments: bool,
     traversal: TypePositionTraversal,
 ) {
-    positions.push(type_reference);
+    let node = syntax.tables.type_references.type_reference(type_reference);
+    // A containing structural equation reads the canonical const arguments of
+    // its nested applications. Visit each application after its arguments.
+    if !matches!(node, TypeReferenceNode::Generic { .. }) {
+        positions.push(type_reference);
+    }
     macro_rules! visit_child {
         ($child:expr $(,)?) => {
             visit_type_positions(
@@ -718,7 +723,7 @@ fn visit_type_positions(
             )
         };
     }
-    match syntax.tables.type_references.type_reference(type_reference) {
+    match node {
         TypeReferenceNode::Callable { signature } => {
             if traversal == TypePositionTraversal::Storage {
                 return;
@@ -777,6 +782,7 @@ fn visit_type_positions(
             for argument in syntax_type_references(syntax).type_reference_handles(*arguments) {
                 visit_child!(*argument);
             }
+            positions.push(type_reference);
         }
         TypeReferenceNode::ConstExpression(expression) => {
             let mut expressions = HashSet::new();

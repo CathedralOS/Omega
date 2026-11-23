@@ -81,8 +81,7 @@ pub(crate) use substitution::{
     closed_name_identity, substitute_member, type_reference_mentions_parameter,
 };
 
-pub(crate) use synthesis::desugar_generic_data_instances_in;
-pub(crate) use work_domain::GenericDataWorkDomain;
+pub(crate) use synthesis::{materialize_authored_equations, materialize_type_roots};
 
 /*
     Whether this exact selected destination carries declaration predicates.

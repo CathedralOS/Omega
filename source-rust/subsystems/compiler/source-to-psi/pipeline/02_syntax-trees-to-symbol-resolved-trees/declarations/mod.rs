@@ -101,6 +101,7 @@ pub(crate) fn prepare(
         // available without resolving named widths outside their lexical scope.
         generic_data::fold_closed_scalar_initializers(&mut syntax, &constant_selection)?;
     }
+    generic_data::materialize_authored_equations(&mut syntax, &constant_selection)?;
     synthesize_trait_defaults_with_selection(&mut syntax, &constant_selection)?;
     Ok(Prepared {
         syntax,
