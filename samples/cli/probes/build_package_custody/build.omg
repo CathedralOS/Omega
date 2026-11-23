@@ -6,7 +6,7 @@
 //
 // The root's own build calls the dependency's product machine through the
 // kit edge, and `main.omg` calls the same machine through the product edge;
-// both routes must see the generated source the dependency staged.
+// both routes must see the source the dependency published.
 
 use kit;
 

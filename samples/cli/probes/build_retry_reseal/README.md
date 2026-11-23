@@ -6,8 +6,9 @@ The dep's build completes its required output in two rounds:
    writer is still live — the evaluator answers
    `OutputCompletion::Retry { obligation, file }` because the staged file
    is not yet sealed.
-2. The retry path seals the writer, `include_source`s the file, and calls
-   `complete` again — which must now yield `Sealed`.
+2. The retry path closes the writer, passes the captured bytes to
+   `Build::include_source` as `generated.omg`, and calls `complete` on the file.
+   The second completion must yield `Sealed`.
 
 The pinned failure direction (Retry then `fail`) already exists as an
 invalid control under `build_package_custody`; this sample covers the
@@ -19,3 +20,8 @@ dep's authored `value()` calls a generated `generated_value()`, which the
 generated-source boundary forbids (`wiki/spec/build/execution.md`), and the
 rejection must be the same whether the dep is reviewed on its own or
 checked inside its consumer.
+
+
+The `invalid_foreign_include` control tries to publish outside the dependency’s
+logical namespace. The `invalid_path_as_source_bytes` control passes a filesystem
+handle where publication requires a byte slice.

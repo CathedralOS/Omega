@@ -14,10 +14,6 @@ public machine close(output: @mutable BuildOutput, descriptor: i32) -> i32 reach
     BuildFilesystemOperations::close_output(output, descriptor)
 }
 
-public machine include_source(output: @mutable BuildOutput, generated: BuildPath) reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
-    BuildFilesystemOperations::include_source(output, generated);
-}
-
 public machine require(output: @mutable BuildOutput, name: @[u8]) -> RequiredOutput reaches BuildFilesystemOperations invokes BuildFilesystemOperations {
     BuildFilesystemOperations::require(output, name)
 }
