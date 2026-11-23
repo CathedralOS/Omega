@@ -514,10 +514,10 @@ mod compiler_machine_tests {
             language_core::bundled_files::BundledFile::CoreStaticInterrupt,
         ))
         .expect("bundled declaration is UTF-8");
-        let caller = "trait SlotKind {}
+        let caller = "use static_interrupt.omg as interrupts; trait SlotKind {}
                 TimerSlot satisfies SlotKind {}
                 data Table {}
-                machine owner() { let selected: bool = X86StaticInterruptScope::run::<owner, TimerSlot, Table>(); }";
+                machine owner() { let selected: bool = |interrupts|::X86StaticInterruptScope::run::<owner, TimerSlot, Table>(); }";
         for origin in [SourceOrigin::Toolchain, SourceOrigin::User] {
             let mut sources = SourceMap::default();
             let declaration = if origin == SourceOrigin::Toolchain {
@@ -571,6 +571,14 @@ mod compiler_machine_tests {
                 SourceOrigin::User,
             ));
             let mut request = ResolutionRequest::new(syntax);
+            request.top_level_bindings = crate::resolution::fixture_file_bindings(
+                &sources,
+                &[(
+                    "toolchain/main.omg",
+                    "toolchain/static_interrupt.omg",
+                    "interrupts",
+                )],
+            );
             request.sources = Some(Arc::new(sources));
             let resolved = resolve(request).expect("resolve the installer and its caller");
             let call = resolved
@@ -591,6 +599,10 @@ mod compiler_machine_tests {
                     _ => None,
                 })
                 .expect("the source installation call");
+            assert!(
+                call.target_symbol.is_valid(),
+                "{origin:?} must select its own run declaration"
+            );
             let slot = call.machine_arguments[1].symbol;
             if origin == SourceOrigin::Toolchain {
                 assert_eq!(resolved.symbols.get(slot).kind, SymbolKind::Conformance);

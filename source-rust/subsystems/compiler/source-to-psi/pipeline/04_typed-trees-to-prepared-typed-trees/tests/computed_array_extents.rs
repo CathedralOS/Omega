@@ -47,8 +47,8 @@ fn each_extent_arrives_with_its_own_declaration_and_length() {
             assert_eq!(
                 constants,
                 [
-                    ("east\\N".to_owned(), Some(east)),
-                    ("west\\N".to_owned(), Some(west))
+                    ("east/value.omg:N".to_owned(), Some(east)),
+                    ("west/value.omg:N".to_owned(), Some(west))
                 ],
                 "{initializer:?}"
             );
@@ -61,7 +61,11 @@ fn each_extent_arrives_with_its_own_declaration_and_length() {
                 })
                 .collect();
             demanded.sort();
-            assert_eq!(demanded, ["east\\N", "west\\N"], "{initializer:?}");
+            assert_eq!(
+                demanded,
+                ["east/value.omg:N", "west/value.omg:N"],
+                "{initializer:?}"
+            );
 
             // Each extent names the declaration of the path written there
             // and reads that declaration's value as its length.
@@ -69,12 +73,11 @@ fn each_extent_arrives_with_its_own_declaration_and_length() {
             let [eastern, western] = uses.as_slice() else {
                 panic!("expected the two extents that name a constant, found {uses:?}")
             };
-            for (extent, length) in [(eastern, east), (western, west)] {
-                assert_eq!(
-                    path(trees, extent.selected),
-                    extent.written,
-                    "{initializer:?}"
-                );
+            for (extent, length, owner) in [
+                (eastern, east, "east/value.omg:N"),
+                (western, west, "west/value.omg:N"),
+            ] {
+                assert_eq!(path(trees, extent.selected), owner, "{initializer:?}");
                 assert_eq!(
                     extent.length,
                     Some(length),
@@ -86,8 +89,8 @@ fn each_extent_arrives_with_its_own_declaration_and_length() {
                 assert!(matches!(extent.form, FixedArrayLength::ConstParameter { symbol, .. }
                     if symbol == extent.selected), "{:?}", extent.form);
             }
-            assert_eq!(eastern.written, "east\\N");
-            assert_eq!(western.written, "west\\N");
+            assert_eq!(eastern.written, "|east|::N");
+            assert_eq!(western.written, "|west|::N");
             assert_ne!(eastern.selected, western.selected);
 
             // `pair`, `triple` and `plain` wrote their extents as literals.
@@ -115,8 +118,8 @@ fn typing_names_the_constant_and_the_source_driver_evaluates_it_before_stage_04(
         let [eastern, western] = typed.as_slice() else {
             panic!("expected the two extents that name a constant, found {typed:?}")
         };
-        for extent in [eastern, western] {
-            assert_eq!(path(&prepared.typed, extent.selected), extent.written);
+        for (extent, owner) in [(eastern, "east/value.omg:N"), (western, "west/value.omg:N")] {
+            assert_eq!(path(&prepared.typed, extent.selected), owner);
             assert!(
                 matches!(extent.form, FixedArrayLength::ConstParameter { symbol, .. }
                     if symbol == extent.selected)
@@ -150,11 +153,11 @@ fn typing_names_the_constant_and_the_source_driver_evaluates_it_before_stage_04(
             evaluated,
             [
                 (
-                    "east\\N".to_owned(),
+                    "east/value.omg:N".to_owned(),
                     BuildTimeValue::Int(i64::try_from(east).unwrap())
                 ),
                 (
-                    "west\\N".to_owned(),
+                    "west/value.omg:N".to_owned(),
                     BuildTimeValue::Int(i64::try_from(west).unwrap())
                 ),
             ]
@@ -188,7 +191,7 @@ fn a_request_that_reaches_one_extent_leaves_the_other_constant_unevaluated() {
         .constants()
         .map(|declaration| (path(trees, declaration.symbol), declared_value(declaration)))
         .collect();
-    assert_eq!(constants, [("east\\N".to_owned(), Some(2))]);
+    assert_eq!(constants, [("east/value.omg:N".to_owned(), Some(2))]);
     assert_eq!(prepared.accounting.receipts().len(), 1);
 
     let uses = extent_uses(trees);
@@ -198,6 +201,6 @@ fn a_request_that_reaches_one_extent_leaves_the_other_constant_unevaluated() {
     assert_eq!(eastern.length, Some(2));
     assert_eq!(western.length, None);
     let decoy = trees.const_declaration_by_symbol(western.selected).unwrap();
-    assert_eq!(path(trees, decoy.symbol), "west\\N");
+    assert_eq!(path(trees, decoy.symbol), "west/value.omg:N");
     assert_eq!(declared_value(decoy), None);
 }

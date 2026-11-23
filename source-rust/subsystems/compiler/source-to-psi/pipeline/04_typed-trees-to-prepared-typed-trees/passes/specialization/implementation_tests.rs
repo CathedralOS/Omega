@@ -136,7 +136,7 @@ fn source_with_typed_record(typed_record: bool) -> Source {
 fn source_with_record_children(typed_record: bool, with_children: bool) -> Source {
     let mut sources = crate::source_inputs::SourceMap::default();
     let file = sources.add_with_metadata(
-        std::path::PathBuf::from("implementation-values.omg"),
+        std::path::PathBuf::from("implementation-values/implementation-values.omg"),
         "root".into(),
         std::path::PathBuf::from("implementation-values"),
         semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]),

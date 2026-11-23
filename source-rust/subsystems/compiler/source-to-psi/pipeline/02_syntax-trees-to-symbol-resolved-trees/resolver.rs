@@ -40,6 +40,32 @@ use std::sync::Arc;
 use symbols::SymbolHandle;
 use syntax_trees::SyntaxTrees;
 
+/// Supply the named file edges a package driver would admit for a stage fixture.
+/// Both paths name files in the fixture's source map, independent of insertion order.
+#[cfg(any(test, feature = "test-support"))]
+pub fn fixture_file_bindings(
+    sources: &SourceMap,
+    edges: &[(&str, &str, &str)],
+) -> Vec<crate::source_symbols::SourceScopedTopLevelBinding> {
+    let id = |path: &str| {
+        sources
+            .files()
+            .find(|file| file.path == std::path::Path::new(path))
+            .unwrap_or_else(|| panic!("missing fixture source {path}"))
+            .source_id
+    };
+    edges
+        .iter()
+        .map(|&(requester, target, alias)| {
+            crate::source_symbols::SourceScopedTopLevelBinding::file_import(
+                id(requester),
+                id(target),
+                alias,
+            )
+        })
+        .collect()
+}
+
 /* Resolve every name in the forest to its exact declaration. */
 #[cfg(any(test, feature = "test-support"))]
 pub fn resolve(request: ResolutionRequest) -> Result<SymbolResolvedTrees, Vec<Diagnostic>> {
