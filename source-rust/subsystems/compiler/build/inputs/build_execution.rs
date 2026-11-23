@@ -2,8 +2,6 @@
 //! Completing the activation settles its output files and transfers the immutable source bytes.
 
 mod build_admission;
-#[doc(hidden)]
-pub mod build_record_codec;
 pub mod build_value;
 mod completed_outputs;
 mod execution_inputs;
@@ -149,7 +147,6 @@ impl<'scope> CapturedBuildObservations<'scope> {
             captured_source_inventory: scope.captured_source_inventory(),
             named_input_inventories: scope.named_input_inventories(),
             generated_sources: self.generated_sources.unwrap_or_default(),
-            staged_source_ordinals: None,
             required_output_settlements,
             staged_output_tree,
             build_log: self.build_log,

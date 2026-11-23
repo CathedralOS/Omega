@@ -63,13 +63,6 @@ the compiler consumes those bytes even if an exported file has the same name
 and different contents. Exporting a file with an `.omg` suffix is independent
 of publishing source.
 
-Older stored observations name a closed output file and the completed
-filesystem attempt at which the Build selected it. Recover those bytes from the
-retained tree under the rules of that format. Paths must be unique, their
-ordinals nondecreasing, and each file closed before selection. Equal ordinals
-are legal. The original source-extension, reserved-name and non-executable
-regular-file checks apply to those observations.
-
 Scoped grants and deterministic resource accounts alone do not exclude hostile
 same-user processes racing disk-backed storage. Enforce the input/output isolation
 contract or require an explicit adequate executor isolation premise. Neither a

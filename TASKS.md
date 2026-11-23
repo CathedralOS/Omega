@@ -211,7 +211,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Exercise [interpreter resumption](source-rust/subsystems/interpreter/embedding/continuation.rs) through the ordinary Build entry. Keep the registration and a borrow live, use the borrowed result after calling newly mounted code, and make a repeated initializer observable. Require refusal if the backing storage or earlier effect changes. The [repair queue](OWNER_CODE_CONCERNS.md#a-byte-read-can-run-in-a-build-but-prevent-it-from-resuming) describes the byte-read and transition-subject cases.
 
 - **NO-IMPLICIT-COMPILER-STORAGE.** Implement [compiler storage](wiki/spec/build/compiler_storage.md): keep reuse in memory within one build invocation and delete the disk caches.
-  - Delete the [compiled review cache](source-rust/subsystems/package-manager/review/candidate/review_cache.rs) and its per-user store directory.
   - Trace ordinary builds, review/update and interrupted publication. Keep requested outputs, acquisition and transaction recovery distinct from invocation-owned scratch.
   - Check a diamond dependency with identical inputs and one with different grants or targets. Two invocations in the same process must start independent computations.
 
