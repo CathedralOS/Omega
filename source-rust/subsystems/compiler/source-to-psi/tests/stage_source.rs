@@ -766,6 +766,30 @@ fn parser_output_must_cover_the_exact_captured_files() {
 }
 
 #[test]
+fn a_published_machine_address_follows_its_logical_file_across_checkouts() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    let address = |checkout: &str, filename: &str| {
+        let mut files = SourceMap::default();
+        let root = capture_file(
+            &mut files, checkout, package, filename,
+            "public machine read() -> u8 reaches none crashes none { 7u8 }",
+        );
+        let artifact = compile(product(files, root, package, &[]).unwrap(), None).unwrap();
+        let reopened = terminal_codec::CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes()).unwrap();
+        let module = reopened.semantic_module();
+        let [machine] = module.machines.as_slice() else {
+            panic!("expected one public machine");
+        };
+        let declaration = machine.contract.declaration.as_ref().unwrap();
+        module.identities.text(declaration.machine.identity()).unwrap().to_owned()
+    };
+    let original = address("first-checkout", "io/current.omg");
+    assert_eq!(original, address("second-checkout", "io/current.omg"));
+    assert_ne!(original, address("first-checkout", "archive/current.omg"));
+    assert_ne!(original, address("first-checkout", "io/previous.omg"));
+}
+
+#[test]
 fn a_file_qualifier_selects_its_own_sources_declarations() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     let (mut files, root) = captured(package, "machine value() -> u8 { |cell|::read() }");
