@@ -34,9 +34,14 @@ journal.
 
 Version 2 also records the command and the digest of its exact review proposal.
 Recovery verifies that proposal, writes the pair, removes the completed
-proposal and then removes the journal. A matching `--resume` reports the
-finished publication. Older journals record only the two project files. They
-recover that pair and leave any separate proposal in place.
+proposal and then removes the journal. When `--resume` opens that journal, it
+reports the finished publication.
+
+Older journals contain only the two project files. To identify their proposal,
+recovery checks the old Build and lock digests, the reviewed Build bytes, the
+target list and the full source graph in the reviewed lock. When these agree,
+it records the proposal's digest before completing the write. A separate
+proposal stays in place when those records do not identify it.
 
 Atomic stages stay under `build/package-manager`, not in source input.
 Replacement keeps permissions, including the executable bit in source

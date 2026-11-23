@@ -179,7 +179,19 @@ impl PackageFileTransaction {
             return Ok(None);
         };
         let result = (|| {
-            let journal = PackageFileJournal::recover(record.bytes(), self.limits)?;
+            let mut journal = PackageFileJournal::recover(record.bytes(), self.limits)?;
+            let record = if journal.proposal.is_none()
+                && let Some(proposal) = self.identify_legacy_proposal(&journal)?
+            {
+                self.expect_recorded_pair(&journal)?;
+                // Retain the association before cleanup in case recovery itself is interrupted.
+                journal.proposal = Some(proposal);
+                let upgraded = journal.encode(self.limits)?;
+                record.replace(&upgraded, self.limits.journal())?;
+                self.read_journal(&upgraded)?
+            } else {
+                record
+            };
             let proposal = journal
                 .proposal
                 .map(|expected| self.read_proposal(expected))
@@ -193,13 +205,10 @@ impl PackageFileTransaction {
         result.map_err(|error| PackagePublicationError::Pending(Box::new(error)))
     }
 
-    fn apply(
+    fn expect_recorded_pair(
         &self,
         journal: &PackageFileJournal,
-        proposal: Option<RootRecordRead<'_>>,
-        checkpoint: &mut impl FnMut(PublicationStep) -> Result<(), PackagePublicationError>,
     ) -> Result<(), PackagePublicationError> {
-        self.verify()?;
         self.expect_either(
             BUILD_FILE,
             Some(&journal.before_build),
@@ -210,6 +219,17 @@ impl PackageFileTransaction {
             journal.before_lock.as_deref(),
             &journal.after_lock,
         )?;
+        Ok(())
+    }
+
+    fn apply(
+        &self,
+        journal: &PackageFileJournal,
+        proposal: Option<RootRecordRead<'_>>,
+        checkpoint: &mut impl FnMut(PublicationStep) -> Result<(), PackagePublicationError>,
+    ) -> Result<(), PackagePublicationError> {
+        self.verify()?;
+        self.expect_recorded_pair(journal)?;
         // Publication removes the proposal only after both project files match the review.
         if journal.proposal.is_some() && proposal.is_none() {
             self.expect_file(BUILD_FILE, Some(&journal.after_build))?;
@@ -233,6 +253,29 @@ impl PackageFileTransaction {
             proposal.remove(self.limits.files())?;
         }
         self.verify()
+    }
+
+    fn identify_legacy_proposal(
+        &self,
+        journal: &PackageFileJournal,
+    ) -> Result<Option<ReviewedProposal>, PackagePublicationError> {
+        let Some(file) = self
+            .journal
+            .read_optional(Path::new(PROPOSAL_FILE), self.limits.files())?
+        else {
+            return Ok(None);
+        };
+        let kind = crate::transaction::legacy_publication_kind(
+            file.bytes(),
+            &journal.before_build,
+            journal.before_lock.as_deref(),
+            &journal.after_build,
+            &journal.after_lock,
+        );
+        Ok(kind.map(|kind| ReviewedProposal {
+            kind,
+            digest: crate::digest_encoder::content_identity(file.bytes()),
+        }))
     }
 
     fn read_proposal(
@@ -313,6 +356,11 @@ impl PackageFileTransaction {
     }
 
     fn clear_journal(&self, expected: &[u8]) -> Result<(), PackagePublicationError> {
+        self.read_journal(expected)?.remove(self.limits.journal())?;
+        self.verify()
+    }
+
+    fn read_journal(&self, expected: &[u8]) -> Result<RootRecordRead<'_>, PackagePublicationError> {
         let read = self
             .journal
             .read(Path::new(JOURNAL_FILE), self.limits.journal())?;
@@ -321,8 +369,7 @@ impl PackageFileTransaction {
                 "journal changed during publication",
             ));
         }
-        read.remove(self.limits.journal())?;
-        self.verify()
+        Ok(read)
     }
 
     fn verify(&self) -> Result<(), PackagePublicationError> {
