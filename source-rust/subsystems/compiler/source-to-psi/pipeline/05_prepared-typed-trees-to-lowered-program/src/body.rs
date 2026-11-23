@@ -928,7 +928,8 @@ pub struct Body {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Statement {    /// At this wait the successor still observes these local bindings.
+pub enum Statement {
+    /// At this wait the successor still observes these local bindings.
     ParkedBuildLocals(Vec<usize>, source_text::SourceSpan),
     /// Evaluate `value` and bind `slot` to it: a local's initializer, or an
     /// assignment of a whole value, which rebinds the slot. A scalar slot
@@ -1077,7 +1078,8 @@ pub struct Expression {
     /// Source acknowledgements survive primitive folding until position checking.
     pub call_context: Option<terminal_psi::CallAcknowledgement>,
     pub kind: ExpressionKind,
-    /// `None` only for a call of a Unit machine.
+    /// `None` for a Unit result: a call of a Unit machine, or a `match` whose
+    /// arms complete with Unit.
     pub result: Option<ValueType>,
     pub source: SourceOrigin,
 }
@@ -1105,7 +1107,8 @@ impl AtomicOperation {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ExpressionKind {    /// Operand indices refer to the event's source evaluation order.
+pub enum ExpressionKind {
+    /// Operand indices refer to the event's source evaluation order.
     Atomic(AtomicOperation),
     /// The enclosing match's already captured place, never its selector again.
     SavedSubject(arena::Handle<crate::source_state::expression::CompletedValueCapture>),

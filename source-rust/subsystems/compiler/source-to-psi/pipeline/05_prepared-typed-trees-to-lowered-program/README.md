@@ -907,7 +907,7 @@ the slice that serves it:
 | a field of a data payload binding, `inner.x` | `expression field read beneath a case payload` |
 | a case arm with a separate guard or a pattern that binds its case | `transition case arm with a guard`, `transition pattern that binds its case` |
 | `crash` in a case arm | `transition crash in a case arm` (finding 21) |
-| `match` on a scalar or with value patterns, on a subject that is not a place, with a data or Unit result | `expression match on a scalar subject`, `expression match arm on a value pattern`, `expression match on a subject that is not a place`, `expression match with a data result`, `expression match with a Unit arm` |
+| `match` on a scalar or with value patterns, on a subject that is not a place, with a data result | `expression match on a scalar subject`, `expression match arm on a value pattern`, `expression match on a subject that is not a place`, `expression match with a data result` |
 | a `match` arm with a separate guard | `transition case arm with a guard` |
 | `s in S::C` whose right side names no case | `expression case membership` |
 | a pattern that names fewer than all payload fields without `..` | `typing pattern misses a payload field` |

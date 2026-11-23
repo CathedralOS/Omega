@@ -296,9 +296,18 @@ impl Lowering<'_> {
                 let scalar_type = self.result_type(expression)?;
                 self.read_field(base, *field, scalar_type, source)
             }
-            ExpressionKind::StorageLocation { query, place, first_element, .. } => {
-                self.storage_location(*query, place, *first_element, self.result_type(expression)?, source)
-            }
+            ExpressionKind::StorageLocation {
+                query,
+                place,
+                first_element,
+                ..
+            } => self.storage_location(
+                *query,
+                place,
+                *first_element,
+                self.result_type(expression)?,
+                source,
+            ),
             ExpressionKind::CollectionMeasure { base, measure } => {
                 self.measure_collection(base, *measure, source)
             }
@@ -336,12 +345,17 @@ impl Lowering<'_> {
                 arms,
                 default,
             } => {
-                let scalar_type = self.result_type(expression)?;
+                // A Unit match joins no value: each arm that returns
+                // continues at one join block without parameters.
+                let result_type = match expression.result {
+                    None => None,
+                    Some(_) => Some(ValueType::plain(self.result_type(expression)?)),
+                };
                 self.match_value(
                     subject,
                     arms,
                     default.as_deref(),
-                    ValueType::plain(scalar_type),
+                    result_type,
                     source,
                     *capture,
                 )
