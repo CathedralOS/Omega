@@ -20,7 +20,6 @@ use program::{ConstantUse, INITIALIZERS, MACHINES, Prepared, constant_uses, prep
 use semantic_vocabulary::IntegerValue;
 use source_compiler::representations::source_state::TypedTrees;
 use source_compiler::representations::source_state::constant::ConstDeclaration;
-use source_compiler::representations::source_state::expression::ExpressionNode;
 use source_compiler::test_support::lowering::{self, Elaboration};
 use source_compiler::test_support::preparation::{self, PreparedTypedTrees};
 use symbols::SymbolHandle;
@@ -136,10 +135,6 @@ fn prepared_with(
     preparation::prepare_typed_trees(trees, &values, &[]).unwrap()
 }
 
-fn set_use(trees: &mut TypedTrees, constant: &ConstantUse, value: bool) {
-    *trees.expression_table.expression_mut(constant.expression) = ExpressionNode::Boolean(value);
-}
-
 fn declaration_mut(trees: &mut TypedTrees, symbol: SymbolHandle) -> &mut ConstDeclaration {
     let handle = trees
         .roots
@@ -155,7 +150,7 @@ fn both_uses(prepared: &PreparedTypedTrees) -> [ConstantUse; 2] {
 }
 
 #[test]
-fn swapping_the_prepared_values_reverses_both_branches() {
+fn both_machines_test_the_selected_constant() {
     for initializer in INITIALIZERS {
         for east in [true, false] {
             let fixture = prepare(east, initializer);
@@ -178,42 +173,6 @@ fn swapping_the_prepared_values_reverses_both_branches() {
                 "{initializer:?}"
             );
 
-            // Give each use the other constant's value. Both source modules
-            // and both declarations still say what they said.
-            let [eastern, western] = both_uses(prepared);
-            let swapped = prepared_with(prepared, |trees| {
-                set_use(trees, &eastern, !east);
-                set_use(trees, &western, east);
-            });
-            let lowered = lower(&fixture, &swapped).unwrap();
-            assert_eq!(
-                tested_values(&lowered, swapped.trees()),
-                [!east, east, true],
-                "{initializer:?}"
-            );
-        }
-    }
-}
-
-#[test]
-fn changing_one_use_leaves_the_constant_with_the_same_last_name_alone() {
-    for initializer in INITIALIZERS {
-        let east = true;
-        let fixture = prepare(east, initializer);
-        let prepared = &fixture.program;
-        let [eastern, western] = both_uses(prepared);
-        for (changed, value, expected) in [
-            (&eastern, !east, [!east, !east, true]),
-            (&western, east, [east, east, true]),
-        ] {
-            let altered = prepared_with(prepared, |trees| set_use(trees, changed, value));
-            let lowered = lower(&fixture, &altered).unwrap();
-            assert_eq!(
-                tested_values(&lowered, altered.trees()),
-                expected,
-                "{initializer:?} after changing {}",
-                changed.written
-            );
         }
     }
 }
@@ -242,19 +201,8 @@ fn a_declaration_value_that_contradicts_its_initializer_is_refused() {
     }
 }
 
-/// Stage 05 reads a pattern's value where the pattern is used and nowhere
-/// else. It checks a declaration against that declaration's own initializer
-/// (the test above) and never compares a use with its declaration. Here
-/// `east\ON` is changed to `false` consistently, value and initializer,
-/// while the pattern that names it still holds `true`: lowering accepts the
-/// product and `choose` keeps comparing with `true`.
-///
-/// So the two copies agree only because the code that writes the use makes
-/// them agree: name resolution for a literal, and the source driver's
-/// evaluation for a call. Stage 04's test asserts the agreement on the
-/// product; stage 05 would not notice its loss.
 #[test]
-fn a_use_takes_no_value_from_its_declaration() {
+fn changing_the_selected_declaration_changes_only_its_own_pattern() {
     for initializer in INITIALIZERS {
         let east = true;
         let fixture = prepare(east, initializer);
@@ -269,7 +217,7 @@ fn a_use_takes_no_value_from_its_declaration() {
         let lowered = lower(&fixture, &altered).unwrap();
         assert_eq!(
             tested_values(&lowered, altered.trees()),
-            [east, !east, true],
+            [!east, !east, true],
             "{initializer:?}"
         );
     }

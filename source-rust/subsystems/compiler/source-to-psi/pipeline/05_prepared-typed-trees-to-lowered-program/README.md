@@ -915,11 +915,10 @@ the slice that serves it:
 | `==` and `!=` between records or between two sum values | `expression operator on a record` |
 | a field, literal type or pattern roster the typed trees hold only as a spelling | `spelling member without a field symbol`, `spelling record literal without a type symbol`, `spelling record literal field without a symbol`, `spelling field without a symbol`, `spelling record pattern without a resolved subject`, `spelling record pattern field without a symbol` |
 
-A named constant never reaches this crate as a name: stage 04 and build-time
-evaluation replace each use with the constant's materialized initializer, so a
-scalar constant arrives as an integer literal (as it did in route one) and a
-record constant as a record literal, and each is read as that literal. A name
-that still resolves to a constant is refused as `expression const`.
+A use of a named constant arrives with the symbol selected in its source scope.
+Lowering reads the materialized initializer on that declaration and keeps the
+use's source location. A target-dependent constant whose evaluation is pending
+retains its target observation.
 
 ## How identity is fixed
 
@@ -1525,9 +1524,8 @@ worked around by adding to `terminal-check-tables`.
 14. **A return does not write the result place.** A record machine's result
     place is a root with no log entry. The slice that states `result.field`
     clauses logs the returned leaves on the return edge.
-15. **Record constants are served as literals, with no constant route.** The
-    typed trees hold each use as the materialized initializer, so there is
-    nothing left to refuse or to resolve.
+15. **A record constant uses the record literal reader.** The selected
+    declaration supplies the record and its fields.
 16. **A transition's payload bindings are block parameters, not reads.** The
     lane plan's table gives "payload reads on the selected edge". The
     specification gives a root sum's payload the other form

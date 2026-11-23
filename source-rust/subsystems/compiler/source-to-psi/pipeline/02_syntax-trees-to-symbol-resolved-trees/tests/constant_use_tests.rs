@@ -1,5 +1,5 @@
 #[test]
-fn repeated_constant_uses_share_fields_and_keep_their_own_source_selections() {
+fn repeated_constant_uses_name_one_declaration_and_keep_their_own_source_selections() {
     use super::source_request;
     use crate::source_resolved::{AuthoredDeclarationSelectionTarget, expression::ExpressionNode};
 
@@ -9,27 +9,26 @@ fn repeated_constant_uses_share_fields_and_keep_their_own_source_selections() {
     let trees = crate::resolution::resolve(source_request(source)).unwrap();
     let declaration = trees.roots.const_declarations.iter().next().unwrap();
     let table = &trees.tables.bodies.expressions;
-    let ExpressionNode::StructLiteral(definition) = table.expression(declaration.initializer)
-    else {
+    let ExpressionNode::StructLiteral(_) = table.expression(declaration.initializer) else {
         panic!("the constant must have a record initializer");
     };
     let mut selected = Vec::new();
     for (start, name) in source.match_indices("FILL").skip(1) {
-        let (handle, record) = table
+        let (handle, path) = table
             .iter_expressions()
             .find_map(|(handle, expression)| {
                 let span = table.source_span(handle).span;
                 match expression {
-                    ExpressionNode::StructLiteral(record)
+                    ExpressionNode::Name(path)
                         if span.start == start && span.end == start + name.len() =>
                     {
-                        Some((handle, record))
+                        Some((handle, path))
                     }
                     _ => None,
                 }
             })
             .unwrap();
-        assert_eq!(record.fields, definition.fields);
+        assert_eq!(path.symbol, declaration.symbol);
         let selection = table
             .authored_selection_occurrences(handle)
             .map(|id| trees.authored_declaration_selections().get(id).unwrap())

@@ -515,6 +515,7 @@ pub(crate) mod exhaustiveness {
         #[test]
         fn constants_boolean_captures_and_builtin_indices_keep_coverage() {
             for text in [
+                "const YES: bool = true; const NO: bool = false; machine covered(a: bool, b: bool) { transition { a == YES && b == YES -> {}, a == YES && b == NO -> {}, a == NO -> {} } }",
                 "const ENABLED: bool = true; machine covered() { transition { ENABLED == true -> {} } }",
                 "const COUNT: u32 = 1u32; machine covered() { transition { COUNT == 0u32 -> {}, COUNT != 0u32 -> {} } }",
                 "machine covered<const COUNT: u32>() { transition { COUNT == 0u32 -> {}, COUNT != 0u32 -> {} } }",
@@ -1731,21 +1732,17 @@ pub(crate) mod exhaustiveness {
         }
     }
 
-    pub(crate) fn closed_boolean_guard(
-        program: &SymbolResolvedTrees,
-        expression: ExpressionHandle,
-    ) -> Option<bool> {
-        let expressions = &program.tables.bodies.expressions;
-        match expressions.expression(expression) {
+    fn boolean_value(program: &SymbolResolvedTrees, expression: ExpressionHandle) -> Option<bool> {
+        use application_identity::const_value::{
+            DecodedCanonicalConstValue, decode_declaration_value,
+        };
+        match program.tables.bodies.expressions.expression(expression) {
             ExpressionNode::Boolean(value) => Some(*value),
-            ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
-                match (
-                    expressions.expression(binary.left),
-                    expressions.expression(binary.right),
-                ) {
-                    (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => {
-                        Some(left == right)
-                    }
+            ExpressionNode::Name(path) => {
+                let declaration = program.const_declaration(path.symbol)?;
+                let encoding = declaration.evaluated_value.as_ref()?.encoding()?;
+                match decode_declaration_value(encoding)? {
+                    DecodedCanonicalConstValue::Boolean(value) => Some(value),
                     _ => None,
                 }
             }
@@ -1753,19 +1750,34 @@ pub(crate) mod exhaustiveness {
         }
     }
 
-    fn closed_boolean_guard_through_names(
+    pub(crate) fn closed_boolean_guard(
         program: &SymbolResolvedTrees,
         expression: ExpressionHandle,
     ) -> Option<bool> {
-        if let Some(value) = closed_boolean_guard(program, expression) {
-            return Some(value);
+        match program.tables.bodies.expressions.expression(expression) {
+            ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
+                Some(boolean_value(program, binary.left)? == boolean_value(program, binary.right)?)
+            }
+            _ => boolean_value(program, expression),
         }
-        let ExpressionNode::Name(path) = program.tables.bodies.expressions.expression(expression)
-        else {
+    }
+
+    fn boolean_constraint(
+        program: &SymbolResolvedTrees,
+        binary: &resolved::expression::TableBinaryExpression,
+    ) -> Option<FiniteConstraint> {
+        if binary.operator != BinaryOperator::Equal {
             return None;
-        };
-        let declaration = program.const_declaration(path.symbol)?;
-        closed_boolean_guard(program, declaration.initializer)
+        }
+        [(binary.left, binary.right), (binary.right, binary.left)]
+            .into_iter()
+            .find_map(|(subject, pattern)| {
+                boolean_value(program, pattern).map(|value| FiniteConstraint::Bool {
+                    subject,
+                    epoch: 0,
+                    value,
+                })
+            })
     }
 
     fn classify_arm(scope: &DispatchScope<'_>, guard: &TransitionGuardNode) -> ArmShape {
@@ -1795,45 +1807,8 @@ pub(crate) mod exhaustiveness {
             if let ExpressionNode::Binary(binary) =
                 program.tables.bodies.expressions.expression(conjunct)
             {
-                if binary.operator == BinaryOperator::Equal {
-                    if let ExpressionNode::Boolean(value) =
-                        program.tables.bodies.expressions.expression(binary.right)
-                    {
-                        let value = *value;
-                        if let Some(subject) =
-                            closed_boolean_guard_through_names(program, binary.left)
-                        {
-                            return if subject == value {
-                                ArmShape::Default
-                            } else {
-                                ArmShape::Opaque
-                            };
-                        }
-                        return ArmShape::Finite(vec![FiniteConstraint::Bool {
-                            subject: binary.left,
-                            epoch: 0,
-                            value,
-                        }]);
-                    }
-                    if let ExpressionNode::Boolean(value) =
-                        program.tables.bodies.expressions.expression(binary.left)
-                    {
-                        let value = *value;
-                        if let Some(subject) =
-                            closed_boolean_guard_through_names(program, binary.right)
-                        {
-                            return if subject == value {
-                                ArmShape::Default
-                            } else {
-                                ArmShape::Opaque
-                            };
-                        }
-                        return ArmShape::Finite(vec![FiniteConstraint::Bool {
-                            subject: binary.right,
-                            epoch: 0,
-                            value,
-                        }]);
-                    }
+                if let Some(constraint) = boolean_constraint(program, binary) {
+                    return ArmShape::Finite(vec![constraint]);
                 }
                 if matches!(
                     binary.operator,
@@ -1868,32 +1843,15 @@ pub(crate) mod exhaustiveness {
                 constraints.push(FiniteConstraint::Case(claim));
                 continue;
             }
-            match program.tables.bodies.expressions.expression(conjunct) {
-                ExpressionNode::Boolean(true) => continue,
-                ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Equal => {
-                    if let ExpressionNode::Boolean(value) =
-                        program.tables.bodies.expressions.expression(binary.right)
-                    {
-                        constraints.push(FiniteConstraint::Bool {
-                            subject: binary.left,
-                            epoch: 0,
-                            value: *value,
-                        });
-                        continue;
-                    }
-                    if let ExpressionNode::Boolean(value) =
-                        program.tables.bodies.expressions.expression(binary.left)
-                    {
-                        constraints.push(FiniteConstraint::Bool {
-                            subject: binary.right,
-                            epoch: 0,
-                            value: *value,
-                        });
-                        continue;
-                    }
-                    countable = false;
-                }
-                _ => countable = false,
+            if boolean_value(program, conjunct) == Some(true) {
+                continue;
+            }
+            if let ExpressionNode::Binary(binary) = program.tables.bodies.expressions.expression(conjunct)
+                && let Some(constraint) = boolean_constraint(program, binary)
+            {
+                constraints.push(constraint);
+            } else {
+                countable = false;
             }
         }
         if countable && !constraints.is_empty() {

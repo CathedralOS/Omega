@@ -9,7 +9,6 @@ use typed_trees_to_prepared_typed_trees::{PreparedValue, TargetInputs, ValueInpu
 
 use crate::source_state::TypedTrees;
 use crate::source_state::constant::ConstDeclaration;
-use crate::source_state::expression::ExpressionHandle;
 use crate::source_state::references::DeclarationSelection;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
@@ -19,7 +18,7 @@ use crate::compile_time_invocations::{
 };
 
 use super::super::demanded_values::{DemandedValues, RoundProgram};
-use super::{References, decoded, family_position, key, named_uses};
+use super::{References, decoded, family_position, key};
 
 /// Keeps the machine that computes each unevaluated constant among the
 /// program's machines, where the declarations it reaches can be read.
@@ -47,30 +46,6 @@ pub(in super::super) fn retain_evaluation_entries(
     }
     for entry in entries {
         program.push_machine(entry);
-    }
-    Ok(())
-}
-
-fn materialize_uses(
-    program: &mut TypedTrees,
-    symbol: SymbolHandle,
-    expressions: &[ExpressionHandle],
-) -> Result<(), String> {
-    let declaration = program
-        .const_declaration_by_symbol(symbol)
-        .ok_or("constant use lost its exact declaration")?;
-    let carrier = declaration.declared_type;
-    let value = declaration
-        .evaluated_value
-        .as_ref()
-        .and_then(numeric_literals::EvaluatedConstant::encoding)
-        .and_then(application_identity::const_value::decode_declaration_value)
-        .ok_or("constant use has no evaluated canonical value")?;
-    for expression in expressions {
-        let node = program
-            .materialize_canonical_const_value(carrier, &value)
-            .ok_or("constant value does not materialize in its declared carrier")?;
-        *program.expression_table.expression_mut(*expression) = node;
     }
     Ok(())
 }
@@ -133,10 +108,6 @@ pub(in super::super) struct Initializers<'scope> {
     /// The inputs stage 04 prepares for every demanded constant, sorted by
     /// constant.
     values: Vec<ValueInputs>,
-    /// Every constant of the program, sorted, and the expressions that name
-    /// each one. A value replaces those names when its constant settles.
-    constants: Vec<SymbolHandle>,
-    uses: Vec<Vec<ExpressionHandle>>,
 }
 
 impl<'scope> Initializers<'scope> {
@@ -222,8 +193,6 @@ impl<'scope> Initializers<'scope> {
             return Ok(Self {
                 jobs: Vec::new(),
                 values,
-                constants: Vec::new(),
-                uses: Vec::new(),
             });
         }
         let mut constants = program
@@ -232,16 +201,6 @@ impl<'scope> Initializers<'scope> {
             .map(|constant| constant.symbol)
             .collect::<Vec<_>>();
         constants.sort_unstable_by_key(|symbol| key(*symbol));
-        let uses = named_uses(program, &constants);
-        for (symbol, expressions) in constants.iter().zip(&uses) {
-            if program
-                .const_declaration_by_symbol(*symbol)
-                .is_some_and(|constant| constant.evaluated_value.is_some())
-            {
-                materialize_uses(program, *symbol, expressions)
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            }
-        }
         let symbols = found
             .iter()
             .map(|(_, symbol, _)| *symbol)
@@ -272,8 +231,6 @@ impl<'scope> Initializers<'scope> {
         Ok(Self {
             jobs,
             values,
-            constants,
-            uses,
         })
     }
 
@@ -386,9 +343,6 @@ impl<'scope> Initializers<'scope> {
         let declaration = program.tables.const_declarations.get_mut(handle);
         declaration.materialized_initializer = expression;
         declaration.evaluated_value = Some(encoding.into());
-        if let Some(index) = family_position(&self.constants, symbol) {
-            materialize_uses(program, symbol, &self.uses[index]).map_err(invocation_error)?;
-        }
         Ok(())
     }
 }

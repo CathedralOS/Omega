@@ -49,10 +49,8 @@ fn insert_expression(family: &mut Vec<ExpressionHandle>, expression: ExpressionH
     }
 }
 
-/// Join the emitted value to its actual accepted invocation before another
-/// source owner is frozen. Merely retaining an initializer machine cannot
-/// justify a substituted literal: the requester, source, call and outcome
-/// must still be the ones the interpreter used.
+/// Check each computed constant against the invocation that evaluated it.
+/// The requester, source program and returned value must agree.
 pub fn validate_constant_evaluations(
     program: &TypedTrees,
     accounting: &SourceCompletionAccounting,
@@ -131,9 +129,8 @@ pub fn validate_constant_evaluations(
     {
         return Ok(());
     }
-    // The first actual constant invocation still owns every original named
-    // use, before this batch substitutes its first value. Prepare that use
-    // family once and authenticate each emitted copy against its own receipt.
+    // A constant invocation may add expressions to materialize its result.
+    // All expressions from before the first invocation must stay intact.
     let mut original_source = None;
     for record in accounting.receipts() {
         if let PureEvaluationRecord::Invocation(receipt) = record
@@ -151,7 +148,6 @@ pub fn validate_constant_evaluations(
     {
         return Err("constant receipt has changed expression input storage".into());
     }
-    let original_uses = original_source.map(|source| named_uses(source, &wanted));
     for constant in program.const_declarations() {
         let index =
             family_position(&wanted, constant.symbol).ok_or("constant declaration family drift")?;
@@ -246,22 +242,12 @@ pub fn validate_constant_evaluations(
             {
                 return Err("constant value differs from its accepted invocation outcome".into());
             }
-            let uses = original_uses
-                .as_ref()
-                .map(|rows| rows[index].as_slice())
-                .unwrap_or_default();
-            for expression in
-                std::iter::once(constant.materialized_initializer).chain(uses.iter().copied())
-            {
-                if !program.canonical_const_materialization_matches(
-                    constant.declared_type,
-                    expression,
-                    &value,
-                ) {
-                    return Err(
-                        "constant materialization differs from its invocation outcome".into(),
-                    );
-                }
+            if !program.canonical_const_materialization_matches(
+                constant.declared_type,
+                constant.materialized_initializer,
+                &value,
+            ) {
+                return Err("constant materialization differs from its invocation outcome".into());
             }
         }
     }
@@ -523,47 +509,6 @@ fn decode_snapshot_fields<'a>(
             ))
         })
         .collect()
-}
-
-fn named_uses(program: &TypedTrees, constants: &[SymbolHandle]) -> Vec<Vec<ExpressionHandle>> {
-    // Authored initializers remain source correspondence. Visit ordinary
-    // declarations and emitted initializer machines, not those originals.
-    struct Uses(References);
-    impl Extend<SymbolHandle> for Uses {
-        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
-    }
-    impl TypedReferences for Uses {
-        fn derived_declaration_references(&self) -> bool {
-            false
-        }
-        fn declaration(&mut self, symbol: SymbolHandle) -> bool {
-            self.0.symbols.contains(&symbol)
-        }
-        fn expression(&mut self, expression: ExpressionHandle) -> bool {
-            insert_expression(&mut self.0.expressions, expression)
-        }
-    }
-    let mut uses = Uses(References {
-        symbols: program
-            .machines()
-            .iter()
-            .map(|machine| machine.symbol)
-            .collect(),
-        ..Default::default()
-    });
-    crate::source_state::references::visit_program(program, &mut uses);
-    let mut named = vec![Vec::new(); constants.len()];
-    for expression in uses.0.expressions {
-        // An attached constant is the leaf of a value path. Its head
-        // names the qualifying carrier or module.
-        if let Some(path) = program.expression_table.name_path_node(expression)
-            && !path.static_application.is_valid()
-            && let Some(index) = family_position(constants, path.symbol)
-        {
-            named[index].push(expression);
-        }
-    }
-    named
 }
 
 #[cfg(test)]

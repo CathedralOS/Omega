@@ -1,13 +1,12 @@
-/* Substituting resolved constants into expressions. */
+//! Bind each constant use to the declaration visible at that source location.
 
 use crate::resolution::constants::declaration_values::selected_expression_constant;
 use crate::resolution::tables::body_expressions;
 use crate::source_resolved::SymbolResolvedTrees;
 use diagnostics::Diagnostic;
 use symbols::SymbolKind;
-use syntax_trees::item::ConstDefinition;
 
-pub(crate) fn substitute_resolved_constants(
+pub(crate) fn bind_constant_uses(
     program: &mut SymbolResolvedTrees,
     authored: &[crate::resolution::lowering::lowerer::PendingAuthoredExpression],
     selections: &mut Vec<crate::resolution::lowering::lowerer::PendingConstSelection>,
@@ -143,88 +142,44 @@ pub(crate) fn substitute_resolved_constants(
             ))
             .with_source_span(reference));
         }
-        if mode == crate::resolution::lowering::lowerer::ConstResolutionMode::ArgumentSelection
-            || declaration.evaluated_value.is_none()
-        {
-            // Evaluation replaces this retained name by its resolved leaf.
-            // Carry the constant already selected for this use, including
-            // when earlier name binding stopped at its qualifying carrier.
-            let expressions = &mut program.tables.bodies.expressions;
-            let ExpressionNode::Name(path) = expressions.expression_mut(occurrence.expression)
-            else {
-                unreachable!("selected_expression_constant only selects name paths");
-            };
-            path.symbol = selected;
-            let member_symbols = path.member_symbols;
-            expressions.set_name_path_member_symbol_at_offset(
-                member_symbols,
-                member_symbols.count() - 1,
-                selected,
-            );
-            expressions.set_unresolved_name(occurrence.expression, Default::default());
-            selections.push(
-                crate::resolution::lowering::lowerer::PendingConstSelection {
-                    expression: occurrence.expression,
-                    source_span: reference,
-                    declaration: selected,
-                    exposure: occurrence.exposure,
-                },
-            );
-            continue;
-        }
         let initializer = declaration.initializer;
-        if !body_expressions(program).expression_is_valid(initializer)
-            || program.tables.bodies.expressions.source_span(initializer)
-                != declaration.initializer_source_span
+        if mode != crate::resolution::lowering::lowerer::ConstResolutionMode::ArgumentSelection
+            && declaration.evaluated_value.is_some()
+            && (!body_expressions(program).expression_is_valid(initializer)
+                || program.tables.bodies.expressions.source_span(initializer)
+                    != declaration.initializer_source_span)
         {
             return Err(Diagnostic::error(
-                "constant substitution lost its exact declaration initializer",
+                "constant use selected a declaration with a missing or mismatched initializer",
             )
             .with_source_span(reference));
         }
-        if matches!(
-            program.tables.bodies.expressions.expression(initializer),
-            ExpressionNode::ArrayLiteral(_)
-        ) && unsupported_array_projection_sources.contains(&occurrence.expression)
+        if mode != crate::resolution::lowering::lowerer::ConstResolutionMode::ArgumentSelection
+            && declaration.evaluated_value.is_some()
+            && matches!(
+                program.tables.bodies.expressions.expression(initializer),
+                ExpressionNode::ArrayLiteral(_)
+            )
+            && unsupported_array_projection_sources.contains(&occurrence.expression)
         {
             return Err(Diagnostic::error(
             "array constant projection currently requires unborrowed literal integer selectors; dynamic indexing, borrowing and slicing require value-based array projection"
         ).with_source_span(reference));
         }
-        // A materialized aggregate's children belong to its definition. Each use
-        // keeps its own expression handle, span and declaration selections.
-        // Name paths keep private member storage for subsequent symbol binding.
-        let initializer = if matches!(
-            program.tables.bodies.expressions.expression(initializer),
-            ExpressionNode::Name(_)
-        ) {
-            program
-                .tables
-                .bodies
-                .expressions
-                .copy_from_self(initializer)
-        } else {
-            initializer
+        // A use keeps the declaration selected in its own scope. Evaluation
+        // stores the value on that declaration, including for literal initializers.
+        let expressions = &mut program.tables.bodies.expressions;
+        let ExpressionNode::Name(path) = expressions.expression_mut(occurrence.expression) else {
+            unreachable!("selected_expression_constant only selects name paths");
         };
-        let initializer_selections = body_expressions(program)
-            .authored_selection_occurrences(initializer)
-            .collect::<Vec<_>>();
-        program
-            .tables
-            .bodies
-            .expressions
-            .attach_authored_selection_occurrences(occurrence.expression, initializer_selections);
-        let value = body_expressions(program).expression(initializer).clone();
-        *program
-            .tables
-            .bodies
-            .expressions
-            .expression_mut(occurrence.expression) = value;
-        program
-            .tables
-            .bodies
-            .expressions
-            .set_source_span(occurrence.expression, reference);
+        path.symbol = selected;
+        let member_symbols = path.member_symbols;
+        expressions.set_name_path_member_symbol_at_offset(
+            member_symbols,
+            member_symbols.count() - 1,
+            selected,
+        );
+        expressions.set_unresolved_name(occurrence.expression, Default::default());
         selections.push(
             crate::resolution::lowering::lowerer::PendingConstSelection {
                 expression: occurrence.expression,
@@ -235,19 +190,4 @@ pub(crate) fn substitute_resolved_constants(
         );
     }
     Ok(())
-}
-
-pub(crate) fn semantic_const_name(
-    syntax_trees: &syntax_trees::SyntaxTrees,
-    definition: &ConstDefinition,
-) -> String {
-    if definition.scope.as_str(syntax_trees).is_empty() {
-        definition.name.as_str(syntax_trees).to_owned()
-    } else {
-        format!(
-            "{}::{}",
-            definition.scope.as_str(syntax_trees),
-            definition.name.as_str(syntax_trees)
-        )
-    }
 }

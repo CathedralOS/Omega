@@ -146,10 +146,25 @@ impl<'t> Program<'t> {
                 Unserved::Expression("missing expression"),
             ));
         }
-        Ok(self.typed.expression_table.expression(expression))
+        let table = &self.typed.expression_table;
+        let node = table.expression(expression);
+        if let ExpressionNode::Name(path) = node
+            && let Some(constant) = self.typed.named_const_declaration(path)
+            && constant.evaluated_value.is_some()
+        {
+            if !table.expression_is_valid(constant.materialized_initializer) {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Expression("evaluated constant has no materialized initializer"),
+                ));
+            }
+            return Ok(table.expression(constant.materialized_initializer));
+        }
+        Ok(node)
     }
 
-    /// Reads the term at an erased position: an `[erased]` local's
+/// Reads the term at an erased position: an `[erased]` local's
     /// initializer or the argument for an `[erased]` formal. It is a literal
     /// or a scalar binding, relevant or erased. Anything that computes has a
     /// formation condition (contracts.md, "Total arithmetic": "Exact

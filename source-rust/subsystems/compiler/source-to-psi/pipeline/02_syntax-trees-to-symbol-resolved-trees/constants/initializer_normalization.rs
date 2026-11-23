@@ -1,5 +1,5 @@
 /*
-    Rejoin declaration-owned folds before any use copies their materialized value.
+    Record each evaluated initializer on the declaration that owns it.
 
     The semantic evaluator establishes the result and builtin meanings. Resolution
     independently checks the retained scalar payload, source roots, and complete
