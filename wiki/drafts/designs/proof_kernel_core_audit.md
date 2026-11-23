@@ -48,7 +48,13 @@ Delete it when that task closes or its plan carries these findings.
    and none that takes a type. That is why Identity serves two types and a
    call inside a clause serves one shape of machine. See
    [how a clause becomes a proof term today](#how-a-clause-becomes-a-proof-term-today).
-6. **Do first.** Build toward the core library, not the samples. It needs no
+6. **The deleted corpus was 38% one matrix.** Of its 16,759 fixtures, 6,438
+   were 379 features each written through the same nine placements, accepted
+   and rejected. The old compiler had one rule per placement and so needed
+   one test per placement. The corpus also gives the full list of forms
+   programs write in a clause, which is what the single reader must serve.
+   See [the deleted corpus](#the-deleted-corpus).
+7. **Do first.** Build toward the core library, not the samples. It needs no
    level binder, no `core\Squash` and no value-indexed family, but every law
    in `core/nat.omg` is an induction over the recursive `data Nat`. Give
    stage 05 one term reader and the term forms `Proposition` lacks
@@ -466,30 +472,166 @@ change L2 above serves it and Identity with two of its four forms.
 
 ### The deleted corpus
 
-`tests/omega/` held 30,661 `.omg` files when #2828 deleted it
-(`f4c7a70beb^`). It is not to be restored, but it records which proof
-features had programs. Counting fixture directories whose path contains a
-keyword, as passing-or-running / rejected:
+`tests/omega/` held 16,759 fixtures and 751,772 lines of Omega when #2828
+deleted it (`f4c7a70beb^`). It is not to be restored. It is read here for
+two things: what its shape says about the old way of working, and what its
+programs say a compiler has to accept and refuse.
 
-| Keyword | Fixtures | Reading |
+**38% of the corpus was one matrix.** 6,438 fixtures are named
+`<feature>_through_<placement>`: 379 features, each written through the same
+nine placements, each as an accepted and a rejected program. Each placement
+has about 702 fixtures. This is the per-placement pattern in test form. The
+old compiler had one rule per placement, so it needed one test per
+placement to know each rule existed.
+
+| Placement | How the value reaches its use (from `range_fact_delivery`) |
+| --- | --- |
+| `local` | `let index: u64 = input;` then `count(index)` |
+| `field` | `data Reading requires index < 4 { index: u64; }` then `count(reading.index)` |
+| `parameter` | `machine probe(index: u64) requires index < 4 { count(index) }` |
+| `call_result` | `count(source(input))`, where `source` has `ensures result < 4` |
+| `const_name` | `const LIMIT: u64 = 4;` then `requires index < LIMIT` |
+| `match_join` | `let index: u64 = match flag { true -> left, false -> right };` |
+| `other_state` | `transition { _ -> deliver(input) }` into a nested machine |
+| `other_machine` | a top-level `forward` machine between the caller and the use |
+| `target_body` | the body moved into per-target providers selected in `build.omg` |
+
+What the two readers of the `facts` category found in it:
+
+- **The routing was written by hand.** Across 28 families compared in full,
+  helper names, what is routed and even whether the field carries an
+  invariant differ from family to family. Only the `target_body` scaffold is
+  a template (160 of 237 accepted fixtures in one half use the same one).
+- **A rejected twin is one small edit.** Over 198 pairs: a wrong constant or
+  expression (56), a bound loosened by one step (37), a clause or conjunct
+  removed (18), an ownership change (24), a wrong selection or type (23),
+  and smaller kinds.
+- **The matrix was applied to features that are not about facts.** Calling
+  conventions, `size_of` and `align_of`, ownership, cleanup and foreign
+  borrows were all routed through the nine placements, usually by phrasing
+  the result as an interval fact so that a changed constant "may overflow".
+
+**By category** (fixtures):
+
+| Category | Fixtures | Category | Fixtures |
+| --- | --- | --- | --- |
+| `facts` | 7,170 | `termination` | 311 |
+| `borrows` and `borrow` | 1,080 | `layouts` | 309 |
+| `generics` | 653 | `arithmetic` | 304 |
+| `calls` | 566 | `build` | 286 |
+| `domains` | 525 | `contracts` | 280 |
+| `proofs` | 476 | `float` | 275 |
+| `ownership` | 374 | `core` | 255 |
+| `traits` | 362 | `control_flow` | 239 |
+| `providers` | 339 | `drops` | 226 |
+| `slices` | 339 | 67 smaller categories | 2,390 |
+
+**What programs write in a clause.** This is the list a single term reader
+(L1) has to serve at every position. Counts are of `main.omg` files in the
+whole corpus unless a category is named.
+
+| Form | Example | Files |
 | --- | --- | --- |
-| `identity` | 73 / 78 | Identity had the most programs of any feature in this audit |
-| `quotient` | 59 / 73 | quotients were exercised, though no sample and no library file uses one today |
-| `erased` | 51 / 56 | erased bindings and evidence |
-| `induct` | 13 / 14 | induction |
-| `theorem` | 4 / 6 | named theorem machines |
+| Comparison and arithmetic | `requires 2 * acc + n * (n + 1) <= 10100` | most of the 10,321 with `requires` |
+| Field, element and length path | `ensures result.rest.length == whole.length - length`; `requires items[0] == 7` | common; 63 `result.field` paths in the proof categories alone |
+| A machine call as a term | `requires value <= limit()`; `ensures encode(value) > 0`; `requires valid_utf8(self)` | present in every category read |
+| `core::Identity` | `core::Identity<Nat>(add(add(x, y), z), add(x, add(y, z)))` | 460 |
+| `embed` | `embed(self.previous) + 1 == embed(Length)` | 470 |
+| `old` | `Granted::content(old(&storage))` | 301, nearly all this one shape |
+| Membership, also of a call result | `requires ticket in Ticket::Issued`; `ensures Encode::try_from(value) in Result::Ok` | 4,856 |
+| Case test with a condition | `(self in Interval::Empty) \|\| ((self in Interval::Range) && self.lo <= self.hi)` | common in `domains` and `dependent` |
+| `match` in a clause | `ensures (match result { Reply::Kept { number } -> number == input, ... })` | about 16 |
+| Type equation | `requires T == u32 \|\| T == u64`; `requires Length == [u8; Capacity]` | 124 fixtures in `generics` |
+| A requirement on a machine parameter | `requires machine Step(input: &mut u64) -> u64 requires input == 0;` | 624 |
+| Guarded crash | `crashes Trap value < Limit` | 484 |
+| Quantifier | none: `forall` and `exists` appear in no program | 0 |
+
+**Which types Identity is stated over** (94 fixtures in the proof
+categories): the core `Nat` 35, a quotient's representative type 22, generic
+`T` or `A` 10, plain records about 10, `IntervalSet<Nat>` 4, a user Peano
+type 2, floats 3. Elsewhere `core::Identity<IntervalSet<Nat>>(...old(&whole)...)`
+is the content-conservation claim, in 122 `core` fixtures.
+
+**What the proofs prove.** The accepted proof fixtures include: Identity
+over `Nat` is reflexive, symmetric and transitive and `Succ` is injective;
+addition over `Nat` is commutative and associative; `plus` over a user Peano
+type is associative, by induction (`pass/proofs/ring_law_conformance`);
+`(a+b)(c+d)` expands, by semiring normalization with an empty body
+(`pass/proofs/ring_full_polynomial_compile`); a Gauss sum, by integer
+induction; and equivalence laws for a quotient. Three accepted fixtures in
+those categories state an Identity proved on a structurally recursive
+machine. A proof body cites zero to four lemmas, and most cite one.
+
+**What had almost no programs.** `core::Squash` appears in no fixture.
+`core::Level` appears in 18, all of the `representation_agreement` family.
+The proof categories have no universe test. So level binders (C2) and the
+Squash mapping (C3) have no customer in the corpus or the library.
+
+**What the corpus says the compiler must keep doing**, beyond any placement.
+Each line is a distinct rule with both accepted and rejected programs:
+
+- A write to a field of a `data` with `requires` opens a window that must be
+  closed before the next read, call or return (113 families in `facts`, 56
+  fixtures in `dependent`).
+- A write or a call retires exactly the facts on the storage it may write,
+  and no others (51 fixtures in `contracts`; "write frames" in `calls`).
+- A value saved before a write keeps its facts; a re-read does not (47
+  families).
+- Every arrival at a loop state proves its index again; a join keeps a fact
+  only if every edge carries it.
+- A domain is established by a guard, a cast, a construction, a callee's
+  `ensures` or a named issuer, and by nothing else (525 `domains` fixtures).
+- Division needs a nonzero divisor and excludes `MIN / -1`; a shift needs
+  its count below the width; an exact cast needs the value to fit.
+- `==` on floats excludes NaN as a premise; Identity on floats is on bits.
+- Termination by a rank in a range, a declared measure, a lexicographic
+  measure, descent on `Nat`, or a shrinking slice (311 fixtures).
+- A generic body is checked once, under its own requirements, with its type
+  parameter rigid, and owes its obligations even when never instantiated.
+- A satisfier may not add premises to a trait member or drop a conclusion,
+  and a law satisfier may not assume its conclusion.
+- An `[erased]` binding never feeds runtime data or control.
+- Quotient formation, `lift` and `define` (25 `proofs` fixtures and 18 in
+  `facts`).
+
+**Reading coverage.** Every fixture's index row (name, leading comment,
+expected diagnostic) was read: 16,759 rows across eight readers. About
+1,600 programs were opened, many only to their first 30 to 60 lines. README
+files and most `build.omg` files were not read. Group counts above come from
+name and keyword patterns and are approximate.
+
+**What the ledgers recorded.** `corpus_outcomes.txt` holds the old
+compiler's verdict on each fixture: of 8,690 accepted-tier rows, 8,440
+checked and 221 were rejected; of 8,279 rejected-tier rows, 8,270 were
+rejected, 8,096 of them with the expected diagnostic. Its header says it is
+a "Historical three-way integration, not a new whole-corpus run", and its
+rows carry more than 670 different revision stamps. So no single revision
+of the old compiler is recorded as passing the whole corpus. The execution
+ledgers record 5,749 programs built for `linux_x86_64` and 6,362 on
+`linux_arm64` whose interpreter result agreed with native. There is no
+ledger for `windows_arm64`.
 
 Two fixtures are the smallest whole customer for a library law:
-`pass/proofs/ring_law_conformance` proves associativity of `plus` over a
-Peano `data` by induction and satisfies the trait's law with it, and
-`fail/proofs/ring_law_unproven_rejected` is its twin.
+`pass/proofs/ring_law_conformance` and its twin
+`fail/proofs/ring_law_unproven_rejected`, a law satisfier with no `ensures`.
 
-The corpus also shows the per-placement pattern from the test side. One
-feature, comparing a value against a machine that has a body, has 18
-fixtures named `body_bearing_comparison_through_<placement>`: through a
-local, a field, a parameter, a call result, a constant, a match join, another
-state, another machine and the target body, each accepted and rejected.
-`pass/facts` and `fail/facts` together are 14,628 of the `.omg` files.
+**What this changes in the plan.**
+
+- **L1's acceptance is the clause-form table above.** The single reader is
+  done when each form reads at every position, not when one program passes.
+- **Do not rebuild the matrix.** Under the lowered form a fact belongs to a
+  value, so one accepted and one rejected program per mechanism is the
+  test. Eight of the nine placements are ordinary lowering (a local, a
+  field, a call, a constant, a join, a state, a machine); if a mechanism
+  needs new code for one of them, the mechanism is too narrow.
+- **Level binders and Squash leave the plan** until a program needs them.
+  Open question 1 no longer blocks anything scheduled.
+- **Rearranging by algebra laws has customers**:
+  `pass/proofs/ring_full_polynomial_compile`, its twin
+  `fail/proofs/ring_rearrange_unlicensed_rejected`, and the `open_index_*`
+  families. It is a step of its own after `core/nat.omg`.
+- **Quotients have 43 fixtures** to recover a pair from when their step
+  comes.
 
 The only measured comparison of the old and new checkers is
 `wiki/drafts/designs/route_one_measures.md` (2026-11-11, removed by #3062;
@@ -579,10 +721,12 @@ there adds a case per construct, take the rule here instead.
 | 2 | A plain `data` as a kernel type with its constructors as terms (R2 without indices); a machine defined by cases on one parameter as a kernel function; a law machine as an induction (R3); L3, so these declarations are published once and checked once with `check_signature`. The proof producer normalizes both sides with the kernel, then closes the goal by congruence over the cited equalities and the inductive hypothesis. | stages 05 and 06, Terminal Psi | `pass/proofs/ring_law_conformance` and `fail/proofs/ring_law_unproven_rejected`, recovered from `f4c7a70beb^` beside the owning test |
 | 3 | `core/nat.omg` checked in full as a validation subject | stages 05 and 06 | its eleven `satisfies CommutativeSemiring<Nat>` machines |
 | 4 | The rest of R1: definitions with binders and `boundary let` as declarations in the same signature | stage 05, stage 06 | `cauchy.omg`, `rat.omg`, `int.omg`, `extent.omg:219` |
+| 4a | Rearranging a goal by the algebra laws a trait's satisfier has proved, as a producer of kernel terms | stage 06 | `pass/proofs/ring_full_polynomial_compile` and `fail/proofs/ring_rearrange_unlicensed_rejected`, recovered beside the owning test |
 | 5 | Move each existing term form into the single reader and delete the reader it came from | stage 05 | each position refusal listed [above](#how-a-clause-becomes-a-proof-term-today), with its twin |
 | 6 | The rest of R2: value-indexed families. Needs value-indexed type arguments (`Vector<previous, previous_total>`) evaluated in stage 03 first. | stages 03, 05 | `source_indexed_*`, once their other blockers are repaired |
-| 7 | Quotient formation (L2, L3) and the correspondence judgment (R3) | stages 05, 06 | none in the library or samples today; the corpus had about 130 fixtures to recover a pair from |
-| — | In parallel, each independent: (a) divide/remainder/shift endpoints from an interval divisor in `IntegerAffineBound`; (b) irreflexivity of `<` on an open value; (c) L4; (d) L5; (e) `core\Level` binders in stages 02-03, once open question 1 is answered | stage 06, kernel, stages 02-03 | S06 README:1039-1052 programs; `representation_agreement` for (e) |
+| 7 | Quotient formation (L2, L3) and the correspondence judgment (R3) | stages 05, 06 | none in the library or samples today; the corpus had 43 fixtures to recover a pair from |
+| — | In parallel, each independent: (a) divide/remainder/shift endpoints from an interval divisor in `IntegerAffineBound`; (b) irreflexivity of `<` on an open value; (c) L4; (d) L5 | stage 06, kernel | S06 README:1039-1052 programs |
+| later | `core\Level` binders in stages 02-03 and the Squash mapping, when a program needs them and open question 1 is answered | stages 02-03, 05 | `representation_agreement`, the only family that uses a level |
 
 Step 1 is small on purpose. [Check on the lowered form](check_on_lowered_form.md#lane-order)
 says not to spread a new representation before one checked end-to-end route
@@ -663,6 +807,18 @@ Recorded, not answered:
   Of the 861,818 lines #2823 deleted, this audit has read the proof crate,
   `quotients.rs` and the outline of `contract_entailment.rs`; the rest is
   unread.
+- Fourth reading (2026-11-23), of the whole deletion and the whole corpus.
+  The deleted crates were extracted from `cea9cdcde460^` (640 files, 881,353
+  lines of Rust) and the corpus from `f4c7a70beb^` (51,626 files). Ten
+  readers took the deleted code by crate and eight took the corpus by
+  category; each reported the line ranges or rows it read in full. About
+  130,000 deleted lines were read in full and every module outlined; every
+  corpus fixture's index row was read and about 1,600 programs opened.
+  Whole-set counts (kernel references, `bool` functions, the placement
+  matrix, clause forms, ledger rows) are searches over every file. Six
+  claims about the deleted code and the ledger row counts were checked
+  directly against the files. Counts by group are from name and keyword
+  patterns and are approximate. Nothing was built or run.
 - Not determined: whether a full core library check with `no_wrap` passes
   end to end (no sample reaches it); `erased_array_evidence`'s signal 9;
   whether old level constraints were ever published; the two samples bound to
