@@ -509,6 +509,42 @@ fn program_with_live_byte_literal() -> (
 }
 
 #[test]
+fn two_arguments_lending_the_same_place_have_two_suspension_rows() {
+    use terminal_psi::{
+        StructuralAccess, StructuralArgument, TerminalSuspensionPlace, TerminalSuspensionStorage,
+    };
+    use terminal_semantics::suspension_frontier::MachineFrontiers;
+
+    let (mut module, (_, call), place) = program_with_live_byte_literal();
+    let argument = StructuralArgument::whole(place, StructuralAccess::SharedBorrow);
+    let operation = module.machines[0].blocks[0]
+        .operations
+        .iter_mut()
+        .find(|operation| operation.id == call)
+        .unwrap();
+    let OperationKind::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut operation.kind
+    else {
+        panic!("the fixture must park at a call");
+    };
+    structural_arguments.extend([argument.clone(), argument.clone()]);
+    let crossing = operation.suspension_crossing.unwrap();
+    let plan = MachineFrontiers::new(&module, &module.machines[0])
+        .call_plan(call, crossing)
+        .unwrap();
+    let rows: Vec<_> = plan
+        .live_values
+        .iter()
+        .filter(|row| row.storage == TerminalSuspensionStorage::CallArgument)
+        .map(|row| &row.place)
+        .collect();
+    let lent = TerminalSuspensionPlace::Structural(argument);
+    assert_eq!(rows, [&lent, &lent]);
+}
+
+#[test]
 fn a_live_byte_literal_requires_its_unique_dominating_image_backing() {
     use terminal_psi::{StructuralAccess, TerminalSuspensionPlace};
     let (mut old, cut, place) = program_with_live_byte_literal();
