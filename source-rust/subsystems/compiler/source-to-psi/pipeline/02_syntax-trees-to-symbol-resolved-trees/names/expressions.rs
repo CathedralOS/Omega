@@ -1055,10 +1055,11 @@ mod traversal {
                             .expression_table
                             .match_pattern_dependencies(arm.pattern)
                             .collect::<Vec<_>>();
+                        // A guard is an ordinary condition, not a pattern head.
                         let head = match arm.pattern {
                             MatchPattern::Value(head) => head,
                             MatchPattern::Destructure(pattern) => pattern.head,
-                            MatchPattern::Wildcard => Default::default(),
+                            MatchPattern::Guard(_) | MatchPattern::Wildcard => Default::default(),
                         };
                         for pattern in dependencies {
                             if pattern == head {
@@ -1340,7 +1341,7 @@ mod traversal {
             let (head, previous) = match arm.pattern {
                 MatchPattern::Value(head) => (head, None),
                 MatchPattern::Destructure(pattern) => (pattern.head, Some(pattern)),
-                MatchPattern::Wildcard => return,
+                MatchPattern::Guard(_) | MatchPattern::Wildcard => return,
             };
             let Some(path) = self.expression_table.name_path_node(head).cloned() else {
                 return;

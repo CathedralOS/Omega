@@ -607,8 +607,13 @@ pub(crate) mod expression {
                         let subject = self.lower_value(dispatch.subject)?;
                         // Even a fieldless case match owns one completed
                         // subject for dispatch and cleanup. Resolution needs a
-                        // saved-subject name only when an arm refers to it.
-                        let capture = self.target().insert_match_subject(subject);
+                        // saved-subject name only when an arm refers to it. A
+                        // match without a subject captures nothing.
+                        let capture = if subject.is_valid() {
+                            self.target().insert_match_subject(subject)
+                        } else {
+                            Handle::invalid()
+                        };
                         let outer_captures = self.match_captures.len();
                         if dispatch.capture.is_valid() {
                             self.match_captures.push((dispatch.capture, capture));
@@ -620,6 +625,11 @@ pub(crate) mod expression {
                                     resolved::expression::MatchPattern::Value(value) => {
                                         typed::expression::MatchPattern::Value(
                                             self.lower_value(value)?,
+                                        )
+                                    }
+                                    resolved::expression::MatchPattern::Guard(condition) => {
+                                        typed::expression::MatchPattern::Guard(
+                                            self.lower_value(condition)?,
                                         )
                                     }
                                     resolved::expression::MatchPattern::Wildcard => {

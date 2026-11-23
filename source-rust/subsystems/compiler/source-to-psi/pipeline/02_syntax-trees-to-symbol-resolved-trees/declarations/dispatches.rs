@@ -132,6 +132,16 @@ fn prepare_pattern(
     let (is_structural, pattern) = match slot.pattern {
         MatchPattern::Wildcard => return None,
         MatchPattern::Destructure(pattern) => (!pattern.subject_binding.is_valid(), pattern),
+        // The parser writes a guard pattern only in a `match` without a
+        // subject; a transition's guard is its arm's own.
+        MatchPattern::Guard(condition) => (
+            false,
+            TableDestructurePattern {
+                guard: condition,
+                has_rest: true,
+                ..Default::default()
+            },
+        ),
         MatchPattern::Value(value) => {
             let (head, guard) = if arm_pattern_is_condition(syntax, value) {
                 (ExpressionHandle::invalid(), value)
@@ -212,7 +222,7 @@ fn covers_boolean_subjects(syntax: &SyntaxTrees, count: usize, arms: &[DispatchA
             let value = match slot.pattern {
                 MatchPattern::Wildcard => continue,
                 MatchPattern::Value(value) => value,
-                MatchPattern::Destructure(_) => return false,
+                MatchPattern::Destructure(_) | MatchPattern::Guard(_) => return false,
             };
             let ExpressionNode::Boolean(value) = syntax.expressions.expression(value) else {
                 return false;

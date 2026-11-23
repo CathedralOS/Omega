@@ -231,7 +231,9 @@ impl ArmBindings<'_> {
                 for arm in expressions.match_arms(dispatch.arms) {
                     let scope = self.declared.len();
                     match arm.pattern {
-                        MatchPattern::Value(value) => self.expression(value),
+                        MatchPattern::Value(value) | MatchPattern::Guard(value) => {
+                            self.expression(value)
+                        }
                         MatchPattern::Destructure(pattern) => {
                             let mut names = self.field_bindings(&pattern);
                             names.extend(

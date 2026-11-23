@@ -123,6 +123,9 @@ pub enum MatchPatternSnapshot {
     Value {
         value: Box<ExpressionSnapshot>,
     },
+    Guard {
+        condition: Box<ExpressionSnapshot>,
+    },
     Destructure {
         #[serde(skip_serializing_if = "Option::is_none")]
         application_type: Option<Box<TypeReferenceSnapshot>>,
@@ -830,6 +833,9 @@ pub(crate) fn snapshot_match_pattern(
     match pattern {
         MatchPattern::Value(value) => MatchPatternSnapshot::Value {
             value: Box::new(snapshot_expression_handle(syntax_trees, value)),
+        },
+        MatchPattern::Guard(condition) => MatchPatternSnapshot::Guard {
+            condition: Box::new(snapshot_expression_handle(syntax_trees, condition)),
         },
         MatchPattern::Destructure(pattern) if pattern.subject_binding.is_valid() => {
             MatchPatternSnapshot::Binding {

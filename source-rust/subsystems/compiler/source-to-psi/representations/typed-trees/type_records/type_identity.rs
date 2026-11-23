@@ -1443,6 +1443,10 @@ pub(crate) mod identity_context {
                         MatchPattern::Value(value) => {
                             normalize_index_expression(program, value, &nested)
                         }
+                        // A match without a subject is no index term.
+                        MatchPattern::Guard(_) => {
+                            crate::source_state::type_identity::substitution::rejected(&nested)
+                        }
                         MatchPattern::Wildcard => bare(PatternForm::Wildcard),
                         MatchPattern::Destructure(pattern) => {
                             let fields = table.match_fields(pattern.fields).iter().map(|field| {
@@ -5274,6 +5278,7 @@ pub(crate) mod package_policy_reading_tests {
         node_kinds!(PatternKind, pattern_kind for MatchPattern {
             Value => MatchPattern::Value(_),
             Destructure => MatchPattern::Destructure(_),
+            Guard => MatchPattern::Guard(_),
             Wildcard => MatchPattern::Wildcard,
         });
 
@@ -6216,7 +6221,16 @@ pub(crate) mod package_policy_reading_tests {
                 .collect()
         );
         assert_eq!(operators, OperatorKind::ALL.iter().copied().collect());
-        assert_eq!(patterns, PatternKind::ALL.iter().copied().collect());
+        // A condition arm belongs to a match without a subject, which
+        // normalization refuses like a block.
+        assert_eq!(
+            patterns,
+            PatternKind::ALL
+                .iter()
+                .copied()
+                .filter(|kind| *kind != PatternKind::Guard)
+                .collect()
+        );
         assert_eq!(actions, ActionKind::ALL.iter().copied().collect());
     }
 

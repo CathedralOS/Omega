@@ -440,7 +440,8 @@ impl TableDispatch {
             for slot in &arm.patterns {
                 match slot.pattern {
                     crate::expression::MatchPattern::Wildcard => {}
-                    crate::expression::MatchPattern::Value(value) => visit(value),
+                    crate::expression::MatchPattern::Value(value)
+                    | crate::expression::MatchPattern::Guard(value) => visit(value),
                     crate::expression::MatchPattern::Destructure(pattern) => {
                         visit(pattern.head);
                         for field in trees.expressions.match_fields(pattern.fields) {

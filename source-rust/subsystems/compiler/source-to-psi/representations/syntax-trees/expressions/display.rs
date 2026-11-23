@@ -16,7 +16,9 @@ impl ExpressionNode {
                     .iter()
                     .map(|arm| {
                         let pattern = match arm.pattern {
-                            MatchPattern::Value(value) => table.display_expression_name(value),
+                            MatchPattern::Value(value) | MatchPattern::Guard(value) => {
+                                table.display_expression_name(value)
+                            }
                             MatchPattern::Destructure(pattern) => {
                                 display_destructure_pattern(table, pattern)
                             }
@@ -26,10 +28,14 @@ impl ExpressionNode {
                     })
                     .collect::<Vec<_>>()
                     .join(", ");
-                format!(
-                    "match {} {{ {arms} }}",
-                    table.display_expression_name(dispatch.subject)
-                )
+                if dispatch.subject.is_valid() {
+                    format!(
+                        "match {} {{ {arms} }}",
+                        table.display_expression_name(dispatch.subject)
+                    )
+                } else {
+                    format!("match {{ {arms} }}")
+                }
             }
             Self::Block(block) => {
                 let tail = if block.tail.is_valid() {

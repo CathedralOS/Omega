@@ -1,0 +1,27 @@
+data Counter { value: u32; }
+machine larger(a: u32, b: u32) -> u32 {
+    match { a > b -> a, _ -> b }
+}
+machine band(x: u32) -> u32 {
+    match { x < 10 -> 1, x < 20 -> { let mid: u32 = 2; mid }, _ -> 3 }
+}
+machine twice(value: u32) -> u32 { value * 2 }
+machine as_argument(a: u32, b: u32) -> u32 {
+    twice(match { a == b -> 5, _ -> 0 })
+}
+machine made(ready: bool) -> Counter {
+    match { ready -> Counter { value: 1 }, _ -> Counter { value: 2 } }
+}
+machine main() crashes Trap {
+    let first: Counter = made(true);
+    let second: Counter = made(false);
+    transition larger(3, 9) == 9 && larger(9, 3) == 9 && larger(4, 4) == 4
+        && band(1) == 1 && band(15) == 2 && band(30) == 3
+        && as_argument(2, 2) == 10 && as_argument(2, 3) == 0
+        && first.value == 1 && second.value == 2 {
+        true -> done(),
+        false -> failed(),
+    }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

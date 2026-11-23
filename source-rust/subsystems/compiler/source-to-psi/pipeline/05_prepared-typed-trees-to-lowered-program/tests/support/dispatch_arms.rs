@@ -1,5 +1,8 @@
-//! One program for testing what each stage hands the next about a
-//! block-valued dispatch arm. `pick` binds a block local and returns it:
+//! Programs for testing what each stage hands the next about dispatch arms:
+//! `MAIN` and `ESCAPE` for block-valued arms, `GUARDED` for a `match`
+//! without a subject.
+//!
+//! `MAIN`: `pick` binds a block local and returns it:
 //! only the block's own statement says the arm's value is 41. `scoped` builds
 //! a record inside its block and reads it there, so the record's storage
 //! must end where the arm joins its sibling. `escape` returns a loan of such
@@ -18,7 +21,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use source_compiler::representations::source_inputs::SourceMap;
 use source_compiler::representations::source_state::TypedTrees;
 use source_compiler::representations::source_state::expression::{
-    ExpressionHandle, ExpressionNode, TableBlockExpression,
+    ExpressionHandle, ExpressionNode, TableBlockExpression, TableMatchExpression,
 };
 use source_compiler::representations::source_state::statement::StatementNode;
 use source_compiler::test_support::lowering::{self, Elaboration};
@@ -49,6 +52,17 @@ machine read(counter: @Counter) -> u32 { counter.value }
 machine escape(code: u32, other: @Counter) -> u32 {
     let view: @Counter = match code { 0 -> { let made: Counter = Counter { value: 3 }; @made }, _ -> other, };
     read(view)
+}";
+
+/// Matches without a subject: each arm's condition reads the parameters, and
+/// `_` closes the ladder (`wiki/spec/language/patterns.md`, "Bare names in
+/// dispatch arms" and "Coverage and domain tests"). In `gap`, only the
+/// condition `a > b` proves that `a - b` cannot go below zero.
+pub const GUARDED: &str = r"machine larger(a: u32, b: u32) -> u32 {
+    match { a > b -> a, _ -> b }
+}
+machine gap(a: u32, b: u32) -> u32 {
+    match { a > b -> a - b, _ -> 0 }
 }";
 
 const PACKAGE: [u8; 32] = [0x42; 32];
@@ -103,6 +117,22 @@ pub fn block_binding(trees: &TypedTrees, name: &str) -> (ExpressionHandle, Table
         .unwrap_or_else(|| panic!("typing kept no block binding `{name}`"));
     assert!(found.next().is_none(), "one block binds `{name}`");
     block
+}
+
+/// The matches without a subject, in source order, with their handles.
+pub fn subjectless_matches(trees: &TypedTrees) -> Vec<(ExpressionHandle, TableMatchExpression)> {
+    trees
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(handle, node)| match node {
+            ExpressionNode::Match(matched)
+                if !trees.expression_table.expression_is_valid(matched.subject) =>
+            {
+                Some((handle, *matched))
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 pub struct Prepared {

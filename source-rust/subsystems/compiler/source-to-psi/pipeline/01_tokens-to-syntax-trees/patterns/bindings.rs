@@ -71,7 +71,7 @@ fn rewrite_expression(
             for arm in &mut arms {
                 use syntax_trees::expression::{MatchFieldAction, MatchPattern};
                 let visible_fields = match &mut arm.pattern {
-                    MatchPattern::Value(pattern) => {
+                    MatchPattern::Value(pattern) | MatchPattern::Guard(pattern) => {
                         *pattern =
                             rewrite_expression(syntax_trees, *pattern, subject, fields, captures);
                         fields.to_vec()

@@ -24,7 +24,8 @@ pub mod expression {
                             .iter()
                             .map(|arm| {
                                 let pattern = match arm.pattern {
-                                    crate::source_resolved::expression::MatchPattern::Value(value) => {
+                                    crate::source_resolved::expression::MatchPattern::Value(value)
+                                    | crate::source_resolved::expression::MatchPattern::Guard(value) => {
                                         table.display_name(value)
                                     }
                                     crate::source_resolved::expression::MatchPattern::Destructure(pattern) => {
@@ -36,10 +37,14 @@ pub mod expression {
                             })
                             .collect::<Vec<_>>()
                             .join(", ");
-                        format!(
-                            "match {} {{ {arms} }}",
-                            table.display_name(dispatch.subject)
-                        )
+                        if dispatch.subject.is_valid() {
+                            format!(
+                                "match {} {{ {arms} }}",
+                                table.display_name(dispatch.subject)
+                            )
+                        } else {
+                            format!("match {{ {arms} }}")
+                        }
                     }
                     Self::Block(block) => {
                         let tail = if block.tail.is_valid() {
@@ -1430,6 +1435,7 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
             // condition. Traverse that graph once, not its retained source fields too.
             let roots = match pattern {
                 MatchPattern::Value(value) => [value, ExpressionHandle::invalid()],
+                MatchPattern::Guard(condition) => [condition, ExpressionHandle::invalid()],
                 MatchPattern::Destructure(pattern) => [pattern.head, pattern.condition],
                 MatchPattern::Wildcard => [ExpressionHandle::invalid(); 2],
             };
@@ -2515,9 +2521,14 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
     }
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    /// What an arm tests. `Guard` is the arm of a `match` without a subject: its
+    /// condition reads existing values, and the arm is taken when it is true
+    /// (`wiki/spec/language/patterns.md`, "In a dispatch without a subject, an
+    /// arm condition such as `ready -> 1` reads the existing value of `ready`").
     pub enum MatchPattern {
         Value(ExpressionHandle),
         Destructure(TableDestructurePattern),
+        Guard(ExpressionHandle),
         #[default]
         Wildcard,
     }

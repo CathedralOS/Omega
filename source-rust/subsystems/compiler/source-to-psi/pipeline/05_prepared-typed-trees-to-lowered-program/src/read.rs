@@ -2355,10 +2355,6 @@ mod tests {
                 "spelling record literal without a type symbol",
             ),
             (
-                ExpressionNode::Match(TableMatchExpression::default()),
-                "expression missing expression",
-            ),
-            (
                 ExpressionNode::SavedSubject(Default::default()),
                 "expression saved subject",
             ),
@@ -2369,6 +2365,24 @@ mod tests {
             .filter(|(found, expected)| found != expected)
             .collect();
         assert!(wrong.is_empty(), "{wrong:?}");
+
+        // A match with no subject is a ladder of conditions; with no arms
+        // at all, nothing covers the case where no condition holds.
+        let mut typed = typed;
+        let handle = typed
+            .expression_table
+            .insert(ExpressionNode::Match(TableMatchExpression::default()));
+        let refusal = Program::new(&typed, false)
+            .expression(machine(), &[], handle, None)
+            .unwrap_err();
+        assert_eq!(
+            refusal.reason,
+            terminal_check_tables::RefusalReason::Violation
+        );
+        assert!(
+            refusal.detail.contains("this match has no `_` arm"),
+            "{refusal:?}"
+        );
     }
 
     /// Dispatch forms outside the slice are refused by name before anything

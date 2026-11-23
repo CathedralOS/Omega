@@ -561,7 +561,8 @@ pub mod expression {
                                 out.push_str(", ");
                             }
                             match arm.pattern {
-                                crate::source_state::expression::MatchPattern::Value(value) => {
+                                crate::source_state::expression::MatchPattern::Value(value)
+                                | crate::source_state::expression::MatchPattern::Guard(value) => {
                                     table.write_display_name(value, out)
                                 }
                                 crate::source_state::expression::MatchPattern::Destructure(_) => {
@@ -684,7 +685,7 @@ pub mod expression {
         ) -> String {
             use crate::source_state::expression::{MatchFieldAction, MatchPattern};
             let pattern = match pattern {
-                MatchPattern::Value(value) => return render(value),
+                MatchPattern::Value(value) | MatchPattern::Guard(value) => return render(value),
                 MatchPattern::Wildcard => return "_".to_owned(),
                 MatchPattern::Destructure(pattern) => pattern,
             };
@@ -1979,6 +1980,11 @@ pub mod expression {
                                 MatchPattern::Value(value) => {
                                     MatchPattern::Value(self.copy_subtree_with_occurrences(
                                         source, value, retain, copies,
+                                    ))
+                                }
+                                MatchPattern::Guard(condition) => {
+                                    MatchPattern::Guard(self.copy_subtree_with_occurrences(
+                                        source, condition, retain, copies,
                                     ))
                                 }
                                 MatchPattern::Wildcard => MatchPattern::Wildcard,
@@ -3500,6 +3506,7 @@ pub mod expression {
             // guard and any case test. Its graph owns those dependencies.
             let roots = match pattern {
                 MatchPattern::Value(value) => [value, ExpressionHandle::invalid()],
+                MatchPattern::Guard(condition) => [condition, ExpressionHandle::invalid()],
                 MatchPattern::Destructure(pattern) => [pattern.head, pattern.condition],
                 MatchPattern::Wildcard => [ExpressionHandle::invalid(); 2],
             };
@@ -3511,7 +3518,7 @@ pub mod expression {
             pattern: MatchPattern,
         ) -> impl Iterator<Item = ExpressionHandle> + '_ {
             let value = match pattern {
-                MatchPattern::Value(value) => value,
+                MatchPattern::Value(value) | MatchPattern::Guard(value) => value,
                 MatchPattern::Destructure(pattern) => pattern.condition,
                 MatchPattern::Wildcard => ExpressionHandle::invalid(),
             };
@@ -5733,9 +5740,14 @@ pub mod expression {
     }
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+    /// What an arm tests. `Guard` is the arm of a `match` without a subject: its
+    /// condition reads existing values, and the arm is taken when it is true
+    /// (`wiki/spec/language/patterns.md`, "In a dispatch without a subject, an
+    /// arm condition such as `ready -> 1` reads the existing value of `ready`").
     pub enum MatchPattern {
         Value(ExpressionHandle),
         Destructure(TableDestructurePattern),
+        Guard(ExpressionHandle),
         #[default]
         Wildcard,
     }

@@ -78,6 +78,9 @@ impl ExpressionTable {
     ) -> impl Iterator<Item = ExpressionHandle> + '_ {
         let (head, fields, guard) = match pattern {
             MatchPattern::Value(value) => (value, HandleSpan::empty(), ExpressionHandle::invalid()),
+            MatchPattern::Guard(condition) => {
+                (ExpressionHandle::invalid(), HandleSpan::empty(), condition)
+            }
             MatchPattern::Destructure(pattern) => (pattern.head, pattern.fields, pattern.guard),
             MatchPattern::Wildcard => (
                 ExpressionHandle::invalid(),
@@ -719,9 +722,14 @@ pub struct TableMatchArm {
     record_storage::Record,
     syntax_trees_derive::SyntaxRelocate,
 )]
+/// What an arm tests. `Guard` is the arm of a `match` without a subject: its
+/// condition reads existing values, and the arm is taken when it is true
+/// (`wiki/spec/language/patterns.md`, "In a dispatch without a subject, an
+/// arm condition such as `ready -> 1` reads the existing value of `ready`").
 pub enum MatchPattern {
     Value(ExpressionHandle),
     Destructure(TableDestructurePattern),
+    Guard(ExpressionHandle),
     #[default]
     Wildcard,
 }

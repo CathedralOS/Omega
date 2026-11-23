@@ -5,7 +5,7 @@
 //! stage 05 would, and hand the result to the checker.
 //!
 //! The program is
-//! `05_prepared-typed-trees-to-lowered-program/tests/support/block_values.rs`,
+//! `05_prepared-typed-trees-to-lowered-program/tests/support/dispatch_arms.rs`,
 //! and stage 05's side of the handoff is that stage's `tests/block_values.rs`.
 //! `scoped` builds a record in its block and reads it there; a lowered
 //! program that kept the record alive past the arm is refused. `escape`
@@ -14,7 +14,7 @@
 //! `wiki/spec/language/expressions.md`, "A block introduces local scope and
 //! cleanup edges" and "Temporary storage must outlive every derived borrow".
 
-#[path = "../../05_prepared-typed-trees-to-lowered-program/tests/support/block_values.rs"]
+#[path = "../../05_prepared-typed-trees-to-lowered-program/tests/support/dispatch_arms.rs"]
 mod program;
 
 use source_compiler::test_support::checking::{
