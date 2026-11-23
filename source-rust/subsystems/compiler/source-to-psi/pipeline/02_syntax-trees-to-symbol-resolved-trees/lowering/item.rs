@@ -390,12 +390,12 @@ fn lower_item_with_exposure(
                 },
             );
         }
-        Item::Use(import) => {
+        Item::Use(syntax::item::UseItem::Namespace { path }) => {
             lowerer
                 .namespace_declarations
-                .record_import(syntax_trees, import.path);
+                .record_import(syntax_trees, *path);
         }
-        Item::Capability(_) | Item::Package(_) => {}
+        Item::Use(syntax::item::UseItem::File { .. }) | Item::Capability(_) | Item::Package(_) => {}
     }
 
     Ok(())

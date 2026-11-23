@@ -231,7 +231,12 @@ impl<'base> ConstantSelection<'base> {
                         ));
                     }
                 }
-                Item::Use(import) => namespaces.record_import(syntax, import.path),
+                Item::Use(syntax_trees::item::UseItem::Namespace { path }) => namespaces.record_import(syntax, *path),
+                Item::Use(syntax_trees::item::UseItem::File { alias, .. })
+                    if symbols::BuiltinTypeAtom::is_builtin_type_spelling(alias.as_str(syntax)) =>
+                {
+                    return Err(vec![Diagnostic::error(format!("file alias `{}` names a builtin type", alias.as_str(syntax))).with_source_span(alias.source_span())]);
+                }
                 _ => {}
             }
         }
@@ -1113,10 +1118,10 @@ impl<'base> ConstantSelection<'base> {
         let path = self.declaration_path(selected_header);
         let mut candidates = vec![path.clone()];
         for item in syntax.root_items() {
-            let Item::Use(import) = item else {
+            let Item::Use(syntax_trees::item::UseItem::Namespace { path: import }) = item else {
                 continue;
             };
-            let members = syntax.items.identifier_path_members(import.path);
+            let members = syntax.items.identifier_path_members(*import);
             if !members
                 .first()
                 .is_some_and(|member| member.source_span().source_id == origin.reference.source_id)
@@ -1388,10 +1393,10 @@ impl<'base> ConstantSelection<'base> {
             return Some(name.as_str(syntax).to_owned());
         }
         for item in syntax.root_items() {
-            let Item::Use(import) = item else {
+            let Item::Use(syntax_trees::item::UseItem::Namespace { path: import }) = item else {
                 continue;
             };
-            let members = syntax.items.identifier_path_members(import.path);
+            let members = syntax.items.identifier_path_members(*import);
             if members.first()?.source_span().source_id != name.source_span().source_id {
                 continue;
             }
@@ -1809,7 +1814,7 @@ mod retained_namespace_tests {
         let import = syntax.items.append_identifier_path_member(Identifier::source_backed(
             page, SourceSpan::new(source, Span::new(0, 8)),
         ));
-        syntax.push_root_item(Item::Use(UseItem { path: HandleSpan::from_parts(import, 1) }));
+        syntax.push_root_item(Item::Use(UseItem::Namespace { path: HandleSpan::from_parts(import, 1) }));
         let selection = ConstantSelection::new(&syntax, Some(Arc::new(files)), Vec::new()).unwrap();
         let symbols = selection.header_symbols();
         assert_eq!(symbols.display_path(symbols.source_module(source), "::"), "example");

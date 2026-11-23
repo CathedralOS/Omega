@@ -98,18 +98,21 @@ impl Default for Item {
     }
 }
 
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    Default,
-    syntax_trees_derive::PlainSyntaxEquivalent,
-    syntax_trees_derive::SyntaxRelocate,
-    record_storage::Record,
-)]
-pub struct UseItem {
-    pub path: HandleSpan<Identifier>,
+#[derive(Debug, Clone, syntax_trees_derive::SyntaxEquivalent, syntax_trees_derive::SyntaxRelocate, record_storage::Record)]
+pub enum UseItem {
+    Namespace { path: HandleSpan<Identifier> },
+    File {
+        root: Option<Identifier>,
+        components: HandleSpan<Identifier>,
+        alias: Identifier,
+        span: source_text::SourceSpan,
+    },
+}
+
+impl Default for UseItem {
+    fn default() -> Self {
+        Self::Namespace { path: HandleSpan::empty() }
+    }
 }
 
 #[derive(

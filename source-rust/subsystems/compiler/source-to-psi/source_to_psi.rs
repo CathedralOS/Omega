@@ -13,7 +13,7 @@ pub use driver::compile_build::{
 };
 pub use driver::package_handoff::{PackageHandoffDeclarations, package_handoff_declarations};
 pub use driver::parse_source_batch::{
-    ParsedSourceBatch, ParsedSourceSummary, RetainedSourceParse, SourceDeclarations, SourceImport,
+    ParsedSourceBatch, ParsedSourceSummary, RetainedSourceParse, SourceDeclarations, SourceImport, SourceImportTarget,
     SourceInput, SourceItems, SourceSyntax,
 };
 pub use driver::stage_sources::ParsedStageSources;
