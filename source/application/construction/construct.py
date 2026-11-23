@@ -8,6 +8,7 @@ acquisition/provider admission is outside this separately supplied source set.
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import struct
 import subprocess
@@ -110,6 +111,20 @@ def _encode(packages, edges, units, entry_unit, entry_name, paths, build_sources
     return wire, package_rows, edge_rows, unit_rows, build_rows
 
 
+def compiler_source_paths(base):
+    paths = []
+    for directory, children, files in os.walk(base):
+        parent = Path(directory)
+        excluded = {'.git'}
+        if parent == base:
+            excluded.add('build')
+        if parent == base / 'tests':
+            excluded.add('fixtures')
+        children[:] = [name for name in children if name not in excluded]
+        paths.extend(parent / name for name in files if name.endswith('.omg'))
+    return sorted(paths)
+
+
 def compiler_input(with_build_sources=False):
     sources = []
     declarations = []
@@ -122,11 +137,8 @@ def compiler_input(with_build_sources=False):
         if role == 1:
             # The Rust driver admits the core default Build in build scope.
             build_inputs.add(base / 'defaults/build.omg')
-        for path in sorted(base.rglob('*.omg')):
+        for path in compiler_source_paths(base):
             relative = path.relative_to(base)
-            # Compiler tests own separate example packages under tests/fixtures.
-            if 'build' in relative.parts or relative.parts[:2] == ('tests', 'fixtures'):
-                continue
             data = path.read_bytes()
             if path in build_inputs:
                 build_sources.append((package, relative.as_posix(), data))

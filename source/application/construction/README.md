@@ -16,8 +16,10 @@ identity, graph, snapshot, admission and commitment implementations.
 application needs: its own units, the driver, frontend, Alpha backend, wire foundation,
 standard library and core library. It copies each file byte for byte, keeps package
 and unit identities, and writes an exact manifest. Package Build declarations
-and core’s default Build are recorded separately as build inputs. The capture excludes
-each package’s `tests/fixtures/` subtree, where the compiler tests keep their own packages. The entry is
+and core’s default Build are recorded separately as build inputs. The capture skips
+`.git` directories, each package’s root `build/` output, and the example packages
+under its `tests/fixtures/`. A nested source file such as `tools/build/reader.omg`
+keeps its complete package-relative path. The entry is
 `source/application/construction/main.omg::entry_start`.
 
 ```sh
@@ -90,10 +92,10 @@ All intervals are half-open within that one buffer. Unit bytes are exact
 source, not concatenated text with rewritten imports. The given unit and entry
 name select a parsed declaration; ordinary semantic and safety checks still
 apply. Each path spans its complete package-relative filename, with `/` between
-components. Both constructors derive the namespace from the parent directory.
-Renaming a file in the same directory preserves its declarations' names. A packet
+components. The Epsilon constructor uses the full path to resolve a file import.
+The Omega-written constructor still passes the parent directory to its resolver. A packet
 beginning with a nonzero package count uses the original three-word unit rows
-and places each unit in the package root. [Directory namespaces](../../../wiki/spec/language/modules.md#directory-namespaces)
+and places each unit in the package root. [File identity](../../../wiki/spec/language/modules.md#file-identity)
 
 ### Including authored Build sources
 
