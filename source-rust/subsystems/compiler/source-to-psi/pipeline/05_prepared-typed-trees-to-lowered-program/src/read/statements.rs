@@ -378,10 +378,16 @@ impl Program<'_> {
             // the captured reference decides, and the capture keeps that
             // reference's exact type.
             let declared = self.local_type(id, *referee)?;
-            let value = self.expression(id, slots, local.initial_value, Some(declared))?;
-            let ExpressionKind::Slot(original) = value.kind else {
+            // The capture names the reference binding itself. Reading it as
+            // a value of the referent's type would be the dereference only
+            // `$` may write, so the binding is found by name.
+            let ExpressionNode::Name(path) = self.node(id, local.initial_value)? else {
                 return unserved("reference capture without an existing reference binding");
             };
+            let original = self.slot_of(id, slots, path)?;
+            if slots[original].erased {
+                return unserved("reference capture of an erased binding");
+            }
             let value_type = slots[original].value_type;
             if slots[original].borrowed != Some(*access)
                 || !self.same_type(Some(value_type), declared)

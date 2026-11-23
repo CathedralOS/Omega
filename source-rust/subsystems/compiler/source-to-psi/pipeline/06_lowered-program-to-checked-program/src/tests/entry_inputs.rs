@@ -789,7 +789,7 @@ fn a_guarded_field_survives_a_wrapping_call_cycle_and_rejects_unguarded_twins() 
             ),
         };
         let source = format!(
-            "data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}
+            "public data Input {{ index: u32 in Wrapping; mask: u32 in Wrapping; values: [u32; 3]; }}
             public machine entry(input: @mutable Input) -> u32 requires true {{
                 transition {{ _ -> block test(input) }}
                 machine test(input: @mutable Input) -> u32 {{

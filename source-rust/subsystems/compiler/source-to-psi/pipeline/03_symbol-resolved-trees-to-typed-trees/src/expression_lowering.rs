@@ -1061,6 +1061,17 @@ pub(crate) mod expression {
                         .authored_selection_occurrences(expression)
                         .collect::<Vec<_>>();
                     let lowered = self.lower_node(expression)?;
+                    // `self` in a domain predicate lowers to the subject the
+                    // membership supplied. That handle is the subject's own
+                    // occurrence: stamping the `self` site's span, name or
+                    // selections onto it would move every later diagnostic
+                    // about the subject into the domain's declaration.
+                    if self
+                        .symbol_substitution
+                        .is_some_and(|(_, substitution)| substitution == lowered)
+                    {
+                        return Ok(lowered);
+                    }
                     if let resolved::expression::ExpressionNode::Call(source_call) =
                         self.source.expression(expression)
                     {

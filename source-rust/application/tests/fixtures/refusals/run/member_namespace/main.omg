@@ -1,0 +1,8 @@
+data Signal { case Ready; case Idle; }
+domain Signal::Waiting;
+machine main() crashes Trap {
+    let signal: Signal = Signal::Idle;
+    transition signal in Signal::Idle { true -> done(), false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

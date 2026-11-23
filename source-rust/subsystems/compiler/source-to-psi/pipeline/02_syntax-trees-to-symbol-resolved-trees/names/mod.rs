@@ -29,6 +29,8 @@ mod expressions;
 mod lookup;
 mod mathematical;
 mod measures;
+pub(crate) mod member_namespaces;
+pub(crate) mod public_interfaces;
 mod repeated_locals;
 
 mod private_nested_calls;

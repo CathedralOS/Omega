@@ -1,0 +1,8 @@
+public data Shown { value: u32; }
+public machine reveal(shown: @Shown) -> u32 { shown.value }
+machine main() crashes Trap {
+    let shown: Shown = Shown { value: 4 };
+    transition reveal(@shown) == 4 { true -> done(), false -> failed() }
+    machine done() {}
+    machine failed() { crash Trap; }
+}

@@ -6,7 +6,7 @@ data Choice [copy] {
     case Third(amount: u64);
 }
 
-data Record [copy] {
+public data Record [copy] {
     left: u64;
     choice: Choice;
     right: u64;

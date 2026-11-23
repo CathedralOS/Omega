@@ -294,6 +294,13 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         let typed = self.typed;
         let node = self.node(id, handle)?;
+        // Typing expands `x in D` into D's predicate with `self` replaced by
+        // `x` and keeps the subject and domain on that predicate. The
+        // predicate alone cannot show the carrier (an empty one is `true`),
+        // so the carrier is checked here, where the subject's type is known.
+        for test in typed.expression_table.executable_domain_tests(handle) {
+            self.require_membership_carrier(id, slots, *test)?;
+        }
         if let ExpressionNode::Call(call) = node
             && call.runtime_call.is_none()
             && call.layout_query.is_none()
@@ -394,6 +401,21 @@ impl<'t> Program<'t> {
                     && self.reference_referent(id, expected)?.is_some()
                 {
                     return self.borrow_value(id, slots, handle, expected, source);
+                }
+                // A borrowed formal's slot already addresses its referent,
+                // so reading it whole as a scalar where a value type
+                // receives it would be the dereference only `$` may write.
+                // With no receiving type the context may take the place
+                // itself (a join of references, a forwarding call), so the
+                // read goes on; operator operands are checked where they are
+                // read (`require_explicit_operand`).
+                if slots[slot].borrowed.is_some()
+                    && let ValueType::Scalar(referent, _) = slots[slot].value_type
+                    && expected.is_some()
+                {
+                    return Err(super::rejections::implicit_dereference(
+                        id, source, referent,
+                    ));
                 }
                 let value = Expression {
                     call_context: None,
@@ -594,6 +616,8 @@ impl<'t> Program<'t> {
                         self.expression(id, slots, binary.right, operand(quoted.1, hint))?;
                     (left, right)
                 };
+                self.require_explicit_operand(id, slots, binary.left, &left)?;
+                self.require_explicit_operand(id, slots, binary.right, &right)?;
                 // Intrinsic storage equality compares byte contents or the
                 // retained case identity of a payload-free sum. Selected
                 // user comparisons are already calls, so they never enter
@@ -886,6 +910,18 @@ impl<'t> Program<'t> {
         let Some((referent, _)) = self.reference_referent(id, held)? else {
             return Ok(value);
         };
+        // Crossing a reference to reach a record is a place projection.
+        // Crossing one to read its scalar whole where a value type receives
+        // it is a dereference, which the source must write.
+        if let ValueType::Scalar(scalar, _) = referent
+            && expected.is_some()
+        {
+            return Err(super::rejections::implicit_dereference(
+                id,
+                value.source,
+                scalar,
+            ));
+        }
         Ok(Expression {
             call_context: None,
             source: value.source,
@@ -977,6 +1013,12 @@ impl<'t> Program<'t> {
             return Err(unserved(
                 "match without its exact completed subject capture",
             ));
+        }
+        // A scalar subject is compared with value patterns, which
+        // "Explicit dereference" lists among the places no dereference is
+        // inserted: `match $v { 0 -> ... }`, not `match v`.
+        if record.is_none() {
+            self.require_explicit_operand(id, slots, matched.subject, &subject)?;
         }
         self.captures.push((matched.capture, subject.clone()));
         let Some(record) = record else {
@@ -1984,6 +2026,91 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 _,
             ) => false,
         }
+}
+
+impl Program<'_> {
+    /// An operator operand is a value: `expressions.md`, "Explicit
+    /// dereference", lists operator operands among the places where Omega
+    /// never inserts a dereference, so `v + 1u8` with `v: @u8` is wrong and
+    /// `$v + 1u8` is right. The operand was read without a receiving type,
+    /// so the reader recognizes the two implicit routes here: a borrowed
+    /// formal named whole, and a held reference crossed to its scalar.
+    fn require_explicit_operand(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        handle: ExpressionHandle,
+        value: &Expression,
+    ) -> Checked<()> {
+        let Some(ValueType::Scalar(scalar, _)) = value.result else {
+            return Ok(());
+        };
+        let crossed = matches!(value.kind, ExpressionKind::Referent(_));
+        let implicit = match self.node(id, handle)? {
+            ExpressionNode::Name(path) => {
+                crossed
+                    || self
+                        .slot_of(id, slots, path)
+                        .is_ok_and(|slot| slots[slot].borrowed.is_some())
+            }
+            ExpressionNode::Member(_) => crossed,
+            _ => false,
+        };
+        if implicit {
+            return Err(super::rejections::implicit_dereference(
+                id,
+                value.source,
+                scalar,
+            ));
+        }
+        Ok(())
+    }
+
+    /// `wiki/spec/language/domains.md`, "Carrier-exact membership": "Before
+    /// substituting a candidate into the domain predicate, form membership
+    /// against the domain's exact resolved applied carrier", so `7u8 in
+    /// Small` over a `u16` domain is ill-formed even though seven fits both.
+    /// An anonymous literal lands on the carrier. A carrier that is not a
+    /// plain scalar (a record, a type parameter, a generic or indexed
+    /// family) is judged by the predicate's own reading, as before.
+    fn require_membership_carrier(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        test: crate::source_state::expression::ExecutableDomainTest,
+    ) -> Checked<()> {
+        let Some(definition) = self.typed.domain_definition(test.domain) else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("membership in a domain without its declaration"),
+            ));
+        };
+        let target_type = definition.target_type;
+        if !self.typed.domain_type_parameters(definition).is_empty()
+            || !definition.index_arguments.is_empty()
+        {
+            return Ok(());
+        }
+        let Ok(carrier @ ValueType::Scalar(wanted, _)) = self.value_type(id, target_type) else {
+            return Ok(());
+        };
+        let landing = self
+            .wholly_anonymous(test.subject)
+            .then_some(carrier.erased());
+        let subject = self.expression(id, slots, test.subject, landing)?;
+        if let Some(ValueType::Scalar(found, _)) = subject.result
+            && found != wanted
+        {
+            return Err(super::rejections::membership_carrier(
+                id,
+                subject.source,
+                found,
+                wanted,
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]

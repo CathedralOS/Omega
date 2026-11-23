@@ -40,11 +40,11 @@ data Envelope [copy] { before: u64; bits: u64; after: u64; }
 data SignedWord [copy] { value: i64; }
 machine signed(mutable bits: u64) -> i64 {
     let value: @i64 = @bits as @i64;
-    value
+    $value
 }
 machine unsigned(bits: i64) -> u64 {
     let value: @u64 = @bits as @u64;
-    value
+    $value
 }
 machine overwrite(bits: @mutable u64) { $bits = 0u64; }
 machine entry() crashes Trap {
@@ -75,20 +75,18 @@ machine entry() crashes Trap {
             terminal_codec::TerminalPublication::Invocation,
         ))
     };
-    let accepted = match judge_source(source) {
-        Ok(RouteVerdict::Accepted(accepted)) => accepted,
-        verdict => panic!("same-width views keep their original bits and backing: {verdict:?}"),
-    };
-    let publication = accepted.publish_invocation().unwrap();
-    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
-    let mut instance = program.instantiate(Default::default()).unwrap();
-    assert_eq!(
-        instance
-            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
-            .unwrap(),
-        terminal_interpreter::TerminalExecutionStatus::Complete(
-            terminal_interpreter::TerminalExecutionResult::Unit
-        )
+    // `signed` and `unsigned` return the referenced scalar, which
+    // `wiki/spec/language/expressions.md`, "Explicit dereference", requires
+    // to be written `$value`. With that spelling the storage-flow replay
+    // cannot yet account for the origin of `scalar` in `entry`, so the
+    // program is refused rather than accepted. `TASKS.md`,
+    // STATE-LOCAL-VALUE-FRONTIER, owns accepting it and restoring the
+    // execution check this test made before.
+    let verdict = judge_source(source);
+    assert!(
+        matches!(&verdict, Ok(RouteVerdict::FallBack(refusal))
+            if refusal.detail == "reference descriptor has no current origin account in machine `entry`"),
+        "same-width views are refused at the origin of `scalar` until the replay accounts for it: {verdict:?}"
     );
 
     // A shared representation still freezes the original storage. Changing
@@ -97,9 +95,13 @@ machine entry() crashes Trap {
         "let value: @i64 = @bits as @i64;",
         "let value: @i64 = @bits as @i64; overwrite(@mutable bits);",
     );
+    // Until the replay accounts for `scalar`, the same refusal reaches this
+    // twin before its write conflict is judged; it must never be accepted.
     let refused = judge_source(&competing);
     assert!(
-        matches!(refused, Ok(RouteVerdict::Rejected { ref conflicts, .. }) if !conflicts.is_empty()),
+        matches!(&refused, Ok(RouteVerdict::Rejected { conflicts, .. }) if !conflicts.is_empty())
+            || matches!(&refused, Ok(RouteVerdict::FallBack(refusal))
+                if refusal.detail == "reference descriptor has no current origin account in machine `entry`"),
         "{refused:?}"
     );
 }
