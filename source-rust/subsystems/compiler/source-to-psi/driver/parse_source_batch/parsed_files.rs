@@ -100,7 +100,98 @@ impl SourceSyntax {
                 "selected source is missing from the parsed stage",
             )]);
         }
+        self.canonicalize_file_order(files, &mut items)?;
         Ok(items)
+    }
+
+    /// Put the files, and the root items resolution walks, in the order of
+    /// each file's package and logical filename instead of the order the
+    /// loader met them. Resolution, typing and lowering number declarations,
+    /// record types and identities in the order they meet root items, so
+    /// without this the same program captured in another order publishes
+    /// other numbers (`wiki/spec/terminal-psi/encoding.md`, "Canonical
+    /// form": unordered sets are sorted by stable identity). Items keep their
+    /// written order within a file.
+    fn canonicalize_file_order(
+        &mut self,
+        files: &crate::source_inputs::SourceMap,
+        items: &mut [(SourceId, SourceItems)],
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut keyed = Vec::with_capacity(items.len());
+        for (position, (id, _)) in items.iter().enumerate() {
+            let file = files.get(*id).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "parsed file has no selected source occurrence",
+                )]
+            })?;
+            // A source with no logical filename, such as the default Build,
+            // is ordered by its path, which also separates two packages'
+            // files of one name when neither package has an identity.
+            let name = file.logical_filename().unwrap_or_default();
+            keyed.push((file.package_identity, name, file.path.clone(), position));
+        }
+        keyed.sort_unstable();
+        if keyed
+            .iter()
+            .enumerate()
+            .all(|(rank, (_, _, _, position))| rank == *position)
+        {
+            return Ok(());
+        }
+        let mut sorted: Vec<_> = keyed
+            .iter()
+            .map(|(_, _, _, position)| items[*position].clone())
+            .collect();
+        // Each file's rank in the canonical order, looked up by its source,
+        // for the root lists that record a span instead of their file.
+        let mut ranks: Vec<(usize, usize)> = sorted
+            .iter()
+            .enumerate()
+            .map(|(rank, (id, _))| (id.0, rank))
+            .collect();
+        ranks.sort_unstable();
+        let rank_of = |source: SourceId| {
+            ranks
+                .binary_search_by_key(&source.0, |(id, _)| *id)
+                .map_or(usize::MAX, |found| ranks[found].1)
+        };
+
+        // Each root item's file rank, looked up by its handle. An item no
+        // parsed file lists keeps its place after the files' items.
+        let mut item_ranks: Vec<((u32, u32), usize)> = sorted
+            .iter()
+            .enumerate()
+            .flat_map(|(rank, (_, file))| {
+                file.handles
+                    .iter()
+                    .map(move |handle| ((handle.generation(), handle.arena_index()), rank))
+            })
+            .collect();
+        item_ranks.sort_unstable();
+        let roots = &mut self.trees.roots;
+        roots.items.sort_by_cached_key(|handle| {
+            item_ranks
+                .binary_search_by_key(&(handle.generation(), handle.arena_index()), |row| row.0)
+                .map_or(usize::MAX, |found| item_ranks[found].1)
+        });
+        let tables = &self.trees.tables;
+        roots.mathematical_definitions.sort_by_cached_key(|handle| {
+            rank_of(
+                tables
+                    .items
+                    .mathematical_definition(*handle)
+                    .name
+                    .source_span()
+                    .source_id,
+            )
+        });
+        roots
+            .constant_extent_probes
+            .sort_by_cached_key(|(expression, _)| {
+                rank_of(tables.expressions.source_span(*expression).source_id)
+            });
+        items.swap_with_slice(&mut sorted);
+        Ok(())
     }
 
     pub fn float_literal_spans(&self) -> impl Iterator<Item = SourceSpan> + '_ {
