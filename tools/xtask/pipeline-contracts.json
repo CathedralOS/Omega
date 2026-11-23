@@ -22212,7 +22212,7 @@
       "kind": "definition",
       "meaning": "Place all sections, declare symbols and resolve each body reference to a relocation before image composition.",
       "producer": "native body object publication",
-      "signature": "43232a9d6fe2989aa101ba2c0f28cc5f347d32bc5fc81e86369d2db1166fd0c3"
+      "signature": "c2ccf18610c98aa9772a69f864288d86c16d85ac1d222a0eab9b7a3fd2a01784"
     },
     {
       "consumers": [
@@ -22224,7 +22224,19 @@
       "kind": "producer",
       "meaning": "Place all sections, declare symbols and resolve each body reference to a relocation before image composition.",
       "producer": "native body object publication",
-      "signature": "ce4fd53b0a0eeaebf6ffc24d457c06b21cf9662ebb41132de98446b29d9e812c"
+      "signature": "eb6de8138510131afd040e1998fb332e6384c99d4488f9448adb263b390eb133"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "PE unwind record emission"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "function:function_unwinds#1",
+      "kind": "producer",
+      "meaning": "Carry each framed function's encoded prologue and epilogue steps, placed by frame application, onto its object symbol so image writers can emit unwind records.",
+      "producer": "native body object publication",
+      "signature": "1f83ee7afba4a8c6969ef28973704b4ede41741bec79040453e49de344916ca2"
     },
     {
       "consumers": [

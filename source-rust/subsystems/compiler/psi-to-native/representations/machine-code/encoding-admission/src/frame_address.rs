@@ -90,7 +90,33 @@ pub fn validate_frame_root(
         {
             return Err(Error::ArtifactMismatch);
         }
-        let mut local_end = row.outgoing_abi_area.byte_size;
+        // Windows ARM64 keeps preserved registers and the saved link register
+        // between the outgoing area and the locals; elsewhere they sit above.
+        let low_preservation = frame_admission::frame_layout::frame_unwind_policy(frame.target)
+            .is_some_and(|policy| {
+                policy.preservation
+                    == frame_admission::frame_layout::FramePreservationPlacement::BelowLocals
+            });
+        let saved_link_end = match row.return_address {
+            machine_code::ReturnAddressFrameCustody::SavedLinkRegister {
+                frame_offset_bytes,
+                size_bytes,
+                ..
+            } => frame_offset_bytes.checked_add(u64::from(size_bytes)),
+            _ => Some(0),
+        };
+        let saved_end = row
+            .callee_save_slots
+            .iter()
+            .map(|slot| slot.frame_offset_bytes.checked_add(slot.size_bytes))
+            .chain([saved_link_end])
+            .try_fold(0, |end, slot| slot.map(|slot: u64| end.max(slot)))
+            .ok_or(Error::ArtifactMismatch)?;
+        let mut local_end = if low_preservation {
+            row.outgoing_abi_area.byte_size.max(saved_end)
+        } else {
+            row.outgoing_abi_area.byte_size
+        };
         for (index, (placed, local)) in row
             .local_storage_slots
             .iter()
@@ -134,8 +160,13 @@ pub fn validate_frame_root(
         {
             return Err(Error::ArtifactMismatch);
         }
+        let save_floor = if low_preservation {
+            row.outgoing_abi_area.byte_size
+        } else {
+            local_end
+        };
         if row.callee_save_slots.iter().any(|slot| {
-            slot.frame_offset_bytes < local_end
+            slot.frame_offset_bytes < save_floor
                 || slot
                     .frame_offset_bytes
                     .checked_add(slot.size_bytes)
