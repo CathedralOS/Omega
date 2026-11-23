@@ -1,1 +1,2 @@
-public machine b_value() -> i32 { b_seed() }
+use main.omg as authored;
+public machine b_value() -> i32 { |authored|::b_seed() }

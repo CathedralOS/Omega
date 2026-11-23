@@ -8,7 +8,7 @@
 // kit edge, and `main.omg` calls the same machine through the product edge;
 // both routes must see the source the dependency published.
 
-use kit;
+use {kit}/generated.omg as kit;
 
 machine build(builder: @mutable Build)
 suspends
@@ -21,13 +21,15 @@ suspends
     dependency\with_alias(@mutable product_kit_dependency, "product_kit");
     let product_kit_registration: DependencyRegistration = Build::dependency(builder, product_kit_dependency);
     suspend Build::prepare_dependency(builder, kit_registration);
-    let observed: i32 = kit\value();
+    let observed: i32 = |kit|::value();
     transition observed == 7 {
         true -> done(),
-        _ -> wrong()
+        _ -> wrong(builder)
     }
     machine done() {
     }
-    machine wrong() {
+    machine wrong(builder: @mutable Build) {
+        let check: RequiredOutput = BuildOutput::require(@mutable builder.output, "generated-value.txt");
+        BuildOutput::fail(@mutable builder.output, check, "generated value must return 7");
     }
 }
