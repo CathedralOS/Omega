@@ -30,9 +30,17 @@ pub(crate) struct CompletedOperators {
     /// conjunction is false and its later conjuncts are not evaluated").
     /// Their operators owe no selection.
     vacuous: Vec<(SymbolHandle, ExpressionHandle)>,
-    // More than one body can use a statement. A reachable use wins when
-    // another type application rules out the same owner's target.
-    transition_targets: Vec<(SymbolHandle, StatementHandle, bool)>,
+    // A shared statement needs every operand that at least one body read.
+    transition_reads: Vec<(SymbolHandle, StatementHandle, TransitionRead)>,
+}
+
+/// A known-false guard has a checked predicate and no target. After a
+/// statically completed arm only another closed type predicate is read.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum TransitionRead {
+    None,
+    Guard,
+    GuardAndTarget,
 }
 
 fn source_location<T>(owner: SymbolHandle, node: arena::Handle<T>) -> (u32, u32, u32, u32) {
@@ -146,22 +154,24 @@ impl CompletedOperators {
         self.vacuous.push((owner, expression));
     }
 
-    pub(crate) fn record_transition_target(
+    pub(crate) fn record_transition(
         &mut self,
         owner: SymbolHandle,
         statement: StatementHandle,
-        read: bool,
+        read: TransitionRead,
     ) {
-        self.transition_targets.push((owner, statement, read));
+        self.transition_reads.push((owner, statement, read));
     }
 
-    fn skipped_transition_target(&self, owner: SymbolHandle, statement: StatementHandle) -> bool {
-        self.transition_targets
+    fn transition_read(&self, owner: SymbolHandle, statement: StatementHandle) -> TransitionRead {
+        self.transition_reads
             .binary_search_by_key(
                 &source_location(owner, statement),
                 |&(owner, statement, _)| source_location(owner, statement),
             )
-            .is_ok()
+            .map_or(TransitionRead::GuardAndTarget, |position| {
+                self.transition_reads[position].2
+            })
     }
 
     pub(crate) fn finish(&mut self) {
@@ -170,16 +180,21 @@ impl CompletedOperators {
         self.vacuous
             .sort_unstable_by_key(|&(owner, expression)| source_location(owner, expression));
         self.vacuous.dedup();
-        if self.transition_targets.iter().any(|&(_, _, read)| !read) {
-            self.transition_targets
+        if self
+            .transition_reads
+            .iter()
+            .any(|&(_, _, read)| read != TransitionRead::GuardAndTarget)
+        {
+            self.transition_reads
                 .sort_unstable_by_key(|&(owner, statement, read)| {
-                    (source_location(owner, statement), !read)
+                    (source_location(owner, statement), std::cmp::Reverse(read))
                 });
-            self.transition_targets
+            self.transition_reads
                 .dedup_by_key(|&mut (owner, statement, _)| source_location(owner, statement));
-            self.transition_targets.retain(|&(_, _, read)| !read);
+            self.transition_reads
+                .retain(|&(_, _, read)| read != TransitionRead::GuardAndTarget);
         } else {
-            self.transition_targets.clear();
+            self.transition_reads.clear();
         }
     }
 
@@ -971,12 +986,17 @@ impl TypedReferences for Capture<'_> {
         }
     }
     fn statement_expression(&mut self, role: StatementRootRole) -> bool {
-        !matches!(
-            role,
-            StatementRootRole::TransitionValue | StatementRootRole::TransitionArgument
-        ) || !self.statement.is_some_and(|statement| {
+        let required = match role {
+            StatementRootRole::TransitionGuard => TransitionRead::Guard,
+            StatementRootRole::TransitionValue | StatementRootRole::TransitionArgument => {
+                TransitionRead::GuardAndTarget
+            }
+            _ => return true,
+        };
+        self.statement.is_none_or(|statement| {
             self.completed_operators
-                .skipped_transition_target(self.owner, statement)
+                .transition_read(self.owner, statement)
+                >= required
         })
     }
     fn statement(&mut self, statement: &StatementNode) -> bool {

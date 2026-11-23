@@ -1382,8 +1382,8 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn statement(&mut self, _: &StatementNode) -> bool {
         true
     }
-    /// A specialized body can omit a transition's result or arguments after
-    /// a static guard rules out that arm. Its guard is still visited.
+    /// A specialized body visits the guard, result and arguments that it read
+    /// for this transition after resolving its static type conditions.
     fn statement_expression(&mut self, _: StatementRootRole) -> bool {
         true
     }

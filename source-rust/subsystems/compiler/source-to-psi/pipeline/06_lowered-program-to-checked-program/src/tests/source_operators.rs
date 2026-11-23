@@ -547,6 +547,7 @@ fn static_completion_keeps_later_guard_answers_without_assuming_the_result() {
             transition {
                 Kind == bool -> true,
                 Kind == u8 || Kind == u16 -> false,
+                $value == $value -> false,
                 _ -> ($value == $value)
             }
         }

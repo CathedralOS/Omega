@@ -5,6 +5,7 @@ the driver that reads one body statement by statement.
 */
 
 use crate::lowering::body::Qualification;
+use crate::lowering::selection_questions::TransitionRead;
 use crate::source_state::machine::{Machine, MachineBodyStatus, MachinePurpose};
 use crate::source_state::signature::{SignatureContractKind, StateParameter, StateSignature};
 use crate::source_state::state::State;
@@ -4343,16 +4344,26 @@ impl<'t> Program<'t> {
                     )
                 })?);
             if statically_completed && let StatementNode::Transition(transition) = statement {
-                // A later target is not executed, but a closed static guard
-                // still has an exact source operator selection. Evaluate only
-                // that static predicate, without reading the target's body.
-                if let crate::source_state::statement::TransitionGuardNode::When(guard) =
-                    transition.guard
-                {
-                    self.read_static_truth(id, symbol, guard, super::types::Reading::Value)?;
-                }
+                // A later closed type predicate still has checked operators.
+                // This specialization reads neither a runtime guard nor its target.
+                let read = match transition.guard {
+                    crate::source_state::statement::TransitionGuardNode::When(guard)
+                        if matches!(
+                            self.read_static_truth(
+                                id,
+                                symbol,
+                                guard,
+                                super::types::Reading::Value
+                            )?,
+                            Some(super::types::TypeTruth::Known(_))
+                        ) =>
+                    {
+                        TransitionRead::Guard
+                    }
+                    _ => TransitionRead::None,
+                };
                 self.completed_operators
-                    .record_transition_target(machine.symbol, handle, false);
+                    .record_transition(machine.symbol, handle, read);
                 position += 1;
                 continue;
             }
@@ -4493,10 +4504,10 @@ impl<'t> Program<'t> {
                         signature.result,
                     )?;
                     for arm in state.statement_nodes.handles().skip(position).take(taken) {
-                        self.completed_operators.record_transition_target(
+                        self.completed_operators.record_transition(
                             machine.symbol,
                             arm,
-                            true,
+                            TransitionRead::GuardAndTarget,
                         );
                     }
                     completed = true;
@@ -4513,10 +4524,14 @@ impl<'t> Program<'t> {
                         }
                         crate::source_state::statement::TransitionGuardNode::Always => None,
                     };
-                    self.completed_operators.record_transition_target(
+                    self.completed_operators.record_transition(
                         machine.symbol,
                         handle,
-                        decided != Some(false),
+                        if decided == Some(false) {
+                            TransitionRead::Guard
+                        } else {
+                            TransitionRead::GuardAndTarget
+                        },
                     );
                     if decided == Some(false) {
                         self.transition_predicate(id, &slots, transition)?;
