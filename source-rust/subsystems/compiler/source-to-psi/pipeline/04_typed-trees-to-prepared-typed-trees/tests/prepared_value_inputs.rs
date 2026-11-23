@@ -249,3 +249,56 @@ fn stage_04_refuses_inputs_it_cannot_match_to_this_program() {
         ["source preparation lost a demanded constant declaration"]
     );
 }
+
+/// `a.omg` and `b.omg` each declare `three`, `four` and `SIZE`, with
+/// different bodies, and neither imports the other. `a.omg`'s `SIZE` calls
+/// its own file's machine, so it freezes to 3 or 4 by the name written,
+/// never to the 5 or 6 that `b.omg`'s machines return, and `b.omg`'s `SIZE`
+/// keeps its own 8. The file each frozen value belongs to is the one its
+/// initializer was written in.
+#[test]
+fn a_call_freezes_the_value_of_the_machine_in_its_own_file() {
+    let other = (
+        "b.omg",
+        "machine three() -> u64 crashes none { 5u64 } \
+         machine four() -> u64 crashes none { 6u64 } \
+         const SIZE: u64 = 8u64;",
+    );
+    for (selected, expected) in [("three", 3), ("four", 4)] {
+        let own = format!(
+            "machine three() -> u64 crashes none {{ 3u64 }} \
+             machine four() -> u64 crashes none {{ 4u64 }} \
+             const SIZE: u64 = {selected}();"
+        );
+        for files in [
+            [("a.omg", own.as_str()), other],
+            [other, ("a.omg", own.as_str())],
+        ] {
+            let prepared = prepare(&files, Demand::Package).unwrap();
+            let mut frozen: Vec<_> = prepared
+                .program
+                .trees()
+                .const_declarations()
+                .iter()
+                .filter(|declaration| prepared.path(declaration.symbol) == "SIZE")
+                .map(|declaration| {
+                    (
+                        prepared
+                            .file_at(declaration.initializer_source_span)
+                            .to_owned(),
+                        integer(package::declared_value(declaration)),
+                    )
+                })
+                .collect();
+            frozen.sort();
+            assert_eq!(
+                frozen,
+                [
+                    ("a.omg".to_owned(), Some(expected)),
+                    ("b.omg".to_owned(), Some(8)),
+                ],
+                "SIZE = {selected}() in {files:?}"
+            );
+        }
+    }
+}

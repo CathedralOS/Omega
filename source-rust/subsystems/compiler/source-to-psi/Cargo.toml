@@ -252,6 +252,16 @@ name = "checking_variant_parent_identity"
 path = "pipeline/06_lowered-program-to-checked-program/tests/variant_parent_identity.rs"
 required-features = ["test-support"]
 
+[[test]]
+name = "checking_joined_machine_values"
+path = "pipeline/06_lowered-program-to-checked-program/tests/joined_machine_values.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_cycle_cleanup"
+path = "pipeline/06_lowered-program-to-checked-program/tests/cycle_cleanup.rs"
+required-features = ["test-support"]
+
 [[example]]
 name = "checking_machine_checks"
 path = "pipeline/06_lowered-program-to-checked-program/examples/machine_checks.rs"
