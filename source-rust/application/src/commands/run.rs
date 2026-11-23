@@ -41,7 +41,8 @@ A guest program can legitimately exit with small positive statuses (including
   exit (unavailable host capability, sponsor work exhaustion, or pending host
   effect).
 - `201`: differential divergence under `--both` (exit code mismatch, crash vs.
-  normal exit, or Terminal Psi interpretation failure after native execution).
+  normal exit, different stdout or stderr after an agreeing finish, or Terminal
+  Psi interpretation failure after native execution).
 - `202`: compilation halted at `CompilerRequestOutcome::Incomplete` (a private
   provision bound was exceeded without refuting the source).
 - `203`: guest crash inside `--engine psi`. Unlike a native child process,
@@ -57,8 +58,8 @@ A guest program can legitimately exit with small positive statuses (including
 
 use crate::arguments::RunArguments;
 use crate::execution::{
-    CaseRunRequest, ExecutionOutcome, ExecutionSelection, InterpreterComparison, RunError,
-    RunRequest, TerminalOutcome, run_project, run_project_cases,
+    AgreedTermination, CaseRunRequest, ExecutionOutcome, ExecutionSelection, InterpreterComparison,
+    RunError, RunRequest, TerminalOutcome, run_project, run_project_cases,
 };
 use compiler::CompilerRequestOutcome;
 use package_compilation::build_execution::BuildSnapshotRequest;
@@ -168,6 +169,19 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
                 } => {
                     eprintln!("interp exit: {interpreter_exit_code}");
                     eprintln!("DIVERGENCE: native {native_code} vs interp {interpreter_exit_code}");
+                    201
+                }
+                InterpreterComparison::OutputDisagrees {
+                    termination,
+                    divergence,
+                } => {
+                    match termination {
+                        AgreedTermination::Exit(exit_code) => eprintln!("interp exit: {exit_code}"),
+                        AgreedTermination::Crash(cause) => {
+                            eprintln!("interp crash: {cause:?} (host presentation agrees)")
+                        }
+                    }
+                    eprintln!("DIVERGENCE: {divergence}");
                     201
                 }
                 InterpreterComparison::Failed(diagnostics) => {
@@ -305,6 +319,10 @@ fn run_cases(
             InterpreterComparison::DisagreesCrash { cause } => {
                 status = 201;
                 format!("; DIVERGENCE interp crash {cause:?}")
+            }
+            InterpreterComparison::OutputDisagrees { divergence, .. } => {
+                status = 201;
+                format!("; DIVERGENCE {divergence}")
             }
             InterpreterComparison::Failed(diagnostics) => {
                 status = 201;

@@ -6,6 +6,11 @@
 //!
 //! The other declined path, a Psi exit status a Unix host shows only as its
 //! low byte, is pinned by the unit tests beside `compare_exit_status`.
+//!
+//! Agreement also needs the same stdout and stderr bytes. This program writes
+//! nothing in either run, so its agreeing run passes the output comparison
+//! too; the twins that print the same and different lines are the unit tests
+//! beside `compare_finished_runs`.
 
 mod support;
 
@@ -13,7 +18,8 @@ use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 
 fn project() -> PathBuf {
-    support::repository_root().join("source-rust/application/tests/fixtures/cli/run/both_comparison_verdict")
+    support::repository_root()
+        .join("source-rust/application/tests/fixtures/cli/run/both_comparison_verdict")
 }
 
 fn run_both(extra: &[&str]) -> (Output, String) {
@@ -45,6 +51,7 @@ fn both_runs_finish_and_agree() {
         report.lines().any(|line| line == "interp exit: 0"),
         "{report}"
     );
+    assert!(!report.contains("DIVERGENCE"), "{report}");
 }
 
 #[test]
