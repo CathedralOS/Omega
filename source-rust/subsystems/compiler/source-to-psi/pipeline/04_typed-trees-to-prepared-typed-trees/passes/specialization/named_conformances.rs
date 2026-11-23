@@ -134,29 +134,35 @@ pub(super) fn prepare_selected(
     let supplier = operand.supplying_application;
     let owner = operand.owner;
     let record = program.prepare_selected_provider_capture(handle)?;
-    let mut existing = program
-        .captured_machine_applications
-        .iter()
-        .filter(|(_, capture)| {
-            capture.conformance_application.declaration == record.declaration
-                && capture.conformance_application.identity_encoding == record.identity_encoding
-                && program
-                    .expression_table
-                    .static_machine_application(capture.binding_application())
-                    .lexical_owner
-                    == owner
-        });
-    let group = match (existing.next(), existing.next()) {
-        (Some((handle, _)), None) => handle,
-        (None, None) => program
+    let existing = {
+        let mut matching = program
+            .captured_machine_applications
+            .iter()
+            .filter(|(_, capture)| {
+                capture.conformance_application.declaration == record.declaration
+                    && capture.conformance_application.identity_encoding == record.identity_encoding
+                    && program
+                        .expression_table
+                        .static_machine_application(capture.binding_application())
+                        .lexical_owner
+                        == owner
+            })
+            .map(|(handle, _)| handle);
+        let first = matching.next();
+        if matching.next().is_some() {
+            return Err(unserved("selected provider has ambiguous prepared bodies"));
+        }
+        first
+    };
+    let group = existing.unwrap_or_else(|| {
+        program
             .captured_machine_applications
             .insert(CapturedMachineApplication {
                 declarations: Vec::new(),
                 supplying_application: supplier,
                 conformance_application: record,
-            }),
-        _ => return Err(unserved("selected provider has ambiguous prepared bodies")),
-    };
+            })
+    });
     let capture = program.captured_machine_applications.get(group);
     let binding = capture.binding_application();
     let record = capture.conformance_application.clone();
