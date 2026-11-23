@@ -186,13 +186,44 @@ fn a_reached_requirement_settles_to_its_one_declared_default() {
 
 #[test]
 fn the_build_override_settles_its_reached_provider() {
+    let artifact = program(programs::OVERRIDE);
+    let module = artifact.semantic_module();
+    let selected = execution(&artifact).unwrap();
+    let [plan] = selected.plans().plans() else {
+        panic!("one plan for the reached service")
+    };
+    let [choice] = module.interfaces.provider_selections.as_slice() else {
+        panic!("one published provider choice")
+    };
+    let published_provider = module.identities.text(choice.provider_identity).unwrap();
+    assert_eq!(published_provider, "toolchain::Other");
+    assert_eq!(plan.provider_type, published_provider);
+    let [candidate] = module.interfaces.provider_candidates.as_slice() else {
+        panic!("one published implementation of the reached method")
+    };
+    let [row] = plan.rows.as_slice() else {
+        panic!("one binding for the reached method")
+    };
+    let provider_plans::ProviderBinding::CheckedAdapter {
+        machine_identity,
+        machine_package_identity,
+    } = row.binding
+    else {
+        panic!("the override supplies a checked adapter")
+    };
     assert_eq!(
-        execution(&program(programs::OVERRIDE))
-            .unwrap()
-            .plans()
-            .plans()
-            .len(),
-        1
+        Some(plan.identity_text(row.requirement_identity)),
+        module
+            .identities
+            .text(candidate.source_requirement_identity)
+    );
+    assert_eq!(
+        Some(plan.identity_text(machine_identity)),
+        module.identities.text(candidate.source_candidate_identity)
+    );
+    assert_eq!(
+        machine_package_identity,
+        candidate.source_candidate_package_identity
     );
 }
 

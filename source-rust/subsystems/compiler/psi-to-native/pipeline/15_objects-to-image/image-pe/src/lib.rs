@@ -434,6 +434,9 @@ mod tests {
 
     #[test]
     fn optional_sections_publish_only_their_owned_ranges() {
+        const INITIALIZED_BYTES: [u8; 5] = [7, 11, 5, 13, 3];
+        const ZERO_FILL_BYTES: usize = 13;
+
         for has_imports in [false, true] {
             for has_data in [false, true] {
                 for has_bss in [false, true] {
@@ -455,11 +458,11 @@ mod tests {
                         names.push(b".rdata\0\0");
                     }
                     if has_data {
-                        image.memory.data = vec![7; 5];
+                        image.memory.data = INITIALIZED_BYTES.to_vec();
                         names.push(b".data\0\0\0");
                     }
                     if has_bss {
-                        image.memory.bss_size = 13;
+                        image.memory.bss_size = ZERO_FILL_BYTES;
                         names.push(b".bss\0\0\0\0");
                     }
                     let output = emit_pe_x86_64_executable(image, 3).expect("emit image");
@@ -488,6 +491,18 @@ mod tests {
                         let raw_size = read_u32(header + 16);
                         let raw_offset = read_u32(header + 20);
                         assert!(raw_offset + raw_size <= bytes.len());
+                        if *name == b".data\0\0\0" {
+                            assert_eq!(virtual_size, INITIALIZED_BYTES.len());
+                            assert!(raw_size >= virtual_size);
+                            assert_eq!(
+                                &bytes[raw_offset..raw_offset + virtual_size],
+                                &INITIALIZED_BYTES,
+                            );
+                        }
+                        if *name == b".bss\0\0\0\0" {
+                            assert_eq!(virtual_size, ZERO_FILL_BYTES);
+                            assert_eq!(raw_size, 0);
+                        }
                     }
                 }
             }
