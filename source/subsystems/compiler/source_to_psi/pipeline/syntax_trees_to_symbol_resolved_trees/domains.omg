@@ -1,3 +1,4 @@
+use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
 use representations\source_files\SourceSet;
 use representations\source_files\SourceSpan;
 use representations\source_files\span_spells;
@@ -173,19 +174,19 @@ crashes Trap
 
 // The declared domain `name` selects for the type whose root is row `row`:
 // the one visible domain of that name whose carrier admits the type.
-public machine resolver_declared_domain(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan) -> Lookup
+public machine resolver_declared_domain(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan) -> |declarations|::Lookup
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, row, name, 0) }
 
-    machine next(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> Lookup {
+    machine next(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
         transition index < syntax.domain_count {
             true -> candidate(resolver, sources, syntax, row, name, index),
             _ -> absent()
         }
     }
 
-    machine candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> Lookup {
+    machine candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
         let admitted: bool = domain_admits(resolver, sources, syntax, index, row, name);
         transition admitted {
             true -> rival(resolver, sources, syntax, row, name, index, index + 1),
@@ -193,14 +194,14 @@ crashes Trap
         }
     }
 
-    machine rival(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> Lookup {
+    machine rival(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> |declarations|::Lookup {
         transition index < syntax.domain_count {
             true -> rival_candidate(resolver, sources, syntax, row, name, found, index),
             _ -> unique(found)
         }
     }
 
-    machine rival_candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> Lookup {
+    machine rival_candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> |declarations|::Lookup {
         let admitted: bool = domain_admits(resolver, sources, syntax, index, row, name);
         transition admitted {
             true -> ambiguous(),
@@ -208,16 +209,16 @@ crashes Trap
         }
     }
 
-    machine unique(found: u64 in Trapping) -> Lookup {
-        Lookup::Found { handle: found }
+    machine unique(found: u64 in Trapping) -> |declarations|::Lookup {
+        |declarations|::Lookup::Found { handle: found }
     }
 
-    machine absent() -> Lookup {
-        Lookup::Absent
+    machine absent() -> |declarations|::Lookup {
+        |declarations|::Lookup::Absent
     }
 
-    machine ambiguous() -> Lookup {
-        Lookup::Ambiguous
+    machine ambiguous() -> |declarations|::Lookup {
+        |declarations|::Lookup::Ambiguous
     }
 }
 
@@ -449,11 +450,11 @@ crashes Trap
 
     machine constituent(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, item: DomainItem, path: u64 in Trapping) {
         let name_path: NamePath = syntax_trees_name_path(syntax, path);
-        let lookup: Lookup = constituent_domain(resolver, sources, syntax, item, name_path);
+        let lookup: |declarations|::Lookup = constituent_domain(resolver, sources, syntax, item, name_path);
         transition lookup {
-            Lookup::Found { handle } -> bound(resolver, sources, syntax, index, offset, path, handle),
-            Lookup::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, name_path),
-            Lookup::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, name_path)
+            |declarations|::Lookup::Found { handle } -> bound(resolver, sources, syntax, index, offset, path, handle),
+            |declarations|::Lookup::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, name_path),
+            |declarations|::Lookup::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, name_path)
         }
     }
 
@@ -472,7 +473,7 @@ crashes Trap
 // The domain an alias constituent names: `Name` over the alias's own
 // carrier, or `Carrier::Name` over the type `Carrier` names in the alias's
 // scope. A longer path crosses a package, which this source set cannot bind.
-machine constituent_domain(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, alias: DomainItem, name_path: NamePath) -> Lookup
+machine constituent_domain(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, alias: DomainItem, name_path: NamePath) -> |declarations|::Lookup
 crashes Trap
 {
     transition name_path.member_count {
@@ -481,39 +482,39 @@ crashes Trap
         _ -> absent()
     }
 
-    machine bare(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, alias: DomainItem, name_path: NamePath) -> Lookup {
+    machine bare(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, alias: DomainItem, name_path: NamePath) -> |declarations|::Lookup {
         let name: IdentifierSpan = syntax_trees_member(syntax, name_path.first_member);
         resolver_declared_domain(resolver, sources, syntax, alias.carrier, name.source_span)
     }
 
-    machine qualified(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, alias: DomainItem, name_path: NamePath) -> Lookup {
+    machine qualified(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, alias: DomainItem, name_path: NamePath) -> |declarations|::Lookup {
         let carrier: IdentifierSpan = syntax_trees_member(syntax, name_path.first_member);
         let name: IdentifierSpan = syntax_trees_member(syntax, name_path.first_member + 1);
         let scope: TypeScope = resolver_scope(alias.first_generic_parameter, alias.generic_parameter_count);
         domain_by_head(resolver, sources, syntax, scope, carrier.source_span, name.source_span)
     }
 
-    machine absent() -> Lookup {
-        Lookup::Absent
+    machine absent() -> |declarations|::Lookup {
+        |declarations|::Lookup::Absent
     }
 }
 
 // The visible domain named `name` whose carrier's root binds like the type
 // `carrier` names in `scope`, or is one of the domain's own generic
 // parameters.
-public machine domain_by_head(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan) -> Lookup
+public machine domain_by_head(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan) -> |declarations|::Lookup
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, scope, carrier, name, 0) }
 
-    machine next(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
+    machine next(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
         transition index < syntax.domain_count {
             true -> candidate(resolver, sources, syntax, scope, carrier, name, index),
             _ -> absent()
         }
     }
 
-    machine candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
+    machine candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
         let admitted: bool = domain_head_admits(resolver, sources, syntax, index, scope, carrier, name);
         transition admitted {
             true -> rival(resolver, sources, syntax, scope, carrier, name, index, index + 1),
@@ -521,14 +522,14 @@ crashes Trap
         }
     }
 
-    machine rival(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> Lookup {
+    machine rival(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> |declarations|::Lookup {
         transition index < syntax.domain_count {
             true -> rival_candidate(resolver, sources, syntax, scope, carrier, name, found, index),
             _ -> unique(found)
         }
     }
 
-    machine rival_candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> Lookup {
+    machine rival_candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> |declarations|::Lookup {
         let admitted: bool = domain_head_admits(resolver, sources, syntax, index, scope, carrier, name);
         transition admitted {
             true -> ambiguous(),
@@ -536,16 +537,16 @@ crashes Trap
         }
     }
 
-    machine unique(found: u64 in Trapping) -> Lookup {
-        Lookup::Found { handle: found }
+    machine unique(found: u64 in Trapping) -> |declarations|::Lookup {
+        |declarations|::Lookup::Found { handle: found }
     }
 
-    machine absent() -> Lookup {
-        Lookup::Absent
+    machine absent() -> |declarations|::Lookup {
+        |declarations|::Lookup::Absent
     }
 
-    machine ambiguous() -> Lookup {
-        Lookup::Ambiguous
+    machine ambiguous() -> |declarations|::Lookup {
+        |declarations|::Lookup::Ambiguous
     }
 }
 
@@ -606,19 +607,19 @@ crashes Trap
 
 // The one visible domain named `name`, whatever its carrier; several are
 // ambiguous until the carrier is known.
-public machine domain_named(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> Lookup
+public machine domain_named(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> |declarations|::Lookup
 crashes Trap
 {
     transition { _ -> next(sources, syntax, name, 0) }
 
-    machine next(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan, index: u64 in Trapping) -> Lookup {
+    machine next(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
         transition index < syntax.domain_count {
             true -> candidate(sources, syntax, name, index),
             _ -> absent()
         }
     }
 
-    machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan, index: u64 in Trapping) -> Lookup {
+    machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
         let item: DomainItem = syntax_trees_domain_item(syntax, index);
         let named: bool = spans_equal(sources, item.name.source_span, name);
         let visible: bool = visible_if(sources, syntax, named, name.source, item.name.source_span.source, item.is_public);
@@ -628,14 +629,14 @@ crashes Trap
         }
     }
 
-    machine rival(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> Lookup {
+    machine rival(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> |declarations|::Lookup {
         transition index < syntax.domain_count {
             true -> rival_candidate(sources, syntax, name, found, index),
             _ -> unique(found)
         }
     }
 
-    machine rival_candidate(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> Lookup {
+    machine rival_candidate(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> |declarations|::Lookup {
         let item: DomainItem = syntax_trees_domain_item(syntax, index);
         let named: bool = spans_equal(sources, item.name.source_span, name);
         let visible: bool = visible_if(sources, syntax, named, name.source, item.name.source_span.source, item.is_public);
@@ -645,15 +646,15 @@ crashes Trap
         }
     }
 
-    machine unique(found: u64 in Trapping) -> Lookup {
-        Lookup::Found { handle: found }
+    machine unique(found: u64 in Trapping) -> |declarations|::Lookup {
+        |declarations|::Lookup::Found { handle: found }
     }
 
-    machine absent() -> Lookup {
-        Lookup::Absent
+    machine absent() -> |declarations|::Lookup {
+        |declarations|::Lookup::Absent
     }
 
-    machine ambiguous() -> Lookup {
-        Lookup::Ambiguous
+    machine ambiguous() -> |declarations|::Lookup {
+        |declarations|::Lookup::Ambiguous
     }
 }

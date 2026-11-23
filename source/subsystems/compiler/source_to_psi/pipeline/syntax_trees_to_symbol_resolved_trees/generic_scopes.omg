@@ -1,3 +1,4 @@
+use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
 use representations\source_files\SourceSet;
 use representations\source_files\SourceSpan;
 use representations\source_files\spans_equal;
@@ -198,19 +199,19 @@ machine generic_annotation_role(kind: GenericParameterKind, trait_parameters: bo
 
 // The generic parameter of `first..first + count` spelled `name`; a
 // lifetime names no type.
-machine generic_named(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan) -> Lookup
+machine generic_named(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan) -> |declarations|::Lookup
 crashes Trap
 {
     transition { _ -> next(sources, syntax, first, count, name, 0) }
 
-    machine next(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
+    machine next(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> |declarations|::Lookup {
         transition offset < count {
             true -> candidate(sources, syntax, first, count, name, offset),
             _ -> absent()
         }
     }
 
-    machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
+    machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, name: SourceSpan, offset: u64 in Trapping) -> |declarations|::Lookup {
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, first + offset);
         let equal: bool = spans_equal(sources, name, parameter.name.source_span);
         transition equal && parameter.kind != GenericParameterKind::Lifetime {
@@ -219,12 +220,12 @@ crashes Trap
         }
     }
 
-    machine found(handle: u64 in Trapping) -> Lookup {
-        Lookup::Found { handle: handle }
+    machine found(handle: u64 in Trapping) -> |declarations|::Lookup {
+        |declarations|::Lookup::Found { handle: handle }
     }
 
-    machine absent() -> Lookup {
-        Lookup::Absent
+    machine absent() -> |declarations|::Lookup {
+        |declarations|::Lookup::Absent
     }
 }
 
@@ -339,33 +340,33 @@ crashes Trap
 }
 
 // Walk retained lexical declarations before the root container's telescope.
-public machine scoped_generic_named(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan) -> Lookup
+public machine scoped_generic_named(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan) -> |declarations|::Lookup
 crashes Trap
 {
     transition { _ -> ancestor(sources, syntax, scope, name, scope_parent(syntax, scope)) }
-    machine ancestor(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan, parent: u64 in Trapping) -> Lookup {
+    machine ancestor(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan, parent: u64 in Trapping) -> |declarations|::Lookup {
         transition parent > 0 {
             true -> declared(sources, syntax, scope, name, parent - 1),
             false -> outer(sources, syntax, scope, name)
         }
     }
-    machine declared(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan, machine_handle: u64 in Trapping) -> Lookup {
+    machine declared(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan, machine_handle: u64 in Trapping) -> |declarations|::Lookup {
         let item: MachineItem = machine_item(syntax, machine_handle);
-        let named: Lookup = generic_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name);
+        let named: |declarations|::Lookup = generic_named(sources, syntax, item.first_generic_parameter, item.generic_parameter_count, name);
         transition named {
-            Lookup::Found { handle } -> static_parameter(sources, syntax, scope, name, item.parent, handle),
+            |declarations|::Lookup::Found { handle } -> static_parameter(sources, syntax, scope, name, item.parent, handle),
             _ -> ancestor(sources, syntax, scope, name, item.parent)
         }
     }
-    machine static_parameter(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan, parent: u64 in Trapping, handle: u64 in Trapping) -> Lookup {
+    machine static_parameter(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan, parent: u64 in Trapping, handle: u64 in Trapping) -> |declarations|::Lookup {
         let parameter: GenericParameter = syntax_trees_generic_parameter(syntax, handle);
         transition parameter.kind == GenericParameterKind::Value {
             true -> ancestor(sources, syntax, scope, name, parent),
-            false -> Lookup::Found { handle: handle }
+            false -> |declarations|::Lookup::Found { handle: handle }
         }
     }
 
-    machine outer(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan) -> Lookup {
+    machine outer(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan) -> |declarations|::Lookup {
         generic_named(sources, syntax, scope.first_outer_parameter, scope.outer_parameter_count, name)
     }
 }

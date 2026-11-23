@@ -1,3 +1,4 @@
+use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
 use representations\source_files\SourceSet;
 use representations\source_files\SourceSpan;
 use representations\source_files\span_spells;
@@ -956,11 +957,11 @@ crashes Trap
 
     machine bare(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, path_handle: u64 in Trapping, path: NamePath) {
         let name: IdentifierSpan = syntax_trees_member(syntax, path.first_member);
-        let declared: Lookup = domain_named(sources, syntax, name.source_span);
+        let declared: |declarations|::Lookup = domain_named(sources, syntax, name.source_span);
         transition declared {
-            Lookup::Found { handle } -> path_bound(resolver, path_handle, handle),
-            Lookup::Ambiguous -> reject(resolver, ResolveDiagnosticCode::UnsupportedExpression, path.source_span),
-            Lookup::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, path.source_span)
+            |declarations|::Lookup::Found { handle } -> path_bound(resolver, path_handle, handle),
+            |declarations|::Lookup::Ambiguous -> reject(resolver, ResolveDiagnosticCode::UnsupportedExpression, path.source_span),
+            |declarations|::Lookup::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, path.source_span)
         }
     }
 
@@ -1005,25 +1006,25 @@ public machine resolver_domain_path(resolver: @Resolver, sources: @SourceSet, sy
 crashes Trap
 {
     let named: ValueBinding = case_or_machine(@resolver.output, sources, syntax, owner, name);
-    let declared: Lookup = domain_by_head(resolver, sources, syntax, types, owner, name);
+    let declared: |declarations|::Lookup = domain_by_head(resolver, sources, syntax, types, owner, name);
     transition named {
         ValueBinding::DataCase { item, data_case } -> case_domain(declared, item, data_case),
         ValueBinding::Ambiguous -> found(DomainPath::Ambiguous),
         _ -> declared_domain(declared)
     }
 
-    machine case_domain(declared: Lookup, item: u64 in Trapping, data_case: u64 in Trapping) -> DomainPath {
+    machine case_domain(declared: |declarations|::Lookup, item: u64 in Trapping, data_case: u64 in Trapping) -> DomainPath {
         transition declared {
-            Lookup::Absent -> found(DomainPath::Case { item: item, data_case: data_case }),
+            |declarations|::Lookup::Absent -> found(DomainPath::Case { item: item, data_case: data_case }),
             _ -> found(DomainPath::Ambiguous)
         }
     }
 
-    machine declared_domain(declared: Lookup) -> DomainPath {
+    machine declared_domain(declared: |declarations|::Lookup) -> DomainPath {
         transition declared {
-            Lookup::Found { handle } -> found(DomainPath::Declared { item: handle }),
-            Lookup::Ambiguous -> found(DomainPath::Ambiguous),
-            Lookup::Absent -> found(DomainPath::Absent)
+            |declarations|::Lookup::Found { handle } -> found(DomainPath::Declared { item: handle }),
+            |declarations|::Lookup::Ambiguous -> found(DomainPath::Ambiguous),
+            |declarations|::Lookup::Absent -> found(DomainPath::Absent)
         }
     }
 
@@ -1055,11 +1056,11 @@ crashes Trap
 machine constant_name(sources: @SourceSet, syntax: @SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan) -> ValueBinding
 crashes Trap
 {
-    let lookup: Lookup = declared_named(sources, syntax, DeclarationKind::Constant, owned, owner, name);
+    let lookup: |declarations|::Lookup = declared_named(sources, syntax, |declarations|::DeclarationKind::Constant, owned, owner, name);
     transition lookup {
-        Lookup::Found { handle } -> found(ValueBinding::Constant { constant: handle }),
-        Lookup::Ambiguous -> found(ValueBinding::Ambiguous),
-        Lookup::Absent -> found(ValueBinding::Unresolved)
+        |declarations|::Lookup::Found { handle } -> found(ValueBinding::Constant { constant: handle }),
+        |declarations|::Lookup::Ambiguous -> found(ValueBinding::Ambiguous),
+        |declarations|::Lookup::Absent -> found(ValueBinding::Unresolved)
     }
 
     machine found(binding: ValueBinding) -> ValueBinding {
@@ -1073,11 +1074,11 @@ crashes Trap
 public machine machine_name(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan) -> ValueBinding
 crashes Trap
 {
-    let lookup: Lookup = machine_named(resolution, sources, syntax, owned, owner, name);
+    let lookup: |declarations|::Lookup = machine_named(resolution, sources, syntax, owned, owner, name);
     transition lookup {
-        Lookup::Found { handle } -> found(ValueBinding::Machine { handle: handle }),
-        Lookup::Ambiguous -> found(ValueBinding::Ambiguous),
-        Lookup::Absent -> found(ValueBinding::Unresolved)
+        |declarations|::Lookup::Found { handle } -> found(ValueBinding::Machine { handle: handle }),
+        |declarations|::Lookup::Ambiguous -> found(ValueBinding::Ambiguous),
+        |declarations|::Lookup::Absent -> found(ValueBinding::Unresolved)
     }
 
     machine found(binding: ValueBinding) -> ValueBinding {
@@ -1218,11 +1219,11 @@ public machine free_callee(resolution: @NameResolution, sources: @SourceSet, syn
 crashes Trap
 {
     let named_machine: ValueBinding = machine_name(resolution, sources, syntax, false, name, name);
-    let named_proposition: Lookup = declared_named(sources, syntax, DeclarationKind::Proposition, false, name, name);
+    let named_proposition: |declarations|::Lookup = declared_named(sources, syntax, |declarations|::DeclarationKind::Proposition, false, name, name);
     transition named_proposition {
-        Lookup::Absent -> machine_found(sources, named_machine, name),
-        Lookup::Ambiguous -> found(ValueBinding::Ambiguous),
-        Lookup::Found { handle } -> proposition_found(named_machine, handle)
+        |declarations|::Lookup::Absent -> machine_found(sources, named_machine, name),
+        |declarations|::Lookup::Ambiguous -> found(ValueBinding::Ambiguous),
+        |declarations|::Lookup::Found { handle } -> proposition_found(named_machine, handle)
     }
 
     machine machine_found(sources: @SourceSet, named_machine: ValueBinding, name: SourceSpan) -> ValueBinding {
@@ -1473,11 +1474,11 @@ public machine binder_names(kind: GenericParameterKind, machine_binder: bool) ->
 machine data_name(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> ValueBinding
 crashes Trap
 {
-    let lookup: Lookup = data_named(sources, syntax, name);
+    let lookup: |declarations|::Lookup = data_named(sources, syntax, name);
     transition lookup {
-        Lookup::Found { handle } -> found(ValueBinding::Data { item: handle }),
-        Lookup::Ambiguous -> found(ValueBinding::Ambiguous),
-        Lookup::Absent -> found(ValueBinding::Unresolved)
+        |declarations|::Lookup::Found { handle } -> found(ValueBinding::Data { item: handle }),
+        |declarations|::Lookup::Ambiguous -> found(ValueBinding::Ambiguous),
+        |declarations|::Lookup::Absent -> found(ValueBinding::Unresolved)
     }
 
     machine found(binding: ValueBinding) -> ValueBinding {
@@ -1546,9 +1547,9 @@ crashes Trap
         item: u64 in Trapping,
         data_case: u64 in Trapping
     ) -> ValueBinding {
-        let rival: Lookup = declared_named(sources, syntax, DeclarationKind::Constant, true, owner, name);
+        let rival: |declarations|::Lookup = declared_named(sources, syntax, |declarations|::DeclarationKind::Constant, true, owner, name);
         transition rival {
-            Lookup::Absent -> found(ValueBinding::DataCase { item: item, data_case: data_case }),
+            |declarations|::Lookup::Absent -> found(ValueBinding::DataCase { item: item, data_case: data_case }),
             _ -> found(ValueBinding::Ambiguous)
         }
     }

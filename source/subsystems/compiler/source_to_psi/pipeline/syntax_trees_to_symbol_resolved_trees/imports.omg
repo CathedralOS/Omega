@@ -1,3 +1,4 @@
+use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
 use representations\source_files\DependencyRow;
 use representations\source_files\DependencyScope;
 use representations\source_files\PackageRow;
@@ -554,95 +555,6 @@ crashes Trap
     }
 }
 
-// What a name denotes among the declarations its unit can see.
-public data Lookup [copy] {
-    case Absent;
-    case Found(handle: u64 in Trapping);
-    case Ambiguous;
-}
-
-// The declaration tables a name or `Owner::name` path selects by spelling.
-// Data, traits and conformances are type names, constants values and
-// propositions logical declarations. Domains select by carrier as well
-// (domains.omg) and machines by overload family (`machine_named`).
-public data DeclarationKind [copy] {
-    case Data;
-    case Trait;
-    case Conformance;
-    case Constant;
-    case Proposition;
-}
-
-// The path a declaration's name spells: its owner when it has one, then its
-// name. Only a constant takes an owner (`const Owner::NAME`). `is_public`
-// is the declaration's `public`.
-public data DeclarationPath [copy] {
-    has_owner: bool;
-    owner: IdentifierSpan;
-    name: IdentifierSpan;
-    is_public: bool;
-}
-
-public machine declaration_count(syntax: @SyntaxTrees, kind: DeclarationKind) -> u64 in Trapping {
-    transition kind {
-        DeclarationKind::Data -> count(syntax.data_count as +Trapping),
-        DeclarationKind::Trait -> count(syntax.trait_count as +Trapping),
-        DeclarationKind::Conformance -> count(syntax.conformance_count as +Trapping),
-        DeclarationKind::Constant -> count(syntax.constant_count as +Trapping),
-        DeclarationKind::Proposition -> count(syntax.proposition_count as +Trapping)
-    }
-
-    machine count(value: u64 in Trapping) -> u64 in Trapping {
-        value
-    }
-}
-
-public machine declaration_path(syntax: @SyntaxTrees, kind: DeclarationKind, index: u64 in Trapping) -> DeclarationPath
-crashes Trap
-{
-    transition kind {
-        DeclarationKind::Data -> data(syntax, index),
-        DeclarationKind::Trait -> trait_name(syntax, index),
-        DeclarationKind::Conformance -> conformance(syntax, index),
-        DeclarationKind::Constant -> constant(syntax, index),
-        DeclarationKind::Proposition -> proposition(syntax, index)
-    }
-
-    machine data(syntax: @SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
-        let item: DataItem = syntax_trees_data_item(syntax, index);
-        DeclarationPath { has_owner: false, owner: item.name, name: item.name, is_public: item.is_public }
-    }
-
-    machine trait_name(syntax: @SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
-        let item: TraitItem = trait_item(syntax, index);
-        DeclarationPath { has_owner: false, owner: item.name, name: item.name, is_public: item.is_public }
-    }
-
-    machine conformance(syntax: @SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
-        let item: ConformanceItem = conformance_item(syntax, index);
-        DeclarationPath { has_owner: false, owner: item.name, name: item.name, is_public: item.is_public }
-    }
-
-    machine constant(syntax: @SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
-        let item: ConstantItem = constant_item(syntax, index);
-        DeclarationPath { has_owner: item.has_owner, owner: item.owner, name: item.name, is_public: item.is_public }
-    }
-
-    machine proposition(syntax: @SyntaxTrees, index: u64 in Trapping) -> DeclarationPath {
-        let item: PropositionItem = proposition_item(syntax, index);
-        DeclarationPath { has_owner: false, owner: item.name, name: item.name, is_public: item.is_public }
-    }
-}
-
-// Whether a declaration's path is `name` (owned by `owner` when `owned`).
-public machine path_spells(sources: @SourceSet, path: DeclarationPath, owned: bool, owner: SourceSpan, name: SourceSpan) -> bool
-crashes Trap
-{
-    let named: bool = spans_equal(sources, path.name.source_span, name);
-    let owner_named: bool = spans_equal(sources, path.owner.source_span, owner);
-    named && path.has_owner == owned && (!owned || owner_named)
-}
-
 // The declaration of `kind` that `name` (owned by `owner` when `owned`)
 // denotes from its own unit. A second visible declaration of the path
 // belongs to another module (a module's duplicates reject earlier), so it
@@ -650,26 +562,26 @@ crashes Trap
 public machine declared_named(
     sources: @SourceSet,
     syntax: @SyntaxTrees,
-    kind: DeclarationKind,
+    kind: |declarations|::DeclarationKind,
     owned: bool,
     owner: SourceSpan,
     name: SourceSpan
-) -> Lookup
+) -> |declarations|::Lookup
 crashes Trap
 {
-    let count: u64 in Trapping = declaration_count(syntax, kind);
+    let count: u64 in Trapping = |declarations|::declaration_count(syntax, kind);
     transition { _ -> next(sources, syntax, kind, owned, owner, name, count, 0) }
 
     machine next(
         sources: @SourceSet,
         syntax: @SyntaxTrees,
-        kind: DeclarationKind,
+        kind: |declarations|::DeclarationKind,
         owned: bool,
         owner: SourceSpan,
         name: SourceSpan,
         count: u64 in Trapping,
         index: u64 in Trapping
-    ) -> Lookup {
+    ) -> |declarations|::Lookup {
         transition index < count {
             true -> candidate(sources, syntax, kind, owned, owner, name, count, index),
             _ -> absent()
@@ -679,15 +591,15 @@ crashes Trap
     machine candidate(
         sources: @SourceSet,
         syntax: @SyntaxTrees,
-        kind: DeclarationKind,
+        kind: |declarations|::DeclarationKind,
         owned: bool,
         owner: SourceSpan,
         name: SourceSpan,
         count: u64 in Trapping,
         index: u64 in Trapping
-    ) -> Lookup {
-        let path: DeclarationPath = declaration_path(syntax, kind, index);
-        let named: bool = path_spells(sources, path, owned, owner, name);
+    ) -> |declarations|::Lookup {
+        let path: |declarations|::DeclarationPath = |declarations|::declaration_path(syntax, kind, index);
+        let named: bool = |declarations|::path_spells(sources, path, owned, owner, name);
         let visible: bool = visible_if(sources, syntax, named, name.source, path.name.source_span.source, path.is_public);
         transition visible {
             true -> rival(sources, syntax, kind, owned, owner, name, count, index, index + 1),
@@ -698,14 +610,14 @@ crashes Trap
     machine rival(
         sources: @SourceSet,
         syntax: @SyntaxTrees,
-        kind: DeclarationKind,
+        kind: |declarations|::DeclarationKind,
         owned: bool,
         owner: SourceSpan,
         name: SourceSpan,
         count: u64 in Trapping,
         found: u64 in Trapping,
         index: u64 in Trapping
-    ) -> Lookup {
+    ) -> |declarations|::Lookup {
         transition index < count {
             true -> rival_candidate(sources, syntax, kind, owned, owner, name, count, found, index),
             _ -> unique(found)
@@ -715,16 +627,16 @@ crashes Trap
     machine rival_candidate(
         sources: @SourceSet,
         syntax: @SyntaxTrees,
-        kind: DeclarationKind,
+        kind: |declarations|::DeclarationKind,
         owned: bool,
         owner: SourceSpan,
         name: SourceSpan,
         count: u64 in Trapping,
         found: u64 in Trapping,
         index: u64 in Trapping
-    ) -> Lookup {
-        let path: DeclarationPath = declaration_path(syntax, kind, index);
-        let named: bool = path_spells(sources, path, owned, owner, name);
+    ) -> |declarations|::Lookup {
+        let path: |declarations|::DeclarationPath = |declarations|::declaration_path(syntax, kind, index);
+        let named: bool = |declarations|::path_spells(sources, path, owned, owner, name);
         let visible: bool = visible_if(sources, syntax, named, name.source, path.name.source_span.source, path.is_public);
         transition visible {
             true -> ambiguous(),
@@ -732,24 +644,24 @@ crashes Trap
         }
     }
 
-    machine unique(found: u64 in Trapping) -> Lookup {
-        Lookup::Found { handle: found }
+    machine unique(found: u64 in Trapping) -> |declarations|::Lookup {
+        |declarations|::Lookup::Found { handle: found }
     }
 
-    machine absent() -> Lookup {
-        Lookup::Absent
+    machine absent() -> |declarations|::Lookup {
+        |declarations|::Lookup::Absent
     }
 
-    machine ambiguous() -> Lookup {
-        Lookup::Ambiguous
+    machine ambiguous() -> |declarations|::Lookup {
+        |declarations|::Lookup::Ambiguous
     }
 }
 
 // The data declaration `name` denotes from its own unit.
-public machine data_named(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> Lookup
+public machine data_named(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> |declarations|::Lookup
 crashes Trap
 {
-    declared_named(sources, syntax, DeclarationKind::Data, false, name, name)
+    declared_named(sources, syntax, |declarations|::DeclarationKind::Data, false, name, name)
 }
 
 // The declared measure `Owner::name` (wiki/spec/language/termination.md),

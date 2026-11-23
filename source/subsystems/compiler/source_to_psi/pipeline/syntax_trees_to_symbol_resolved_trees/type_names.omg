@@ -1,3 +1,4 @@
+use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
 use representations\source_files\SourceSet;
 use representations\source_files\SourceSpan;
 use representations\source_files\source_set_byte_or_nul;
@@ -330,16 +331,16 @@ public machine type_binding(
 ) -> TypeBinding
 crashes Trap
 {
-    let own: Lookup = generic_named(sources, syntax, scope.first_generic_parameter, scope.generic_parameter_count, name);
+    let own: |declarations|::Lookup = generic_named(sources, syntax, scope.first_generic_parameter, scope.generic_parameter_count, name);
     transition own {
-        Lookup::Found { handle } -> found(TypeBinding::GenericParameter { parameter: handle }),
+        |declarations|::Lookup::Found { handle } -> found(TypeBinding::GenericParameter { parameter: handle }),
         _ -> outer(sources, syntax, scope, name)
     }
 
     machine outer(sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, name: SourceSpan) -> TypeBinding {
-        let container: Lookup = scoped_generic_named(sources, syntax, scope, name);
+        let container: |declarations|::Lookup = scoped_generic_named(sources, syntax, scope, name);
         transition container {
-            Lookup::Found { handle } -> found(TypeBinding::GenericParameter { parameter: handle }),
+            |declarations|::Lookup::Found { handle } -> found(TypeBinding::GenericParameter { parameter: handle }),
             _ -> builtin(sources, syntax, name)
         }
     }
@@ -355,11 +356,11 @@ crashes Trap
     // A visible data declaration, trait or conformance of the spelling; two
     // of them, of any kinds, make the name ambiguous.
     machine declared(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> TypeBinding {
-        let data: Lookup = data_named(sources, syntax, name);
+        let data: |declarations|::Lookup = data_named(sources, syntax, name);
         transition data {
-            Lookup::Found { handle } -> data_found(sources, syntax, name, handle),
-            Lookup::Ambiguous -> found(TypeBinding::Ambiguous),
-            Lookup::Absent -> traits(sources, syntax, name)
+            |declarations|::Lookup::Found { handle } -> data_found(sources, syntax, name, handle),
+            |declarations|::Lookup::Ambiguous -> found(TypeBinding::Ambiguous),
+            |declarations|::Lookup::Absent -> traits(sources, syntax, name)
         }
     }
 
@@ -372,28 +373,28 @@ crashes Trap
     }
 
     machine traits(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> TypeBinding {
-        let traits: Lookup = declared_named(sources, syntax, DeclarationKind::Trait, false, name, name);
+        let traits: |declarations|::Lookup = declared_named(sources, syntax, |declarations|::DeclarationKind::Trait, false, name, name);
         transition traits {
-            Lookup::Found { handle } -> trait_found(sources, syntax, name, handle),
-            Lookup::Ambiguous -> found(TypeBinding::Ambiguous),
-            Lookup::Absent -> conformances(sources, syntax, name)
+            |declarations|::Lookup::Found { handle } -> trait_found(sources, syntax, name, handle),
+            |declarations|::Lookup::Ambiguous -> found(TypeBinding::Ambiguous),
+            |declarations|::Lookup::Absent -> conformances(sources, syntax, name)
         }
     }
 
     machine trait_found(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan, item: u64 in Trapping) -> TypeBinding {
-        let conformances: Lookup = declared_named(sources, syntax, DeclarationKind::Conformance, false, name, name);
+        let conformances: |declarations|::Lookup = declared_named(sources, syntax, |declarations|::DeclarationKind::Conformance, false, name, name);
         transition conformances {
-            Lookup::Absent -> found(TypeBinding::Trait { item: item }),
+            |declarations|::Lookup::Absent -> found(TypeBinding::Trait { item: item }),
             _ -> found(TypeBinding::Ambiguous)
         }
     }
 
     machine conformances(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> TypeBinding {
-        let conformances: Lookup = declared_named(sources, syntax, DeclarationKind::Conformance, false, name, name);
+        let conformances: |declarations|::Lookup = declared_named(sources, syntax, |declarations|::DeclarationKind::Conformance, false, name, name);
         transition conformances {
-            Lookup::Found { handle } -> found(TypeBinding::Conformance { item: handle }),
-            Lookup::Ambiguous -> found(TypeBinding::Ambiguous),
-            Lookup::Absent -> found(TypeBinding::Unresolved)
+            |declarations|::Lookup::Found { handle } -> found(TypeBinding::Conformance { item: handle }),
+            |declarations|::Lookup::Ambiguous -> found(TypeBinding::Ambiguous),
+            |declarations|::Lookup::Absent -> found(TypeBinding::Unresolved)
         }
     }
 
@@ -406,16 +407,16 @@ crashes Trap
 machine trait_or_conformance_named(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> bool
 crashes Trap
 {
-    let traits: Lookup = declared_named(sources, syntax, DeclarationKind::Trait, false, name, name);
+    let traits: |declarations|::Lookup = declared_named(sources, syntax, |declarations|::DeclarationKind::Trait, false, name, name);
     transition traits {
-        Lookup::Absent -> conformances(sources, syntax, name),
+        |declarations|::Lookup::Absent -> conformances(sources, syntax, name),
         _ -> yes()
     }
 
     machine conformances(sources: @SourceSet, syntax: @SyntaxTrees, name: SourceSpan) -> bool {
-        let conformances: Lookup = declared_named(sources, syntax, DeclarationKind::Conformance, false, name, name);
+        let conformances: |declarations|::Lookup = declared_named(sources, syntax, |declarations|::DeclarationKind::Conformance, false, name, name);
         transition conformances {
-            Lookup::Absent -> no(),
+            |declarations|::Lookup::Absent -> no(),
             _ -> yes()
         }
     }
@@ -465,11 +466,11 @@ crashes Trap
     }
 
     machine declared(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, reference: u64 in Trapping, domain: IdentifierSpan) {
-        let lookup: Lookup = resolver_declared_domain(resolver, sources, syntax, reference, domain.source_span);
+        let lookup: |declarations|::Lookup = resolver_declared_domain(resolver, sources, syntax, reference, domain.source_span);
         transition lookup {
-            Lookup::Found { handle } -> bind(resolver, reference, DomainBinding::Declared, handle),
-            Lookup::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, domain.source_span),
-            Lookup::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, domain.source_span)
+            |declarations|::Lookup::Found { handle } -> bind(resolver, reference, DomainBinding::Declared, handle),
+            |declarations|::Lookup::Ambiguous -> reject(resolver, ResolveDiagnosticCode::AmbiguousName, domain.source_span),
+            |declarations|::Lookup::Absent -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, domain.source_span)
         }
     }
 

@@ -1,3 +1,4 @@
+use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
 use representations\source_files\SourceSet;
 use representations\source_files\SourceSpan;
 use representations\source_files\span_spells;
@@ -290,9 +291,9 @@ crashes Trap
         trait_index: u64 in Trapping
     ) {
         let name: IdentifierSpan = syntax_trees_member(syntax, clause.first_member + 1);
-        let member: Lookup = trait_member_named(sources, syntax, trait_index, name.source_span);
+        let member: |declarations|::Lookup = trait_member_named(sources, syntax, trait_index, name.source_span);
         transition member {
-            Lookup::Found { handle } -> found(resolver, sources, syntax, machine, clause_handle, clause, handle),
+            |declarations|::Lookup::Found { handle } -> found(resolver, sources, syntax, machine, clause_handle, clause, handle),
             _ -> reject(resolver, ResolveDiagnosticCode::NotARequirement, name.source_span)
         }
     }

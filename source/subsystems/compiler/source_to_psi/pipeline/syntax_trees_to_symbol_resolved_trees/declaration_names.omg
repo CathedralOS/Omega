@@ -1,3 +1,4 @@
+use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
 use representations\source_files\SourceSet;
 use representations\source_files\spans_equal;
 use representations\symbol_resolved_trees\NameResolution;
@@ -57,16 +58,16 @@ crashes Trap
 {
     let root: RootItem = root_item(syntax, index);
     transition root.kind {
-        RootItemKind::Data -> declared(syntax, root, RootNamespace::Type, DeclarationKind::Data),
-        RootItemKind::Trait -> declared(syntax, root, RootNamespace::Type, DeclarationKind::Trait),
-        RootItemKind::Conformance -> declared(syntax, root, RootNamespace::Type, DeclarationKind::Conformance),
-        RootItemKind::Constant -> declared(syntax, root, RootNamespace::Constant, DeclarationKind::Constant),
-        RootItemKind::Proposition -> declared(syntax, root, RootNamespace::Proposition, DeclarationKind::Proposition),
+        RootItemKind::Data -> declared(syntax, root, RootNamespace::Type, |declarations|::DeclarationKind::Data),
+        RootItemKind::Trait -> declared(syntax, root, RootNamespace::Type, |declarations|::DeclarationKind::Trait),
+        RootItemKind::Conformance -> declared(syntax, root, RootNamespace::Type, |declarations|::DeclarationKind::Conformance),
+        RootItemKind::Constant -> declared(syntax, root, RootNamespace::Constant, |declarations|::DeclarationKind::Constant),
+        RootItemKind::Proposition -> declared(syntax, root, RootNamespace::Proposition, |declarations|::DeclarationKind::Proposition),
         _ -> none(root)
     }
 
-    machine declared(syntax: @SyntaxTrees, root: RootItem, space: RootNamespace, kind: DeclarationKind) -> RootName {
-        let path: DeclarationPath = declaration_path(syntax, kind, root.item_index);
+    machine declared(syntax: @SyntaxTrees, root: RootItem, space: RootNamespace, kind: |declarations|::DeclarationKind) -> RootName {
+        let path: |declarations|::DeclarationPath = |declarations|::declaration_path(syntax, kind, root.item_index);
         RootName { kind: root.kind, space: space, has_owner: path.has_owner, owner: path.owner, name: path.name }
     }
 
