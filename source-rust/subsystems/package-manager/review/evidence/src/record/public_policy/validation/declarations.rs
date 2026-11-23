@@ -57,9 +57,7 @@ pub(super) fn trait_shape(value: &PackagePolicyTraitShape, api: &PackagePolicyPu
         })?;
         signatures::result(&mut scope, requirement.return_type.as_ref())?;
         signatures::parameters(&scope, 0)?;
-        for contract in &requirement.contracts {
-            contracts::contract(contract, &scope, 0)?;
-        }
+        contracts::roster(&requirement.contracts, &scope, 0)?;
         behavior::validate(
             requirement.published_crash.as_deref().unwrap_or_default(),
             requirement.service_reach.as_deref().unwrap_or_default(),
@@ -111,9 +109,7 @@ pub(super) fn operator(value: &PackagePolicyOperatorShape) -> Result {
     })?;
     signatures::result(&mut scope, value.return_type.as_ref())?;
     signatures::parameters(&scope, 0)?;
-    for contract in &value.contracts {
-        contracts::contract(contract, &scope, 0)?;
-    }
+    contracts::roster(&value.contracts, &scope, 0)?;
     behavior::crash(&value.published_crash, &scope, 0)
 }
 

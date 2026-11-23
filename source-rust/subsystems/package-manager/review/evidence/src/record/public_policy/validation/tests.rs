@@ -141,3 +141,5 @@ fn a_trait_has_no_implicit_subject_binder_before_its_statics() {
 }
 
 mod structural_parameters;
+
+mod evidence_lanes;
