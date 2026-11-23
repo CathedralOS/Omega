@@ -1,10 +1,10 @@
+use calling.omg as abi;
+use windows_x86_64_filesystem_calling.omg as transfer_abi;
 use {omega}/language/core/layout.omg as layout;
 use {omega}/language/core/access/access.omg as access;
 use {omega}/language/core/reflect/reflect.omg as reflect;
 use targets/windows_x86_64/windows_filesystem_transfer.omg as transfer;
 
-use Calling;
-use WindowsFilesystemTransferCalling;
 // Exact whole-window imports. Their policy, not a first-byte reference plus
 // unrelated count, associates the native pointer/count with one borrowed view.
 // The handle classification is issued only after the exact pinned object's
@@ -27,7 +27,7 @@ WindowsSynchronousFileIssuance satisfies |layout|::AccessPolicy {
     }
 }
 
-boundary trait WindowsFilesystemTransferIo: Calling<WindowsFilesystemTransferCalling> {
+boundary trait WindowsFilesystemTransferIo: |abi|::Calling<|transfer_abi|::WindowsFilesystemTransferCalling> {
     machine write_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: @[u8], transferred: @mutable u32, overlapped: u64) -> i32
     requires (handle as -WindowsSynchronousFileOrAbsent) != 0 && bytes.length <= 4294967295 && overlapped == 0
     reaches FilesystemContentWrite

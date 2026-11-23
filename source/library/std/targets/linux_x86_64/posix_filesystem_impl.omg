@@ -1,5 +1,5 @@
-use Calling;
-use LinuxX86ByteViewCalling;
+use calling.omg as abi;
+use posix_byte_view_calling.omg as byte_views;
 use PosixFilesystemHost;
 use omega_language_std;
 use posix_terminated_path;
@@ -18,7 +18,7 @@ use omega\language\core\FilesystemNamespaceMutation;
 use omega\language\core\min_u64;
 
 // This native requirement application fixes its kernel calling convention.
-boundary trait PosixFilesystemLinuxX86ByteViews: Calling<LinuxX86ByteViewCalling> {
+boundary trait PosixFilesystemLinuxX86ByteViews: |abi|::Calling<|byte_views|::LinuxX86ByteViewCalling> {
     machine read(fd: i32, buffer: @mutable [u8]) -> i64 reaches FilesystemContentRead crashes none;
     machine write(fd: i32, bytes: @[u8]) -> i64 reaches FilesystemContentWrite crashes none;
     machine pread64(fd: i32, buffer: @mutable [u8], offset: i64) -> i64 reaches FilesystemContentRead crashes none;

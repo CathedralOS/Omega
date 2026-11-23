@@ -1,3 +1,5 @@
+use calling.omg as abi;
+use posix_byte_view_calling.omg as byte_views;
 use omega\language\core\StandardInput;
 use omega\language\core\StandardOutput;
 use targets\alpha_bootstrap\AlphaConsoleBytes;
@@ -78,7 +80,7 @@ trait PosixConsoleRawOperations {
 }
 
 // Raw count/status ABI for linux_x86_64; read/write move one byte through a cell.
-boundary trait LinuxX86ConsoleIo: Calling<LinuxX86ByteViewCalling> {
+boundary trait LinuxX86ConsoleIo: |abi|::Calling<|byte_views|::LinuxX86ByteViewCalling> {
     machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
     reaches StandardInput blocks crashes none;
@@ -88,7 +90,7 @@ boundary trait LinuxX86ConsoleIo: Calling<LinuxX86ByteViewCalling> {
 }
 
 // Raw count/status ABI for linux_arm64; read/write move one byte through a cell.
-boundary trait LinuxArm64ConsoleIo: Calling<LinuxArm64ByteViewCalling> {
+boundary trait LinuxArm64ConsoleIo: |abi|::Calling<|byte_views|::LinuxArm64ByteViewCalling> {
     machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
     reaches StandardInput blocks crashes none;
@@ -98,7 +100,7 @@ boundary trait LinuxArm64ConsoleIo: Calling<LinuxArm64ByteViewCalling> {
 }
 
 // Raw count/status ABI for macos_arm64; read/write move one byte through a cell.
-boundary trait DarwinArm64ConsoleIo: Calling<DarwinArm64ByteViewCalling> {
+boundary trait DarwinArm64ConsoleIo: |abi|::Calling<|byte_views|::DarwinArm64ByteViewCalling> {
     machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
     reaches StandardInput blocks crashes none;
@@ -108,7 +110,7 @@ boundary trait DarwinArm64ConsoleIo: Calling<DarwinArm64ByteViewCalling> {
 }
 
 // Raw count/status ABI for macos_x86_64; read/write move one byte through a cell.
-boundary trait DarwinX86ConsoleIo: Calling<SystemVByteViewCalling> {
+boundary trait DarwinX86ConsoleIo: |abi|::Calling<|byte_views|::SystemVByteViewCalling> {
     machine read(descriptor: i32, buffer: @mutable i32, count: u64) -> i64
     requires descriptor == 0 && count <= 4
     reaches StandardInput blocks crashes none;

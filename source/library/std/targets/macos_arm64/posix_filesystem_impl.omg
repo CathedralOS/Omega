@@ -1,5 +1,5 @@
-use Calling;
-use DarwinArm64ByteViewCalling;
+use calling.omg as abi;
+use posix_byte_view_calling.omg as byte_views;
 use DarwinFileTimes;
 use PosixFilesystemHost;
 use omega_language_std;
@@ -37,7 +37,7 @@ use omega\language\core\widen_i32_to_i64;
 use omega\language\core\min_u64;
 
 // The explicit policy exports the borrowed view as pointer/count, not one byte.
-boundary trait PosixFilesystemDarwinByteViews: Calling<DarwinArm64ByteViewCalling> {
+boundary trait PosixFilesystemDarwinByteViews: |abi|::Calling<|byte_views|::DarwinArm64ByteViewCalling> {
     machine c_read(fd: i32, buffer: @mutable [u8]) -> i64 reaches FilesystemContentRead crashes none;
     machine c_write(fd: i32, bytes: @[u8]) -> i64 reaches FilesystemContentWrite crashes none;
     machine c_read_at(fd: i32, buffer: @mutable [u8], offset: i64) -> i64 reaches FilesystemContentRead crashes none;
