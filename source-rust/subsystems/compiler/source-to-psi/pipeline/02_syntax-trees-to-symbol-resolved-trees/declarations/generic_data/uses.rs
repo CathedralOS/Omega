@@ -27,9 +27,6 @@ mod alias_constructors {
         payload_free: bool,
     ) -> Option<AliasConstructor> {
         let selection = selection?;
-        if payload_free && selection.constructor_prefix_is_value(syntax, authored) {
-            return None;
-        }
         let (carrier, case) = if selection.type_alias_source(syntax, authored).is_some() {
             (authored.clone(), None)
         } else {
@@ -1430,7 +1427,7 @@ mod expressions {
 
     impl ConstructorFrontier<'_> {
         pub fn captures(&self, syntax: &SyntaxTrees, path: HandleSpan<Identifier>) -> bool {
-            let Some(head) = syntax.expressions.identifier_path_members(path).first() else {
+            let [head] = syntax.expressions.identifier_path_members(path) else {
                 return false;
             };
             self.captures_name(syntax, head)
@@ -1501,19 +1498,6 @@ mod patterns {
                             } = syntax.expressions.expression(retained.pattern.head)
                             && path_application.is_none()
                             && frontier.captures(syntax, path.to_owned())
-                        {
-                            continue;
-                        }
-                        if !retained.is_structural
-                            && let ExpressionNode::Name {
-                                members: path,
-                                application: path_application,
-                            } = syntax.expressions.expression(retained.pattern.head)
-                            && path_application.is_none()
-                            && let Some(name) = constructor_path_name(syntax, path.to_owned())
-                            && selection.is_some_and(|selection| {
-                                selection.constructor_prefix_is_value(syntax, &name)
-                            })
                         {
                             continue;
                         }

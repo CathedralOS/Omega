@@ -167,50 +167,13 @@ fn selection_ambiguity(
     )
 }
 
-pub(crate) fn constructor_prefix_is_value(
-    symbols: &SymbolTable,
-    name: &str,
-    reference: source_text::SourceSpan,
-) -> Result<bool, String> {
-    let Some((prefix, _)) = name.split_once("::") else {
-        return Ok(false);
-    };
-    match symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
-        prefix,
-        &[SymbolKind::Const],
-        reference,
-        |_| true,
-    ) {
-        SymbolLookup::Unique(_) => return Ok(true),
-        SymbolLookup::Ambiguous { first, second } => {
-            return Err(selection_ambiguity(
-                symbols,
-                name,
-                reference,
-                first,
-                second,
-                "constructor",
-            ));
-        }
-        SymbolLookup::NotFound => {}
-    }
-    Ok(false)
-}
-
-/*
-    A carrier-qualified path may construct only a payload-free case. The caller
-    resolves lexical binders first; named constant prefixes remain values,
-    including an ambiguous prefix that must never be reinterpreted as a namespace.
-*/
+/// A value-position carrier-qualified case constructs a value only if its payload is empty.
 pub(crate) fn qualified_payload_free_case_type<'name>(
     symbols: &SymbolTable,
     name: &'name str,
     reference: source_text::SourceSpan,
 ) -> Result<Option<(SymbolHandle, SymbolHandle, &'name str)>, String> {
     if !name.contains("::") {
-        return Ok(None);
-    }
-    if constructor_prefix_is_value(symbols, name, reference)? {
         return Ok(None);
     }
     let Some((owner, Some(case))) = constructor_type(symbols, name, reference)? else {
