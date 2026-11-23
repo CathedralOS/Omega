@@ -1,7 +1,8 @@
+use calling.omg as abi;
+use targets/windows_x86_64/calling.omg as windows_abi;
 use omega\language\core\StandardInput;
 use omega\language\core\StandardOutput;
 use ByteRead;
-use Calling;
 use ConsoleByteOperations;
 // Windows byte I/O uses MSVCRT descriptor calls. Binary mode preserves every
 // authored byte, including CR/LF and Ctrl+Z. Build supplies each DLL locator.
@@ -12,7 +13,7 @@ use omega\language\core\widen_u8_to_i32;
 // package-owned boundary row whose DLL locator lives in `std/build.omg`
 // (`Build::bind<WindowsConsoleIo::...>`). Providers invoke the trait members
 // directly; their raw host dependencies belong to the realization inventory.
-boundary trait WindowsConsoleIo: Calling<WindowsX64ScalarCalling> {
+boundary trait WindowsConsoleIo: |abi|::Calling<|windows_abi|::WindowsX64ScalarCalling> {
     machine write(descriptor: i32, buffer: @mutable i32, count: u32) -> i32
     requires descriptor == 1 && count <= 4
     reaches StandardOutput
