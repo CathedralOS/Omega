@@ -698,20 +698,18 @@ fn an_unresolved_write_only_invalidates_returns_it_can_reach() {
         ..Default::default()
     };
     machine.normal_exits.push(normal);
-    machine.unresolved_contents_writes.insert(write);
     machine.flow = BTreeMap::from([
         (entry, step(&[normal, write])),
         (write, step(&[exits_process])),
         (normal, step(&[])),
         (exits_process, step(&[])),
     ]);
-    for returns_after_write in [false, true] {
-        if returns_after_write {
-            machine.flow.insert(write, step(&[normal, exits_process]));
-        }
+    // An unknown write at a normal exit counts, including its cleanup.
+    for (site, invalidates_return) in [(write, false), (normal, true), (entry, true)] {
+        machine.unresolved_contents_writes = BTreeSet::from([site]);
         let mut replay = Replay::new(&[], std::slice::from_ref(&machine));
         let summary = replay.summary(identity, 0).expect("valid descriptor graph");
-        assert_eq!(summary.invalidates_contents, returns_after_write);
+        assert_eq!(summary.invalidates_contents, invalidates_return);
     }
 }
 
