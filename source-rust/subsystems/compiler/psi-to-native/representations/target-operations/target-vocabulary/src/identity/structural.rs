@@ -21,8 +21,8 @@ use semantic_vocabulary::{
     ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment, ContentPlaceVersion,
 };
 use terminal_psi::{
-    ClaimContentProjection, ProviderCandidateConformance, StructuralOperationResult,
-    StructuralResultDeclaration,
+    ClaimContentProjection, ProviderCandidateConformance, ResultQualificationEstablishment,
+    StructuralOperationResult, StructuralResultDeclaration,
 };
 
 pub fn encode_boundary_settlement(bytes: &mut Vec<u8>, settlement: &LegalizedBoundarySettlement) {
@@ -338,6 +338,17 @@ pub fn encode_cleanup_action(
     }
 }
 
+pub fn encode_result_establishments(
+    bytes: &mut Vec<u8>,
+    rows: &[ResultQualificationEstablishment],
+) {
+    encode_len(bytes, rows.len());
+    for row in rows {
+        crate::codec_bytes::push_encoded(bytes, row.domain.get().to_le_bytes());
+        crate::codec_bytes::push_encoded(bytes, row.route.to_le_bytes());
+    }
+}
+
 pub fn encode_operation_result(bytes: &mut Vec<u8>, result: &StructuralOperationResult) {
     crate::codec_bytes::push_encoded(bytes, result.place.get().to_le_bytes());
     crate::codec_bytes::push_encoded(bytes, result.structural_type.get().to_le_bytes());
@@ -348,6 +359,7 @@ pub fn encode_operation_result(bytes: &mut Vec<u8>, result: &StructuralOperation
     );
     encode_projected_qualifications(bytes, &result.projected_qualifications);
     encode_projected_qualifications(bytes, &result.additional_input_qualifications);
+    encode_result_establishments(bytes, &result.qualification_establishments);
     encode_len(bytes, result.claims.len());
     for claim in &result.claims {
         crate::codec_bytes::push_encoded(bytes, claim.claim.get().to_le_bytes());
