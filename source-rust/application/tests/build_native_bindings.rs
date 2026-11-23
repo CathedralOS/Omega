@@ -36,10 +36,9 @@ machine main() { }
 const SLEEP: &str = "ForeignBinding::DllImport { import: DllImport::PeByName { library: \"kernel32.dll\", export: \"Sleep\" } }";
 const OTHER: &str = "ForeignBinding::DllImport { import: DllImport::PeByName { library: \"kernel32.dll\", export: \"SleepEx\" } }";
 
-fn omega_check(directory: &std::path::Path) -> String {
+fn omega_check(directory: &std::path::Path, target: &str) -> String {
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .arg("--check")
-        .arg("main.omg")
+        .args(["--check", "main.omg", "--target", target])
         .current_dir(directory)
         .stdin(std::process::Stdio::null())
         .output()
@@ -72,17 +71,18 @@ machine build(builder: @mutable Build) {{
         ),
     )
     .expect("staged Build");
-    let stderr = omega_check(&root);
+    let stderr = omega_check(&root, "linux_x86_64");
     let _ = std::fs::remove_dir_all(&root);
     stderr
 }
 
 /// What the admission of a Build's native bindings says when it refuses.
-const ADMISSION_REFUSALS: [&str; 4] = [
+const ADMISSION_REFUSALS: [&str; 5] = [
     "native binding admission",
     "native binding must name",
     "conflicting native bindings",
     "Product operand preparation",
+    "does not name one visible declaration",
 ];
 
 #[test]
@@ -142,7 +142,8 @@ fn a_binding_that_names_no_requirement_is_refused() {
         &format!("    Build::bind::<Host::missing>(builder, windows_x86_64, {SLEEP});\n"),
     );
     assert!(
-        stderr.contains("native binding must name one exact visible package-owned requirement"),
+        stderr
+            .contains("Product requirement `Host::missing` does not name one visible declaration"),
         "{stderr}"
     );
     assert!(stderr.contains("build.omg:6:"), "{stderr}");
@@ -218,7 +219,7 @@ machine build(builder: @mutable Build) {{
 ",
     )
     .expect("staged Build");
-    let stderr = omega_check(&root);
+    let stderr = omega_check(&root, "windows_x86_64");
     let _ = std::fs::remove_dir_all(&root);
     stderr
 }
@@ -246,7 +247,7 @@ fn a_dependency_binding_the_program_reaches_is_judged() {
 fn a_program_receives_the_bindings_of_the_standard_library() {
     let directory = support::repository_root()
         .join("tests/fixtures/providers/run/default_console_provider_reached");
-    let stderr = omega_check(&directory);
+    let stderr = omega_check(&directory, "linux_x86_64");
     for refusal in ADMISSION_REFUSALS
         .into_iter()
         .chain(["provider selection", "captured native"])
