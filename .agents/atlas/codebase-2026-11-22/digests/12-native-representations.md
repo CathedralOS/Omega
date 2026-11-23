@@ -280,6 +280,7 @@ Every fail-open place the records report. Class as the record gives it.
 - `contains_call` misses any calling family not in its list (`FA/frame_layout.rs:325-336`). Open.
 - `SelectedFormEncodedRowStore::bytes` returns `&[]` for a bad span and `bytes_mut` `&mut []` (`MC/encoding.rs:152-176`); a missing footprint hashes nothing (`MC/encoding_identity.rs:244-246`). Open.
 - Resolved-layout identity omits `normalized_foreign_call_fixup` (`MC/layout.rs:400-424`); open, traced to the re-check in `EA/layout/validation.rs:431-448`. Text-section identity omits callback materializations (`MC/layout/text_section.rs:283-308`). Open. Fragment identity reuses tag 10 and writes no presence byte for image fixups (`MC/fragments/identity.rs:75-80`, `:225`, `:246`).
+  - **Follow-up (2026-11-23).** Changing the import ordinal in the Windows callback registrar’s resolved layout produced the same layout identity on `cbdc1ac2c59`. The resolved layout now uses the encoder’s row-relative call fixup when computing its identity. Changing the ordinal or removing its callback address record changes the identity. The independent layout checker also compares the complete fixup with the original encoded instruction. The regression runs with `mbx test -p native-compiler --lib physical_publication_retains_linked_callback_children` (old result in 0.02 seconds after building).
 - `ImageAddressOrigins::require` binary-searches rows whose sort is not checked (`MC/image_origins.rs:38-51`). Inferred.
 
 ## 6. Silent drops

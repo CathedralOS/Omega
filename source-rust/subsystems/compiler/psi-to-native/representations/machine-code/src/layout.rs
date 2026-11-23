@@ -32,8 +32,7 @@ use target::NativeTarget;
 use crate::identity_encoding::{encode_conditional_branch_arm, encode_jump_arm, encode_views};
 use crate::{
     SelectedFormEncoding, SelectedFormEncodingIdentity, SelectedFormImageAddressFixup,
-    SelectedFormInternalMachineFixup, SelectedFormInternalMachineFixupKind,
-    SelectedFormInternalMachineFixupState, SelectedFormNormalizedForeignCallFixup,
+    SelectedFormInternalMachineFixup, SelectedFormNormalizedForeignCallFixup,
     TargetFrameLayoutIdentity, TargetFrameLayoutPlan, TargetFrameProtocolEncodingIdentity,
     TargetFrameProtocolEncodingPlan,
 };
@@ -74,7 +73,7 @@ pub struct ResolvedLayoutRoots {
     pub pre_layout: SelectedFormEncodingIdentity,
 }
 
-const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v17";
+const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v18";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SelectedFunctionLayoutPolicy {
@@ -415,7 +414,14 @@ pub fn resolved_machine_layout_identity(
                         );
                     }
                 }
-                encode_internal_fixup(&mut hasher, instruction.internal_machine_fixup());
+                hasher.bool(instruction.internal_machine_fixup.is_some());
+                if let Some(fixup) = instruction.internal_machine_fixup() {
+                    fixup.encode_identity(&mut hasher);
+                }
+                hasher.bool(instruction.normalized_foreign_call_fixup.is_some());
+                if let Some(fixup) = instruction.normalized_foreign_call_fixup() {
+                    fixup.encode_identity(&mut hasher);
+                }
                 if let Some(fixup) = instruction.image_address_fixup() {
                     let mut identity = b"image-address-v2".to_vec();
                     fixup.reference.encode_identity(&mut identity);
@@ -426,30 +432,6 @@ pub fn resolved_machine_layout_identity(
         }
     }
     ResolvedSelectedFormLayoutIdentity(hasher.finish())
-}
-
-fn encode_internal_fixup(
-    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
-    fixup: Option<SelectedFormInternalMachineFixup>,
-) {
-    let Some(fixup) = fixup else {
-        hasher.byte(0);
-        return;
-    };
-    hasher.byte(1);
-    hasher.byte(match fixup.kind {
-        SelectedFormInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 => 0,
-        SelectedFormInternalMachineFixupKind::Aarch64BranchLinkImmediate26FromInstructionToInternalMachineV1 => 1,
-    });
-    hasher.byte(match fixup.state {
-        SelectedFormInternalMachineFixupState::UnresolvedZeroFieldV1 => 0,
-    });
-    hasher.raw(&fixup.callee.get().to_le_bytes());
-    hasher.raw(&fixup.opcode_row_offset.to_le_bytes());
-    hasher.raw(&fixup.patch_row_offset.to_le_bytes());
-    hasher.raw(&fixup.reference_row_offset.to_le_bytes());
-    hasher.byte(fixup.patch_byte_width);
-    hasher.raw(&fixup.addend.to_le_bytes());
 }
 
 pub mod evidence {
