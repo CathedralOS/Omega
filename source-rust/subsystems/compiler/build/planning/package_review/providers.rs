@@ -2,6 +2,8 @@
 //! A package may disclose its public requirement without installing a
 //! realization.
 
+mod field_domains;
+
 use super::declarations::unavailable;
 use super::input::PolicySource;
 use super::provider_rows::{ChoiceKey, ProviderChoice};
@@ -246,6 +248,15 @@ impl<'module> AcceptedDeclarations<'module> {
             let position = *structural_positions
                 .get(formal.position as usize)
                 .ok_or_else(mismatch)?;
+            let parameter = self
+                .accepted
+                .source()
+                .state_signature_parameters(signature)
+                .get(position)
+                .ok_or_else(mismatch)?;
+            if !field_domains::retained(self.accepted, formal, parameter.type_reference) {
+                return Err(mismatch());
+            }
             for &id in &formal.qualifications {
                 let domain = module
                     .structural_domain(id)
@@ -1438,7 +1449,6 @@ impl PolicySource<'_> {
                     terminal_psi::nonlinear_multiplicity_pair_pattern!()
                 )
             );
-            unretained!(parameter.projected_qualifications);
             unretained!(parameter.additional_input_qualifications);
         }
         unretained!(
