@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 pub use source_provenance::DependencyScope;
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, record_storage::Record)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, record_storage::Record)]
 pub enum SourceOrigin {
     #[default]
     User,

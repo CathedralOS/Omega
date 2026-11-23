@@ -394,6 +394,79 @@ mod tests {
     }
 
     #[test]
+    fn a_build_file_alias_selects_separate_build_and_product_dependencies() {
+        use semantic_vocabulary::PackageKeyIdentity;
+        use source_compiler::representations::source_symbols::SourceScopedTopLevelBinding;
+        use source_compiler::{SourceImport, SourceImportTarget};
+
+        let [app, build, product] =
+            [41, 42, 43].map(|byte| PackageKeyIdentity::from_digest([byte; 32]).unwrap());
+        let mut storage = SourceStorage::default();
+        let mut add = |path: &str, root: &str, key, scope| {
+            storage
+                .sources
+                .add_checked_instance(
+                    path.into(),
+                    "",
+                    root.into(),
+                    Some(key),
+                    SourceOrigin::User,
+                    SourceResolutionStratum::Base,
+                    scope,
+                )
+                .source_id
+        };
+        let author = add("/app/build.omg", "/app", app, DependencyScope::Build);
+        let build_target = add("/build/api.omg", "/build", build, DependencyScope::Build);
+        let product_target = add(
+            "/product/api.omg",
+            "/product",
+            product,
+            DependencyScope::Product,
+        );
+        let import = SourceImport {
+            ordinal: 0,
+            span: Default::default(),
+            target: SourceImportTarget::File {
+                root: Some("kit".into()),
+                path: "api.omg".into(),
+                alias: "chosen".into(),
+            },
+        };
+        for source_id in [author, build_target, product_target] {
+            storage.source_roots.append(SourceRoots {
+                source_id,
+                root_items: Default::default(),
+                build_imports: if source_id == author {
+                    vec![import.clone()]
+                } else {
+                    Vec::new()
+                },
+            });
+        }
+        storage.resolved_imports.push(ResolvedSourceImport {
+            occurrence: ImportOccurrence::file(author, 0, "{kit}/api.omg".into(), "chosen"),
+            path: "/build/api.omg".into(),
+        });
+        let build_binding =
+            SourceScopedTopLevelBinding::file_import(author, build_target, "chosen");
+        assert_eq!(
+            retain_module_import_bindings(&storage).unwrap(),
+            [build_binding.clone()]
+        );
+        storage
+            .sources
+            .retain_product_dependency_scope([(app, "kit", product)]);
+        assert_eq!(
+            retain_module_import_bindings(&storage).unwrap(),
+            [
+                SourceScopedTopLevelBinding::product_file_import(author, product_target, "chosen"),
+                build_binding,
+            ]
+        );
+    }
+
+    #[test]
     fn logical_anchor_refuses_ambiguous_selected_instances() {
         let mut files = vec![
             file("/app/main.omg", "/app", "use dep\\Thing;"),
