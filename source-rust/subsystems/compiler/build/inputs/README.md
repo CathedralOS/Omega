@@ -103,15 +103,12 @@ producer or compiler report type enters this package.
 [Provider acceptance](../providers/acceptance/acceptance.rs) holds accepted nominal
 identities for receiving-policy services.
 
-[build_execution.rs](build_execution.rs) controls the build's filesystem
-access: it prepares immutable source and named-input roots, projects
-interpreter observations, settles sealed-output obligations, and selects
-generated source. Capture precedes validation of the returned Build value;
-output settlement follows it. No partly settled observation is
-published, and the evaluator never rebuilds evidence fields. The
-filesystem scope beneath it checks physical output roots for overlap and
-issues in-memory input roots; observations keep their canonical identity
-whatever consumes them.
+[Build execution](build_execution.rs) prepares immutable input roots, records
+filesystem observations and settles required files after the Build returns.
+`Build::include_source` records the supplied filename and UTF-8 bytes when
+the call runs. A dependency wait preserves those bytes. Product imports use
+the recorded filename and never reopen an output file to obtain the source.
+The filesystem scope checks physical output roots for overlap.
 The [completed output module](build_execution/completed_outputs.rs)
 selects only settled required files, commits their manifest, and publishes or
 verifies their content-addressed set. Publication is recorded only once the
