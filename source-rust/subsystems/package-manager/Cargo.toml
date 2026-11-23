@@ -53,3 +53,7 @@ sha2 = "0.10.9"
 [[test]]
 name = "project_preparation"
 path = "tests/project_preparation.rs"
+
+[[test]]
+name = "diamond_builds"
+path = "tests/diamond_builds.rs"
