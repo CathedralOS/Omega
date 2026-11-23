@@ -14,11 +14,26 @@ use std::sync::OnceLock;
 
 static LIBRARY: OnceLock<Result<PathBuf, String>> = OnceLock::new();
 
+/// Selects the process's toolchain library. Several callers in one process
+/// (parallel tests, for example) may select the same library; only a request
+/// for a different library, or one after discovery failed, is refused.
 pub fn configure(root: &Path) -> Result<(), String> {
     let root = validate(root, option_env!("OMEGA_RELEASE_LIBRARY_SHA256"))?;
-    LIBRARY
-        .set(Ok(root))
-        .map_err(|_| "toolchain library was already selected".to_owned())
+    select(&LIBRARY, root)
+}
+
+fn select(library: &OnceLock<Result<PathBuf, String>>, root: PathBuf) -> Result<(), String> {
+    match library.get_or_init(|| Ok(root.clone())) {
+        Ok(selected) if *selected == root => Ok(()),
+        Ok(selected) => Err(format!(
+            "toolchain library {} was already selected; cannot select {}",
+            selected.display(),
+            root.display()
+        )),
+        Err(error) => Err(format!(
+            "toolchain library discovery already failed: {error}"
+        )),
+    }
 }
 
 pub fn root() -> Result<PathBuf, String> {
@@ -150,4 +165,29 @@ fn library_digest(root: &Path) -> Result<String, String> {
         digest.raw(&contents);
     }
     Ok(crate::digest_encoder::hex(&digest.finish()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::select;
+    use std::path::PathBuf;
+    use std::sync::OnceLock;
+
+    #[test]
+    fn selecting_the_same_library_twice_succeeds_and_a_different_one_is_refused() {
+        let library = OnceLock::new();
+        let first = PathBuf::from("/omega/source/library");
+        assert_eq!(select(&library, first.clone()), Ok(()));
+        assert_eq!(select(&library, first), Ok(()));
+        let refusal = select(&library, PathBuf::from("/elsewhere/library")).unwrap_err();
+        assert!(refusal.contains("was already selected"), "{refusal}");
+    }
+
+    #[test]
+    fn selecting_after_failed_discovery_is_refused() {
+        let library = OnceLock::new();
+        library.set(Err("missing".to_owned())).unwrap();
+        let refusal = select(&library, PathBuf::from("/omega/source/library")).unwrap_err();
+        assert!(refusal.contains("missing"), "{refusal}");
+    }
 }
