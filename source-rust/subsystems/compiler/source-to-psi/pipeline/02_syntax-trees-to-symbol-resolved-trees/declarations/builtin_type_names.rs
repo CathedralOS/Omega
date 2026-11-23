@@ -6,12 +6,11 @@
     types, so it is refused where it is written, before any later pass expands
     an alias or reads a declaration header.
 
-    What is decided is the role of the introduced name, not its letters: a
-    data declaration, trait schema, type alias, generic type binder and module
-    introduce a type or namespace and are refused here, while a local,
-    parameter, field, constant, value binder or machine introduces a value and
-    may keep the spelling, because resolution never lets a value stand in for
-    a type. The language has no import alias yet, so no import is checked.
+    The resolver checks names introduced by data declarations, trait schemas,
+    type aliases and generic type binders. The parser checks a file import's
+    explicit alias or implicit filename stem when it constructs the import.
+    Locals, parameters, fields, constants, value binders and machines may use
+    a builtin spelling because they introduce names in the value role.
 */
 
 use crate::source_symbols::is_builtin_type_spelling;
