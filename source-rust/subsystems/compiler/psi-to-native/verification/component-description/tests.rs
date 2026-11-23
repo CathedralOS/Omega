@@ -1,18 +1,59 @@
-//! These sealed inputs were emitted by the original component publisher and
-//! provider-plan writer. Neither writer is part of the receiving dependency graph.
+//! The provider plan below is a sealed input from the provider-plan writer, which
+//! is not part of the receiving dependency graph. The provider-free component is
+//! built here from an empty Psi program in the current artifact encoding, so a
+//! change to that encoding cannot strand these tests on stale bytes.
 use super::*;
+use crate::inventory::derive_component_inventory;
 use crate::records::{
-    ComponentEntry, ComponentEntryKind, EntryEvidence, ExportSurface, InstallationObligation,
-    ObligationKind,
+    ComponentDescription, ComponentEntry, ComponentEntryKind, DescriptionFrontier, EntryEvidence,
+    ExportSurface, InstallationObligation, ObligationKind,
 };
 use crate::retained_plan::ProviderPlanInput;
 use std::collections::BTreeSet;
 use wire::digest_encoder::content_identity;
 
+/// Describes a program with no machines, imports or providers the way the
+/// native publisher does: every roster is derived from the embedded artifact.
+pub(crate) fn provider_free_component() -> Vec<u8> {
+    let module = terminal_psi::TerminalModule::declarations();
+    let optimization = terminal_codec::build_identity_optimization_execution_record(&module)
+        .expect("an empty program has an identity optimization record");
+    let artifact =
+        terminal_codec::CanonicalTerminalArtifact::from_parts(module, optimization, None)
+            .expect("an empty program is a portable artifact");
+    let inventory = derive_component_inventory(artifact.semantic_module())
+        .expect("an empty program has a component inventory");
+    encode_component_description_checked(&ComponentDescription {
+        schema: COMPONENT_DESCRIPTION_SCHEMA_V3,
+        frontier: DescriptionFrontier::TerminalArtifactClosure,
+        artifact_bytes: artifact.to_bytes(),
+        imports: Vec::new(),
+        exports: inventory
+            .export_contracts
+            .iter()
+            .map(|contract| ExportSurface {
+                identity: contract.identity.clone(),
+            })
+            .collect(),
+        entries: inventory.entries,
+        outgoing: Vec::new(),
+        service_bounds: inventory.service_bounds,
+        custody: inventory.custody,
+        providers: Vec::new(),
+        // The publisher seals its provider selection even when it is empty; the
+        // verifier compares this digest only against a nonempty provider roster.
+        provider_closure_digest: [5; 32],
+        obligations: Vec::new(),
+        assumptions: Vec::new(),
+        realization_identity: None,
+    })
+    .expect("a provider-free description encodes")
+}
+
 #[test]
 fn received_component_keeps_its_bytes_and_rejects_unproved_exports_and_assumptions() {
-    let bytes = include_bytes!("tests/provider-free.component");
-    let (mut description, artifact) = decode_component_description_with_artifact(bytes).unwrap();
+    let bytes = provider_free_component();
+    let (mut description, artifact) = decode_component_description_with_artifact(&bytes).unwrap();
     assert_eq!(
         encode_component_description_checked(&description).unwrap(),
         bytes
@@ -22,7 +63,7 @@ fn received_component_keeps_its_bytes_and_rejects_unproved_exports_and_assumptio
         accepted_schemas: BTreeSet::from([COMPONENT_DESCRIPTION_SCHEMA_V3]),
         accepted_assumptions: AcceptedComponentAssumptions::Exact(BTreeSet::new()),
     };
-    let verified = verify_component(bytes, &request).unwrap();
+    let verified = verify_component(&bytes, &request).unwrap();
     assert_eq!(verified.artifact(), &artifact);
 
     description.exports.push(ExportSurface {
@@ -93,8 +134,7 @@ fn retained_plan_authenticates_the_entire_preimage_and_its_schema() {
 #[test]
 fn assumption_rows_bind_the_review_to_verified_description_bytes() {
     let (mut description, artifact) =
-        decode_component_description_with_artifact(include_bytes!("tests/provider-free.component"))
-            .unwrap();
+        decode_component_description_with_artifact(&provider_free_component()).unwrap();
     let assumption = [42; 32];
     description.assumptions.push(assumption);
     description.entries.push(ComponentEntry {
