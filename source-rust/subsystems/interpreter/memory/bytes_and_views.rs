@@ -4732,12 +4732,7 @@ pub(crate) mod element_views {
                 scalar_type,
                 StructuralAccess::SharedBorrow,
             )? {
-                let value = self
-                    .structural_scalar_fields
-                    .get(&field)
-                    .map(crate::storage::scalar_storage::ScalarCell::read)
-                    .transpose()?
-                    .ok_or(malformed())?;
+                let value = self.scalar_field_contents(&field)?.ok_or(malformed())?;
                 if value.scalar_type() != stored_type {
                     return Err(malformed());
                 }
@@ -4785,10 +4780,7 @@ pub(crate) mod element_views {
                 if stored_type != scalar.scalar_type() {
                     return Err(malformed());
                 }
-                let stored = self
-                    .structural_scalar_fields
-                    .get_mut(&field)
-                    .ok_or(malformed())?;
+                let stored = self.scalar_field_cell_mut(&field)?.ok_or(malformed())?;
                 if stored.scalar_type() != scalar.scalar_type() {
                     return Err(malformed());
                 }
@@ -5719,12 +5711,7 @@ pub(crate) mod element_views {
                     source.scalar_type,
                     StructuralAccess::SharedBorrow,
                 )? {
-                    let value = self
-                        .structural_scalar_fields
-                        .get(&field)
-                        .map(crate::storage::scalar_storage::ScalarCell::read)
-                        .transpose()?
-                        .ok_or(malformed())?;
+                    let value = self.scalar_field_contents(&field)?.ok_or(malformed())?;
                     if value.scalar_type() != stored_type {
                         return Err(malformed());
                     }
@@ -5799,10 +5786,7 @@ pub(crate) mod element_views {
                     if stored_type != source.scalar_type {
                         return Err(malformed());
                     }
-                    let stored = self
-                        .structural_scalar_fields
-                        .get_mut(&field)
-                        .ok_or(malformed())?;
+                    let stored = self.scalar_field_cell_mut(&field)?.ok_or(malformed())?;
                     if !checked_value(stored.read()?, source) {
                         return Err(malformed());
                     }

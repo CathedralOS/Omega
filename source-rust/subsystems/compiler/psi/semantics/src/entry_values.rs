@@ -35,6 +35,21 @@ pub enum TerminalScalarValue {
 }
 
 impl TerminalScalarValue {
+    pub fn zero(scalar_type: ScalarType) -> Option<Self> {
+        match scalar_type {
+            ScalarType::Callable(_) => None,
+            ScalarType::Boolean => Some(Self::Boolean(false)),
+            ScalarType::Integer(integer_type) => Some(Self::Integer {
+                scalar_type: integer_type,
+                value: integer_type.zero(),
+            }),
+            ScalarType::IeeeFloat(format) => Some(Self::IeeeFloat(match format {
+                IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(0),
+                IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(0),
+            })),
+        }
+    }
+
     pub fn satisfies_field(self, field: &terminal_psi::StructuralFieldType) -> bool {
         if let Self::Callable { contract, .. } = self {
             return matches!(field, terminal_psi::StructuralFieldType::Scalar(ScalarType::Callable(expected)) if *expected == contract);

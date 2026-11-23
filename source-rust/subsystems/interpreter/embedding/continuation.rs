@@ -238,9 +238,11 @@ impl TerminalExecution<'_> {
                 return Err("continuation changes the declaration of a stored case".into());
             }
         }
-        for (home, array) in &self.empty_array_storage.rows {
+        for (home, array) in &self.array_initialization.rows {
             if !held.typed_place(home, array.structural_type) {
-                return Err("continuation changes the declaration of an empty array".into());
+                return Err(
+                    "continuation changes the declaration of initialized array storage".into(),
+                );
             }
         }
         for (home, array) in &self.structural_byte_storage {
@@ -291,7 +293,7 @@ impl TerminalExecution<'_> {
             .chain(self.structural_primitive_storage.keys())
             .chain(self.structural_byte_descriptors.keys())
             .chain(self.structural_byte_storage.keys())
-            .chain(self.empty_array_storage.rows.keys())
+            .chain(self.array_initialization.rows.keys())
             .chain(self.structural_cases.keys())
             .chain(self.structural_host_atoms.keys())
             .chain(self.reference_referents.keys())
@@ -890,7 +892,7 @@ impl Coordinates<'_, '_> {
                 })?;
             self.ty(&mut case.structural_type)?;
         }
-        for (_, array) in frame.empty_array_storage.rows.iter_mut() {
+        for (_, array) in frame.array_initialization.rows.iter_mut() {
             self.ty(&mut array.structural_type)?;
         }
         for (_, array) in frame.structural_byte_storage.iter_mut() {
@@ -940,7 +942,7 @@ impl Coordinates<'_, '_> {
             .structural_byte_storage
             .relocate_keys(|key| self.key(key))?;
         frame
-            .empty_array_storage
+            .array_initialization
             .rows
             .relocate_keys(|key| self.key(key))?;
         frame.structural_cases.relocate_keys(|key| self.key(key))?;

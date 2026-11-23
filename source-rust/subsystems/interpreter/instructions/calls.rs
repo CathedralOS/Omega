@@ -1433,7 +1433,7 @@ pub(crate) mod component_arguments {
                 if lent
                     && (self.structural_cases.keys().any(within_value)
                         || self.structural_byte_storage.keys().any(within_value)
-                        || self.empty_array_storage.rows.keys().any(within_value))
+                        || self.array_initialization.has_empty_array(&home))
                 {
                     return Err(reject(
                         "component borrowed input needs its original materialized storage carrier",
@@ -1464,7 +1464,8 @@ pub(crate) mod component_arguments {
                     ));
                 }
                 let scalar_backing = lent
-                    && (self.structural_primitive_storage.keys().any(within_value)
+                    && (self.array_initialization.has_zero_record_fields(&home)
+                        || self.structural_primitive_storage.keys().any(within_value)
                         || self
                             .structural_scalar_fields
                             .keys()
@@ -2521,25 +2522,27 @@ pub(crate) mod component_scalar_arguments {
         }
     }
 
-    fn cell<'source>(
-        source: &'source TerminalExecution<'_>,
+    fn cell(
+        source: &TerminalExecution<'_>,
         key: &ScalarStorageAddressKey,
-    ) -> Option<&'source ScalarCell> {
+    ) -> Result<Option<ScalarCell>, TerminalInterpretError> {
         match key {
-            ScalarStorageAddressKey::Scalar(home) => source.structural_primitive_storage.get(home),
-            ScalarStorageAddressKey::Field(field) => source.structural_scalar_fields.get(field),
+            ScalarStorageAddressKey::Scalar(home) => {
+                Ok(source.structural_primitive_storage.get(home).cloned())
+            }
+            ScalarStorageAddressKey::Field(field) => source.scalar_field_cell(field),
         }
     }
 
     fn cell_mut<'source>(
         source: &'source mut TerminalExecution<'_>,
         key: &ScalarStorageAddressKey,
-    ) -> Option<&'source mut ScalarCell> {
+    ) -> Result<Option<&'source mut ScalarCell>, TerminalInterpretError> {
         match key {
             ScalarStorageAddressKey::Scalar(home) => {
-                source.structural_primitive_storage.get_mut(home)
+                Ok(source.structural_primitive_storage.get_mut(home))
             }
-            ScalarStorageAddressKey::Field(field) => source.structural_scalar_fields.get_mut(field),
+            ScalarStorageAddressKey::Field(field) => source.scalar_field_cell_mut(field),
         }
     }
 
@@ -2572,7 +2575,7 @@ pub(crate) mod component_scalar_arguments {
                     return Err(reject());
                 };
                 let source = scalar_key(&destination)?;
-                let actual = cell(self, &source).ok_or_else(reject)?;
+                let actual = cell(self, &source)?.ok_or_else(reject)?;
                 if actual.scalar_type() != stored_scalar {
                     return Err(malformed());
                 }
@@ -2639,7 +2642,7 @@ pub(crate) mod component_scalar_arguments {
                     }
                     previous.clone()
                 } else {
-                    let original = cell_mut(source, &prepared.source).ok_or(malformed())?;
+                    let original = cell_mut(source, &prepared.source)?.ok_or(malformed())?;
                     let borrowed = lifetime.lend(original, self.access)?;
                     views.insert(prepared.source.clone(), (self.access, borrowed.clone()));
                     borrowed
@@ -2701,7 +2704,15 @@ pub(crate) mod component_scalar_arguments {
                     return Err(reject());
                 }
                 let key = scalar_key(&destination)?;
-                let needs_binding = if let Some(existing) = cell(child, &key) {
+                let existing = match &key {
+                    ScalarStorageAddressKey::Scalar(home) => {
+                        child.structural_primitive_storage.get(home)
+                    }
+                    ScalarStorageAddressKey::Field(field) => {
+                        child.structural_scalar_fields.get(field)
+                    }
+                };
+                let needs_binding = if let Some(existing) = existing {
                     if self.access != StructuralAccess::SharedBorrow || existing != original {
                         return Err(malformed());
                     }

@@ -170,7 +170,7 @@ pub(crate) mod record {
             resolve_single_structural_argument, resolve_structural_path_type, whole_path_discard,
         };
         use crate::engine::execution::{LiveClaim, TerminalExecution};
-        use crate::storage::scalar_array::empty_storage::EmptyArrayRetirement;
+        use crate::storage::scalar_array::initialization::ArrayRetirement;
         use semantic_vocabulary::StructuralCaseId;
         use std::collections::{BTreeMap, BTreeSet};
         use terminal_psi::{
@@ -185,7 +185,7 @@ pub(crate) mod record {
         }
 
         pub(crate) struct PreparedConstructorOperands {
-            homes: Vec<(StructuralArgument, EmptyArrayRetirement)>,
+            homes: Vec<(StructuralArgument, ArrayRetirement)>,
             frontier: BTreeSet<StructuralAffineDiscard>,
             claims: BTreeMap<semantic_vocabulary::ClaimId, LiveClaim>,
         }
@@ -1139,7 +1139,7 @@ pub(crate) mod record {
         StructuralRuntimePlace,
         crate::boundary::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage,
     >,
-    empty_arrays: crate::storage::scalar_array::empty_storage::EmptyArrayStorage,
+    array_initialization: crate::storage::scalar_array::initialization::ArrayInitialization,
     owner_writes: Vec<(
         crate::storage::byte_sequences::binding::ByteOwnerHome,
         ByteSequenceView,
@@ -1177,7 +1177,7 @@ pub(crate) mod record {
         }
 
         pub(crate) struct PreparedConstructorReplacement {
-            retirement: crate::storage::scalar_array::empty_storage::EmptyArrayRetirement,
+            retirement: crate::storage::scalar_array::initialization::ArrayRetirement,
             storage: ConstructorStorage,
             residents: ConstructorResidentWrites,
         }
@@ -1241,7 +1241,7 @@ pub(crate) mod record {
                     self.references.len(),
                     self.primitives.len(),
                     self.byte_arrays.len(),
-                    self.empty_arrays.rows.len(),
+                    self.array_initialization.rows.len(),
                     self.cases.len(),
                 ] {
                     custody.add_cells(count)?;
@@ -1289,8 +1289,10 @@ pub(crate) mod record {
                     references: RuntimeRows::new(account),
                     primitives: crate::storage::scalar_storage::ScalarStorageRows::new(account),
                     byte_arrays: RuntimeRows::new(account),
-                    empty_arrays:
-                        crate::storage::scalar_array::empty_storage::EmptyArrayStorage::new(account),
+                    array_initialization:
+                        crate::storage::scalar_array::initialization::ArrayInitialization::new(
+                            account,
+                        ),
                     owner_writes: Vec::new(),
                     cases: RuntimeRows::new(account),
                 }
@@ -1374,9 +1376,9 @@ pub(crate) mod record {
                 self.primitives.append(&mut decoded.primitives)?;
                 self.bytes.append(&mut decoded.bytes)?;
                 self.byte_arrays.append(&mut decoded.byte_arrays)?;
-                self.empty_arrays
+                self.array_initialization
                     .rows
-                    .append(&mut decoded.empty_arrays.rows)?;
+                    .append(&mut decoded.array_initialization.rows)?;
                 self.cases.append(&mut decoded.cases)?;
                 Ok(())
             }
@@ -1687,7 +1689,7 @@ pub(crate) mod record {
                             return Err(malformed());
                         }
                         if leaf_count == 0 {
-                            self.empty_arrays.establish(
+                            self.array_initialization.establish(
                                 &execution.structural_types(),
                                 destination.clone(),
                                 structural_type,
@@ -2074,9 +2076,9 @@ pub(crate) mod record {
                             .insert(target, bytes.relocated(transfers_custody)?)?;
                     }
                 }
-                self.empty_arrays.stage_subtree(
+                self.array_initialization.stage_subtree(
                     &execution.structural_types(),
-                    &execution.empty_array_storage,
+                    &execution.array_initialization,
                     &execution.structural_byte_storage,
                     source,
                     destination,
@@ -2148,10 +2150,32 @@ pub(crate) mod record {
             }
 
             fn prepare_resident_writes(
-                &self,
+                &mut self,
                 execution: &TerminalExecution<'_>,
                 root: &StructuralRuntimePlace,
             ) -> Result<ConstructorResidentWrites, TerminalInterpretError> {
+                // A resident field belongs to its lender. Stage its replacement
+                // even when the incoming array supplies zero from its declaration.
+                if !self.array_initialization.rows.is_empty() {
+                    for (field, cell) in crate::storage::structural_storage::cells(
+                        &execution.structural_scalar_fields,
+                        root,
+                    ) {
+                        if matches!(
+                            cell,
+                            crate::storage::scalar_storage::ScalarCell::Resident { .. }
+                        ) && !self.scalars.contains_key(field)
+                            && let Some(scalar) = self
+                                .array_initialization
+                                .zero_record_field(&execution.structural_types(), field)?
+                        {
+                            self.scalars.insert(
+                                field.clone(),
+                                TerminalScalarValue::zero(scalar).ok_or(malformed())?,
+                            )?;
+                        }
+                    }
+                }
                 self.validate_publication(execution)?;
                 let scalars = self.scalars.prepare_resident_replacement(
                     &execution.structural_scalar_fields,
@@ -2238,9 +2262,9 @@ pub(crate) mod record {
                     .structural_byte_storage
                     .validate_append(&self.byte_arrays)?;
                 execution
-                    .empty_array_storage
+                    .array_initialization
                     .rows
-                    .validate_append(&self.empty_arrays.rows)?;
+                    .validate_append(&self.array_initialization.rows)?;
                 execution.structural_cases.validate_append(&self.cases)?;
                 execution
                     .structural_host_atoms
@@ -2288,9 +2312,9 @@ pub(crate) mod record {
                     .structural_byte_storage
                     .append(&mut self.byte_arrays)?;
                 execution
-                    .empty_array_storage
+                    .array_initialization
                     .rows
-                    .append(&mut self.empty_arrays.rows)?;
+                    .append(&mut self.array_initialization.rows)?;
                 execution.structural_cases.append(&mut self.cases)?;
                 execution
                     .structural_host_atoms
@@ -2997,7 +3021,7 @@ pub(crate) mod scalar_array {
             }
         }
     }
-    pub(crate) mod empty_storage {
+    pub(crate) mod initialization {
         use crate::boundary::errors::{TerminalInterpretError, malformed};
         use crate::boundary::structural_inputs::byte_arrays::byte_array_length;
         use crate::boundary::structural_inputs::byte_arrays::storage::StructuralByteArrayStorage;
@@ -3009,28 +3033,65 @@ pub(crate) mod scalar_array {
         use semantic_vocabulary::StructuralTypeId;
         use terminal_psi::{StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape};
 
+        #[derive(Clone, Copy, PartialEq, Eq)]
+        enum InitialValue {
+            EmptyArray,
+            ZeroRecordFields,
+        }
+
         #[derive(Clone, Copy)]
-        pub(crate) struct EmptyArrayState {
+        pub(crate) struct ArrayInitializationState {
             pub(crate) structural_type: StructuralTypeId,
             initialized: bool,
+            value: InitialValue,
         }
 
-        pub(crate) struct EmptyArrayRetirement {
+        impl ArrayInitializationState {
+            fn project(
+                &self,
+                types: &ProgramDeclarations<'_, StructuralTypeDeclaration>,
+                path: &[StructuralPathSegment],
+            ) -> Result<Option<StructuralTypeId>, TerminalInterpretError> {
+                match self.value {
+                    InitialValue::EmptyArray => select(types, self.structural_type, path).map(Some),
+                    InitialValue::ZeroRecordFields
+                        if path.iter().all(|part| {
+                            matches!(
+                                part,
+                                StructuralPathSegment::Field(_)
+                                    | StructuralPathSegment::FixedIndex(_)
+                            )
+                        }) =>
+                    {
+                        crate::engine::custody::resolve_structural_path_type(
+                            types,
+                            self.structural_type,
+                            path,
+                        )
+                        .map(Some)
+                    }
+                    // Case payloads have their own cells. A dynamic path must resolve to a concrete index before it can identify storage.
+                    InitialValue::ZeroRecordFields => Ok(None),
+                }
+            }
+        }
+
+        pub(crate) struct ArrayRetirement {
             root: StructuralRuntimePlace,
-            vacancy: RuntimeRows<StructuralRuntimePlace, EmptyArrayState>,
+            vacancy: RuntimeRows<StructuralRuntimePlace, ArrayInitializationState>,
         }
 
-        impl EmptyArrayRetirement {
+        impl ArrayRetirement {
             pub(crate) fn root(&self) -> &StructuralRuntimePlace {
                 &self.root
             }
         }
 
-        pub(crate) struct EmptyArrayStorage {
-            pub(crate) rows: RuntimeRows<StructuralRuntimePlace, EmptyArrayState>,
+        pub(crate) struct ArrayInitialization {
+            pub(crate) rows: RuntimeRows<StructuralRuntimePlace, ArrayInitializationState>,
         }
 
-        impl EmptyArrayStorage {
+        impl ArrayInitialization {
             pub(crate) fn new(account: Option<&EvaluationInvocationAccount>) -> Self {
                 Self {
                     rows: RuntimeRows::new(account),
@@ -3051,30 +3112,106 @@ pub(crate) mod scalar_array {
                 crate::storage::structural_storage::prune_rows(&mut self.rows, &home);
                 self.rows.insert(
                     home,
-                    EmptyArrayState {
+                    ArrayInitializationState {
                         structural_type,
                         initialized: true,
+                        value: InitialValue::EmptyArray,
                     },
                 )?;
                 Ok(())
+            }
+
+            pub(crate) fn establish_zero_record_fields(
+                &mut self,
+                home: StructuralRuntimePlace,
+                structural_type: StructuralTypeId,
+            ) -> Result<(), TerminalInterpretError> {
+                crate::storage::structural_storage::prune_rows(&mut self.rows, &home);
+                self.rows.insert(
+                    home,
+                    ArrayInitializationState {
+                        structural_type,
+                        initialized: true,
+                        value: InitialValue::ZeroRecordFields,
+                    },
+                )?;
+                Ok(())
+            }
+
+            fn zero_record_type(
+                &self,
+                types: &ProgramDeclarations<'_, StructuralTypeDeclaration>,
+                home: &StructuralRuntimePlace,
+            ) -> Result<Option<StructuralTypeId>, TerminalInterpretError> {
+                let Some((prefix, state)) = self.containing(home, false) else {
+                    return Ok(None);
+                };
+                if !state.initialized || state.value != InitialValue::ZeroRecordFields {
+                    return Ok(None);
+                }
+                state.project(types, &home.path[prefix..])
+            }
+
+            pub(crate) fn zero_record_field(
+                &self,
+                types: &ProgramDeclarations<'_, StructuralTypeDeclaration>,
+                key: &crate::boundary::values::StructuralScalarRuntimeField,
+            ) -> Result<Option<semantic_vocabulary::ScalarType>, TerminalInterpretError>
+            {
+                if key.namespace != crate::boundary::values::StructuralFieldNamespace::Member {
+                    return Ok(None);
+                }
+                Ok(self
+                    .zero_record_type(types, &key.parent)?
+                    .and_then(|owner| {
+                        crate::engine::custody::direct_scalar_field_type(types, owner, key.field)
+                    }))
+            }
+
+            pub(crate) fn reclaim_orphan_records(
+                &mut self,
+                roots: &mut std::collections::BTreeSet<u64>,
+            ) {
+                // Empty arrays establish storage even when there are no scalar
+                // cells. A record's initial zero fields follow its other scalars.
+                roots.extend(self.rows.iter().filter_map(|(home, state)| {
+                    (state.value == InitialValue::EmptyArray).then_some(home.opaque_identity)
+                }));
+                self.rows
+                    .retain(|home, _| roots.contains(&home.opaque_identity));
+            }
+
+            pub(crate) fn has_empty_array(&self, root: &StructuralRuntimePlace) -> bool {
+                crate::storage::structural_storage::cells(&self.rows, root)
+                    .any(|(_, state)| state.value == InitialValue::EmptyArray)
+            }
+
+            pub(crate) fn has_zero_record_fields(&self, root: &StructuralRuntimePlace) -> bool {
+                self.containing(root, false).is_some_and(|(_, state)| {
+                    state.initialized && state.value == InitialValue::ZeroRecordFields
+                }) || crate::storage::structural_storage::cells(&self.rows, root).any(
+                    |(_, state)| state.initialized && state.value == InitialValue::ZeroRecordFields,
+                )
             }
 
             fn containing(
                 &self,
                 home: &StructuralRuntimePlace,
                 strict: bool,
-            ) -> Option<(&StructuralRuntimePlace, &EmptyArrayState)> {
-                let identity = StructuralRuntimePlace {
-                    opaque_identity: home.opaque_identity,
-                    path: Vec::new(),
-                };
-                crate::storage::structural_storage::cells(&self.rows, &identity)
-                    .filter(|(parent, _)| {
-                        parent.opaque_identity == home.opaque_identity
-                            && home.path.starts_with(&parent.path)
-                            && (!strict || parent.path.len() < home.path.len())
-                    })
-                    .max_by_key(|(parent, _)| parent.path.len())
+            ) -> Option<(usize, &ArrayInitializationState)> {
+                if self.rows.is_empty() {
+                    return None;
+                }
+                let mut prefix = home.clone();
+                if strict {
+                    prefix.path.pop()?;
+                }
+                loop {
+                    if let Some(state) = self.rows.get(&prefix) {
+                        return Some((prefix.path.len(), state));
+                    }
+                    prefix.path.pop()?;
+                }
             }
 
             pub(crate) fn initialized(
@@ -3091,12 +3228,11 @@ pub(crate) mod scalar_array {
                 }
                 let mut pending = vec![(home.clone(), structural_type)];
                 while let Some((home, structural_type)) = pending.pop() {
-                    if let Some((parent, state)) = self.containing(&home, false) {
-                        if select(
-                            types,
-                            state.structural_type,
-                            &home.path[parent.path.len()..],
-                        )? != structural_type
+                    if let Some((prefix, state)) = self.containing(&home, false)
+                        && state.value == InitialValue::EmptyArray
+                    {
+                        if select(types, state.structural_type, &home.path[prefix..])?
+                            != structural_type
                         {
                             return Err(malformed());
                         }
@@ -3169,14 +3305,13 @@ pub(crate) mod scalar_array {
                 bytes: &RuntimeRows<StructuralRuntimePlace, StructuralByteArrayStorage>,
                 home: &StructuralRuntimePlace,
             ) -> Result<Option<StructuralTypeId>, TerminalInterpretError> {
-                let Some((parent, state)) = self.containing(home, false) else {
+                let Some((prefix, state)) = self.containing(home, false) else {
                     return Ok(None);
                 };
-                let selected = select(
-                    types,
-                    state.structural_type,
-                    &home.path[parent.path.len()..],
-                )?;
+                if state.value == InitialValue::ZeroRecordFields {
+                    return Ok(None);
+                }
+                let selected = select(types, state.structural_type, &home.path[prefix..])?;
                 Ok(self
                     .initialized(types, bytes, home, selected)?
                     .then_some(selected))
@@ -3201,6 +3336,9 @@ pub(crate) mod scalar_array {
                 source: &StructuralRuntimePlace,
                 destination: &StructuralRuntimePlace,
             ) -> Result<(), TerminalInterpretError> {
+                if let Some(owner) = original.zero_record_type(types, source)? {
+                    self.establish_zero_record_fields(destination.clone(), owner)?;
+                }
                 if let Some(structural_type) = original.initialized_type(types, bytes, source)? {
                     self.establish(types, destination.clone(), structural_type)?;
                 }
@@ -3221,26 +3359,23 @@ pub(crate) mod scalar_array {
                 types: &ProgramDeclarations<'_, StructuralTypeDeclaration>,
                 account: Option<&EvaluationInvocationAccount>,
                 root: &StructuralRuntimePlace,
-            ) -> Result<EmptyArrayRetirement, TerminalInterpretError> {
+            ) -> Result<ArrayRetirement, TerminalInterpretError> {
                 let mut vacancy = RuntimeRows::new(account);
-                if let Some((parent, state)) = self.containing(root, true)
+                if let Some((prefix, state)) = self.containing(root, true)
                     && state.initialized
+                    && let Some(structural_type) = state.project(types, &root.path[prefix..])?
                 {
-                    let structural_type = select(
-                        types,
-                        state.structural_type,
-                        &root.path[parent.path.len()..],
-                    )?;
                     vacancy.insert(
                         root.clone(),
-                        EmptyArrayState {
+                        ArrayInitializationState {
                             structural_type,
                             initialized: false,
+                            value: state.value,
                         },
                     )?;
                 }
                 self.rows.validate_append(&vacancy)?;
-                Ok(EmptyArrayRetirement {
+                Ok(ArrayRetirement {
                     root: root.clone(),
                     vacancy,
                 })
@@ -3248,7 +3383,7 @@ pub(crate) mod scalar_array {
 
             pub(crate) fn retire(
                 &mut self,
-                mut retirement: EmptyArrayRetirement,
+                mut retirement: ArrayRetirement,
             ) -> Result<(), TerminalInterpretError> {
                 crate::storage::structural_storage::prune_rows(&mut self.rows, &retirement.root);
                 self.rows.append(&mut retirement.vacancy)
@@ -4061,7 +4196,7 @@ pub(crate) mod scalar_array {
             home: &crate::boundary::values::StructuralRuntimePlace,
             structural_type: StructuralTypeId,
         ) -> Result<bool, TerminalInterpretError> {
-            self.empty_array_storage.initialized(
+            self.array_initialization.initialized(
                 &self.structural_types(),
                 &self.structural_byte_storage,
                 home,
@@ -6181,7 +6316,12 @@ pub(crate) mod structural_storage {
                         || !frame.element_view_values.is_empty()
                         || matches!(frame.result, SuspendedCallResult::OwnedCleanups { .. })
                 });
-            let defer_scalars = !collect_scalars || self.structural_scalar_fields.len() < 4096;
+            let defer_scalars = !collect_scalars
+                || self
+                    .structural_scalar_fields
+                    .len()
+                    .saturating_add(self.array_initialization.rows.len())
+                    < 4096;
             if hidden_backings || (defer_scalars && !collect_atoms) {
                 return;
             }
@@ -6255,7 +6395,6 @@ pub(crate) mod structural_storage {
                 .chain(self.structural_primitive_storage.keys())
                 .chain(self.structural_primitive_entry_places.values())
                 .chain(self.structural_byte_storage.keys())
-                .chain(self.empty_array_storage.rows.keys())
                 .chain(self.structural_byte_descriptors.keys())
                 .chain(self.structural_cases.keys())
             {
@@ -6269,6 +6408,7 @@ pub(crate) mod structural_storage {
                     .iter()
                     .map(|original| original.allocation.opaque_identity),
             );
+            self.array_initialization.reclaim_orphan_records(&mut roots);
             self.structural_scalar_fields
                 .retain(|key, _| roots.contains(&key.parent.opaque_identity));
         }

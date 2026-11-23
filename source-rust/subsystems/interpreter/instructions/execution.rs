@@ -2108,7 +2108,7 @@ pub(crate) mod execution {
     use crate::storage::provider_storage::RuntimeProviderStorage;
     use crate::storage::reference::{AggregateBacking, ReferenceReferent};
     use crate::storage::runtime_rows::RuntimeRows;
-    use crate::storage::scalar_array::empty_storage::EmptyArrayStorage;
+    use crate::storage::scalar_array::initialization::ArrayInitialization;
     use crate::storage::scalar_storage::ScalarStorageRows;
     use crate::storage::structural_identities::LocalStructuralIdentities;
     use crate::storage::structural_storage::HostStructuralPayload;
@@ -2186,7 +2186,7 @@ pub(crate) mod execution {
             RuntimeRows<StructuralRuntimePlace, ByteSequenceBinding>,
         pub(crate) structural_byte_storage:
             RuntimeRows<StructuralRuntimePlace, StructuralByteArrayStorage>,
-        pub(crate) empty_array_storage: EmptyArrayStorage,
+        pub(crate) array_initialization: ArrayInitialization,
         pub(crate) structural_cases: RuntimeRows<StructuralRuntimePlace, StructuralCaseContents>,
         pub(crate) structural_host_atoms:
             RuntimeRows<StructuralRuntimePlace, HostStructuralPayload>,
@@ -2658,7 +2658,7 @@ pub(crate) mod execution {
                 entry_reference_backings: None,
                 structural_byte_sequence_fields: RuntimeRows::new(account.as_ref()),
                 structural_byte_storage: RuntimeRows::new(account.as_ref()),
-                empty_array_storage: EmptyArrayStorage::new(account.as_ref()),
+                array_initialization: ArrayInitialization::new(account.as_ref()),
                 structural_cases: RuntimeRows::new(account.as_ref()),
                 structural_host_atoms: RuntimeRows::new(account.as_ref()),
                 component_lent_host_atoms: RuntimeRows::new(account.as_ref()),
