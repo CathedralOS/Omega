@@ -65,6 +65,19 @@ fn local_and_dependency_file_roots_select_only_their_exact_admitted_source() {
     .append(&mut SourceSyntax::default(), &mut CompileTimings::default())
     .unwrap();
     let unit = &parsed.sources.span_or_empty(parsed.batch)[0];
+    let rooted = FileImport::from(unit, &unit.imports[1]).unwrap();
+    assert!(matches!(
+        rooted
+            .reconciled(
+                &graph,
+                Some(app),
+                DependencyPurpose::Build,
+                None,
+                graph.source_filesystem()
+            )
+            .unwrap(),
+        FileSelection::Unprepared
+    ));
     let resolve = |index: usize| -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
         let file = FileImport::from(unit, &unit.imports[index]).unwrap();
         let selected = file.reconciled(
