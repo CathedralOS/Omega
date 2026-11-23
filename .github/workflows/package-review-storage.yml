@@ -1,0 +1,128 @@
+name: Check package review storage
+on:
+  push:
+    branches: [work/verify-compiled-review-retirement]
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      MBX_GC_AUTO: 'false'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_DEV_OPT_LEVEL: '1'
+      CARGO_INCREMENTAL: '0'
+      OMEGA_MBX_INSTALL_CACHE: /tmp/omega-mbx-install
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Identify the build tool
+        id: key
+        run: echo "key=$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: /tmp/omega-mbx-install/artifacts
+          key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.key.outputs.key }}
+      - name: Install the pinned build tool
+        run: bash tools/xtask/bootstrap-mbx.sh --install-dir "$RUNNER_TEMP/bin"
+      - name: Check package handoff and lock identities
+        run: "$RUNNER_TEMP/bin/mbx test --locked -p package-compilation --lib package::"
+      - name: Run a real Build and package review with damaged compiler directories
+        run: "$RUNNER_TEMP/bin/mbx test --locked -p omega --test compiler_storage"
+      - name: Measure the same package updates after removing the review store
+        if: always()
+        env:
+          RETIRED_REVIEW_LANE: CathedralOS/Omega/source/v1/external-local-sources/compiled-review-cache
+        run: |
+          "$RUNNER_TEMP/bin/mbx" build --locked -p omega --bin omega
+          python3 - candidate <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import os
+          import shutil
+          import subprocess
+          import sys
+          
+          mode = sys.argv[1]
+          repo = Path.cwd().resolve()
+          binary = repo / "target/debug/omega"
+          work = Path(os.environ["RUNNER_TEMP"]) / "compiler-review-measurement"
+          work.mkdir(mode=0o700)
+          project = work / "program"
+          cache = work / "cache"
+          cache.mkdir(mode=0o700)
+          source = (repo / "source-rust/application/tests/build_staged_dependency_calls.rs").read_text()
+          start = source.index("fn a_build_binds_its_products_file_without_being_able_to_call_it")
+          start = source.index('let build = r#"', start) + len('let build = r#"')
+          end = source.index('"#.replace("HOST"', start)
+          authored = {
+              "build.omg": source[start:end].replace("HOST", "linux_x86_64"),
+              "main.omg": "machine unreachable() crashes Trap { crash Trap; }",
+              "vendor/build.omg": 'machine build(builder: @mutable Build) { Build::package(builder, "kit"); }',
+              "vendor/entry.omg": "public machine start() {}",
+          }
+          def sha(path):
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+          
+          def prepare():
+              if project.exists():
+                  shutil.rmtree(project)
+              for name, text in authored.items():
+                  p = project/name
+                  p.parent.mkdir(parents=True, exist_ok=True)
+                  p.write_text(text)
+          
+          def measurement(tag, command):
+              time_record = work/(tag+".time")
+              result = subprocess.run(["/usr/bin/time","-f","elapsed_s=%e peak_kib=%M","-o",str(time_record),str(binary),*command],
+                  cwd=project, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                  env=dict(os.environ,XDG_CACHE_HOME=str(cache),OMEGA_LIBRARY_ROOT=str(repo/"source/library"),OMEGA_REVIEW_TIMINGS="1"))
+              output=result.stdout.decode(errors="replace")
+              (work/(tag+".log")).write_text(output)
+              print(tag, "exit", result.returncode, time_record.read_text().strip(), flush=True)
+              for line in output.splitlines():
+                  if "review_pass" in line or "accepted" in line or "published" in line or "error:" in line:
+                      print(" ",line,flush=True)
+              if result.returncode:
+                  print(output[-4000:],flush=True)
+                  raise SystemExit(result.returncode)
+              return output
+          
+          print("architecture",subprocess.check_output(["uname","-m"],text=True).strip(),flush=True)
+          print("source",subprocess.check_output(["git","rev-parse","HEAD^1"],text=True).strip(),flush=True)
+          prepare()
+          print("inputs",json.dumps({k:sha(project/k) for k in sorted(authored)},sort_keys=True),flush=True)
+          args=["packages","update","--project",str(project),"--target","linux_x86_64","--offline","--dangerously-accept-all"]
+          measurement("first-update",args)
+          locks=sorted(project.rglob("omega.lock"))
+          print("first-locks",[(str(p.relative_to(project)),sha(p)) for p in locks],flush=True)
+          assert (project/"omega.lock").is_file()
+          lanes=sorted(cache.rglob("compiled-review-cache"))
+          records=sorted(p for lane in lanes for p in lane.rglob("*.rec"))
+          print("lanes",[(str(p.relative_to(cache))) for p in lanes],"records",[(str(p.relative_to(cache)),p.stat().st_size) for p in records],flush=True)
+          if mode=="baseline":
+              assert records, "the baseline produced no compiled package review record"
+              prepare()
+              measurement("second-update",args)
+              print("second-lock",sha(project/"omega.lock"),flush=True)
+          else:
+              assert not lanes, "a fresh invocation created the retired package review lane"
+              expected_lane=cache/os.environ["RETIRED_REVIEW_LANE"]
+              expected_lane.mkdir(mode=0o700,parents=True,exist_ok=False)
+              poison=expected_lane/"obsolete.rec"
+              poison.write_bytes(b"obsolete compiled review")
+              before=(sha(poison),poison.stat().st_mtime_ns)
+              poison.chmod(0o400)
+              expected_lane.chmod(0o500)
+              prepare()
+              measurement("second-update",args)
+              print("second-lock",sha(project/"omega.lock"),flush=True)
+              assert [(p.name,sha(p),p.stat().st_mtime_ns) for p in sorted(expected_lane.iterdir())] == [(poison.name,*before)]
+              print("old directory and sentinel are intact",flush=True)
+          PY
+      - name: Lint the packages which changed
+        if: always()
+        run: "$RUNNER_TEMP/bin/mbx clippy --locked --no-deps -p build-declarations -p package-compilation -p project-build -p package-manager -p omega --all-targets -- -D warnings"
