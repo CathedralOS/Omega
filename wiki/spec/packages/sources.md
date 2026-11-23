@@ -5,29 +5,25 @@ interpreted dependency requests. [Acceptance](acceptance.md) is separate from
 source resolution. A resolver supplies immutable source custody, not approval of
 the package or certification of anything compiled from it.
 
-The application coordinator forwards each exact `Build::dependency` or
-`Build::build_dependency` registration when the package's one Build activation
-makes it. The resolver may begin
-immutable acquisition immediately, but no requested code executes before its
-source, review, checking, and admission complete. A package's further requests
-remain unknown until its own Build activation runs. The graph becomes closed
-only after every activation returns and every outstanding request joins; product
-source compilation consumes that immutable result. No import scan, call-name
-parser, or dependency output manufactures an edge. Both request forms are
-target-independent because Build cannot observe a realization target. Checked
-scheduling, review, generated outputs and realization retain purpose, execution
-profile and requested product target under
-[scoped build execution](../build/scoped_execution.md#two-checked-contexts).
+The coordinator resolves a Build's caller-supplied package bindings before
+that Build enters. While running, the Build can request product libraries with
+`Build::dependency`. The coordinator may begin acquiring each immutable
+source once its context is fixed. It reviews, checks and admits each child
+Build against its own inputs before entry. Imports never create graph edges.
+
+Product requests remain target-independent and can depend on Build computation.
+The product graph closes when all activations return and outstanding requests
+join. Review and realization retain purpose, execution profile and product
+target under [scoped build execution](../build/scoped_execution.md#two-checked-contexts).
 
 ## Requester-local graph
 
 A dependency declares its own canonical snake_case package name. Default aliases
-preserve that spelling; a description configured with `dependency\with_alias`
-supplies a validated alias in the scope of the call that registers it,
-`Build::dependency` for product and `Build::build_dependency` for build. Aliases are unique within a scope,
-not across both; there is no cross-scope fallback. Distinct requesters may use
-different aliases for the same key; an ancestor cannot rename dependencies
-inside another package.
+preserve that spelling. The caller supplies a Build binding under the alias
+its source imports. A product dependency description may select an alias before
+registration. Each scope rejects duplicate aliases and resolves names within
+that scope. An ancestor can configure a child's inputs, but cannot rewrite
+the declarations or imports inside the package.
 
 Package coordination incrementally constructs requester-local,
 purpose-qualified aliases to opaque package keys and canonical source roots.

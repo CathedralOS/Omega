@@ -7,41 +7,29 @@ explicit opt-in. It is not the hermetic evaluator used for constants and proofs.
 
 ## Admission before execution
 
-The order is:
+1. The invoker supplies the root Build's source, package bindings and execution
+   backing. Package management resolves and reviews the Build libraries. The
+   compiler resolves imports and checks the Build program. Admission checks
+   its executable closure, selected services and restricted requests before
+   the interpreter runs its first statement.
+2. Interpret the Build once. Each executed product-library registration fixes
+   its source, alias and delegated context before the coordinator may schedule
+   its acquisition. An import alone performs none of those actions.
+3. For each dependency, review its source and apply the same pre-entry checks
+   to its child Build using the bindings and backing supplied for that child.
+   Child libraries and generated files can feed later compilations. They cannot
+   extend the running parent's or child's imports.
+4. When the entry returns, join every outstanding dependency job. Reject failed,
+   cyclic, unresolved or unadmitted edges and freeze the normalized plan.
+5. Freeze the filesystem view for the next compilation. Check the Product and
+   its selected declarations, targets and behavior exclusions against that view.
+6. Discover registered test roots, admit their execution authority and run
+   enabled [test groups](testing.md). Check required outputs and publish one
+   immutable result set only after required tests pass.
 
-1. Parse Build syntax and establish lexical structure, then check the initial
-  executable prefix against core, local declarations and available exact
-  dependencies. Surface and admit that stage's restricted requests before
-  producing its prepared Terminal continuation.
-2. Interpret the checked stage once. Atomic dependency registration fixes each
-  source, purpose, alias and delegated context before coordination may schedule
-  acquisition and preparation. An import alone performs none of those actions.
-3. For each request, the application coordinator asks package management to
-  resolve and review source, recursively activates the dependency Build,
-  prepares its exact declarations and selected implementations in that context,
-  and asks Psi to check and admit the dependent executable closure. No satisfier
-  search, ambient import or default chooses a service implementation.
-4. At explicit dependency preparation, suspend the same activation if necessary.
-  Resolve the dependent imports, types, contracts and exact provider bindings,
-  check and admit the selected continuation, then resume without replaying
-  earlier work. Repeat stage preparation as ordinary control flow discovers
-  dependencies; do not execute unchecked source or rerun the Build as a scan.
-5. When the Build entry returns, join every outstanding dependency job, reject
-  any failed, cyclic, unresolved, or unadmitted edge, resolve inert product
-  selections, and freeze the normalized Build output.
-6. Freeze the filesystem view the plan supplies to the next compilation.
-  Check the Product from that view, including the requested behavior exclusions.
-7. Discover registered test roots, admit their execution authority, and run all
-  enabled [test groups](testing.md).
-8. Check required-output completion and commit one immutable result set only
-  after required tests pass.
-
-The application coordinator owns this lifecycle; package management owns source
-resolution and review; Psi owns checking and admission; the Psi interpreter
-owns suspension, provider-slot installation, and continuation resumption. A
-dependency declaration may complete in the background when Build code never
-awaits its provider slot. Build return is still a mandatory join, so no unresolved request leaks
-into product compilation or publication.
+The application coordinator schedules this work. Package management owns source
+resolution and review, the compiler checks each program, and the interpreter
+executes and resumes its admitted code.
 
 [Scoped execution](scoped_execution.md) defines the execution-profile/product-target
 distinction, deterministic snapshot and staging protocol, and linear output
@@ -54,15 +42,11 @@ authorize a build-time query of that unfinished product or change the build
 entry's own admission. Physical exclusions additionally require complete selected
 mechanism classification before realized-product admission.
 
-Before each stage executes, its exact name/type resolution, semantic prechecks,
-operational/reach plans and effect admission are complete. Before a provider is
-installed, its selected implementation's review, checking, restricted-request
-admission and exact binding are complete. Checkpoints retain stage code,
-declaration/environment identities, source and filesystem observations, live
-loans/resources and authority verdicts. Execution uses those exact entries,
-not later lookup that can retarget an earlier alias. This does not claim that
-all deferred branches of the whole Build were checked before its first effect;
-[checked stages](scoped_execution.md#checked-build-stages) define that boundary.
+Before each Build starts, its exact imports, contracts and authority requirements
+are known. Each supplied provider must satisfy its selected requirement and
+pass review and admission before use. Ordinary suspension preserves the
+checked program, live loans and resources. [Checked Build stages](scoped_execution.md#checked-build-stages)
+describes how a new compilation receives different inputs.
 
 Reach, authority roots, retained storage, resource bounds, failure, and
 termination must fit the executor's policy. A blocking operation must expose
@@ -165,8 +149,8 @@ the same [file identity and visibility rules](../language/modules.md#file-identi
 Either can import the other by its logical filename. A file has one identity
 within its package and source context. Producing it grants no extra access
 to other packages or runtime services. The Build activation keeps its own
-admitted code and inputs throughout. Its dependency-preparation continuations
-still follow the [checked Build stage rules](scoped_execution.md#checked-build-stages).
+admitted code and imports throughout. A separately requested Build can also use
+generated source when its invoker supplies the frozen view before compilation.
 
 The `product-source-view` decision (2026-11-22) retires `Build::include_source`,
 per-file source registration, and the requirement to append generated units

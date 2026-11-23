@@ -13,41 +13,18 @@ in `omega.lock`; they cannot approve those requests themselves. Build selections
 also cannot choose an external ecosystem's receiving policy. Producing a binary
 requires no such policy declaration.
 
-Named decision: `staged-build-capability-attenuation`, settled 2026-10-28.
-Project description is one logical interpreted Omega activation, not a
-privileged syntax subset or replayed discovery program. Psi checks and admits
-the initial prefix against core, local Build declarations and available exact
-dependencies, then resumes subsequent checked continuations as dependencies
-are explicitly prepared. The Psi interpreter preserves the same mutable
-Build and live storage without rerunning earlier statements. The compiler owns
-stage checking, dependency/source identity and publication; ordinary libraries
-own filesystem and attenuation algorithms. No source-text call scanner decides
-the meaning of arbitrary same-spelled user code.
+A Build runs as one checked Omega program. The invoker supplies the root's
+library bindings and the parent configures each child's bindings before that
+child starts. The compiler resolves local and external imports and checks the
+Build against those inputs before entry. See [fixed Build imports](scoped_execution.md#checked-build-stages).
 
-`Build::dependency` and `Build::build_dependency` atomically register configured
-product and interpreted-build dependencies respectively. A description's source,
-alias, purpose and delegated context are fixed before it may be scheduled.
-Ordinary description helpers may set an alias before registration; an alias
-cannot be renamed, reused ambiguously or retargeted afterward. Product
-dependencies supply no callable Build authority. `use dependency;` is inert
-logical name selection and can remain deferred until a dependent checked stage;
-it never acquires source or executes an imported package.
-
-`suspend Build::prepare_dependency(builder, registered)` prepares an exact
-registration under its supplied execution context. The dependent continuation
-resolves names, types and contracts and is admitted before executing them.
-Initial Build checking need not already know a newly admitted package's shared
-non-core interfaces. Exact provider-slot installation still checks the selected
-requirement and implementation under
-[Build provider readiness](provider_selection.md#build-provider-readiness).
-Neither preparation nor an ordinary import chooses a default implementation,
-grants host access or fabricates declaration identity.
-
-The returned `DependencyRegistration` retains the exact activation-scoped
-registration and purpose, as a reusable immutable handle. Preparation and
-[validation](validation_subjects.md#buildvalidate) use that same identity;
-copying it does not mint another dependency or confer authority. Build/Product
-registrations remain distinct even when their aliases match.
+The running Build may conditionally register product libraries with
+`Build::dependency`. The registration fixes the description's source, alias
+and delegated context before the coordinator can schedule work. Its immutable
+`DependencyRegistration` identifies that request for
+[validation](validation_subjects.md#buildvalidate). Registering a library or
+suspending for work cannot make new code callable by this Build. At resumption
+the interpreter preserves the same mutable Build and live storage.
 
 When `build` returns, package coordination joins every outstanding dependency
 request, rejects failed, cyclic, unresolved, or unadmitted dependency edges, and
@@ -116,22 +93,15 @@ named root has no build entry, core supplies the product entry binding under
 [build-first entry selection](command_line.md#build-first-entry-selection).
 The target checks that binding under [entry admission](entry_roots.md).
 
-`package`, `application`, `member`, `dependency` and `build_dependency` are
-compiler-owned operations on the activation's Build value. Product and build
-dependency sets remain separate; aliases are unique
-within each scope, with no cross-scope fallback. The interpreted result, not
-source spelling, determines the requested graph. Default configuration does not
-discover undeclared dependency edges from imports. Package tooling edits
-ordinary Build source when persisting dependency changes to a loose project.
-
-Product registrations authorize product imports; Build registrations authorize
-checked interpreted dependency preparation. Unprepared external uses cannot
-execute, and a later registration cannot justify earlier code. The host library
-uses its own ordinary
-dependencies in that host context. Using a package in both contexts requires
-both edges, including std. Legacy locks cannot imply a missing edge.
+`package`, `application`, `member` and `dependency` operate on this
+activation's Build value. The invoker's bindings determine which libraries
+Build code can import. The executed plan determines which libraries Product
+code can import. Aliases are unique within each scope. A package used in both
+scopes needs a binding in each, including std. Package tooling may persist a
+product dependency by editing ordinary Build source. Neither an import nor a
+legacy lock can supply a missing edge.
 [Scoped execution](scoped_execution.md#two-checked-contexts) defines
-purpose-specific scheduling, acquisition reuse, provenance, and migration.
+purpose-specific scheduling, acquisition reuse and provenance.
 
 Applications default to executable output. The Build activation may
 request `artifact_only` once for an application, never a package/workspace. It

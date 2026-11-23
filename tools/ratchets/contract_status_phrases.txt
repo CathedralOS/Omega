@@ -5,7 +5,6 @@
 1 wiki/spec/build/configuration.md
 1 wiki/spec/build/embedding.md
 1 wiki/spec/build/entry_roots.md
-1 wiki/spec/build/execution.md
 2 wiki/spec/build/external_roots.md
 1 wiki/spec/build/testing.md
 1 wiki/spec/language/conformances.md

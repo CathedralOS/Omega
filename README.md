@@ -468,8 +468,8 @@ The check will extend beyond the diagram:
     entry points and outgoing authority, including callbacks, cleanup, and
     selected providers. A separate consumer will check it without merging the
     services' source.
-- **Run the checker as ordinary build code.** A `Build::build_dependency`
-    will give the build, not the application, access to the library. The helper will
+- **Run the checker as ordinary build code.** The invoker supplies the topology library
+    before the Build starts. The Build can import it directly. The helper will
     receive captured component inputs and one required output, not
     deployment credentials.
 - **Enforce the actual connections.** The installer will receive the owner's

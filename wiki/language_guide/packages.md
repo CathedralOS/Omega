@@ -26,7 +26,8 @@ stay the same. Existing locks require a fresh update/review after a declaration
 rename; old acceptance does not authorize the new identity. Hyphenated package
 declarations are not accepted through an implicit spelling conversion.
 
-Product dependencies and build helpers are declared separately. In
+The caller supplies the libraries that Build code imports. The Build selects
+the libraries its product can import. In
 `use {geometry}/math/vector.omg as vec;`, `geometry` identifies the registered
 dependency and `vec` names one file inside the importing source. [Chapter 15](chapter_15_modules_imports_visibility.md#build-helpers)
 shows the two dependency kinds.

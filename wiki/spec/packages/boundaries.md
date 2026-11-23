@@ -1,8 +1,9 @@
 # Package declaration and carried-type boundaries
 
 The package is the dependency-reach boundary. `public` exposes declarations owned
-by the package; `build.omg` declares its dependencies and selections. Undeclared
-aliases are not nameable, and fully qualified spelling does not bypass that
+by the package. The invoker supplies its Build libraries before entry and
+`build.omg` selects its product dependencies. Undeclared aliases are not
+nameable, and fully qualified spelling does not bypass that
 boundary. There is no export item that relabels a dependency declaration.
 A subsystem needing a different dependency-reach set within a checked context
 is a separate package, not a hidden nested manifest. The root's explicit
