@@ -112,10 +112,10 @@ while it ran.
 
 ## One hold for a whole chain
 
-Run a local chain of steps (check, crate tests, a sample gate) one after
-another in one shell under one budget, and finish it before pushing: integration builds
-run on GitHub, not on the host ([landing](landing.md)). Docs-only changes need
-no compiler build.
+Run the focused checks, crate tests and sample gate one after another in the
+same shell under one budget. Run full-workspace checks on a LAN VM under the
+[heavy-check policy](../../AGENTS.md#heavy-checks-run-on-the-lan-vms).
+Docs-only changes need no compiler build.
 
 ## Diagnostics don't queue with chains
 
