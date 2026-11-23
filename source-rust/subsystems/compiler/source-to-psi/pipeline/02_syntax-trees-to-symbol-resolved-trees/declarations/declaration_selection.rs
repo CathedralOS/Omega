@@ -1178,24 +1178,6 @@ impl<'base> ConstantSelection<'base> {
             .is_some()
     }
 
-    /*
-        Bare Names retain value-prefix precedence before specialization changes
-        their lookup metadata. The shared resolver distinguishes absence from
-        unique or ambiguous constants; braces remain ordinary constructors.
-    */
-    pub(super) fn constructor_prefix_is_value(
-        &self,
-        syntax: &SyntaxTrees,
-        name: &Identifier,
-    ) -> bool {
-        crate::resolution::names::constructor_prefix_is_value(
-            &self.symbols,
-            name.as_str(syntax),
-            name.source_span(),
-        )
-        .unwrap_or(true)
-    }
-
     pub(crate) fn qualified_payload_free_case<'syntax>(
         &self,
         syntax: &'syntax SyntaxTrees,
