@@ -102,7 +102,8 @@ impl ProviderSupply {
         }
     }
 
-    fn description(&self) -> String {
+    /// How a diagnostic names this supply: its provider, or the native binding's producer.
+    pub fn description(&self) -> String {
         match &self.selection {
             SupplySelection::Checked(selection) => {
                 format!("`{}`", selection.provider_type.authored_path)
@@ -377,80 +378,6 @@ impl DemandedRequirement {
     }
 }
 
-/// One demanded requirement and the single supply chosen for it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SettledRequirement {
-    pub reached: ReachedBoundaryRequirement,
-    pub supply: ProviderSupply,
-    /// The machine of the accepted module that realizes the requirement
-    /// for the chosen provider, when the module holds it.
-    pub realization: Option<MachineId>,
-}
-
-/// The supply chosen for every requirement one target's module demands.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SettledTargetSupply {
-    target: Option<String>,
-    requirements: Vec<SettledRequirement>,
-}
-
-impl PreparedTargetSupply {
-    /// Chooses the supply of each demanded requirement, or rejects the
-    /// program naming every requirement that has none or more than one.
-    pub fn settle(self) -> Result<SettledTargetSupply, Vec<Diagnostic>> {
-        let Self {
-            target,
-            requirements,
-        } = self;
-        let mut rejections = Vec::new();
-        let mut settled = Vec::with_capacity(requirements.len());
-        for DemandedRequirement {
-            reached,
-            supplies,
-            realization,
-        } in requirements
-        {
-            let target = target.as_deref().ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "provider settlement lost its deployment target",
-                )]
-            })?;
-            match choose_supply(&supplies) {
-                Ok(supply) => settled.push(SettledRequirement {
-                    reached,
-                    supply: supply.clone(),
-                    realization,
-                }),
-                Err(UnchosenSupply::Unsupplied) => rejections.push(Diagnostic::error(format!(
-                    "boundary requirement `{}` has no provider on target `{target}`: the Build selects none and the target package declares no default",
-                    reached.name
-                ))),
-                Err(UnchosenSupply::Competing(ranked)) => {
-                    let mut paths = ranked.iter().map(|supply| supply.description());
-                    let first = paths.next().unwrap_or_default();
-                    rejections.push(Diagnostic::error(format!(
-                        "boundary requirement `{}` has conflicting providers on target `{target}`: {} declares {first} and {}",
-                        reached.name,
-                        match ranked[0].authority {
-                            SupplyAuthority::Build => "the Build",
-                            SupplyAuthority::NativeBinding => "native binding suppliers",
-                            SupplyAuthority::TargetDefault => "the target package",
-                        },
-                        paths.collect::<Vec<_>>().join(" and "),
-                    )));
-                }
-            }
-        }
-        if !rejections.is_empty() {
-            return Err(rejections);
-        }
-        Ok(SettledTargetSupply {
-            target,
-            requirements: settled,
-        })
-    }
-}
-
 fn refuse(target: &str, demand: &str) -> Diagnostic {
     Diagnostic::error(format!(
         "no product route yet: target preparation for `{target}`: the accepted module demands {demand}, which has no provider or calling plan on this route"
@@ -630,15 +557,6 @@ pub(crate) fn is_direct_compiler_primitive(
                 | terminal_psi::CheckedBoundaryExecution::LayoutTargetFacts
         )
     })
-}
-
-impl SettledTargetSupply {
-    pub fn target(&self) -> Option<&str> {
-        self.target.as_deref()
-    }
-    pub fn requirements(&self) -> &[SettledRequirement] {
-        &self.requirements
-    }
 }
 
 // Source closure observes the target's declared support only. It never obtains

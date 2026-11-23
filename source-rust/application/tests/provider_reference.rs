@@ -136,7 +136,10 @@ machine build(builder: @mutable Build) {{
     )
     .unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(["run", "--both", "--keep", "main.omg"])
+        // The run names the Build file: `omega run <file>` selects the Build in
+        // the named file and ignores a neighboring `build.omg`
+        // (wiki/spec/build/command_line.md, "Build-first entry selection").
+        .args(["run", "--both", "--keep", "build.omg"])
         .current_dir(&root)
         .env(
             "OMEGA_LIBRARY_ROOT",
