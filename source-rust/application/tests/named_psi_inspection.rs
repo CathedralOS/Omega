@@ -116,7 +116,8 @@ fn saved_console_provider_keeps_the_direct_mutable_byte_window() {
 fn named_inspection_refuses_missing_or_ambiguous_names_before_writing() {
     let scratch = TemporaryDirectory::create("unnamed-psi-inspection", false).unwrap();
     let project = scratch.path();
-    std::fs::write(project.join("main.omg"), "machine retained() -> i32 { 42 }").unwrap();
+    let local = "machine retained() -> i32 { 42 }";
+    std::fs::write(project.join("main.omg"), local).unwrap();
     std::fs::write(
         project.join("other.omg"),
         "machine retained() -> i32 { 17 }",
@@ -127,6 +128,15 @@ fn named_inspection_refuses_missing_or_ambiguous_names_before_writing() {
         r#"machine build(builder: @mutable Build) { Build::package(builder, "inspection_ambiguity"); }"#,
     )
     .unwrap();
+    // A second file on disk joins this lookup only when the package imports it.
+    let unique = inspect(project, "main.omg", "retained", &project.join("local.psi"));
+    assert!(unique.status.success(), "{unique:?}");
+    assert!(
+        String::from_utf8(unique.stdout)
+            .unwrap()
+            .contains("IntegerConstant { value: Signed(42) }")
+    );
+    std::fs::write(project.join("main.omg"), format!("use other.omg;\n{local}")).unwrap();
     let checked = omega(project)
         .args(["--check", "main.omg"])
         .output()
