@@ -1159,7 +1159,7 @@ pub(crate) mod result_custody {
             custody.rows(&self.original_storage_roots, root)?;
             custody.rows(&self.provider_storage.completed_profiles, root)?;
             custody.rows(&self.structural_byte_storage, root)?;
-            custody.rows(&self.empty_array_storage.rows, root)?;
+            custody.rows(&self.array_initialization.rows, root)?;
             custody.rows(&self.structural_byte_sequence_fields, root)?;
             custody.rows(&self.structural_byte_descriptors, root)?;
             custody.rows(&self.structural_element_view_fields, root)?;

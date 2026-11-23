@@ -877,7 +877,7 @@ pub(crate) mod byte_arrays {
                 &self,
                 home: &StructuralRuntimePlace,
             ) -> Result<bool, TerminalInterpretError> {
-                self.empty_array_storage.initialized_byte_array(
+                self.array_initialization.initialized_byte_array(
                     &self.structural_types(),
                     &self.structural_byte_storage,
                     home,
