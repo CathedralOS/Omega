@@ -114,6 +114,11 @@ pub enum ItemSnapshot {    Capability {
     Use {
         path: Vec<IdentifierSnapshot>,
     },
+    FileImport {
+        root: Option<IdentifierSnapshot>,
+        components: Vec<IdentifierSnapshot>,
+        alias: IdentifierSnapshot,
+    },
     Machine {
         #[serde(skip_serializing_if = "Vec::is_empty")]
         nested_machines: Vec<ItemSnapshot>,
@@ -618,11 +623,13 @@ pub(crate) fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnap
                 }
             },
         },
-        Item::Use(value) => ItemSnapshot::Use {
-            path: snapshot_identifier_slice(
-                syntax_trees,
-                syntax_trees.items.identifier_path_members(value.path),
-            ),
+        Item::Use(crate::item::UseItem::Namespace { path }) => ItemSnapshot::Use {
+            path: snapshot_identifier_slice(syntax_trees, syntax_trees.items.identifier_path_members(*path)),
+        },
+        Item::Use(crate::item::UseItem::File { root, components, alias, .. }) => ItemSnapshot::FileImport {
+            root: root.as_ref().map(|name| snapshot_identifier(syntax_trees, name)),
+            components: snapshot_identifier_slice(syntax_trees, syntax_trees.items.identifier_path_members(*components)),
+            alias: snapshot_identifier(syntax_trees, alias),
         },
         Item::Machine(value) => ItemSnapshot::Machine {
             nested_machines: value

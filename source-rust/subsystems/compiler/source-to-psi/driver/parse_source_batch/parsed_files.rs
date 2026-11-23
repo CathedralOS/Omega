@@ -134,7 +134,18 @@ impl SourceItems {
 pub struct SourceImport {
     pub ordinal: usize,
     pub span: source_text::Span,
-    pub members: Vec<String>,
+    pub target: SourceImportTarget,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+pub enum SourceImportTarget {
+    Namespace(Vec<String>),
+    File {
+        root: Option<String>,
+        /// The admitted logical filename always uses slash separators.
+        path: String,
+        alias: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -167,15 +178,31 @@ impl ParsedSourceBatch {
                         .enumerate()
                         .filter_map(|(offset, handle)| match syntax.root_item(*handle) {
                             Item::Use(import) => {
-                                let members = syntax.items.identifier_path_members(import.path);
-                                Some(SourceImport {
-                                    ordinal: unit.import_root_range.start + offset,
-                                    span: source_text::Span::new(
-                                        members.first().expect("a parsed import has a name").source_span().span.start,
-                                        members.last().unwrap().source_span().span.end,
-                                    ),
-                                    members: members.iter().map(|name| name.as_str(syntax).to_owned()).collect(),
-                                })
+                                use syntax_trees::item::UseItem;
+                                let (span, target) = match import {
+                                    UseItem::Namespace { path } => {
+                                        let members = syntax.items.identifier_path_members(*path);
+                                        let span = source_text::Span::new(
+                                            members.first().expect("a parsed import has a name").source_span().span.start,
+                                            members.last().unwrap().source_span().span.end,
+                                        );
+                                        (span, SourceImportTarget::Namespace(members.iter().map(|name| name.as_str(syntax).to_owned()).collect()))
+                                    }
+                                    UseItem::File { root, components, alias, span } => {
+                                        let mut path = String::new();
+                                        for name in syntax.items.identifier_path_members(*components) {
+                                            if !path.is_empty() { path.push('/'); }
+                                            path.push_str(name.as_str(syntax));
+                                        }
+                                        path.push_str(".omg");
+                                        (span.span, SourceImportTarget::File {
+                                            root: root.as_ref().map(|name| name.as_str(syntax).to_owned()),
+                                            path,
+                                            alias: alias.as_str(syntax).to_owned(),
+                                        })
+                                    }
+                                };
+                                Some(SourceImport { ordinal: unit.import_root_range.start + offset, span, target })
                             }
                             _ => None,
                         })

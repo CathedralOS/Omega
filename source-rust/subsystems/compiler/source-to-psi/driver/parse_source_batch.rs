@@ -4,7 +4,7 @@
 mod batch;
 mod parsed_files;
 pub use parsed_files::{
-    ParsedSourceBatch, ParsedSourceSummary, RetainedSourceParse, SourceDeclarations, SourceImport,
+    ParsedSourceBatch, ParsedSourceSummary, RetainedSourceParse, SourceDeclarations, SourceImport, SourceImportTarget,
     SourceItems, SourceSyntax,
 };
 

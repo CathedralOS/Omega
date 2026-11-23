@@ -119,6 +119,10 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             .expect("a current source span requires one semantic token")
     }
 
+    pub(crate) fn name_until(self, rest: Self) -> Identifier {
+        Identifier::source_backed(self.source_owner, self.source_span_until(rest))
+    }
+
     pub(crate) fn source_span_until(self, rest: Self) -> SourceSpan {
         debug_assert_eq!(self.source_id, rest.source_id);
         let consumed_count = self
