@@ -1,0 +1,74 @@
+name: Check exact file imports
+on:
+  push:
+    branches: [work/verify-logical-file-imports]
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      MBX_GC_AUTO: 'false'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_DEV_OPT_LEVEL: '1'
+      CARGO_INCREMENTAL: '0'
+      OMEGA_MBX_INSTALL_CACHE: /tmp/omega-mbx-install
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Identify the build tool
+        id: key
+        run: echo "key=$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: /tmp/omega-mbx-install/artifacts
+          key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.key.outputs.key }}
+      - name: Build the compiler
+        run: |
+          bash tools/xtask/bootstrap-mbx.sh --install-dir "$RUNNER_TEMP/bin"
+          "$RUNNER_TEMP/bin/mbx" build --locked -p omega --bin omega < /dev/null
+      - name: Read the full staged import reports
+        run: |
+          cat > "$RUNNER_TEMP/import-probes.py" <<'PY'
+          from pathlib import Path
+          import os, subprocess, sys, tempfile
+          binary=Path(sys.argv[1]).resolve()
+          repo=Path(sys.argv[2]).resolve()
+          source=(repo/'source-rust/application/tests/build_staged_dependency_calls.rs').read_text()
+          target=sys.argv[3]
+          e=Path(__file__).parent
+          def witness(name):
+              begin=source.index('let build = r#"',source.index('fn '+name))
+              return source[begin+len('let build = r#"'):source.index('"#.replace("HOST"',begin)].replace('HOST',target)
+          host=witness('a_build_resolves_its_file_alias_after_preparing_the_named_dependency')
+          product=witness('a_build_binds_its_products_file_without_being_able_to_call_it')
+          cases=[
+              ('host',host,'dep','kit_package','main.omg','public data Number { value: i32; }\npublic machine v() -> i32 { 7 }\nmachine hidden() -> i32 { 7 }\n',['--check','main.omg'],True,[]),
+              ('missing',host.replace('{kit}/main.omg','{kit}/other.omg'),'dep','kit_package','main.omg','public data Number { value: i32; }\npublic machine v() -> i32 { 7 }\nmachine hidden() -> i32 { 7 }\n',['--check','main.omg'],False,['no admitted logical file `{kit}/other.omg`']),
+              ('advisory',product,'vendor','kit','entry.omg','public machine start() {}',['--check','build.omg'],True,[]),
+              ('link',product.replace('{kit}/entry.omg','{kit}/start.omg'),'vendor','kit','entry.omg','public machine start() {}',['run','--both','build.omg'],None,[]),
+              ('product',product,'vendor','kit','entry.omg','public machine start() {}',['run','--both','build.omg'],True,['native exit 0','interp exit: 0']),
+              ('unavailable',product.replace('    Build::bind','    |selected|::start();\n    Build::bind'),'vendor','kit','entry.omg','public machine start() {}',['--check','build.omg'],False,['Alias `kit` was prepared as a Product dependency']),
+          ]
+          errors=0
+          for tag,build,alias,role,file,body,args,ok,expected in cases:
+              with tempfile.TemporaryDirectory(prefix='omega-import-'+tag+'-') as base:
+                  work=Path(base)
+                  (work/alias).mkdir()
+                  (work/alias/file).write_text(body)
+                  (work/alias/'build.omg').write_text('machine build(builder: @mutable Build) { Build::package(builder, "'+role+'"); }')
+                  if tag=='link':
+                      (work/alias/'start.omg').symlink_to('entry.omg')
+                  (work/'build.omg').write_text(build)
+                  (work/'main.omg').write_text('machine main() { }\n' if tag in ['host','missing'] else 'machine unreachable() crashes Trap { crash Trap; }')
+                  r=subprocess.run(['nice','-n','19',str(binary),*args],cwd=work,stdin=subprocess.DEVNULL,capture_output=True,env=dict(os.environ,OMEGA_LIBRARY_ROOT=str(repo/'source/library')))
+                  report=(r.stdout+r.stderr).decode(errors='replace')
+                  (e/('local-'+tag+'.log')).write_text(report)
+                  passed=(ok is None or (r.returncode==0)==ok) and all(x in report for x in expected)
+                  errors+=not passed
+                  print(tag,r.returncode,'PASS' if passed else 'FAIL',report.strip(),flush=True)
+          sys.exit(bool(errors))
+          PY
+          python3 "$RUNNER_TEMP/import-probes.py" "$PWD/target/debug/omega" "$PWD" linux_x86_64
