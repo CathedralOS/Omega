@@ -1161,14 +1161,26 @@ impl PolicySource<'_> {
             requirement.clone(),
             declarations,
         )?;
-        let parameters = self.requirement_parameters(signature)?;
-        let result = signature
-            .return_type
-            .is_valid()
-            .then(|| {
-                self.type_identity_for_private_contract(signature.symbol, signature.return_type)
-            })
-            .transpose()?;
+        let (parameters, result) = if signature.symbol == declared_signature.symbol {
+            (callable.parameters.clone(), callable.return_type.clone())
+        } else {
+            // An applied method has its own types in the selected provider row.
+            // Its declaration's binders cannot stand in for applied lifetimes.
+            if callable.lifetime_parameter_count != 0 {
+                return Err(unavailable(
+                    "the applied requirement's lifetime substitution",
+                ));
+            }
+            let parameters = self.requirement_parameters(signature)?;
+            let result = signature
+                .return_type
+                .is_valid()
+                .then(|| {
+                    self.type_identity_for_private_contract(signature.symbol, signature.return_type)
+                })
+                .transpose()?;
+            (parameters, result)
+        };
         let invocation_authority = callable
             .declared_synchronous_invocations
             .clone()
@@ -1196,7 +1208,10 @@ impl PolicySource<'_> {
                 schema_lifetime_arguments: Vec::new(),
                 application_lifetime_parameter_count: 0,
                 requirement_lifetime_arguments: Vec::new(),
-                requirement_lifetime_parameter_count: 0,
+                requirement_lifetime_parameter_count: u32::try_from(
+                    callable.lifetime_parameter_count,
+                )
+                .map_err(|_| unavailable("a portable requirement lifetime count"))?,
                 static_parameters: callable.type_parameters.clone(),
                 parameters,
                 result,
@@ -1283,8 +1298,7 @@ impl PolicySource<'_> {
         let authored_routes = source.state_signature_contracts(signature).iter().any(|clause| {
             matches!(clause.kind, source_compiler::representations::source_state::signature::SignatureContractKind::Crashes { .. })
         });
-        if !signature.lifetime_parameters.is_empty()
-            || !signature.conformance_bounds.is_empty()
+        if !signature.conformance_bounds.is_empty()
             || signature.spelling.is_some()
             || signature.is_default
             || !signature.native_callback_parameters.is_empty()
@@ -1314,16 +1328,64 @@ impl PolicySource<'_> {
                 if (completes_normally && result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted)
                     || !result.qualifications.is_empty()
                     || !result.projected_qualifications.is_empty())
-            || boundary
-                .result_lifetimes
-                .as_ref()
-                .is_some_and(|rows| !rows.is_empty())
         {
             return Err(unavailable(
                 "the boundary requirement's complete published contract",
             ));
         }
-        let parameters = self.requirement_parameters(signature)?;
+        let groups = terminal_semantics::references::boundary_result_lifetimes(
+            &declarations.accepted.module().types.structural_types,
+            boundary,
+        )
+        .map_err(unavailable)?;
+        let metadata = declarations.accepted.requirement_review(signature.symbol);
+        let scoped = !groups.is_empty()
+            || !signature.lifetime_parameters.is_empty()
+            || metadata
+                .as_ref()
+                .is_ok_and(|row| row.lifetime_parameter_count != 0);
+        let (parameters, return_type, lifetime_parameter_count) = if scoped {
+            let metadata = metadata.map_err(unavailable)?;
+            if !groups.is_empty() {
+                let result = metadata.result_type.as_deref().ok_or_else(|| {
+                    unavailable("a declared result for the boundary lifetime groups")
+                })?;
+                let declared =
+                    terminal_semantics::references::boundary_result_lifetimes_from_signature(
+                        declarations.accepted.module(),
+                        boundary,
+                        metadata.lifetime_parameter_count,
+                        &metadata.parameter_types,
+                        result,
+                    )
+                    .map_err(unavailable)?;
+                if declared != groups {
+                    return Err(unavailable(
+                        "boundary result lifetime groups matching the declared signature",
+                    ));
+                }
+            }
+            let parameters = self.scoped_requirement_parameters(
+                    signature, &metadata.parameter_types,
+                    review_evidence::record::PackageReviewSemanticDependencyExposure::PrivateImplementation,
+                )?;
+            let result = metadata.result_type.as_ref().map(|canonical| {
+                review_evidence::record::PackageReviewTypeIdentity {
+                    canonical: canonical.clone(),
+                }
+            });
+            (parameters, result, metadata.lifetime_parameter_count)
+        } else {
+            let parameters = self.requirement_parameters(signature)?;
+            let return_type = signature
+                .return_type
+                .is_valid()
+                .then(|| {
+                    self.type_identity_for_private_contract(signature.symbol, signature.return_type)
+                })
+                .transpose()?;
+            (parameters, return_type, 0)
+        };
         let type_parameters = source
             .state_signature_type_parameters(signature)
             .iter()
@@ -1352,13 +1414,6 @@ impl PolicySource<'_> {
                 })
             })
             .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
-        let return_type = signature
-            .return_type
-            .is_valid()
-            .then(|| {
-                self.type_identity_for_private_contract(signature.symbol, signature.return_type)
-            })
-            .transpose()?;
         let termination = if boundary.unconditional_termination {
             PackagePolicyTermination::Terminates {
                 premises: Vec::new(),
@@ -1387,7 +1442,7 @@ impl PolicySource<'_> {
             identity: requirement,
             supply: PackageReviewCallableSupply::Boundary,
             spelling: signature.spelling,
-            lifetime_parameter_count: 0,
+            lifetime_parameter_count,
             type_parameters,
             conformance_bounds: Vec::new(),
             parameters,

@@ -185,12 +185,9 @@ impl Program<'_> {
                     "public requirement review needs projected result lifetime paths".to_owned(),
                 );
             }
-            if group.inputs.is_empty() && !group.results.is_empty() {
-                return Err(
-                    "public requirement review needs its caller-chosen result lifetime contract"
-                        .to_owned(),
-                );
-            }
+            // The scoped result type already carries its lifetime binder. A group
+            // with no inputs promises a caller-chosen lifetime and names no
+            // input as backing for the returned borrow.
             for input in group.inputs {
                 let position = match input {
                     BoundaryLifetimeDependency::Referent { argument_index, .. } => argument_index,

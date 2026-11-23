@@ -15,8 +15,9 @@ pub use boundary_results::{
 };
 pub(crate) use declared_results::validate_result_lifetime_groups;
 pub use declared_results::{
-    DeclaredReferenceResult, callable_reference_result, declared_lifetime_path_is_static,
-    public_reference_result, requirement_reference_result, selected_reference_result,
+    DeclaredReferenceResult, boundary_result_lifetimes_from_signature, callable_reference_result,
+    declared_lifetime_path_is_static, public_reference_result, requirement_reference_result,
+    selected_reference_result,
 };
 
 pub(crate) mod reference_completion;
