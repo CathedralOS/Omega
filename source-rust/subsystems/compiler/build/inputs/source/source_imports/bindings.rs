@@ -1,9 +1,6 @@
-// Import occurrence custody (`ImportOccurrence`, `ResolvedSourceImport`, `PendingPackageImport`)
-// and I/O-free joining to the loaded source frontier (`retain_module_import_bindings`).
-//
-// Join only selected source instances in the importer's checked scope. Several
-// acquired files can contribute to one logical module, but one exact package
-// anchor suffices: semantic lookup validates the whole selected declaration roster.
+//! Connect each import to the admitted source it selected. Build and Product
+//! can load the same path with different permissions. Keep both the importing
+//! file and its selected target when handing the names to the compiler.
 
 use super::ReconciledPackageImportRequest;
 use super::SourceStorage;
@@ -204,7 +201,7 @@ pub(crate) fn pending_build_imports(
     pending
 }
 
-pub(crate) fn retain_module_import_bindings(
+pub(crate) fn retain_import_bindings(
     storage: &SourceStorage,
 ) -> Result<
     Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>,
@@ -392,7 +389,7 @@ mod tests {
             import(importer, "/dep/b.omg"),
         ];
         assert_eq!(
-            retain_module_import_bindings(&storage).unwrap(),
+            retain_import_bindings(&storage).unwrap(),
             [
                 source_compiler::representations::source_symbols::SourceScopedTopLevelBinding::logical_module_import(
                     importer,
@@ -462,14 +459,14 @@ mod tests {
         let build_binding =
             SourceScopedTopLevelBinding::file_import(author, build_target, "chosen");
         assert_eq!(
-            retain_module_import_bindings(&storage).unwrap(),
+            retain_import_bindings(&storage).unwrap(),
             std::slice::from_ref(&build_binding)
         );
         storage
             .sources
             .retain_product_dependency_scope([(app, "kit", product)]);
         assert_eq!(
-            retain_module_import_bindings(&storage).unwrap(),
+            retain_import_bindings(&storage).unwrap(),
             [
                 SourceScopedTopLevelBinding::product_file_import(author, product_target, "chosen"),
                 build_binding,
@@ -497,7 +494,7 @@ mod tests {
             });
         }
         storage.resolved_imports = vec![import(SourceId(0), "/dep/a.omg")];
-        assert!(retain_module_import_bindings(&storage).is_err());
+        assert!(retain_import_bindings(&storage).is_err());
     }
 
     #[test]
@@ -523,6 +520,6 @@ mod tests {
             import(SourceId(0), "/dep/a.omg"),
             import(SourceId(0), "/other/b.omg"),
         ];
-        assert!(retain_module_import_bindings(&storage).is_err());
+        assert!(retain_import_bindings(&storage).is_err());
     }
 }
