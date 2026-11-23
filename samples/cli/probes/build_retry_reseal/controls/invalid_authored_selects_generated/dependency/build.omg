@@ -5,8 +5,8 @@ machine build(builder: @mutable Build) {
     Build::package(builder, "stratum_kernel");
     let template: BuildPath = BuildSource::resolve(@builder.source, "template.txt");
     let reader: i32 = BuildSource::open(@builder.source, template, 0);
-    let mutable bytes: [u8; 43];
-    _ = BuildSource::read(@builder.source, reader, @mutable bytes[..], 43);
+    let mutable bytes: [u8; 46];
+    _ = BuildSource::read(@builder.source, reader, @mutable bytes[..], 46);
     let _closed_reader: i32 = BuildSource::close(@builder.source, reader);
     let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "generated.omg");
     let generated: BuildPath = BuildOutput::resolve(@builder.output, "generated.omg");

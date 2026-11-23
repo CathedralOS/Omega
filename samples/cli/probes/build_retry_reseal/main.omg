@@ -1,5 +1,11 @@
-use kit\main;
+use {kit}/generated.omg as generated;
 
 machine entry() -> i32 {
-    value()
+    |generated|::value()
+}
+
+machine main() crashes Trap {
+    transition entry() == 7 { true -> done(), _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
 }
