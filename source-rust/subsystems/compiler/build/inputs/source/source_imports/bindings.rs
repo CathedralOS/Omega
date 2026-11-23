@@ -12,15 +12,20 @@ use crate::PackageCompilationInputs;
 use diagnostics::Diagnostic;
 use source_provenance::DependencyScope;
 use source_text::SourceId;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
 pub(super) struct ImportOccurrence {
     source: SourceId,
     ordinal: usize,
     authored_path: String,
-    package_prefix_members: usize,
-    file_alias: Option<String>,
+    binding: ImportBinding,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+enum ImportBinding {
+    Namespace { package_prefix_members: usize },
+    File { alias: String },
 }
 
 impl ImportOccurrence {
@@ -34,8 +39,9 @@ impl ImportOccurrence {
             source,
             ordinal,
             authored_path,
-            package_prefix_members: 0,
-            file_alias: Some(alias.into()),
+            binding: ImportBinding::File {
+                alias: alias.into(),
+            },
         }
     }
 
@@ -44,8 +50,9 @@ impl ImportOccurrence {
             source,
             ordinal,
             authored_path: identifier_path_text(members),
-            package_prefix_members: prefix,
-            file_alias: None,
+            binding: ImportBinding::Namespace {
+                package_prefix_members: prefix,
+            },
         }
     }
 }
@@ -73,7 +80,7 @@ impl PendingPackageImport {
         packages: &PackageCompilationInputs,
         discovery: &mut impl super::LogicalSourceDiscovery,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-        if self.occurrence.file_alias.is_some() {
+        if matches!(self.occurrence.binding, ImportBinding::File { .. }) {
             return Ok(self.request.exact_file(packages)?.into_iter().collect());
         }
         self.request
@@ -85,35 +92,49 @@ impl PendingPackageImport {
         packages: &PackageCompilationInputs,
         discovery: &mut impl super::LogicalSourceDiscovery,
     ) -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
+        self.resolve_with_prepared_build(packages, discovery, None)
+    }
+
+    pub(super) fn resolve_with_prepared_build(
+        &self,
+        packages: &PackageCompilationInputs,
+        discovery: &mut impl super::LogicalSourceDiscovery,
+        prepared: Option<&crate::PackageBuildHandoff>,
+    ) -> Result<Vec<ResolvedSourceImport>, Vec<Diagnostic>> {
         let mut paths = self.physical_sources(packages, discovery)?;
-        // Dependency-generated units have already been admitted under their
-        // issued handoff. One such unit can anchor package custody when the
-        // package has no authored unit in the selected logical namespace.
-        let exact_file = self.occurrence.file_alias.is_some();
+        let exact_file = matches!(self.occurrence.binding, ImportBinding::File { .. });
         if exact_file || paths.is_empty() {
-            for (purpose, bundle) in packages.dependency_build_handoff_instances() {
-                let scope = match purpose {
-                    build_declarations::DependencyPurpose::Product => DependencyScope::Product,
-                    build_declarations::DependencyPurpose::Build => DependencyScope::Build,
+            let purpose = match self.scope {
+                DependencyScope::Product => build_declarations::DependencyPurpose::Product,
+                DependencyScope::Build => build_declarations::DependencyPurpose::Build,
+            };
+            let admitted = packages
+                .dependency_build_handoff_instances()
+                .filter(|(scope, bundle)| {
+                    *scope == purpose && bundle.package() == self.request.package
+                })
+                .map(|(_, bundle)| bundle);
+            // A prepared Build can supply its own output separately from the
+            // package graph. If both retain it, they name one issued handoff.
+            for bundle in admitted
+                .filter(|bundle| Some(*bundle) != prepared)
+                .chain(prepared)
+            {
+                if bundle.package() != self.request.package {
+                    continue;
+                }
+                let unit = if exact_file {
+                    bundle
+                        .generated_source(std::slice::from_ref(&self.request.relative_path))
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?
+                } else {
+                    bundle.sources().first()
                 };
-                if bundle.package() == self.request.package && scope == self.scope {
-                    for unit in bundle.sources() {
-                        let logical = std::str::from_utf8(unit.relative_path()).map_err(|_| {
-                            vec![Diagnostic::error(
-                                "generated source has no UTF-8 logical filename",
-                            )]
-                        })?;
-                        if exact_file && Path::new(logical) != self.request.relative_path {
-                            continue;
-                        }
-                        paths.push(super::generated::dependency_generated_source_logical_path(
-                            &self.request.expected_root,
-                            unit,
-                        )?);
-                        if !exact_file {
-                            break;
-                        }
-                    }
+                if let Some(unit) = unit {
+                    paths.push(super::generated::dependency_generated_source_logical_path(
+                        &self.request.expected_root,
+                        unit,
+                    )?);
                 }
             }
         }
@@ -173,16 +194,13 @@ pub(crate) fn pending_build_imports(
                 pending.push(source_compiler::PendingBuildImport {
                     source: roots.source_id,
                     span: import.span,
-                    path: match &import.target {
-                        source_compiler::SourceImportTarget::Namespace(members) => identifier_path_text(members),
-                        source_compiler::SourceImportTarget::File { alias, .. } => format!("|{alias}|"),
-                    },
+                    target: import.target.clone(),
                 });
             }
         }
     }
-    pending.sort_unstable_by(|a, b| (a.source.0, &a.path).cmp(&(b.source.0, &b.path)));
-    pending.dedup_by(|a, b| a.source == b.source && a.path == b.path);
+    pending.sort_unstable_by(|a, b| (a.source.0, &a.target).cmp(&(b.source.0, &b.target)));
+    pending.dedup_by(|a, b| a.source == b.source && a.target == b.target);
     pending
 }
 
@@ -255,23 +273,26 @@ pub(crate) fn retain_module_import_bindings(
             && prior.source == occurrence.source
             && prior.ordinal == occurrence.ordinal
         {
-            if prior != occurrence
-                || !storage.sources.same_checked_instance(
+            let same_target = if matches!(occurrence.binding, ImportBinding::File { .. }) {
+                anchor.source_id == declaration.source_id
+            } else {
+                storage.sources.same_checked_instance(
                     anchor.source_span(source_text::Span::default()),
                     declaration.source_span(source_text::Span::default()),
                 )
-            {
+            };
+            if prior != occurrence || !same_target {
                 return Err(vec![Diagnostic::error(format!(
-                    "import `{}` acquired more than one checked package namespace",
+                    "import `{}` acquired more than one checked import target",
                     occurrence.authored_path,
                 ))]);
             }
             continue;
         }
         use source_compiler::representations::source_symbols::SourceScopedTopLevelBinding;
-        bindings.push(match &occurrence.file_alias {
-            Some(alias) => SourceScopedTopLevelBinding::file_import(occurrence.source, declaration.source_id, alias.as_str()),
-            None => SourceScopedTopLevelBinding::logical_module_import(occurrence.source, declaration.source_id, &occurrence.authored_path, occurrence.package_prefix_members),
+        bindings.push(match &occurrence.binding {
+            ImportBinding::File { alias } => SourceScopedTopLevelBinding::file_import(occurrence.source, declaration.source_id, alias.as_str()),
+            ImportBinding::Namespace { package_prefix_members } => SourceScopedTopLevelBinding::logical_module_import(occurrence.source, declaration.source_id, &occurrence.authored_path, *package_prefix_members),
         });
         previous = Some((occurrence, declaration));
     }
@@ -313,7 +334,9 @@ mod tests {
                 source,
                 ordinal: 0,
                 authored_path: "dep::Thing".into(),
-                package_prefix_members: 1,
+                binding: ImportBinding::Namespace {
+                    package_prefix_members: 1,
+                },
             },
             path: path.into(),
         }

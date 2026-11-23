@@ -79,7 +79,7 @@ fn selected_wait_keeps_the_original_declaration_needed_by_its_suffix() {
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::default(),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let (syntax, plan, parked) = select(&PROGRAM.replace("TEST", r"kit\seven"), &imports);
     let site = plan.stage.outgoing_parked_preparation().unwrap();
@@ -105,7 +105,7 @@ fn unrelated_missing_names_do_not_select_a_preparation() {
     let pending = PendingBuildImport {
         source: SOURCE,
         span: Span::default(),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     };
     for (name, imports) in [
         (r"kitchen\seven", vec![pending.clone()]),
@@ -115,7 +115,7 @@ fn unrelated_missing_names_do_not_select_a_preparation() {
             vec![PendingBuildImport {
                 source: SourceId(9),
                 span: Span::default(),
-                path: "kit".into(),
+                target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
             }],
         ),
     ] {
@@ -134,7 +134,7 @@ machine consume() -> u32 { kit\seven() }";
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::default(),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let (_, plan, parked) = select(&program, &imports);
     assert!(plan.stage.outgoing_parked_preparation().is_some());
@@ -153,7 +153,7 @@ fn a_lexical_value_named_like_a_pending_import_does_not_request_it() {
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::default(),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let (_, plan, parked) = select(&program, &imports);
     assert!(plan.stage.outgoing_parked_preparation().is_none());
@@ -172,7 +172,7 @@ fn a_helper_preparation_keeps_its_actual_caller_and_return_body() {
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::default(),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let (_, plan, parked) = select(&program, &imports);
     let path = plan.stage.outgoing_preparation_path().unwrap();
@@ -205,7 +205,7 @@ machine ready(builder: @mutable Build) suspends {
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::default(),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let (_, plan, parked) = select(&program, &imports);
     assert_eq!(plan.stage.outgoing_preparation_path().unwrap().len(), 2);
@@ -226,7 +226,7 @@ fn a_wait_matches_the_resolved_target_with_its_static_qualifier() {
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::default(),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let (_, plan, _) = select(&PROGRAM.replace("TEST()", "7"), &imports);
     let start = PROGRAM.find("suspend Build").unwrap() + "suspend ".len();
@@ -243,7 +243,7 @@ machine unused() -> u32 { kit\seven() }";
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::default(),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let (_, plan, parked) = select(&program, &imports);
     assert!(plan.stage.outgoing_preparation_path().is_none());
@@ -263,7 +263,7 @@ fn an_unused_deferred_import_warns_at_its_own_source_occurrence() {
     let import = |source| PendingBuildImport {
         source,
         span: Span::new(4, 7),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     };
     let imports = [import(SOURCE), import(SourceId(8))];
     let (_, mut finished, _) = select(&PROGRAM.replace("TEST()", "7"), &imports);
@@ -288,7 +288,7 @@ fn a_stage_keeps_its_borrowed_formal_for_the_mounted_call() {
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::new(5, 8),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let (_, _, parked) = select(&program, &imports);
     let [entry] = parked.as_slice() else {
@@ -324,7 +324,7 @@ machine build(builder: @mutable Build, choosing: bool) suspends {
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::new(5, 8),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let (syntax, plan, parked) = select(program, &imports);
     let [caller, leaf] = plan.stage.outgoing_preparation_path().unwrap() else {
@@ -384,7 +384,7 @@ fn a_generated_entry_query_in_a_bind_operand_requests_its_import() {
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::new(5, 8),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let (_, plan, _) = select(&program, &imports);
     assert!(plan.stage.outgoing_preparation_path().is_some());
@@ -395,7 +395,7 @@ fn a_missing_type_in_the_suffix_is_a_dependency_use() {
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::new(5, 8),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let program = PROGRAM.replace("let seven: u32 = TEST();", r"let seven: kit\Answer = 7;");
     let (_, plan, _) = select(&program, &imports);
@@ -410,7 +410,7 @@ fn a_called_helpers_contract_is_a_dependency_use_before_its_body() {
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::new(5, 8),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let program = PROGRAM.replace("TEST()", "consume()")
         + r"
@@ -427,7 +427,7 @@ fn a_wait_in_a_sibling_arm_does_not_supply_another_arms_import() {
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::new(5, 8),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let program = r"
 use kit;
@@ -450,7 +450,7 @@ fn a_value_returning_helper_keeps_its_authored_completion_at_a_nested_wait() {
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::new(5, 8),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let program = PROGRAM
         .replace(
@@ -517,7 +517,7 @@ machine build(builder: @mutable Build, choosing: bool) suspends {
     let imports = ["left", "right"].map(|path| PendingBuildImport {
         source: SOURCE,
         span: Span::default(),
-        path: path.into(),
+        target: crate::SourceImportTarget::Namespace(vec![path.into()]),
     });
     let (_, initial, parked) = select(program, &imports);
     assert_eq!(parked.len(), 2);
@@ -572,7 +572,7 @@ fn a_record_constructor_alone_requests_the_missing_type() {
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::default(),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let program = PROGRAM.replace(
         "let seven: u32 = TEST();",
@@ -615,7 +615,7 @@ machine choose(builder: @mutable Build, choosing: bool) suspends {
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::default(),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let (_, plan, parked) = select(program, &imports);
     assert!(plan.stage.outgoing_preparation_paths().is_empty());
@@ -636,7 +636,7 @@ machine ready(builder: @mutable Build) -> u32 suspends {
     let imports = [PendingBuildImport {
         source: SOURCE,
         span: Span::default(),
-        path: "kit".into(),
+        target: crate::SourceImportTarget::Namespace(vec!["kit".into()]),
     }];
     let (syntax, plan, parked) = select(text, &imports);
     let [open] = parked.as_slice() else {
