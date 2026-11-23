@@ -1,1 +1,2 @@
-public machine c_value() -> i32 { c_seed() }
+use main.omg as authored;
+public machine c_value() -> i32 { |authored|::c_seed() }

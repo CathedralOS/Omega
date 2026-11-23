@@ -50,8 +50,7 @@ pub(super) fn load_source_frontiers(
     catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
 ) -> Result<Vec<PendingPackageImport>, Vec<Diagnostic>> {
     let mut retained_requests = Vec::new();
-    while imports.has_pending() {
-        let frontier = imports.take_frontier();
+    while let Some(frontier) = imports.take_frontier() {
         let frontier = match &routing {
             SourceRouting::Compilation {
                 package_inputs: Some(package_inputs),

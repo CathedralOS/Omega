@@ -1,19 +1,11 @@
-# build_dual_purpose_alias
+# One dependency alias in Build and Product
 
-One dependency directory reached by the same alias `kit` on both purposes:
+Both the Build and the product import `{kit}/generated.omg` and call its
+public `value()` machine. The Build registers the dependency with
+`Build::build_dependency` before waiting for it. A separate `Build::dependency`
+registration gives the product access under the same alias.
 
-- A `Build::build_dependency` registration aliased `"kit"` gives the build scope the
-  dep's product machines (`use kit;` inside `build.omg`, called after `Build::prepare_dependency`).
-- A `Build::dependency` registration aliased `"kit"` gives the product scope the same
-  machines (`use kit;` inside `main.omg`).
-
-The dependency publishes its captured bytes as `generated.omg` and uses the
-same bytes to write a promised output file.
-The generated `value()` is the machine both scopes import; it calls the
-authored `seed()` and must return 7. The direction matters: generated
-source may select authored declarations, but authored source never selects
-its own package's generated declarations (`wiki/spec/build/execution.md`,
-"Generated-source boundary").
-
-The question pinned here: does one alias carrying both purposes reject as
-a collision, or does the roster keep the two rows distinct per scope?
+The dependency reads a source template, publishes those bytes as
+`generated.omg`, and writes the same bytes to a promised file. The generated
+`value()` imports the dependency’s authored `main.omg` and calls `seed()`,
+which returns 7.

@@ -1,7 +1,7 @@
-use a;
-use b;
-use c;
+use {a}/generated.omg as a;
+use {b}/generated.omg as b;
+use {c}/generated.omg as c;
 
 machine entry() -> i64 {
-    (a\a_value() as i64) + (b\b_value() as i64) + c\c_value() as i64
+    (|a|::a_value() as i64) + (|b|::b_value() as i64) + |c|::c_value() as i64
 }

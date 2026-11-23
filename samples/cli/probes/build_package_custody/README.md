@@ -12,8 +12,8 @@ writes those bytes to a promised output file and settles that obligation.
 explicit source inventory. Their own project descriptors give them separate
 package owners; their files are not implicit reads from a consumer tree.
 
-The root's build calls `kit::value()` in build scope; `main.omg` calls the
-same machine through the product edge. `value()` is generated and forwards
+The Build imports `{kit}/generated.omg` and calls `|kit|::value()`. The product
+imports `{product_kit}/generated.omg` and calls the same machine. `value()` is generated and forwards
 to the authored `seed()`: authored source cannot select its own package's
 generated declarations, so the generated stratum owns the exported machine.
 Both routes must resolve to `7`, and the dependency's build evaluates once for both
