@@ -8,13 +8,11 @@ use crate::declarations::dependencies::read::{DependencyPurpose, DependencySourc
 use crate::declarations::editable_build;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::ExpressionHandle;
-use syntax_trees::statement::StatementHandle;
 
 pub(super) struct ProjectedDirectDependencies {
     pub requests: Vec<(DependencyPurpose, DependencySourceRequest)>, // Authored-order rows tagged with the scope their call authorizes.
-    pub accepted_statements: Vec<StatementHandle>,
     pub accepted_sources: Vec<ExpressionHandle>,
-    pub accepted_calls: Vec<Vec<ExpressionHandle>>, // Argument rosters of projected vocabulary calls.
+    pub accepted_calls: Vec<ExpressionHandle>,
 }
 
 pub(super) fn project_direct_dependencies(
@@ -23,7 +21,6 @@ pub(super) fn project_direct_dependencies(
 ) -> Result<ProjectedDirectDependencies, DependencyProjectionError> {
     let mut projected = ProjectedDirectDependencies {
         requests: Vec::new(),
-        accepted_statements: Vec::new(),
         accepted_sources: Vec::new(),
         accepted_calls: Vec::new(),
     };
@@ -39,11 +36,8 @@ pub(super) fn project_direct_dependencies(
             project_source_literal(syntax_trees, row.source(), explicit_alias)?,
         ));
         projected
-            .accepted_statements
-            .extend_from_slice(row.statements());
-        projected
             .accepted_calls
-            .extend_from_slice(row.accepted_call_arguments());
+            .extend_from_slice(row.accepted_calls());
         projected.accepted_sources.push(row.source());
     }
     Ok(projected)

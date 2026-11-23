@@ -77,8 +77,9 @@ fn prepares_x86_memory_fences_as_zero_operand_intrinsics() {
         let StatementNode::Call(call) = parsed.statements.statement(*statement) else {
             panic!("fence should desugar to a call statement");
         };
+        let call = call.call(&parsed);
         assert_eq!(call.target.as_str(&parsed), target);
-        assert!(call.receiver.is_empty());
+        assert!(!call.receiver.is_valid());
         assert_eq!(call.arguments.count(), 0);
     }
 }
@@ -101,8 +102,9 @@ fn prepares_x86_interrupt_control_as_zero_operand_intrinsics() {
         let StatementNode::Call(call) = parsed.statements.statement(*statement) else {
             panic!("interrupt control should desugar to a call statement");
         };
+        let call = call.call(&parsed);
         assert_eq!(call.target.as_str(&parsed), target);
-        assert!(call.receiver.is_empty());
+        assert!(!call.receiver.is_valid());
         assert_eq!(call.arguments.count(), 0);
     }
 }
@@ -136,6 +138,7 @@ fn prepares_x86_flags_as_explicit_value_operations() {
     let StatementNode::Call(restore) = parsed.statements.statement(statements[1]) else {
         panic!("popfq should desugar to a call statement");
     };
+    let restore = restore.call(&parsed);
     assert_eq!(restore.target.as_str(&parsed), "asm#popfq");
     assert_eq!(restore.arguments.count(), 1);
 }
@@ -169,6 +172,7 @@ fn prepares_x86_msr_as_structured_value_operations() {
     let StatementNode::Call(write) = parsed.statements.statement(statements[1]) else {
         panic!("wrmsr should desugar to a call statement");
     };
+    let write = write.call(&parsed);
     assert_eq!(write.target.as_str(&parsed), "asm#wrmsr");
     assert_eq!(write.arguments.count(), 2);
 }
@@ -222,6 +226,7 @@ fn prepares_x86_control_registers_as_structured_value_operations() {
         else {
             panic!("control-register write should desugar to call");
         };
+        let write = write.call(&parsed);
         assert_eq!(write.target.as_str(&parsed), target);
         assert_eq!(write.arguments.count(), 1);
     }
@@ -264,7 +269,7 @@ fn prepares_multi_instruction_asm_in_nested_machines_and_trait_defaults() {
     assert_eq!(
         instruction_statements(
             &parsed,
-            parsed.items.statements(default_signature.default_body)
+            parsed.items.statements(default_signature.default_body.unwrap().statements)
         )
         .len(),
         2,
@@ -536,7 +541,7 @@ fn prepares_asm_requires_facts_at_entry_and_exit() {
     let instructions = parsed.statements.assembly_instructions(block.instructions);
     assert_eq!(instructions.len(), 1);
     assert!(matches!(parsed.statements.statement(instructions[0]),
-        StatementNode::Call(call) if call.target.as_str(&parsed) == "asm#port_out"));
+        StatementNode::Call(call) if call.call(&parsed).target.as_str(&parsed) == "asm#port_out"));
 }
 
 #[test]
@@ -642,13 +647,15 @@ fn prepares_asm_mnemonics_as_intrinsic_calls() {
     let StatementNode::Call(hlt) = parsed.statements.statement(statements[1]).clone() else {
         panic!("asm {{ hlt }} should desugar to a call statement");
     };
+    let hlt = hlt.call(&parsed);
     assert_eq!(hlt.target.as_str(&parsed), "asm#hlt");
-    assert!(hlt.receiver.is_empty());
+    assert!(!hlt.receiver.is_valid());
     assert_eq!(hlt.arguments.count(), 0);
 
     let StatementNode::Call(out) = parsed.statements.statement(statements[2]).clone() else {
         panic!("asm {{ out .. }} should desugar to a call statement");
     };
+    let out = out.call(&parsed);
     assert_eq!(out.target.as_str(&parsed), "asm#port_out");
     assert_eq!(out.arguments.count(), 2);
 
@@ -735,7 +742,7 @@ fn entry_and_nested_bodies_preserve_expanded_statement_order_and_boundaries() {
         ));
         for (handle, expected) in [(statements[1], "asm#lfence"), (statements[2], "asm#sfence")] {
             assert!(
-                matches!(trees.statements.statement(handle), StatementNode::Call(call) if call.target.as_str(&trees) == expected)
+                matches!(trees.statements.statement(handle), StatementNode::Call(call) if call.call(&trees).target.as_str(&trees) == expected)
             );
         }
         assert!(matches!(

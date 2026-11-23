@@ -21,11 +21,11 @@ pub(super) struct ParameterStorage {
     multiplicity: terminal_psi::StructuralMultiplicity,
 }
 
-pub(super) fn rigid_type_scope(
-    parameters: arena::RootRows<'_, crate::source_state::data::TypeParameter>,
+pub(super) fn rigid_type_scope<'a>(
+    parameters: impl IntoIterator<Item = &'a crate::source_state::data::TypeParameter>,
 ) -> Vec<(SymbolHandle, ValueType)> {
     parameters
-        .iter()
+        .into_iter()
         .enumerate()
         .filter(|(_, parameter)| parameter.kind == TypeParameterKind::Type)
         .map(|(position, parameter)| {
@@ -85,11 +85,9 @@ impl Program<'_> {
         let owner = self.typed.symbols.get(symbol).parent;
         let parameters = self.typed.declaration_type_parameters(owner);
         let parameter = parameters
-            .get(ordinal)
-            .filter(|parameter| parameter.symbol == symbol)
-            .ok_or_else(|| {
-                unavailable("type parameter ordinal belongs to another declared binder")
-            })?;
+            .iter()
+            .find(|parameter| parameter.symbol == symbol)
+            .ok_or_else(|| unavailable("type parameter has no binder in its declaring scope"))?;
         if parameter.kind != TypeParameterKind::Type {
             return Err(unavailable(
                 "type parameter has an unrepresented kind",

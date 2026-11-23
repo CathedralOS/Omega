@@ -1513,7 +1513,9 @@ impl<'program, 'selection> Collector<'program, 'selection> {
                             statements.extend(body.iter().rev());
                         }
                     }
-                    Statement::Expression(expression) => self.queue_expression(*expression),
+                    Statement::Expression(expression) | Statement::Evaluate { expression, .. } => {
+                        self.queue_expression(*expression)
+                    }
                     Statement::LocalData(local) => {
                         self.queue_type(&local.type_reference);
                         if local.initial_value.is_valid() {

@@ -448,6 +448,7 @@ impl BinderRoles {
     roster.
 */
 pub(super) struct TraitLexicalScopes {
+    machine_traits: arena::HandleKeyMap<SymbolHandle, SymbolHandle>,
     inherited: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
 }
 
@@ -470,7 +471,39 @@ impl TraitLexicalScopes {
                 (trait_definition.symbol, requirements)
             })
             .collect();
-        Self { inherited }
+        let trait_by_implementation: std::collections::HashMap<_, _> = program
+            .conformances
+            .iter()
+            .map(|implementation| (implementation.symbol, implementation.trait_symbol))
+            .collect();
+        let mut machine_traits = arena::HandleKeyMap::default();
+        for machine in program.machines.iter() {
+            let root = machine.lexical_root(&program.machines);
+            let declaring = root.trait_default_origin.declaring_trait;
+            let owner = if declaring.is_valid() {
+                Some(declaring)
+            } else {
+                trait_by_implementation
+                    .get(&program.symbols.get(root.symbol).declaration_owner)
+                    .copied()
+            };
+            if let Some(owner) = owner.filter(|owner| owner.is_valid()) {
+                machine_traits.insert(machine.symbol, owner);
+            }
+        }
+        Self {
+            inherited,
+            machine_traits,
+        }
+    }
+
+    pub(super) fn machine_requirements(&self, machine: SymbolHandle) -> LexicalRequirements<'_> {
+        self.requirements_of(
+            self.machine_traits
+                .get(&machine)
+                .copied()
+                .unwrap_or_default(),
+        )
     }
 
     /*

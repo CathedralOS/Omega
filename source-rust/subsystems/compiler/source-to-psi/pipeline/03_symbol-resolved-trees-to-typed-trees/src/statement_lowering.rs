@@ -1690,6 +1690,13 @@ pub(crate) mod statement {
                     "evidence packages are classified out before runtime statement lowering"
                 )
             }
+            resolved::statement::StatementNode::Evaluate {
+                expression,
+                discards_result,
+            } => Ok(typed::statement::StatementNode::Evaluate {
+                expression: lower_statement_expression(lowerer, *expression)?,
+                discards_result: *discards_result,
+            }),
             resolved::statement::StatementNode::Expression(expression) => {
                 Ok(typed::statement::StatementNode::Expression(
                     lower_statement_expression(lowerer, *expression)?,

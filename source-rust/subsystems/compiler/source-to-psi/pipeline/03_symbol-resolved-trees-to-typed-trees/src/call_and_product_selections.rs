@@ -1568,6 +1568,7 @@ pub(crate) mod construction_destinations {
                         }
                         StatementNode::AssemblyFact(_)
                         | StatementNode::Expression(_)
+                        | StatementNode::Evaluate { .. }
                         | StatementNode::LocalData(_) => {}
                     }
                 }

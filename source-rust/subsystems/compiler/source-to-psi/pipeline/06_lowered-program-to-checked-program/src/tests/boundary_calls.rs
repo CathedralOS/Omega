@@ -3907,7 +3907,10 @@ fn generic_named_map_captures_keep_every_unused_binder() {
         .map(|(_, row)| row)
         .collect::<Vec<_>>();
     assert_eq!(captures.len(), 2);
-    assert_ne!(captures[0].instance, captures[1].instance);
+    assert_ne!(
+        captures[0].declarations[0].instance,
+        captures[1].declarations[0].instance
+    );
     assert_ne!(
         captures[0].conformance_application.identity_encoding,
         captures[1].conformance_application.identity_encoding
@@ -3945,6 +3948,170 @@ fn generic_named_map_captures_keep_every_unused_binder() {
 }
 
 #[test]
+fn generic_named_map_reuses_owned_members_across_lexical_and_explicit_calls() {
+    let text = r#"
+trait Parent<Value> {
+    machine observe(value: @Value) reaches none crashes none;
+    machine next(value: Value) -> Value reaches none crashes none;
+}
+trait Child<Value>: Parent<Value> {
+    machine apply(value: Value) -> Value reaches none crashes none {
+        pass(value)
+        machine pass(item: Value) -> Value reaches none crashes none {
+            observe(@item);
+            next(item)
+        }
+    }
+}
+Selected<Value, Unused> satisfies Child<Value> {
+    machine observe(item: @Value) reaches none crashes none {}
+    machine next(item: Value) -> Value reaches none crashes none { item }
+}
+machine entry() -> u32 reaches none crashes none {
+    let first: u32 = Selected::<u32, bool>::next(3);
+    Selected::<u32, bool>::apply(7)
+}"#;
+    let prepared = prepare_named_map(text);
+    let program = prepared.trees();
+    let mut groups = program.captured_machine_applications.iter();
+    let (_, selected) = groups.next().expect("one selected map tuple");
+    assert!(groups.next().is_none());
+    assert_eq!(selected.declarations.len(), 4);
+    for body in &selected.declarations {
+        assert!(program.captured_conformance_owner(selected, body).is_some());
+    }
+    assert_named_invocation_value(
+        compilation_verdicts_of(&prepared),
+        semantic_vocabulary::IntegerValue::Unsigned(7),
+    );
+}
+
+#[test]
+fn generic_named_map_prepares_mutually_recursive_members_once() {
+    let prepared = prepare_named_map(
+        r#"
+trait Cycle {
+    machine left(value: u32) -> u32 reaches none crashes none;
+    machine right(value: u32) -> u32 reaches none crashes none;
+}
+Selected<Unused> satisfies Cycle {
+    machine left(value: u32) -> u32 reaches none crashes none { Selected::<Unused>::right(value) }
+    machine right(value: u32) -> u32 reaches none crashes none { left(value) }
+}
+machine entry() -> u32 reaches none crashes none { Selected::<bool>::left(7) }
+"#,
+    );
+    let mut groups = prepared.trees().captured_machine_applications.iter();
+    let (_, captured) = groups.next().expect("one selected map tuple");
+    assert!(groups.next().is_none());
+    assert_eq!(captured.declarations.len(), 2);
+    assert_ne!(
+        captured.declarations[0].template,
+        captured.declarations[1].template
+    );
+}
+
+#[test]
+fn recursive_named_map_preparation_closes_finite_tuples_and_defers_expansion() {
+    let program = r#"
+trait Ring { machine turn() reaches none crashes none; }
+Selected<A, B, C, D> satisfies Ring {
+    machine turn() reaches none crashes none { Selected::<B, C, D, A>::turn(); }
+}
+machine entry() reaches none crashes none { Selected::<u32, bool, u64, u8>::turn(); }
+"#;
+    let finite = prepare_named_map(program);
+    assert_eq!(
+        finite.trees().captured_machine_applications.iter().count(),
+        4
+    );
+    assert!(finite.trees().deferred_refusals.is_empty());
+
+    // Each step adds an array, but the last slot becomes constant. Four
+    // substitutions produce a fixed tuple and further calls reuse it.
+    let settling = prepare_named_map(
+        &program.replace("B, C, D, A>::turn", "[B; 2], [C; 2], [D; 2], bool>::turn"),
+    );
+    assert_eq!(
+        settling
+            .trees()
+            .captured_machine_applications
+            .iter()
+            .count(),
+        5
+    );
+    assert!(settling.trees().deferred_refusals.is_empty());
+
+    let growing =
+        prepare_named_map(&program.replace("B, C, D, A>::turn", "B, C, D, [A; 2]>::turn"));
+    assert!(growing.trees().deferred_refusals.iter().any(|row| {
+        row.detail
+            .contains("recursive map call has no established finite argument closure")
+    }));
+}
+
+#[test]
+fn private_helpers_belong_to_their_own_map_application() {
+    let source = generic_named_map_source()
+        .replace(
+            "{ input }",
+            "{ pass(input) machine pass(item: Value) -> Value reaches none crashes none { item } }",
+        )
+        .replace(
+            "Selected::<u32>::apply(7)",
+            "let probe: bool = Selected::<bool>::apply(true); Selected::<u32>::apply(7)",
+        );
+    let prepared = prepare_named_map(&source);
+    assert_named_invocation_value(
+        compilation_verdicts_of(&prepared),
+        semantic_vocabulary::IntegerValue::Unsigned(7),
+    );
+
+    let mut program = prepared.into_inner();
+    let selections = program
+        .captured_machine_applications
+        .iter()
+        .map(|(id, _)| id)
+        .collect::<Vec<_>>();
+    let [first, second] = selections[..] else {
+        panic!("two map applications")
+    };
+    let left = program
+        .captured_machine_applications
+        .get(first)
+        .declarations[1]
+        .clone();
+    let right = program
+        .captured_machine_applications
+        .get(second)
+        .declarations[1]
+        .clone();
+    assert_eq!(left.template, right.template);
+    assert_ne!(left.instance, right.instance);
+    program
+        .captured_machine_applications
+        .get_mut(first)
+        .declarations[1] = right;
+    program
+        .captured_machine_applications
+        .get_mut(second)
+        .declarations[1] = left;
+    for (_, selection) in program.captured_machine_applications.iter() {
+        assert!(
+            program
+                .captured_conformance_owner(selection, &selection.declarations[1])
+                .is_none()
+        );
+    }
+    let verdict = judge(invocation(program)).unwrap();
+    assert!(
+        matches!(&verdict, RouteVerdict::FallBack(refusal)
+        if refusal.detail.contains("nested call belongs to another enclosing application")),
+        "{verdict:?}"
+    );
+}
+
+#[test]
 fn generic_named_map_captures_keep_the_actual_source_owner() {
     let text = generic_named_map_source().replace(
         "machine entry() -> u32 reaches none crashes none { Selected::<u32>::apply(7) }",
@@ -3959,17 +4126,20 @@ fn generic_named_map_captures_keep_the_actual_source_owner() {
         .map(|(_, row)| row)
         .collect::<Vec<_>>();
     assert_eq!(captures.len(), 2);
-    assert_ne!(captures[0].instance, captures[1].instance);
+    assert_ne!(
+        captures[0].declarations[0].instance,
+        captures[1].declarations[0].instance
+    );
     assert_ne!(
         prepared
             .trees()
             .expression_table
-            .static_machine_application(captures[0].binding_application)
+            .static_machine_application(captures[0].binding_application())
             .lexical_owner,
         prepared
             .trees()
             .expression_table
-            .static_machine_application(captures[1].binding_application)
+            .static_machine_application(captures[1].binding_application())
             .lexical_owner
     );
     assert_named_invocation_value(
@@ -4000,6 +4170,40 @@ fn generic_named_map_calls_keep_public_requirements_and_guarantees() {
             "{verdicts:?}"
         );
     }
+}
+
+#[test]
+fn a_generic_caller_uses_the_selected_maps_public_requirement() {
+    let source = r#"
+trait Step<T> { machine next(value: T) -> T reaches none crashes none requires false; }
+Selected<T, Second> satisfies Step<T> {
+    machine next(value: T) -> T reaches none crashes none { value }
+}
+machine forward<A, B>(value: A) -> A reaches none crashes none { Selected::<A, B>::next(value) }
+machine entry() -> u32 reaches none crashes none { forward::<u32, u32>(7) }
+"#;
+    let positive = source.replace(" requires false", "");
+    assert_named_invocation_value(
+        full_named_map_verdicts(&prepare_named_map(&positive)),
+        semantic_vocabulary::IntegerValue::Unsigned(7),
+    );
+    let verdicts = full_named_map_verdicts(&prepare_named_map(source));
+    assert!(
+        verdicts.iter().skip(1).any(|verdict| matches!(verdict,
+        RouteVerdict::Rejected { unproved, .. } if unproved.iter().any(|row|
+            matches!(row.kind, ObligationKind::CallRequirement { .. })))),
+        "{verdicts:?}"
+    );
+
+    // The one concrete call supplies u32 twice. Each generic parameter is
+    // still independent when the declaration of forward is checked.
+    let swapped = positive.replace("Selected::<A, B>", "Selected::<B, A>");
+    let verdicts = full_named_map_verdicts(&prepare_named_map(&swapped));
+    assert!(
+        verdicts.iter().skip(1).any(|verdict| matches!(verdict,
+        RouteVerdict::FallBack(refusal) if refusal.detail.contains("typing argument types"))),
+        "{verdicts:?}"
+    );
 }
 
 #[test]

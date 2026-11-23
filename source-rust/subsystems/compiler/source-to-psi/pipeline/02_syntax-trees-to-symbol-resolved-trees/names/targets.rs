@@ -249,13 +249,6 @@ mod calls {
             return SymbolHandle::invalid();
         }
 
-        let requirement = machine
-            .lexical_requirements
-            .select(symbols, target.as_str());
-        if requirement.is_valid() {
-            return requirement;
-        }
-
         let generic_owner = if symbols.get(machine.symbol).kind == SymbolKind::Variant {
             symbols.get(machine.symbol).parent
         } else {
@@ -301,7 +294,14 @@ mod calls {
                 machine_entry_symbol(symbols, declaration, target.as_str())
             }
             SymbolLookup::Ambiguous { .. } => SymbolHandle::invalid(),
-            SymbolLookup::NotFound => resolve_free_call_target_symbol(symbols, target),
+            SymbolLookup::NotFound => {
+                let requirement = machine.lexical_requirements.select(symbols, target.as_str());
+                if requirement.is_valid() {
+                    requirement
+                } else {
+                    resolve_free_call_target_symbol(symbols, target)
+                }
+            }
         }
     }
 

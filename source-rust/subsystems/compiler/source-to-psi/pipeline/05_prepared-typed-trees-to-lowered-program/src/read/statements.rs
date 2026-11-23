@@ -11,7 +11,7 @@ referent like a home, a field of a record referent like a field of a mutable
 local.
 */
 
-use crate::source_state::expression::ExpressionNode;
+use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
 use crate::source_state::statement::{
     StatementHandle, StatementNode, TableAssignment, TableLocalData,
 };
@@ -26,6 +26,21 @@ use crate::lowering::body::{ExpressionKind, Statement, ValueType};
 use crate::lowering::{SourceOrigin, Unserved, refuse, reject};
 
 impl Program<'_> {
+    pub(super) fn evaluated_expression(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        expression: ExpressionHandle,
+        discards_result: bool,
+    ) -> Checked<Statement> {
+        let mut expression = self.expression(id, slots, expression, None)?;
+        crate::lowering::operational::boundary(&mut expression);
+        Ok(Statement::Evaluate {
+            expression,
+            discards_result,
+        })
+    }
+
     pub(super) fn call_statement_at(
         &mut self,
         id: MachineId,
@@ -627,13 +642,12 @@ impl Program<'_> {
                     expression: self.call_statement_at(id, scope, handle)?,
                     discards_result: call.discards_result,
                 },
+                StatementNode::Evaluate {
+                    expression,
+                    discards_result,
+                } => self.evaluated_expression(id, scope, *expression, *discards_result)?,
                 StatementNode::Expression(expression) => {
-                    let mut expression = self.expression(id, scope, *expression, None)?;
-                    crate::lowering::operational::boundary(&mut expression);
-                    Statement::Evaluate {
-                        expression,
-                        discards_result: false,
-                    }
+                    self.evaluated_expression(id, scope, *expression, false)?
                 }
                 StatementNode::LocalData(local)
                     if local.role == language_core::LocalBindingRole::RecordPattern =>

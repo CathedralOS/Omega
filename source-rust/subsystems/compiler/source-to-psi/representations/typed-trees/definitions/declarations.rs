@@ -2853,26 +2853,13 @@ pub mod visibility {
         if program.symbols.get(declaration).kind != SymbolKind::Machine {
             return declaration_visibility(program, symbol);
         }
-        let origin_count =
-            program.machine_specializations.len() + program.captured_machine_applications.len();
-        for _ in 0..=origin_count {
-            let mut origins = program
-                .machine_specializations
-                .for_instance(declaration)
-                .map(|specialization| specialization.template)
-                .chain(
-                    program
-                        .captured_machine_applications
-                        .iter()
-                        .filter(|(_, capture)| capture.instance == declaration)
-                        .map(|(_, capture)| capture.template),
-                );
-            let Some(template) = origins.next() else {
+        let mut visited = Vec::new();
+        while !visited.contains(&declaration) {
+            visited.push(declaration);
+            let Some(origin) = program.machine_instantiation(declaration).ok()? else {
                 return authored_machine_visibility(program, declaration);
             };
-            if origins.next().is_some() {
-                return None;
-            }
+            let template = origin.template();
             if template == declaration {
                 return authored_machine_visibility(program, declaration);
             }
@@ -3077,8 +3064,11 @@ pub mod visibility {
                 program
                     .captured_machine_applications
                     .insert(CapturedMachineApplication {
-                        template,
-                        instance: captured,
+                        declarations: vec![crate::source_state::CapturedMachineDeclaration {
+                            template,
+                            instance: captured,
+                            ..Default::default()
+                        }],
                         ..Default::default()
                     });
                 program.machine_specializations.push(MachineSpecialization {
@@ -3102,8 +3092,11 @@ pub mod visibility {
                 program
                     .captured_machine_applications
                     .insert(CapturedMachineApplication {
-                        template,
-                        instance: invoked,
+                        declarations: vec![crate::source_state::CapturedMachineDeclaration {
+                            template,
+                            instance: invoked,
+                            ..Default::default()
+                        }],
                         ..Default::default()
                     });
                 assert!(super::authored_selection_visibility(&program, invoked).is_none());
@@ -3175,8 +3168,11 @@ pub mod visibility {
                     program
                         .captured_machine_applications
                         .insert(CapturedMachineApplication {
-                            template: member,
-                            instance,
+                            declarations: vec![crate::source_state::CapturedMachineDeclaration {
+                                template: member,
+                                instance,
+                                ..Default::default()
+                            }],
                             ..Default::default()
                         });
                     for symbol in [member, state, instance] {

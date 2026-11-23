@@ -209,7 +209,7 @@ fn retarget_statement_span(
             StatementNode::ProofOutputBindingStatement(package) => {
                 expressions.push(package.call);
             }
-            StatementNode::Expression(expression) => {
+            StatementNode::Expression(expression) | StatementNode::Evaluate { expression, .. } => {
                 expressions.push(expression);
             }
             StatementNode::LocalData(local) => {

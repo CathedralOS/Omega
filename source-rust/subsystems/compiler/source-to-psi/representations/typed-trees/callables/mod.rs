@@ -4,6 +4,7 @@ pub mod callable_lifetimes;
 pub(crate) mod callable_copies;
 pub mod callable_signature_shapes;
 pub mod callable_values;
+pub(crate) mod machine_instances;
 pub(crate) mod machine_specializations;
 pub mod runtime_callable_identity;
 pub(crate) mod callable_applications;

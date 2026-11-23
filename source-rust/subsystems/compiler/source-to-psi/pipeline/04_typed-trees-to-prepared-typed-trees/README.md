@@ -70,27 +70,22 @@ the same request, and the reader of the selection takes each parameter's
 value from the generated machine's application
 (`typed_trees::product_operand::capture_static_environment`).
 
-Checked-body machines nested inside a generic machine are copied with its
-closed application if they have no static parameters of their own. The pass
-validates the whole tree first, then gives each machine, state,
-formal and local a fresh symbol before rebinding any body. A nested
-declaration keeps its own source template and its enclosing application's
-static bindings, so two outer applications never share a
-helper's identity or signature. Calls between the copies use that one symbol
-map. Runtime values still need explicit arguments; no enclosing
-activation is captured. If a child has its own static parameters,
-the whole tree is left unserved.
+Closing a generic machine copies its nested declarations with it. The pass
+validates the tree and allocates fresh symbols for every machine, entry,
+formal and local before rebinding any body. Calls between siblings use the
+same symbol map. Each copied declaration retains its own source and receives
+the enclosing application's static arguments. A helper's independent type
+parameters remain available for its own calls. Runtime values pass through
+ordinary arguments.
 
 A fully applied named map with a default type-only telescope uses the same
-copier through [named conformance preparation](passes/specialization/named_conformances.rs).
-Its call keeps the public requirement. An existing `CapturedMachineApplication`
-keeps the actual constructor bindings, complete tuple and lexical owner,
-mapped to the fresh body, states and formals. An unused binder
-still belongs to that capture's source application. The copier keeps written
-reach rows, `reaches none` included; installation-bound rows stay unserved,
-as do captured members with nested declaration trees, map
-lifetimes or non-type map binders. This metadata proves nothing about the
-template.
+[copier](passes/specialization/named_conformances.rs). The call identifies
+the public requirement. One `CapturedMachineApplication` retains the map's
+constructor bindings, complete argument tuple and supplying owner. It names
+the selected member as its root and records the source and entry of each
+copied private machine. An unused map parameter still contributes to the
+identity of every copy. Map lifetimes, non-type map parameters and
+installation-bound reach rows remain unserved.
 
 The record-pattern pass resolves a subject that names a parameter or a typed
 local whose declared type is a plain, non-generic record. A field path, a call

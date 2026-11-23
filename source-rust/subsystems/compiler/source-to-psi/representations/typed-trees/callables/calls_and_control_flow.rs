@@ -1583,6 +1583,15 @@ pub mod control_flow {
                                     reflected_field_origin,
                                 })
                             }
+                            StatementNode::Evaluate {
+                                expression,
+                                discards_result,
+                            } => StatementNode::Evaluate {
+                                expression: self
+                                    .expression_table
+                                    .copy_from(&source_tables.expression_table, *expression),
+                                discards_result: *discards_result,
+                            },
                             StatementNode::Expression(expression) => StatementNode::Expression(
                                 self.expression_table
                                     .copy_from(&source_tables.expression_table, *expression),
@@ -1826,7 +1835,8 @@ pub mod control_flow {
                                 current.installed_interrupt_operation = request;
                                 current.reflected_field_origin = reflected_field_origin;
                             }
-                            StatementNode::Expression(expression) => {
+                            StatementNode::Expression(expression)
+                            | StatementNode::Evaluate { expression, .. } => {
                                 self.expression_table.remap_symbols_in(expression, symbols);
                             }
                             StatementNode::LocalData(local) => {
@@ -1947,7 +1957,8 @@ pub mod control_flow {
                                     .map(|argument| (Role::CallArgument, *argument)),
                             );
                         }
-                        StatementNode::Expression(expression) => {
+                        StatementNode::Expression(expression)
+                        | StatementNode::Evaluate { expression, .. } => {
                             roots.push((Role::Expression, *expression))
                         }
                         StatementNode::LocalData(local) => {
@@ -2522,6 +2533,10 @@ pub mod control_flow {
             Assignment(TableAssignment),
             Call(TableCall),
             Expression(ExpressionHandle),
+            Evaluate {
+                expression: ExpressionHandle,
+                discards_result: bool,
+            },
             LocalData(TableLocalData),
             Transition(TableTransition),
         }
@@ -2535,7 +2550,9 @@ pub mod control_flow {
             }
 
             pub fn as_expression(&self) -> Option<&ExpressionHandle> {
-                let StatementNode::Expression(expression) = self else {
+                let (StatementNode::Expression(expression)
+                | StatementNode::Evaluate { expression, .. }) = self
+                else {
                     return None;
                 };
                 Some(expression)

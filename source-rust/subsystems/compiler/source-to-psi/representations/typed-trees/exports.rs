@@ -31,7 +31,8 @@ pub(crate) use access_views_and_commitments::{access_views, commitments};
 pub use callable_applications::{
     AppliedMachineCallable, AppliedMachineCallableId, AppliedStaticCallbackRequirement,
     CallableApplication, CallableContractScope, CallableSubstitution, ClosedRequirementApplication,
-    MachineInstantiation, NamedConformanceCaptureIndex, RequirementLocalArgument,
+    MachineInstantiation, NamedCaptureError, NamedConformanceCaptureIndex,
+    RequirementLocalArgument,
 };
 pub use calls_and_control_flow::{calls, control_flow, names};
 pub use data_definitions::DataDefinitionTable;
@@ -81,10 +82,11 @@ pub use access_views::{
 };
 pub use calls::{signature, static_applications};
 pub use commitments::{
-    CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,
-    ClosedConformanceApplicationCommitment, ClosedConformanceApplicationSite,
-    ClosedConformanceConstArgument, ClosedConformanceRowIdentity, DataImplementationApplication,
-    MachineSpecialization, StaticRequirementDispatch, TraitImplementationApplication,
+    CapturedMachineApplication, CapturedMachineDeclaration, CapturedMachineState,
+    ClosedConformanceApplication, ClosedConformanceApplicationCommitment,
+    ClosedConformanceApplicationSite, ClosedConformanceConstArgument, ClosedConformanceRowIdentity,
+    DataImplementationApplication, MachineSpecialization, StaticRequirementDispatch,
+    TraitImplementationApplication,
 };
 pub use control_flow::{machine, state, statement};
 pub use declarations::{

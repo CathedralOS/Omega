@@ -111,20 +111,8 @@ pub(in crate::resolution::declarations::generic_data) fn capture_machine_runtime
         for (ordinal, statement) in statements.iter().enumerate() {
             let mut inputs = TypeExpressionInputs::default();
             collect_statement_expression_handles(syntax, *statement, &mut inputs.expressions);
-            match syntax.statements.statement(*statement) {
-                StatementNode::LocalData(local) => {
+            if let StatementNode::LocalData(local) = syntax.statements.statement(*statement) {
                     collect_type_expression_handles(syntax, local.type_reference, &mut inputs);
-                }
-                StatementNode::Call(call) => {
-                    visit_static_argument_type_inputs(
-                        syntax,
-                        &call.machine_arguments,
-                        &mut |reference| {
-                            collect_type_expression_handles(syntax, reference, &mut inputs);
-                        },
-                    );
-                }
-                _ => {}
             }
             update_captured_names(
                 syntax,

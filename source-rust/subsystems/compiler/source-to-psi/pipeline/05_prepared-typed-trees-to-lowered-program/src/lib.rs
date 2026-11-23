@@ -729,8 +729,8 @@ pub(crate) fn is_generic_template(
 ) -> bool {
     machine.has_specialization_parameters()
         || typed
-            .owned_conformance_realization(machine.symbol)
-            .is_some_and(|(owner, _)| {
+            .enclosing_source_conformance(machine.symbol)
+            .is_some_and(|owner| {
                 !owner.type_parameters.is_empty() || !owner.lifetime_parameters.is_empty()
             })
 }

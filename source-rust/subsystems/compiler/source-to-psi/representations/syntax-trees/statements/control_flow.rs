@@ -334,15 +334,22 @@ pub struct TableAssignment {
     record_storage::Record,
 )]
 pub struct TableCall {
-    pub callee: ExpressionHandle,
-    pub receiver: HandleSpan<Identifier>,
-    pub target: Identifier,
-    pub target_is_static: bool,
-    pub machine_arguments: Box<[crate::expression::StaticMachineArgument]>,
-    pub arguments: HandleSpan<ExpressionHandle>,
-    pub evidence_arguments: Box<[Identifier]>,
-    pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
+    pub expression: ExpressionHandle,
     pub discards_result: bool,
+}
+
+impl TableCall {
+    pub fn call<'a>(
+        &self,
+        syntax: &'a crate::SyntaxTrees,
+    ) -> &'a crate::expression::TableCallExpression {
+        let crate::expression::ExpressionNode::Call(call) =
+            syntax.expressions.expression(self.expression)
+        else {
+            unreachable!("a call statement holds a call expression");
+        };
+        call
+    }
 }
 
 #[derive(

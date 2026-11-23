@@ -6250,7 +6250,8 @@ pub(crate) mod portable_machine_applications {
             pub(crate) fn capture(
                 &self,
                 program: &TypedTrees,
-                capture: &CapturedMachineApplication,
+                selection: &CapturedMachineApplication,
+                capture: &crate::source_state::CapturedMachineDeclaration,
                 context: &TypeIdentityContext<'_>,
             ) -> Result<String, String> {
                 let original = program
@@ -6259,27 +6260,19 @@ pub(crate) mod portable_machine_applications {
                 let instance = program
                     .machine_by_symbol(capture.instance)
                     .ok_or("captured member lost its executable declaration")?;
-                let closed = &capture.conformance_application;
+                let closed = &selection.conformance_application;
                 let implementation = program
-                    .conformance_by_symbol(closed.declaration)
-                    .ok_or("captured member lost its selecting implementation")?;
-                if capture.instance == capture.template
-                    || program.declaration_scope_parent(capture.template) != implementation.symbol
-                    || !implementation.rows.iter().any(|row| {
-                        row.source.owns_realization() && row.realization_machine == capture.template
-                    })
-                {
-                    return Err(
-                        "captured member does not belong to its selecting implementation".into(),
-                    );
-                }
-                if !capture.binding_application.is_valid()
-                    || !capture.supplying_application.is_valid()
+                    .captured_conformance_owner(selection, capture)
+                    .ok_or(
+                        "captured declaration does not belong to its selecting implementation",
+                    )?;
+                if !selection.binding_application().is_valid()
+                    || !selection.supplying_application.is_valid()
                 {
                     return Err("captured member lost its binding or supplying application".into());
                 }
-                let binding = program.static_machine_application(capture.binding_application);
-                let supplying = program.static_machine_application(capture.supplying_application);
+                let binding = program.static_machine_application(selection.binding_application());
+                let supplying = program.static_machine_application(selection.supplying_application);
                 if binding.binding_declaration != implementation.symbol
                     || binding.lexical_owner != supplying.lexical_owner
                 {
@@ -6294,9 +6287,9 @@ pub(crate) mod portable_machine_applications {
                 };
                 let parameters = program.conformance_type_parameters(implementation);
                 let arguments =
-                    program.static_machine_application_arguments(capture.binding_application);
+                    program.static_machine_application_arguments(selection.binding_application());
                 let bindings =
-                    program.static_machine_application_bindings(capture.binding_application);
+                    program.static_machine_application_bindings(selection.binding_application());
                 if parameters.len() != bindings.len() || parameters.len() != arguments.len() {
                     return Err(
                         "captured member has an incomplete implementation argument list".into(),
@@ -6330,7 +6323,7 @@ pub(crate) mod portable_machine_applications {
                 }
                 let lifetimes = program
                     .static_application_lifetimes_for_declaration(
-                        capture.binding_application,
+                        selection.binding_application(),
                         implementation.symbol,
                     )
                     .map_err(str::to_owned)?;
@@ -6359,32 +6352,6 @@ pub(crate) mod portable_machine_applications {
                 let implementation_identity =
                     conformances::project(program, closed, &selected, &context)?;
 
-                let source_parameters = program
-                    .machine_type_parameters(original)
-                    .iter()
-                    .map(|parameter| parameter.symbol)
-                    .chain(original.conformance_bounds.iter().map(|bound| bound.binder))
-                    .collect::<Vec<_>>();
-                let instance_parameters = program
-                    .machine_type_parameters(instance)
-                    .iter()
-                    .map(|parameter| parameter.symbol)
-                    .chain(instance.conformance_bounds.iter().map(|bound| bound.binder))
-                    .collect::<Vec<_>>();
-                if source_parameters.len() != capture.parameters.len()
-                    || instance_parameters.len() != capture.parameters.len()
-                    || capture
-                        .parameters
-                        .iter()
-                        .zip(source_parameters.iter().zip(&instance_parameters))
-                        .any(
-                            |((source, realized), (expected_source, expected_instance))| {
-                                source != expected_source || realized != expected_instance
-                            },
-                        )
-                {
-                    return Err("captured member changed its own parameter correspondence".into());
-                }
                 let states = program
                     .captured_machine_states
                     .span_or_empty(capture.states);
@@ -7082,7 +7049,7 @@ pub(crate) mod portable_machine_applications {
             if explicit.is_some_and(|source| source.member.is_valid()) {
                 return Err("selected callable retains an unresolved member application".into());
             }
-            if let Some(MachineInstantiation::Capture(capture)) = receipt {
+            if let Some(MachineInstantiation::Capture(_, capture)) = receipt {
                 // The complete capture account is normalized by identity().
                 // A distinct own application requires its actual specialization
                 // receipt rather than reinterpreting the implementation tuple.
@@ -7314,7 +7281,9 @@ pub(crate) mod portable_machine_applications {
                 MachineInstantiation::Specialization(specialization) => {
                     self.application(program, specialization, context)
                 }
-                MachineInstantiation::Capture(capture) => self.capture(program, capture, context),
+                MachineInstantiation::Capture(selection, capture) => {
+                    self.capture(program, selection, capture, context)
+                }
             };
             self.active.borrow_mut().pop();
             let identity =

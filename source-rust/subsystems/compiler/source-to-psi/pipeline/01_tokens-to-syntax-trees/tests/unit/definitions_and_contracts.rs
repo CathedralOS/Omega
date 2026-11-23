@@ -34,7 +34,8 @@ fn machine_first_call_argument(
     else {
         panic!("caller statement should be a call");
     };
-    parsed.statements.expression_handles(call.arguments)[0]
+    let call = call.call(parsed);
+    parsed.expressions.expression_handles(call.arguments)[0]
 }
 
 #[test]
@@ -667,9 +668,10 @@ fn parses_positional_erased_evidence_call_lane_after_semicolon() {
     let StatementNode::Call(call) = statement else {
         panic!("expected call statement");
     };
+    let call = call.call(&parsed);
 
     assert_eq!(
-        parsed.statements.expression_handles(call.arguments).len(),
+        parsed.expressions.expression_handles(call.arguments).len(),
         1
     );
     assert_eq!(
@@ -700,9 +702,10 @@ fn parses_evidence_only_call_lane_with_leading_semicolon() {
     else {
         panic!("expected call statement");
     };
+    let call = call.call(&parsed);
     assert!(
         parsed
-            .statements
+            .expressions
             .expression_handles(call.arguments)
             .is_empty()
     );

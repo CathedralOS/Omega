@@ -137,7 +137,7 @@ pub(crate) fn prepare_with_providers(
             Err((Stop::Defect(message), _)) => return Err(vec![Diagnostic::error(message)]),
         }
         for site in call_sites(program, position) {
-            let served = named_conformances::serve(program, site, &mut captures)
+            let served = named_conformances::serve(program, holder, site, &mut captures)
                 .and_then(|handled| {
                     if handled {
                         Ok(())
@@ -608,7 +608,12 @@ fn specialize_application(
     // An argument that names a parameter of the enclosing generic machine
     // leaves the application open: it is closed in each machine generated
     // from that one, where the parameter is replaced.
-    if open_callback || operands.iter().any(|operand| operand.is_open(program)) {
+    // A helper can mention a map binder in its body or signature even
+    // when its own arguments are all concrete. Close it in the selected tree.
+    let open_map = program
+        .enclosing_source_conformance(callee)
+        .is_some_and(|map| !map.type_parameters.is_empty() || !map.lifetime_parameters.is_empty());
+    if open_map || open_callback || operands.iter().any(|operand| operand.is_open(program)) {
         return Ok(None);
     }
     program
@@ -1399,6 +1404,7 @@ fn copied_parts(
             StatementNode::LocalData(local) => local.reflected_query_origin.is_none(),
             StatementNode::Assignment(_)
             | StatementNode::Expression(_)
+            | StatementNode::Evaluate { .. }
             | StatementNode::Transition(_) => true,
         };
         if !copied {

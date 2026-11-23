@@ -46,7 +46,7 @@ fn project_editable_dependencies(
     let build_entry = match editable_build::project_build_entry_syntax(syntax_trees) {
         Ok(projection) => projection,
         Err(error @ editable_build::BuildDeclarationError::MissingBuildDeclaration) => {
-            reject_unprojected_dependency_syntax(syntax_trees, &[], &[], &[])?;
+            reject_unprojected_dependency_syntax(syntax_trees, &[], &[])?;
             return Err(map_build_declaration_error(error));
         }
         Err(error) => return Err(map_build_declaration_error(error)),
@@ -54,7 +54,6 @@ fn project_editable_dependencies(
     let dependencies = calls::project_direct_dependencies(syntax_trees, &build_entry)?;
     reject_unprojected_dependency_syntax(
         syntax_trees,
-        &dependencies.accepted_statements,
         &dependencies.accepted_sources,
         &dependencies.accepted_calls,
     )?;

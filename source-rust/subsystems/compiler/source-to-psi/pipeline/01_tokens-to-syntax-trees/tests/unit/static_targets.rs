@@ -170,7 +170,7 @@ fn static_and_value_call_targets_remain_distinct_after_syntax_copy() {
                 let state = program.items.state(*state);
                 for statement in program.items.statements(state.statements) {
                     if let StatementNode::Call(call) = program.statements.statement(*statement) {
-                        statements.push(call.target_is_static);
+                        statements.push(call.call(program).target_is_static);
                     }
                     if let StatementNode::LocalData(local) =
                         program.statements.statement(*statement)

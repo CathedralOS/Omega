@@ -366,8 +366,12 @@ fn remove_machine_rows(program: &mut TypedTrees, removed: &SymbolMembership) {
     let captures = program
         .captured_machine_applications
         .iter()
-        .filter(|(_, row)| !removed.contains(row.instance))
-        .map(|(_, row)| row.clone())
+        .filter_map(|(_, row)| {
+            let mut row = row.clone();
+            row.declarations
+                .retain(|body| !removed.contains(body.instance));
+            (!row.declarations.is_empty()).then_some(row)
+        })
         .collect::<Vec<_>>();
     let mut applications = arena::Arena::default();
     applications.insert_many(captures);

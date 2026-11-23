@@ -94,6 +94,51 @@ impl<'t> Program<'t> {
             })
     }
 
+    fn enclosing_value_capture(
+        &self,
+        id: MachineId,
+        path: &TableNamePath,
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        use symbols::SymbolKind;
+        if path.resolved_symbol().is_some()
+            || path.static_application.is_valid()
+            || path.reserved_result_of.is_valid()
+        {
+            return Ok(());
+        }
+        let [name] = self.typed.expression_table.name_path_members(path.members) else {
+            return Ok(());
+        };
+        let Some(&caller) = self.symbols.get(id) else {
+            return Ok(());
+        };
+        for enclosing in self.typed.enclosing_machines(caller) {
+            for state in self.typed.machine_states(enclosing) {
+                if [SymbolKind::Parameter, SymbolKind::Local]
+                    .into_iter()
+                    .any(|kind| {
+                        self.typed
+                            .symbols
+                            .find_child_by_name_and_kind(state.symbol, name.as_str(), kind)
+                            .is_some()
+                    })
+                {
+                    return Err(reject(
+                        id,
+                        source,
+                        format!(
+                            "nested machine cannot capture enclosing runtime binding `{}` from `{}`; pass it as an argument",
+                            name.as_str(),
+                            enclosing.name.as_str(),
+                        ),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// The rejection of a value path `Type::name` whose `Type` is a data
     /// declaration with no member spelled `name`.
     ///
@@ -205,6 +250,7 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Boolean(*value), ScalarType::Boolean)
             }
             ExpressionNode::Name(path) => {
+                self.enclosing_value_capture(id, path, source)?;
                 self.undeclared_data_member(id, path, source)?;
                 let slot = self.slot_of(id, slots, path)?;
                 let bound = &slots[slot];
@@ -392,6 +438,7 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Boolean(*value), ScalarType::Boolean)
             }
             ExpressionNode::Name(path) => {
+                self.enclosing_value_capture(id, path, source)?;
                 self.undeclared_data_member(id, path, source)?;
                 if let Some(constant) = self.typed.named_const_declaration(path)
                     && constant.pending_target_observation

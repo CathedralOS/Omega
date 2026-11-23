@@ -970,7 +970,6 @@ fn syntax_signature_copy_preserves_operational_keyword_sources() {
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
         conformance_bounds: Vec::new(),
-        is_default: true,
         parameters: HandleSpan::empty(),
         native_callback_parameters: Vec::new(),
         return_type: TypeReferenceHandle::invalid(),
@@ -983,7 +982,7 @@ fn syntax_signature_copy_preserves_operational_keyword_sources() {
         suspends: true,
         blocks: true,
         contracts: HandleSpan::empty(),
-        default_body: HandleSpan::empty(),
+        default_body: Some(Default::default()),
         terminates_guarantee: false,
         declares_no_crash_route: false,
     });
@@ -1007,16 +1006,12 @@ fn syntax_signature_copy_preserves_operational_keyword_sources() {
 #[test]
 fn syntax_trees_extend_from_preserves_statement_call_arguments() {
     let mut file = SyntaxTrees::new(Default::default());
-    let receiver = file
-        .statements
-        .append_identifier_path_member(Identifier::generated("self"));
-    let receiver = HandleSpan::from_parts(receiver, 1);
     let argument = file
         .expressions
         .insert(crate::expression::ExpressionNode::Integer(
             IntegerLiteral::from_value(0),
         ));
-    let argument = file.statements.append_expression_handle(argument);
+    let argument = file.expressions.append_expression_handle(argument);
     let self_name = file
         .expressions
         .append_identifier_path_member(Identifier::generated("self"));
@@ -1033,15 +1028,20 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
             position: None,
             case_variant: None,
         }));
+    let expression = file
+        .expressions
+        .insert(ExpressionNode::Call(TableCallExpression {
+            callee,
+            target_is_static: false,
+            receiver: self_value,
+            target: Identifier::generated("take_non_negative"),
+            machine_arguments: Box::default(),
+            arguments: HandleSpan::from_parts(argument, 1),
+            evidence_arguments: Box::default(),
+            operational_acknowledgement: Default::default(),
+        }));
     let call = file.statements.insert(StatementNode::Call(TableCall {
-        callee,
-        target_is_static: false,
-        receiver,
-        target: Identifier::generated("take_non_negative"),
-        machine_arguments: Box::default(),
-        arguments: HandleSpan::from_parts(argument, 1),
-        evidence_arguments: Box::default(),
-        operational_acknowledgement: Default::default(),
+        expression,
         discards_result: false,
     }));
     let call = file.items.append_statement_handle(call);
@@ -1059,13 +1059,14 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
     let StatementNode::Call(call) = assembled.statements.statement(statement_handle) else {
         panic!("expected call statement");
     };
+    let call = call.call(&assembled);
     assert_eq!(
         assembled.display_expression_name(call.callee),
         "self.take_non_negative"
     );
     assert_eq!(
         assembled
-            .statements
+            .expressions
             .expression_handles(call.arguments)
             .len(),
         1

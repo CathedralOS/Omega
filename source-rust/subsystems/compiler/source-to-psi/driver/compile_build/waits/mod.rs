@@ -307,12 +307,7 @@ impl EntryPlan {
 
 fn suspending_call(syntax: &SyntaxTrees, statement: StatementHandle) -> Option<Span> {
     let expression = match syntax.statements.statement(statement) {
-        StatementNode::Call(call) => {
-            return call
-                .operational_acknowledgement
-                .acknowledges_suspend
-                .then(|| call.target.source_span().span);
-        }
+        StatementNode::Call(call) => call.expression,
         StatementNode::Transition(arm) if !arm.continuation.is_valid() && arm.target.is_valid() => {
             return suspending_arm(syntax, arm.target);
         }
@@ -358,30 +353,16 @@ fn suspending_arm(
 
 /// The authored operation name in a top-level dependency preparation.
 fn preparation(syntax: &SyntaxTrees, statement: StatementHandle) -> Option<Span> {
-    let target = match syntax.statements.statement(statement) {
-        StatementNode::Call(call)
-            if call.operational_acknowledgement.acknowledges_suspend
-                && matches!(syntax.statements.identifier_path_members(call.receiver),
-                [owner] if owner.as_str(syntax) == BUILD_TYPE) =>
-        {
-            &call.target
-        }
-        StatementNode::Expression(expression) => {
-            let ExpressionNode::Call(call) = syntax.expressions.expression(*expression) else {
-                return None;
-            };
-            if !call.operational_acknowledgement.acknowledges_suspend
-                || !call.receiver.is_valid()
-                || !matches!(syntax.expressions.expression(call.receiver),
-                    ExpressionNode::Name { members, .. } if matches!(
-                        syntax.expressions.identifier_path_members(*members),
-                        [owner] if owner.as_str(syntax) == BUILD_TYPE))
-            {
-                return None;
-            }
-            &call.target
-        }
+    let expression = match syntax.statements.statement(statement) {
+        StatementNode::Call(call) => call.expression,
+        StatementNode::Expression(expression) => *expression,
         _ => return None,
     };
-    (target.as_str(syntax) == PREPARATION).then(|| target.source_span().span)
+    let ExpressionNode::Call(call) = syntax.expressions.expression(expression) else {
+        return None;
+    };
+    (call.operational_acknowledgement.acknowledges_suspend
+        && call.target.as_str(syntax) == PREPARATION
+        && matches!(syntax.expression_identifier_path(call.receiver).as_deref(), Some([owner]) if owner.as_str(syntax) == BUILD_TYPE))
+        .then(|| call.target.source_span().span)
 }

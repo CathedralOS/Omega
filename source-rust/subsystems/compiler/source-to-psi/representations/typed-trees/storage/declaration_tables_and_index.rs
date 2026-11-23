@@ -1516,6 +1516,26 @@ pub mod declaration_index {
             self.tables.machines.retained_declaration(symbol)
         }
 
+        /// Follow the authored machine nesting, including for a specialized body
+        /// whose executable symbol lives outside its template's lexical scope.
+        pub fn enclosing_machines(
+            &self,
+            caller: symbols::SymbolHandle,
+        ) -> impl Iterator<Item = &machine::Machine> {
+            let mut owner = caller;
+            let mut visited = vec![owner];
+            std::iter::from_fn(move || {
+                owner = self.declaration_scope_parent(owner);
+                if !owner.is_valid() || visited.contains(&owner) {
+                    return None;
+                }
+                let declaration = self.machine_declaration_for_lexical_scope(owner)?;
+                visited.push(owner);
+                Some(declaration)
+            })
+            .fuse()
+        }
+
         pub fn state_position_by_symbol(
             &self,
             machine: SymbolHandle,
@@ -1914,6 +1934,25 @@ pub(crate) mod declaration_tables {
             self.symbols.get(owner).parent
         }
 
+        /// The unapplied map whose member physically contains this declaration.
+        /// Generated roots live in a separate tree with their map arguments bound.
+        pub fn enclosing_source_conformance(
+            &self,
+            mut machine: symbols::SymbolHandle,
+        ) -> Option<&crate::source_state::trait_definition::Conformance> {
+            while machine.is_valid() {
+                if let Some((map, _)) = self.owned_conformance_realization(machine) {
+                    return Some(map);
+                }
+                let parent = self.symbols.get(machine).parent;
+                if !parent.is_valid() {
+                    return None;
+                }
+                machine = self.machine_by_own_or_state_symbol(parent)?.symbol;
+            }
+            None
+        }
+
         pub fn owned_conformance_realization(
             &self,
             machine: symbols::SymbolHandle,
@@ -2113,7 +2152,11 @@ pub(crate) mod declaration_tables {
             let mut captured_supplies =
                 std::collections::HashMap::<_, Vec<_>, arena::BuildIndexHasher>::default();
             for (_, capture) in self.captured_machine_applications.iter() {
-                if self.machine_by_symbol(capture.instance).is_some() {
+                if capture
+                    .declarations
+                    .iter()
+                    .any(|declaration| self.machine_by_symbol(declaration.instance).is_some())
+                {
                     captured_supplies
                         .entry(capture.supplying_application)
                         .or_default()
@@ -2247,8 +2290,7 @@ pub(crate) mod declaration_tables {
                         .for_instance(owner)
                         .map(|application| application.template)
                         .chain(
-                            self.captured_machine_applications
-                                .iter()
+                            self.captured_declarations()
                                 .filter(|(_, application)| application.instance == owner)
                                 .map(|(_, application)| application.template),
                         );
@@ -2925,10 +2967,12 @@ pub(crate) mod declaration_tables {
                 .insert(wrong_application);
             program.captured_machine_applications.insert(
                 crate::source_state::CapturedMachineApplication {
-                    instance,
+                    declarations: vec![crate::source_state::CapturedMachineDeclaration {
+                        instance,
+                        ..Default::default()
+                    }],
                     supplying_application: supplying,
                     conformance_application: application,
-                    ..Default::default()
                 },
             );
             let removed = std::collections::HashSet::from([owner]);
@@ -3110,9 +3154,8 @@ pub(crate) mod machine_parameter_signatures {
                 .iter()
                 .map(|application| (application.instance, application.template))
                 .chain(
-                    self.captured_machine_applications
-                        .iter()
-                        .map(|(_, application)| (application.instance, application.template)),
+                    self.captured_declarations()
+                        .map(|(_, declaration)| (declaration.instance, declaration.template)),
                 )
             {
                 templates.entry(instance).or_default().include(template);

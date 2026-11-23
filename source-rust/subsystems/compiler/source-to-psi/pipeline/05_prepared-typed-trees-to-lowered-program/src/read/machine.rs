@@ -58,6 +58,12 @@ fn refuse_parameters(
     refusal
 }
 
+/// The written type arguments select either the machine itself or its enclosing map.
+pub(super) enum ApplicationTypes<'a> {
+    Machine(Vec<ValueType>, Option<Vec<TypeReferenceHandle>>),
+    SelectedMap(Option<&'a [TypeReferenceHandle]>),
+}
+
 impl<'t> Program<'t> {
     fn boundary_conformer_call_refusal(
         &self,
@@ -100,22 +106,36 @@ impl<'t> Program<'t> {
             })
     }
 
+    /// A universal body already knows which map supplies a lexical sibling.
+    /// The sibling receives exactly the map binders present at this call.
+    pub(super) fn shares_enclosing_map(&self, caller: MachineId, member: SymbolHandle) -> bool {
+        self.rigid
+            && self
+                .symbols
+                .get(caller)
+                .and_then(|caller| self.typed.enclosing_source_conformance(*caller))
+                .zip(self.typed.enclosing_source_conformance(member))
+                .is_some_and(|(source, selected)| {
+                    !source.type_parameters.is_empty() && source.symbol == selected.symbol
+                })
+    }
+
     pub(super) fn is_generic_template(&self, machine: &Machine) -> bool {
         crate::lowering::is_generic_template(self.typed, machine)
     }
 
-    fn generic_parameters(
+    pub(super) fn generic_parameters(
         &self,
         id: MachineId,
         machine: &'t Machine,
-    ) -> Checked<arena::RootRows<'t, crate::source_state::data::TypeParameter>> {
+    ) -> Checked<Vec<&'t crate::source_state::data::TypeParameter>> {
         let own = self.typed.machine_type_parameters(machine);
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
         if own.is_empty() != machine.type_parameters.is_empty() {
             return Err(unserved("type parameter span"));
         }
-        let Some((owner, _)) = self.typed.owned_conformance_realization(machine.symbol) else {
-            return Ok(own);
+        let Some(owner) = self.typed.enclosing_source_conformance(machine.symbol) else {
+            return Ok(own.into_iter().collect());
         };
         let enclosing = self.typed.conformance_type_parameters(owner);
         if enclosing.is_empty() != owner.type_parameters.is_empty()
@@ -124,13 +144,12 @@ impl<'t> Program<'t> {
                 parameter.kind != crate::source_state::data::TypeParameterKind::Type
                     || parameter.bounds != crate::source_state::data::DataProperties::default()
             })
-            || (!enclosing.is_empty() && !own.is_empty())
         {
             return Err(unserved(
                 "generic map body needs its complete eligible telescope",
             ));
         }
-        Ok(if enclosing.is_empty() { own } else { enclosing })
+        Ok(enclosing.into_iter().chain(own).collect())
     }
 
     fn generic_scope(
@@ -635,6 +654,7 @@ impl<'t> Program<'t> {
         }
         if self.unapplied_map_body(symbol)
             && !matches!(reading, Reading::GenericEntry)
+            && !(self.rigid && matches!(&reading, Reading::Applied(_)))
             && !(self.rigid && matches!(reading, Reading::Implementation))
         {
             return Err(refuse(
@@ -730,29 +750,10 @@ impl<'t> Program<'t> {
                     )
                 })
             {
-                if parameters
-                    .iter()
-                    .filter(|parameter| {
-                        parameter.kind == crate::source_state::data::TypeParameterKind::Type
-                    })
-                    .count()
-                    != scope.len()
-                    || !parameters
-                        .iter()
-                        .filter(|parameter| {
-                            parameter.kind == crate::source_state::data::TypeParameterKind::Type
-                        })
-                        .zip(&scope)
-                        .all(|(parameter, (binder, _))| parameter.symbol == *binder)
-                {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Machine("generic entry has another type-argument scope"),
-                    ));
-                }
-                self.applied
-                    .push((id, scope.iter().map(|(_, value)| *value).collect(), None));
+                // The signature scope holds every type slot in declaration order,
+                // including the map arguments inherited by a private helper.
+                let arguments = scope.iter().map(|(_, value)| *value).collect();
+                self.applied.push((id, arguments, None));
             }
         }
         self.scopes.push(scope);
@@ -769,9 +770,61 @@ impl<'t> Program<'t> {
         &mut self,
         caller: MachineId,
         symbol: SymbolHandle,
-        arguments: Vec<ValueType>,
-        references: Option<Vec<crate::source_state::types::TypeReferenceHandle>>,
+        supplied: ApplicationTypes<'_>,
     ) -> Checked<MachineId> {
+        let (mut arguments, references, map_arguments) = match supplied {
+            ApplicationTypes::Machine(types, references) => (types, references, None),
+            ApplicationTypes::SelectedMap(arguments) => (Vec::new(), None, arguments),
+        };
+        let mut bindings = Vec::new();
+        if let Some(map) = self.typed.enclosing_source_conformance(symbol) {
+            let parameters = self.typed.conformance_type_parameters(map);
+            let mut enclosing = Vec::with_capacity(parameters.len() + arguments.len());
+            if let Some(written) = map_arguments {
+                if !self.rigid || parameters.len() != written.len() {
+                    return Err(refuse(
+                        caller,
+                        Construct::Machine,
+                        Unserved::Call("symbolic map argument roster differs from its constructor"),
+                    ));
+                }
+                for (parameter, &reference) in parameters.iter().zip(written) {
+                    enclosing.push(self.value_type(caller, reference)?);
+                    bindings.push((parameter.symbol, reference));
+                }
+            } else {
+                let scope = self.scopes.get(caller).ok_or_else(|| {
+                    refuse(
+                        caller,
+                        Construct::Machine,
+                        Unserved::Call("map member lost its calling scope"),
+                    )
+                })?;
+                for parameter in parameters {
+                    let (_, value) = scope
+                        .iter()
+                        .find(|(binder, _)| *binder == parameter.symbol)
+                        .ok_or_else(|| {
+                            refuse(
+                                caller,
+                                Construct::Machine,
+                                Unserved::Call(
+                                    "map member has no supplied type for its enclosing binder",
+                                ),
+                            )
+                        })?;
+                    enclosing.push(*value);
+                }
+            }
+            enclosing.append(&mut arguments);
+            arguments = enclosing;
+        } else if map_arguments.is_some() {
+            return Err(refuse(
+                caller,
+                Construct::Machine,
+                Unserved::Call("named member lost its supplying map"),
+            ));
+        }
         if let Some((id, _, _)) = self.applied.iter().find(|(id, applied, _)| {
             self.symbols.get(*id) == Some(&symbol) && self.same_type_arguments(applied, &arguments)
         }) {
@@ -790,7 +843,12 @@ impl<'t> Program<'t> {
                     Unserved::Call("type application has no exact caller"),
                 )
             })?;
-            if *source == symbol {
+            if *source == symbol
+                && !self.scopes.get(current).is_some_and(|scope| {
+                    let enclosing: Vec<_> = scope.iter().map(|(_, value)| *value).collect();
+                    self.same_type_arguments(&enclosing, &arguments)
+                })
+            {
                 return Err(refuse(
                     caller,
                     Construct::Machine,
@@ -810,7 +868,7 @@ impl<'t> Program<'t> {
             }
         }
         let id = self.next_identity()?;
-        let scope = if let Some(references) = references {
+        if let Some(references) = references {
             let (machine, _) = self.declaration(caller, symbol)?;
             let parameters = self.typed.machine_type_parameters(machine);
             let parameters = parameters
@@ -826,16 +884,14 @@ impl<'t> Program<'t> {
                     Unserved::Call("type application lost its source argument tuple"),
                 ));
             }
-            self.extended_source_scope(
+            bindings.extend(
                 parameters
                     .iter()
                     .map(|parameter| parameter.symbol)
-                    .zip(references)
-                    .collect(),
-            )
-        } else {
-            self.source_scope.clone()
-        };
+                    .zip(references),
+            );
+        }
+        let scope = self.extended_source_scope(bindings);
         let outer = std::mem::replace(&mut self.source_scope, scope);
         let read = self.read_machine(id, symbol, Reading::Applied(arguments.clone()));
         self.source_scope = outer;
@@ -843,7 +899,12 @@ impl<'t> Program<'t> {
         self.applied.push((id, arguments, Some(caller)));
         // The body is read under its own public input contract. Reading it
         // for effect inference does not let caller facts narrow that boundary.
-        self.fixed_contracts.push(super::FixedContract::Inputs(id));
+        self.fixed_contracts
+            .push(if self.unapplied_map_body(symbol) {
+                super::FixedContract::Interface(id)
+            } else {
+                super::FixedContract::Inputs(id)
+            });
         let inherited = self.typed.machine_by_symbol(symbol).is_some_and(|machine| {
             self.typed
                 .machine_type_parameters(machine)
@@ -1549,10 +1610,10 @@ impl<'t> Program<'t> {
         // (`value_binders`). A type parameter would put a value of a rigid
         // type into the lowered form, which has no row for one.
         let own_parameters = self.typed.machine_type_parameters(machine);
-        let parameters = if matches!(reading, Reading::GenericEntry) {
+        let parameters = if matches!(reading, Reading::GenericEntry | Reading::Applied(_)) {
             self.generic_parameters(id, machine)?
         } else {
-            own_parameters
+            own_parameters.into_iter().collect()
         };
         if own_parameters.is_empty() != machine.type_parameters.is_empty() {
             return unserved("type parameter span");
@@ -2030,16 +2091,24 @@ impl<'t> Program<'t> {
             Reading::Implementation if self.rigid => self.generic_scope(id, machine)?,
             Reading::Closed | Reading::Implementation | Reading::Provider => Vec::new(),
             Reading::GenericEntry => self.generic_scope(id, machine)?,
-            Reading::Applied(arguments) | Reading::Alternative(arguments) => self
-                .typed
-                .machine_type_parameters(machine)
-                .iter()
-                .filter(|parameter| {
-                    parameter.kind == crate::source_state::data::TypeParameterKind::Type
-                })
-                .map(|parameter| parameter.symbol)
-                .zip(arguments.iter().copied())
-                .collect(),
+            Reading::Applied(arguments) | Reading::Alternative(arguments) => {
+                let parameters = if matches!(reading, Reading::Applied(_)) {
+                    self.generic_parameters(id, machine)?
+                } else {
+                    self.typed
+                        .machine_type_parameters(machine)
+                        .into_iter()
+                        .collect()
+                };
+                parameters
+                    .into_iter()
+                    .filter(|parameter| {
+                        parameter.kind == crate::source_state::data::TypeParameterKind::Type
+                    })
+                    .map(|parameter| parameter.symbol)
+                    .zip(arguments.iter().copied())
+                    .collect()
+            }
         };
         if matches!(reading, Reading::GenericEntry | Reading::Alternative(_))
             || (self.rigid && matches!(reading, Reading::Implementation))
@@ -2219,7 +2288,8 @@ impl<'t> Program<'t> {
             .symbols
             .symbol_provenance_source_span(authored.symbol);
         names.state = state.name.as_str().to_owned();
-        if matches!(reading, Reading::Closed | Reading::Provider)
+        if (matches!(reading, Reading::Closed | Reading::Provider)
+            || matches!(reading, Reading::Applied(_)) && self.unapplied_map_body(symbol))
             && let Some((owner, requirement)) = self.conformer_requirement(id, machine)?
         {
             let arguments = self.conformer_value_arguments(id, machine, requirement)?;
@@ -2994,7 +3064,7 @@ impl<'t> Program<'t> {
     ) -> Checked<Signature> {
         if (!abstract_schema && !signature.type_parameters.is_empty())
             || !signature.conformance_bounds.is_empty()
-            || signature.is_default
+            || (is_boundary && signature.is_default)
             || !signature.native_callback_parameters.is_empty()
             || signature.spelling.is_some()
         {
@@ -3266,7 +3336,13 @@ impl<'t> Program<'t> {
                 Vec::new(),
             ),
         };
-        if requirement.is_default || !requirement.native_callback_parameters.is_empty() {
+        if !requirement.native_callback_parameters.is_empty()
+            || (requirement.is_default
+                && !self
+                    .typed
+                    .trait_machine_signature(requirement.symbol)
+                    .is_some_and(|(owner, _)| !owner.is_boundary))
+        {
             return unserved("default or native-callback requirement");
         }
         // A rigid reading keeps each `const` binder as this machine's input,
@@ -4307,6 +4383,10 @@ impl<'t> Program<'t> {
                         discards_result: call.discards_result,
                     }
                 }
+                StatementNode::Evaluate {
+                    expression,
+                    discards_result,
+                } => self.evaluated_expression(id, &slots, *expression, *discards_result)?,
                 StatementNode::Expression(expression) => {
                     let expected = if last { signature.result } else { None };
                     let mut expression = self.expression(id, &slots, *expression, expected)?;

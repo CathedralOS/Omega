@@ -95,7 +95,8 @@ mod defaults {
                             .len(),
                         source_span: call.source_span,
                     },
-                    StatementNode::Expression(expression) => {
+                    StatementNode::Expression(expression)
+                    | StatementNode::Evaluate { expression, .. } => {
                         let source_span = typed.expression_table.source_span(*expression);
                         match typed.expression_table.expression(*expression) {
                             ExpressionNode::Call(call) => Call {

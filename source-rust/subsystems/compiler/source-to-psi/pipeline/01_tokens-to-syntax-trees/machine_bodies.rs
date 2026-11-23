@@ -1,64 +1,24 @@
 use crate::declarations::items::{ParsedDeclaration, parse_item, starts_machine_declaration};
 use crate::statements::sequence::parse_statements;
 use crate::token_input::cursor::{Input, ParseResult};
-use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::identifier::Identifier;
-use syntax_trees::item::{Item, State, StateHandle, StateParameterHandle};
-use syntax_trees::types::TypeReferenceHandle;
+use syntax_trees::item::{Item, MachineBody};
 use tokens::{KeywordKind, PunctuationKind};
-
-pub(crate) struct ParsedMachineBody {
-    pub states: HandleSpan<StateHandle>,
-    pub nested_machines: HandleSpan<Item>,
-    pub bodyless: bool,
-}
 
 pub(crate) fn parse_body<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     mut input: Input<'tokens, 'source>,
-    entry_name: Option<Identifier>,
-    machine_parameters: HandleSpan<StateParameterHandle>,
-    machine_return_type: TypeReferenceHandle,
-) -> ParseResult<'tokens, 'source, ParsedMachineBody> {
+    requires_result: bool,
+) -> ParseResult<'tokens, 'source, Option<MachineBody>> {
     if input.at_punctuation(PunctuationKind::Semicolon) {
-        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        let entry_state = State {
-            name: entry_name.unwrap_or_else(|| Identifier::generated("entry")),
-            parameters: machine_parameters,
-            return_type: machine_return_type,
-            contracts: HandleSpan::empty(),
-            statements: HandleSpan::empty(),
-        };
-        let state = syntax_trees.items.insert_state(&entry_state);
-        let state = syntax_trees.items.append_state_handle(state);
         return Ok((
-            ParsedMachineBody {
-                states: HandleSpan::from_parts(state, 1),
-                nested_machines: HandleSpan::empty(),
-                bodyless: true,
-            },
-            input,
+            None,
+            input.take_punctuation(PunctuationKind::Semicolon, ";")?,
         ));
     }
-
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+    let (statements, mut input) = parse_statements(syntax_trees, input, requires_result)?;
     let mut children = Vec::new();
-    let implicit_entry_name = entry_name
-        .clone()
-        .unwrap_or_else(|| Identifier::generated("entry"));
-
-    let (state, rest) = parse_implicit_entry_state(
-        syntax_trees,
-        input,
-        implicit_entry_name,
-        machine_parameters,
-        machine_return_type,
-    )?;
-    let state = syntax_trees.items.insert_state(&state);
-    let state = syntax_trees.items.append_state_handle(state);
-    let states = HandleSpan::from_parts(state, 1);
-    input = rest;
 
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         if starts_machine_declaration(input) {
@@ -113,11 +73,10 @@ pub(crate) fn parse_body<'tokens, 'source>(
         nested_machines.push_contiguous(syntax_trees.items.append_item(child));
     }
     Ok((
-        ParsedMachineBody {
-            states,
+        Some(MachineBody {
+            statements,
             nested_machines,
-            bodyless: false,
-        },
+        }),
         input,
     ))
 }
@@ -200,24 +159,4 @@ fn starts_state_member(input: Input<'_, '_>) -> bool {
         .tokens
         .first()
         .is_some_and(crate::token_input::cursor::is_identifier_token_for_parser)
-}
-
-fn parse_implicit_entry_state<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    input: Input<'tokens, 'source>,
-    name: Identifier,
-    parameters: HandleSpan<StateParameterHandle>,
-    return_type: TypeReferenceHandle,
-) -> ParseResult<'tokens, 'source, State> {
-    let (statements, input) = parse_statements(syntax_trees, input, return_type.is_valid())?;
-    Ok((
-        State {
-            name,
-            parameters,
-            return_type,
-            contracts: HandleSpan::empty(),
-            statements,
-        },
-        input,
-    ))
 }

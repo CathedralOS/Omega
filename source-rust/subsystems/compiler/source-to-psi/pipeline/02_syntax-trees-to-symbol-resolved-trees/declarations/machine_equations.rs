@@ -1320,12 +1320,13 @@ pub(crate) fn complete(
             continue;
         }
         require_closed_selected_arguments(&binders, trees, &call.machine_arguments)?;
-        let StatementNode::Call(mut authored) = syntax.statements.statement(*original).clone()
-        else {
+        let StatementNode::Call(statement) = syntax.statements.statement(*original).clone() else {
             return Err(vec![Diagnostic::error(
                 "machine equation application lost its authored statement",
             )]);
         };
+        let expression = statement.expression;
+        let mut authored = statement.call(syntax).clone();
         let ordinary_types =
             argument_types::statement_constraints(syntax, trees, sources, call, selection);
         complete_authored_arguments(
@@ -1339,9 +1340,10 @@ pub(crate) fn complete(
             selection,
             &mut completed_type_roots,
         )?;
-        syntax
-            .statements
-            .replace_statement(*original, StatementNode::Call(authored));
+        syntax.expressions.replace_expression(
+            expression,
+            syntax_trees::expression::ExpressionNode::Call(authored),
+        );
     }
     let mut positions = Vec::new();
     for &root in &completed_type_roots {

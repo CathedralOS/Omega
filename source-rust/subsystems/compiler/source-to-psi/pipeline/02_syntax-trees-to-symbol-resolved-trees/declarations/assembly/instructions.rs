@@ -84,17 +84,22 @@ fn asm_intrinsic_call(
     intrinsic_name: &'static str,
     arguments: HandleSpan<ExpressionHandle>,
 ) -> StatementHandle {
-    syntax_trees
-        .statements
-        .insert(StatementNode::Call(TableCall {
+    let expression = syntax_trees
+        .expressions
+        .insert(ExpressionNode::Call(TableCallExpression {
             callee: ExpressionHandle::invalid(),
             target_is_static: false,
-            receiver: HandleSpan::empty(),
+            receiver: ExpressionHandle::invalid(),
             target: Identifier::new(intrinsic_name, mnemonic.source_span()),
             machine_arguments: Box::default(),
             arguments,
             evidence_arguments: Box::default(),
             operational_acknowledgement: Default::default(),
+        }));
+    syntax_trees
+        .statements
+        .insert(StatementNode::Call(TableCall {
+            expression,
             discards_result: false,
         }))
 }
@@ -447,7 +452,7 @@ pub(super) fn prepare_instruction(
 
             let value = next_operand()?;
             let arguments = syntax_trees
-                .statements
+                .expressions
                 .insert_expression_handles(vec![port, value]);
             Ok(PreparedInstruction::new(
                 asm_intrinsic_call(syntax_trees, mnemonic, "asm#port_out", arguments),
@@ -531,7 +536,7 @@ pub(super) fn prepare_instruction(
         AsmInstructionShape::FlagsRestore => {
             let source = next_operand()?;
             let arguments = syntax_trees
-                .statements
+                .expressions
                 .insert_expression_handles(vec![source]);
             Ok(PreparedInstruction::new(
                 asm_intrinsic_call(syntax_trees, mnemonic, "asm#popfq", arguments),
@@ -559,7 +564,7 @@ pub(super) fn prepare_instruction(
 
             let value = next_operand()?;
             let arguments = syntax_trees
-                .statements
+                .expressions
                 .insert_expression_handles(vec![index, value]);
             Ok(PreparedInstruction::new(
                 asm_intrinsic_call(syntax_trees, mnemonic, "asm#wrmsr", arguments),
@@ -580,7 +585,7 @@ pub(super) fn prepare_instruction(
         AsmInstructionShape::ControlRegisterWrite(register) => {
             let source = next_operand()?;
             let arguments = syntax_trees
-                .statements
+                .expressions
                 .insert_expression_handles(vec![source]);
             Ok(PreparedInstruction::new(
                 asm_intrinsic_call(
@@ -608,7 +613,7 @@ pub(super) fn prepare_instruction(
         AsmInstructionShape::SystemRegisterWrite(register) => {
             let source = next_operand()?;
             let arguments = syntax_trees
-                .statements
+                .expressions
                 .insert_expression_handles(vec![source]);
             Ok(PreparedInstruction::new(
                 asm_intrinsic_call(
@@ -625,7 +630,7 @@ pub(super) fn prepare_instruction(
         AsmInstructionShape::GlobalDescriptorTable(operation) => {
             let operand = next_operand()?;
             let arguments = syntax_trees
-                .statements
+                .expressions
                 .insert_expression_handles(vec![operand]);
             Ok(PreparedInstruction::new(
                 asm_intrinsic_call(

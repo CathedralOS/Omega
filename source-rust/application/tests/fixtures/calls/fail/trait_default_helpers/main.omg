@@ -1,0 +1,49 @@
+// A default's helpers inherit the trait's type until a helper declares its own.
+trait Step<Item> {
+    machine next(value: Item) -> Item {
+        forward(value)
+        machine forward(item: Item) -> Item {
+            let probe: bool = true;
+            pass::<bool>(item, @probe)
+            machine pass<Other>(input: Item, witness: @Other) -> Item { input }
+        }
+    }
+}
+trait Relay<T>: Step<T> {
+    machine relay(value: T) -> T {
+        let probe: bool = local::<bool>(true);
+        forward::<bool>(value)
+        machine forward<U>(item: T) -> T { next(local::<T>(item)) }
+        machine local<T>(item: T) -> T { value }
+    }
+}
+Generic<Value, Unused> satisfies Step<Value> {}
+Numbers satisfies Relay<u64> { machine next(value: u64) -> u64 { value } }
+Flags satisfies Relay<bool> { machine next(value: bool) -> bool { !value } }
+
+Arrays satisfies Relay<[u64; 2]> {
+    machine next(value: [u64; 2]) -> [u64; 2] { value }
+}
+
+Override satisfies Relay<u64> {
+    machine next(value: u64) -> u64 { value }
+    machine relay(value: u64) -> u64 {
+        next(value)
+        machine next(item: u64) -> u64 { 19 }
+    }
+}
+
+machine main() crashes Trap {
+    let number: u64 = Numbers::relay(37);
+    let flag: bool = Flags::relay(false);
+    let array: [u64; 2] = Arrays::relay([20u64, 25u64]);
+    let overridden: u64 = Override::relay(37);
+    let copied: u64 = Generic::<u64, bool>::next(41);
+    let second: bool = Generic::<bool, u64>::next(true);
+    transition copied == 41 && second && number == 37 && flag && overridden == 19 && array[1] == 25 {
+        true -> done(),
+        false -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

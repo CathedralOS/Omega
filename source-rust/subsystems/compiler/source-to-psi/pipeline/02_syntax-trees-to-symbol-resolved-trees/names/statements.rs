@@ -476,7 +476,8 @@ mod routing {
                 binding.state_symbol = state_symbol;
                 assign_expr!(binding.call);
             }
-            crate::source_resolved::statement::Statement::Expression(expression) => {
+            crate::source_resolved::statement::Statement::Expression(expression)
+            | crate::source_resolved::statement::Statement::Evaluate { expression, .. } => {
                 assign_expr!(*expression);
             }
             crate::source_resolved::statement::Statement::LocalData(local_data) => {
@@ -802,7 +803,7 @@ fn assign_machine_references(
             resolution_indexes: &program.resolution_indexes,
             symbol: machine_symbol,
             lexical_requirements: trait_scopes
-                .requirements_of(machine.trait_default_origin.declaring_trait),
+                .machine_requirements(machine.symbol),
             type_parameters: &lexical_type_parameters,
             attached_data_symbol: machine.attached_data_symbol,
             inherited_data_members,

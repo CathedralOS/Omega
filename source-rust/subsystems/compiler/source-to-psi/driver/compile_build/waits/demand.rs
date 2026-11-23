@@ -197,7 +197,7 @@ impl<'a> Lookup<'a> {
                     uses.call_site = Some((call.target.source_span().span, call.target_symbol));
                 }
             }
-            StatementNode::Expression(expression) => {
+            StatementNode::Expression(expression) | StatementNode::Evaluate { expression, .. } => {
                 pending.push(*expression);
                 if expression.is_valid()
                     && let ExpressionNode::Call(call) = table.expression(*expression)

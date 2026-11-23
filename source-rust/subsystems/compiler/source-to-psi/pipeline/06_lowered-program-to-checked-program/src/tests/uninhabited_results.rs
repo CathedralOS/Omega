@@ -9,6 +9,18 @@ fn program(text: &str) -> Vec<Result<RouteVerdict, crate::checking::CompilationR
     program_from_typed(typed)
 }
 
+fn assert_discard_required(source: &str) {
+    let verdicts = program(source);
+    assert!(
+        verdicts.iter().any(|v| matches!(
+            v, Ok(RouteVerdict::Rejected { violations, .. })
+                if violations.iter().any(|violation| violation.site.is_some()
+                    && violation.statement.contains("explicitly discard"))
+        )),
+        "{verdicts:?}"
+    );
+}
+
 fn program_from_typed(
     typed: crate::source_state::TypedTrees,
 ) -> Vec<Result<RouteVerdict, crate::checking::CompilationRefusal>> {
@@ -296,11 +308,7 @@ fn an_effect_statement_discards_only_an_actual_normal_result() {
 
     let normal = "public machine value() -> u32 crashes none { 1u32 } \
                   machine main() crashes none { value(); }";
-    let verdicts = program(normal);
-    assert!(
-        format!("{verdicts:?}").contains("expression statement that discards its value"),
-        "an inhabited normal result still requires the authored marker: {verdicts:?}",
-    );
+    assert_discard_required(normal);
     accepted(&normal.replace("{ value(); }", "{ _ = value(); }"));
 }
 
@@ -860,14 +868,7 @@ fn an_integer_postcondition_uses_the_requirement_instead_of_the_private_member()
     terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes()).unwrap();
 
     let weakened = source.replace("ensures fatal == 0;", "ensures fatal <= 1;");
-    let verdicts = program(&weakened);
-    assert!(
-        verdicts.iter().any(|v| matches!(
-            v, Ok(RouteVerdict::FallBack(refused))
-                if refused.detail.contains("expression statement that discards its value")
-        )),
-        "the weaker requirement keeps a normal u32 result: {verdicts:?}"
-    );
+    assert_discard_required(&weakened);
 }
 
 #[test]
@@ -944,8 +945,7 @@ fn a_computed_integer_actual_uses_the_public_postcondition_and_receiving_source(
         source.replace("0u32 + 1", "0u32 + 0"),
         source.replace("ensures fatal == 0;", "ensures fatal <= 1;"),
     ] {
-        let verdicts = program(&returning);
-        assert!(verdicts.iter().any(|v| matches!(v, Ok(RouteVerdict::FallBack(refused)) if refused.detail.contains("expression statement that discards its value"))), "normal completion still has a u32 result: {verdicts:?}");
+        assert_discard_required(&returning);
     }
 }
 
@@ -1054,18 +1054,6 @@ fn inhabited_result_statements_still_require_explicit_discard() {
         "public data Ordinary {} public machine value() -> Ordinary { Ordinary {} } machine main() { value(); }",
         "public machine value() -> u32 { 7u32 } machine main() { value(); }",
     ] {
-        let verdicts = program(text);
-        assert!(
-            verdicts.iter().any(|verdict| match verdict {
-                Ok(RouteVerdict::FallBack(refusal)) => refusal
-                    .detail
-                    .contains("expression statement that discards its value"),
-                Err(crate::checking::CompilationRefusal::Elaboration(refusal)) => refusal
-                    .detail
-                    .contains("expression statement that discards its value"),
-                _ => false,
-            }),
-            "an inhabited declared result cannot be silently discarded"
-        );
+        assert_discard_required(text);
     }
 }

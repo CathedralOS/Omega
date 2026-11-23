@@ -92,7 +92,7 @@ impl TypedTrees {
             callable_applications::MachineInstantiation::Specialization(application) => {
                 Some(application)
             }
-            callable_applications::MachineInstantiation::Capture(_) => None,
+            callable_applications::MachineInstantiation::Capture(_, _) => None,
         }
     }
 

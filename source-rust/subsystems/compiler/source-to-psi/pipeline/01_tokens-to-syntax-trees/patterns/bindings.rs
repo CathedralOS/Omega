@@ -368,24 +368,9 @@ fn rewrite_block_statements(
                     })
                 }
                 StatementNode::Call(mut call) => {
-                    call.callee = rewrite_optional_expression(
-                        syntax_trees,
-                        call.callee,
-                        subject,
-                        &visible,
-                        captures,
+                    call.expression = rewrite_expression(
+                        syntax_trees, call.expression, subject, &visible, captures,
                     );
-                    let arguments = syntax_trees
-                        .statements
-                        .expression_handles(call.arguments)
-                        .to_vec();
-                    let arguments = arguments
-                        .into_iter()
-                        .map(|argument| {
-                            rewrite_expression(syntax_trees, argument, subject, &visible, captures)
-                        })
-                        .collect::<Vec<_>>();
-                    call.arguments = syntax_trees.statements.insert_expression_handles(arguments);
                     StatementNode::Call(call)
                 }
                 StatementNode::Expression(expression) => StatementNode::Expression(
