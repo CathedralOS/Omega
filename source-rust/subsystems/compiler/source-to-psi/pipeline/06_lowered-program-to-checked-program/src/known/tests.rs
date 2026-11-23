@@ -374,9 +374,15 @@ fn known_definitions_preserve_offset_value_identities() {
         PropositionContext::from_value_types([(first, scalar_type), (second, scalar_type)])
             .unwrap();
     let known = Known::new(&context, std::slice::from_ref(&equation), &[], &values);
+    // Only the value the facts name has a row; `first` still reads as an
+    // undefined member of the namespace, and value 1 as outside it.
     assert_eq!(
-        known.definitions.keys().collect::<Vec<_>>(),
-        [first, second]
+        known
+            .definitions
+            .members()
+            .map(|(value, _)| value)
+            .collect::<Vec<_>>(),
+        [second]
     );
     assert_eq!(known.definitions.get(first), Some(&None));
     assert_eq!(known.definitions.get(second), Some(&Some(0)));
@@ -400,7 +406,7 @@ fn application_transport_keeps_the_available_equation_prefix_and_carrier() {
         origin: Origin::Assumption(0),
         axiom: None,
     }];
-    let defined = IdTable::default();
+    let defined = ValueRows::default();
     let mut scratch = TransportInputs::new(1);
     Known::transport_inputs(&facts, &[0], &proposition, &defined, &mut scratch);
     assert_eq!(scratch.selected, [0]);
