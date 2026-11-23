@@ -3280,6 +3280,7 @@ dependencies = [
  "source-files",
  "source-lexer",
  "source-text",
+ "symbols",
  "syntax-trees",
  "tokens",
  "worker-budget",

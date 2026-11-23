@@ -83,9 +83,7 @@ impl<'a> FileImport<'a> {
     }
 
     fn core(&self, filesystem: &SourceFileSystem) -> Result<FileSelection, Vec<Diagnostic>> {
-        let relative = self.path.strip_prefix("language/core/").ok_or_else(|| {
-            self.error("the toolchain root {omega} supplies only language/core/ files".into())
-        })?;
+        let relative = core_relative_path(self.path).map_err(|reason| self.error(reason.into()))?;
         self.select_captured(&super::bundled_core_root()?, relative, filesystem)
     }
 
@@ -163,27 +161,241 @@ impl<'a> FileImport<'a> {
                 .ok_or_else(|| self.error("file import has no admitted package owner".into()))?;
             return self.standalone(root, None, filesystem);
         };
-        match self.root {
-            None => self.package(inputs, requester, false),
-            Some(root) => match inputs.dependency_target_for_purpose(requester, purpose, root) {
-                Some(target) => self.package(inputs, target, true),
-                None if inputs
-                    .dependency_target_for_purpose(
-                        requester,
-                        super::package_selection::other_purpose(purpose),
-                        root,
-                    )
-                    .is_some() =>
-                {
-                    Err(self.error(format!(
-                        "dependency `{root}` is unavailable in the {} scope",
-                        purpose.name()
-                    )))
-                }
-                None => self.unavailable(purpose),
-            },
+        match self.package_owner(inputs, requester, purpose)? {
+            Some(owner) => self.package(inputs, owner, self.root.is_some()),
+            None => Ok(FileSelection::Unprepared),
         }
     }
+
+    fn package_owner(
+        &self,
+        inputs: &PackageCompilationInputs,
+        requester: PackageKeyIdentity,
+        purpose: DependencyPurpose,
+    ) -> Result<Option<PackageKeyIdentity>, Vec<Diagnostic>> {
+        let Some(root) = self.root else {
+            return Ok(Some(requester));
+        };
+        if let Some(target) = inputs.dependency_target_for_purpose(requester, purpose, root) {
+            return Ok(Some(target));
+        }
+        if inputs
+            .dependency_target_for_purpose(
+                requester,
+                super::package_selection::other_purpose(purpose),
+                root,
+            )
+            .is_some()
+        {
+            return Err(self.error(format!(
+                "dependency `{root}` is unavailable in the {} scope",
+                purpose.name()
+            )));
+        }
+        if purpose == DependencyPurpose::Build {
+            return Ok(None);
+        }
+        Err(self.error(format!(
+            "no direct {} dependency named `{root}` supplies `{}`",
+            purpose.name(),
+            self.path
+        )))
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum FileOwner {
+    Package(PackageKeyIdentity),
+    Root(PathBuf),
+}
+
+impl FileOwner {
+    fn of(source: &source_admission::SourceFile) -> Self {
+        source
+            .package_identity
+            .map_or_else(|| Self::Root(source.package_root.clone()), Self::Package)
+    }
+}
+
+struct AdmittedFileAlias<'a> {
+    source: source_text::SourceId,
+    span: source_text::Span,
+    alias: &'a str,
+    owner: FileOwner,
+    filename: &'a str,
+}
+
+impl AdmittedFileAlias<'_> {
+    fn error(&self, message: String) -> Vec<Diagnostic> {
+        vec![
+            Diagnostic::error(message)
+                .with_source_span(source_text::SourceSpan::new(self.source, self.span)),
+        ]
+    }
+}
+
+enum ImportUse {
+    GeneratedProduct,
+    BuildProductOperand,
+}
+
+/// An extension and a designated Product operand can select only a Product
+/// source already admitted in that package. The two kinds of use grant different
+/// lookup permissions to the referring file.
+fn bind_admitted(
+    sources: &source_compiler::representations::source_inputs::SourceMap,
+    aliases: &[AdmittedFileAlias<'_>],
+    use_site: ImportUse,
+) -> Result<
+    Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>,
+    Vec<Diagnostic>,
+> {
+    use source_compiler::representations::source_symbols::SourceScopedTopLevelBinding;
+    use std::collections::{BTreeMap, BTreeSet};
+    if aliases.is_empty() {
+        return Ok(Vec::new());
+    }
+    let owners = aliases
+        .iter()
+        .map(|entry| &entry.owner)
+        .collect::<BTreeSet<_>>();
+    let mut selected = BTreeMap::new();
+    for file in sources
+        .selected_files()
+        .filter(|file| file.dependency_scope == DependencyScope::Product)
+    {
+        let owner = FileOwner::of(file);
+        if !owners.contains(&owner) {
+            continue;
+        }
+        let logical = file
+            .logical_filename()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        selected
+            .entry((owner, logical))
+            .and_modify(|target| *target = None)
+            .or_insert(Some(file.source_id));
+    }
+    let mut bindings = Vec::new();
+    for import in aliases {
+        let target = selected.get(&(import.owner.clone(), import.filename.to_owned()));
+        match (target, &use_site) {
+            (Some(None), _) => {
+                return Err(import.error(format!(
+                    "more than one source was admitted as logical file `{}`",
+                    import.filename
+                )));
+            }
+            (None, ImportUse::GeneratedProduct) => {
+                return Err(import.error(format!("no admitted logical file `{}`", import.filename)));
+            }
+            (None, ImportUse::BuildProductOperand) => continue,
+            (Some(Some(target)), ImportUse::BuildProductOperand) => {
+                bindings.push(SourceScopedTopLevelBinding::product_file_import(
+                    import.source,
+                    *target,
+                    import.alias,
+                ))
+            }
+            (Some(Some(target)), ImportUse::GeneratedProduct) => bindings.push(
+                SourceScopedTopLevelBinding::file_import(import.source, *target, import.alias),
+            ),
+        }
+    }
+    Ok(bindings)
+}
+
+pub(crate) fn generated_file_imports(
+    parsed: &source_compiler::ParsedSourceBatch,
+    sources: &source_compiler::representations::source_inputs::SourceMap,
+    inputs: &PackageCompilationInputs,
+) -> Result<
+    Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>,
+    Vec<Diagnostic>,
+> {
+    let mut aliases = Vec::new();
+    for unit in parsed.sources.span_or_empty(parsed.batch) {
+        for import in &unit.imports {
+            let Some(file) = FileImport::from(unit, import) else {
+                continue;
+            };
+            let (owner, filename) = if file.root == Some("omega") {
+                (
+                    FileOwner::Root(super::bundled_core_root()?),
+                    core_relative_path(file.path).map_err(|reason| file.error(reason.into()))?,
+                )
+            } else {
+                let owner = file
+                    .package_owner(inputs, inputs.root(), DependencyPurpose::Product)?
+                    .expect("only Build dependencies can remain unprepared");
+                (FileOwner::Package(owner), file.path)
+            };
+            aliases.push(AdmittedFileAlias {
+                source: unit.source_id,
+                span: import.span,
+                alias: file.alias,
+                owner,
+                filename,
+            });
+        }
+    }
+    bind_admitted(sources, &aliases, ImportUse::GeneratedProduct)
+}
+
+pub(super) fn build_product_file_imports(
+    storage: &super::SourceStorage,
+) -> Result<
+    Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>,
+    Vec<Diagnostic>,
+> {
+    let mut aliases = Vec::new();
+    for (_, roots) in storage.source_roots.iter() {
+        if !storage.sources.source_is_selected(roots.source_id) {
+            continue;
+        }
+        let Some(source) = storage.sources.get(roots.source_id) else {
+            continue;
+        };
+        for import in &roots.build_imports {
+            let SourceImportTarget::File { root, path, alias } = &import.target else {
+                continue;
+            };
+            let (owner, filename) = match root.as_deref() {
+                Some("omega") => (
+                    FileOwner::Root(super::bundled_core_root()?),
+                    core_relative_path(path).map_err(|reason| {
+                        vec![
+                            Diagnostic::error(reason)
+                                .with_source_span(source.source_span(import.span)),
+                        ]
+                    })?,
+                ),
+                Some(root) => {
+                    let Some(package) = storage
+                        .sources
+                        .product_dependency_at(source.source_span(import.span), root)
+                    else {
+                        continue;
+                    };
+                    (FileOwner::Package(package), path.as_str())
+                }
+                None => (FileOwner::of(source), path.as_str()),
+            };
+            aliases.push(AdmittedFileAlias {
+                source: roots.source_id,
+                span: import.span,
+                alias,
+                owner,
+                filename,
+            });
+        }
+    }
+    bind_admitted(&storage.sources, &aliases, ImportUse::BuildProductOperand)
+}
+
+pub(super) fn core_relative_path(path: &str) -> Result<&str, &'static str> {
+    path.strip_prefix("language/core/")
+        .ok_or("the toolchain root {omega} supplies only language/core/ files")
 }
 
 /// Only a regular member at the requested spelling in the immutable capture
@@ -313,6 +525,83 @@ mod tests {
             resolve(3).unwrap_err()[0]
                 .message
                 .contains("no direct product dependency named `lib`")
+        );
+    }
+}
+
+#[cfg(test)]
+mod generated_files {
+    use super::*;
+    use crate::{BuildDeclarationKind, PackageSourceBinding};
+    use build_output::PackageGeneratedSource;
+    use source_compiler::representations::source_inputs::SourceCatalogue;
+    use source_compiler::representations::source_symbols::SourceScopedTopLevelBinding;
+    use std::sync::Arc;
+
+    #[test]
+    fn generated_files_can_import_the_checked_base_and_one_another() {
+        let key = PackageKeyIdentity::from_digest([7; 32]).unwrap();
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("generated-local-import");
+        let graph = PackageCompilationInputs::new(
+            key,
+            BuildDeclarationKind::Package,
+            vec![PackageSourceBinding::new(key, "generated", root.clone())],
+            vec![],
+        )
+        .unwrap();
+        let mut catalogue = SourceCatalogue::default();
+        let mut base = catalogue.begin_selection();
+        let authored = catalogue
+            .admit_checked_instance(
+                &mut base,
+                root.join("types/base.omg"),
+                "public data Base {}",
+                root.clone(),
+                Some(key),
+                source_admission::SourceOrigin::User,
+                source_admission::SourceResolutionStratum::Base,
+                DependencyScope::Product,
+            )
+            .unwrap()
+            .source_id;
+        let base = Arc::new(base);
+        let generated = |path: &str, text: &str| {
+            PackageGeneratedSource::from_retained_parts(
+                path.as_bytes().into(),
+                Arc::from(text.as_bytes()),
+            )
+        };
+        let units = [
+            generated("math/value.omg", "public machine value() -> u8 { 7 }"),
+            generated(
+                "entry.omg",
+                "use math/value.omg; use types/base.omg; machine make() -> u8 { |value|::value() }",
+            ),
+        ];
+        let admit = |units: &[PackageGeneratedSource], catalogue: &mut SourceCatalogue| {
+            super::super::admit_generated_extension(&base, &root, Some(key), units, catalogue)
+        };
+        let extension = admit(&units, &mut catalogue).unwrap();
+        let value = extension.custody()[0].0;
+        let entry = extension.custody()[1].0;
+        let request = extension
+            .prepare_source_request(&base, &graph, &mut Default::default())
+            .unwrap();
+        assert_eq!(
+            request.top_level_bindings,
+            [
+                SourceScopedTopLevelBinding::file_import(entry, value, "value"),
+                SourceScopedTopLevelBinding::file_import(entry, authored, "base"),
+            ]
+        );
+        let duplicate = [generated("types/base.omg", "public data Other {}")];
+        let Err(errors) = admit(&duplicate, &mut catalogue) else {
+            panic!("the authored and generated files have the same logical name");
+        };
+        assert!(
+            errors[0]
+                .message
+                .contains("collides with an existing source")
         );
     }
 }

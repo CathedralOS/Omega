@@ -19,6 +19,7 @@ numeric-literals = { path = "../../../foundation/numeric-literals" }
 numerics = { path = "../../../foundation/numerics" }
 rayon = "1.11"
 source-text = { path = "../../../../../foundation/source-text" }
+symbols = { path = "../../../foundation/declaration-identity" }
 syntax-trees = { path = "../../representations/syntax-trees" }
 tokens = { path = "../../representations/tokens" }
 
