@@ -165,6 +165,7 @@ fn execute_provider_fixture(fixture: Fixture) {
     // (wiki/spec/build/command_line.md, "Build-first entry selection").
     let output = run(&directory, &root, "build.omg");
     let report = String::from_utf8(output.stderr).unwrap();
+    eprintln!("TEMPORARY REPORT {forward}\n{report}\nEND REPORT");
     assert!(output.stdout.is_empty(), "{:?}", output.stdout);
     assert!(
         report.lines().any(|line| line == "native exit 0"),
