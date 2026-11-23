@@ -169,7 +169,8 @@ impl ResolveAndTypeRequest {
                     base,
                     syntax,
                     sources: self.sources,
-                    top_level_bindings: self.top_level_bindings,
+                    // Activation already installed the complete binding set for these sources.
+                    top_level_bindings: Vec::new(),
                 },
                 timings,
             )?;
