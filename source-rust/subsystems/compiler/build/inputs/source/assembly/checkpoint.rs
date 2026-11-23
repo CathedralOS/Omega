@@ -62,7 +62,7 @@ impl DeferredProductSources {
             );
         }
         if let Some(packages) = package_inputs {
-            seed_described_entries(&mut imports, packages, bindings);
+            seed_entry_files(&mut imports, &mut storage, packages, bindings)?;
             for path in storage.product_subject_sources()? {
                 imports.seed(path, source_provenance::DependencyScope::Product);
             }
@@ -86,16 +86,47 @@ impl DeferredProductSources {
     }
 }
 
-/// Reopen a described entry from its own captured Product package. The final
-/// binding rejoins the retained declaration by occurrence after normal admission.
-fn seed_described_entries(
+/// Load only the Product files requested by bindings the Build actually issued.
+fn seed_entry_files(
     imports: &mut ImportQueue,
+    storage: &mut SourceStorage,
     packages: &PackageCompilationInputs,
     bindings: &[source_compiler::representations::declaration_selection::ProductEntryBinding],
-) {
+) -> Result<(), Vec<Diagnostic>> {
     use source_compiler::representations::declaration_selection::RootBindingSelection;
     let mut closure = None;
     for binding in bindings {
+        let implementation = match &binding.implementation {
+            RootBindingSelection::AuthoredPath(path) => Some(path.as_str()),
+            RootBindingSelection::Described(_) => None,
+        };
+        for operand in std::iter::once(binding.slot.as_str()).chain(implementation) {
+            let Some((alias, _)) = operand
+                .strip_prefix('|')
+                .and_then(|path| path.split_once("|::"))
+            else {
+                continue;
+            };
+            let source = storage
+                .sources
+                .file_at(binding.source_span)
+                .and_then(|source| storage.sources.rejoined_source_id(source))
+                .ok_or_else(|| {
+                    vec![
+                        Diagnostic::error("root binding lost its authored Build source")
+                            .with_source_span(binding.source_span),
+                    ]
+                })?;
+            let occurrence = source_text::SourceSpan::new(source, binding.source_span.span);
+            for path in crate::source::source_imports::product_file_sources(
+                storage,
+                occurrence,
+                alias,
+                [packages],
+            )? {
+                imports.seed(path, source_provenance::DependencyScope::Product);
+            }
+        }
         let RootBindingSelection::Described(entry) = &binding.implementation else {
             continue;
         };
@@ -121,6 +152,7 @@ fn seed_described_entries(
             imports.seed(source.path.clone(), source.dependency_scope);
         }
     }
+    Ok(())
 }
 
 impl ImmutableSourceParseCheckpoint {

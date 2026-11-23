@@ -1562,3 +1562,65 @@ machine build(builder: @mutable Build) suspends {
         "{report}"
     );
 }
+
+#[test]
+fn a_build_binds_its_products_file_without_being_able_to_call_it() {
+    let Some(host) = target::TargetProfile::host_if_supported() else {
+        return;
+    };
+    let project = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "product-file-operand",
+        false,
+    )
+    .unwrap();
+    let root = project.path();
+    let kit = root.join("vendor");
+    std::fs::create_dir(&kit).unwrap();
+    std::fs::write(
+        kit.join("build.omg"),
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "kit"); }"#,
+    )
+    .unwrap();
+    std::fs::write(kit.join("entry.omg"), "public machine start() {}").unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        "machine unreachable() crashes Trap { crash Trap; }",
+    )
+    .unwrap();
+    let build = r#"use {kit}/entry.omg as selected;
+machine build(builder: @mutable Build) suspends {
+    Build::application(builder, "product_file");
+    let registered: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "vendor" }));
+    suspend Build::prepare_dependency(builder, registered);
+    Build::bind(builder, HOST\ProgramEntry, |selected|::start);
+}"#.replace("HOST", host.target_name());
+    let invoke = |source: &str, args: &[&str]| {
+        std::fs::write(root.join("build.omg"), source).unwrap();
+        let output = Command::new(env!("CARGO_BIN_EXE_omega"))
+            .args(args)
+            .current_dir(root)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        let report = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        (output.status.success(), report)
+    };
+    let (ok, report) = invoke(&build, &["run", "--both", "build.omg"]);
+    assert!(
+        ok && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
+    let called = build.replace(
+        "    Build::bind",
+        "    |selected|::start();\n    Build::bind",
+    );
+    let (ok, report) = invoke(&called, &["--check", "build.omg"]);
+    assert!(
+        !ok && report.contains("Alias `kit` was prepared as a Product dependency"),
+        "{report}"
+    );
+}
