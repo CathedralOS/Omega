@@ -1,24 +1,23 @@
 name: Admission
 
-# During the source-rust move, automated compiler checks run in the standalone V2 workspace.
+# Root workspace compilation and tests are paused, so admission compiles nothing.
+# It checks that the shared specification exists and that active code stays out of the archive.
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
     paths:
-      - 'omega-rust-v2/**'
       - 'wiki/spec/**'
+      - '_recycling/**'
+      - '**/*.rs'
+      - '**/Cargo.toml'
+      - 'tools/ci/check_recycling.py'
+      - 'tools/ci/test_check_recycling.py'
       - '.github/workflows/admission.yml'
-      - 'tools/mbx-version'
-      - 'tools/xtask/bootstrap-mbx.sh'
-      - 'rust-toolchain.toml'
 
 permissions:
   contents: read
-
-env:
-  OMEGA_MBX_INSTALL_CACHE: /tmp/omega-mbx-install
 
 jobs:
   admission:
@@ -29,34 +28,10 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 2
-      - name: Identify V2-only changes
-        id: scope
-        env:
-          PUSH_BEFORE: ${{ github.event.before }}
-        run: |
-          base=HEAD^1
-          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            base="$PUSH_BEFORE"
-            if ! git rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
-              # A push may contain several commits. Fetch its starting point only.
-              git fetch --no-tags --depth=1 origin "$base" || exit 0
-            fi
-          fi
-          if git diff --no-renames --quiet "$base" HEAD -- . ':(top,exclude)omega-rust-v2/**'; then
-            echo 'v2_only=true' >> "$GITHUB_OUTPUT"
-            echo 'V2-only change; skipping compilation and repository checks.'
-          fi
       - name: Require the shared Omega specification
-        if: steps.scope.outputs.v2_only != 'true'
         run: |
           compgen -G "$GITHUB_WORKSPACE/wiki/spec/*/*.md" > /dev/null || { echo "::error::The repository specification is missing"; exit 1; }
-          copy="$GITHUB_WORKSPACE/omega-rust-v2/wiki/spec"
-          if [[ -e "$copy" || -L "$copy" ]]; then
-            echo "::error::V2 must read the repository specification at wiki/spec"
-            exit 1
-          fi
       - name: Check the repository archive and its boundary with active code
-        if: steps.scope.outputs.v2_only != 'true'
         run: |
           # A symlink can redirect an existing module or path dependency without editing its caller.
           if git diff --quiet HEAD^1 HEAD -- ':(glob)**/*.rs' ':(glob)**/Cargo.toml' ':(glob)**/_recycling/**' tools/ci/check_recycling.py tools/ci/test_check_recycling.py .github/workflows/admission.yml &&
@@ -65,28 +40,3 @@ jobs:
           fi
           python3 -B tools/ci/test_check_recycling.py
           python3 -B tools/ci/check_recycling.py
-      - name: Identify changes to V2 or its CI toolchain
-        if: steps.scope.outputs.v2_only != 'true'
-        id: changes
-        run: |
-          if [[ "$GITHUB_EVENT_NAME" == push ]] || ! git diff --quiet HEAD^1 HEAD -- omega-rust-v2 wiki/spec .github/workflows/admission.yml tools/mbx-version tools/xtask/bootstrap-mbx.sh rust-toolchain.toml; then
-            echo 'v2=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'Root compiler checks are paused during the source-rust move.'
-          fi
-      - name: Identify the mbx source and build recipe
-        if: steps.changes.outputs.v2 == 'true'
-        id: mbx-key
-        run: printf 'key=%s\n' "$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        if: steps.changes.outputs.v2 == 'true'
-        with:
-          path: ${{ env.OMEGA_MBX_INSTALL_CACHE }}/artifacts
-          key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.mbx-key.outputs.key }}
-      - name: Install verified mbx
-        if: steps.changes.outputs.v2 == 'true'
-        run: bash tools/xtask/bootstrap-mbx.sh
-      - name: Test the V2 workspace
-        if: steps.changes.outputs.v2 == 'true'
-        working-directory: omega-rust-v2
-        run: mbx test --locked --workspace

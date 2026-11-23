@@ -2,7 +2,7 @@
 
 Use the [sample loop](AGENTS.md#the-sample-loop) for a repair and the [release matrix](wiki/drafts/reference/rust_compiler_completion.md#release-matrix) for release qualification. Start with the assigned program and its expected result. Delete a completed item when its outcome is verified.
 
-Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs). The [experimental Rust plan](omega-rust-v2/PLAN.md) and [bootstrap board](TASKS_BOOTSTRAP.md) own their separate implementations. [Code repair concerns](OWNER_CODE_CONCERNS.md) track structural defects.
+Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs). The [bootstrap board](TASKS_BOOTSTRAP.md) owns the bootstrap implementations. [Code repair concerns](OWNER_CODE_CONCERNS.md) track structural defects.
 
 ## Development-health outcomes
 
@@ -112,7 +112,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 - **JOIN-PREDICATE-FORMS.** Prove a bound on `x & mask` across a join, and retain a dominating Boolean result over byte views without exhausting the bounded disjunction search. Exercise `verify_masked` and the `left == right && count == 2` case.
 - **NEGATIVE-TWIN-REASONS.** (covers **REQUIRES-UNIFICATION**) Make each maintained negative program reach its pinned obligation and reject there. Start with a failing positive/negative pair and preserve its input difference and expected diagnostic.
-  - A twin pins its refusal by message text, so it still passes when the program is refused for another reason that shares the words. V2 declares each layer's refusal kinds once and its tests compare the kind and the span, not the wording (V2's `layers/01_tokens-to-syntax-trees/src/errors/parse_error_kind.rs`; `representations/typed/src/errors/typing_reason.rs` names a closed subset of typing refusals). Give `Diagnostic` an optional kind and convert the stages one refusal family at a time.
+  - A twin pins its refusal by message text, so it still passes when the program is refused for another reason that shares the words. The archived V2 compiler declares each layer's refusal kinds once and its tests compare the kind and the span, not the wording (`_recycling/omega-rust-v2/layers/01_tokens-to-syntax-trees/src/errors/parse_error_kind.rs`; `_recycling/omega-rust-v2/representations/typed/src/errors/typing_reason.rs` names a closed subset of typing refusals). Give `Diagnostic` an optional kind and convert the stages one refusal family at a time.
   - Restore the [nonreturning denotation control](source-rust/subsystems/compiler/tests/fixtures/proofs/fail/ordinary_denotational_call_requires_normal_return/main.omg). Its unused crashing operation and ordinary clause call must reach the [value-denotation check](wiki/spec/proofs/contracts.md#total-arithmetic) and reject for the absence of an observation-free, reach-free, crash-free value.
   - Retain the case-predicate and [nested callback requirement](samples/cli/facts/target_family_callback_guarantee/README.md) oracles on the migrated `requires` syntax. Exercise them through the maintained parser and sample tests.
 

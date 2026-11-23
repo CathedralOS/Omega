@@ -65,10 +65,10 @@ do not create releases or tags for it.
 
 ## Squash-merge after admission
 
-During the source-rust move, `admission` checks the merge commit for changes
-to V2 or its CI toolchain. When either changes it runs the V2 workspace tests.
-Admission checks that archived files live in the repository-root [`_recycling/`](../../_recycling/)
-and that active Cargo and Rust paths stay outside it.
+`admission` compiles and tests no Rust code while root workspace builds are
+paused. It checks that the shared specification exists, that archived files
+live in the repository-root [`_recycling/`](../../_recycling/) and that active
+Cargo and Rust paths stay outside it.
 
 Inspect the checks and submitted head:
 
@@ -113,9 +113,8 @@ local source head need not be an ancestor of main.
 Only then note the result. Release the work claim when the original assignment's
 acceptance is complete; a checkpoint merge keeps outcome ownership.
 
-During the source-rust migration, watch the V2 `admission` run on main for
-changes to the V2 workspace or its CI toolchain. Root post-merge checks and
-warm builds can be started manually once the root workspace builds again.
+Root post-merge checks and warm builds can be started manually once the root
+workspace builds again.
 
 Run the original program on the landed source and follow its next failure on
 the warm worktree. A pre-existing failure remains part of that assignment. If

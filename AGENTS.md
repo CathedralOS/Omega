@@ -13,7 +13,6 @@ Code, create an ignored checkout-local link when `.claude/skills` is absent:
 Omega is a proof-checked systems language whose programs are data-oriented
 state machines:
 - [source-rust/](source-rust/README.md) contains the Rust compiler, CLI, interpreter and package manager in the root Cargo workspace.
-- [omega-rust-v2/](omega-rust-v2/Cargo.toml) is a separate Cargo workspace holding the experimental V2 compiler. The owner decided on 2026-11-22 that compiler work continues in `source-rust/`. Finish or close a V2 pull request that is already open; start no new V2 work. [Decision](omega-rust-v2/PLAN.md#decision-log)
 - `source/application/` and `source/subsystems/compiler/` — the Omega-written product compiler.
 - `source/library/` — bundled `omega::` packages (`name.omg` or `name/mod.omg`).
 - [`bootstrap/`](bootstrap/README.md) groups implementations by language. All routes share Alpha and Beta. For Gamma, Delta and Epsilon, compare interpretation, compilation to Alpha tape and compilation to native code. Host launchers, checks and optional proof research live in `tests/bootstrap/`. Record route experiments in [the development wiki](wiki/development/bootstrap/README.md).
@@ -50,10 +49,9 @@ for the six release gates (`repository`, `source semantics`, `build and packages
 `native matrix`, `diagnostics`, and `representative programs`) across all four
 hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`).
 
-Omega has one specification in [wiki/spec/](wiki/spec/). Both Rust compiler
-workspaces read that shared directory; do not create a copy or symlink under
-`omega-rust-v2/wiki/spec/`. Describe compiler-specific implementation status in
-the compiler's plan or layer contracts.
+Omega has one specification in [wiki/spec/](wiki/spec/). Describe
+compiler-specific implementation status in the compiler's plan or layer
+contracts.
 
 ## Bootstrap mandate
 
@@ -114,7 +112,7 @@ where `<name>` is `Claude Code`, `Codex`, `ChatGPT`, `Cursor`, `Devin`, `Antigra
 Several agents share each GitHub
 account and GitHub squash merges preserve the PR body on `main`, so this line
 records the exact model, reasoning effort, token cost, step count, active
-duration, and human steers for every landed commit. Run `mbx xtask check-rules --body-file <path>` locally to validate the PR metadata. The required [admission workflow](.github/workflows/admission.yml) runs separate checks for the shared spec, the archive boundary and relevant V2 workspace changes.
+duration, and human steers for every landed commit. Run `mbx xtask check-rules --body-file <path>` locally to validate the PR metadata. The required [admission workflow](.github/workflows/admission.yml) checks that the shared spec exists and that active code stays out of the archive.
 The owner has authorized this line permanently for every agent: add it
 automatically, never ask about it or report it as a pending step, and replace
 any footer your harness adds (`Co-Authored-By`, "Generated with/by ...") with it.
@@ -160,8 +158,7 @@ missing piece. Writing up a bug does not fix it. The work is done when the
 program runs.
 
 The specification is the answer key. Read the page in `wiki/spec/` that covers
-the feature and build what it says. Test what you changed, then merge it;
-changes to V2 are tested again on `main` during the source-rust migration.
+the feature and build what it says. Test what you changed, then merge it.
 
 The compiler used to have a second checker that worked on the earlier,
 tree-shaped form of the program. That checker has been removed. The
@@ -229,7 +226,7 @@ the corpus under `tests/omega/` was deleted on the owner's ruling of 2026-11-13
 ([tests/README.md](_recycling/tests/README.md) says how to recover a fixture from
 history), and nothing replaces it.
 
-A program a test reads lives under its crate’s `tests/fixtures/<feature>/<tier>/<case>/`. V2 layers use the layouts in [its README](omega-rust-v2/README.md#where-a-test-program-lives). Multiple owners share an input under the repository’s `tests/fixtures/`. The
+A program a test reads lives under its crate’s `tests/fixtures/<feature>/<tier>/<case>/`. Multiple owners share an input under the repository’s `tests/fixtures/`. The
 test pins the exact result the program must produce (its output or its
 error), which records what the program asks of the compiler. Do not make a test pass by changing the
 program: a different fact, a looser bound or a different operation turns it
@@ -327,16 +324,13 @@ mbx clippy -p <crate> --all-targets -- -D warnings
 mbx xtask check-boundary
 ```
 
-During the source-rust migration, the required `admission` job runs
-`mbx test --locked --workspace` in `omega-rust-v2/` for changes to V2 or its CI
-toolchain. Admission also runs `python3 -B tools/ci/check_recycling.py` on the
-checkout. Park retired implementations and code awaiting piecemeal migration in
+The required `admission` job compiles and tests no Rust code. It runs
+`python3 -B tools/ci/check_recycling.py` on the checkout. Park retired implementations and code awaiting piecemeal migration in
 the [repository-root archive](_recycling/README.md). Mirror the former owner's
 repository-relative path beneath `_recycling/`. Restore each piece in its active
 owner and wire callers there. Active Rust source and Cargo manifests must keep
 implementation paths outside the archive. Root workspace builds and automatic
 warm builds are paused.
-V2 changes are tested again on `main` after merge.
 
 When changing a shared Rust API or helper, search the whole repository for its
 consumers, including tests, examples and forwarding helpers. Run the affected

@@ -508,7 +508,7 @@ The census counts only the declaration fragments that its independent parser
 reads successfully. A per-file parser could keep the declaration identity, package,
 visibility and signature location across files, then check every body using
 fresh syntax tables. The public request's existing resource diagnostics
-would still need their own accounting. [Reproduce the capacity census](../../../tests/bootstrap/independent/parser-capacity.rs) · [Counting method](https://github.com/CathedralOS/Omega/pull/4673)
+would still need their own accounting. [Reproduce the capacity census](../../../_recycling/tests/bootstrap/independent/parser-capacity.rs) · [Counting method](https://github.com/CathedralOS/Omega/pull/4673)
 
 On `0eae05358c0` the isolated parser read all 20,914 bytes of the Omega
 construction entry. Its `Console` and `ProcessExit` dependencies both stopped

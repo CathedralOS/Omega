@@ -128,9 +128,9 @@ Never make a kept test program pass by changing its fact, bound or operation
 
 ## Step 5: Publish and Land
 
-During the source-rust migration, CI runs the standalone V2 workspace tests
-when V2 or its CI toolchain changes. See [landing](../../../wiki/development/landing.md)
-for the checks that currently run after merge.
+CI compiles and tests no Rust code before merge, so run the affected tests and
+Clippy yourself. See [landing](../../../wiki/development/landing.md) for the
+checks that currently run after merge.
 
 1. **Push HEAD to a remote `work/` branch and open the PR as ready for review:**
    ```bash

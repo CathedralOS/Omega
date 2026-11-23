@@ -27,7 +27,7 @@ dependency falls outside the audit. [Rust compiler and trust boundary](../../sou
 
 | Check | A member or step fails it when it |
 | --- | --- |
-| `producer-artifact` | has a `source-rust`, `omega-rust-v2` or legacy `omega-rust` path component |
+| `producer-artifact` | has a `source-rust`, archived `omega-rust-v2` or legacy `omega-rust` path component |
 | `producer-build-step` | invokes `cargo`, `rustc`, `rustup`, `mbx`, `nextest`, or `cargo-nextest`, or references one of those Rust trees |
 | `checkout-derived-path` | spells `..` traversal, an absolute path, `CARGO_MANIFEST_DIR`/`OUT_DIR`, or reaches `source/library` through checkout-relative traversal |
 | `canonical-spelling` | is not a canonical relative POSIX path (same byte rules as `mbx xtask source-closure`) |

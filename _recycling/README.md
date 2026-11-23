@@ -9,6 +9,7 @@ This directory holds implementations and samples kept for reference or piecemeal
 | Native compilation | [Native derivation records](source-rust/subsystems/compiler/psi-to-native/native-derivation-record/README.md) | [Psi to native](../source-rust/subsystems/compiler/psi-to-native/README.md) |
 | Package review | [V1 Product capture](source-rust/subsystems/package-manager/review/evidence/v1-product-capture/) | [Package review evidence](../source-rust/subsystems/package-manager/review/evidence/README.md) |
 | Scientific samples | [Retired sample programs](samples/cli/scientific/) | [Scientific sample catalog](../samples/cli/scientific/README.md) |
+| Experimental compiler | [V2 layer-by-layer compiler workspace](omega-rust-v2/README.md) and its tests, archived on 2026-11-22 after its results were ported to V1 ([decision](omega-rust-v2/PLAN.md#decision-log)) | [Rust compiler](../source-rust/README.md) |
 
 ## Tests and developer tools
 

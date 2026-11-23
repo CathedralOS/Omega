@@ -1,9 +1,8 @@
 # Local testing
 
 Run focused checks that show the changed behavior works, then land through
-[admission and a squash merge](landing.md). During the source-rust migration,
-admission runs the standalone V2 workspace tests on V2 changes before and after
-merge. Automatic root compiler checks are paused.
+[admission and a squash merge](landing.md). Admission compiles and tests no
+Rust code; automatic root compiler checks are paused.
 
 [AGENTS.md](../../AGENTS.md) holds the common workflow; this guide covers test
 choice, run records and platforms. The
@@ -18,7 +17,7 @@ refuse instead of using the build checkout.
 Explicit paths such as `fmt --repository` and `rust-producer-omission --root`
 still choose their inputs. `fmt` already defaulted to the current directory.
 
-Keep a Rust test’s inputs under its crate’s `tests/fixtures/<feature>/<tier>/<case>/`. V2 layers use the layouts in [the V2 README](../../omega-rust-v2/README.md#where-a-test-program-lives). Multiple owners can share the same input under the repository’s `tests/fixtures/`. Shared Rust harness code lives in `tests/support/`.
+Keep a Rust test’s inputs under its crate’s `tests/fixtures/<feature>/<tier>/<case>/`. Multiple owners can share the same input under the repository’s `tests/fixtures/`. Shared Rust harness code lives in `tests/support/`.
 
 Bootstrap tests live in `tests/bootstrap/`, grouped by candidate. The `interpreted/` suite contains its rung and cross-rung gates. The portable [bootstrap checks](../../tests/bootstrap/conformance/README.md) and their expected outcomes can be copied alongside the selected chain. Retired gates and fixtures are available in [the archive](../../_recycling/tests/).
 
@@ -265,10 +264,10 @@ old frozen products. This does not waive reruns of affected code, artifact
 integrity or review the submitted change requires.
 
 Record evidence against the source you tested. The [admission check](landing.md)
-tests the independent V2 workspace during the source-rust migration. The author
-runs affected tests and Clippy before squash-merging. Review and rerun affected checks
+compiles nothing, so the author runs affected tests and Clippy before
+squash-merging. Review and rerun affected checks
 when the author edits source, resolves a conflict or finds a changed semantic
-assumption. Independent-workspace checks are part of the author's focused testing, not
+assumption. These checks are part of the author's focused testing, not
 rerun each time `main` moves. New failures in affected code
 still need fixing, and the authority, custody, digest and golden-file rules
 still apply. Post-merge runtime checks and release qualification are separate
