@@ -201,6 +201,7 @@ pub(crate) fn publish_access_plans(
 pub(crate) struct Qualifications {
     pub catalog: ScalarQualificationCatalog,
     pub identities: TerminalIdentityTableBuilder,
+    pub domain_names: arena::IdTable<DomainSemanticId, String>,
     last_semantic_domain: u64,
     domains: Vec<(DomainInstance, ScalarDomainId)>,
     policies: Vec<(ScalarType, Policy, ScalarDomainId)>,
@@ -472,6 +473,7 @@ impl Qualifications {
             .into_iter()
             .map(|instance| (instance, None))
             .collect();
+        let mut domain_names = Vec::with_capacity(source.declared_domains.len());
         for declared in &source.declared_domains {
             let symbol = declared.instance;
             let carrier = match declared.carrier {
@@ -487,6 +489,7 @@ impl Qualifications {
                         None => {
                             let id = result.next_semantic_domain(&unavailable)?;
                             structural_semantics[position].1 = Some(id);
+                            domain_names.push((id, source.domain_named(symbol)));
                             id
                         }
                     };
@@ -504,6 +507,7 @@ impl Qualifications {
                 }
             };
             let semantic_domain = result.next_semantic_domain(&unavailable)?;
+            domain_names.push((semantic_domain, source.domain_named(symbol)));
             let builder = &mut result.identities;
             let id = ScalarDomainId::new(result.catalog.domains.len() as u64 + 1)
                 .ok_or_else(|| unavailable("scalar domain identity overflow"))?;
@@ -583,6 +587,8 @@ impl Qualifications {
             });
             result.domains.push((symbol, id));
         }
+        result.domain_names = arena::IdTable::from_rows(domain_names)
+            .map_err(|_| unavailable("domain diagnostic identities are not dense"))?;
         Ok(result)
     }
 

@@ -43,7 +43,17 @@ fn a_machine_the_domain_plan_does_not_list_is_refused() {
         report.contains(
             "this cast adds `Ticket::Stamped` in a machine that is not one of the domain's \
              establishment routes"
-        ) && report.contains("reading the body of `stamp`"),
+        ) && report.contains("in machine `stamp`"),
         "{report}"
     );
+    let source = include_str!("fixtures/domains/fail/access_plan_other_issuer/main.omg");
+    let cast = source.rfind("ticket as +Stamped").unwrap();
+    let prefix = &source[..cast];
+    let line = prefix.bytes().filter(|byte| *byte == b'\n').count() + 1;
+    let column = prefix.rsplit('\n').next().unwrap().chars().count() + 1;
+    assert!(
+        report.contains(&format!("main.omg:{line}:{column}")),
+        "{report}"
+    );
+    assert!(!report.contains("defect of the checker"), "{report}");
 }

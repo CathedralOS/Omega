@@ -182,10 +182,11 @@ pub enum RefusalReason {
     /// An identity is past the end of the table it was looked up in. This
     /// catches only out-of-range identities; see `row`.
     ForeignIdentity,
-    /// The program breaks a rule of the language that is judged on the
-    /// source form, before any construct is lowered: a value whose type
-    /// carries other domains than its destination declares, a cast that adds
-    /// a domain outside the domain's establishment routes. It is a compile
+    /// The program breaks a rule of the language: a value whose type
+    /// carries other domains than its destination declares, or a cast that
+    /// lacks both existing membership and an authorized establishment route.
+    /// The source reader or lowered-form checker judges the rule from its
+    /// own input representation. It is a compile
     /// error of the program and is published as a rejection, never as "not
     /// supported". `detail` states the rule. A step
     /// gives this reason only where the specification defines the error for

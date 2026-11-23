@@ -597,10 +597,9 @@ impl UnestablishedUse {
     }
 }
 
-/// One rule of the language the program breaks as written. The reader of the
-/// typed trees found it before any construct was lowered, so it has no
-/// obligation and no lowered construct: it is the source position and the
-/// rule. `wiki/spec/build/compiler_request.md`, "Outcomes": "Diagnostics
+/// One language rule the program breaks. The source reader or lowered-form
+/// checker found it from its own checked inputs; this records the retained
+/// source position and rule without a separate scalar proof obligation. `wiki/spec/build/compiler_request.md`, "Outcomes": "Diagnostics
 /// distinguish failed source checking, invalid proof, unavailable evidence
 /// and receiving-policy refusal"; this is failed source checking.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -2052,8 +2051,8 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
             conflicts: Vec::new(),
             exceeded: Vec::new(),
         }),
-        // A rule the source form breaks, whoever found it: the reader of
-        // the typed trees, before anything was lowered.
+        // A language rule failed at the source position retained by the
+        // reader or the lowered-form checker.
         (RefusalReason::Violation, terminal_check_tables::RefusalSite::Machine(machine, _)) => {
             Ok(RouteVerdict::Rejected {
                 formations: Vec::new(),
