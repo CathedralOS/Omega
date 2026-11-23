@@ -129,38 +129,43 @@ def digit_scanner(base, boundary, program, observe, reference, compiler):
     return report
 
 
-def signature_source(base):
-    # Complete authored declarations in their original source order. The
-    # signature checker depends on layout, declaration resolution and lexing.
-    def members(filename, ranges):
-        source = (base / filename).read_bytes()
-        starts = {match[1].decode(): match.start() for match in re.finditer(
-            rb'^(?:machine|data) ([A-Za-z0-9_:]+)', source, re.MULTILINE)}
-        return b''.join(source[starts[first]:starts[after] if after else len(source)]
-                        for first, after in ranges)
+def signature_source(library):
+    """Keep the compiler declarations used by the unchanged signature program."""
+    fixture = (FIXTURES / 'signature_main.epsilon').read_bytes()
+    headers = list(re.finditer(rb'^(data|machine) ([A-Za-z_]\w*(?:::\w+)?)\b', library, re.M))
+    declarations = {}
+    methods = {}
+    for index, header in enumerate(headers):
+        kind, name = header.groups()
+        end = headers[index + 1].start() if index + 1 < len(headers) else len(library)
+        if name in declarations:
+            raise ValueError(f"duplicate compiler declaration {name!r}")
+        declarations[name] = (kind, library[header.start():end])
+        if b'::' in name:
+            methods.setdefault(name.split(b'::')[-1], []).append(name)
 
-    scanner = 'OmegaLexScan::'
-    compiler = 'OmegaScalarCompiler::'
-    return b''.join([
-        members('representations.epsilon', [('AlphaTapeBuffer', None)]),
-        members('source-to-tokens/byte_classes.epsilon', [('omega_is_whitespace', None)]),
-        members('source-to-tokens/scan.epsilon', [(scanner + 'reset', scanner + 'scan_at')]),
-        members('scalar_compilation.epsilon', [
-            ('OmegaCheckedValueKind', compiler + 'record_internal'),
-            (compiler + 'resolve_machine', compiler + 'fold_expression'),
-            (compiler + 'primitive_type', compiler + 'value_cell'),
-            (compiler + 'check_signatures', compiler + 'compile'),
-            (compiler + 'resolve_data', compiler + 'case_value_type'),
-            (compiler + 'layout_case_payload', compiler + 'check_place'),
-            (compiler + 'type_size', compiler + 'byte_index_result_type'),
-            (compiler + 'reference_signature', compiler + 'check_forward_reference'),
-        ]),
-        members('outcome.epsilon', [('OmegaOutcomeFrame', 'OmegaOutcomeFrame::write_u32')]),
-        members('source_set.epsilon', [('OmegaSourceSet::equal_name', 'OmegaSourceSet::identifier'),
-                                      ('OmegaSourceSet::unit_at', None)]),
-        members('resolution/declarations.epsilon', [(compiler + 'declaration_count', compiler + 'validate_imports')]),
-        (FIXTURES / 'signature_main.epsilon').read_bytes(),
-    ])
+    # The complete compiler emits more than this test's 4 MiB limit. Keep its
+    # real records and follow calls from the fixture, retaining whole machines.
+    # For a call on another field, include every owner of that method name and
+    # let Epsilon resolve the receiver.
+    selected = {name for name, (kind, _) in declarations.items() if kind == b'data'}
+    pending = [(b'Main', fixture)]
+    while pending:
+        owner, body = pending.pop()
+        code = re.sub(rb"""//[^\r\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'""", b' ', body)
+        for receiver, dot, callee in re.findall(
+                rb'(?:(?:(\b[A-Za-z_]\w*)\s*)?(\.)\s*)?(\b[A-Za-z_]\w*)\s*\(', code):
+            if receiver == b'self':
+                targets = [owner + b'::' + callee]
+            elif dot:
+                targets = methods.get(callee, ())
+            else:
+                targets = [callee]
+            for name in targets:
+                if name in declarations and name not in selected:
+                    selected.add(name)
+                    pending.append((name.split(b'::')[0], declarations[name][1]))
+    return b''.join(body for name, (_, body) in declarations.items() if name in selected) + fixture
 
 
 def console_lines(boundary, program, observe, reference, compiler):
@@ -181,7 +186,7 @@ def console_lines(boundary, program, observe, reference, compiler):
     return report
 
 
-def stored_customers(work, observe, compile_delta, reference, compiler):
+def stored_customers(work, observe, compile_delta, reference, compiler, pack):
     boundary = CONSOLE_BOUNDARY
 
     def program(source, name, entry=None):
@@ -351,7 +356,8 @@ def stored_customers(work, observe, compile_delta, reference, compiler):
     literal_report['output'] = identity(expected)
     # A stored Unit result is valid. The same row with an explicit, unformed
     # return type is refused before a signature can be retained.
-    source = signature_source(base)
+    library = pack('bootstrap/omega/compiler/omega_compiler.epsilon.sources', work / 'omega-compiler.epsilon')
+    source = signature_source(library)
     executable, signature_report = program(source, 'compiler-signature')
     expected = b'\0' + struct.pack('<i', 42) + bytes([1, 2, 0])
     actual = observe(executable)
@@ -513,7 +519,7 @@ def run(work, vm, producer, realize, seconds):
         report['enum_customer'] = enum_controls.run(work, vm, producer, realize, seconds, composition, compiler)
         report['stage'] = 'actual-request-and-storage'
         checkpoint()
-        report['stored_customers'] = stored_customers(work, observe, compile_delta, reference, compiler)
+        report['stored_customers'] = stored_customers(work, observe, compile_delta, reference, compiler, vm.pack)
         report['stage'] = 'lexer-observations'
         checkpoint()
         scan_spec = importlib.util.spec_from_file_location('epsilon_lexer_scan', FIXTURES / 'lexer_scan_test.py')
