@@ -32,7 +32,7 @@ impl SignatureScope {
         &mut self,
         input: &PolicySource<'_>,
         owner: SymbolHandle,
-        prefix: &str,
+        name: impl Fn(usize) -> String,
     ) -> Result<(), Vec<Diagnostic>> {
         let program = input.typed();
         for (ordinal, binder) in program
@@ -50,8 +50,7 @@ impl SignatureScope {
                     "a unique static binder in the checked signature",
                 ));
             }
-            self.binders
-                .push((binder.symbol, format!("{prefix}{ordinal}")));
+            self.binders.push((binder.symbol, name(ordinal)));
         }
         for ordinal in 0..declaration_lifetime_parameters(program, owner)
             .unwrap_or_default()
@@ -68,12 +67,25 @@ impl SignatureScope {
         Ok(())
     }
 
+    /// Public type identities number the enclosing trait's binders before its method's.
+    pub(super) fn declaration(
+        input: &PolicySource<'_>,
+        owners: &[SymbolHandle],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let mut scope = Self::default();
+        for &owner in owners {
+            let start = scope.binders.len();
+            scope.extend(input, owner, |index| format!("$T{}", start + index))?;
+        }
+        Ok(scope)
+    }
+
     pub(super) fn service(
         input: &PolicySource<'_>,
         symbol: SymbolHandle,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut scope = Self::default();
-        scope.extend(input, symbol, "service-parameter:")?;
+        scope.extend(input, symbol, |index| format!("service-parameter:{index}"))?;
         Ok(scope)
     }
 
@@ -83,7 +95,7 @@ impl SignatureScope {
         symbol: SymbolHandle,
     ) -> Result<Self, Vec<Diagnostic>> {
         let mut scope = self.clone();
-        scope.extend(input, symbol, "type-parameter:")?;
+        scope.extend(input, symbol, |index| format!("type-parameter:{index}"))?;
         Ok(scope)
     }
 }
@@ -93,8 +105,7 @@ impl PolicySource<'_> {
         &self,
         owner: SymbolHandle,
     ) -> Result<Vec<PackagePolicyTypeParameter>, Vec<Diagnostic>> {
-        let mut scope = SignatureScope::default();
-        scope.extend(self, owner, "$T")?;
+        let scope = SignatureScope::declaration(self, &[owner])?;
         self.scoped_parameters(owner, &scope)
     }
 
@@ -192,8 +203,7 @@ impl PolicySource<'_> {
         owner: SymbolHandle,
         reference: TypeReferenceHandle,
     ) -> Result<PackageReviewTypeIdentity, Vec<Diagnostic>> {
-        let mut scope = SignatureScope::default();
-        scope.extend(self, owner, "$T")?;
+        let scope = SignatureScope::declaration(self, &[owner])?;
         self.scoped_type(owner, reference, &scope)
     }
 

@@ -1296,6 +1296,84 @@ public boundary trait TimeHost {
 }
 
 #[test]
+fn public_method_contracts_keep_their_declaration_binders() {
+    use review_evidence::record::{
+        PackagePolicyBaseline, PackagePolicyTypeParameterKind, PackageReviewContractBinaryOperator,
+        PackageReviewContractExpression as Expression, PackageReviewContractFact,
+        PackageReviewContractKind,
+    };
+    let directory = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "public-method-binders",
+        false,
+    )
+    .unwrap();
+    let build = directory.path().join("build.omg");
+    std::fs::write(
+        &build,
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "receiver"); }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        directory.path().join("main.omg"),
+        r#"
+public boundary trait Receiver {
+    machine send<const Count: u64>(text: @[u8; Count]) -> u64
+    requires Count > 0 reaches none crashes none;
+}
+public machine deliver(text: @[u8; 22]) -> u64
+reaches none invokes Receiver { Receiver::send(text) }
+
+public boundary trait Framed<Frame> {
+    machine send<const Count: u64>(text: @[u8; Count]) -> u64
+    requires Count > 0 reaches none crashes none;
+}
+"#,
+    )
+    .unwrap();
+
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&build, &[target]);
+    let settled = returned.settle_dependency(inputs.clone()).unwrap();
+    let product = settled.open_product(inputs).unwrap();
+    let reviewed = product
+        .product_stage(&[target])
+        .unwrap()
+        .review_policy(target)
+        .unwrap();
+    let bytes = reviewed.policy.canonical_bytes().unwrap();
+    let policy = PackagePolicyBaseline::recover_canonical(&bytes, Default::default()).unwrap();
+    policy
+        .validate_package_membership(|owner| owner == policy.package, Default::default())
+        .unwrap();
+    for (path, count_binder) in [("main.omg::Receiver", 0), ("main.omg::Framed", 1)] {
+        let owner = policy
+            .public_api
+            .traits
+            .iter()
+            .find(|row| row.identity.path == path)
+            .unwrap();
+        let [send] = owner.requirements.as_slice() else {
+            panic!("expected one method on {path}")
+        };
+        let [count] = send.type_parameters.as_slice() else {
+            panic!("expected the method's Count binder")
+        };
+        assert!(
+            matches!(&count.kind, PackagePolicyTypeParameterKind::Const(carrier) if carrier.canonical().contains("u64"))
+        );
+        let [requires] = send.contracts.as_slice() else {
+            panic!("expected Count > 0")
+        };
+        assert_eq!(requires.kind, PackageReviewContractKind::Requires);
+        assert!(
+            matches!(&requires.fact, PackageReviewContractFact::Expression(Expression::Binary {
+            operator: PackageReviewContractBinaryOperator::Greater, left, right, ..
+        }) if **left == Expression::GenericBinder(count_binder) && **right == Expression::Integer("0".into()))
+        );
+    }
+}
+
+#[test]
 fn review_retains_public_alias_names_with_their_normalized_expansions() {
     let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
         "review-public-aliases",

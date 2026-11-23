@@ -77,13 +77,12 @@ impl Program<'_> {
     ) -> Result<RequirementReviewMetadata, String> {
         let (owner, source) = definition;
         if !owner.lifetime_parameters.is_empty()
-            || !source.type_parameters.is_empty()
             || !source.conformance_bounds.is_empty()
             || !source.native_callback_parameters.is_empty()
             || source.is_default
         {
             return Err(
-                "public requirement review needs its complete static/default/callback contract"
+                "public requirement review needs its complete parent lifetime, conformance, default, or callback contract"
                     .to_owned(),
             );
         }
