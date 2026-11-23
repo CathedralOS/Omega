@@ -1,22 +1,13 @@
-use representations\source_files\SourceSpan;
-use representations\syntax_trees\Clause;
-use representations\syntax_trees\ClauseKind;
-use representations\syntax_trees\ClauseOwner;
-use representations\syntax_trees\Contract;
-use representations\syntax_trees\ContractKind;
-use representations\syntax_trees\MachineContainer;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\OperatorToken;
-use representations\syntax_trees\ParseDiagnosticCode;
-use representations\syntax_trees\RootItem;
-use representations\syntax_trees\RootItemKind;
-use representations\syntax_trees\TraitItem;
-use representations\syntax_trees\machine_item;
-use representations\syntax_trees\syntax_trees_clause;
-use representations\tokens\KeywordKind;
-use representations\tokens\PunctuationKind;
-use representations\tokens\Token;
-use representations\tokens\TokenStream;
+use pipeline/tokens_to_syntax_trees/clause.omg;
+use pipeline/tokens_to_syntax_trees/generics.omg;
+use pipeline/tokens_to_syntax_trees/input.omg;
+use pipeline/tokens_to_syntax_trees/types.omg;
+use pipeline/tokens_to_syntax_trees/machine.omg as machine_parser;
+use pipeline/tokens_to_syntax_trees/parser.omg;
+
+use representations/source_files/source.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/tokens/tokens.omg;
 
 // `[public] [boundary] trait Name [<generic parameters>] [: Parent {+ Parent}]
 // {requires proposition Name(parameters);} { member* }`, entered at the `trait`
@@ -31,8 +22,8 @@ use representations\tokens\TokenStream;
 // `suspends [true | false];`, `blocks [true | false];` and `terminates;`.
 // The item and its root are retained at the closing `}`.
 public machine parse_trait(
-    parser: @mutable Parser,
-    input: @TokenStream,
+    parser: @mutable |parser|::Parser,
+    input: @|tokens|::TokenStream,
     item_start: u64 in Trapping,
     is_public: bool,
     is_boundary: bool
@@ -44,62 +35,62 @@ crashes Trap
     parser.declaration_is_boundary = is_boundary;
     transition parser.output.trait_count < 256 {
         true -> keyword(parser, input),
-        _ -> reject(parser, input, ParseDiagnosticCode::TraitCapacityExceeded)
+        _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::TraitCapacityExceeded)
     }
 
-    machine keyword(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
+    machine keyword(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
         parser.declaration_first_generic = parser.output.generic_parameter_count as +Trapping;
         parser.declaration_first_parent = parser.output.trait_parent_count as +Trapping;
         parser.declaration_first_contract = parser.output.contract_count as +Trapping;
-        parser.declaration_contract_count = 0;
+        parser.declaration_contract_count = 0 as +Trapping;
         parser.declaration_is_refinement = false;
-        parser.declaration_type = 0;
-        expect_name(parser, input, ParseDiagnosticCode::ExpectedTraitName);
+        parser.declaration_type = 0 as +Trapping;
+        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedTraitName);
         transition parser.output.accepted {
             true -> named(parser, input),
             _ -> done()
         }
     }
 
-    machine named(parser: @mutable Parser, input: @TokenStream) {
+    machine named(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.declaration_name_start = parser.name_start;
         parser.declaration_name_end = parser.name_end;
-        let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
+        let generic: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Less);
         transition generic {
             true -> generics(parser, input),
             _ -> parents(parser, input)
         }
     }
 
-    machine generics(parser: @mutable Parser, input: @TokenStream) {
-        parse_generic_parameters(parser, input);
+    machine generics(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |generics|::parse_generic_parameters(parser, input);
         transition parser.output.accepted {
             true -> parents(parser, input),
             _ -> done()
         }
     }
 
-    machine parents(parser: @mutable Parser, input: @TokenStream) {
+    machine parents(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.declaration_generic_count = (parser.output.generic_parameter_count as +Trapping) - parser.declaration_first_generic;
-        let listed: bool = at_punctuation(parser, input, PunctuationKind::Colon);
-        let refines: bool = at_punctuation(parser, input, PunctuationKind::Equal);
+        let listed: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Colon);
+        let refines: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Equal);
         transition listed {
             true -> next_parent(parser, input),
             _ -> refinement_word(parser, input, refines)
         }
     }
 
-    machine refinement_word(parser: @mutable Parser, input: @TokenStream, refines: bool) {
+    machine refinement_word(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, refines: bool) {
         transition refines {
             true -> refinement_base(parser, input),
             _ -> contracts(parser, input)
         }
     }
 
-    machine refinement_base(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
-        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedRefinementBase);
+    machine refinement_base(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
+        |types|::parse_type_reference(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedRefinementBase);
         parser.declaration_type = parser.type_result;
         parser.declaration_is_refinement = true;
         transition parser.output.accepted {
@@ -108,8 +99,8 @@ crashes Trap
         }
     }
 
-    machine refinement_body(parser: @mutable Parser, input: @TokenStream) {
-        expect_punctuation(parser, input, PunctuationKind::LeftBrace, ParseDiagnosticCode::ExpectedTraitBody);
+    machine refinement_body(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::LeftBrace, |syntax_trees|::ParseDiagnosticCode::ExpectedTraitBody);
         parser.declaration_first_machine = parser.output.machine_count as +Trapping;
         transition parser.output.accepted {
             true -> refinement_member(parser, input),
@@ -117,23 +108,23 @@ crashes Trap
         }
     }
 
-    machine refinement_member(parser: @mutable Parser, input: @TokenStream) {
-        let closing: bool = at_punctuation(parser, input, PunctuationKind::RightBrace);
-        let narrowed: bool = at_keyword(parser, input, KeywordKind::Machine);
+    machine refinement_member(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let closing: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::RightBrace);
+        let narrowed: bool = |input|::at_keyword(parser, input, |tokens|::KeywordKind::Machine);
         transition closing {
             true -> close(parser, input),
             _ -> refinement_narrowing(parser, input, narrowed)
         }
     }
 
-    machine refinement_narrowing(parser: @mutable Parser, input: @TokenStream, narrowed: bool) {
+    machine refinement_narrowing(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, narrowed: bool) {
         transition narrowed {
             true -> narrowing(parser, input),
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedTraitMember)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedTraitMember)
         }
     }
 
-    machine narrowing(parser: @mutable Parser, input: @TokenStream) {
+    machine narrowing(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parse_refinement_member(parser, input);
         transition parser.output.accepted {
             true -> refinement_member(parser, input),
@@ -141,25 +132,26 @@ crashes Trap
         }
     }
 
-    machine next_parent(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
-        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedTraitParent);
+    machine next_parent(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
+        |types|::parse_type_reference(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedTraitParent);
+        let type_result: u64 in Trapping = parser.type_result;
         transition parser.output.accepted {
-            true -> header_parent(parser, input, parser.type_result),
+            true -> header_parent(parser, input, type_result),
             _ -> done()
         }
     }
 
-    machine header_parent(parser: @mutable Parser, input: @TokenStream, parent: u64 in Trapping) {
+    machine header_parent(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, parent: u64 in Trapping) {
         append_trait_parent(parser, input, parent);
-        let more: bool = at_punctuation(parser, input, PunctuationKind::Plus);
+        let more: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Plus);
         transition parser.output.accepted && more {
             true -> next_parent(parser, input),
             _ -> header_end(parser, input)
         }
     }
 
-    machine header_end(parser: @mutable Parser, input: @TokenStream) {
+    machine header_end(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         transition parser.output.accepted {
             true -> contracts(parser, input),
             _ -> done()
@@ -167,72 +159,72 @@ crashes Trap
     }
 
     // `requires proposition Name(parameters);`, one per proposition binder.
-    machine contracts(parser: @mutable Parser, input: @TokenStream) {
-        let facts: bool = at_word(parser, input, "requires");
-        let proposition: bool = next_is_word(parser, input, "proposition");
+    machine contracts(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let facts: bool = |input|::at_word(parser, input, "requires");
+        let proposition: bool = |input|::next_is_word(parser, input, "proposition");
         transition facts && proposition {
             true -> contract(parser, input),
             _ -> body(parser, input)
         }
     }
 
-    machine contract(parser: @mutable Parser, input: @TokenStream) {
-        let token: Token = input.tokens[parser.current_index];
+    machine contract(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let token: |tokens|::Token = input.tokens[parser.current_index];
         parser.contract_start = token.start;
-        take_current(parser, input);
-        take_current(parser, input);
-        expect_name(parser, input, ParseDiagnosticCode::ExpectedContractName);
+        |input|::take_current(parser, input);
+        |input|::take_current(parser, input);
+        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedContractName);
         transition parser.output.accepted {
             true -> contract_signature(parser, input),
             _ -> done()
         }
     }
 
-    machine contract_signature(parser: @mutable Parser, input: @TokenStream) {
+    machine contract_signature(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.contract_name_start = parser.name_start;
         parser.contract_name_end = parser.name_end;
-        parse_parameters(parser, input);
+        |machine_parser|::parse_parameters(parser, input);
         transition parser.output.accepted {
             true -> contract_end(parser, input),
             _ -> done()
         }
     }
 
-    machine contract_end(parser: @mutable Parser, input: @TokenStream) {
-        expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedContractEnd);
+    machine contract_end(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::Semicolon, |syntax_trees|::ParseDiagnosticCode::ExpectedContractEnd);
         transition parser.output.accepted {
             true -> contract_retained(parser, input),
             _ -> done()
         }
     }
 
-    machine contract_retained(parser: @mutable Parser, input: @TokenStream) {
-        let contract: Contract = Contract {
-            kind: ContractKind::Proposition,
-            name: identifier_span(parser, parser.contract_name_start, parser.contract_name_end),
+    machine contract_retained(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let contract: |syntax_trees|::Contract = |syntax_trees|::Contract {
+            kind: |syntax_trees|::ContractKind::Proposition,
+            name: |parser|::identifier_span(parser, parser.contract_name_start, parser.contract_name_end),
             first_generic_parameter: parser.output.generic_parameter_count as +Trapping,
-            generic_parameter_count: 0,
+            generic_parameter_count: 0 as +Trapping,
             first_parameter: parser.signature_first_parameter,
             parameter_count: parser.signature_parameter_count,
             has_return_type: false,
-            return_type: 0,
+            return_type: 0 as +Trapping,
             first_clause: parser.output.clause_count as +Trapping,
-            clause_count: 0,
-            first_contract: 0,
-            contract_count: 0,
-            source_span: parser_source_span(parser, parser.contract_start, parser.token_end)
+            clause_count: 0 as +Trapping,
+            first_contract: 0 as +Trapping,
+            contract_count: 0 as +Trapping,
+            source_span: |parser|::parser_source_span(parser, parser.contract_start, parser.token_end)
         };
-        retain_contract(parser, input, contract);
+        |machine_parser|::retain_contract(parser, input, contract);
         transition parser.output.accepted {
             true -> contracts(parser, input),
             _ -> done()
         }
     }
 
-    machine body(parser: @mutable Parser, input: @TokenStream) {
+    machine body(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.declaration_contract_count =
             (parser.output.contract_count as +Trapping) - parser.declaration_first_contract;
-        expect_punctuation(parser, input, PunctuationKind::LeftBrace, ParseDiagnosticCode::ExpectedTraitBody);
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::LeftBrace, |syntax_trees|::ParseDiagnosticCode::ExpectedTraitBody);
         parser.declaration_first_machine = parser.output.machine_count as +Trapping;
         transition parser.output.accepted {
             true -> member(parser, input),
@@ -240,28 +232,28 @@ crashes Trap
         }
     }
 
-    machine member(parser: @mutable Parser, input: @TokenStream) {
-        let closing: bool = at_punctuation(parser, input, PunctuationKind::RightBrace);
+    machine member(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let closing: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::RightBrace);
         transition closing {
             true -> close(parser, input),
             _ -> machine_member(parser, input)
         }
     }
 
-    machine machine_member(parser: @mutable Parser, input: @TokenStream) {
-        let required: bool = at_keyword(parser, input, KeywordKind::Machine);
+    machine machine_member(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let required: bool = |input|::at_keyword(parser, input, |tokens|::KeywordKind::Machine);
         transition required {
             true -> requirement(parser, input),
             _ -> parent_member(parser, input)
         }
     }
 
-    machine requirement(parser: @mutable Parser, input: @TokenStream) {
-        let token: Token = input.tokens[parser.current_index];
-        let head: MachineHead = member_machine_head(token.start, MachineContainer::Trait);
+    machine requirement(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let token: |tokens|::Token = input.tokens[parser.current_index];
+        let head: |machine_parser|::MachineHead = member_machine_head(token.start, |syntax_trees|::MachineContainer::Trait);
         let index: u64 in Trapping = parser.output.machine_count as +Trapping;
         let boundary: bool = parser.declaration_is_boundary;
-        parse_machine(parser, input, head);
+        |machine_parser|::parse_machine(parser, input, head);
         transition parser.output.accepted {
             true -> requirement_contract(parser, input, index, boundary),
             _ -> done()
@@ -272,59 +264,60 @@ crashes Trap
     // or executable receiver of its own. Read the member's produced clause
     // range, including a zero-member Reaches row, instead of inferring an
     // absent contract from a selected/default implementation body.
-    machine requirement_contract(parser: @mutable Parser, input: @TokenStream, index: u64 in Trapping, boundary: bool) {
+    machine requirement_contract(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, index: u64 in Trapping, boundary: bool) {
         transition boundary {
             true -> boundary_contract(parser, input, index),
             _ -> member(parser, input)
         }
     }
 
-    machine boundary_contract(parser: @mutable Parser, input: @TokenStream, index: u64 in Trapping) {
-        let declaration: MachineItem = machine_item(@parser.output, index);
-        transition { _ -> reach_clause(parser, input, declaration.first_clause, declaration.clause_count, 0) }
+    machine boundary_contract(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, index: u64 in Trapping) {
+        let declaration: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(@parser.output, index);
+        transition { _ -> reach_clause(parser, input, declaration.first_clause, declaration.clause_count, 0 as +Trapping) }
     }
 
-    machine reach_clause(parser: @mutable Parser, input: @TokenStream, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) {
+    machine reach_clause(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) {
         transition offset < count {
             true -> inspected_clause(parser, input, first, count, offset),
-            _ -> reject(parser, input, ParseDiagnosticCode::MissingBoundaryReachCeiling)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::MissingBoundaryReachCeiling)
         }
     }
 
-    machine inspected_clause(parser: @mutable Parser, input: @TokenStream, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) {
-        let clause: Clause = syntax_trees_clause(@parser.output, first + offset);
-        transition clause.kind == ClauseKind::Reaches {
+    machine inspected_clause(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, first: u64 in Trapping, count: u64 in Trapping, offset: u64 in Trapping) {
+        let clause: |syntax_trees|::Clause = |syntax_trees|::syntax_trees_clause(@parser.output, first + offset);
+        transition clause.kind == |syntax_trees|::ClauseKind::Reaches {
             true -> member(parser, input),
             _ -> reach_clause(parser, input, first, count, offset + 1)
         }
     }
 
-    machine parent_member(parser: @mutable Parser, input: @TokenStream) {
-        let composed: bool = at_word(parser, input, "requires");
+    machine parent_member(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let composed: bool = |input|::at_word(parser, input, "requires");
         transition composed {
             true -> body_parent(parser, input),
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedTraitMember)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedTraitMember)
         }
     }
 
-    machine body_parent(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
-        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedTraitParent);
+    machine body_parent(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
+        |types|::parse_type_reference(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedTraitParent);
+        let type_result: u64 in Trapping = parser.type_result;
         transition parser.output.accepted {
-            true -> body_parent_end(parser, input, parser.type_result),
+            true -> body_parent_end(parser, input, type_result),
             _ -> done()
         }
     }
 
-    machine body_parent_end(parser: @mutable Parser, input: @TokenStream, parent: u64 in Trapping) {
-        expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedTraitRequirementEnd);
+    machine body_parent_end(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, parent: u64 in Trapping) {
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::Semicolon, |syntax_trees|::ParseDiagnosticCode::ExpectedTraitRequirementEnd);
         transition parser.output.accepted {
             true -> body_parent_retained(parser, input, parent),
             _ -> done()
         }
     }
 
-    machine body_parent_retained(parser: @mutable Parser, input: @TokenStream, parent: u64 in Trapping) {
+    machine body_parent_retained(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, parent: u64 in Trapping) {
         append_trait_parent(parser, input, parent);
         transition parser.output.accepted {
             true -> member(parser, input),
@@ -332,26 +325,26 @@ crashes Trap
         }
     }
 
-    machine close(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
+    machine close(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
         transition parser.output.trait_count < 256 {
             true -> root_capacity(parser, input),
-            _ -> reject(parser, input, ParseDiagnosticCode::TraitCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::TraitCapacityExceeded)
         }
     }
 
-    machine root_capacity(parser: @mutable Parser, input: @TokenStream) {
+    machine root_capacity(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         transition parser.output.root_count < 4096 {
             true -> retain(parser),
-            _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::RootCapacityExceeded)
         }
     }
 
-    machine retain(parser: @mutable Parser) {
+    machine retain(parser: @mutable |parser|::Parser) {
         let trait_index: u64 in Trapping = parser.output.trait_count as +Trapping;
-        let span: SourceSpan = parser_source_span(parser, parser.declaration_start, parser.token_end);
-        parser.output.traits[parser.output.trait_count] = TraitItem {
-            name: identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
+        let span: |source|::SourceSpan = |parser|::parser_source_span(parser, parser.declaration_start, parser.token_end);
+        parser.output.traits[parser.output.trait_count] = |syntax_trees|::TraitItem {
+            name: |parser|::identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
             first_generic_parameter: parser.declaration_first_generic,
             generic_parameter_count: parser.declaration_generic_count,
             first_parent: parser.declaration_first_parent,
@@ -367,23 +360,23 @@ crashes Trap
             source_span: span
         };
         parser.output.trait_count = parser.output.trait_count + 1;
-        parser.output.roots[parser.output.root_count] = RootItem {
-            kind: RootItemKind::Trait,
+        parser.output.roots[parser.output.root_count] = |syntax_trees|::RootItem {
+            kind: |syntax_trees|::RootItemKind::Trait,
             item_index: trait_index,
             source_span: span
         };
         parser.output.root_count = parser.output.root_count + 1;
     }
 
-    machine reject(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
-        reject_current(parser, input, code);
+    machine reject(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode) {
+        |input|::reject_current(parser, input, code);
     }
 
     machine done() {}
 }
 
 // Append one parent's type row to `SyntaxTrees::trait_parents`.
-machine append_trait_parent(parser: @mutable Parser, input: @TokenStream, parent: u64 in Trapping)
+machine append_trait_parent(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, parent: u64 in Trapping)
 crashes Trap
 {
     transition parser.output.trait_parent_count < 512 {
@@ -391,25 +384,25 @@ crashes Trap
         _ -> full(parser, input)
     }
 
-    machine append(parser: @mutable Parser, parent: u64 in Trapping) {
-        parser.output.trait_parents[parser.output.trait_parent_count] = parent as u64 +Trapping;
+    machine append(parser: @mutable |parser|::Parser, parent: u64 in Trapping) {
+        parser.output.trait_parents[parser.output.trait_parent_count] = parent;
         parser.output.trait_parent_count = parser.output.trait_parent_count + 1;
     }
 
-    machine full(parser: @mutable Parser, input: @TokenStream) {
-        reject_current(parser, input, ParseDiagnosticCode::TraitParentCapacityExceeded);
+    machine full(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::reject_current(parser, input, |syntax_trees|::ParseDiagnosticCode::TraitParentCapacityExceeded);
     }
 }
 
 // The head of a trait or conformance member machine, starting at its
 // `machine` keyword: no visibility, target or `boundary` of its own.
-machine member_machine_head(start: u64 in Trapping, container: MachineContainer) -> MachineHead {
-    MachineHead {
+machine member_machine_head(start: u64 in Trapping, container: |syntax_trees|::MachineContainer) -> |machine_parser|::MachineHead {
+    |machine_parser|::MachineHead {
         start: start,
         is_public: false,
         has_target: false,
-        target_start: 0,
-        target_end: 0,
+        target_start: 0 as +Trapping,
+        target_end: 0 as +Trapping,
         is_boundary: false,
         container: container
     }
@@ -418,74 +411,74 @@ machine member_machine_head(start: u64 in Trapping, container: MachineContainer)
 // One member of a transparent refinement, entered at its `machine` keyword:
 // `*` for every base requirement, or `[Base::]requirement` for one, then its
 // narrowing clauses. It declares no signature or body.
-machine parse_refinement_member(parser: @mutable Parser, input: @TokenStream)
+machine parse_refinement_member(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream)
 crashes Trap
 {
-    let token: Token = input.tokens[parser.current_index];
+    let token: |tokens|::Token = input.tokens[parser.current_index];
     parser.machine_start = token.start;
     transition parser.output.machine_count < 10240 {
         true -> keyword(parser, input),
-        _ -> reject(parser, input, ParseDiagnosticCode::MachineCapacityExceeded)
+        _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::MachineCapacityExceeded)
     }
 
-    machine keyword(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
+    machine keyword(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
         parser.machine_has_owner = false;
-        parser.machine_owner_start = 0;
-        parser.machine_owner_end = 0;
+        parser.machine_owner_start = 0 as +Trapping;
+        parser.machine_owner_end = 0 as +Trapping;
         parser.machine_first_expression = parser.output.expression_count as +Trapping;
-        let every: bool = at_punctuation(parser, input, PunctuationKind::Asterisk);
+        let every: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Asterisk);
         transition every {
             true -> every_requirement(parser, input),
             _ -> requirement(parser, input)
         }
     }
 
-    machine every_requirement(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
+    machine every_requirement(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
         parser.machine_name_start = parser.token_start;
         parser.machine_name_end = parser.token_end;
         transition { _ -> clauses(parser, input, true) }
     }
 
-    machine requirement(parser: @mutable Parser, input: @TokenStream) {
-        expect_name(parser, input, ParseDiagnosticCode::ExpectedRefinementRequirement);
+    machine requirement(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedRefinementRequirement);
         transition parser.output.accepted {
             true -> named(parser, input),
             _ -> done()
         }
     }
 
-    machine named(parser: @mutable Parser, input: @TokenStream) {
+    machine named(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.machine_name_start = parser.name_start;
         parser.machine_name_end = parser.name_end;
-        let qualified: bool = at_path_separator(parser, input);
+        let qualified: bool = |input|::at_path_separator(parser, input);
         transition qualified {
             true -> qualified_requirement(parser, input),
             _ -> clauses(parser, input, false)
         }
     }
 
-    machine qualified_requirement(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
+    machine qualified_requirement(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
         parser.machine_has_owner = true;
         parser.machine_owner_start = parser.machine_name_start;
         parser.machine_owner_end = parser.machine_name_end;
-        expect_name(parser, input, ParseDiagnosticCode::ExpectedRefinementRequirement);
+        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedRefinementRequirement);
         transition parser.output.accepted {
             true -> qualified_named(parser, input),
             _ -> done()
         }
     }
 
-    machine qualified_named(parser: @mutable Parser, input: @TokenStream) {
+    machine qualified_named(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.machine_name_start = parser.name_start;
         parser.machine_name_end = parser.name_end;
         transition { _ -> clauses(parser, input, false) }
     }
 
-    machine clauses(parser: @mutable Parser, input: @TokenStream, every: bool) {
-        parse_clauses(parser, input, ClauseOwner::Refinement);
+    machine clauses(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, every: bool) {
+        |clause|::parse_clauses(parser, input, |syntax_trees|::ClauseOwner::Refinement);
         transition parser.output.accepted {
             true -> member_end(parser, input, every),
             _ -> done()
@@ -493,59 +486,61 @@ crashes Trap
     }
 
     // Clause parsing leaves one declaration terminator for this member owner.
-    machine member_end(parser: @mutable Parser, input: @TokenStream, every: bool) {
-        expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedClauseEnd);
+    machine member_end(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, every: bool) {
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::Semicolon, |syntax_trees|::ParseDiagnosticCode::ExpectedClauseEnd);
         transition parser.output.accepted {
             true -> capacity(parser, input, every),
             _ -> done()
         }
     }
 
-    machine capacity(parser: @mutable Parser, input: @TokenStream, every: bool) {
+    machine capacity(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, every: bool) {
         transition parser.output.machine_count < 10240 {
             true -> retain(parser, input, every),
-            _ -> reject(parser, input, ParseDiagnosticCode::MachineCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::MachineCapacityExceeded)
         }
     }
 
-    machine retain(parser: @mutable Parser, input: @TokenStream, every: bool) {
+    machine retain(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, every: bool) {
         let clause_count: u64 in Trapping = (parser.output.clause_count as +Trapping) - parser.clause_first;
         let end: u64 in Trapping = parser.token_end;
-        parser.output.machines[parser.output.machine_count] = MachineItem {
+        parser.output.machines[parser.output.machine_count] = |syntax_trees|::MachineItem {
             has_owner: parser.machine_has_owner,
-            owner: identifier_span(parser, parser.machine_owner_start, parser.machine_owner_end),
-            name: identifier_span(parser, parser.machine_name_start, parser.machine_name_end),
+            owner: |parser|::identifier_span(parser, parser.machine_owner_start, parser.machine_owner_end),
+            name: |parser|::identifier_span(parser, parser.machine_name_start, parser.machine_name_end),
             first_generic_parameter: parser.output.generic_parameter_count as +Trapping,
-            generic_parameter_count: 0,
+            generic_parameter_count: 0 as +Trapping,
             first_parameter: parser.output.parameter_count as +Trapping,
-            parameter_count: 0,
+            parameter_count: 0 as +Trapping,
             has_return_type: false,
-            return_type: 0,
+            return_type: 0 as +Trapping,
             first_clause: parser.clause_first,
             clause_count: clause_count,
             first_statement: parser.output.statement_count as +Trapping,
-            statement_count: 0,
-            parent: 0,
+            statement_count: 0 as +Trapping,
+            parent: 0 as +Trapping,
             has_body: false,
             first_expression: parser.machine_first_expression,
             expression_count: (parser.output.expression_count as +Trapping) - parser.machine_first_expression,
             has_target: false,
-            target: identifier_span(parser, 0, 0),
+            target: |parser|::identifier_span(parser, 0 as +Trapping, 0 as +Trapping),
             is_boundary: false,
-            container: MachineContainer::Refinement,
+            container: |syntax_trees|::MachineContainer::Refinement,
             is_public: false,
-            operator: OperatorToken::None,
-            token: identifier_span(parser, 0, 0),
+            operator: |syntax_trees|::OperatorToken::None,
+            token: |parser|::identifier_span(parser, 0 as +Trapping, 0 as +Trapping),
             first_contract: parser.output.contract_count as +Trapping,
-            contract_count: 0,
+            contract_count: 0 as +Trapping,
             every_requirement: every,
-            source_span: parser_source_span(parser, parser.machine_start, end)
+            first_component: 0 as +Trapping,
+            component_count: 0 as +Trapping,
+            source_span: |parser|::parser_source_span(parser, parser.machine_start, end)
         };
         parser.output.machine_count = parser.output.machine_count + 1;
     }
 
-    machine reject(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
-        reject_current(parser, input, code);
+    machine reject(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode) {
+        |input|::reject_current(parser, input, code);
     }
 
     machine done() {}

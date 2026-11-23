@@ -1,13 +1,13 @@
-use representations\source_files\SourceSpan;
-use representations\syntax_trees\ClauseOwner;
-use representations\syntax_trees\DomainItem;
-use representations\syntax_trees\ParseDiagnosticCode;
-use representations\syntax_trees\RootItem;
-use representations\syntax_trees\RootItemKind;
-use representations\syntax_trees\TypeReference;
-use representations\syntax_trees\TypeReferenceKind;
-use representations\tokens\PunctuationKind;
-use representations\tokens\TokenStream;
+use pipeline/tokens_to_syntax_trees/clause.omg;
+use pipeline/tokens_to_syntax_trees/generics.omg;
+use pipeline/tokens_to_syntax_trees/input.omg;
+use pipeline/tokens_to_syntax_trees/path.omg;
+use pipeline/tokens_to_syntax_trees/types.omg;
+use pipeline/tokens_to_syntax_trees/parser.omg;
+
+use representations/source_files/source.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/tokens/tokens.omg;
 
 // `[public] domain [<generic parameters>] Carrier::Name [<index arguments>]
 // tail`, entered at the `domain` word. Predicates name `self`; an authored
@@ -19,8 +19,8 @@ use representations\tokens\TokenStream;
 // The item and its root are
 // retained at its last token.
 public machine parse_domain(
-    parser: @mutable Parser,
-    input: @TokenStream,
+    parser: @mutable |parser|::Parser,
+    input: @|tokens|::TokenStream,
     item_start: u64 in Trapping,
     is_public: bool
 )
@@ -30,26 +30,26 @@ crashes Trap
     parser.declaration_is_public = is_public;
     transition parser.output.domain_count < 256 {
         true -> keyword(parser, input),
-        _ -> reject(parser, input, ParseDiagnosticCode::DomainCapacityExceeded)
+        _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::DomainCapacityExceeded)
     }
 
-    machine keyword(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
+    machine keyword(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
         parser.declaration_first_generic = parser.output.generic_parameter_count as +Trapping;
         parser.declaration_first_argument = parser.output.type_argument_count as +Trapping;
-        parser.declaration_argument_count = 0;
+        parser.declaration_argument_count = 0 as +Trapping;
         parser.declaration_has_subject = false;
-        parser.declaration_subject_start = 0;
-        parser.declaration_subject_end = 0;
-        let generic: bool = at_punctuation(parser, input, PunctuationKind::Less);
+        parser.declaration_subject_start = 0 as +Trapping;
+        parser.declaration_subject_end = 0 as +Trapping;
+        let generic: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Less);
         transition generic {
             true -> generics(parser, input),
             _ -> carrier_form(parser, input)
         }
     }
 
-    machine generics(parser: @mutable Parser, input: @TokenStream) {
-        parse_generic_parameters(parser, input);
+    machine generics(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |generics|::parse_generic_parameters(parser, input);
         transition parser.output.accepted {
             true -> carrier_form(parser, input),
             _ -> done()
@@ -58,75 +58,76 @@ crashes Trap
 
     // A bracketed carrier is a whole type; a named one is its name alone,
     // since the `::` after it begins the domain's own name.
-    machine carrier_form(parser: @mutable Parser, input: @TokenStream) {
-        let bracketed: bool = at_punctuation(parser, input, PunctuationKind::LeftBracket);
+    machine carrier_form(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let bracketed: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::LeftBracket);
         transition bracketed {
             true -> bracketed_carrier(parser, input),
             _ -> named_carrier(parser, input)
         }
     }
 
-    machine bracketed_carrier(parser: @mutable Parser, input: @TokenStream) {
-        parse_type_reference(parser, input, ParseDiagnosticCode::ExpectedDomainCarrier);
+    machine bracketed_carrier(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |types|::parse_type_reference(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedDomainCarrier);
+        let type_result: u64 in Trapping = parser.type_result;
         transition parser.output.accepted {
-            true -> separator(parser, input, parser.type_result),
+            true -> separator(parser, input, type_result),
             _ -> done()
         }
     }
 
-    machine named_carrier(parser: @mutable Parser, input: @TokenStream) {
-        expect_name(parser, input, ParseDiagnosticCode::ExpectedDomainCarrier);
+    machine named_carrier(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedDomainCarrier);
         transition parser.output.accepted {
             true -> carrier_capacity(parser, input),
             _ -> done()
         }
     }
 
-    machine carrier_capacity(parser: @mutable Parser, input: @TokenStream) {
+    machine carrier_capacity(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         transition parser.output.type_reference_count < 65536 {
             true -> carrier_row(parser, input),
-            _ -> reject(parser, input, ParseDiagnosticCode::TypeReferenceCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::TypeReferenceCapacityExceeded)
         }
     }
 
-    machine carrier_row(parser: @mutable Parser, input: @TokenStream) {
+    machine carrier_row(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         let carrier: u64 in Trapping = parser.output.type_reference_count as +Trapping;
-        let row: TypeReference = type_row(parser,
-            TypeReferenceKind::Named, parser.name_start, parser.name_end, parser.name_start, parser.name_end);
+        let row: |syntax_trees|::TypeReference = |types|::type_row(parser,
+            |syntax_trees|::TypeReferenceKind::Named, parser.name_start, parser.name_end, parser.name_start, parser.name_end);
         parser.output.type_references[parser.output.type_reference_count] = row;
         parser.output.type_reference_count = parser.output.type_reference_count + 1;
         transition { _ -> separator(parser, input, carrier) }
     }
 
-    machine separator(parser: @mutable Parser, input: @TokenStream, carrier: u64 in Trapping) {
+    machine separator(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, carrier: u64 in Trapping) {
         parser.declaration_type = carrier;
-        expect_punctuation(parser, input, PunctuationKind::ColonColon, ParseDiagnosticCode::ExpectedDomainSeparator);
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::ColonColon, |syntax_trees|::ParseDiagnosticCode::ExpectedDomainSeparator);
         transition parser.output.accepted {
             true -> domain_name(parser, input),
             _ -> done()
         }
     }
 
-    machine domain_name(parser: @mutable Parser, input: @TokenStream) {
-        expect_name(parser, input, ParseDiagnosticCode::ExpectedDomainName);
+    machine domain_name(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::expect_name(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedDomainName);
         transition parser.output.accepted {
             true -> named(parser, input),
             _ -> done()
         }
     }
 
-    machine named(parser: @mutable Parser, input: @TokenStream) {
+    machine named(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.declaration_name_start = parser.name_start;
         parser.declaration_name_end = parser.name_end;
-        let indexed: bool = at_punctuation(parser, input, PunctuationKind::Less);
+        let indexed: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Less);
         transition indexed {
             true -> indices(parser, input),
             _ -> subject(parser, input)
         }
     }
 
-    machine indices(parser: @mutable Parser, input: @TokenStream) {
-        parse_static_arguments(parser, input);
+    machine indices(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |types|::parse_static_arguments(parser, input);
         parser.declaration_first_argument = parser.committed_type_first;
         parser.declaration_argument_count = parser.committed_type_count;
         transition parser.output.accepted {
@@ -137,61 +138,61 @@ crashes Trap
 
     // Authored `(subject)` binders are retired. Predicates name the fixed
     // logical subject `self`.
-    machine subject(parser: @mutable Parser, input: @TokenStream) {
-        let bound: bool = at_punctuation(parser, input, PunctuationKind::LeftParen);
+    machine subject(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let bound: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::LeftParen);
         transition bound {
-            true -> reject(parser, input, ParseDiagnosticCode::RetiredDomainSubject),
+            true -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::RetiredDomainSubject),
             _ -> tail(parser, input)
         }
     }
 
-    machine tail(parser: @mutable Parser, input: @TokenStream) {
+    machine tail(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.declaration_first_path = parser.output.name_path_count as +Trapping;
-        let alias: bool = at_punctuation(parser, input, PunctuationKind::Equal);
+        let alias: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Equal);
         transition alias {
             true -> alias_open(parser, input),
             _ -> predicates(parser, input)
         }
     }
 
-    machine alias_open(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
+    machine alias_open(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
         parser.declaration_first_clause = parser.output.clause_count as +Trapping;
-        parser.declaration_clause_count = 0;
+        parser.declaration_clause_count = 0 as +Trapping;
         transition { _ -> constituent(parser, input) }
     }
 
-    machine constituent(parser: @mutable Parser, input: @TokenStream) {
-        parse_name_path(parser, input, ParseDiagnosticCode::ExpectedDomainConstituent);
+    machine constituent(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |path|::parse_name_path(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedDomainConstituent);
         transition parser.output.accepted {
             true -> conjunction(parser, input),
             _ -> done()
         }
     }
 
-    machine conjunction(parser: @mutable Parser, input: @TokenStream) {
-        let more: bool = at_punctuation(parser, input, PunctuationKind::Ampersand);
+    machine conjunction(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let more: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Ampersand);
         transition more {
             true -> next_constituent(parser, input),
             _ -> alias_end(parser, input)
         }
     }
 
-    machine next_constituent(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
+    machine next_constituent(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
         transition { _ -> constituent(parser, input) }
     }
 
-    machine alias_end(parser: @mutable Parser, input: @TokenStream) {
-        expect_punctuation(parser, input, PunctuationKind::Semicolon, ParseDiagnosticCode::ExpectedDomainEnd);
+    machine alias_end(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::expect_punctuation(parser, input, |tokens|::PunctuationKind::Semicolon, |syntax_trees|::ParseDiagnosticCode::ExpectedDomainEnd);
         transition parser.output.accepted {
             true -> retain_capacity(parser, input, true),
             _ -> done()
         }
     }
 
-    machine predicates(parser: @mutable Parser, input: @TokenStream) {
-        parse_clauses(parser, input, ClauseOwner::Domain);
+    machine predicates(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |clause|::parse_clauses(parser, input, |syntax_trees|::ClauseOwner::Domain);
         parser.declaration_first_clause = parser.clause_first;
         parser.declaration_clause_count = (parser.output.clause_count as +Trapping) - parser.clause_first;
         transition parser.output.accepted {
@@ -200,85 +201,86 @@ crashes Trap
         }
     }
 
-    machine establishment(parser: @mutable Parser, input: @TokenStream) {
+    machine establishment(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
         parser.declaration_first_path = parser.output.name_path_count as +Trapping;
-        let routed: bool = at_word(parser, input, "established");
+        let routed: bool = |input|::at_word(parser, input, "established");
         transition routed {
             true -> established(parser, input),
             _ -> ending(parser, input)
         }
     }
 
-    machine established(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
-        let by: bool = at_word(parser, input, "by");
+    machine established(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
+        let by: bool = |input|::at_word(parser, input, "by");
         transition by {
             true -> routes(parser, input),
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedEstablishedBy)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedEstablishedBy)
         }
     }
 
-    machine routes(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
+    machine routes(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
         transition { _ -> route(parser, input) }
     }
 
-    machine route(parser: @mutable Parser, input: @TokenStream) {
-        parse_name_path(parser, input, ParseDiagnosticCode::ExpectedDomainRoute);
+    machine route(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |path|::parse_name_path(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedDomainRoute);
         transition parser.output.accepted {
             true -> route_separator(parser, input),
             _ -> done()
         }
     }
 
-    machine route_separator(parser: @mutable Parser, input: @TokenStream) {
-        let more: bool = at_punctuation(parser, input, PunctuationKind::Comma);
+    machine route_separator(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let more: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Comma);
         transition more {
             true -> routes(parser, input),
             _ -> ending(parser, input)
         }
     }
 
-    machine ending(parser: @mutable Parser, input: @TokenStream) {
-        let semicolon: bool = at_punctuation(parser, input, PunctuationKind::Semicolon);
+    machine ending(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        let semicolon: bool = |input|::at_punctuation(parser, input, |tokens|::PunctuationKind::Semicolon);
         transition semicolon {
             true -> closed(parser, input),
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedDomainEnd)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::ExpectedDomainEnd)
         }
     }
 
-    machine closed(parser: @mutable Parser, input: @TokenStream) {
-        take_current(parser, input);
+    machine closed(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream) {
+        |input|::take_current(parser, input);
         transition { _ -> retain_capacity(parser, input, false) }
     }
 
-    machine retain_capacity(parser: @mutable Parser, input: @TokenStream, is_alias: bool) {
+    machine retain_capacity(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, is_alias: bool) {
         transition parser.output.domain_count < 256 {
             true -> root_capacity(parser, input, is_alias),
-            _ -> reject(parser, input, ParseDiagnosticCode::DomainCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::DomainCapacityExceeded)
         }
     }
 
-    machine root_capacity(parser: @mutable Parser, input: @TokenStream, is_alias: bool) {
+    machine root_capacity(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, is_alias: bool) {
         transition parser.output.root_count < 4096 {
             true -> retain(parser, is_alias),
-            _ -> reject(parser, input, ParseDiagnosticCode::RootCapacityExceeded)
+            _ -> reject(parser, input, |syntax_trees|::ParseDiagnosticCode::RootCapacityExceeded)
         }
     }
 
     // An alias's paths are its constituents and a predicate domain's its
     // routes; the other range is empty at the table's end.
-    machine retain(parser: @mutable Parser, is_alias: bool) {
+    machine retain(parser: @mutable |parser|::Parser, is_alias: bool) {
         let path_end: u64 in Trapping = parser.output.name_path_count as +Trapping;
         let path_count: u64 in Trapping = path_end - parser.declaration_first_path;
+        let declaration_first_path: u64 in Trapping = parser.declaration_first_path;
         transition is_alias {
-            true -> retained(parser, true, path_end, 0, parser.declaration_first_path, path_count),
-            _ -> retained(parser, false, parser.declaration_first_path, path_count, path_end, 0)
+            true -> retained(parser, true, path_end, 0 as +Trapping, declaration_first_path, path_count),
+            _ -> retained(parser, false, declaration_first_path, path_count, path_end, 0 as +Trapping)
         }
     }
 
     machine retained(
-        parser: @mutable Parser,
+        parser: @mutable |parser|::Parser,
         is_alias: bool,
         first_route: u64 in Trapping,
         route_count: u64 in Trapping,
@@ -286,16 +288,16 @@ crashes Trap
         constituent_count: u64 in Trapping
     ) {
         let domain: u64 in Trapping = parser.output.domain_count as +Trapping;
-        let span: SourceSpan = parser_source_span(parser, parser.declaration_start, parser.token_end);
-        parser.output.domains[parser.output.domain_count] = DomainItem {
+        let span: |source|::SourceSpan = |parser|::parser_source_span(parser, parser.declaration_start, parser.token_end);
+        parser.output.domains[parser.output.domain_count] = |syntax_trees|::DomainItem {
             carrier: parser.declaration_type,
-            name: identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
+            name: |parser|::identifier_span(parser, parser.declaration_name_start, parser.declaration_name_end),
             first_argument: parser.declaration_first_argument,
             argument_count: parser.declaration_argument_count,
             first_generic_parameter: parser.declaration_first_generic,
             generic_parameter_count: (parser.output.generic_parameter_count as +Trapping) - parser.declaration_first_generic,
             has_subject: parser.declaration_has_subject,
-            subject: identifier_span(parser, parser.declaration_subject_start, parser.declaration_subject_end),
+            subject: |parser|::identifier_span(parser, parser.declaration_subject_start, parser.declaration_subject_end),
             first_clause: parser.declaration_first_clause,
             clause_count: parser.declaration_clause_count,
             first_route: first_route,
@@ -307,16 +309,16 @@ crashes Trap
             source_span: span
         };
         parser.output.domain_count = parser.output.domain_count + 1;
-        parser.output.roots[parser.output.root_count] = RootItem {
-            kind: RootItemKind::Domain,
+        parser.output.roots[parser.output.root_count] = |syntax_trees|::RootItem {
+            kind: |syntax_trees|::RootItemKind::Domain,
             item_index: domain,
             source_span: span
         };
         parser.output.root_count = parser.output.root_count + 1;
     }
 
-    machine reject(parser: @mutable Parser, input: @TokenStream, code: ParseDiagnosticCode) {
-        reject_current(parser, input, code);
+    machine reject(parser: @mutable |parser|::Parser, input: @|tokens|::TokenStream, code: |syntax_trees|::ParseDiagnosticCode) {
+        |input|::reject_current(parser, input, code);
     }
 
     machine done() {}
