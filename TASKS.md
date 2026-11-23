@@ -212,7 +212,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 
 - **NO-IMPLICIT-COMPILER-STORAGE.** Implement [compiler storage](wiki/spec/build/compiler_storage.md): keep reuse in memory within one build invocation and delete the disk caches.
   - Trace ordinary builds, review/update and interrupted publication. Keep requested outputs, acquisition and transaction recovery distinct from invocation-owned scratch.
-  - Check a diamond dependency with identical inputs and one with different grants or targets. Two invocations in the same process must start independent computations.
 
   Acceptance: disk-cache reads and writes are gone with absent, populated, corrupt or unwritable cache directories. In-memory reuse stays within its invocation. Clean up scratch after success and handled failure, ignore abandoned scratch after forced termination and recover the publication transaction. Compare deterministic outputs, build time and peak memory before and after the deletion.
 
