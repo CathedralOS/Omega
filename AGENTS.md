@@ -37,7 +37,7 @@ plain wording over the shorthand:
 - **Positive / negative twin**: two test programs that differ in one input.
   The positive must compile and run; the negative must be refused with a
   specific error.
-- **Hosted target**: one of the four operating-system/CPU pairs Omega must
+- **Hosted target**: one of the five operating-system/CPU pairs Omega must
   produce native programs for (listed below).
 - **Release gate**: one of the six areas that must all be finished before the
   compiler ships (listed below).
@@ -46,8 +46,11 @@ plain wording over the shorthand:
 
 **The goal is a complete compiler that ships.** Follow the work and review rules below and [Rust compiler completion](wiki/drafts/reference/rust_compiler_completion.md)
 for the six release gates (`repository`, `source semantics`, `build and packages`,
-`native matrix`, `diagnostics`, and `representative programs`) across all four
-hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`).
+`native matrix`, `diagnostics`, and `representative programs`) across all five
+hosted targets (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`,
+`windows_arm64`). The owner added `windows_arm64` on 2026-11-23; until
+`TASKS.md` **WINDOWS-ARM64-TARGET** lands its target package, programs cannot
+bind it and checks cover the other four.
 
 Omega has one specification in [wiki/spec/](wiki/spec/). Describe
 compiler-specific implementation status in the compiler's plan or layer
@@ -213,7 +216,7 @@ are the one looking at it, it is yours: finish it or close it.
 ## The sample loop
 
 A language feature should work wherever a value can appear (a local, a field,
-an argument, a return value, and so on) and on all four hosted targets, with a
+an argument, a return value, and so on) and on every hosted target, with a
 negative twin. The lowered-form checker gives every one of those places the
 same treatment: a fact belongs to a value, and a place only says which value it
 holds ([check on the lowered form](wiki/drafts/designs/check_on_lowered_form.md)).
