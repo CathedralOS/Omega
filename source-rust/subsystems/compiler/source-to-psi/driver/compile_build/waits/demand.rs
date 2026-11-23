@@ -68,7 +68,7 @@ impl<'a> Lookup<'a> {
         let mut path = members.iter().chain(target).map(|name| name.as_str());
         let first = path.next().unwrap();
         self.imports.iter().any(|import| {
-            import.source == source && import_matches(&import.path, first, path.clone())
+            import.source == source && import_matches(&import.target, first, path.clone())
         })
     }
 
@@ -89,7 +89,7 @@ impl<'a> Lookup<'a> {
         !symbol.is_valid()
             && self.imports.iter().any(|import| {
                 import.source == name.source_span().source_id
-                    && import_matches(&import.path, name.as_str(), std::iter::empty())
+                    && import_matches(&import.target, name.as_str(), std::iter::empty())
             })
             && matches!(
                 self.trees
@@ -456,19 +456,30 @@ impl<'a> Lookup<'a> {
 
 /// A qualified name can be retained as one joined token or several path members.
 /// Compare complete components so that importing "kit" cannot defer "kitchen".
-fn import_matches<'a>(import: &str, first: &'a str, rest: impl Iterator<Item = &'a str>) -> bool {
+fn import_matches<'a>(
+    import: &crate::SourceImportTarget,
+    first: &'a str,
+    rest: impl Iterator<Item = &'a str>,
+) -> bool {
     let mut occurrence = std::iter::once(first)
         .chain(rest)
         .flat_map(|member| member.split("::"))
         .peekable();
     // A file can use the selected module by its leaf, as in
     // use support\\configure followed by configure\\run().
-    import
-        .rsplit_once("::")
-        .is_some_and(|(_, leaf)| occurrence.peek() == Some(&leaf))
-        || import
-            .split("::")
-            .all(|wanted| occurrence.next() == Some(wanted))
+    match import {
+        crate::SourceImportTarget::File { alias, .. } => occurrence.next().is_some_and(|name| {
+            name.strip_prefix('|')
+                .and_then(|name| name.strip_suffix('|'))
+                == Some(alias)
+        }),
+        crate::SourceImportTarget::Namespace(members) => {
+            (members.len() > 1 && members.last().map(String::as_str) == occurrence.peek().copied())
+                || members
+                    .iter()
+                    .all(|wanted| occurrence.next() == Some(wanted.as_str()))
+        }
+    }
 }
 
 /// One frame contributes a source projection only when its original suffix depends
