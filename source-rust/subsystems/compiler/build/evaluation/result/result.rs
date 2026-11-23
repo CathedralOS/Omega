@@ -22,6 +22,8 @@ pub struct EvaluatedBuild {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BuildSubjectValidation {
     EntryOnly,
+    /// The entry has been checked. The whole subject requires the returned Build's package owner.
+    AwaitingPackageOwner,
     /// The Build returned through a checked arm. Other arms still need an unavailable dependency.
     CheckedAvailableDeclarations,
     Checked,

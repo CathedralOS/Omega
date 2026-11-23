@@ -357,6 +357,10 @@ pub fn prepare_build_evaluation(
         .transpose()?;
     let subject_validation = if dependency_activation {
         BuildSubjectValidation::EntryOnly
+    } else if package_inputs.is_none() && typed.roots.partial_build_entry.is_none() {
+        // A complete Build can check its other declarations after it returns an owner.
+        // A staged Build must check the available declarations in their original interval.
+        BuildSubjectValidation::AwaitingPackageOwner
     } else {
         BuildSubjectValidation::Checked
     };

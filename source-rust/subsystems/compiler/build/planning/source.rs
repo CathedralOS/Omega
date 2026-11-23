@@ -6,8 +6,8 @@ use super::{PlanningServices, refusal};
 mod product_queries;
 use artifacts::compile_timings::{CompileTimings, counters::BuildExecutionPurpose};
 use build_execution::{
-    BuildEvaluationRequest, BuildStageRequest, CompileFailure, EvaluatedBuild,
-    PreparedBuildEvaluation, TerminalBuildActivation, prepare_build_evaluation,
+    BuildEvaluationRequest, BuildStageRequest, BuildSubjectValidation, CompileFailure,
+    EvaluatedBuild, PreparedBuildEvaluation, TerminalBuildActivation, prepare_build_evaluation,
     settle_rejoined_build_slice,
 };
 use diagnostics::Diagnostic;
@@ -419,7 +419,12 @@ impl PlanningSource {
                 )
             })?
             .1;
-        if !evaluated.constants.read.is_empty() || evaluated.constants.folded_under_providers {
+        let awaiting_owner =
+            evaluated.subject_validation == BuildSubjectValidation::AwaitingPackageOwner;
+        if awaiting_owner
+            || !evaluated.constants.read.is_empty()
+            || evaluated.constants.folded_under_providers
+        {
             let authority = inputs.map(|inputs| {
                 Arc::new(inputs.declaration_scope(build_declarations::DependencyPurpose::Build))
             });
@@ -444,6 +449,9 @@ impl PlanningSource {
                 &mut self.timings,
             )?;
             evaluated.source_completion_accounting.append(spent);
+            if awaiting_owner {
+                evaluated.subject_validation = BuildSubjectValidation::Checked;
+            }
         }
         let generated = if evaluated.configuration.generated_sources.is_empty() {
             None
