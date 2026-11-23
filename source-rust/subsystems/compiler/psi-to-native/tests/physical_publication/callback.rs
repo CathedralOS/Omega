@@ -384,6 +384,34 @@ fn build_fixture() -> Fixture {
     }
 }
 
+fn check_layout_fixup_identity(program: &machine_code::ResolvedMachineProgram) {
+    let original = program.layout.identity();
+    assert_eq!(original, program.layout.recomputed_identity());
+    encoding_admission::layout::validate_baseline_resolved_layout(program).unwrap();
+
+    let check_edit = |edit: fn(&mut machine_code::SelectedFormNormalizedForeignCallFixup)| {
+        let mut changed = program.clone();
+        let layout = Arc::make_mut(&mut changed.layout);
+        let registrar = layout
+            .functions
+            .iter_mut()
+            .flat_map(|function| &mut function.blocks)
+            .flat_map(|block| &mut block.instructions)
+            .filter_map(|row| row.normalized_foreign_call_fixup.as_deref_mut())
+            .find(|fixup| !fixup.callbacks.is_empty())
+            .expect("the registrar calls an import and materializes the callback");
+        edit(registrar);
+        layout.identity = layout.recomputed_identity();
+        assert_ne!(original, layout.identity);
+        assert_eq!(
+            encoding_admission::layout::validate_baseline_resolved_layout(&changed),
+            Err(encoding_admission::layout::OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch),
+        );
+    };
+    check_edit(|fixup| fixup.ordinal += 1);
+    check_edit(|fixup| fixup.callbacks.clear());
+}
+
 #[test]
 fn physical_publication_retains_linked_callback_children() {
     check_callback_publication(false);
@@ -759,6 +787,7 @@ fn check_callback_publication(retain_body_source: bool) {
             )],
         )
         .unwrap();
+        check_layout_fixup_identity(&archive.root().unwrap().baseline_layout);
         published_object_verification::verify_retained_selected_optimization(
             published.object(),
             &archive,
