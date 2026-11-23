@@ -107,8 +107,8 @@ machine same_integer(left: IntegerLiteral, right: IntegerLiteral, expected: bool
     let zero: u64 in Trapping = 0u64 as +Trapping;
     let one: u64 in Trapping = 1u64 as +Trapping;
     let scope: TypeScope = TypeScope { lexical_machine: zero, first_generic_parameter: zero, generic_parameter_count: zero, first_outer_parameter: zero, outer_parameter_count: zero };
-    same_head(@resolver, @syntax, zero, one) == expected
-        && same_type_row(@resolver, @syntax, scope, zero, scope, one) == expected
+    |domains|::same_head(@resolver, @syntax, zero, one) == expected
+        && |machine_signatures|::same_type_row(@resolver, @syntax, scope, zero, scope, one) == expected
 }
 
 machine check_trait_static_slots(syntax: @SyntaxTrees) -> bool
@@ -117,10 +117,10 @@ crashes Trap
     let resolution: NameResolution = NameResolution { binding_count: 20 as +Trapping, machine_row: 6 as +Trapping };
     let policy: GenericParameter = GenericParameter { kind: GenericParameterKind::Const, has_type_reference: true, type_reference: 10 as +Trapping };
     let number: GenericParameter = GenericParameter { kind: GenericParameterKind::Const, has_type_reference: true, type_reference: 4 as +Trapping };
-    generic_annotation_role(GenericParameterKind::Const, true) == TypeRole::StaticParameter
-        && generic_annotation_role(GenericParameterKind::Const, false) == TypeRole::Type
-        && trait_name_admitted(TypeRole::StaticParameter, true) && !trait_name_admitted(TypeRole::Type, true)
-        && !trait_name_admitted(TypeRole::StaticParameter, false) && accepts(syntax, @resolution, policy, 12 as +Trapping)
+    |generic_scopes|::generic_annotation_role(GenericParameterKind::Const, true) == |type_names|::TypeRole::StaticParameter
+        && |generic_scopes|::generic_annotation_role(GenericParameterKind::Const, false) == |type_names|::TypeRole::Type
+        && |type_names|::trait_name_admitted(|type_names|::TypeRole::StaticParameter, true) && !|type_names|::trait_name_admitted(|type_names|::TypeRole::Type, true)
+        && !|type_names|::trait_name_admitted(|type_names|::TypeRole::StaticParameter, false) && accepts(syntax, @resolution, policy, 12 as +Trapping)
         && !accepts(syntax, @resolution, policy, 13 as +Trapping) && !accepts(syntax, @resolution, policy, 14 as +Trapping)
         && !accepts(syntax, @resolution, policy, 0 as +Trapping) && !accepts(syntax, @resolution, policy, 15 as +Trapping)
         && !accepts(syntax, @resolution, policy, 19 as +Trapping) && accepts(syntax, @resolution, number, 0 as +Trapping)
