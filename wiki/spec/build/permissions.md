@@ -98,9 +98,36 @@ or object-confined. Exact service reach and demanded operation remain visible.
 The closed classes are filesystem content read/write, metadata query/mutation,
 directory enumeration, namespace mutation, process input, process output,
 process termination, machine control, port I/O, interrupt control, interrupt
-entry, and root-memory access. Historical broad `Filesystem`/`Process` risk summaries grant no terminal
+entry, root-memory access, host network stack access, and off-machine network
+transmission. Historical broad `Filesystem`/`Process` risk summaries grant no terminal
 permission. Separate cross-platform realizations satisfy one portable
 requirement; `Linux + Windows` would mean reach union, not provider choice.
+
+### Physical network authority
+
+Report the [network service](platform_services.md#network-reach) a machine may
+call, whether its selected mechanisms can use the host network stack, and
+whether they can transmit off-machine. Two independent physical authority
+classes describe the provider.
+
+| Physical class | When it applies |
+| --- | --- |
+| `HostNetworkStack` | A selected mechanism can use the host operating system's networking facilities, including a loopback-only socket. |
+| `OffMachineNetworkTransmit` | A selected mechanism can cause traffic to leave the machine, including name queries, handshakes, acknowledgments, or application data. |
+
+A provider that only reads a recording in memory exercises neither network
+class. A socket proven confined to loopback exercises `HostNetworkStack`
+alone if its entire selected path stays local. A remote-capable host socket
+can exercise both. An application protocol stack with a device-backed outbound
+flow can exercise `OffMachineNetworkTransmit` without using the host socket
+stack. Device access and custody still require their own evidence.
+
+Classify the full behavior permitted by the checked mechanism and its backing.
+For example, a host resolver that can fall back from its cache to a live query
+may transmit off-machine even when a particular lookup hits the cache. A grant
+that excludes transmission needs evidence covering every selected path.
+Excluding abstract `NetworkSend` alone allows other operations that can send
+protocol traffic.
 
 ## Consumer acceptance and replay
 
