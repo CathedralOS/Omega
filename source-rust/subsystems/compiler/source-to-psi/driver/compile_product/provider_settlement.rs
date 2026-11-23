@@ -170,11 +170,10 @@ pub(super) fn next_provider_work(
         ) else {
             continue;
         };
-        for supply in supply
-            .requirements()
-            .iter()
-            .filter_map(|requirement| requirement.chosen())
-        {
+        for requirement in supply.requirements() {
+            let Some(supply) = requirement.chosen() else {
+                continue;
+            };
             // Native bindings add no checked body or deferred layout.
             let SupplySelection::Checked(selection) = &supply.selection else {
                 continue;
@@ -191,6 +190,11 @@ pub(super) fn next_provider_work(
                 if !source.layout_prepared.contains(&layout) && !unprepared.contains(&layout) {
                     unprepared.push(layout);
                 }
+            }
+            // The checked selection already supplied this exact body. Asking
+            // again by declaration alone would lose a generic provider's tuple.
+            if requirement.realization.is_some() {
+                continue;
             }
             for chosen in selected_supplies(selection) {
                 if !roster.supplies.contains(&chosen) && !new_supplies.contains(&chosen) {

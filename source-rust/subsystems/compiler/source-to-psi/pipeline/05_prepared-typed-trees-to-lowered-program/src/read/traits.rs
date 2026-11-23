@@ -612,9 +612,8 @@ impl<'program> Program<'program> {
     /// requirements; a concrete selection cannot silently strengthen the
     /// generic API").
     ///
-    /// Only unbounded type parameters are served. Lifetime binders, bounded
-    /// or non-type parameters, a trait whose header the route does not read,
-    /// and generic reference rows stay refused.
+    /// A type parameter stays abstract and a supported const parameter keeps
+    /// its declared carrier, just as it does in an ordinary generic machine.
     pub(super) fn generic_conformance_witnesses(
         &mut self,
         context: MachineId,
@@ -627,8 +626,7 @@ impl<'program> Program<'program> {
             && declaration.trait_lifetime_arguments.is_empty()
             && parameters.len() == declaration.type_parameters.len()
             && parameters.iter().all(|parameter| {
-                parameter.kind == crate::source_state::data::TypeParameterKind::Type
-                    && parameter.bounds == crate::source_state::data::DataProperties::default()
+                super::type_parameters::can_check_implementation_parameter(typed, parameter)
             });
         let Some(application) = plain
             .then(|| AppliedTraitScope::from_conformance(typed, declaration))
@@ -639,7 +637,9 @@ impl<'program> Program<'program> {
                         .trait_type_parameters(application.declaration)
                         .iter()
                         .all(|parameter| {
-                            parameter.kind == crate::source_state::data::TypeParameterKind::Type
+                            super::type_parameters::can_check_implementation_parameter(
+                                typed, parameter,
+                            )
                         })
             })
         else {
@@ -673,6 +673,13 @@ impl<'program> Program<'program> {
                     return Err(unserved("selection row cannot rebind a declared conformer"));
                 }
             }
+            if !self.generic_templates.contains(&row.realization_machine)
+                && typed
+                    .machine_by_symbol(row.realization_machine)
+                    .is_some_and(|machine| self.is_generic_template(machine))
+            {
+                self.generic_templates.push(row.realization_machine);
+            }
             let witness = crate::lowering::ConformanceWitness {
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,
@@ -691,20 +698,32 @@ impl<'program> Program<'program> {
         context: MachineId,
         symbol: SymbolHandle,
     ) -> Checked<bool> {
+        self.applied_conformance_declaration(context, symbol, None)
+    }
+
+    pub(super) fn applied_conformance_declaration(
+        &mut self,
+        context: MachineId,
+        symbol: SymbolHandle,
+        selected: Option<(
+            &'program crate::source_state::ClosedConformanceApplication,
+            &str,
+        )>,
+    ) -> Checked<bool> {
         let typed = self.typed;
         let Some(declaration) = typed.conformance_by_symbol(symbol) else {
             return Ok(false);
         };
         self.admitted_declarations.include(symbol);
+        let selected_identity = selected.map(|(_, identity)| identity);
         let position = match self
             .static_contracts
-            .formed
-            .binary_search_by_key(&key(symbol), |row| key(row.declaration))
+            .conformance_position(symbol, selected_identity)
         {
             Ok(_) => return Ok(true),
             Err(position) => position,
         };
-        if !declaration.type_parameters.is_empty()
+        if (!declaration.type_parameters.is_empty() && selected.is_none())
             || !declaration.lifetime_parameters.is_empty()
             || !declaration.trait_lifetime_arguments.is_empty()
         {
@@ -749,19 +768,42 @@ impl<'program> Program<'program> {
                 position,
                 crate::lowering::static_contracts::FormedConformance {
                     declaration: symbol,
+                    application: selected_identity.map(str::to_owned),
                     questions: start..start,
                 },
             );
             return Ok(true);
         }
         self.read_trait_schema(context, schema)?;
-        let application =
-            AppliedTraitScope::from_conformance(typed, declaration).ok_or_else(|| {
-                services::unavailable(
-                    context,
-                    "implementation has no complete exact trait application",
-                )
-            })?;
+        let application = match selected {
+            Some((record, _)) => record.trait_scope.scope(typed),
+            None => AppliedTraitScope::from_conformance(typed, declaration),
+        }
+        .ok_or_else(|| {
+            services::unavailable(
+                context,
+                "implementation has no complete exact trait application",
+            )
+        })?;
+        let capture = selected
+            .map(|(record, _)| {
+                let mut groups =
+                    typed
+                        .captured_machine_applications
+                        .iter()
+                        .filter(|(_, capture)| {
+                            capture.binding_application() == record.callable_application
+                                && capture.conformance_application == *record
+                        });
+                match (groups.next(), groups.next()) {
+                    (Some((_, group)), None) => Ok(group),
+                    _ => Err(services::unavailable(
+                        context,
+                        "selected provider has no unique set of prepared member bodies",
+                    )),
+                }
+            })
+            .transpose()?;
         // Check each generic body against the public contract even when no
         // call in this compilation needs a concrete implementation.
         if schema.is_boundary && self.is_generic_conformance(declaration) {
@@ -840,6 +882,27 @@ impl<'program> Program<'program> {
                     ));
                 }
             }
+            let original = supplied;
+            let supplied = if let Some(capture) = capture.filter(|_| row.source.owns_realization())
+            {
+                capture
+                    .declaration(original.symbol)
+                    .map_err(|reason| services::unavailable(context, reason))?
+                    .filter(|body| {
+                        typed
+                            .captured_conformance_owner(capture, body)
+                            .is_some_and(|owner| owner.symbol == symbol)
+                    })
+                    .and_then(|body| typed.machine_by_symbol(body.instance))
+                    .ok_or_else(|| {
+                        services::unavailable(
+                            context,
+                            "selected provider lost its checked member body",
+                        )
+                    })?
+            } else {
+                supplied
+            };
             let members =
                 self.conformance_method_bodies(context, application, required, supplied)?;
             for (applied_requirement, supplied) in members {
@@ -916,7 +979,7 @@ impl<'program> Program<'program> {
                         .filter(|receipt| receipt.instance == supplied.symbol);
                     let template = templates
                         .next()
-                        .map_or(supplied.symbol, |receipt| receipt.template);
+                        .map_or(original.symbol, |receipt| receipt.template);
                     if templates.next().is_some() {
                         return Err(services::unavailable(
                             context,
@@ -932,11 +995,14 @@ impl<'program> Program<'program> {
                     Some(StaticProviderCandidate {
                         boundary,
                         declaration: symbol,
-                        provider_identity: typed
-                            .normalized_hermetic_symbol_identity(
-                                typed.implementation_value_head(symbol),
-                            )
-                            .map_err(|reason| services::unavailable(context, reason))?,
+                        provider_identity: match selected_identity {
+                            Some(identity) => identity.to_owned(),
+                            None => typed
+                                .normalized_hermetic_symbol_identity(
+                                    typed.implementation_value_head(symbol),
+                                )
+                                .map_err(|reason| services::unavailable(context, reason))?,
+                        },
                         // The selection names the public method in the service schema.
                         // Its boundary above identifies this particular checked call.
                         source_requirement: typed.trait_requirement_callable_identity_text(
@@ -977,6 +1043,7 @@ impl<'program> Program<'program> {
             position,
             crate::lowering::static_contracts::FormedConformance {
                 declaration: symbol,
+                application: selected_identity.map(str::to_owned),
                 questions: start..self.static_contracts.conformances.len(),
             },
         );

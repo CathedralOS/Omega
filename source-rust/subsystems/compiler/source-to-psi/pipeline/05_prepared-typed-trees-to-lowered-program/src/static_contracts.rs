@@ -133,18 +133,28 @@ pub(crate) struct StaticContracts {
 #[derive(Debug, Clone)]
 pub(crate) struct FormedConformance {
     pub declaration: SymbolHandle,
+    pub application: Option<String>,
     pub questions: std::ops::Range<usize>,
 }
 
 impl StaticContracts {
+    pub(crate) fn conformance_position(
+        &self,
+        declaration: SymbolHandle,
+        application: Option<&str>,
+    ) -> Result<usize, usize> {
+        self.formed.binary_search_by(|row| {
+            (symbol_key(row.declaration), row.application.as_deref())
+                .cmp(&(symbol_key(declaration), application))
+        })
+    }
+
     pub(crate) fn conformance_questions(
         &self,
         declaration: SymbolHandle,
+        application: Option<&str>,
     ) -> Option<&[SourceConformance]> {
-        let row = self
-            .formed
-            .binary_search_by_key(&symbol_key(declaration), |row| symbol_key(row.declaration))
-            .ok()?;
+        let row = self.conformance_position(declaration, application).ok()?;
         self.conformances.get(self.formed[row].questions.clone())
     }
 }

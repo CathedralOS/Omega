@@ -194,18 +194,44 @@ impl NamedConformanceCaptureIndex {
         let implementation = program
             .conformance_by_symbol(declaration)
             .ok_or("named capture lost its implementation")?;
-        let mut rows = implementation
-            .rows
-            .iter()
-            .filter(|row| row.requirement == supplying.registration_operation);
-        let row = rows
-            .next()
-            .ok_or("named capture lost its supplying requirement")?;
-        if rows.next().is_some()
-            || !row.source.owns_realization()
-            || capture.declaration(row.realization_machine)?.is_none()
-        {
-            return Err("named capture changed its actual requirement row");
+        if supplying.registration_operation == declaration {
+            // A Build selects the whole record. Tie that choice to the actual
+            // Product operand and require a body for each member the record owns.
+            let product = program
+                .live_product_operand_applications()
+                .into_iter()
+                .any(|handle| {
+                    let operand = program.product_operand_applications.get(handle);
+                    operand.supplying_application == capture.supplying_application
+                        && operand.declaration == declaration
+                        && operand.implementation.as_ref() == Some(&capture.conformance_application)
+                });
+            if !product {
+                return Err("provider capture has no matching selected Product operand");
+            }
+            for row in implementation
+                .rows
+                .iter()
+                .filter(|row| row.source.owns_realization())
+            {
+                if capture.declaration(row.realization_machine)?.is_none() {
+                    return Err("provider capture omits a selected member");
+                }
+            }
+        } else {
+            let mut rows = implementation
+                .rows
+                .iter()
+                .filter(|row| row.requirement == supplying.registration_operation);
+            let row = rows
+                .next()
+                .ok_or("named capture lost its supplying requirement")?;
+            if rows.next().is_some()
+                || !row.source.owns_realization()
+                || capture.declaration(row.realization_machine)?.is_none()
+            {
+                return Err("named capture changed its actual requirement row");
+            }
         }
         let identity = |arguments: &[StaticMachineArgument]| {
             let selected = StaticMachineArgument {

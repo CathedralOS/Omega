@@ -297,11 +297,27 @@ impl PreparedTargetSupply {
                     continue;
                 }
                 let realization = choose_supply(&supplies).ok().and_then(|supply| {
-                    let provider = supply.checked()?.provider_type.symbol;
+                    let provider = &supply.checked()?.provider_type;
                     judged
                         .iter()
                         .find(|row| {
-                            row.provider == provider && row.requirement == requirement.requirement
+                            row.provider == provider.symbol
+                                && row.requirement == requirement.requirement
+                                && provider
+                                    .application_identity
+                                    .as_ref()
+                                    .is_none_or(|identity| {
+                                        module.interfaces.provider_candidates.iter().any(
+                                            |candidate| {
+                                                candidate.boundary == boundary
+                                                    && candidate.candidate == row.machine
+                                                    && module
+                                                        .identities
+                                                        .text(candidate.provider_identity)
+                                                        == Some(identity.as_str())
+                                            },
+                                        )
+                                    })
                         })
                         .map(|row| row.machine)
                 });

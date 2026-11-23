@@ -203,11 +203,6 @@ fn declaration<'a>(
             ));
         }
     }
-    if source.provider_type.applied {
-        return Err(diagnostic(
-            "selected generic provider has no checked implementation for its static arguments",
-        ));
-    }
     let provider = typed.implementation_value_head(source.provider_type.symbol);
     if typed.conformance_by_symbol(provider).is_none() {
         return Err(diagnostic(
@@ -263,21 +258,42 @@ pub fn prepare_with_source_defaults(
         .collect::<Vec<_>>();
     subjects.sort_unstable();
     subjects.dedup();
-    let mut candidates = Vec::new();
+    let mut providers = Vec::new();
     for provider in typed.conformances() {
-        if !context.contains(provider.symbol) {
+        if !context.contains(provider.symbol)
+            || !provider.type_parameters.is_empty()
+            || !provider.lifetime_parameters.is_empty()
+        {
             continue;
         }
-        // Open records are not evaluated provider values. A selection of an
-        // open record was diagnosed above; no eligible implementation roster.
-        if !provider.type_parameters.is_empty() || !provider.lifetime_parameters.is_empty() {
+        let scope = AppliedTraitScope::from_conformance(typed, provider).ok_or_else(|| {
+            diagnostic("provider declaration has no complete source schema application")
+        })?;
+        providers.push((provider, scope, None));
+    }
+    // A generic declaration has a candidate only for a tuple that a Build
+    // actually selected. Keep the private arguments even when two different
+    // providers satisfy the same public trait and target.
+    let mut applied = Vec::new();
+    for row in defaults.iter().chain(&overrides) {
+        let identity = &row.source.provider_type;
+        if !identity.applied || applied.contains(&row.provider) {
             continue;
         }
-        let Some(root) = AppliedTraitScope::from_conformance(typed, provider) else {
-            return Err(diagnostic(
-                "provider declaration has no complete source schema application",
-            ));
-        };
+        let handle = provider_choice_inputs::source_application(identity.application);
+        let selected = typed.product_operand_applications.get(handle);
+        let provider = typed
+            .conformance_by_symbol(identity.symbol)
+            .filter(|provider| context.contains(provider.symbol))
+            .ok_or_else(|| diagnostic("selected provider lost its visible implementation"))?;
+        let scope = selected.scope.scope(typed).ok_or_else(|| {
+            diagnostic("selected provider lost the trait application that it satisfies")
+        })?;
+        applied.push(row.provider.clone());
+        providers.push((provider, scope, identity.application_identity.clone()));
+    }
+    let mut candidates = Vec::new();
+    for (provider, root, provider_application) in providers {
         if !root.declaration.is_boundary {
             continue;
         }
@@ -344,7 +360,7 @@ pub fn prepare_with_source_defaults(
             let provider_symbol = typed.implementation_value_head(provider.symbol);
             candidates.push(SourceCandidate {
                 slot: (key(schema.symbol), Some(application(typed, &scope)?)),
-                provider_key: (key(provider_symbol), None),
+                provider_key: (key(provider_symbol), provider_application.clone()),
                 provider: provider_symbol,
                 scope: scope.environment(),
                 target: target.unwrap_or_default(),
@@ -462,10 +478,16 @@ pub fn prepare_with_source_defaults(
                 target: (*target).to_owned(),
                 schema: candidate.scope.clone(),
                 provider: candidate.provider,
-                provider_application: None,
+                provider_application: origin.source.provider_type.applied.then(|| {
+                    provider_choice_inputs::source_application(
+                        origin.source.provider_type.application,
+                    )
+                }),
                 composition_mode: origin.source.composition_mode,
             });
-            roots.push(candidate.provider);
+            if !origin.source.provider_type.applied {
+                roots.push(candidate.provider);
+            }
             let scope = candidate
                 .scope
                 .scope(typed)

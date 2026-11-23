@@ -2343,7 +2343,6 @@ pub(crate) mod namespaces {
             use crate::source_state::static_applications::{
                 StaticMachineBinding, StaticMachineBindingValue,
             };
-            use sha2::{Digest, Sha256};
             let Some((owner, identity)) = self.named_conformance_capture_key(call)? else {
                 return Ok(None);
             };
@@ -2427,12 +2426,7 @@ pub(crate) mod namespaces {
                 .static_machine_application_mut(application);
             source.lexical_owner = owner;
             source.binding_declaration = declaration;
-            let mut fingerprint = wire::fnv1a::Fnv1a::new();
-            fingerprint.string_framed(&encoding);
-            let mut digest = Sha256::new();
-            digest.update(b"OMEGA-TYPED-CONFORMANCE-APPLICATION\0");
-            digest.update(encoding.as_bytes());
-            Ok(Some(crate::source_state::ClosedConformanceApplication {
+            let mut closed = crate::source_state::ClosedConformanceApplication {
                 declaration,
                 trait_scope: scope,
                 callable_application: application,
@@ -2445,13 +2439,10 @@ pub(crate) mod namespaces {
                 trait_lifetime_arguments: Vec::new(),
                 trait_arguments,
                 rows,
-                report_fingerprint: fingerprint.finish(),
-                commitment:
-                    crate::source_state::ClosedConformanceApplicationCommitment::from_digest(
-                        digest.finalize().into(),
-                    ),
-                identity_encoding: std::sync::Arc::from(encoding.into_bytes()),
-            }))
+                ..Default::default()
+            };
+            closed.seal_encoding(encoding);
+            Ok(Some(closed))
         }
 
         /// The named operation record, its unique requirement row and that

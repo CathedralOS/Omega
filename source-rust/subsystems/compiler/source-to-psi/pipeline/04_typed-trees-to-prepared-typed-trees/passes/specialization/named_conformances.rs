@@ -108,6 +108,79 @@ pub(super) fn serve(
     Ok(true)
 }
 
+/// Selecting an implementation supplies all of its owned rows. Use the same
+/// body copy and argument substitution as a source call to a named member.
+pub(super) fn prepare_selected(
+    program: &mut TypedTrees,
+    selection: crate::SelectedProvider,
+) -> Served<()> {
+    let Some(handle) = selection.application else {
+        return Ok(());
+    };
+    if !program.product_operand_applications.is_valid(handle) {
+        return Err(unserved(
+            "selected provider has a stale implementation application",
+        ));
+    }
+    let operand = program.product_operand_applications.get(handle);
+    if operand.declaration != selection.declaration {
+        return Err(unserved(
+            "selected provider application belongs to another declaration",
+        ));
+    }
+    if operand.implementation.is_some() {
+        return Ok(());
+    }
+    let supplier = operand.supplying_application;
+    let record = program.prepare_selected_provider_capture(handle)?;
+    let existing = program
+        .captured_machine_applications
+        .iter()
+        .find_map(|(_, captured)| {
+            (captured.supplying_application == supplier
+                && captured.conformance_application.identity_encoding == record.identity_encoding)
+                .then(|| captured.conformance_application.clone())
+        });
+    let record = if let Some(existing) = existing {
+        existing
+    } else {
+        let provider = program
+            .conformance_by_symbol(record.declaration)
+            .ok_or_else(|| unserved("selected provider lost its declared members"))?;
+        let parameters = program.conformance_type_parameters(provider).to_vec();
+        let mut members = provider
+            .rows
+            .iter()
+            .filter(|row| row.source.owns_realization())
+            .map(|row| row.realization_machine)
+            .collect::<Vec<_>>();
+        members.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+        members.dedup();
+        let mut declarations = Vec::new();
+        for member in members {
+            declarations.extend(copy_member(
+                program,
+                member,
+                &parameters,
+                record.callable_application,
+            )?);
+        }
+        program
+            .captured_machine_applications
+            .insert(CapturedMachineApplication {
+                declarations,
+                supplying_application: supplier,
+                conformance_application: record.clone(),
+            });
+        record
+    };
+    program
+        .product_operand_applications
+        .get_mut(handle)
+        .implementation = Some(record);
+    Ok(())
+}
+
 fn copy_member(
     program: &mut TypedTrees,
     declared: symbols::SymbolHandle,

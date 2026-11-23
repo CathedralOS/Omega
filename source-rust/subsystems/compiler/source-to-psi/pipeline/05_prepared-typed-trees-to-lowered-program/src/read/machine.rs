@@ -142,8 +142,7 @@ impl<'t> Program<'t> {
         if enclosing.is_empty() != owner.type_parameters.is_empty()
             || !owner.lifetime_parameters.is_empty()
             || enclosing.iter().any(|parameter| {
-                parameter.kind != crate::source_state::data::TypeParameterKind::Type
-                    || parameter.bounds != crate::source_state::data::DataProperties::default()
+                !super::type_parameters::can_check_implementation_parameter(self.typed, parameter)
             })
         {
             return Err(unserved(

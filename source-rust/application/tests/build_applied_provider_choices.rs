@@ -34,6 +34,10 @@ data Holder<T> { value: T; }
 /// Checks a staged program that depends on a staged package whose Build
 /// helper, generic in `Tag` and called at `(8u64 + 9u64)`, runs `choice`.
 fn check(name: &str, choice: &str) -> (bool, String) {
+    check_tag(name, choice, PACKAGE, 17)
+}
+
+fn check_tag(name: &str, choice: &str, package: &str, tag: u64) -> (bool, String) {
     let build = format!(
         "machine build(builder: @mutable Build) {{
     Build::package(builder, \"reading\");
@@ -44,10 +48,17 @@ machine configure<const Tag: u64>(builder: @mutable Build) {{
 }}
 "
     );
-    check_package(name, &build, &[("main.omg", PACKAGE)])
+    let main = format!(
+        "use {{reading}}/main.omg as provider;
+machine main() reaches |provider|::Reading<{tag}u64> crashes none {{
+    let result: u64 = |provider|::Reading::<{tag}u64>::total();
+}}
+"
+    );
+    check_package(name, &build, &[("main.omg", package)], &main)
 }
 
-fn check_package(name: &str, build: &str, files: &[(&str, &str)]) -> (bool, String) {
+fn check_package(name: &str, build: &str, files: &[(&str, &str)], main: &str) -> (bool, String) {
     let root = std::env::temp_dir().join(format!(
         "omega-build-applied-provider-{}-{name}",
         std::process::id()
@@ -63,7 +74,7 @@ fn check_package(name: &str, build: &str, files: &[(&str, &str)]) -> (bool, Stri
         std::fs::write(path, source).expect("staged package source");
     }
     std::fs::write(package.join("build.omg"), build).expect("staged package Build");
-    std::fs::write(program.join("main.omg"), "machine main() { }\n").expect("staged program");
+    std::fs::write(program.join("main.omg"), main).expect("staged program");
     std::fs::write(
         program.join("build.omg"),
         "machine build(builder: @mutable Build) {
@@ -94,6 +105,21 @@ fn a_package_chooses_an_applied_provider_and_its_consumer_receives_the_choice() 
         "Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
     );
     assert!(compiled, "{stderr}");
+}
+
+#[test]
+fn a_consumer_cannot_use_the_choice_for_a_different_tag() {
+    let (compiled, stderr) = check_tag(
+        "unselected_tag",
+        "Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
+        PACKAGE,
+        29,
+    );
+    assert!(!compiled, "{stderr}");
+    assert!(
+        stderr.contains("Reading::total") && stderr.contains("has no provider"),
+        "{stderr}"
+    );
 }
 
 #[test]
@@ -161,6 +187,7 @@ machine build(builder: @mutable Build) {
             ("kit/build.omg", r#"machine build(builder: @mutable Build) { Build::package(builder, "kit"); }"#),
             ("kit/math.omg", "public machine answer() -> u64 { 42 }"),
         ],
+        "machine main() { }\n",
     );
     assert!(compiled, "{stderr}");
 }
