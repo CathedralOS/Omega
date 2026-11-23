@@ -364,9 +364,17 @@ mod tests {
                 .unwrap(),
             ["another.omg", "odd.omg"].map(|path| capture_root().join(path))
         );
-        assert!(discovery.operator_family_sources(
-            &capture_root(), &capture_root().join("odd.omg"), &filesystem, vec![],
-        ).unwrap().is_empty());
+        assert!(
+            discovery
+                .operator_family_sources(
+                    &capture_root(),
+                    &capture_root().join("odd.omg"),
+                    &filesystem,
+                    vec![],
+                )
+                .unwrap()
+                .is_empty()
+        );
         assert!(
             discovery
                 .select(

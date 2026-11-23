@@ -188,13 +188,7 @@ impl SourceStorage {
         &mut self,
         path: &Path,
         scope: source_provenance::DependencyScope,
-    ) -> Result<
-        Vec<(
-            PathBuf,
-            source_provenance::DependencyScope,
-        )>,
-        Vec<Diagnostic>,
-    > {
+    ) -> Result<Vec<(PathBuf, source_provenance::DependencyScope)>, Vec<Diagnostic>> {
         if scope != source_provenance::DependencyScope::Product {
             return Ok(Vec::new());
         }
@@ -1042,7 +1036,12 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
-        assert!(storage.operator_family_sources(&entry, DependencyScope::Product).unwrap().is_empty());
+        assert!(
+            storage
+                .operator_family_sources(&entry, DependencyScope::Product)
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[test]

@@ -394,9 +394,13 @@ mod hierarchy {
             .source_id;
         let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
             Some(Arc::new(sources)),
-            vec![crate::source_symbols::SourceScopedTopLevelBinding::file_import(
-                second_extension, first_extension, "first",
-            )],
+            vec![
+                crate::source_symbols::SourceScopedTopLevelBinding::file_import(
+                    second_extension,
+                    first_extension,
+                    "first",
+                ),
+            ],
         );
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let declarations = SymbolTableBuilder::child_handles(builder.insert_children(
@@ -583,7 +587,8 @@ mod module_namespaces {
         for source in [1, 2] {
             assert_eq!(symbols.top_level_candidates_from_source("Item", &[SymbolKind::Data], reference(source)), [declarations[source]]);
         }
-        let siblings = symbols.top_level_candidates_from_source("Item", &[SymbolKind::Data], reference(0));
+        let siblings =
+            symbols.top_level_candidates_from_source("Item", &[SymbolKind::Data], reference(0));
         assert!(siblings.is_empty());
     }
 
@@ -1355,7 +1360,10 @@ mod module_namespaces {
         ))
         .collect::<Vec<_>>();
         let symbols = builder.finish();
-        assert_eq!(data_reference(&symbols, 0, "|api|::Item"), Some(declarations[0]));
+        assert_eq!(
+            data_reference(&symbols, 0, "|api|::Item"),
+            Some(declarations[0])
+        );
         assert_eq!(data_reference(&symbols, 0, "|product|::Item"), None);
         assert_eq!(data_reference(&symbols, 0, "Item"), None);
     }
@@ -1528,7 +1536,11 @@ mod module_namespaces {
         }
         let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
             Some(Arc::new(sources)),
-            vec![SourceScopedTopLevelBinding::file_import(SourceId(1), SourceId(2), "bounds")],
+            vec![SourceScopedTopLevelBinding::file_import(
+                SourceId(1),
+                SourceId(2),
+                "bounds",
+            )],
         );
         let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
         let mut declarations = SymbolTableBuilder::child_handles(builder.insert_children(
