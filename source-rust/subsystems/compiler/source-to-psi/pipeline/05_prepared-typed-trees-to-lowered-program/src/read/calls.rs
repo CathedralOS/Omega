@@ -2042,7 +2042,12 @@ impl<'t> Program<'t> {
                     .typed
                     .state_signature_type_parameters(method)
                     .iter()
-                    .any(|parameter| !matches!(parameter.kind, TypeParameterKind::Const { .. }))
+                    .any(|parameter| {
+                        !matches!(
+                            parameter.kind,
+                            TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                        )
+                    })
             {
                 return Ok(None);
             }
@@ -2113,12 +2118,12 @@ impl<'t> Program<'t> {
             }
             // Only the generic source check calls this rigid header. Closed
             // applications still dispatch through their selected boundary.
-            self.generic_requirement(requirement)?
+            self.applied_requirement(id, requirement, arguments.types, arguments.type_sources)?
         } else {
             self.application(
                 id,
                 target,
-                ApplicationTypes::Machine(arguments.types, arguments.references),
+                ApplicationTypes::Machine(arguments.types, arguments.type_sources),
             )?
         };
         let callbacks = self.callable_application_arguments(
@@ -2627,7 +2632,7 @@ impl<'t> Program<'t> {
             let callee = self.application(
                 id,
                 target,
-                ApplicationTypes::Machine(applied.types, applied.references),
+                ApplicationTypes::Machine(applied.types, applied.type_sources),
             )?;
             let operands = self.const_operands(id, slots, &applied.values, source)?;
             self.call_of_values(

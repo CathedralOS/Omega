@@ -903,7 +903,7 @@ mod tests {
                 .application(
                     caller,
                     fixture.nested,
-                    super::super::machine::ApplicationTypes::Machine(Vec::new(), None),
+                    super::super::machine::ApplicationTypes::Machine(Vec::new(), Vec::new()),
                 )
                 .unwrap();
             let (position, signature) = program

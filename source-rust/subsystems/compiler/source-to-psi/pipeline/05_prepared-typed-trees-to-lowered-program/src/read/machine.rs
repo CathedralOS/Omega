@@ -60,7 +60,7 @@ fn refuse_parameters(
 
 /// The written type arguments select either the machine itself or its enclosing map.
 pub(super) enum ApplicationTypes<'a> {
-    Machine(Vec<ValueType>, Option<Vec<TypeReferenceHandle>>),
+    Machine(Vec<ValueType>, Vec<(SymbolHandle, TypeReferenceHandle)>),
     SelectedMap(Option<&'a [TypeReferenceHandle]>),
 }
 
@@ -772,11 +772,10 @@ impl<'t> Program<'t> {
         symbol: SymbolHandle,
         supplied: ApplicationTypes<'_>,
     ) -> Checked<MachineId> {
-        let (mut arguments, references, map_arguments) = match supplied {
-            ApplicationTypes::Machine(types, references) => (types, references, None),
-            ApplicationTypes::SelectedMap(arguments) => (Vec::new(), None, arguments),
+        let (mut arguments, mut bindings, map_arguments) = match supplied {
+            ApplicationTypes::Machine(types, bindings) => (types, bindings, None),
+            ApplicationTypes::SelectedMap(arguments) => (Vec::new(), Vec::new(), arguments),
         };
-        let mut bindings = Vec::new();
         if let Some(map) = self.typed.enclosing_source_conformance(symbol) {
             let parameters = self.typed.conformance_type_parameters(map);
             let mut enclosing = Vec::with_capacity(parameters.len() + arguments.len());
@@ -868,29 +867,6 @@ impl<'t> Program<'t> {
             }
         }
         let id = self.next_identity()?;
-        if let Some(references) = references {
-            let (machine, _) = self.declaration(caller, symbol)?;
-            let parameters = self.typed.machine_type_parameters(machine);
-            let parameters = parameters
-                .iter()
-                .filter(|parameter| {
-                    parameter.kind == crate::source_state::data::TypeParameterKind::Type
-                })
-                .collect::<Vec<_>>();
-            if parameters.len() != references.len() {
-                return Err(refuse(
-                    caller,
-                    Construct::Machine,
-                    Unserved::Call("type application lost its source argument tuple"),
-                ));
-            }
-            bindings.extend(
-                parameters
-                    .iter()
-                    .map(|parameter| parameter.symbol)
-                    .zip(references),
-            );
-        }
         let scope = self.extended_source_scope(bindings);
         let outer = std::mem::replace(&mut self.source_scope, scope);
         let read = self.read_machine(id, symbol, Reading::Applied(arguments.clone()));
@@ -1158,6 +1134,43 @@ impl<'t> Program<'t> {
             declared,
             RequirementValues::Rigid,
         )
+    }
+
+    /// A call uses the types supplied by its caller. Reading the requirement's
+    /// own template separately still checks its contract for every type.
+    pub(super) fn applied_requirement(
+        &mut self,
+        caller: MachineId,
+        declared: &StateSignature,
+        types: Vec<ValueType>,
+        type_sources: Vec<(SymbolHandle, TypeReferenceHandle)>,
+    ) -> Checked<MachineId> {
+        let parameters = self.typed.state_signature_type_parameters(declared);
+        let binders: Vec<_> = parameters
+            .iter()
+            .filter(|parameter| {
+                parameter.kind == crate::source_state::data::TypeParameterKind::Type
+            })
+            .map(|parameter| parameter.symbol)
+            .collect();
+        if binders.len() != types.len() {
+            return Err(refuse(
+                caller,
+                Construct::Machine,
+                Unserved::Call("requirement application lost its type argument tuple"),
+            ));
+        }
+        let source = self.extended_source_scope(type_sources);
+        let outer_source = std::mem::replace(&mut self.source_scope, source);
+        let outer = std::mem::replace(&mut self.scope, binders.into_iter().zip(types).collect());
+        let header = self.requirement_form(
+            RequirementHeaderOrigin::Declared(declared.symbol),
+            declared,
+            RequirementValues::Rigid,
+        );
+        self.scope = outer;
+        self.source_scope = outer_source;
+        header
     }
 
     /// A generic body calls the applied public contract, with its own binders

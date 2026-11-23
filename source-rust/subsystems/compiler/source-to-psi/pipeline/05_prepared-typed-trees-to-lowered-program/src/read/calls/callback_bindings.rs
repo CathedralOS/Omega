@@ -326,7 +326,7 @@ impl Program<'_> {
             let body = self.application(
                 caller,
                 target,
-                super::ApplicationTypes::Machine(actual.types, actual.references),
+                super::ApplicationTypes::Machine(actual.types, actual.type_sources),
             )?;
             let nested = self.callable_application_arguments(
                 caller,
