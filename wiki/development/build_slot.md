@@ -86,6 +86,15 @@ With a development build, the same load under a shared job measured 25.0 CPUs
 on the affinity mask and 24.8 CPUs under a 87.5% CPU-rate cap; the rate cap
 put the load on CPUs 0 to 3 as well (99.9% busy against 90.9%).
 
+Observed on `omega-linux-arm64` (8 CPUs, user lingering, 2026-11-23) with
+`MBX_SCHEDULER_RESERVE_CPUS=2` and the same load: through the slice
+(`CPUQuota=600%`, `CPUWeight=idle`) the load used 5.86 to 6.06 CPUs and the
+machine sat at 75%, spread over every CPU. With the user manager unreachable,
+the affinity fallback held the load at 5.98 to 6.02 CPUs on CPUs 2 to 7 at
+nice 19, and CPUs 0 and 1 stayed 1.4 to 6.7% busy. In both modes a
+two-thread spinner started outside mbx got 1.96 CPUs. Without a reserve, mbx
+left the process in its ssh session scope with all 8 CPUs.
+
 ## On a workstation someone is using
 
 Set the budget before the first build, not after the owner complains. A limit
