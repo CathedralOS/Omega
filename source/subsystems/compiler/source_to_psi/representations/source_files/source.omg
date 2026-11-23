@@ -470,15 +470,50 @@ crashes Trap
     }
 }
 
+// Empty spans at the end of a unit are valid. Invalid spans have no
+// spelling, even when their unreadable bytes would all fall back to NUL.
+machine source_span_within_unit(sources: @SourceSet, span: SourceSpan) -> bool
+crashes Trap
+{
+    let unit: u64 in Trapping = (span.source.value as -Trapping) as u64 +Trapping;
+    transition unit < sources.unit_count && unit < 512 && span.span.start <= span.span.end {
+        true -> within(sources, sources.units[unit as -Trapping], span.span.end),
+        _ -> invalid()
+    }
+
+    machine within(sources: @SourceSet, range: SourceRange, end: u64 in Trapping) -> bool {
+        let used: u64 in Trapping = sources.byte_count as +Trapping;
+        transition range.start <= used {
+            true -> fits(range, end, used),
+            _ -> invalid()
+        }
+    }
+
+    machine fits(range: SourceRange, end: u64 in Trapping, used: u64 in Trapping) -> bool
+    requires range.start <= used
+    {
+        end <= range.length && range.length <= used - range.start
+    }
+
+    machine invalid() -> bool { false }
+}
+
 // Whether two spans, of any units, spell the same bytes. Identifier
 // spellings are their source bytes under LEXICAL-PROFILE-V1 (no escapes), so
 // name comparison reads the units rather than a decoded copy.
 public machine spans_equal(sources: @SourceSet, left: SourceSpan, right: SourceSpan) -> bool
 crashes Trap
 {
-    transition left.span.end - left.span.start == right.span.end - right.span.start {
-        true -> scan(sources, left, right, 0 as +Trapping),
+    transition source_span_within_unit(sources, left) && source_span_within_unit(sources, right) {
+        true -> lengths(sources, left, right),
         _ -> different()
+    }
+
+    machine lengths(sources: @SourceSet, left: SourceSpan, right: SourceSpan) -> bool {
+        transition left.span.end - left.span.start == right.span.end - right.span.start {
+            true -> scan(sources, left, right, 0 as +Trapping),
+            _ -> different()
+        }
     }
 
     machine scan(sources: @SourceSet, left: SourceSpan, right: SourceSpan, offset: u64 in Trapping) -> bool {
@@ -510,9 +545,16 @@ crashes Trap
 public machine span_spells(sources: @SourceSet, span: SourceSpan, spelling: @[u8]) -> bool
 crashes Trap
 {
-    transition span.span.end - span.span.start == spelling.length {
-        true -> scan(sources, span, spelling, 0 as +Trapping),
+    transition source_span_within_unit(sources, span) {
+        true -> length(sources, span, spelling),
         _ -> different()
+    }
+
+    machine length(sources: @SourceSet, span: SourceSpan, spelling: @[u8]) -> bool {
+        transition span.span.end - span.span.start == spelling.length {
+            true -> scan(sources, span, spelling, 0 as +Trapping),
+            _ -> different()
+        }
     }
 
     machine scan(sources: @SourceSet, span: SourceSpan, spelling: @[u8], index: u64 in Trapping) -> bool {
