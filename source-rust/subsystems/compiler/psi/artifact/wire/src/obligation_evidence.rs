@@ -977,6 +977,76 @@ mod tests {
         writer.finish()
     }
 
+    /// The writer's tag for each rule. Neither match has a wildcard, so a new
+    /// `ProofRule` or `PrimitiveJudgment` stops this test compiling until it
+    /// is named here and listed in the round trip below, which then fails if
+    /// the reader has no arm for it.
+    fn rule_tag(rule: &ProofRule) -> u8 {
+        match rule {
+            ProofRule::ValueEqualityTransport { .. } => 0,
+            ProofRule::PredicateDenotation { .. } => 1,
+            ProofRule::Primitive(_) => 2,
+            ProofRule::SemanticAxiom { .. } => 3,
+            ProofRule::Assumption { .. } => 4,
+            ProofRule::ConjunctionIntroduction(_) => 5,
+            ProofRule::ConjunctionElimination { .. } => 6,
+            ProofRule::DisjunctionIntroduction { .. } => 7,
+            ProofRule::DisjunctionElimination { .. } => 8,
+            ProofRule::ImplicationIntroduction { .. } => 9,
+            ProofRule::ImplicationElimination { .. } => 10,
+            ProofRule::EqualityTransitivity { .. } => 11,
+            ProofRule::EqualitySymmetry { .. } => 12,
+            ProofRule::IntegerOrderWeakening { .. } => 13,
+            ProofRule::IntegerOrderDiscreteness { .. } => 14,
+            ProofRule::IntegerMathOrderTranslation { .. } => 15,
+            ProofRule::IntegerOrderAntisymmetry { .. } => 16,
+            ProofRule::IntegerSubtractOrder { .. } => 17,
+            ProofRule::IntegerAddOrder { .. } => 18,
+            ProofRule::IntegerSubtractAntitone { .. } => 19,
+            ProofRule::IntegerLessOrEqualTransitivity { .. } => 20,
+            ProofRule::IntegerStrictOrderTransitivity { .. } => 21,
+            ProofRule::IntegerOrderSubstitution { .. } => 22,
+            ProofRule::IntegerAffineBound { .. } => 23,
+            ProofRule::IntegerExactAddDefinitionBound { .. } => 24,
+            ProofRule::IntegerExactSubtractDefinitionBound { .. } => 25,
+            ProofRule::IntegerCastBound { .. } => 26,
+            ProofRule::IntegerCorrelatedForbiddenRoots { .. } => 27,
+            ProofRule::IntegerPowerOfTwoOrder { .. } => 28,
+            ProofRule::IeeeFloatOrderChain(_) => 29,
+            ProofRule::FloatMeaningNormalization(_) => 30,
+            ProofRule::FloatIntegerConversion { .. } => 31,
+            ProofRule::IntegerFloatExact => 32,
+        }
+    }
+
+    fn judgment_tag(judgment: PrimitiveJudgment) -> u8 {
+        match judgment {
+            PrimitiveJudgment::Truth => 0,
+            PrimitiveJudgment::ReflexiveEquality => 1,
+            PrimitiveJudgment::ClosedIntegerRelation => 2,
+            PrimitiveJudgment::IntegerCarrierBound => 3,
+            PrimitiveJudgment::ClosedIeeeFloatRelation => 4,
+            PrimitiveJudgment::ClosedFloatIntegerRelation => 5,
+        }
+    }
+
+    fn assert_every_rule_and_judgment_is_listed(rules: &[ProofRule]) {
+        let mut tags = rules.iter().map(rule_tag).collect::<Vec<_>>();
+        tags.sort_unstable();
+        tags.dedup();
+        assert_eq!(tags, (0..=32).collect::<Vec<u8>>(), "a rule is missing");
+        let mut judgments = rules
+            .iter()
+            .filter_map(|rule| match rule {
+                ProofRule::Primitive(judgment) => Some(judgment_tag(*judgment)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        judgments.sort_unstable();
+        judgments.dedup();
+        assert_eq!(judgments, (0..=5).collect::<Vec<u8>>(), "a judgment is missing");
+    }
+
     #[test]
     fn complete_certificate_rules_and_witness_fields_round_trip() {
         use crate::wire_fields::Field;
@@ -1019,6 +1089,8 @@ mod tests {
             ProofRule::Primitive(PrimitiveJudgment::ReflexiveEquality),
             ProofRule::Primitive(PrimitiveJudgment::ClosedIntegerRelation),
             ProofRule::Primitive(PrimitiveJudgment::IntegerCarrierBound),
+            ProofRule::Primitive(PrimitiveJudgment::ClosedIeeeFloatRelation),
+            ProofRule::Primitive(PrimitiveJudgment::ClosedFloatIntegerRelation),
             ProofRule::SemanticAxiom { index: 9 },
             ProofRule::Assumption { index: 11 },
             ProofRule::ConjunctionIntroduction(vec![truth(), truth()]),
@@ -1117,7 +1189,20 @@ mod tests {
                     conclusion: Proposition::Falsehood,
                 },
             },
+            ProofRule::IntegerPowerOfTwoOrder { order: child() },
+            ProofRule::IeeeFloatOrderChain(vec![truth(), truth()]),
+            ProofRule::FloatMeaningNormalization(vec![truth(), truth()]),
+            ProofRule::FloatIntegerConversion {
+                premise: child(),
+                computed: None,
+            },
+            ProofRule::FloatIntegerConversion {
+                premise: child(),
+                computed: Some(child()),
+            },
+            ProofRule::IntegerFloatExact,
         ];
+        assert_every_rule_and_judgment_is_listed(&rules);
         for rule in rules {
             // This checks wire preservation, independently of kernel validity.
             let original = envelope(ProofNode {
@@ -1284,6 +1369,48 @@ mod projection_tests {
             decode_operation_evidence(&encode_operation_evidence(&empty).unwrap()).unwrap(),
             empty
         );
+    }
+
+    /// A saved artifact carries each operation seal's whole certificate, so a
+    /// certificate citing the float and parameter-width rules must read back
+    /// from the saved bytes. Kernel validity is not this record's question.
+    #[test]
+    fn saved_operation_evidence_reopens_float_and_width_certificate_rules() {
+        use terminal_psi::PrimitiveJudgment;
+        let (module, mut evidence) = module_and_seals();
+        for seal in &mut evidence.seals {
+            let goal = seal.goal.clone();
+            let leaf = |rule: ProofRule| ProofNode {
+                conclusion: goal.clone(),
+                rule,
+            };
+            let assumption = || leaf(ProofRule::Assumption { index: 0 });
+            seal.certificate.proof = leaf(ProofRule::FloatMeaningNormalization(vec![
+                leaf(ProofRule::IeeeFloatOrderChain(vec![
+                    assumption(),
+                    leaf(ProofRule::Primitive(
+                        PrimitiveJudgment::ClosedIeeeFloatRelation,
+                    )),
+                ])),
+                leaf(ProofRule::FloatIntegerConversion {
+                    premise: Box::new(leaf(ProofRule::IntegerPowerOfTwoOrder {
+                        order: Box::new(assumption()),
+                    })),
+                    computed: Some(Box::new(leaf(ProofRule::Primitive(
+                        PrimitiveJudgment::ClosedFloatIntegerRelation,
+                    )))),
+                }),
+                leaf(ProofRule::IntegerFloatExact),
+            ]));
+            seal.fingerprint = seal.recompute().unwrap();
+        }
+        let bytes = encode_operation_evidence(&evidence).unwrap();
+        let decoded = decode_operation_evidence(&bytes).unwrap();
+        assert_eq!(decoded, evidence);
+        assert_eq!(encode_operation_evidence(&decoded).unwrap(), bytes);
+        EvidenceSealValidator::new(&module, &decoded.seals)
+            .validate_all()
+            .unwrap();
     }
 
     #[test]

@@ -1200,10 +1200,10 @@ a check, or names no accepted fact, refuses the unit. Omega 00 does not re-run
 the kernel: that the kernel accepted the certificate under those hypotheses,
 and that the hypotheses held where the obligation sits, it takes on faith.
 
-Seals are in memory only. Terminal Psi's layout has no place for them yet, so
-they are lost on a byte round trip and do not survive a stored artifact: a
-module lowered from bytes, including one a cache rebuilt, arrives with
-`ObligationEvidence::ReadFromBytes` and zero fingerprints.
+A saved Psi artifact keeps its seals. Publication writes them, with each
+complete certificate, into the artifact's publication section as an
+operation-evidence record (`PSIOEVD`); reopening the artifact decodes every
+certificate and checks each seal's fingerprint and goal against its module.
 
 ## The route's verdict
 
