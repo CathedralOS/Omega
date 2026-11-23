@@ -375,12 +375,15 @@ pub mod structural_reference_input {
         })
     }
 
-    pub fn owner_loan_geometry(
+    pub fn reference_source_geometry_at(
         root: StructuralTypeId,
+        formal: Option<&terminal_psi::StructuralParameterDeclaration>,
         path: &[StructuralPathSegment],
         declarations: &NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
-        descriptor_source_geometry(root, path, declarations)
+        projection_at(root, formal, path, declarations, Some, |root, path| {
+            reference_source_geometry(root, path, declarations)
+        })
     }
 
     pub fn leaf_copy_geometry(
@@ -1544,6 +1547,22 @@ pub mod structural_reference_input {
             .checked_add(capacity)?
             <= u64::from(shape(source.structural_type, declarations)?.byte_size))
         .then_some((field_offset, capacity))
+    }
+
+    pub fn projected_scalar_codec_at(
+        root: StructuralTypeId,
+        formal: Option<&terminal_psi::StructuralParameterDeclaration>,
+        path: &[StructuralPathSegment],
+        declarations: &NativeGeometry<'_>,
+    ) -> Option<runtime_abi::ScalarStorageCodec> {
+        if let Some(element) = borrowed_slice_element(root, formal, declarations) {
+            let selected = calling_conventions::terminal_layout::borrowed_element_index(
+                shape(element, declarations)?,
+                path,
+            )?;
+            return projected_scalar_codec(element, selected.remaining, declarations);
+        }
+        projected_scalar_codec(root, path, declarations)
     }
 
     pub fn projected_scalar_codec(

@@ -80,6 +80,11 @@ fn a_record_retains_the_length_and_elements_of_a_reborrowed_slice() {
 }
 
 #[test]
+fn a_nested_state_writes_only_the_selected_borrowed_slice_element() {
+    assert_both("indexed_borrowed_element_store");
+}
+
+#[test]
 fn recursive_transitions_forward_the_slice_and_return_the_matched_element() {
     assert_both("recursive_typed_slice");
 }
