@@ -1273,10 +1273,13 @@ fn zero_admits(module: &TerminalModule, row: &StructuralPathQualification) -> bo
             && domain.content_projection.is_none()
             && domain.establishment_routes.is_none()
             && domain.has_no_required_memberships()
-            // A domain of every element has no owning record field whose
-            // default-domain clauses could prove its predicate at zero.
+            // An array has no record field to discharge a domain predicate
+            // for each element. The empty theory is explicitly retained as Truth.
             && (row.path.last() != Some(&StructuralPathSegment::AllElements)
-                || domain.predicate.is_none())
+                || (domain.complete_predicate_theory
+                    && domain.predicate.as_ref().is_some_and(|predicate| {
+                        predicate.proposition == Proposition::Truth
+                    })))
     })
 }
 
