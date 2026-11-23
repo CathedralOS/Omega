@@ -1,7 +1,8 @@
-use targets\linux_arm64\LinuxArm64TimeRead;
-use targets\linux_x86_64\LinuxX64TimeRead;
-use targets\macos_arm64\DarwinTimeRead;
-use targets\windows_x86_64\WindowsTimeRead;
+use targets/linux_x86_64/time_host_impl.omg as linux_x86_64_time_read;
+use targets/linux_arm64/time_host_impl.omg as linux_arm64_time_read;
+use targets/macos_arm64/time_host_impl.omg as macos_arm64_time_read;
+use targets/windows_x86_64/time_host_impl.omg as windows_x86_64_time_read;
+
 // Each hosted target implements TimeHost with scalar clock readings and a
 // millisecond wait. A wall clock read returns one raw u64 value. The target supplies its
 // units per second and its epoch offset so the checked Time wrapper in
@@ -47,26 +48,26 @@ public boundary trait TimeHost {
     // time trait; the trait name is a synchronous invocation, not extra reach.
     machine monotonic_ticks() -> u64
     reaches TimeHost
-    invokes LinuxX64TimeRead
-    invokes LinuxArm64TimeRead
-    invokes DarwinTimeRead
-    invokes WindowsTimeRead
+    invokes |linux_x86_64_time_read|::LinuxX64TimeRead
+    invokes |linux_arm64_time_read|::LinuxArm64TimeRead
+    invokes |macos_arm64_time_read|::DarwinTimeRead
+    invokes |windows_x86_64_time_read|::WindowsTimeRead
     crashes none;
     // Ticks per second for monotonic_ticks. Stable for the process lifetime.
     // Windows reads the frequency through the same raw trait; other hosts
     // return a constant.
     machine monotonic_ticks_per_second() -> u64
     reaches TimeHost
-    invokes WindowsTimeRead
+    invokes |windows_x86_64_time_read|::WindowsTimeRead
     crashes none;
     // Wall clock: ONE non-tearing read, raw platform units since the
     // platform epoch.
     machine wall_clock_raw() -> u64
     reaches TimeHost
-    invokes LinuxX64TimeRead
-    invokes LinuxArm64TimeRead
-    invokes DarwinTimeRead
-    invokes WindowsTimeRead
+    invokes |linux_x86_64_time_read|::LinuxX64TimeRead
+    invokes |linux_arm64_time_read|::LinuxArm64TimeRead
+    invokes |macos_arm64_time_read|::DarwinTimeRead
+    invokes |windows_x86_64_time_read|::WindowsTimeRead
     crashes none;
     // Units per second for wall_clock_raw (constant per target).
     machine wall_clock_units_per_second() -> u64 reaches TimeHost crashes none;
@@ -77,10 +78,10 @@ public boundary trait TimeHost {
     // poll), and Windows with kernel32 `Sleep` bound as `WindowsTimeRead::sleep`.
     machine sleep(milliseconds: u32)
     reaches TimeHost
-    invokes LinuxX64TimeRead
-    invokes LinuxArm64TimeRead
-    invokes DarwinTimeRead
-    invokes WindowsTimeRead
+    invokes |linux_x86_64_time_read|::LinuxX64TimeRead
+    invokes |linux_arm64_time_read|::LinuxArm64TimeRead
+    invokes |macos_arm64_time_read|::DarwinTimeRead
+    invokes |windows_x86_64_time_read|::WindowsTimeRead
     blocks
     crashes none;
 }

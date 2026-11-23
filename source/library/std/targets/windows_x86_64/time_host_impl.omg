@@ -1,4 +1,5 @@
-use TimeHost;
+use time_host.omg as time_host;
+
 // windows_x86_64 `TimeHost` provider.
 //
 // Windows has no stable syscall ABI, so every leaf realizes through kernel32
@@ -33,7 +34,6 @@ use TimeHost;
 // a windows_x86_64 product. The evidence for this file is Psi checking plus
 // the native artifact's terminal-authority closure review resolving every
 // `TimeHost` requirement to a selected provider row.
-use omega\language\core\narrow_i64_to_u64_saturating;
 
 // LARGE_INTEGER's QuadPart is a signed LONGLONG, so the counter and frequency
 // out-parameters are `i64`. FILETIME's two DWORDs form one little-endian
@@ -41,16 +41,16 @@ use omega\language\core\narrow_i64_to_u64_saturating;
 // cell receives that non-tearing read. Each requirement reaches `TimeHost`.
 boundary trait WindowsTimeRead {
     machine query_performance_counter(counter: @mutable i64) -> i32
-    reaches TimeHost
+    reaches |time_host|::TimeHost
     crashes none;
     machine query_performance_frequency(frequency: @mutable i64) -> i32
-    reaches TimeHost
+    reaches |time_host|::TimeHost
     crashes none;
     machine system_time_as_file_time(file_time: @mutable u64)
-    reaches TimeHost
+    reaches |time_host|::TimeHost
     crashes none;
     machine sleep(milliseconds: u32)
-    reaches TimeHost
+    reaches |time_host|::TimeHost
     blocks
     crashes none;
 }

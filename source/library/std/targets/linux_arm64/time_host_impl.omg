@@ -1,5 +1,6 @@
-use LinuxArm64TimeHostInstant;
-use TimeHost;
+use time_host.omg as time_host;
+use linux_arm64_time_host.omg as adapter;
+
 // linux_arm64 `TimeHost` provider.
 //
 // Same kernel interface as the x86-64 sibling, DIFFERENT syscall numbers:
@@ -19,17 +20,15 @@ use TimeHost;
 // x86-64 sibling waits with `poll` and a signed millisecond count — exactly
 // the split the two `clock_impl.omg` files already make.
 //
-use omega\language\core\widen_u32_to_i64;
-use omega\language\core\narrow_i64_to_u64_saturating;
 
 // Per-target raw seam. The read and the wait share one boundary trait so
 // selection names the trait, not a carrier-owned requirement.
 boundary trait LinuxArm64TimeRead {
-    machine clock_gettime(clock_id: u32, instant: @mutable LinuxArm64TimeHostInstant) -> i64
-    reaches TimeHost
+    machine clock_gettime(clock_id: u32, instant: @mutable |adapter|::LinuxArm64TimeHostInstant) -> i64
+    reaches |time_host|::TimeHost
     crashes none;
-    machine nanosleep(request: @LinuxArm64TimeHostInstant, remainder: u64) -> i64
-    reaches TimeHost
+    machine nanosleep(request: @|adapter|::LinuxArm64TimeHostInstant, remainder: u64) -> i64
+    reaches |time_host|::TimeHost
     blocks
     crashes none;
 }

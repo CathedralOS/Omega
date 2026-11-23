@@ -1,3 +1,6 @@
+use time_host.omg as time_host;
+use {omega}/language/core/numeric_conversion.omg as numeric;
+
 // std\time — Duration pure-value core (rung 3) + Instant and clock reads over the
 // TimeHost seam (rung 6) per TASKS_TIME.md D1-D7/D9/D13.
 //
@@ -28,12 +31,6 @@
 
 // The raw per-OS boundary (`TimeHost`) is declared once in the sibling std
 // module; the clock-read machines below wrap it (the filesystem.omg layering).
-use omega\language\core\narrow_u64_to_u32_exact;
-use omega\language\core\narrow_u64_to_u32_saturating;
-use omega\language\core\widen_u32_to_u64;
-use omega\language\core\narrow_u64_to_i64_exact;
-use omega\language\core\narrow_u64_to_i64_wrapping;
-use omega\language\core\narrow_i64_to_u64_wrapping;
 
 public data Ordering [copy] {
     case Less;
@@ -75,7 +72,7 @@ public machine duration_from_milliseconds(milliseconds: u64) -> Duration {
     // The remainder and scaling establish the narrowing bound; the final
     // remainder establishes Duration's normalization predicate.
     let scaled_wide: u64 = (milliseconds % 1000) * 1000000;
-    let scaled: u32 = narrow_u64_to_u32_exact(scaled_wide);
+    let scaled: u32 = |numeric|::narrow_u64_to_u32_exact(scaled_wide);
     let whole_seconds: u64 = milliseconds / 1000;
     let sub: u32 = scaled % 1000000000;
     Duration {
@@ -87,7 +84,7 @@ public machine duration_from_milliseconds(milliseconds: u64) -> Duration {
 public machine duration_from_microseconds(microseconds: u64) -> Duration {
     // The same initializer facts as from_milliseconds, at microsecond scale.
     let scaled_wide: u64 = (microseconds % 1000000) * 1000;
-    let scaled: u32 = narrow_u64_to_u32_exact(scaled_wide);
+    let scaled: u32 = |numeric|::narrow_u64_to_u32_exact(scaled_wide);
     let whole_seconds: u64 = microseconds / 1000000;
     let sub: u32 = scaled % 1000000000;
     Duration {
@@ -98,7 +95,7 @@ public machine duration_from_microseconds(microseconds: u64) -> Duration {
 
 public machine duration_from_nanoseconds(nanoseconds: u64) -> Duration {
     let remainder_wide: u64 = nanoseconds % 1000000000;
-    let remainder: u32 = narrow_u64_to_u32_exact(remainder_wide);
+    let remainder: u32 = |numeric|::narrow_u64_to_u32_exact(remainder_wide);
     let whole_seconds: u64 = nanoseconds / 1000000000;
     let sub: u32 = remainder % 1000000000;
     Duration {
@@ -132,7 +129,7 @@ requires divisor > 0
     let subsecond_part: u32 = duration.subsecond_nanoseconds / divisor;
     let subsecond_fits: bool = subsecond_part <= subsecond_bound;
     let total: u64 in Wrapping = ((duration.seconds as +Wrapping) * multiplier)
-        + (widen_u32_to_u64(subsecond_part) as +Wrapping);
+        + (|numeric|::widen_u32_to_u64(subsecond_part) as +Wrapping);
     transition seconds_small {
         true -> total_ok(total as u64),
         false -> total_edge(seconds_edge, subsecond_fits, total as u64)
@@ -287,17 +284,17 @@ public machine duration_checked_subtract(duration: @Duration, other: Duration) -
 
 // duration * factor; `Overflow` when the true product exceeds the range.
 public machine duration_checked_multiply(duration: @Duration, factor: u32) -> DurationResult {
-    let factor_wide: u64 = widen_u32_to_u64(factor);
+    let factor_wide: u64 = |numeric|::widen_u32_to_u64(factor);
     // Subsecond product fits u64 by math ([0..=999_999_999] * [0..=u32 maximum])
     // but the interval fold cannot multiply variable bounds -- Wrapping
     // spelling, correctness carried by the bounds themselves.
     let nano_product_wrapped: u64 in Wrapping =
-        (widen_u32_to_u64(duration.subsecond_nanoseconds) as +Wrapping)
+        (|numeric|::widen_u32_to_u64(duration.subsecond_nanoseconds) as +Wrapping)
         * (factor_wide as +Wrapping);
     let nano_product: u64 = nano_product_wrapped as u64;
     let extra_seconds: u64 = nano_product / 1000000000;
     let nano_remainder_wide: u64 = nano_product % 1000000000;
-    let nano_remainder: u32 = narrow_u64_to_u32_exact(nano_remainder_wide);
+    let nano_remainder: u32 = |numeric|::narrow_u64_to_u32_exact(nano_remainder_wide);
     // Division-free u64 overflow detection for seconds * factor via the
     // 32-bit split (the interpreter's div/mod on msb-set u64 was only just
     // taught unsignedness; shifts and adds need no such care):
@@ -358,19 +355,19 @@ public machine duration_divide(duration: @Duration, divisor: u32) -> DurationRes
     let divisor_is_zero: bool = divisor == 0;
     let safe_divisor_floor: u32 in Saturating = ((divisor as +Saturating) - 1) + 1;
     let safe_divisor_narrow: u32 = safe_divisor_floor as u32;
-    let safe_divisor: u64 = widen_u32_to_u64(safe_divisor_narrow);
+    let safe_divisor: u64 = |numeric|::widen_u32_to_u64(safe_divisor_narrow);
     let seconds_quotient: u64 = duration.seconds / safe_divisor;
     let seconds_remainder: u64 = duration.seconds % safe_divisor;
     // remainder < divisor <= u32 maximum, so this fits u64 by math; Wrapping
     // spelling because the fold cannot multiply variable bounds.
     let total_wrapped: u64 in Wrapping = ((seconds_remainder as +Wrapping)
         * 1000000000)
-        + (widen_u32_to_u64(duration.subsecond_nanoseconds) as +Wrapping);
+        + (|numeric|::widen_u32_to_u64(duration.subsecond_nanoseconds) as +Wrapping);
     let total_subnanoseconds: u64 = total_wrapped as u64;
     let sub_quotient_wide: u64 = total_subnanoseconds / safe_divisor;
     let sub_quotient_bounded: u64 =
         sub_quotient_wide % 1000000000;
-    let sub_quotient: u32 = narrow_u64_to_u32_exact(sub_quotient_bounded);
+    let sub_quotient: u32 = |numeric|::narrow_u64_to_u32_exact(sub_quotient_bounded);
     transition divisor_is_zero {
         true -> divide_by_zero(),
         false -> divide_emit(seconds_quotient, sub_quotient)
@@ -700,8 +697,8 @@ public machine system_time_duration_since(time: @SystemTime, earlier: SystemTime
     let nanoseconds_fit: bool = time.subsecond_nanoseconds >= earlier.subsecond_nanoseconds;
     let back_nanoseconds_fit: bool = earlier.subsecond_nanoseconds >= time.subsecond_nanoseconds;
     let seconds_direct: u64 in Wrapping =
-        (narrow_i64_to_u64_wrapping(time.seconds_since_unix_epoch) as +Wrapping)
-        - (narrow_i64_to_u64_wrapping(earlier.seconds_since_unix_epoch) as +Wrapping);
+        (|numeric|::narrow_i64_to_u64_wrapping(time.seconds_since_unix_epoch) as +Wrapping)
+        - (|numeric|::narrow_i64_to_u64_wrapping(earlier.seconds_since_unix_epoch) as +Wrapping);
     let seconds_borrowed: u64 in Wrapping = (seconds_direct) - 1;
     let nanoseconds_direct: u32 = ((time.subsecond_nanoseconds as +Wrapping)
         - (earlier.subsecond_nanoseconds as +Wrapping)) as u32;
@@ -709,8 +706,8 @@ public machine system_time_duration_since(time: @SystemTime, earlier: SystemTime
         - (earlier.subsecond_nanoseconds as +Wrapping))
         + (time.subsecond_nanoseconds as +Wrapping)) as u32;
     let back_seconds_direct: u64 in Wrapping =
-        (narrow_i64_to_u64_wrapping(earlier.seconds_since_unix_epoch) as +Wrapping)
-        - (narrow_i64_to_u64_wrapping(time.seconds_since_unix_epoch) as +Wrapping);
+        (|numeric|::narrow_i64_to_u64_wrapping(earlier.seconds_since_unix_epoch) as +Wrapping)
+        - (|numeric|::narrow_i64_to_u64_wrapping(time.seconds_since_unix_epoch) as +Wrapping);
     let back_seconds_borrowed: u64 in Wrapping = (back_seconds_direct) - 1;
     let back_nanoseconds_direct: u32 = ((earlier.subsecond_nanoseconds as +Wrapping)
         - (time.subsecond_nanoseconds as +Wrapping)) as u32;
@@ -780,14 +777,14 @@ public machine system_time_checked_add(time: @SystemTime, duration: Duration) ->
     let nanoseconds_total: u32 = time.subsecond_nanoseconds + duration.subsecond_nanoseconds;
     let bias: u64 in Wrapping = (1 as u64 +Wrapping) << 63;
     let seconds_biased: u64 in Wrapping =
-        (narrow_i64_to_u64_wrapping(time.seconds_since_unix_epoch) as +Wrapping)
+        (|numeric|::narrow_i64_to_u64_wrapping(time.seconds_since_unix_epoch) as +Wrapping)
         + (bias);
     let sum_biased: u64 in Wrapping =
         (seconds_biased) + (duration.seconds as +Wrapping);
     let add_wrapped: bool = sum_biased < seconds_biased;
     let seconds_sum: i64 in Wrapping =
         (time.seconds_since_unix_epoch as +Wrapping)
-        + (narrow_u64_to_i64_wrapping(duration.seconds) as +Wrapping);
+        + (|numeric|::narrow_u64_to_i64_wrapping(duration.seconds) as +Wrapping);
     transition nanoseconds_total >= 1000000000 {
         true -> wall_add_carried(nanoseconds_total, seconds_sum as i64, sum_biased as u64, add_wrapped),
         false -> wall_add_flat(nanoseconds_total, seconds_sum as i64, add_wrapped)
@@ -832,14 +829,14 @@ public machine system_time_checked_subtract(time: @SystemTime, duration: Duratio
     let nanoseconds_fit: bool = time.subsecond_nanoseconds >= duration.subsecond_nanoseconds;
     let bias: u64 in Wrapping = (1 as u64 +Wrapping) << 63;
     let seconds_biased: u64 in Wrapping =
-        (narrow_i64_to_u64_wrapping(time.seconds_since_unix_epoch) as +Wrapping)
+        (|numeric|::narrow_i64_to_u64_wrapping(time.seconds_since_unix_epoch) as +Wrapping)
         + (bias);
     let difference_biased: u64 in Wrapping =
         (seconds_biased) - (duration.seconds as +Wrapping);
     let subtract_wrapped: bool = difference_biased > seconds_biased;
     let seconds_difference: i64 in Wrapping =
         (time.seconds_since_unix_epoch as +Wrapping)
-        - (narrow_u64_to_i64_wrapping(duration.seconds) as +Wrapping);
+        - (|numeric|::narrow_u64_to_i64_wrapping(duration.seconds) as +Wrapping);
     let nanoseconds_direct: u32 = ((time.subsecond_nanoseconds as +Wrapping)
         - (duration.subsecond_nanoseconds as +Wrapping)) as u32;
     let nanoseconds_borrowed: u32 = (((1000000000 as u32 +Wrapping)
@@ -929,10 +926,10 @@ ensures result > 0
 // the scaled remainder saturate, so the reading degrades without faulting.
 public machine instant_now() -> Instant
 reaches
-    TimeHost
+    |time_host|::TimeHost
 {
-    let ticks: u64 = TimeHost::monotonic_ticks();
-    let frequency: u64 = nonzero_clock_frequency(TimeHost::monotonic_ticks_per_second());
+    let ticks: u64 = |time_host|::TimeHost::monotonic_ticks();
+    let frequency: u64 = nonzero_clock_frequency(|time_host|::TimeHost::monotonic_ticks_per_second());
     let whole_seconds: u64 = ticks / frequency;
     let remainder: u64 = ticks % frequency;
     // A remainder this large means an absurd frequency; the product saturates
@@ -955,11 +952,11 @@ reaches
 // A host clock before 1970 reads as UNIX_EPOCH (degraded, never faulting).
 public machine system_time_now() -> SystemTime
 reaches
-    TimeHost
+    |time_host|::TimeHost
 {
-    let raw: u64 = TimeHost::wall_clock_raw();
-    let units: u64 = nonzero_clock_frequency(TimeHost::wall_clock_units_per_second());
-    let offset: u64 = TimeHost::wall_clock_epoch_offset_seconds();
+    let raw: u64 = |time_host|::TimeHost::wall_clock_raw();
+    let units: u64 = nonzero_clock_frequency(|time_host|::TimeHost::wall_clock_units_per_second());
+    let offset: u64 = |time_host|::TimeHost::wall_clock_epoch_offset_seconds();
     let platform_seconds: u64 = raw / units;
     let remainder: u64 = raw % units;
     let scaled_saturated: u64 in Saturating = (remainder as +Saturating) * 1000000000;
@@ -971,7 +968,7 @@ reaches
         - (offset as +Wrapping);
     let unix_bounded: u64 =
         (unix_wrapped as u64) % 9223372036854775807;
-    let unix_seconds: i64 = narrow_u64_to_i64_exact(unix_bounded);
+    let unix_seconds: i64 = |numeric|::narrow_u64_to_i64_exact(unix_bounded);
     transition is_after_epoch {
         true -> wall_now_emit(unix_seconds, subsecond),
         false -> wall_now_before_epoch()
@@ -997,10 +994,10 @@ reaches
 // FIXED -- runtime_time_elapsed_since_exit is the live std tripwire).
 public machine elapsed_since(start: Instant) -> Duration
 reaches
-    TimeHost
+    |time_host|::TimeHost
 {
-    let ticks: u64 = TimeHost::monotonic_ticks();
-    let frequency: u64 = nonzero_clock_frequency(TimeHost::monotonic_ticks_per_second());
+    let ticks: u64 = |time_host|::TimeHost::monotonic_ticks();
+    let frequency: u64 = nonzero_clock_frequency(|time_host|::TimeHost::monotonic_ticks_per_second());
     let now_seconds: u64 = ticks / frequency;
     let remainder: u64 = ticks % frequency;
     let scaled_saturated: u64 in Saturating = (remainder as +Saturating) * 1000000000;
@@ -1008,7 +1005,7 @@ reaches
     let subnanos_wide: u64 = scaled / frequency;
     let now_subsecond_wide: u64 =
         subnanos_wide % 1000000000;
-    let now_subsecond: u32 = narrow_u64_to_u32_exact(now_subsecond_wide);
+    let now_subsecond: u32 = |numeric|::narrow_u64_to_u32_exact(now_subsecond_wide);
     let seconds_bigger: bool = now_seconds > start.seconds;
     let seconds_equal: bool = now_seconds == start.seconds;
     let nanoseconds_fit: bool = now_subsecond >= start.subsecond_nanoseconds;
@@ -1055,14 +1052,14 @@ reaches
 // maximum.
 public machine sleep_for(duration: Duration) -> u32
 reaches
-    TimeHost
+    |time_host|::TimeHost
 blocks
 {
     let seconds_scaled: u64 in Saturating = (duration.seconds as +Saturating) * 1000;
     let subsecond_milliseconds: u32 = duration.subsecond_nanoseconds / 1000000;
     let total: u64 in Saturating =
-        seconds_scaled + (widen_u32_to_u64(subsecond_milliseconds) as +Saturating);
-    let milliseconds: u32 = narrow_u64_to_u32_saturating(total as u64);
-    block TimeHost::sleep(milliseconds);
+        seconds_scaled + (|numeric|::widen_u32_to_u64(subsecond_milliseconds) as +Saturating);
+    let milliseconds: u32 = |numeric|::narrow_u64_to_u32_saturating(total as u64);
+    block |time_host|::TimeHost::sleep(milliseconds);
     milliseconds
 }

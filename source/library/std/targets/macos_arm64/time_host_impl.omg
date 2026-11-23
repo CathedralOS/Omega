@@ -1,19 +1,19 @@
-use TimeHost;
+use time_host.omg as time_host;
+
 // Darwin clock reads return nanoseconds directly; the portable Time wrapper
 // owns conversion into Instant and SystemTime. Clock selectors and calibration
 // are ordinary checked code, not hidden arguments or constant provider rows.
 // Apple documents/implements the selected clocks in Libc/gen/clock_gettime.c:
 // https://github.com/apple-oss-distributions/Libc/blob/main/gen/clock_gettime.c
-use omega\language\core\narrow_u32_to_i32_wrapping;
 
 // Darwin's raw read and wait have explicit `TimeHost` reach. Both macOS
 // targets bind this same schema through their own package Build rows.
 boundary trait DarwinTimeRead {
     machine clock_nanoseconds(clock_id: u32) -> u64
-    reaches TimeHost
+    reaches |time_host|::TimeHost
     crashes none;
     machine poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32
-    reaches TimeHost
+    reaches |time_host|::TimeHost
     blocks
     crashes none;
 }
@@ -21,7 +21,7 @@ boundary trait DarwinTimeRead {
 // With no descriptors, zero reports a completed timeout. Retry failed waits
 // instead of reporting sleep complete early; retrying may oversleep.
 machine darwin_time_host_wait_part(timeout_milliseconds: i32)
-reaches TimeHost
+reaches |time_host|::TimeHost
 blocks
 {
     transition { _ -> block wait(timeout_milliseconds) }

@@ -1,5 +1,6 @@
-use LinuxX64TimeHostInstant;
-use TimeHost;
+use time_host.omg as time_host;
+use linux_x86_64_time_host.omg as adapter;
+
 // linux_x86_64 `TimeHost` provider.
 //
 // Linux publishes no scalar nanosecond clock read. `clock_gettime` writes a
@@ -23,23 +24,21 @@ use TimeHost;
 // asm-generic table), so neither Linux file is the other with the target
 // renamed.
 //
-use omega\language\core\narrow_u32_to_i32_wrapping;
-use omega\language\core\narrow_i64_to_u64_saturating;
 
 // Per-target raw seam. `LinuxClockWait` and `LinuxArmClockWait` are the
 // one-member clock-wait traits; this trait owns the time-host read and wait.
 boundary trait LinuxX64TimeRead {
-    machine clock_gettime(clock_id: u32, instant: @mutable LinuxX64TimeHostInstant) -> i64
-    reaches TimeHost
+    machine clock_gettime(clock_id: u32, instant: @mutable |adapter|::LinuxX64TimeHostInstant) -> i64
+    reaches |time_host|::TimeHost
     crashes none;
     machine poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32) -> i32
-    reaches TimeHost
+    reaches |time_host|::TimeHost
     blocks
     crashes none;
 }
 
 machine linux_x86_64_time_host_wait_part(timeout_milliseconds: i32)
-reaches TimeHost
+reaches |time_host|::TimeHost
 blocks
 {
     transition { _ -> block wait(timeout_milliseconds) }
