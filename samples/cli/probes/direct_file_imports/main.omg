@@ -1,3 +1,4 @@
+// Expected exit: 0
 use m/value-cell.omg as cell;
 use m/b.omg;
 use {omega}/language/core/numeric_conversion.omg as numeric;
@@ -27,6 +28,8 @@ machine result() -> i32 {
     }
 }
 
-machine main() {
-    let made: i32 = result();
+machine main() crashes Trap {
+    transition result() == 7 { true -> done(), _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

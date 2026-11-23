@@ -776,3 +776,55 @@ fn a_file_qualifier_selects_its_own_sources_declarations() {
         "{missing:?}"
     );
 }
+
+#[test]
+fn file_imports_neither_bind_bare_names_nor_reexport_imports() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    for (call, wants_alias) in [
+        ("read()", false),
+        ("read()", true),
+        ("|middle|::read()", true),
+    ] {
+        let (mut files, root) = captured(package, &format!("machine value() -> u8 {{ {call} }}"));
+        let helper = capture_file(
+            &mut files,
+            "product",
+            package,
+            "helper.omg",
+            "machine read() -> u8 { 7u8 }",
+        );
+        let middle = capture_file(
+            &mut files,
+            "product",
+            package,
+            "middle.omg",
+            "machine relay() -> u8 { |leaf|::read() }",
+        );
+        let mut stage = product(files, root, package, &[]).unwrap();
+        stage.parsed.roots.extend([helper, middle]);
+        stage
+            .parsed
+            .imports
+            .push(SourceScopedTopLevelBinding::file_import(
+                middle, helper, "leaf",
+            ));
+        if wants_alias {
+            let imported = if call.starts_with('|') {
+                middle
+            } else {
+                helper
+            };
+            stage
+                .parsed
+                .imports
+                .push(SourceScopedTopLevelBinding::file_import(
+                    root, imported, "middle",
+                ));
+        }
+        let errors = compile(stage, None).expect_err("read is outside the selected file");
+        assert!(
+            errors.iter().any(|d| d.message.contains("read")),
+            "{errors:?}"
+        );
+    }
+}
