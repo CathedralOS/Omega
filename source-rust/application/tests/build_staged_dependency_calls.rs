@@ -1631,3 +1631,24 @@ machine build(builder: @mutable Build) suspends {
         "{report}"
     );
 }
+
+#[test]
+fn a_dependency_publishes_source_bytes_under_the_name_the_product_imports() {
+    let target = target::TargetProfile::host_if_supported().unwrap().target_name();
+    let build = r#"use {kit}/generated/start.omg as entry;
+machine build(builder: @mutable Build) suspends {
+    Build::application(builder, "generated_entry");
+    let mutable source: DependencyDescription = dependency\from_source(Source::Path { location: "dep" });
+    dependency\with_alias(@mutable source, "kit");
+    let registered: DependencyRegistration = Build::dependency(builder, source);
+    suspend Build::prepare_dependency(builder, registered);
+    Build::bind(builder, HOST\ProgramEntry, |entry|::start);
+}"#.replace("HOST", target);
+    let publish = r#"Build::include_source(builder, "generated/start.omg", "use main.omg as seed; public machine start() crashes Trap { transition |seed|::v() == 7 { true -> done(), _ -> bad() } machine done() {} machine bad() { crash Trap; } }");"#;
+    let run = |name, body: &str| check_project(name, &build, 7, body, &["run", "--both", "build.omg"]);
+    let (ok, report) = run("published-source-bytes", publish);
+    assert!(ok && report.contains("native exit 0") && report.contains("interp exit: 0"), "{report}");
+    let outside = publish.replace("generated/start.omg", "../start.omg");
+    let (ok, report) = run("published-source-outside", &outside);
+    assert!(!ok && report.contains("..") && report.contains("source"), "{report}");
+}
