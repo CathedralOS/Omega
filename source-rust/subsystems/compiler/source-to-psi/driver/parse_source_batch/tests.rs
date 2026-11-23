@@ -59,6 +59,7 @@ fn stage_batch_preserves_lexical_error_priority_and_source_order() {
 
 #[test]
 fn stage_batch_matches_page_identity_metadata_and_owned_literals() {
+    const FIRST_PAGE: u32 = 5;
     let texts = (0..97)
         .map(|index| format!("const Text{index}: [u8] = \"value\\n{index}\";"))
         .collect::<Vec<_>>();
@@ -67,7 +68,7 @@ fn stage_batch_matches_page_identity_metadata_and_owned_literals() {
     let (expected_pages, expected_sources) = source_parser::parse(
         &lexed,
         source_parser::ParseOptions {
-            first_page_identity: 5,
+            first_page_identity: FIRST_PAGE,
             ..Default::default()
         },
     )
@@ -75,7 +76,7 @@ fn stage_batch_matches_page_identity_metadata_and_owned_literals() {
     .into_parts();
     let mut timings = CompileTimings::enabled();
     let (actual_pages, actual_sources) =
-        SourceInput(input).parse_batch(5, Layout::Shared, &mut timings).unwrap();
+        SourceInput(input).parse_batch(FIRST_PAGE, Layout::Shared, &mut timings).unwrap();
     assert_eq!(timings.phases().len(), 1);
     assert_eq!(timings.phases()[0].phase, "Source ingress: SourceFiles -> SyntaxTrees");
     assert_eq!(
@@ -85,6 +86,22 @@ fn stage_batch_matches_page_identity_metadata_and_owned_literals() {
     assert_eq!(actual_pages.len(), expected_pages.len());
     for (actual, expected) in actual_pages.iter().zip(&expected_pages) {
         assert_eq!(actual.snapshot(), expected.snapshot());
+    }
+    // Both routes call the same parser. Check each returned root against its
+    // input file as well, so the routes cannot agree on a misplaced declaration.
+    let records = actual_sources.sources.span_or_empty(actual_sources.batch);
+    assert_eq!(records.len(), texts.len());
+    for (index, source) in records.iter().enumerate() {
+        assert_eq!(source.source_id, SourceId(index));
+        let [root] = source.root_items.as_slice() else {
+            panic!("expected one constant in {}", source.path.display());
+        };
+        let page = &actual_pages[(root.generation() - FIRST_PAGE) as usize];
+        let syntax_trees::item::Item::Const(constant) = page.root_item(*root) else {
+            panic!("expected a constant in {}", source.path.display());
+        };
+        assert_eq!(constant.name.source_span().source_id, source.source_id);
+        assert_eq!(constant.name.as_str(page), format!("Text{index}"));
     }
     let units = parse(loaded(&["data First {}", "data Second {}"]), 1, true)
         .unwrap()

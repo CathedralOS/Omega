@@ -77,7 +77,9 @@ pub(super) fn nominal_identity(
             digest: toolchain_sources[position].1,
         })
     };
-    let path = symbols.display_path(symbol, "::");
+    let path = typed
+        .authored_declaration_path(symbol)
+        .map_err(|reason| unavailable(&reason))?;
     if path.is_empty() {
         return Err(unavailable("a declaration without a stable path"));
     }
