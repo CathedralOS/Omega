@@ -3962,7 +3962,7 @@ fn a_value_match_joins_its_arms_with_the_result_as_one_block_parameter() {
 fn a_case_test_observes_the_sum_in_place_and_a_payload_read_ends_its_carrier_in_the_case() {
     // f(s: Shape) -> u32 { transition s in Shape::Dot { true -> s.at } 9 }
     let scalar = ValueType::Scalar(u32_type(), Qualification::NONE);
-    let (machine, _) = lower_sums(
+    let (machine, tables) = lower_sums(
         Body {
             slots: vec![shape()],
             statements: vec![
@@ -3975,6 +3975,18 @@ fn a_case_test_observes_the_sum_in_place_and_a_payload_read_ends_its_carrier_in_
             ],
         },
         weighs(),
+    );
+    let input = tables.roots.get(id(1)).unwrap();
+    let children = &tables.places.get(*input).unwrap().children;
+    assert!(
+        children
+            .iter()
+            .any(|(segment, _)| *segment == case_segment(1))
+    );
+    assert!(
+        children
+            .iter()
+            .all(|(segment, _)| *segment != case_segment(4))
     );
     let [test] = block(&machine, 1).operations.as_slice() else {
         panic!("one operation");
