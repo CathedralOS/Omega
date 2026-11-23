@@ -26,9 +26,9 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     let result: IoResult = block windows_filesystem_read_dir_count(path);
     transition result {
         IoResult::Error { kind } -> (EmptyResult::Error { kind: kind }),
-        IoResult::Ok { count } -> count(count)
+        IoResult::Ok { count } -> from_count(count)
     }
-    machine count(count: u64) -> EmptyResult {
+    machine from_count(count: u64) -> EmptyResult {
         transition count == 0 { true -> EmptyResult::Empty, false -> EmptyResult::NonEmpty }
     }
 }

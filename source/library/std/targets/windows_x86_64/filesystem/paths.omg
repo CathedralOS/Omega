@@ -57,8 +57,8 @@ machine windows_filesystem_root_length(path: @[u8]) -> u64 {
         transition windows_filesystem_separator(path, path[0]) { true -> 1, false -> 0 }
     }
     machine prefix(path: @[u8]) -> u64 requires path.length >= 2 {
-        let drive: bool = (path[0] >= 65 && path[0] <= 90) || (path[0] >= 97 && path[0] <= 122);
-        transition drive && path[1] == 58 {
+        let has_drive_letter: bool = (path[0] >= 65 && path[0] <= 90) || (path[0] >= 97 && path[0] <= 122);
+        transition has_drive_letter && path[1] == 58 {
             true -> drive(path),
             false -> network(path)
         }
@@ -205,9 +205,9 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMet
     let root: u64 = windows_filesystem_root_length(path as -Path);
     transition root < path.length {
         true -> block walk(path, root),
-        false -> block root(path)
+        false -> block check_root(path)
     }
-    machine root(path: @[u8] in Path) -> UnitResult {
+    machine check_root(path: @[u8] in Path) -> UnitResult {
         let result: MetadataResult = block windows_filesystem_metadata_path(path, false);
         transition result {
             MetadataResult::Error { kind } -> (UnitResult::Error { kind: kind }),

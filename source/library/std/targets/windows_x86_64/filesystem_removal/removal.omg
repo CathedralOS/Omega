@@ -1,5 +1,6 @@
+use targets/windows_x86_64/filesystem_removal/attributes.omg as attrs;
+use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
 use omega_language_std;
-use targets\windows_x86_64\WindowsFilesystemIo;
 use targets\windows_x86_64;
 // Recursive removal entrance: acquire one no-follow root, inspect that exact
 // object, then walk retained parent handles. A reparse root is refused; child
@@ -18,14 +19,14 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     let root: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_removal_open_root(path);
     transition (root as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block inspect(root), false -> failed() }
     machine failed() -> i32 {
-        windows_removal_status(windows_removal_error(WindowsFilesystemIo::c_get_last_error()))
+        windows_removal_status(windows_removal_error(|win_io|::WindowsFilesystemIo::c_get_last_error()))
     }
     machine inspect(root: i64 in WindowsPrivateNonalertFileOrAbsent) -> i32
     requires (root as -WindowsPrivateNonalertFileOrAbsent) != 0 {
-        let information: WindowsRemovalAttributes = block windows_removal_attributes(root);
+        let information: |attrs|::WindowsRemovalAttributes = block windows_removal_attributes(root);
         transition information {
-            WindowsRemovalAttributes::Error { code } -> block refuse(root, code),
-            WindowsRemovalAttributes::Value { attributes } -> block kind(root, attributes)
+            |attrs|::WindowsRemovalAttributes::Error { code } -> block refuse(root, code),
+            |attrs|::WindowsRemovalAttributes::Value { attributes } -> block kind(root, attributes)
         }
     }
     machine kind(root: i64 in WindowsPrivateNonalertFileOrAbsent, attributes: u32) -> i32

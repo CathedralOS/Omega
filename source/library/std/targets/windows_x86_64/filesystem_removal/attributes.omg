@@ -1,6 +1,5 @@
-use targets\windows_x86_64\WindowsFilesystemIo;
-use targets\windows_x86_64\WindowsFilesystemMetadataIo;
-use targets\windows_x86_64\WindowsNativeFileAttributeTagInfo;
+use targets/windows_x86_64/windows_filesystem_metadata_native.omg as metadata_io;
+use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
 use targets\windows_x86_64\windows_classify_metadata_disk_file;
 use targets\windows_x86_64;
 // Inspect the exact private object, not a second pathname lookup or a copied
@@ -22,14 +21,14 @@ reaches FilesystemMetadataQuery {
     transition (file as -WindowsDiskFileOrAbsent) != 0 { true -> block query(file), false -> failed() }
     machine query(file: i64 in WindowsDiskFileOrAbsent) -> WindowsRemovalAttributes
     requires (file as -WindowsDiskFileOrAbsent) != 0 {
-        let mutable information: WindowsNativeFileAttributeTagInfo;
-        let succeeded: i32 = block WindowsFilesystemMetadataIo::attribute_tag(file, 9, @mutable information, 8);
+        let mutable information: |metadata_io|::WindowsNativeFileAttributeTagInfo;
+        let succeeded: i32 = block |metadata_io|::WindowsFilesystemMetadataIo::attribute_tag(file, 9, @mutable information, 8);
         transition succeeded != 0 {
             true -> (WindowsRemovalAttributes::Value { attributes: information.attributes }),
             false -> failed()
         }
     }
     machine failed() -> WindowsRemovalAttributes {
-        WindowsRemovalAttributes::Error { code: windows_removal_error(WindowsFilesystemIo::c_get_last_error()) }
+        WindowsRemovalAttributes::Error { code: windows_removal_error(|win_io|::WindowsFilesystemIo::c_get_last_error()) }
     }
 }
