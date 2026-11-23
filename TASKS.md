@@ -211,11 +211,6 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
 - **CHECKED-BUILD-RESUMPTION.** Carry outstanding caller return obligations and borrowed results across [dependency preparation](wiki/spec/build/scoped_execution.md#checked-build-stages) when the checked successor preserves their storage.
   - Exercise [interpreter resumption](source-rust/subsystems/interpreter/embedding/continuation.rs) through the ordinary Build entry. Keep the registration and a borrow live, use the borrowed result after calling newly mounted code, and make a repeated initializer observable. Require refusal if the backing storage or earlier effect changes. The [repair queue](OWNER_CODE_CONCERNS.md#a-byte-read-can-run-in-a-build-but-prevent-it-from-resuming) describes the byte-read and transition-subject cases.
 
-- **NO-IMPLICIT-COMPILER-STORAGE.** Implement [compiler storage](wiki/spec/build/compiler_storage.md): keep reuse in memory within one build invocation and delete the disk caches.
-  - Trace ordinary builds and package review/update. Distinguish requested outputs and acquired sources from invocation-owned scratch.
-
-  Acceptance: disk-cache reads and writes are gone with absent, populated, corrupt or unwritable cache directories. In-memory reuse stays within its invocation. Check that ordinary builds clean up scratch after success and handled failure and ignore abandoned scratch after forced termination. Compare deterministic outputs, build time and peak memory before and after the deletion.
-
 - **LIBRARY-REPRESENTATION-FAMILIES.** Implement [representations](wiki/spec/layouts/plans.md#representation-applications), [aliases](wiki/spec/language/generics.md#transparent-type-aliases), [conversions](wiki/spec/layouts/codecs.md#representation-conversions), and [home layouts](wiki/drafts/designs/home_layout_optimization.md).
 
 - **STATE-LOCAL-VALUE-FRONTIER.** (covers **REFERENCE-LOCAL-BINDING-ROUTES**, **BORROWED-STORAGE-RESTORATION**, **MATCH-SELECTIVE-LOWERING**) Carry exact value and backing identity through [borrows and restoration](wiki/spec/language/ownership.md#borrowed-storage-invariant-windows) and [match joins](wiki/spec/language/patterns.md). Prove valid mutable moves and repairs across aliases and suspension. Refuse shared moves, unclosed linear obligations, stale backing and joins with incompatible loan states.
