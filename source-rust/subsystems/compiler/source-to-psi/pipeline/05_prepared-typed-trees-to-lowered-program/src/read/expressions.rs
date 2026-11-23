@@ -139,17 +139,20 @@ impl<'t> Program<'t> {
         id: MachineId,
         expression: ExpressionHandle,
     ) -> Checked<&'t ExpressionNode> {
-        let value = self
-            .selected_constant_value(id, expression)?
-            .unwrap_or(expression);
+        let value = self.constant_value(id, expression)?;
         Ok(self.typed.expression_table.expression(value))
     }
 
-    fn selected_constant_value(
+    /// The expression a reader interprets in place of `expression`. A use of
+    /// an evaluated constant stays a name for its selected declaration, so
+    /// every value and contract reader reads the value that declaration
+    /// stores (its materialized initializer). Any other expression, a
+    /// constant still awaiting a target observation included, reads itself.
+    pub(super) fn constant_value(
         &self,
         id: MachineId,
         expression: ExpressionHandle,
-    ) -> Checked<Option<ExpressionHandle>> {
+    ) -> Checked<ExpressionHandle> {
         let table = &self.typed.expression_table;
         if !table.expression_is_valid(expression) {
             return Err(refuse(
@@ -158,8 +161,7 @@ impl<'t> Program<'t> {
                 Unserved::Expression("missing expression"),
             ));
         }
-        let node = table.expression(expression);
-        if let ExpressionNode::Name(path) = node
+        if let ExpressionNode::Name(path) = table.expression(expression)
             && let Some(constant) = self.typed.named_const_declaration(path)
             && constant.evaluated_value.is_some()
         {
@@ -170,12 +172,12 @@ impl<'t> Program<'t> {
                     Unserved::Expression("evaluated constant has no materialized initializer"),
                 ));
             }
-            return Ok(Some(constant.materialized_initializer));
+            return Ok(constant.materialized_initializer);
         }
-        Ok(None)
+        Ok(expression)
     }
 
-/// Reads the term at an erased position: an `[erased]` local's
+    /// Reads the term at an erased position: an `[erased]` local's
     /// initializer or the argument for an `[erased]` formal. It is a literal
     /// or a scalar binding, relevant or erased. Anything that computes has a
     /// formation condition (contracts.md, "Total arithmetic": "Exact
@@ -956,7 +958,7 @@ impl<'t> Program<'t> {
         if access == Access::Read {
             return self.expression(id, slots, target, expected);
         }
-        if self.selected_constant_value(id, target)?.is_some() {
+        if self.constant_value(id, target)? != target {
             let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
             if access != Access::Borrow {
                 return Err(reject(

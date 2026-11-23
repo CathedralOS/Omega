@@ -99,28 +99,17 @@ fn declared(kind: &str, path: &str, file: usize, offset: usize) -> Selection {
 
 /// `default_port` is nested in `connect`, which has a local also named
 /// `port`. A nested machine cannot read its enclosing machine's runtime
-/// values, so its `port` is the package constant, and resolution writes the
-/// constant's literal value at the read: typing sees `1`, not a name.
+/// values, so its `port` selects the package constant. The read stays a name
+/// for that declaration, and later stages read the value it stores.
 #[test]
-fn a_literal_constant_read_in_a_nested_machine_arrives_as_its_value() {
+fn a_constant_read_in_a_nested_machine_selects_the_package_constant() {
     let program = "const port: u32 = 1; machine connect() -> u32 { let port: u32 = 99; \
         default_port() machine default_port() -> u32 { port } }";
     let trees = resolved(&[("main.omg", program)]);
     let at = program.rfind("port }").unwrap();
-    let table = &trees.tables.bodies.expressions;
-    let node = table
-        .iter_expressions()
-        .find(|(handle, _)| table.source_span(*handle).span.start == at)
-        .map(|(_, node)| format!("{node:?}"))
-        .expect("an expression at the nested read");
-    assert!(
-        node.starts_with("Integer(IntegerLiteral { text: \"1\""),
-        "{node}"
-    );
-    assert!(
-        uses(&trees, "port").is_empty(),
-        "{:?}",
-        uses(&trees, "port")
+    assert_eq!(
+        uses(&trees, "port"),
+        [((0, at), declared("Const", "port", 0, 6))]
     );
 }
 
