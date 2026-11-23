@@ -1,23 +1,31 @@
 data Identity<T> = machine(value: T) -> T;
+data Observer<T> = machine(value: @T, seen: @mutable bool);
 machine invoke<T, const Apply: Identity<T>>(value: T) -> T { Apply(value) }
+machine observe<T, const Visit: Observer<T>>(value: @T, seen: @mutable bool) { Visit(value, seen); }
+
 trait IdentityMap<T> {
-    machine relay(first: T, value: T) -> T {
+    machine relay(value: T, seen: @mutable bool) -> T {
         match true {
             true -> {
-                invoke::<T, local>(first);
+                observe::<T, visit>(@value, seen);
                 invoke::<T, local>(value)
             },
             false -> value,
         }
+        machine visit(item: @T, seen: @mutable bool) { $seen = true; }
         machine local(value: T) -> T requires false { value }
     }
 }
+
 Selected<Element> satisfies IdentityMap<Element> {}
-machine forward<T>(first: T, value: T) -> T { Selected::<T>::relay(first, value) }
+machine forward<T>(value: T, seen: @mutable bool) -> T { Selected::<T>::relay(value, seen) }
+
 machine main() crashes Trap {
-    let x: u32 = forward::<u32>(17, 42);
-    let flag: bool = forward::<bool>(false, true);
-    transition flag && x == 42 { true -> done(), false -> wrong() }
+    let mutable first: bool = false;
+    let mutable second: bool = false;
+    let x: u32 = forward::<u32>(42, @mutable first);
+    let flag: bool = forward::<bool>(true, @mutable second);
+    transition first && second && flag && x == 42 { true -> done(), false -> wrong() }
     machine done() {}
     machine wrong() { crash Trap; }
 }
