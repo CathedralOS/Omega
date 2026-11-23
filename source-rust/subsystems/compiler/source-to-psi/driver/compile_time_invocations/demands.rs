@@ -48,12 +48,7 @@ pub(crate) fn demanded_declarations(
     let mut supplies = request.supplies.to_vec();
     for scope in scopes {
         pending.extend(scope.entry_declarations.iter().copied());
-        supplies.extend(
-            scope
-                .provider_declarations
-                .iter()
-                .flat_map(crate::compile_product::provider_settlement::selected_supplies),
-        );
+        supplies.extend(scope.selected_supplies());
     }
     from_supplied_roots(program, pending, supplies).map_err(str::to_owned)
 }
@@ -63,11 +58,18 @@ impl super::FixedLayoutTargetScope {
         &self,
         program: &TypedTrees,
     ) -> Result<DeclarationSelection, &'static str> {
-        let supplies = self
-            .provider_declarations
+        from_supplied_roots(
+            program,
+            self.entry_declarations.clone(),
+            self.selected_supplies(),
+        )
+    }
+
+    /// The supplies of every provider this target selected or defaulted to.
+    fn selected_supplies(&self) -> impl Iterator<Item = Supply> + '_ {
+        self.provider_declarations
             .iter()
-            .flat_map(crate::compile_product::provider_settlement::selected_supplies);
-        from_supplied_roots(program, self.entry_declarations.clone(), supplies)
+            .flat_map(crate::compile_product::provider_settlement::selected_supplies)
     }
 }
 

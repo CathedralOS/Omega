@@ -54,6 +54,35 @@ pub(super) fn select(
         ),
         (
             b"kernel32.dll",
+            b"ReOpenFile",
+            &[Signed(64), Unsigned(32), Unsigned(32), Unsigned(32)],
+            Signed(64),
+            Effect::Reopen,
+        ),
+        (
+            b"ntdll.dll",
+            b"NtQueryObject",
+            &[
+                Signed(64),
+                Unsigned(32),
+                IntegerRecord {
+                    fields: &[
+                        Scalar(U, 32),
+                        Scalar(U, 32),
+                        Scalar(U, 32),
+                        Scalar(U, 32),
+                        Array(U, 64, 5),
+                    ],
+                    access: MutableBorrow,
+                },
+                Unsigned(32),
+                IntegerReference(U, 32, MutableBorrow),
+            ],
+            Signed(32),
+            Effect::Use,
+        ),
+        (
+            b"kernel32.dll",
             b"CloseHandle",
             &[Signed(64)],
             Signed(32),
