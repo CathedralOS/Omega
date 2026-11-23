@@ -46,7 +46,15 @@ impl TypedTrees {
             .service_reach_scope(id)
             .ok_or("effect requires its complete boundary service application")?;
         Ok(match receiver {
-            Some(owner) => member.preceded_by(owner),
+            // The effect's own arguments were written where the member declares
+            // its reach, so they keep that lexical owner under the receiver's
+            // frames; the receiver's owner would hide its own substitutions.
+            Some(owner) => {
+                let argument_owner = member.argument_owner;
+                let mut scope = member.preceded_by(owner);
+                scope.argument_owner = argument_owner;
+                scope
+            }
             None => member,
         })
     }
