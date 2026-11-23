@@ -166,7 +166,11 @@ fn snapshot_reads_retained_bytes_and_leaves_links_inert() {
     assert_eq!(input.read_link(b"link"), Ok(&b"templates"[..]));
     assert_eq!(
         input.lookup(b"link/banner.tmpl"),
-        Err(SourceSnapshotError::NotDirectory)
+        Err(SourceSnapshotError::SymlinkTraversal)
+    );
+    assert_eq!(
+        input.read(b"link", 0, 1),
+        Err(SourceSnapshotError::SymlinkTraversal)
     );
     assert_eq!(
         input.lookup(b"templates/../tools"),
