@@ -253,8 +253,16 @@ crashes Trap
         handle: u64 in Trapping,
         key: u64 in Trapping
     ) {
-        use_local(@mutable checker.ownership, key, index);
-        transition { _ -> node(checker, syntax, resolution, root, index, handle + 1) }
+        let retained: bool = use_local(@mutable checker.ownership, key, index);
+        transition retained {
+            true -> node(checker, syntax, resolution, root, index, handle + 1),
+            _ -> full(checker, syntax, handle)
+        }
+    }
+
+    machine full(checker: @mutable Checker, syntax: @SyntaxTrees, handle: u64 in Trapping) {
+        let expression: Expression = syntax_trees_expression(syntax, handle);
+        checks_reject(@mutable checker.output, CheckDiagnosticCode::CheckCapacityExceeded, expression.source_span);
     }
 
     machine done() {}
@@ -1113,66 +1121,68 @@ crashes Trap
 
 // Record that local `key` is used at statement `index`; statements are
 // scanned in order, so the last record is its last use.
-public machine use_local(ownership: @mutable Ownership, key: u64 in Trapping, index: u64 in Trapping)
+public machine use_local(ownership: @mutable Ownership, key: u64 in Trapping, index: u64 in Trapping) -> bool
 crashes Trap
 {
     let slot: u64 in Trapping = use_slot(ownership, key);
+    let count: u64 = ownership.use_count;
     transition slot > 0 {
         true -> update(ownership, slot - 1, index),
-        _ -> add(ownership, key, index, ownership.use_count)
+        _ -> add(ownership, key, index, count)
     }
 
-    machine update(ownership: @mutable Ownership, slot: u64 in Trapping, index: u64 in Trapping) {
+    machine update(ownership: @mutable Ownership, slot: u64 in Trapping, index: u64 in Trapping) -> bool {
         transition slot < 128 {
             true -> write(ownership, slot, index),
-            _ -> done()
+            _ -> full()
         }
     }
 
-    machine write(ownership: @mutable Ownership, slot: u64 in Trapping, index: u64 in Trapping)
+    machine write(ownership: @mutable Ownership, slot: u64 in Trapping, index: u64 in Trapping) -> bool
     requires slot < 128
     {
-        ownership.use_last[slot] = index as u64;
+        ownership.use_last[slot as -Trapping] = index as -Trapping;
+        true
     }
 
-    // A body with more locals than the table tracks forgets the rest, whose
-    // loans then never last past their statement.
-    machine add(ownership: @mutable Ownership, key: u64 in Trapping, index: u64 in Trapping, count: u64) {
+    // Forgetting a local would make its loan appear to expire before its last use.
+    machine add(ownership: @mutable Ownership, key: u64 in Trapping, index: u64 in Trapping, count: u64) -> bool {
         transition count < 128 {
             true -> append(ownership, key, index, count),
-            _ -> done()
+            _ -> full()
         }
     }
 
-    machine append(ownership: @mutable Ownership, key: u64 in Trapping, index: u64 in Trapping, count: u64)
+    machine append(ownership: @mutable Ownership, key: u64 in Trapping, index: u64 in Trapping, count: u64) -> bool
     requires count < 128
     {
-        ownership.use_locals[count] = key as u64;
-        ownership.use_last[count] = index as u64;
+        ownership.use_locals[count] = key as -Trapping;
+        ownership.use_last[count] = index as -Trapping;
         ownership.use_count = count + 1;
+        true
     }
 
-    machine done() {}
+    machine full() -> bool { false }
 }
 
 // Where local `key` sits in the use table, plus one; zero when absent.
 public machine use_slot(ownership: @Ownership, key: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {
-    transition { _ -> next(ownership, key, 0) }
+    transition { _ -> next(ownership, key, 0 as +Trapping) }
 
     machine next(ownership: @Ownership, key: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping {
-        transition index < ownership.use_count && index < 128 {
+        transition (index as -Trapping) < ownership.use_count && index < 128 {
             true -> entry(ownership, key, index),
-            _ -> answer(0)
+            _ -> answer(0 as +Trapping)
         }
     }
 
     machine entry(ownership: @Ownership, key: u64 in Trapping, index: u64 in Trapping) -> u64 in Trapping
     requires index < 128
     {
-        let local: u64 = ownership.use_locals[index];
-        transition local == key {
+        let local: u64 = ownership.use_locals[index as -Trapping];
+        transition local == (key as -Trapping) {
             true -> answer(index + 1),
             _ -> next(ownership, key, index + 1)
         }
