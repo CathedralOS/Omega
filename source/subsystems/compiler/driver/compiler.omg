@@ -1,6 +1,6 @@
+use {psi}/pipeline/checked_trees_to_scalar_operations/scalar.omg;
+use {psi}/pipeline/checked_trees_to_scalar_operations/lowerer.omg;
 use compiler_alpha\AlphaEmitter;
-use psi\pipeline\checked_trees_to_scalar_operations\ScalarLowerer;
-use psi\pipeline\checked_trees_to_scalar_operations\scalar_lower;
 use psi\pipeline\source_files_to_tokens\Lexer;
 use psi\pipeline\source_files_to_tokens\tokenize;
 use psi\pipeline\symbol_resolved_trees_to_typed_trees\Typer;
@@ -170,15 +170,15 @@ crashes Trap
         }
     }
     machine lower(compilation: @mutable Compilation, selected: u64 in Trapping, resolver: @Resolver, typer: @Typer, checker: @Checker) {
-        let mutable lowerer: ScalarLowerer;
-        scalar_lower(@mutable lowerer, @compilation.parser.output, @resolver.output, @typer.output, @checker.output, selected);
+        let mutable lowerer: |lowerer|::ScalarLowerer;
+        |scalar|::scalar_lower(@mutable lowerer, @compilation.parser.output, @resolver.output, @typer.output, @checker.output, selected);
         transition lowerer.output.status {
             ScalarStatus::Complete -> emit(compilation, @lowerer),
             ScalarStatus::Capacity -> full(compilation),
             _ -> unsupported(compilation)
         }
     }
-    machine emit(compilation: @mutable Compilation, lowerer: @ScalarLowerer) {
+    machine emit(compilation: @mutable Compilation, lowerer: @|lowerer|::ScalarLowerer) {
         compiler_alpha\alpha_emit(@mutable compilation.output, @lowerer.output);
         transition compilation.output.complete {
             true -> complete(compilation),
