@@ -7,3 +7,14 @@
 | A full proof-goal stack can drop work and still claim proof. | Already fixed on main in [#5178](https://github.com/CathedralOS/Omega/pull/5178). | The checker records overflow and refuses the proof. The kept fixture is `source/subsystems/compiler/source_to_psi/tests/fixtures/facts/run/goal_stack/main.omg`. |
 
 Other area 17 findings remain under review.
+
+## Original findings still under review
+
+Sections 5 and 6 contain 68 top-level observations. The linked ranges cover each observation once in this table. Individual dispositions above apply only to their stated conditions.
+
+| Subject | Digest lines | Evidence and open work |
+| --- | --- | --- |
+| Checker and parser inputs | [156–172](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/17-omega-source.md#L156-L172) | 156 is the goal-stack repair and 157 is the loan last-use repair (#5283). Continue with deep place paths, guard purity, call obligations and joins. |
+| Source representations and front end | [173–184](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/17-omega-source.md#L173-L184) | 173 is the source-span repair in #5271. Trace the remaining fallback identities, capacities and caller assumptions. |
+| Bundled libraries | [187–206](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/17-omega-source.md#L187-L206) | 189 needs a distinction between a prefix decoder that returns the next cursor and a whole-document reader. The scalar decode_record API commits its consumed cursor on success. Trace whole-record consumers before changing its trailing-byte policy. |
+| Dropped facts and evidence | [211–229](https://github.com/CathedralOS/Omega/blob/1ab250720c8cecccb704d7da49b5889af13138f8/.agents/atlas/codebase-2026-11-22/digests/17-omega-source.md#L211-L229) | 216 repeats 157. At 211, proof goals are covered by #5178; the separate question about retaining assumptions remains. The remaining rows include representation capacities, parser fields and lowered bindings. |
