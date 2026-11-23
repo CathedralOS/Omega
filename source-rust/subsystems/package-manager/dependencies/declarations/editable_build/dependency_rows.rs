@@ -74,6 +74,7 @@ impl DependencyRow {
         &self.statements
     }
 
+    #[cfg(test)]
     pub const fn operation(&self) -> DependencyOperation {
         self.operation
     }

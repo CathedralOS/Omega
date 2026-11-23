@@ -83,12 +83,4 @@ framework or a list of unimplemented features.
 - Cost: The refusal is safe, but it reports a changed contract that did not change, and it ties staged Build execution to source reuse. The owner's portable identity (`portable_lifetime_parameter_identity`, which already names data, machine and trait owners) would make the comparison independent of symbol numbering.
 - Reported: 2026-11-22, Claude Code, while repairing `build_staged_dependency_calls`
 
-### Clippy with `-D warnings` cannot lint an application test because four crates it builds carry warnings
-
-- Category: Tests that pin the bug
-- Where: [package manager](source-rust/subsystems/package-manager/review/restricted_build_grants.rs), [review evidence](source-rust/subsystems/package-manager/review/evidence/src/encoding/encode/selected_providers/signature.rs#L4), [target-bound program](source-rust/subsystems/compiler/psi-to-native/representations/target-bound-program/scalar_demand.rs), [target operations](source-rust/subsystems/compiler/psi-to-native/pipeline/04_abstract-operations-to-target-operations/src/preparation/legalization_scalar_graph.rs).
-- Saw: `mbx clippy -p omega --test computed_array_extent -- -D warnings` stops in the application's dependencies: `review-evidence` (an unused import), `target-bound-program` (two needless borrows), `abstract-operations-to-target-operations` (an unused import) and `package-manager` (ten warnings: one unused import and nine about functions, methods or structs that nothing uses). The same command without `-D warnings` finishes and lists 14 warnings in those crates.
-- Cost: Every test under `source-rust/application/tests/` builds those crates, so the required lint cannot pass for any of them whatever the test contains; the check is skipped or run without `-D warnings` and a new warning in the application or its tests goes unseen. Remove the three unused imports and the two unneeded `&`, and delete or wire up the unused package-manager code.
-- Reported: 2026-11-22, Claude Code, while adding an application test for an array sized by a computed constant
-
 <a id="a-build-wide-flag-admits-machine-control-for-every-output"></a>

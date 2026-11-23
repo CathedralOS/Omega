@@ -291,9 +291,9 @@ pub fn direct_compiler_primitive_leaves(
     Ok(leaves)
 }
 
-/// Target preparation and native publication consult the same canonical table.
-/// A declaration that no selected root reaches imposes no target obligation.
-
+// The tests check that target preparation and native publication consult the
+// same canonical table, and that a declaration no selected root reaches
+// imposes no target obligation.
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -37,7 +37,7 @@ impl ReviewedHostPackages {
         &self,
         profile: target::TargetProfile,
     ) -> Result<host_provider_inputs::InstalledPackageProviders, String> {
-        use declaration_scope::{DeclarationSelectionAuthority, ProductDeclarationScope};
+        use declaration_scope::ProductDeclarationScope;
         let target = self.0.target(profile).ok_or_else(|| {
             format!(
                 "host package lock has no reviewed {} installation",

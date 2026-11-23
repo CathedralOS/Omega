@@ -1,12 +1,8 @@
-// Dependency-first scheduling and occurrence-qualified staging names.
-// `package_build_root` encodes the package key digest, content digest, and dependency purpose directly into one child directory of the session root rather than creating intermediate directories outside the filesystem sponsor's creation protocol.
+// Dependency-first scheduling of the packages a review session builds.
 
-use crate::declarations::DependencyPurpose;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
-use source_acquisition::ImmutableSourceResolution;
 use std::collections::BTreeSet;
-use std::path::{Path, PathBuf};
 
 pub(crate) fn dependency_first_package_order(
     closure: &ResolvedPackageSourceClosure,
@@ -39,53 +35,4 @@ pub(crate) fn dependency_first_package_order(
     let mut ordered = Vec::with_capacity(closure.custodies().len());
     visit(closure, closure.graph().root(), &mut visited, &mut ordered);
     ordered
-}
-
-pub(crate) fn package_build_root(
-    build_root: &Path,
-    key: &PackageKey,
-    resolution: &ImmutableSourceResolution,
-    purpose: DependencyPurpose,
-) -> PathBuf {
-    build_root.join(format!(
-        "{}-{}-{}",
-        crate::Hex(&key.identity().digest()),
-        resolution.content().to_hex(),
-        purpose.name(),
-    ))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::package_build_root;
-    use crate::declarations::DependencyPurpose;
-    use crate::declarations::{PackageKey, PackageName};
-    use source_acquisition::{ImmutableSourceResolution, SourceContentDigest, SourceLineage};
-    use std::path::Path;
-
-    #[test]
-    fn build_roots_bind_package_and_source_selection() {
-        let key = PackageKey::new(
-            PackageName::parse("arithmetic_kernels").unwrap(),
-            SourceLineage::git("https://github.com/CathedralOS/arithmetic-kernels.git").unwrap(),
-        );
-        let first = ImmutableSourceResolution::workspace(SourceContentDigest::derive(b"a"));
-        let second = ImmutableSourceResolution::workspace(SourceContentDigest::derive(b"b"));
-
-        assert_ne!(
-            package_build_root(Path::new("build"), &key, &first, DependencyPurpose::Product),
-            package_build_root(
-                Path::new("build"),
-                &key,
-                &second,
-                DependencyPurpose::Product
-            )
-        );
-        let product =
-            package_build_root(Path::new("build"), &key, &first, DependencyPurpose::Product);
-        let helper = package_build_root(Path::new("build"), &key, &first, DependencyPurpose::Build);
-        assert_ne!(product, helper);
-        assert_eq!(product.parent(), Some(Path::new("build")));
-        assert_eq!(helper.parent(), Some(Path::new("build")));
-    }
 }

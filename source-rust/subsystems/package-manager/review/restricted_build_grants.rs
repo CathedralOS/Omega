@@ -1,30 +1,21 @@
 /*
-    We perform the execution-time grant join between a fresh compile and the
-    consuming project's accepted lock policy. Review compiles are observational:
-    private snapshot/staging builds run without restricted authority, while a
-    non-exempt request stops before execution and remains available for a
-    decision. A lock that retains decisions is different: an operation consuming
-    that compile refuses any occurrence whose projected restricted build
-    requests lack retained accepted-request meaning.
+    We describe a restricted build request that the consuming project has not
+    granted. Review compiles are observational: private snapshot/staging builds
+    run without restricted authority, and a non-exempt request stops before
+    execution and remains available for a decision. The command reports each
+    stopped request with its package, checked context, normalized request
+    meaning and dependency path.
 
-    Because the lock stores decisions rather than credentials,
-    `RestrictedBuildCheckpoint` and `CheckpointRestrictedBuildGrants` re-project
-    each occurrence's acceptance rows under its exact package identity and
-    `PackageCheckedContext`, comparing complete normalized request meaning
-    before the request's build effect executes or its generated sources are
-    consumed.
+    The lock-checkpoint grants that re-admitted accepted requests for an
+    operation consuming a locked compile are parked with their caller in
+    `_recycling/source-rust/subsystems/package-manager/v1-project-admission/`.
 */
 
-use std::collections::BTreeSet;
-
-use diagnostics::Diagnostic;
-use review_evidence::record::PackagePolicyRowKind;
 use semantic_vocabulary::PackageKeyIdentity;
 
 use crate::Hex;
-use crate::lock::{PackageCheckedContext, PackageLockTarget};
+use crate::lock::PackageCheckedContext;
 use crate::resolution::graph::DependencyRequestPath;
-use package_compilation::build_execution::RestrictedBuildGrants;
 use package_compilation::build_execution::RestrictedBuildRequest;
 use review_evidence::encoding::restricted_build_request_acceptance_text;
 
@@ -53,10 +44,6 @@ impl UngrantedRestrictedBuildRequest {
             request_path,
         })
     }
-
-    pub(crate) fn request_meaning(&self) -> &str {
-        &self.request_meaning
-    }
 }
 
 impl std::fmt::Display for UngrantedRestrictedBuildRequest {
@@ -84,80 +71,5 @@ impl std::fmt::Display for UngrantedRestrictedBuildRequest {
             }
             None => write!(formatter, "    path none"),
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct RestrictedBuildCheckpoint {
-    grants: Vec<(PackageKeyIdentity, PackageCheckedContext, BTreeSet<String>)>,
-}
-
-impl RestrictedBuildCheckpoint {
-    pub fn derive(accepted: &PackageLockTarget) -> Self {
-        Self {
-            grants: accepted
-                .occurrences()
-                .iter()
-                .map(|occurrence| {
-                    (
-                        occurrence.acceptance().package(),
-                        occurrence.context(),
-                        occurrence
-                            .acceptance()
-                            .rows()
-                            .iter()
-                            .filter(|row| {
-                                row.kind() == PackagePolicyRowKind::RestrictedBuildRequest
-                            })
-                            .map(|row| row.canonical_text().to_owned())
-                            .collect(),
-                    )
-                })
-                .collect(),
-        }
-    }
-
-    pub fn grants(
-        &self,
-        package: PackageKeyIdentity,
-        context: PackageCheckedContext,
-        request_path: Option<DependencyRequestPath>,
-    ) -> CheckpointRestrictedBuildGrants {
-        CheckpointRestrictedBuildGrants {
-            package,
-            context,
-            request_path,
-            granted: self
-                .grants
-                .iter()
-                .find(|(identity, granted_context, _)| {
-                    *identity == package && *granted_context == context
-                })
-                .map(|(_, _, texts)| texts.clone())
-                .unwrap_or_default(),
-        }
-    }
-}
-
-pub(crate) struct CheckpointRestrictedBuildGrants {
-    package: PackageKeyIdentity,
-    context: PackageCheckedContext,
-    request_path: Option<DependencyRequestPath>,
-    granted: BTreeSet<String>,
-}
-
-impl RestrictedBuildGrants for CheckpointRestrictedBuildGrants {
-    fn admit(&mut self, request: &RestrictedBuildRequest) -> Result<(), Vec<Diagnostic>> {
-        let pending = UngrantedRestrictedBuildRequest::project(
-            self.package,
-            self.context,
-            self.request_path.clone(),
-            request,
-        )
-        .map_err(|error| vec![Diagnostic::error(error.to_string())])?;
-        if self.granted.contains(pending.request_meaning()) {
-            return Ok(());
-        }
-        Err(vec![Diagnostic::error(pending.to_string())])
     }
 }
