@@ -205,15 +205,14 @@ impl FunctionObjectSections {
         }
         let bindings = source.bindings();
         object.check_bindings(bindings).map_err(Error::Mismatch)?;
-        let needs_windows_internet =
-            object.layout.normalized_imports.iter().any(|symbol| {
-                runtime_abi::imports_windows_internet_provider(symbol.locator.as_ref())
-            });
-        if needs_windows_internet != bindings.windows_internet.is_some() {
-            return Err(Error::Mismatch(
-                "Windows helper code differs from the object's import symbols",
-            ));
-        }
+        check_windows_internet_companion(
+            object
+                .layout
+                .normalized_imports
+                .iter()
+                .map(|symbol| symbol.locator.as_ref()),
+            bindings.windows_internet.is_some(),
+        )?;
         Ok(Self {
             object,
             relocations,
@@ -227,4 +226,35 @@ impl FunctionObjectSections {
             native_code_layout_pool,
         })
     }
+}
+
+fn check_windows_internet_companion<'a>(
+    imports: impl IntoIterator<Item = target::NormalizedImportLocatorRef<'a>>,
+    supplied: bool,
+) -> Result<(), Error> {
+    if runtime_abi::needs_windows_internet_companion(imports) == supplied {
+        Ok(())
+    } else {
+        Err(Error::Mismatch(
+            "Windows helper code differs from the object's import symbols",
+        ))
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../tests/fixtures/windows-internet-provider/import_rosters.rs"]
+mod windows_import_rosters;
+
+#[test]
+fn checks_windows_companion_against_the_objects_imports() {
+    windows_import_rosters::check(|label, imports, expected| {
+        assert!(
+            check_windows_internet_companion(imports.iter().copied(), expected).is_ok(),
+            "{label}"
+        );
+        assert!(
+            check_windows_internet_companion(imports.iter().copied(), !expected).is_err(),
+            "{label}"
+        );
+    });
 }
