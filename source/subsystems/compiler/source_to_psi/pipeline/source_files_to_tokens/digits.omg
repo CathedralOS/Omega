@@ -1,4 +1,4 @@
-use representations\tokens\NumericBase;
+use representations/tokens/numeric.omg;
 
 // The value of a hexadecimal digit; 4294967295 when `byte` is not one.
 machine hex_digit_value(byte: u32 in Trapping) -> u32 in Trapping crashes none {
@@ -39,12 +39,12 @@ machine hex_digit_value(byte: u32 in Trapping) -> u32 in Trapping crashes none {
 }
 
 // Whether `byte` is a digit of `base`.
-machine lexer_digit_in_base(byte: u32 in Trapping, base: NumericBase) -> bool {
+machine lexer_digit_in_base(byte: u32 in Trapping, base: |numeric|::NumericBase) -> bool {
     transition base {
-        NumericBase::Binary -> binary(byte),
-        NumericBase::Octal -> octal(byte),
-        NumericBase::Decimal -> decimal(byte),
-        NumericBase::Hexadecimal -> hex(byte)
+        |numeric|::NumericBase::Binary -> binary(byte),
+        |numeric|::NumericBase::Octal -> octal(byte),
+        |numeric|::NumericBase::Decimal -> decimal(byte),
+        |numeric|::NumericBase::Hexadecimal -> hex(byte)
     }
     machine binary(byte: u32 in Trapping) -> bool { transition byte >= 48 && byte <= 49 { true -> true, _ -> false } }
     machine octal(byte: u32 in Trapping) -> bool { transition byte >= 48 && byte <= 55 { true -> true, _ -> false } }
