@@ -366,10 +366,9 @@ crashes Trap
 }
 
 // Whether two units belong to one package.
-public machine resolver_same_package(sources: @|source|::SourceSet, left: u64 in Trapping, right: u64 in Trapping) -> bool {
-    let left_package: u64 in Trapping = |source|::unit_package(sources, left);
-    let right_package: u64 in Trapping = |source|::unit_package(sources, right);
-    left_package == right_package
+public machine resolver_same_package(sources: @|source|::SourceSet, left: u64 in Trapping, right: u64 in Trapping) -> bool
+{
+    |source|::same_package(sources, left, right)
 }
 
 // Whether two units belong to one module: one package and one module path.

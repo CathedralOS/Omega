@@ -123,39 +123,7 @@ crashes Trap
 public machine known_domain(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> |symbol_resolved_trees|::DomainBinding
 crashes Trap
 {
-    let matched: bool = |source|::span_spells(sources, name, "Wrapping");
-    transition matched {
-        true -> found(|symbol_resolved_trees|::DomainBinding::Wrapping),
-        _ -> saturating(sources, name)
-    }
-
-    machine saturating(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> |symbol_resolved_trees|::DomainBinding {
-        let matched: bool = |source|::span_spells(sources, name, "Saturating");
-        transition matched {
-            true -> found(|symbol_resolved_trees|::DomainBinding::Saturating),
-            _ -> trapping(sources, name)
-        }
-    }
-
-    machine trapping(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> |symbol_resolved_trees|::DomainBinding {
-        let matched: bool = |source|::span_spells(sources, name, "Trapping");
-        transition matched {
-            true -> found(|symbol_resolved_trees|::DomainBinding::Trapping),
-            _ -> finite(sources, name)
-        }
-    }
-
-    machine finite(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> |symbol_resolved_trees|::DomainBinding {
-        let matched: bool = |source|::span_spells(sources, name, "Finite");
-        transition matched {
-            true -> found(|symbol_resolved_trees|::DomainBinding::Finite),
-            _ -> found(|symbol_resolved_trees|::DomainBinding::Unqualified)
-        }
-    }
-
-    machine found(binding: |symbol_resolved_trees|::DomainBinding) -> |symbol_resolved_trees|::DomainBinding {
-        binding
-    }
+    |symbol_resolved_trees|::builtin_domain(sources, name)
 }
 
 // The declared domain `name` selects for the type whose root is row `row`:

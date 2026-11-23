@@ -96,8 +96,8 @@ machine bind_machine(typer: @mutable |typing_state|::Typer, handle: u64 in Trapp
 machine call_fits(syntax: @SyntaxTrees, machine_row: u64, count: u64, expected: bool) -> bool crashes Trap {
     let mutable typer: |typing_state|::Typer = |typing_state|::Typer { output: |typing_state|::TypedReferences {} };
     let resolution: NameResolution = NameResolution { binding_count: 9u64 as +Trapping, machine_row: machine_row as +Trapping };
-    let arguments: StaticArguments = StaticArguments { first: 5u64 as +Trapping, count: count as +Trapping };
-    let fits: bool = bind_static_arguments(@mutable typer, syntax, @resolution, 0u64 as +Trapping, 3u64 as +Trapping, arguments);
+    let arguments: |calls|::StaticArguments = |calls|::StaticArguments { first: 5u64 as +Trapping, count: count as +Trapping };
+    let fits: bool = |calls|::bind_static_arguments(@mutable typer, syntax, @resolution, 0u64 as +Trapping, 3u64 as +Trapping, arguments);
     fits == expected
 }
 
@@ -128,7 +128,7 @@ crashes Trap
 
     machine accepts(syntax: @SyntaxTrees, resolution: @NameResolution, parameter: GenericParameter, row: u64 in Trapping) -> bool {
         let binding: TypeBinding = type_binding_at(resolution, row);
-        trait_slot_accepts(syntax, resolution, parameter, row, binding)
+        |references|::trait_slot_accepts(syntax, resolution, parameter, row, binding)
     }
 }
 

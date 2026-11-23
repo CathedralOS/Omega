@@ -690,6 +690,13 @@ crashes Trap
     }
 }
 
+public machine never_type(table: @TypeTable, handle: u64 in Trapping) -> bool
+crashes Trap
+{
+    let row: TypeRow = type_table_row(table, handle);
+    row.kind == TypeKind::Builtin && row.builtin == BuiltinType::Never
+}
+
 public machine type_table_argument(table: @TypeTable, index: u64 in Trapping) -> u64 in Trapping
 crashes Trap
 {

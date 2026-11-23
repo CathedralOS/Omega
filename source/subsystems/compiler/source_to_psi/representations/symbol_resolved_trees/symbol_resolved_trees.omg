@@ -1,3 +1,4 @@
+use representations/source_files/source.omg;
 use representations\source_files\SourceId;
 use representations\source_files\SourceSpan;
 use representations\syntax_trees\GenericParameter;
@@ -37,6 +38,13 @@ public data BuiltinType [copy] {
     case AtomicBool;
     case AtomicU32;
     case AtomicU64;
+}
+
+// Whether `builtin` is a fixed-width integer carrier.
+public machine fixed_integer(builtin: BuiltinType) -> bool {
+    builtin == BuiltinType::I8 || builtin == BuiltinType::I16 || builtin == BuiltinType::I32
+        || builtin == BuiltinType::I64 || builtin == BuiltinType::U8 || builtin == BuiltinType::U16
+        || builtin == BuiltinType::U32 || builtin == BuiltinType::U64
 }
 
 // What a type reference's name denotes: a compiler-installed type, a data
@@ -509,6 +517,21 @@ crashes Trap
     }
 }
 
+public machine operator_home_is_data(home: TypeBinding, data: u64 in Trapping) -> bool {
+    transition home {
+        TypeBinding::Data { item } -> data_item(item, data),
+        _ -> elsewhere()
+    }
+
+    machine data_item(item: u64 in Trapping, data: u64 in Trapping) -> bool {
+        item == data
+    }
+
+    machine elsewhere() -> bool {
+        false
+    }
+}
+
 // The data a token-bound machine `handle` is homed at, or `Unresolved`;
 // `handle` must be below the machine count.
 public machine operator_home(resolution: @NameResolution, handle: u64 in Trapping) -> TypeBinding
@@ -543,6 +566,45 @@ crashes Trap
 
     machine invalid() -> MachineOwner {
         crash Trap;
+    }
+}
+
+// The reserved policy names always denote the same domains.
+public machine builtin_domain(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> DomainBinding
+crashes Trap
+{
+    let matched: bool = |source|::span_spells(sources, name, "Wrapping");
+    transition matched {
+        true -> found(DomainBinding::Wrapping),
+        _ -> saturating(sources, name)
+    }
+
+    machine saturating(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> DomainBinding {
+        let matched: bool = |source|::span_spells(sources, name, "Saturating");
+        transition matched {
+            true -> found(DomainBinding::Saturating),
+            _ -> trapping(sources, name)
+        }
+    }
+
+    machine trapping(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> DomainBinding {
+        let matched: bool = |source|::span_spells(sources, name, "Trapping");
+        transition matched {
+            true -> found(DomainBinding::Trapping),
+            _ -> finite(sources, name)
+        }
+    }
+
+    machine finite(sources: @|source|::SourceSet, name: |source|::SourceSpan) -> DomainBinding {
+        let matched: bool = |source|::span_spells(sources, name, "Finite");
+        transition matched {
+            true -> found(DomainBinding::Finite),
+            _ -> found(DomainBinding::Unqualified)
+        }
+    }
+
+    machine found(binding: DomainBinding) -> DomainBinding {
+        binding
     }
 }
 

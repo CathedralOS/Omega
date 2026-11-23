@@ -1,6 +1,6 @@
+use representations/symbol_resolved_trees/machine_declarations.omg;
 use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
 use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
-use pipeline/syntax_trees_to_symbol_resolved_trees/generic_scopes.omg;
 use pipeline/syntax_trees_to_symbol_resolved_trees/overloads.omg;
 use pipeline/syntax_trees_to_symbol_resolved_trees/imports.omg;
 
@@ -166,27 +166,7 @@ crashes Trap
 public machine container_scope(syntax: @|syntax_trees|::SyntaxTrees, owner: |symbol_resolved_trees|::MachineOwner) -> |symbol_resolved_trees|::TypeScope
 crashes Trap
 {
-    transition owner.container {
-        |syntax_trees|::MachineContainer::Root -> none(),
-        |syntax_trees|::MachineContainer::Measure -> none(),
-        |syntax_trees|::MachineContainer::Trait -> trait_scope(syntax, owner.item),
-        |syntax_trees|::MachineContainer::Conformance -> conformance_scope(syntax, owner.item),
-        |syntax_trees|::MachineContainer::Refinement -> trait_scope(syntax, owner.item)
-    }
-
-    machine none() -> |symbol_resolved_trees|::TypeScope {
-        |generic_scopes|::empty_scope()
-    }
-
-    machine trait_scope(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) -> |symbol_resolved_trees|::TypeScope {
-        let item: |syntax_trees|::TraitItem = |syntax_trees|::trait_item(syntax, index);
-        |generic_scopes|::resolver_scope(item.first_generic_parameter, item.generic_parameter_count)
-    }
-
-    machine conformance_scope(syntax: @|syntax_trees|::SyntaxTrees, index: u64 in Trapping) -> |symbol_resolved_trees|::TypeScope {
-        let item: |syntax_trees|::ConformanceItem = |syntax_trees|::conformance_item(syntax, index);
-        |generic_scopes|::resolver_scope(item.first_generic_parameter, item.generic_parameter_count)
-    }
+    |machine_declarations|::container_scope(syntax, owner)
 }
 
 // Bind name path `path` to the machine it names as a callee would, or

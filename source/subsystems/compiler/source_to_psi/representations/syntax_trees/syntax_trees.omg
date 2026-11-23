@@ -1172,6 +1172,34 @@ crashes Trap
     }
 }
 
+// The generic parameters an application of data `item` spells: every
+// declared parameter except lifetimes.
+public machine applied_parameter_count(syntax: @SyntaxTrees, item: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let data_item: DataItem = syntax_trees_data_item(syntax, item);
+    transition { _ -> count(syntax, data_item, 0 as +Trapping, 0 as +Trapping) }
+
+    machine count(syntax: @SyntaxTrees, data_item: DataItem, offset: u64 in Trapping, applied: u64 in Trapping) -> u64 in Trapping {
+        transition offset < data_item.generic_parameter_count {
+            true -> parameter(syntax, data_item, offset, applied),
+            _ -> result(applied)
+        }
+    }
+
+    machine parameter(syntax: @SyntaxTrees, data_item: DataItem, offset: u64 in Trapping, applied: u64 in Trapping) -> u64 in Trapping {
+        let generic: GenericParameter = syntax_trees_generic_parameter(syntax, data_item.first_generic_parameter + offset);
+        transition generic.kind == GenericParameterKind::Lifetime {
+            true -> count(syntax, data_item, offset + 1, applied),
+            _ -> count(syntax, data_item, offset + 1, applied + 1)
+        }
+    }
+
+    machine result(applied: u64 in Trapping) -> u64 in Trapping {
+        applied
+    }
+}
+
 public machine syntax_trees_data_member(syntax_trees: @SyntaxTrees, handle: u64 in Trapping) -> DataMember
 crashes Trap
 {

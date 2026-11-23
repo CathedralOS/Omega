@@ -1,3 +1,4 @@
+use representations/symbol_resolved_trees/machine_declarations.omg;
 use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
 use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
 use pipeline/syntax_trees_to_symbol_resolved_trees/type_names.omg;
@@ -14,14 +15,9 @@ machine data_scope(item: |syntax_trees|::DataItem) -> |symbol_resolved_trees|::T
 }
 
 // A declaration's own generic parameters as a scope with no container.
-public machine resolver_scope(first: u64 in Trapping, count: u64 in Trapping) -> |symbol_resolved_trees|::TypeScope {
-    |symbol_resolved_trees|::TypeScope {
-        lexical_machine: 0 as +Trapping,
-        first_generic_parameter: first,
-        generic_parameter_count: count,
-        first_outer_parameter: 0 as +Trapping,
-        outer_parameter_count: 0 as +Trapping
-    }
+public machine resolver_scope(first: u64 in Trapping, count: u64 in Trapping) -> |symbol_resolved_trees|::TypeScope
+{
+    |machine_declarations|::generic_scope(first, count)
 }
 
 // Signature-local parameters compare by position; inherited lexical binders
