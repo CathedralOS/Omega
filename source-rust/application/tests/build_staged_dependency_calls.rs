@@ -1699,7 +1699,7 @@ machine build(builder: @mutable Build) suspends {
     let outside = publish.replace("generated/start.omg", "../start.omg");
     let (ok, report) = run("published-source-outside", &outside);
     assert!(
-        !ok && report.contains(r#"invalid generated source filename "../start.omg""#),
+        !ok && report.contains("invalid generated source filename `../start.omg`"),
         "{report}"
     );
 }
