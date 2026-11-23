@@ -1379,6 +1379,104 @@ fn selected_provider_review_preserves_qualified_structural_parameters() {
     );
 }
 
+#[test]
+fn selected_provider_review_preserves_borrowed_domains_and_authored_postconditions() {
+    use review_evidence::record::{PackageReviewContractFact, PackageReviewContractKind};
+
+    let temporary = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "review-borrowed-path",
+        false,
+    )
+    .unwrap();
+    let root = temporary.path();
+    let build = root.join("build.omg");
+    std::fs::write(
+        &build,
+        r#"machine build(builder: @mutable Build) {
+        Build::package(builder, "reading");
+        Build::select_provider::<Reading, Provider>(builder, linux_x86_64);
+    }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("main.omg"),
+        r#"
+use {omega}/language/core/byte_observation/byte_observation.omg as bytes;
+public domain [u8]::Path requires |bytes|::no_nul(@self[..]);
+public boundary trait Reading {
+    machine read(path: @[u8] in Path) -> i32 reaches none crashes none;
+    machine one(path: @[u8] in Path) -> i32 ensures result == 1i32 reaches none crashes none;
+}
+Provider satisfies Reading {
+    machine read(path: @[u8] in Path) -> i32 { 0i32 }
+    machine one(path: @[u8] in Path) -> i32 { 1i32 }
+}
+public machine run<'view>(path: @'view [u8] in Path) -> i32 reaches Reading {
+    Reading::read(path)
+}
+"#,
+    )
+    .unwrap();
+    let target = TargetProfile::LinuxX64;
+    let (returned, inputs) = run_project_build(&build, &[target]);
+    let product = returned
+        .settle_dependency(inputs.clone())
+        .unwrap()
+        .open_product(inputs)
+        .unwrap();
+    let review = product
+        .product_stage(&[target])
+        .unwrap()
+        .review_policy(target)
+        .unwrap();
+    let policy = review.policy;
+    policy
+        .validate_package_membership(|key| key == policy.package, Default::default())
+        .unwrap();
+    let [plan] = policy.selected_providers.plans.as_slice() else {
+        panic!("expected Reading")
+    };
+    assert_eq!(plan.methods.len(), 2);
+    for method in &plan.methods {
+        let declaration = policy
+            .public_api
+            .traits
+            .iter()
+            .flat_map(|row| &row.requirements)
+            .find(|row| row.identity == method.requirement)
+            .unwrap();
+        let callable = policy
+            .callables
+            .callables
+            .iter()
+            .find(|row| row.identity == method.requirement)
+            .unwrap();
+        assert_eq!(declaration.contracts, callable.contracts);
+        assert_eq!(method.signature.parameters, declaration.parameters);
+        assert_eq!(declaration.parameter_qualification_preconditions.len(), 1);
+        assert!(declaration.returned_borrow_origins.is_empty());
+        let mut clauses = declaration.contracts.iter();
+        let entry = clauses
+            .find(|clause| clause.kind == PackageReviewContractKind::Requires)
+            .unwrap();
+        assert!(
+            matches!(&entry.fact, PackageReviewContractFact::Membership { domain, .. }
+            if domain.path().ends_with("::Path"))
+        );
+        let authored = method.name == "one";
+        assert_eq!(declaration.contracts.len(), 1 + usize::from(authored));
+        if authored {
+            assert!(
+                declaration
+                    .contracts
+                    .iter()
+                    .any(|clause| clause.kind == PackageReviewContractKind::Ensures
+                        && matches!(clause.fact, PackageReviewContractFact::Expression(_)))
+            );
+        }
+    }
+}
+
 fn check_qualified_parameter(
     carrier: &str,
     predicate: &str,
