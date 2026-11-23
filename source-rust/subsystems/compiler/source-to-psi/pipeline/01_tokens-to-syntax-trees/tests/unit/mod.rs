@@ -91,7 +91,6 @@ root_item!(root_machines all -> Machine(machine): Machine;);
 root_item!(root_domains all -> Domain(domain): DomainDefinition;);
 root_item!(root_propositions all -> Proposition(proposition): PropositionDefinition;);
 root_item!(root_traits all -> Trait(definition): TraitDefinition;);
-root_item!(root_data_items all -> Data(definition): DataDefinition;);
 root_item!(root_operators all -> Operator(operator): OperatorDefinition;);
 
 fn entry_state_handle(parsed: &SyntaxTrees, machine: &syntax_trees::item::Machine) -> StateHandle {

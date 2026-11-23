@@ -16,7 +16,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Complete ownership and loan facts for affine locals, mutable sequence backing, views and mixed-origin reference results. Check fixed-array lengths on call results, indexed values and case payloads, and reject out-of-extent indices at the access.
   - Check [domain predicates](wiki/spec/language/domains.md#byte-containers-and-encoding-domains) that call machines with requirements, type parameters or borrowed byte views. Prove ordinary `core::Identity<FloatMeaning>` clauses from the helper body, including `abs_f64` and `sqrt_f64`.
 
-  - Cover full-package checking of generic declarations with lifetimes, bounds, cleanup, carry and computed extents. Preserve the admitted entry's logical contracts and the declaration that owns an unsupported obligation in diagnostics.
+  - Cover full-package checking of generic declarations with lifetimes, bounds, cleanup and computed extents. Preserve the admitted entry's logical contracts and the declaration that owns an unsupported obligation in diagnostics.
 
   - Carry the checked bounds of `size_of` and `align_of` through arithmetic on them and validate them at installation. Exercise [record geometry](samples/cli/probes/record_geometry), scalar and generic carriers, and the value form `align_of(view)`.
 

@@ -204,47 +204,32 @@ fn copy_and_linear_properties_are_mutually_exclusive() {
     }
 }
 
+/// `wiki/spec/resources/suspension.md`: "`carry(...)` is invalid on nominal
+/// data, transparent aliases and binders, including an exact restatement on
+/// an alias." Each place is refused at the word `carry`, whatever its axes.
 #[test]
-fn carry_property_parses_all_four_axes_on_data_and_bounds() {
-    use language_core::{CarryAddress, CarryCpu, CarryHostThread, CarryPolicy, CarrySuspension};
-    let source = r#"
-        data Lease [
-            carry(suspension: forbidden, cpu: same, thread: any, address: stable,),
-        ] {}
-        data Envelope<T [carry(
-            suspension: allowed,
-            cpu: any,
-            thread: any,
-            address: movable,
-        )]> { value: T; }
-    "#;
-    let parsed = crate::tests::parse_source_verbose(
-        source,
-        "tokenize",
-        "four-axis carry properties should parse",
-    );
-    let data = crate::tests::root_data_items(&parsed);
-
-    assert_eq!(
-        data[0].properties.carry,
-        Some(CarryPolicy {
-            suspension: CarrySuspension::Forbidden,
-            cpu: CarryCpu::Origin,
-            host_thread: CarryHostThread::Any,
-            address: CarryAddress::Stable,
-        })
-    );
-    let parameter = &parsed.items.type_parameters(data[1].type_parameters)[0];
-    assert_eq!(parameter.bounds.carry, Some(CarryPolicy::PERMISSIVE));
+fn carry_is_refused_on_data_aliases_and_binders() {
+    let policy = "carry(suspension: forbidden, cpu: same, thread: any, address: stable)";
+    for (source, column) in [
+        (format!("data Lease [{policy}] {{}}"), 12),
+        (format!("data Alias [copy, {policy}] = u64;"), 18),
+        (format!("data Envelope<T [{policy}]> {{ value: T; }}"), 17),
+        ("data Lease [carry(cpu: any)] {}".to_owned(), 12),
+    ] {
+        let error = crate::tests::parse_source_error(&source, "tokenize", "carry must reject");
+        assert!(
+            error
+                .message
+                .contains("`carry(...)` is not a type property"),
+            "{source}: {}",
+            error.message
+        );
+        assert_eq!(error.source_span.span.start, column, "{source}");
+    }
 }
 
 #[test]
-fn carry_property_requires_every_axis_and_retires_send() {
-    let missing = "data Bad [carry(suspension: allowed, cpu: any, thread: any)] {}";
-    let error =
-        crate::tests::parse_source_error(missing, "tokenize", "partial carry policy must reject");
-    assert!(error.message.contains("missing address"));
-
+fn send_property_stays_retired() {
     let retired = "data Bad [send] {}";
     let error = crate::tests::parse_source_error(retired, "tokenize", "send must remain retired");
     assert!(error.message.contains("`[send]` is retired"));
