@@ -73,14 +73,23 @@ fn visit(
                 .fields
                 .get(usize::from(first_field)..usize::from(first_field) + usize::from(field_count))
                 .ok_or("calling record field span is out of bounds")?;
+            let mut occupied = Vec::with_capacity(fields.len());
             for field in fields {
                 visit(graph, usize::from(field.shape), colors)?;
                 let child = &graph.shapes[usize::from(field.shape)];
-                if u32::from(field.byte_offset) + u32::from(child.byte_size)
-                    > u32::from(shape.byte_size)
-                {
+                let start = u32::from(field.byte_offset);
+                let end = start + u32::from(child.byte_size);
+                if end > u32::from(shape.byte_size) {
                     return Err("calling record field exceeds its parent extent");
                 }
+                if start < end {
+                    occupied.push((start, end));
+                }
+            }
+            // Authored records keep declaration order even when storage is reordered.
+            occupied.sort_unstable();
+            if occupied.windows(2).any(|pair| pair[1].0 < pair[0].1) {
+                return Err("calling record fields overlap");
             }
         }
         Shape::Integer | Shape::Float | Shape::Reference => {}
@@ -189,4 +198,70 @@ pub(super) fn validate_opaque(policy: &PackagePolicyCallingPlan) -> Result<(), &
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::record::{PackageReviewBoundaryShape, PackageReviewBoundaryShapeField};
+
+    #[test]
+    fn record_fields_occupy_disjoint_byte_ranges_in_any_order() {
+        let mut graph = PackageReviewBoundaryShapeGraph {
+            shapes: vec![
+                PackageReviewBoundaryShape {
+                    class: Shape::Record {
+                        first_field: 0,
+                        field_count: 3,
+                    },
+                    byte_size: 16,
+                    alignment: 4,
+                },
+                PackageReviewBoundaryShape {
+                    class: Shape::Integer,
+                    byte_size: 4,
+                    alignment: 4,
+                },
+            ],
+            fields: [8, 0, 4]
+                .map(|byte_offset| PackageReviewBoundaryShapeField {
+                    shape: 1,
+                    byte_offset,
+                })
+                .into(),
+            parameters: vec![0],
+            result: None,
+        };
+        let check = |graph: &PackageReviewBoundaryShapeGraph| visit(graph, 0, &mut [0; 256]);
+        assert_eq!(
+            check(&graph),
+            Ok(()),
+            "fields may be reordered, adjacent and padded"
+        );
+        // A zero-length array has no occupied bytes inside a sibling range.
+        graph.shapes.push(PackageReviewBoundaryShape {
+            class: Shape::FixedArray {
+                element: 1,
+                length: 0,
+            },
+            byte_size: 0,
+            alignment: 4,
+        });
+        graph.fields[2] = PackageReviewBoundaryShapeField {
+            shape: 2,
+            byte_offset: 8,
+        };
+        assert_eq!(check(&graph), Ok(()));
+        graph.fields[2].shape = 1;
+        graph.fields[2].byte_offset = 1;
+        assert!(
+            check(&graph).is_err(),
+            "a field partially overlaps a sibling"
+        );
+        graph.fields[2].byte_offset = 8;
+        assert!(
+            check(&graph).is_err(),
+            "a nonadjacent sibling already occupies these bytes"
+        );
+    }
 }
