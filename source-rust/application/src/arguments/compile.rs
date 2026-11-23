@@ -162,6 +162,9 @@ pub(super) fn parse_arguments(
         }
 
         if argument == "--build-dir" {
+            if build_dir.is_some() {
+                return Err("duplicate --build-dir".into());
+            }
             build_dir = option_value(arguments).map(PathBuf::from);
             if build_dir.is_none() {
                 return Err("--build-dir requires a directory".into());
@@ -300,4 +303,26 @@ pub(super) fn parse_arguments(
         optimization_rollback,
         stage_validators,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_arguments;
+    use crate::arguments::Arguments;
+    use std::ffi::OsString;
+
+    #[test]
+    fn repeating_build_dir_is_a_usage_error_even_for_the_same_directory() {
+        for second in ["first", "second"] {
+            let mut arguments = Arguments::new(
+                ["--build-dir", "first", "--build-dir", second, "main.omg"]
+                    .into_iter()
+                    .map(OsString::from),
+            );
+            assert_eq!(
+                parse_arguments(&mut arguments).err().as_deref(),
+                Some("duplicate --build-dir")
+            );
+        }
+    }
 }
