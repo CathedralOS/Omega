@@ -80,6 +80,7 @@ pub fn parse_into(
         input = rest;
     }
 
+    crate::declarations::imports::check_file_aliases(syntax_trees, &roots, tokens.source_text())?;
     Ok(roots)
 }
 
