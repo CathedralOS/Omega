@@ -715,7 +715,9 @@ impl PolicySource<'_> {
             let mut requirements = Vec::new();
             for signature in signatures {
                 let requirement = self.requirement(declaration, signature)?;
-                review.callables.push(self.declared_boundary(&requirement)?);
+                review
+                    .callables
+                    .push(self.declared_boundary(declaration, &requirement)?);
                 requirements.push(requirement);
             }
             requirements.sort_by(|left, right| left.identity.cmp(&right.identity));
@@ -737,8 +739,9 @@ impl PolicySource<'_> {
     }
 
     /// A boundary requirement's declaration is reviewable even when no body calls it.
-    pub(super) fn declared_boundary(
+    fn declared_boundary(
         &self,
+        owner: &source_compiler::representations::source_state::trait_definition::TraitDefinition,
         requirement: &review_evidence::record::PackagePolicyTraitRequirement,
     ) -> Result<PackagePolicyCallable, Vec<Diagnostic>> {
         let reach = requirement
@@ -750,15 +753,37 @@ impl PolicySource<'_> {
             .clone()
             .ok_or_else(|| unavailable("a boundary requirement's explicit crash ceiling"))?;
         let installation = requirement.service_reach_is_installation_bound;
+        // The callable is also published outside its trait. Its contract keeps
+        // the same binder ordinals it had inside the trait and method scopes.
+        let mut type_parameters = self.type_parameters(owner.symbol)?;
+        type_parameters.extend_from_slice(&requirement.type_parameters);
+        let mut conformance_bounds = self.conformance_bounds(
+            owner.symbol,
+            &owner.lifetime_parameters,
+            &owner.conformance_bounds,
+        )?;
+        let parent_bounds = u32::try_from(conformance_bounds.len())
+            .map_err(|_| unavailable("a boundary callable's conformance binder count"))?;
+        for bound in &requirement.conformance_bounds {
+            let mut bound = bound.clone();
+            bound.binder_ordinal = parent_bounds
+                .checked_add(bound.binder_ordinal)
+                .ok_or_else(|| unavailable("a boundary callable's conformance binder ordinal"))?;
+            conformance_bounds.push(bound);
+        }
         Ok(PackagePolicyCallable {
             target_context: PackagePolicyTargetContext::TargetIndependent,
             role: PackagePolicyCallableRole::Boundary,
             identity: requirement.identity.clone(),
             supply: PackageReviewCallableSupply::Boundary,
             spelling: requirement.spelling,
-            lifetime_parameter_count: requirement.lifetime_parameter_count,
-            type_parameters: requirement.type_parameters.clone(),
-            conformance_bounds: requirement.conformance_bounds.clone(),
+            lifetime_parameter_count: owner
+                .lifetime_parameters
+                .len()
+                .checked_add(requirement.lifetime_parameter_count)
+                .ok_or_else(|| unavailable("a boundary callable's lifetime binder count"))?,
+            type_parameters,
+            conformance_bounds,
             parameters: requirement.parameters.clone(),
             return_type: requirement.return_type.clone(),
             conformances: Vec::new(),

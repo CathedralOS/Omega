@@ -1320,7 +1320,7 @@ public boundary trait Receiver {
     machine send<const Count: u64>(text: @[u8; Count]) -> u64
     requires Count > 0 reaches none crashes none;
 }
-public machine deliver(text: @[u8; 22]) -> u64
+public machine deliver<'input>(text: @'input [u8; 22]) -> u64
 reaches none invokes Receiver { Receiver::send(text) }
 
 public boundary trait Framed<Frame> {
@@ -1355,6 +1355,20 @@ public boundary trait Framed<Frame> {
         let [send] = owner.requirements.as_slice() else {
             panic!("expected one method on {path}")
         };
+        let callable = policy
+            .callables
+            .callables()
+            .iter()
+            .find(|row| row.identity == send.identity)
+            .unwrap();
+        let expected_parameters = owner
+            .type_parameters
+            .iter()
+            .chain(&send.type_parameters)
+            .cloned()
+            .collect::<Vec<_>>();
+        assert_eq!(callable.type_parameters, expected_parameters);
+        assert_eq!(callable.contracts, send.contracts);
         let [count] = send.type_parameters.as_slice() else {
             panic!("expected the method's Count binder")
         };
