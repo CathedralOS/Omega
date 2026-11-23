@@ -1,0 +1,44 @@
+name: Check exact file imports
+on:
+  push:
+    branches: [work/verify-logical-file-imports]
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      MBX_GC_AUTO: 'false'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_DEV_OPT_LEVEL: '1'
+      CARGO_INCREMENTAL: '0'
+      OMEGA_MBX_INSTALL_CACHE: /tmp/omega-mbx-install
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Identify the build tool
+        id: key
+        run: echo "key=$(bash tools/xtask/bootstrap-mbx.sh --cache-key)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: /tmp/omega-mbx-install/artifacts
+          key: omega-mbx-${{ runner.os }}-${{ runner.arch }}-${{ steps.key.outputs.key }}
+      - name: Trace the selected file while a Build resumes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('source-rust/subsystems/compiler')
+          p=root/'build/inputs/source/source_imports/bindings.rs';s=p.read_text();a=s.index('        bindings.push(match &occurrence.binding')
+          s=s[:a]+'''        if occurrence.authored_path.contains("main.omg") { eprintln!("FILE-BIND {:?} {} {} -> {} ({:?})", occurrence, importer.path.display(), importer.source_id.0, declaration.path.display(), declaration.source_id); }
+          '''+s[a:];p.write_text(s)
+          p=root/'build/inputs/source/source_imports/product_queries.rs';s=p.read_text();a=s.index('                    let selected = match selected {')
+          s=s[:a]+'''                    eprintln!("FILE-QUERY scope {:?} path {} owner {:?} mounted {} result {}", authored.scope, authored.path.display(), owner.map(|i| i.root()), mounted.is_some(), match &selected { super::files::FileSelection::Unprepared=>"unprepared", super::files::FileSelection::Package(_)=>"package", super::files::FileSelection::Selected(_)=>"captured" });
+          '''+s[a:];p.write_text(s)
+          p=root/'source-to-psi/representations/symbol-resolved-trees/symbol-table/source_symbols/table.rs';s=p.read_text();a=s.index('            let mut imports = self.source_scoped_bindings_for(reference.source_id).iter().filter')
+          s=s[:a]+'''            if name.contains("chosen") { eprintln!("FILE-LOOKUP {} {:?} bindings {:?} candidates {:?}", name,reference,self.source_scoped_bindings_for(reference.source_id),self.top_level_children_matching_name(declaration,false).iter().map(|s| (self.get(*s).kind,self.symbol_provenance_source_span(*s),self.source_reference_can_see_symbol(reference,*s))).collect::<Vec<_>>()); }
+          '''+s[a:];p.write_text(s)
+          PY
+          bash tools/xtask/bootstrap-mbx.sh --install-dir "$RUNNER_TEMP/bin"
+          "$RUNNER_TEMP/bin/mbx" test --locked -p omega --test build_staged_dependency_calls a_build_resolves_its_file_alias_after_preparing -- --nocapture
