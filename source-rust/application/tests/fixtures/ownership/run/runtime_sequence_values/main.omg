@@ -1,5 +1,5 @@
 data Ticket [copy] { kind: u8; number: u32; }
-data Envelope { marker: u8; tickets: [Ticket]; }
+public data Envelope { marker: u8; tickets: [Ticket]; }
 machine issued(left: u32, right: u32) -> [Ticket] {
     [Ticket { kind: 2u8, number: left }, Ticket { kind: 3u8, number: right }]
 }

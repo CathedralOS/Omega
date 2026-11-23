@@ -448,7 +448,7 @@ requires index < 2 {
 #[test]
 fn a_call_preserves_only_storage_outside_its_published_write_frame() {
     let source = r#"
-data Pair [copy] { left: u64; right: u64; }
+public data Pair [copy] { left: u64; right: u64; }
 public machine update(pair: @mutable Pair, value: u64) reaches none crashes none terminates {
     pair.left = value;
 }

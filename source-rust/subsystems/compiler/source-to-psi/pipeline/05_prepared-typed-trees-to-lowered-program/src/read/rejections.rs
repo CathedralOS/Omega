@@ -442,6 +442,53 @@ impl Program<'_> {
     }
 }
 
+/// The rejection for a reference to a scalar supplied where a value is
+/// read. `wiki/spec/language/expressions.md`, "Explicit dereference": "Omega
+/// never inserts a dereference to satisfy an expected value type, including
+/// for `[copy]` types", at bindings, assignments, field initializers,
+/// returns, call arguments, operator operands and value patterns; and
+/// `domains.md`: "Reading a copyable primitive through a reference requires
+/// explicit dereference". A projection through a reference (`entry.owner`)
+/// is a place and is not this case: only the whole reference read as its
+/// scalar is.
+pub(super) fn implicit_dereference(
+    id: MachineId,
+    at: SourceOrigin,
+    referent: ScalarType,
+) -> Refusal {
+    reject(
+        id,
+        at,
+        format!(
+            "this is a reference to `{}`, not a `{}`: Omega never inserts a dereference, so \
+             write `$` before it to read the referenced value",
+            scalar_named(referent),
+            scalar_named(referent),
+        ),
+    )
+}
+
+/// The rejection for `x in D` where `x` has another carrier than `D`'s.
+/// `wiki/spec/language/domains.md`, "Carrier-exact membership".
+pub(super) fn membership_carrier(
+    id: MachineId,
+    at: SourceOrigin,
+    found: ScalarType,
+    wanted: ScalarType,
+) -> Refusal {
+    reject(
+        id,
+        at,
+        format!(
+            "this value has carrier `{}` but the domain classifies `{}` values: membership is \
+             formed against the domain's exact carrier, so convert first, as in `(x as {}) in D`",
+            scalar_named(found),
+            scalar_named(wanted),
+            scalar_named(wanted),
+        ),
+    )
+}
+
 /// The resolved scalar carrier, without domains or physical storage choices.
 pub(super) fn scalar_named(scalar: ScalarType) -> String {
     match scalar {

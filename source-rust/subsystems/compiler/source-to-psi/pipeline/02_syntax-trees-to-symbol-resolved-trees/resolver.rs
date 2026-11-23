@@ -279,6 +279,12 @@ fn settle_resolution(lowerer: &mut Lowerer, syntax: &SyntaxTrees) -> Result<(), 
     constants::finalize_operator_obligations(lowerer)?;
     selections::finalize(lowerer)?;
     reject_duplicate_direct_token_bindings(&mut lowerer.symbol_resolved_trees)?;
+    crate::resolution::names::member_namespaces::reject_member_collisions(
+        &lowerer.symbol_resolved_trees,
+    )?;
+    crate::resolution::names::public_interfaces::reject_private_types_in_public_signatures(
+        &lowerer.symbol_resolved_trees,
+    )?;
     Ok(())
 }
 

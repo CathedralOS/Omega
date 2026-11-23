@@ -275,7 +275,7 @@ fn indexed_view_loans_capture_noncopy_elements_with_their_own_bounds() {
     let mutable = source
         .replace(
             "machine get(value: @u32) -> u32 { $value }",
-            "machine get(value: @mutable u32) -> u32 { $value = 17u32; value }",
+            "machine get(value: @mutable u32) -> u32 { $value = 17u32; $value }",
         )
         .replace("items: @[Cell]", "items: @mutable [Cell]")
         .replace("get(@items[", "get(@mutable items[")
