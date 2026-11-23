@@ -2596,7 +2596,11 @@ impl SourceScopedTopLevelBinding {
     }
 
     /// A file alias selects declarations from exactly one admitted source.
-    pub fn file_import(reference_source: SourceId, declaration_source: SourceId, alias: impl Into<Arc<str>>) -> Self {
+    pub fn file_import(
+        reference_source: SourceId,
+        declaration_source: SourceId,
+        alias: impl Into<Arc<str>>,
+    ) -> Self {
         Self {
             reference_source,
             declaration_source,
@@ -3642,20 +3646,30 @@ impl SymbolTable {
         {
             return Vec::new();
         }
-        if let Some((alias, declaration)) = name.strip_prefix('|').and_then(|path| path.split_once("|::")) {
+        if let Some((alias, declaration)) = name
+            .strip_prefix('|')
+            .and_then(|path| path.split_once("|::"))
+        {
             let mut imports = self.source_scoped_bindings_for(reference.source_id).iter().filter(|binding| {
                 matches!(&binding.target, BindingTarget::FileAlias(bound) if bound.as_ref() == alias)
             });
-            let Some(binding) = imports.next() else { return Vec::new() };
+            let Some(binding) = imports.next() else {
+                return Vec::new();
+            };
             if !reference_is_source_backed || imports.next().is_some() {
                 return Vec::new();
             }
-            return self.top_level_children_matching_name(declaration, false).into_iter().filter(|symbol| {
-                self.symbol_provenance_source_span(*symbol).is_some_and(|span| span.source_id == binding.declaration_source)
-                    && kinds.contains(&self.get(*symbol).kind)
-                    && self.source_reference_can_see_symbol(reference, *symbol)
-                    && matches_candidate(*symbol)
-            }).collect();
+            return self
+                .top_level_children_matching_name(declaration, false)
+                .into_iter()
+                .filter(|symbol| {
+                    self.symbol_provenance_source_span(*symbol)
+                        .is_some_and(|span| span.source_id == binding.declaration_source)
+                        && kinds.contains(&self.get(*symbol).kind)
+                        && self.source_reference_can_see_symbol(reference, *symbol)
+                        && matches_candidate(*symbol)
+                })
+                .collect();
         }
         if (reference_is_source_backed || selection == TopLevelSelection::Ordinary)
             && let Some(result) = self.find_module_qualified_candidates(
