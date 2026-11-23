@@ -5,9 +5,13 @@ use crate::PackageCompilationInputs;
 use build_declarations::DependencyPurpose;
 use diagnostics::Diagnostic;
 use semantic_vocabulary::PackageKeyIdentity;
+use source_admission::{SourceFile, SourceResolutionStratum};
+use source_capture::SourceFileSystem;
 use source_compiler::SourceImportTarget;
 use source_provenance::DependencyScope;
-use std::path::PathBuf;
+use source_text::SourceId;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum FileOwner {
@@ -16,7 +20,7 @@ enum FileOwner {
 }
 
 impl FileOwner {
-    fn of(source: &source_admission::SourceFile) -> Self {
+    fn of(source: &SourceFile) -> Self {
         source
             .package_identity
             .map_or_else(|| Self::Root(source.package_root.clone()), Self::Package)
@@ -24,7 +28,7 @@ impl FileOwner {
 }
 
 struct AdmittedFileAlias<'a> {
-    source: source_text::SourceId,
+    source: SourceId,
     span: source_text::Span,
     alias: &'a str,
     owner: FileOwner,
@@ -40,6 +44,41 @@ impl AdmittedFileAlias<'_> {
     }
 }
 
+struct SelectedFiles<'a> {
+    root: &'a Path,
+    by_filename: BTreeMap<PathBuf, &'a SourceFile>,
+}
+
+impl SelectedFiles<'_> {
+    fn resolve(
+        &self,
+        import: &AdmittedFileAlias<'_>,
+        filesystem: &SourceFileSystem,
+    ) -> Result<Option<SourceId>, Vec<Diagnostic>> {
+        let written = Path::new(import.filename);
+        let direct = self.by_filename.get(written).copied();
+        // The loader already gave every authored source its captured path.
+        if direct.is_some_and(|file| file.resolution_stratum == SourceResolutionStratum::Base)
+            || !filesystem.has_captured_namespace(self.root)
+        {
+            return Ok(direct.map(|file| file.source_id));
+        }
+        let Some(path) = super::captured_file(self.root, written, filesystem)? else {
+            return Ok(direct.map(|file| file.source_id));
+        };
+        let target = path
+            .strip_prefix(self.root)
+            .expect("captured files belong to the selected root");
+        if target != written && direct.is_some() {
+            return Err(import.error(format!(
+                "more than one source was admitted as logical file `{}`",
+                import.filename
+            )));
+        }
+        Ok(self.by_filename.get(target).map(|file| file.source_id))
+    }
+}
+
 enum ImportUse {
     GeneratedProduct,
     BuildProductOperand,
@@ -51,13 +90,13 @@ enum ImportUse {
 fn bind_admitted(
     sources: &source_compiler::representations::source_inputs::SourceMap,
     aliases: &[AdmittedFileAlias<'_>],
+    filesystem: &SourceFileSystem,
     use_site: ImportUse,
 ) -> Result<
     Vec<source_compiler::representations::source_symbols::SourceScopedTopLevelBinding>,
     Vec<Diagnostic>,
 > {
     use source_compiler::representations::source_symbols::SourceScopedTopLevelBinding;
-    use std::collections::{BTreeMap, BTreeSet};
     if aliases.is_empty() {
         return Ok(Vec::new());
     }
@@ -77,34 +116,40 @@ fn bind_admitted(
         let logical = file
             .logical_filename()
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        selected
-            .entry((owner, logical))
-            .and_modify(|target| *target = None)
-            .or_insert(Some(file.source_id));
+        let files = selected.entry(owner).or_insert_with(|| SelectedFiles {
+            root: &file.package_root,
+            by_filename: BTreeMap::new(),
+        });
+        if files
+            .by_filename
+            .insert(PathBuf::from(&logical), file)
+            .is_some()
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "more than one source was admitted as logical file `{logical}`"
+            ))]);
+        }
     }
     let mut bindings = Vec::new();
     for import in aliases {
-        let target = selected.get(&(import.owner.clone(), import.filename.to_owned()));
+        let target = match selected.get(&import.owner) {
+            Some(files) => files.resolve(import, filesystem)?,
+            None => None,
+        };
         match (target, &use_site) {
-            (Some(None), _) => {
-                return Err(import.error(format!(
-                    "more than one source was admitted as logical file `{}`",
-                    import.filename
-                )));
-            }
             (None, ImportUse::GeneratedProduct) => {
                 return Err(import.error(format!("no admitted logical file `{}`", import.filename)));
             }
             (None, ImportUse::BuildProductOperand) => continue,
-            (Some(Some(target)), ImportUse::BuildProductOperand) => {
+            (Some(target), ImportUse::BuildProductOperand) => {
                 bindings.push(SourceScopedTopLevelBinding::product_file_import(
                     import.source,
-                    *target,
+                    target,
                     import.alias,
                 ))
             }
-            (Some(Some(target)), ImportUse::GeneratedProduct) => bindings.push(
-                SourceScopedTopLevelBinding::file_import(import.source, *target, import.alias),
+            (Some(target), ImportUse::GeneratedProduct) => bindings.push(
+                SourceScopedTopLevelBinding::file_import(import.source, target, import.alias),
             ),
         }
     }
@@ -145,7 +190,12 @@ pub(crate) fn generated_file_imports(
             });
         }
     }
-    bind_admitted(sources, &aliases, ImportUse::GeneratedProduct)
+    bind_admitted(
+        sources,
+        &aliases,
+        inputs.source_filesystem(),
+        ImportUse::GeneratedProduct,
+    )
 }
 
 pub(crate) fn build_product_file_imports(
@@ -196,5 +246,10 @@ pub(crate) fn build_product_file_imports(
             });
         }
     }
-    bind_admitted(&storage.sources, &aliases, ImportUse::BuildProductOperand)
+    bind_admitted(
+        &storage.sources,
+        &aliases,
+        &storage.filesystem,
+        ImportUse::BuildProductOperand,
+    )
 }
