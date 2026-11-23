@@ -59,31 +59,49 @@ impl PackageDeclarationScope {
         self
     }
 
+    /// Whether source checked under `previous` may be reused under `current`.
+    ///
+    /// Each requester must keep every package it was allowed to select.
+    /// A grant only decides whether an already resolved selection is
+    /// permitted; it never changes what a name resolves to. A retained check
+    /// that passed with fewer grants therefore still passes with more. This
+    /// is how a Build that waits for a dependency keeps its checked prefix:
+    /// preparation adds the dependency's grant
+    /// (`wiki/spec/build/scoped_execution.md`, "Checked Build stages").
+    ///
+    /// No scope means a package selects only its own and toolchain
+    /// declarations, the smallest grant any current scope can give it.
+    /// Losing a grant, or losing the scope, requires a new check.
     pub fn require_current(
         previous: Option<&Self>,
         current: Option<&Self>,
         requesters: impl IntoIterator<Item = PackageKeyIdentity>,
     ) -> Result<(), &'static str> {
-        match (previous, current) {
-            (None, None) => Ok(()),
-            (Some(previous), Some(current)) => {
-                for requester in requesters {
-                    let old = previous
-                        .owners
-                        .get(&requester)
-                        .ok_or("retained declaration scope does not cover a requesting package")?;
-                    let new = current
-                        .owners
-                        .get(&requester)
-                        .ok_or("current declaration scope does not cover a requesting package")?;
-                    if new != old {
-                        return Err("requesting package declaration scope changed");
-                    }
-                }
-                Ok(())
+        let Some(current) = current else {
+            return match previous {
+                None => Ok(()),
+                Some(_) => Err("current source has lost its declaration selection authority"),
+            };
+        };
+        for requester in requesters {
+            let new = current
+                .owners
+                .get(&requester)
+                .ok_or("current declaration scope does not cover a requesting package")?;
+            let kept = match previous {
+                None => new.binary_search(&requester).is_ok(),
+                Some(previous) => previous
+                    .owners
+                    .get(&requester)
+                    .ok_or("retained declaration scope does not cover a requesting package")?
+                    .iter()
+                    .all(|owner| new.binary_search(owner).is_ok()),
+            };
+            if !kept {
+                return Err("requesting package lost a declaration selection grant");
             }
-            _ => Err("presence of declaration selection authority changed"),
         }
+        Ok(())
     }
 
     pub fn allows_declaration_selection(
@@ -178,5 +196,42 @@ mod tests {
         assert!(!scope.allows_declaration_selection(a, outsider));
         assert!(!scope.allows_declaration_selection(outsider, b));
         assert_eq!(scope.owners[&a], [a, b]);
+    }
+
+    #[test]
+    fn retained_source_survives_a_new_grant_but_not_a_lost_one() {
+        let package = |byte| PackageKeyIdentity::from_digest([byte; 32]).unwrap();
+        let (root, kit, other) = (package(1), package(2), package(3));
+        let scope = |edges: &[(PackageKeyIdentity, PackageKeyIdentity)]| {
+            PackageDeclarationScope::from_direct_dependencies(
+                &[root, kit, other],
+                edges.iter().copied(),
+            )
+        };
+        let reuse = |previous: Option<&PackageDeclarationScope>,
+                     current: Option<&PackageDeclarationScope>| {
+            PackageDeclarationScope::require_current(previous, current, [root]).is_ok()
+        };
+        let none = scope(&[]);
+        let with_kit = scope(&[(root, kit)]);
+        let with_both = scope(&[(root, kit), (root, other)]);
+        let only_other = scope(&[(root, other)]);
+
+        // A Build checked before any dependency existed, and one checked
+        // before `kit` was prepared, both keep their prefix once it is.
+        assert!(reuse(None, None));
+        assert!(reuse(None, Some(&with_kit)));
+        assert!(reuse(Some(&none), Some(&with_kit)));
+        assert!(reuse(Some(&with_kit), Some(&with_both)));
+        assert!(reuse(Some(&with_kit), Some(&with_kit)));
+
+        // Losing `kit`, or every grant, requires a new check.
+        assert!(!reuse(Some(&with_kit), Some(&only_other)));
+        assert!(!reuse(Some(&with_kit), Some(&none)));
+        assert!(!reuse(Some(&with_kit), None));
+        // A requester the current scope does not know is never reused.
+        let unrelated = PackageDeclarationScope::from_direct_dependencies(&[kit], []);
+        assert!(!reuse(None, Some(&unrelated)));
+        assert!(!reuse(Some(&with_kit), Some(&unrelated)));
     }
 }
