@@ -38,7 +38,6 @@ use super::values::CanonicalConstNode;
 use super::values::canonicalize_selected_declaration_value;
 use crate::resolution::declarations::generic_data::source_modules::module_path;
 use language_core::CarryPermission;
-use language_core::CarryPolicy;
 use language_core::Multiplicity;
 use numeric_literals::LandedIntegerType;
 use syntax_trees::item::DataMember;
@@ -843,50 +842,24 @@ fn module_domain_key(
     }
 }
 
-/*
-    Whether the concrete const carrier satisfies every requirement a domain
-    declares on its abstract carrier parameter — the checked application
-    evidence the bound calls for. Builtin scalar carriers are `copy` and ride
-    the permissive carry policy; a nominal `data` carrier answers from the
-    authored `properties` its selected declaration attached to the bound
-    value, so same-named data in another package cannot answer for it. Any
-    other carrier declines rather than guessing.
-*/
+/// Scalar values with a declared type are copyable. A record or variant
+/// takes its multiplicity from the declaration selected for that value.
 fn carrier_satisfies_declared_bounds(
     bounds: &syntax_trees::item::DataProperties,
     binding: &ConstSubjectBinding<'_>,
 ) -> bool {
-    let properties = match binding {
+    let multiplicity = match binding {
         ConstSubjectBinding::Scalar(ConstScalarValue::Integer(_))
         | ConstSubjectBinding::Elements(_) => None,
         ConstSubjectBinding::Scalar(
             ConstScalarValue::DeclaredInteger { .. } | ConstScalarValue::Boolean(_),
-        ) => Some(syntax_trees::item::DataProperties {
-            multiplicity: Multiplicity::Unrestricted,
-            carry: Some(CarryPolicy::PERMISSIVE),
-        }),
+        ) => Some(Multiplicity::Unrestricted),
         ConstSubjectBinding::Record { properties, .. }
-        | ConstSubjectBinding::Variant { properties, .. } => Some(*properties),
+        | ConstSubjectBinding::Variant { properties, .. } => Some(properties.multiplicity),
     };
-    let Some(properties) = properties else {
-        return false;
-    };
-    match bounds.multiplicity {
-        Multiplicity::Unrestricted if properties.multiplicity != Multiplicity::Unrestricted => {
-            return false;
-        }
-        Multiplicity::Linear if properties.multiplicity != Multiplicity::Linear => {
-            return false;
-        }
-        _ => {}
-    }
-    if let Some(required) = bounds.carry {
-        let effective = properties.carry.unwrap_or(CarryPolicy::STRICT);
-        if !effective.permits(required) {
-            return false;
-        }
-    }
-    true
+    multiplicity.is_some_and(|actual| {
+        bounds.multiplicity == Multiplicity::Affine || bounds.multiplicity == actual
+    })
 }
 
 /*

@@ -75,7 +75,6 @@ fn canonical_const_carriers_check_inactive_payloads_and_cycles() {
         members,
         properties: crate::source_state::data::DataProperties {
             multiplicity: language_core::Multiplicity::Unrestricted,
-            ..Default::default()
         },
         ..Default::default()
     });

@@ -1819,9 +1819,6 @@ fn record_shape_for<'m>(
     }
     // Multiplicity describes the carrier. The ordinary ownership walk emits
     // claim transport; Psi 06 independently reconstructs whether it is valid.
-    if data.properties.carry.is_some() {
-        return unserved("data with a carry policy");
-    }
     // `zero_gated` is not read: whether the zero value satisfies the
     // declaration's `requires` is this route's own proof question, asked
     // where a local of the type is declared without an initializer.
@@ -2122,7 +2119,6 @@ mod tests {
     fn plain() -> (DataDefinition, Vec<DataMember>) {
         let data = DataDefinition {
             properties: DataProperties {
-                carry: None,
                 multiplicity: language_core::Multiplicity::Unrestricted,
             },
             ..DataDefinition::default()

@@ -89,7 +89,7 @@ mod contracts {
     }
 
     /*
-        Affine/no-carry bounds impose no generic property demand. A portable
+        An affine binder imposes no multiplicity requirement. A portable
         application must establish every member's non-neutral demand; retaining
         the first member's weaker bound would check calls the other body cannot
         accept. The existing property carrier cannot encode conflicting demands.
@@ -121,19 +121,6 @@ mod contracts {
                         )));
                     }
                     required.bounds.multiplicity = actual.bounds.multiplicity;
-                }
-                if let Some(carry) = actual.bounds.carry {
-                    if required
-                        .bounds
-                        .carry
-                        .is_some_and(|required| required != carry)
-                    {
-                        return Err(Diagnostic::error(format!(
-                            "unimplemented: target-family generic carry conjunction for `{}`",
-                            interface.name,
-                        )));
-                    }
-                    required.bounds.carry = Some(carry);
                 }
             }
         }

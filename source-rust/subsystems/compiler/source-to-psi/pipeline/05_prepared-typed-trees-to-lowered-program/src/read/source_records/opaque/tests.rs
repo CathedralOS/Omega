@@ -101,7 +101,6 @@ fn selection() -> (TypedTrees, TypeReferenceHandle, TypeReferenceHandle) {
         supply_mode: language_core::DataSupplyMode::BoundaryOpaque,
         properties: DataProperties {
             multiplicity: language_core::Multiplicity::Linear,
-            carry: None,
         },
         ..Default::default()
     });

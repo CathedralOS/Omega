@@ -2,8 +2,7 @@
 //
 // `PackageReviewDataKind::Quotient` records the carrier family plus relation
 // declaration; the proof implementation that licensed formation is not API
-// identity. `PackageReviewDataProperties` carries declaration multiplicity and
-// movement policy without retaining a typed-tree declaration node.
+// identity. The properties record retains the declaration's multiplicity.
 
 use crate::record::{PackageReviewNominalIdentity, PackageReviewTypeIdentity};
 
@@ -40,7 +39,6 @@ pub enum PackageReviewDataKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PackageReviewDataProperties {
     pub multiplicity: language_core::Multiplicity,
-    pub carry: Option<language_core::CarryPolicy>,
 }
 
 impl PackageReviewDataProperties {}

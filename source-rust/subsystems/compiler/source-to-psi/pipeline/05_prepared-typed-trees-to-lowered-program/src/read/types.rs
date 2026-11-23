@@ -1468,7 +1468,6 @@ impl Program<'_> {
                     TypeReferenceNode::Named { symbol, .. } if *symbol == parameter.symbol
                 );
             let copy_bound = crate::source_state::data::DataProperties {
-                carry: None,
                 multiplicity: language_core::Multiplicity::Unrestricted,
             };
             if !names_carrier || parameter.bounds != copy_bound {

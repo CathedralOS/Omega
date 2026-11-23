@@ -5,7 +5,7 @@ pub use expression_and_type_snapshots::{
 };
 pub use item_snapshots::{
     CapabilityContractKindSnapshot, CapabilityContractSnapshot, CapabilityMemberSnapshot,
-    CarryPolicySnapshot, ConformanceMemberSnapshot, DataMemberSnapshot, DataPayloadFieldSnapshot,
+    ConformanceMemberSnapshot, DataMemberSnapshot, DataPayloadFieldSnapshot,
     DataPropertiesSnapshot, ExternalBindingSnapshot, GenericConformanceBoundSnapshot, ItemSnapshot,
     OperatorSnapshot, ProofFactSnapshot, PropositionBodySnapshot,
     PropositionParameterSignatureSnapshot, QuotientEquivalenceSelectionSnapshot, QuotientSnapshot,

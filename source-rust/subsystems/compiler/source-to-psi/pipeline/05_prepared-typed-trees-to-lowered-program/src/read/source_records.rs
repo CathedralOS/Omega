@@ -107,9 +107,6 @@ pub(super) fn source_application_in_scope(
             "record application selects another retained declaration",
         ));
     }
-    if data.properties.carry.is_some() {
-        return Err(unavailable("record with unlowered carry"));
-    }
     let mut substitutions = Vec::new();
     if let Some(origin) = data.generic_instance {
         if !typed.type_reference_table.contains_type_reference(origin)
@@ -145,14 +142,13 @@ pub(super) fn source_application_in_scope(
                 "record application whose generic premises are not lowered",
             ));
         }
-        if template.properties.carry.is_some()
-            || template.cleanup_selection.is_some()
+        if template.cleanup_selection.is_some()
             || data.cleanup_selection.is_some()
             || template.quotient.is_some()
             || data.quotient.is_some()
         {
             return Err(unavailable(
-                "record application with unlowered carry, cleanup or quotient premises",
+                "record application with unlowered cleanup or quotient premises",
             ));
         }
         if template.supply_mode != data.supply_mode
@@ -1810,7 +1806,6 @@ mod tests {
     fn an_unlowered_generic_premise_is_not_an_empty_application_tuple() {
         let mut fixture = AppliedFixture::new(crate::source_state::data::DataProperties {
             multiplicity: language_core::Multiplicity::Unrestricted,
-            ..Default::default()
         });
         let constrained = fixture.apply(fixture.u64_type, fixture.u64_type);
         let mut program = Program::new(&fixture.typed, false);

@@ -40,7 +40,6 @@ pub struct DeclarationDescription {
     pub shape: SchemaShape,
     pub supply: String,
     pub multiplicity: String,
-    pub carry: Option<String>,
     pub type_parameters: Vec<TypeParameterDescription>,
     pub lifetime_parameters: Vec<String>,
     pub application_identity: Option<String>,

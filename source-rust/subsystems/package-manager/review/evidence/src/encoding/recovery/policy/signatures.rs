@@ -25,9 +25,31 @@ pub(in crate::encoding::recovery) fn data_properties(
         1 => Multiplicity::Affine,
         2 => Multiplicity::Linear,
     });
-    let carry = reader.option(super::selected_providers::service::carry)?;
-    Ok(PackageReviewDataProperties {
-        multiplicity,
-        carry,
-    })
+    super::tag!(reader => { 0 => () });
+    Ok(PackageReviewDataProperties { multiplicity })
+}
+
+#[test]
+fn package_data_properties_keep_the_multiplicity_and_require_the_absent_policy_tag() {
+    use crate::encoding::encode::{declarations::encode_data_properties, encoder::Encoder};
+    use language_core::Multiplicity;
+
+    for (tag, multiplicity) in [
+        (0, Multiplicity::Unrestricted),
+        (1, Multiplicity::Affine),
+        (2, Multiplicity::Linear),
+    ] {
+        let properties = PackageReviewDataProperties { multiplicity };
+        let mut encoder = Encoder::bounded(2);
+        encode_data_properties(&mut encoder, properties);
+        assert_eq!(encoder.finish().unwrap(), [tag, 0]);
+
+        let bytes = [tag, 0];
+        let mut reader = Reader::new(&bytes, Default::default()).unwrap();
+        assert_eq!(data_properties(&mut reader).unwrap(), properties);
+        reader.finish().unwrap();
+    }
+
+    let mut reader = Reader::new(&[0, 1, 0, 0, 0, 0], Default::default()).unwrap();
+    assert_eq!(data_properties(&mut reader), Err(Error::InvalidTag));
 }

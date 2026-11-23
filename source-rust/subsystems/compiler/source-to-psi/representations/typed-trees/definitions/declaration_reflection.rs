@@ -1280,7 +1280,6 @@ pub mod reflection {
                             shape: SchemaShape::Primitive(atom),
                             supply: String::new(),
                             multiplicity: "Copy".into(),
-                            carry: None,
                             type_parameters: Vec::new(),
                             lifetime_parameters: Vec::new(),
                             application_identity: Some(application),
@@ -1402,7 +1401,6 @@ pub mod reflection {
                 },
                 supply: format!("{:?}", data.supply_mode),
                 multiplicity: format!("{:?}", data.properties.multiplicity),
-                carry: data.properties.carry.map(|carry| format!("{carry:?}")),
                 type_parameters: typed
                     .data_type_parameters(data)
                     .iter()

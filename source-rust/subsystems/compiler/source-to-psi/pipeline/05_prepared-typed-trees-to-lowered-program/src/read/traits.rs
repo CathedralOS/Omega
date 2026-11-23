@@ -1035,13 +1035,12 @@ fn schema_local_shape(
     for parameter in parameters {
         if !typed.symbols.symbols().nodes().is_valid(parameter.symbol)
             || seen.contains(&parameter.symbol)
-            || parameter.bounds.carry.is_some()
             || parameter.bounds.multiplicity != language_core::Multiplicity::Affine
             || typed.symbols.get(parameter.symbol).parent != schema.symbol
         {
             return Err(services::unavailable(
                 context,
-                "trait type telescope has an unsupported family, carry bound or duplicate binder",
+                "trait type telescope has an unsupported family or duplicate binder",
             ));
         }
         seen.push(parameter.symbol);

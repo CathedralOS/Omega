@@ -11,8 +11,8 @@ pub(super) fn record_fields(
     data: &DataDefinition,
     target: &LayoutTargetFacts,
 ) -> Result<Vec<PlanLaidSchemaField>, String> {
-    if data.quotient.is_some() || data.properties.carry.is_some() {
-        return Err("layout reflection needs the selected quotient or carry representation".into());
+    if data.quotient.is_some() {
+        return Err("layout reflection needs the selected quotient representation".into());
     }
     let mut fields = Vec::new();
     for member in typed.data_members(data) {
@@ -145,9 +145,9 @@ fn field_geometry(
             let data = typed
                 .closed_data_definition(reference)
                 .ok_or("layout field has no closed data definition")?;
-            if data.quotient.is_some() || data.properties.carry.is_some() {
+            if data.quotient.is_some() {
                 return Err(
-                    "nested layout needs its selected quotient or carry representation".into(),
+                    "nested layout needs its selected quotient representation".into(),
                 );
             }
             let mut common = Vec::new();

@@ -716,7 +716,6 @@ mod descriptor_storage_tests {
             members,
             properties: DataProperties {
                 multiplicity: Multiplicity::Linear,
-                carry: None,
             },
             ..Default::default()
         });
@@ -734,7 +733,6 @@ mod descriptor_storage_tests {
             members,
             properties: DataProperties {
                 multiplicity: Multiplicity::Affine,
-                carry: None,
             },
             ..Default::default()
         });

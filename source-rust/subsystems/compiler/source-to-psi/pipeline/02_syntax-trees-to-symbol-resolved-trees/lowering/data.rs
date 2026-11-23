@@ -242,7 +242,6 @@ fn lower_data_definition_with_argument_origins(
                 .map(|origin| lower_generic_application_origin(lowerer, syntax_trees, origin))
                 .transpose()?,
             properties: DataProperties {
-                carry: data_definition.properties.carry,
                 multiplicity: data_definition.properties.multiplicity,
             },
             cleanup_selection: data_definition
@@ -400,7 +399,6 @@ declares_no_crash_route: contract.declares_no_crash_route,
                 name: lower_name(syntax_trees, &parameter.name),
                 kind,
                 bounds: DataProperties {
-                    carry: parameter.bounds.carry,
                     multiplicity: parameter.bounds.multiplicity,
                 },
             },

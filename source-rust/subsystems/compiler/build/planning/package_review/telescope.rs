@@ -141,7 +141,6 @@ impl PolicySource<'_> {
                     kind,
                     bounds: PackageReviewDataProperties {
                         multiplicity: parameter.bounds.multiplicity,
-                        carry: parameter.bounds.carry,
                     },
                 })
             })

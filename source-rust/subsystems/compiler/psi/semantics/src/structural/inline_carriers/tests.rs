@@ -109,7 +109,6 @@ fn byte_literals_and_defaults_do_not_establish_extra_theory_or_access_rules() {
                 shape: SchemaShape::Empty,
                 supply: "Ordinary".into(),
                 multiplicity: "Unrestricted".into(),
-                carry: None,
                 type_parameters: Vec::new(),
                 lifetime_parameters: Vec::new(),
                 application_identity: Some("test::Bytes".into()),

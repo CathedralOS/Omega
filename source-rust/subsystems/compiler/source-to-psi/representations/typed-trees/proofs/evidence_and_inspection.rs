@@ -3362,7 +3362,6 @@ pub mod inspection {
             pub struct CallableTypeParameterSnapshot {
                 pub name: String,
                 pub multiplicity: String,
-                pub carry: Option<String>,
                 pub kind: CallableTypeParameterKindSnapshot,
             }
 
@@ -3474,7 +3473,6 @@ pub mod inspection {
                             CallableTypeParameterSnapshot {
                                 name: parameter.name.to_string(),
                                 multiplicity: format!("{:?}", parameter.bounds.multiplicity),
-                                carry: parameter.bounds.carry.map(|carry| format!("{carry:?}")),
                                 kind,
                             }
                         })

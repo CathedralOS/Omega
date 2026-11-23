@@ -249,7 +249,7 @@ reaches Probe + ExternalState invokes Probe invokes ExternalState crashes none {
         let issued = source_compiler::compile_for_target(stage.source(), target.target_name(), None).unwrap().into_parts().0;
         let reopened = CanonicalTerminalArtifact::from_bytes(&issued.to_bytes());
         if should_preserve {
-            reopened.unwrap();
+            assert!(reopened.is_ok(), "{reopened:?}");
         } else {
             let error = reopened.unwrap_err();
             assert!(error.to_string().contains("unsupplied routed prerequisites"), "{error}");

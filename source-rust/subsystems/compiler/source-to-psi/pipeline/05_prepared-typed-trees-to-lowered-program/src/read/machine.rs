@@ -2643,7 +2643,6 @@ impl<'t> Program<'t> {
         for parameter in parameters {
             if parameter.kind == crate::source_state::data::TypeParameterKind::Type
                 && self.rigid
-                && parameter.bounds.carry.is_none()
                 && self
                     .scope
                     .iter()

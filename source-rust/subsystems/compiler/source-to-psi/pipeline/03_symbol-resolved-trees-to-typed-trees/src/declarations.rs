@@ -193,7 +193,6 @@ pub(crate) mod data {
             .transpose()?,
         cleanup_selection: None,
         properties: typed::data::DataProperties {
-            carry: data_definition.properties.carry,
             multiplicity: data_definition.properties.multiplicity,
         },
         quotient: data_definition
@@ -1705,7 +1704,6 @@ pub(crate) mod proposition {
                     name: crate::typing::lowerer::name::lower_name(&binder.name),
                     kind,
                     bounds: typed::data::DataProperties {
-                        carry: binder.bounds.carry,
                         multiplicity: binder.bounds.multiplicity,
                     },
                 },

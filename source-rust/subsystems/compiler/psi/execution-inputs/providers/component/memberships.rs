@@ -379,7 +379,6 @@ mod tests {
                 },
                 supply: "Ordinary".into(),
                 multiplicity: "Unrestricted".into(),
-                carry: None,
                 type_parameters: Vec::new(),
                 lifetime_parameters: Vec::new(),
                 application_identity: Some("test::Cell".into()),

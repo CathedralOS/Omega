@@ -118,7 +118,6 @@ pub fn canonical_const_carrier_is_supported(
         };
         if !data.lifetime_parameters.is_empty()
             || data.supply_mode != language_core::DataSupplyMode::CheckedShape
-            || data.properties.carry.is_some()
             || data.cleanup_selection.is_some()
             || data.quotient.is_some()
             || program.stored_value_multiplicity(reference)

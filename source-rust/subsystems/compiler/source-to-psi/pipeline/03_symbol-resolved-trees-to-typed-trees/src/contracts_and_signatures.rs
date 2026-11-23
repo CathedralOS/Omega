@@ -1453,7 +1453,6 @@ pub(crate) mod signatures {
                 name: crate::typing::lowerer::name::lower_name(&parameter.name),
                 kind: lower_type_parameter_kind(lowerer, &parameter.kind)?,
                 bounds: typed::data::DataProperties {
-                    carry: parameter.bounds.carry,
                     multiplicity: parameter.bounds.multiplicity,
                 },
             })

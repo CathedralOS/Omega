@@ -11,7 +11,6 @@ fn declaration(atom: BuiltinTypeAtom) -> DeclarationDescription {
         shape: SchemaShape::Primitive(atom),
         supply: String::new(),
         multiplicity: "Copy".into(),
-        carry: None,
         type_parameters: Vec::new(),
         lifetime_parameters: Vec::new(),
         application_identity: Some(application_identity::type_identity::compiler_type_identity(
@@ -84,4 +83,20 @@ fn primitive_schemas_reject_forged_identity_and_structural_members() {
     let mut changed = original;
     changed.shape = SchemaShape::Primitive(BuiltinTypeAtom::AtomicU64);
     assert!(graph(changed).unwrap_err().contains("non-scalar carrier"));
+}
+
+#[test]
+fn a_saved_declaration_cannot_introduce_a_source_carry_policy() {
+    let graph = graph(declaration(BuiltinTypeAtom::U8)).unwrap();
+    let mut image = graph.runtime_image();
+    // The node directory follows eight header words. Point the declaration's
+    // reserved span at its nonempty name, leaving every other field intact.
+    let directory = (8 + graph.root().index() * 2) * 8;
+    let node = u64::from_le_bytes(image[directory..directory + 8].try_into().unwrap());
+    let node = usize::try_from(node).unwrap();
+    image.copy_within(node + 10 * 8..node + 12 * 8, node + 22 * 8);
+    assert_eq!(
+        SemanticSchemaGraph::from_runtime_image(&image).unwrap_err(),
+        "a reflected declaration cannot have a carry policy"
+    );
 }

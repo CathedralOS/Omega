@@ -97,7 +97,7 @@ pub(super) fn graph_revision(authority: &SchemaQueryAuthority, nodes: &[SchemaNo
                 }
                 text(&mut hash, &declaration.supply);
                 text(&mut hash, &declaration.multiplicity);
-                optional_text(&mut hash, &declaration.carry);
+                byte(&mut hash, 0); // Reserved absent property in existing schema revisions.
                 uint(&mut hash, declaration.type_parameters.len() as u64);
                 for parameter in &declaration.type_parameters {
                     text(&mut hash, parameter.name.as_str());
