@@ -1,6 +1,6 @@
-use crate::digest_encoder::DomainDigestEncoder;
 use crate::TerminalIdentityIndex;
-use psi_effect_contracts::{ConditionalCarryRequirement, ContractDependency};
+use crate::digest_encoder::DomainDigestEncoder;
+use psi_effect_contracts::ContractDependency;
 use semantic_vocabulary::{MachineId, ServiceId};
 
 /// The template publishes each binder's admissible reach, independently of
@@ -11,7 +11,6 @@ pub fn closed_reach_template_commitment<'parameter, 'identity>(
     parameters: impl IntoIterator<Item = &'parameter ClosedReachParameter>,
     suspension: &ContractDependency<bool, Vec<u32>>,
     blocking: &ContractDependency<bool, Vec<u32>>,
-    carry: &[ConditionalCarryRequirement],
     service_identity: impl Fn(ServiceId) -> Option<&'identity str>,
 ) -> Result<[u8; 32], &'static str> {
     let mut bounds = None;
@@ -54,7 +53,6 @@ pub fn closed_reach_template_commitment<'parameter, 'identity>(
         parameter_count,
         suspension,
         blocking,
-        carry,
     )
 }
 
@@ -65,7 +63,6 @@ pub struct ClosedReachApplication {
     pub template_commitment: [u8; 32],
     pub suspension_dependency: psi_effect_contracts::ContractDependency<bool, Vec<u32>>,
     pub blocking_dependency: psi_effect_contracts::ContractDependency<bool, Vec<u32>>,
-    pub conditional_carry: Vec<psi_effect_contracts::ConditionalCarryRequirement>,
     pub specialization_commitment: [u8; 32],
     pub parameter_kinds: Vec<u8>,
     pub telescope: Vec<ClosedReachParameter>,
@@ -82,7 +79,6 @@ pub struct ClosedReachCapture {
     pub template_commitment: [u8; 32],
     pub suspension_dependency: psi_effect_contracts::ContractDependency<bool, Vec<u32>>,
     pub blocking_dependency: psi_effect_contracts::ContractDependency<bool, Vec<u32>>,
-    pub conditional_carry: Vec<psi_effect_contracts::ConditionalCarryRequirement>,
     pub specialization_commitment: [u8; 32],
     pub parameter_kinds: Vec<u8>,
     pub telescope: Vec<ClosedReachParameter>,

@@ -47,7 +47,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Exercise an independently authored x86-64 policy and native callee. Passing 37 in `r10` and 5 on the stack must return 32. Assigning both live arguments to `r10` must reject. [Authorship contract](wiki/spec/build/calling_plans.md#authorship-and-evaluation)
   - Qualify `positional_implementation_binder`/`open_const_implementation`/`open_record_const_implementation`/`named_conformance_dispatch`/`generic_calling_policy`/`domain_selected_cleanup` on all hosts.
   - Move Build facets to `Build::*` and retire `machine Data::operation` and attached helpers.
-  - Keep live loans and their backing valid across suspension. Write [Psi marker 291](wiki/spec/terminal-psi/encoding.md) without the retired policy bytes on suspension plans and live values or the conditional carry rows on generic contracts. Reject older markers before reading their payload.
+  - Keep live loans and their backing valid across suspension.
   - Migrate remaining attached machines in samples, targets and std fixtures with their original execution oracles.
   - Recover the authored `Count` and nominal callback contract in [package review](source-rust/subsystems/compiler/tests/fixtures/facts/pass/static_callback_reach_boundary_schema/main.omg). Preserve `Step<2>` and `Step<3>`, the unused effectful selection and the recovered schema. Migrate the free boundary machine under the [supply rules](wiki/spec/language/machines.md#supply).
 

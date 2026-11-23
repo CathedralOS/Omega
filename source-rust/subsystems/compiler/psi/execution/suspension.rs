@@ -3,7 +3,6 @@ use crate::{
     TerminalIdentityTable,
 };
 use arena::{Arena, Handle, HandleSpan};
-use language_core::CarryPolicy;
 use semantic_vocabulary::{
     BoundaryMachineId, ClaimId, IeeeFloatFormat, IntegerCarrier, IntegerSign, MachineId,
     OperationId, ScalarType, StructuralTypeId, SuspensionCrossingId, ValueId,
@@ -22,7 +21,6 @@ pub struct TerminalSuspensionCallPlan {
     pub operation: OperationId,
     pub crossing: SuspensionCrossingId,
     pub target: TerminalSuspensionCallTarget,
-    pub effective: CarryPolicy,
     pub live_value_count: u32,
     pub live_values: Vec<TerminalSuspensionLiveValue>,
     pub loans: TerminalSuspensionLoans,
@@ -148,7 +146,6 @@ pub struct TerminalSuspensionLiveValue {
     pub storage: TerminalSuspensionStorage,
     pub claim_count: u32,
     pub claims: Vec<ClaimId>,
-    pub effective: CarryPolicy,
     pub loans: TerminalSuspensionValueLoans,
 }
 
@@ -209,7 +206,6 @@ pub fn suspension_frontier_commitment(
             hash.raw(&slot.to_le_bytes());
         }
     }
-    hash_carry_policy(&mut hash, plan.effective);
     hash.raw(&plan.live_value_count.to_le_bytes());
     hash.u64(plan.live_values.len() as u64);
     for live in &plan.live_values {
@@ -248,7 +244,6 @@ pub fn suspension_frontier_commitment(
         for claim in &live.claims {
             hash.raw(&claim.get().to_le_bytes());
         }
-        hash_carry_policy(&mut hash, live.effective);
         match live.loans {
             TerminalSuspensionValueLoans::Unresolved => hash.byte(0),
             TerminalSuspensionValueLoans::ViewFree => hash.byte(1),
@@ -498,22 +493,6 @@ fn hash_scalar_type(hash: &mut crate::digest_encoder::DomainDigestEncoder, scala
             });
         }
     }
-}
-
-fn hash_carry_policy(
-    hash: &mut crate::digest_encoder::DomainDigestEncoder,
-    policy: CarryPolicy,
-) {
-    hash.byte(u8::from(
-        policy.suspension == language_core::CarrySuspension::Allowed,
-    ));
-    hash.byte(u8::from(policy.cpu == language_core::CarryCpu::Any));
-    hash.byte(u8::from(
-        policy.host_thread == language_core::CarryHostThread::Any,
-    ));
-    hash.byte(u8::from(
-        policy.address == language_core::CarryAddress::Movable,
-    ));
 }
 
 fn hash_argument(

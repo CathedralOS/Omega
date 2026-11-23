@@ -36,7 +36,6 @@ until it is published.
 
 use std::collections::BTreeSet;
 
-use language_core::CarryPolicy;
 use semantic_vocabulary::{
     BlockId, OperationId, PlaceId, StructuralTypeId, SuspensionCrossingId, TargetMachineCallable,
     ValueId,
@@ -546,7 +545,6 @@ impl<'a> MachineFrontiers<'a> {
                         storage,
                         claim_count: 0,
                         claims: Vec::new(),
-                        effective: CarryPolicy::PERMISSIVE,
                         loans: TerminalSuspensionValueLoans::ViewFree,
                     });
                 }
@@ -569,7 +567,6 @@ impl<'a> MachineFrontiers<'a> {
                         storage,
                         claim_count: 0,
                         claims: Vec::new(),
-                        effective: CarryPolicy::PERMISSIVE,
                         loans: loans_of(module, structural_type, access),
                     });
                 }
@@ -593,19 +590,12 @@ impl<'a> MachineFrontiers<'a> {
                 storage: TerminalSuspensionStorage::CallArgument,
                 claim_count: 0,
                 claims: Vec::new(),
-                effective: CarryPolicy::PERMISSIVE,
                 loans: loans_of(module, structural_type, argument.access),
             });
         }
         rows.sort_by(|left, right| {
-            (&left.place, left.storage, left.value_type, left.effective).cmp(&(
-                &right.place,
-                right.storage,
-                right.value_type,
-                right.effective,
-            ))
+            (&left.place, left.storage, left.value_type).cmp(&(&right.place, right.storage, right.value_type))
         });
-        rows.dedup();
         let live_value_count = u32::try_from(rows.len())
             .map_err(|_| "a suspension frontier holds more rows than a plan can count")?;
         let mut loans = TerminalSuspensionLoans::default();
@@ -695,7 +685,6 @@ impl<'a> MachineFrontiers<'a> {
             operation,
             crossing,
             target,
-            effective: CarryPolicy::PERMISSIVE,
             live_value_count,
             live_values: rows,
             loans,

@@ -2486,7 +2486,6 @@ version = "0.1.0"
 dependencies = [
  "application-identity",
  "psi-declaration-encoding",
- "psi-effect-contracts",
  "semantic-vocabulary",
  "terminal-psi",
 ]
@@ -3878,7 +3877,6 @@ dependencies = [
  "proof-applications",
  "psi-callable-encoding",
  "psi-declaration-encoding",
- "psi-effect-contracts",
  "semantic-vocabulary",
  "service-surface",
  "terminal-psi",

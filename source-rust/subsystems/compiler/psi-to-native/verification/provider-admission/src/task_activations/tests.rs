@@ -1,7 +1,6 @@
 use super::validate_task_activations;
 use selected_provider_plans::SelectedProviderPlanFacts;
 use provider_plans::{ProviderBinding, ProviderPlan, ProviderPlanRow, ServiceMethod};
-use language_core::{CarryCpu, CarryPolicy};
 use target::TargetProfile;
 use terminal_psi::*;
 
@@ -79,24 +78,13 @@ fn demands() -> (TerminalTaskActivationDemands, TerminalIdentityTable) {
         frames: vec![frame],
         crossings: vec![TerminalTaskSuspensionCrossing {
             identity: 11,
-            suspension_allowed: true,
-            preserve_cpu: true,
-            preserve_host_thread: false,
             live_carry: vec![TerminalTaskLiveCarry {
                 place: 12,
                 value_type: 13,
                 storage: TerminalTaskCarryStorage::Local,
                 claims: vec![14],
-                effective: CarryPolicy {
-                    cpu: CarryCpu::Origin,
-                    ..CarryPolicy::PERMISSIVE
-                },
             }],
         }],
-        carry_obligations: TerminalTaskCarryObligations {
-            preserve_cpu: true,
-            preserve_host_thread: false,
-        },
     };
     (
         TerminalTaskActivationDemands {
@@ -146,9 +134,6 @@ fn activation_checks_keep_the_frame_graph_and_suspension_obligations() {
         .calls
         .push(TerminalTaskFrameCall { callee: 99 });
     assert!(check(&missing).contains("calls missing checked frame"));
-    let mut uncaught = input.clone();
-    uncaught.demands[0].carry_obligations.preserve_cpu = false;
-    assert!(check(&uncaught).contains("understates a canonical crossing"));
     let mut duplicate = input;
     duplicate.demands[0].crossings[0].live_carry[0]
         .claims

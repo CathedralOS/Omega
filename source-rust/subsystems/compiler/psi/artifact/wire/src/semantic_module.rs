@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 290`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 291`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -271,11 +271,11 @@ pub(crate) mod canonical_order {
             if !plan
                 .live_values
                 .iter()
-                .map(|live| (&live.place, live.storage, live.value_type, live.effective))
+                .map(|live| (&live.place, live.storage, live.value_type))
                 .is_sorted()
             {
                 return Err(noncanonical!(
-                    "suspension live values by place, storage, type, and policy"
+                    "suspension live values by place, storage, and type"
                 ));
             }
             if plan
@@ -3570,7 +3570,6 @@ mod routed_scalar_tests {
             template_commitment: [0; 32],
             suspension_dependency: false.into(),
             blocking_dependency: false.into(),
-            conditional_carry: Vec::new(),
             specialization_commitment: commitment,
             parameter_kinds: vec![1],
             telescope: vec![ClosedReachParameter::Const {
@@ -3586,7 +3585,6 @@ mod routed_scalar_tests {
             application.parameters(),
             &application.suspension_dependency,
             &application.blocking_dependency,
-            &application.conditional_carry,
             |_| None,
         )
         .unwrap();
@@ -3683,7 +3681,7 @@ mod routed_scalar_tests {
     }
 
     #[test]
-    fn routed_specialization_retains_guarded_acquisitions_and_exact_issuer() {
+    fn routed_specialization_retains_its_callback_contract_and_exact_issuer() {
         let mut module = module();
         // Even an empty application commits to its original callable. A
         // placeholder hash would fail before the acquisition and issuer checks.
@@ -3711,13 +3709,11 @@ mod routed_scalar_tests {
                 [],
                 &false.into(),
                 &false.into(),
-                &[],
                 |_| None,
             )
             .unwrap(),
             suspension_dependency: false.into(),
             blocking_dependency: false.into(),
-            conditional_carry: Vec::new(),
             specialization_commitment: commitment,
             parameter_kinds: Vec::new(),
             telescope: Vec::new(),
@@ -3783,9 +3779,6 @@ mod routed_scalar_tests {
             ))
         );
         {
-            use psi_effect_contracts::ScopedPermissionClaimIdentity;
-            use psi_effect_contracts::ScopedPermissionEventSource;
-            use psi_effect_contracts::SuspensionValueOrigin;
             let application = module.machines[0]
                 .closed_reach_application
                 .as_mut()
@@ -3814,42 +3807,11 @@ mod routed_scalar_tests {
                 concrete: false,
                 parameters: vec![0],
             };
-            application.conditional_carry = vec![terminal_psi::ConditionalCarryRequirement {
-                state: 0,
-                statement_index: 2,
-                call_ordinal: 1,
-                subject: SuspensionValueOrigin::Local {
-                    symbol: "helper::kept".into(),
-                    statement_index: 0,
-                    environment_position: 0,
-                },
-                value_type: "Kept".into(),
-                claims: vec![psi_effect_contracts::PermissionArrival {
-                    claim_identity: ScopedPermissionClaimIdentity::Established {
-                        machine_symbol: "helper".into(),
-                        state_symbol: "helper::entry".into(),
-                        source: ScopedPermissionEventSource::Statement { statement_index: 0 },
-                        ordinal: 0,
-                    },
-                    provenance: psi_effect_contracts::ScopedPermissionProvenance::Joined {
-                        machine_symbol: "helper".into(),
-                        state_symbol: "helper::entry".into(),
-                        source: ScopedPermissionEventSource::Call {
-                            statement_index: 0,
-                            call_ordinal: 0,
-                            target_symbol: "acquire".into(),
-                        },
-                        ordinal: 0,
-                    },
-                }],
-                condition: application.suspension_dependency.clone(),
-            }];
             application.template_commitment = terminal_psi::closed_reach_template_commitment(
                 application.template_base_commitment,
                 application.parameters(),
                 &application.suspension_dependency,
                 &application.blocking_dependency,
-                &application.conditional_carry,
                 |_| None,
             )
             .unwrap();
@@ -3883,7 +3845,6 @@ mod routed_scalar_tests {
                             application.parameters(),
                             &application.suspension_dependency,
                             &application.blocking_dependency,
-                            &application.conditional_carry,
                             |_| None,
                         )
                         .unwrap();
@@ -3904,7 +3865,7 @@ mod routed_scalar_tests {
             assert_eq!(
                 decode_module(&encode_raw(&crash_bound(true, false, false)).unwrap()),
                 Err(crate::CodecError::MalformedStructuralFoundation(
-                    "closed callback contract differs from its committed bounds, dependencies, or conditional carry",
+                    "closed callback contract differs from its committed bounds or dependencies",
                 ))
             );
         }
@@ -3916,7 +3877,6 @@ mod routed_scalar_tests {
                 .as_mut()
                 .unwrap();
             application.suspension_dependency.parameters = vec![1];
-            application.conditional_carry[0].condition.parameters = vec![1];
             let capture_telescope = vec![terminal_psi::ClosedReachParameter::Type {
                 argument: "u32".into(),
             }];
@@ -3925,7 +3885,6 @@ mod routed_scalar_tests {
                 capture_telescope.iter().chain(&application.telescope),
                 &application.suspension_dependency,
                 &application.blocking_dependency,
-                &application.conditional_carry,
                 |_| None,
             )
             .unwrap();
@@ -3935,7 +3894,6 @@ mod routed_scalar_tests {
                 template_commitment: capture_commitment,
                 suspension_dependency: application.suspension_dependency.clone(),
                 blocking_dependency: application.blocking_dependency.clone(),
-                conditional_carry: application.conditional_carry.clone(),
                 specialization_commitment: [6; 32],
                 parameter_kinds: vec![0],
                 telescope: capture_telescope,
@@ -3945,7 +3903,6 @@ mod routed_scalar_tests {
                 application.parameters(),
                 &application.suspension_dependency,
                 &application.blocking_dependency,
-                &application.conditional_carry,
                 |_| None,
             )
             .unwrap();
@@ -3968,39 +3925,11 @@ mod routed_scalar_tests {
             .closed_reach_application
             .as_mut()
             .unwrap()
-            .conditional_carry
-            .clear();
-        assert_eq!(
-            decode_module(&encode_raw(&module).unwrap()),
-            Err(crate::CodecError::MalformedStructuralFoundation(
-                "closed callback contract differs from its committed bounds, dependencies, or conditional carry",
-            ))
-        );
-        module = preserved.clone();
-        module.machines[0]
-            .closed_reach_application
-            .as_mut()
-            .unwrap()
-            .conditional_carry[0]
-            .condition
-            .parameters = vec![2];
+            .suspension_dependency.parameters = vec![2];
         assert_eq!(
             decode_module(&encode_raw(&module).unwrap()),
             Err(crate::CodecError::MalformedStructuralFoundation(
                 "published callback dependency is not a normalized term over its telescope",
-            ))
-        );
-        module = preserved.clone();
-        module.machines[0]
-            .closed_reach_application
-            .as_mut()
-            .unwrap()
-            .conditional_carry[0]
-            .subject = psi_effect_contracts::SuspensionValueOrigin::CallArgument { position: 0 };
-        assert_eq!(
-            decode_module(&encode_raw(&module).unwrap()),
-            Err(crate::CodecError::MalformedStructuralFoundation(
-                "closed callback contract differs from its committed bounds, dependencies, or conditional carry",
             ))
         );
         module = preserved.clone();
@@ -4200,9 +4129,8 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 290 retires the external sealed byte-read intrinsic: its two-case
-// result cannot represent an ordinary input error. Earlier artifacts are refused.
-pub(crate) const FORMAT_MARKER: u16 = 290;
+// Marker 291 records suspension frontiers and generic contracts without data carry policies.
+pub(crate) const FORMAT_MARKER: u16 = 291;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5320,7 +5248,7 @@ mod format_marker_tests {
         // None may enter the combined grammar, regardless of payload.
         for legacy in [
             250u16, 251, 252, 256, 260, 261, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274,
-            275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285, 286, 287, 288, 289,
+            275, 276, 277, 278, 279, 280, 281, 282, 283, 284, 285, 286, 287, 288, 289, 290,
         ] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();

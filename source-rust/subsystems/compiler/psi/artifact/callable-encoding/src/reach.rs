@@ -28,7 +28,6 @@ pub fn encode(
         application.template_base_commitment,
         &application.suspension_dependency,
         &application.blocking_dependency,
-        &application.conditional_carry,
     )?;
     writer.bytes(&application.specialization_commitment);
     encode_kinds(writer, &application.parameter_kinds)?;
@@ -42,7 +41,6 @@ pub fn encode(
             capture.template_base_commitment,
             &capture.suspension_dependency,
             &capture.blocking_dependency,
-            &capture.conditional_carry,
         )?;
         writer.bytes(&capture.specialization_commitment);
         encode_kinds(writer, &capture.parameter_kinds)?;
@@ -149,7 +147,7 @@ pub fn decode(reader: &mut Reader<'_>) -> Result<Option<ClosedReachApplication>,
     }
     let template_identity = TerminalIdentityIndex(reader.u32()?);
     let template_commitment = reader.array()?;
-    let (template_base_commitment, suspension_dependency, blocking_dependency, conditional_carry) =
+    let (template_base_commitment, suspension_dependency, blocking_dependency) =
         decode_operational(reader)?;
     let specialization_commitment = reader.array()?;
     let parameter_kinds = decode_kinds(reader)?;
@@ -161,7 +159,6 @@ pub fn decode(reader: &mut Reader<'_>) -> Result<Option<ClosedReachApplication>,
             template_base_commitment,
             suspension_dependency,
             blocking_dependency,
-            conditional_carry,
         ) = decode_operational(reader)?;
         Some(ClosedReachCapture {
             template_identity,
@@ -169,7 +166,6 @@ pub fn decode(reader: &mut Reader<'_>) -> Result<Option<ClosedReachApplication>,
             template_base_commitment,
             suspension_dependency,
             blocking_dependency,
-            conditional_carry,
             specialization_commitment: reader.array()?,
             parameter_kinds: decode_kinds(reader)?,
             telescope: decode_telescope(reader)?,
@@ -183,7 +179,6 @@ pub fn decode(reader: &mut Reader<'_>) -> Result<Option<ClosedReachApplication>,
         template_base_commitment,
         suspension_dependency,
         blocking_dependency,
-        conditional_carry,
         specialization_commitment,
         parameter_kinds,
         telescope,
@@ -268,7 +263,6 @@ pub fn decode_telescope(reader: &mut Reader<'_>) -> Result<Vec<ClosedReachParame
 }
 
 type Dependency = terminal_psi::ContractDependency<bool, Vec<u32>>;
-type Carry = terminal_psi::ConditionalCarryRequirement;
 
 fn encode_term(writer: &mut Writer, term: &Dependency) -> Result<(), CodecError> {
     writer.boolean(term.concrete);
@@ -286,240 +280,21 @@ fn decode_term(reader: &mut Reader<'_>) -> Result<Dependency, CodecError> {
     })
 }
 
-fn encode_coordinate(writer: &mut Writer, coordinate: usize) -> Result<(), CodecError> {
-    writer.u64(
-        u64::try_from(coordinate).map_err(|_| CodecError::CollectionTooLong("carry coordinate"))?,
-    );
-    Ok(())
-}
-
-fn decode_coordinate(reader: &mut Reader<'_>) -> Result<usize, CodecError> {
-    usize::try_from(reader.u64()?).map_err(|_| CodecError::CollectionTooLong("carry coordinate"))
-}
-
-fn encode_acquisition(
-    writer: &mut Writer,
-    machine: &str,
-    state: &str,
-    source: &psi_effect_contracts::ScopedPermissionEventSource<String>,
-) -> Result<(), CodecError> {
-    use psi_effect_contracts::ScopedPermissionEventSource as Source;
-    writer.string("carry acquisition machine", machine)?;
-    writer.string("carry acquisition state", state)?;
-    match source {
-        Source::StateEntry => writer.u8(0),
-        Source::Statement { statement_index } => {
-            writer.u8(1);
-            encode_coordinate(writer, *statement_index)?;
-        }
-        Source::Call {
-            statement_index,
-            call_ordinal,
-            target_symbol,
-        } => {
-            writer.u8(2);
-            encode_coordinate(writer, *statement_index)?;
-            encode_coordinate(writer, *call_ordinal)?;
-            writer.string("carry acquisition target", target_symbol)?;
-        }
-        Source::InstructionDisposition { statement_index } => {
-            writer.u8(3);
-            encode_coordinate(writer, *statement_index)?;
-        }
-        Source::InstructionExitDisposition { statement_index } => {
-            writer.u8(4);
-            encode_coordinate(writer, *statement_index)?;
-        }
-        Source::StateExit => writer.u8(5),
-    }
-    Ok(())
-}
-fn decode_acquisition(
-    reader: &mut Reader<'_>,
-) -> Result<
-    (
-        String,
-        String,
-        psi_effect_contracts::ScopedPermissionEventSource<String>,
-    ),
-    CodecError,
-> {
-    use psi_effect_contracts::ScopedPermissionEventSource as Source;
-    let machine = reader.string("carry acquisition machine")?;
-    let state = reader.string("carry acquisition state")?;
-    let source = match reader.u8()? {
-        0 => Source::StateEntry,
-        1 => Source::Statement {
-            statement_index: decode_coordinate(reader)?,
-        },
-        2 => Source::Call {
-            statement_index: decode_coordinate(reader)?,
-            call_ordinal: decode_coordinate(reader)?,
-            target_symbol: reader.string("carry acquisition target")?,
-        },
-        3 => Source::InstructionDisposition {
-            statement_index: decode_coordinate(reader)?,
-        },
-        4 => Source::InstructionExitDisposition {
-            statement_index: decode_coordinate(reader)?,
-        },
-        5 => Source::StateExit,
-        tag => return Err(CodecError::InvalidTag("carry acquisition", tag)),
-    };
-    Ok((machine, state, source))
-}
-
 fn encode_operational(
     writer: &mut Writer,
     base: [u8; 32],
     suspension: &Dependency,
     blocking: &Dependency,
-    carry: &[Carry],
 ) -> Result<(), CodecError> {
-    use psi_effect_contracts::SuspensionValueOrigin;
     writer.bytes(&base);
     encode_term(writer, suspension)?;
-    encode_term(writer, blocking)?;
-    writer.len("conditional carry", carry.len())?;
-    for row in carry {
-        writer.u32(row.state);
-        writer.u64(row.statement_index);
-        writer.u64(row.call_ordinal);
-        match &row.subject {
-            SuspensionValueOrigin::Parameter { symbol, position } => {
-                writer.u8(0);
-                writer.string("carry subject", symbol)?;
-                encode_coordinate(writer, *position)?;
-            }
-            SuspensionValueOrigin::Local {
-                symbol,
-                statement_index,
-                environment_position,
-            } => {
-                writer.u8(1);
-                writer.string("carry subject", symbol)?;
-                encode_coordinate(writer, *statement_index)?;
-                encode_coordinate(writer, *environment_position)?;
-            }
-            SuspensionValueOrigin::CallArgument { position } => {
-                writer.u8(2);
-                encode_coordinate(writer, *position)?;
-            }
-        }
-        writer.string("carry type", &row.value_type)?;
-        writer.len("carry acquisitions", row.claims.len())?;
-        for arrival in &row.claims {
-            let psi_effect_contracts::ScopedPermissionClaimIdentity::Established {
-                machine_symbol,
-                state_symbol,
-                source,
-                ordinal,
-            } = &arrival.claim_identity
-            else {
-                return Err(CodecError::MalformedStructuralFoundation(
-                    "conditional carry receiving claim is unknown",
-                ));
-            };
-            encode_acquisition(writer, machine_symbol, state_symbol, source)?;
-            writer.u32(*ordinal);
-            match &arrival.provenance {
-                psi_effect_contracts::ScopedPermissionProvenance::Unknown => {
-                    return Err(CodecError::MalformedStructuralFoundation(
-                        "conditional carry acquisition join is unknown",
-                    ));
-                }
-                psi_effect_contracts::ScopedPermissionProvenance::Established {
-                    machine_symbol,
-                    state_symbol,
-                    source,
-                } => {
-                    writer.u8(1);
-                    encode_acquisition(writer, machine_symbol, state_symbol, source)?;
-                }
-                psi_effect_contracts::ScopedPermissionProvenance::Joined {
-                    machine_symbol,
-                    state_symbol,
-                    source,
-                    ordinal,
-                } => {
-                    writer.u8(2);
-                    encode_acquisition(writer, machine_symbol, state_symbol, source)?;
-                    writer.u32(*ordinal);
-                }
-            }
-        }
-        encode_term(writer, &row.condition)?;
-    }
-    Ok(())
+    encode_term(writer, blocking)
 }
 
 fn decode_operational(
     reader: &mut Reader<'_>,
-) -> Result<([u8; 32], Dependency, Dependency, Vec<Carry>), CodecError> {
-    use psi_effect_contracts::SuspensionValueOrigin;
-    let base = reader.array()?;
-    let suspension = decode_term(reader)?;
-    let blocking = decode_term(reader)?;
-    let carry = decode_counted(reader, |reader| {
-        let state = reader.u32()?;
-        let statement_index = reader.u64()?;
-        let call_ordinal = reader.u64()?;
-        let subject = match reader.u8()? {
-            0 => SuspensionValueOrigin::Parameter {
-                symbol: reader.string("carry subject")?,
-                position: decode_coordinate(reader)?,
-            },
-            1 => SuspensionValueOrigin::Local {
-                symbol: reader.string("carry subject")?,
-                statement_index: decode_coordinate(reader)?,
-                environment_position: decode_coordinate(reader)?,
-            },
-            2 => SuspensionValueOrigin::CallArgument {
-                position: decode_coordinate(reader)?,
-            },
-            tag => return Err(CodecError::InvalidTag("carry subject", tag)),
-        };
-        let value_type = reader.string("carry type")?;
-        let claims = decode_counted(reader, |reader| {
-            let (machine_symbol, state_symbol, source) = decode_acquisition(reader)?;
-            let claim_identity = psi_effect_contracts::ScopedPermissionClaimIdentity::Established {
-                machine_symbol,
-                state_symbol,
-                source,
-                ordinal: reader.u32()?,
-            };
-            let tag = reader.u8()?;
-            let (machine_symbol, state_symbol, source) = decode_acquisition(reader)?;
-            let provenance = match tag {
-                1 => psi_effect_contracts::ScopedPermissionProvenance::Established {
-                    machine_symbol,
-                    state_symbol,
-                    source,
-                },
-                2 => psi_effect_contracts::ScopedPermissionProvenance::Joined {
-                    machine_symbol,
-                    state_symbol,
-                    source,
-                    ordinal: reader.u32()?,
-                },
-                tag => return Err(CodecError::InvalidTag("carry acquisition join", tag)),
-            };
-            Ok(psi_effect_contracts::PermissionArrival {
-                claim_identity,
-                provenance,
-            })
-        })?;
-        Ok(Carry {
-            state,
-            statement_index,
-            call_ordinal,
-            subject,
-            value_type,
-            claims,
-            condition: decode_term(reader)?,
-        })
-    })?;
-    Ok((base, suspension, blocking, carry))
+) -> Result<([u8; 32], Dependency, Dependency), CodecError> {
+    Ok((reader.array()?, decode_term(reader)?, decode_term(reader)?))
 }
 
 pub fn encode_argument(writer: &mut Writer, argument: &ClosedReachArgument) {
@@ -564,4 +339,26 @@ pub fn encode_service_ceiling(
     services: &[ServiceId],
 ) -> Result<(), CodecError> {
     writer.ids("published service ceiling", services)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_generic_contract_ends_after_its_blocking_dependency() {
+        let mut writer = Writer::default();
+        let suspend = Dependency::parameter(3, true);
+        let block = true.into();
+        encode_operational(&mut writer, [7; 32], &suspend, &block).unwrap();
+        let mut expected = vec![7; 32];
+        expected.extend_from_slice(&[0, 1, 0, 0, 0, 3, 0, 0, 0, 1, 0, 0, 0, 0]);
+        assert_eq!(writer.finish(), expected);
+        let mut reader = Reader::new(&expected);
+        assert_eq!(
+            decode_operational(&mut reader).unwrap(),
+            ([7; 32], suspend, block)
+        );
+        assert_eq!(reader.remaining(), 0);
+    }
 }

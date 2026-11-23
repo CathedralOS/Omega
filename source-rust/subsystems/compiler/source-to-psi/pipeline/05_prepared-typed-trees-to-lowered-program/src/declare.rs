@@ -1625,7 +1625,6 @@ pub(crate) fn close_specializations_with_bases(
                 &telescope,
                 &suspension_dependency,
                 &blocking_dependency,
-                &[],
                 service_identity,
             )?;
             let capture = application.enclosing_capture.then(|| {
@@ -1643,7 +1642,6 @@ pub(crate) fn close_specializations_with_bases(
                     template_commitment,
                     suspension_dependency: suspension_dependency.clone(),
                     blocking_dependency: blocking_dependency.clone(),
-                    conditional_carry: Vec::new(),
                     specialization_commitment: specialization.commitment,
                     parameter_kinds: std::mem::take(&mut parameter_kinds),
                     telescope: std::mem::take(&mut telescope),
@@ -1696,7 +1694,6 @@ pub(crate) fn close_specializations_with_bases(
                 template_commitment,
                 suspension_dependency,
                 blocking_dependency,
-                conditional_carry: Vec::new(),
                 specialization_commitment,
                 parameter_kinds,
                 telescope,
