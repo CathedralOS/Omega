@@ -11,7 +11,7 @@ pub(crate) fn try_uninvoked_application<'tokens, 'source>(
     syntax: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Option<(ExpressionNode, Input<'tokens, 'source>)> {
-    let (_, after_name) = input.expect_token().ok()?;
+    let (_, after_name) = input.take_path_head().ok()?;
     if !after_name.at_path_member() && !after_name.at_expression_arguments() {
         return None;
     }
@@ -59,7 +59,7 @@ pub(crate) fn try_applied_requirement_head<'tokens, 'source>(
     syntax: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> Option<(TypeReferenceHandle, Input<'tokens, 'source>)> {
-    let (_, after_name) = input.expect_token().ok()?;
+    let (_, after_name) = input.take_path_head().ok()?;
     if !after_name.at_path_member() && !after_name.at_expression_arguments() {
         return None;
     }

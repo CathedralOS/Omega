@@ -1200,7 +1200,7 @@ impl<'tokens, 'source> Machine<'tokens, 'source> {
             }
         }
 
-        if input.at_name_like() {
+        if input.at_path_head() {
             let start = input;
             if let Some((path, rest)) = try_uninvoked_application(syntax_trees, start) {
                 let expression = syntax_trees.expressions.insert(path);

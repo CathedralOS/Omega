@@ -737,3 +737,24 @@ fn parser_output_must_cover_the_exact_captured_files() {
         "{errors:?}"
     );
 }
+
+#[test]
+fn a_file_qualifier_selects_its_own_sources_declarations() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    let (mut files, root) = captured(package, "machine value() -> u8 { |cell|::read() }");
+    let bytes = capture_file(&mut files, "product", package, "m/bytes.omg",
+        "machine read() -> u8 { 7u8 }");
+    let flags = capture_file(&mut files, "product", package, "m/flags.omg",
+        "machine read() -> bool { true }");
+    let make = |selected: Option<SourceId>| {
+        let mut stage = product(files.clone(), root, package, &[]).unwrap();
+        stage.parsed.roots.extend([bytes, flags]);
+        stage.parsed.imports.extend(selected.map(|source| SourceScopedTopLevelBinding::file_import(root, source, "cell")));
+        compile(stage, None)
+    };
+    make(Some(bytes)).expect("the selected file returns a byte");
+    let wrong = make(Some(flags)).unwrap_err();
+    assert!(wrong.iter().any(|d| d.message.contains("bool")), "{wrong:?}");
+    let missing = make(None).unwrap_err();
+    assert!(missing.iter().any(|d| d.message.contains("read")), "{missing:?}");
+}
