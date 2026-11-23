@@ -256,7 +256,7 @@ fn parse_cast_entries<'tokens, 'source>(
             CastEntryKind::Remove => input.take_punctuation(PunctuationKind::Minus, "-")?,
             CastEntryKind::Keep => input.take_punctuation(PunctuationKind::Equal, "=")?,
         };
-        if !after_sign.at_name_like() {
+        if !after_sign.at_path_head() {
             return Err(after_sign.error_here(format!(
                     "`{sign}` after a cast begins a domain entry such as `{sign}Km` and must be followed by a domain path; for arithmetic on the cast result, parenthesise the cast: `(value as T) {sign} ...`",
                 )));
