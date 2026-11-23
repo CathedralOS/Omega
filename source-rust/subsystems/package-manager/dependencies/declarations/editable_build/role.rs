@@ -41,6 +41,7 @@ impl BuildEntrySyntaxProjection {
         self.build_entry
     }
 
+    #[cfg(test)]
     pub const fn builder_parameter(&self) -> StateParameterHandle {
         self.builder_parameter
     }

@@ -17,10 +17,8 @@ use super::{CompileResolvedPackageReviewsError, CompilerIssuedPackageReviewSet};
 use crate::declarations::{DependencyPurpose, PackageKey};
 use crate::lock::{PackageCheckedContext, PackageOccurrenceRoster};
 use crate::resolution::graph::ExactTargetPackageSourceClosure;
-use build_evaluation_result::CompileFailure;
 use provider_acceptance::{AcceptedSemanticBinding, AcceptedSemanticBindingRole};
 use provider_admission::{filesystem_host_permission_rows, time_host_permission_rows};
-use review_evidence::SemanticBindingProjectionError;
 use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -188,30 +186,4 @@ pub(super) fn candidate_semantic_binding_inputs(
         }
     }
     Ok(inputs)
-}
-
-pub(super) fn projection_error(
-    consumer: &PackageKey,
-    error: SemanticBindingProjectionError,
-) -> CompileResolvedPackageReviewsError {
-    match error {
-        SemanticBindingProjectionError::Ambiguous {
-            role,
-            candidate_count,
-        } => CompileResolvedPackageReviewsError::new(
-            crate::review::CompileResolvedPackageReviewCause::AmbiguousCandidateSemanticBinding {
-                consumer: consumer.clone(),
-                role,
-                candidate_count,
-            },
-        ),
-        SemanticBindingProjectionError::MissingCallableFacts { diagnostics } => {
-            CompileResolvedPackageReviewsError::new(
-                crate::review::CompileResolvedPackageReviewCause::Compilation {
-                    package: consumer.clone(),
-                    failure: CompileFailure::Diagnostics(diagnostics),
-                },
-            )
-        }
-    }
 }
