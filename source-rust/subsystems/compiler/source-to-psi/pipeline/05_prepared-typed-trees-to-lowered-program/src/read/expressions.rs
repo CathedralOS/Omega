@@ -953,13 +953,20 @@ impl<'t> Program<'t> {
         {
             let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
             if access != Access::Borrow {
-                return Err(reject(id, source, "a constant has no writable storage to borrow"));
+                return Err(reject(
+                    id,
+                    source,
+                    "a constant has no writable storage to borrow",
+                ));
             }
             // Each use borrows its own materialized copy. Fields and indices
             // project from this storage and keep its lifetime.
             let value = self.expression(id, slots, target, expected)?;
-            let scalar_home = value.result.and_then(ValueType::scalar)
-                .map(|scalar| self.plain_scalar_storage(id, scalar)).transpose()?;
+            let scalar_home = value
+                .result
+                .and_then(ValueType::scalar)
+                .map(|scalar| self.plain_scalar_storage(id, scalar))
+                .transpose()?;
             return Ok(Expression {
                 call_context: None,
                 result: value.result,
