@@ -377,14 +377,8 @@ impl FilesystemAdapter {
                     32,
                 )
             }
-            Operation::IncludeSource => {
-                output()?;
-                let (root, relative) = path(1)?;
-                if root != BUILD_OUTPUT_ROOT_IDENTITY {
-                    return Err("generated source is not an Output path".into());
-                }
-                runtime.include_source(relative)?;
-                Ok(TerminalEffectResult::Unit)
+            Operation::RetiredSourcePublication => {
+                Err("retired filesystem source publication is not available".into())
             }
             Operation::Require => {
                 output()?;
