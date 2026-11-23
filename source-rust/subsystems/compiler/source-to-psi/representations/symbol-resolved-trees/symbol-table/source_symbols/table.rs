@@ -1207,8 +1207,7 @@ mod modules {
             let local = self
                 .symbol_provenance_source_span(domain)
                 .is_some_and(|span| {
-                    self.same_source_package(reference, span)
-                        && self.source_module(reference.source_id) == module
+                    span.source_id == reference.source_id
                 });
             local
                 || (!module.is_valid() && self.is_ambient_toolchain_symbol(domain))
@@ -1346,26 +1345,11 @@ mod modules {
         }
 
         pub(super) fn has_namespace_context(&self, reference: SourceSpan) -> bool {
-            self.source_file(reference).is_some_and(|file| {
-                file.origin.is_toolchain()
-                    || (file.origin == source_admission::SourceOrigin::User
-                        && file.resolution_stratum
-                            != source_admission::SourceResolutionStratum::CurrentActivationExtension)
-            }) || self.source_binding_index().has_selected_module
+            self.source_file(reference).is_some()
+                || self.source_binding_index().has_selected_module
                 || self
                     .source_lookup_scope(reference.source_id)
                     .has_exact_import
-        }
-
-        /*
-            A current-activation extension file sees its module-less package
-            siblings' declarations as local rather than file-private.
-        */
-        pub(super) fn shares_activation_extension(&self, source_span: SourceSpan) -> bool {
-            self.source_file(source_span).is_some_and(|file| {
-                file.resolution_stratum
-                    == source_admission::SourceResolutionStratum::CurrentActivationExtension
-            })
         }
 
         pub(super) fn select_namespace_candidates(
@@ -1375,7 +1359,6 @@ mod modules {
             reference: SourceSpan,
         ) -> Vec<SymbolHandle> {
             let current_module = self.source_module(reference.source_id);
-            let shared_extension = self.shares_activation_extension(reference);
             let local = candidates
                 .iter()
                 .copied()
@@ -1384,14 +1367,7 @@ mod modules {
                         && self.symbol_module(*candidate) == current_module
                         && self
                             .symbol_provenance_source_span(*candidate)
-                            .is_some_and(|span| {
-                                span.source_id == reference.source_id
-                                    || (shared_extension
-                                        && self.same_source_package(reference, span)
-                                        && self.sources.as_deref().is_some_and(|sources| {
-                                            !sources.resolution_strata_separate(reference, span)
-                                        }))
-                            })
+                            .is_some_and(|span| span.source_id == reference.source_id)
                 })
                 .collect::<Vec<_>>();
             /*
@@ -1450,15 +1426,6 @@ mod modules {
             }
             if !imported.is_empty() {
                 return imported;
-            }
-            let siblings = candidates.iter().copied().filter(|candidate| {
-                self.name(*candidate) == name
-                    && self.symbol_module(*candidate) == current_module
-                    && self.symbol_provenance_source_span(*candidate)
-                        .is_some_and(|span| self.same_source_package(reference, span))
-            }).collect::<Vec<_>>();
-            if !siblings.is_empty() {
-                return siblings;
             }
             candidates
                 .iter()
@@ -1607,7 +1574,9 @@ mod modules {
                 }
                 let candidate_path =
                     needs_candidate_path.then(|| self.indexed_display_path(candidate));
-                if qualified
+                let same_file = self.symbol_provenance_source_span(candidate)
+                    .is_some_and(|span| span.source_id == reference.source_id);
+                if qualified && same_file
                     && reference.span.start != reference.span.end
                     && current_module.is_valid()
                     && self.symbol_module(candidate) == current_module
@@ -1721,7 +1690,7 @@ mod modules {
                     carrier_domain_matches.push(candidate);
                 }
                 if installed_path
-                    || (direct_path && same_package)
+                    || (direct_path && same_file)
                     || imported_path
                     || (!qualified
                         && is_module
@@ -3838,30 +3807,7 @@ impl SymbolTable {
             return !(self.import_exposes_symbol(left_span.source_id, right)
                 || self.import_exposes_symbol(right_span.source_id, left));
         }
-        if self.source_module(left_span.source_id) != self.source_module(right_span.source_id) {
-            return true;
-        }
-        // A file sees its own declarations before same-spelled siblings, in every directory.
-        if !self.shares_activation_extension(left_span) && !self.shares_activation_extension(right_span) {
-            return true;
-        }
-        if self
-            .sources
-            .as_deref()
-            .is_some_and(|sources| sources.resolution_strata_separate(left_span, right_span))
-        {
-            return true;
-        }
-        let name = self.name(left);
-        if name != self.name(right) {
-            return false;
-        }
-        self.source_scoped_top_level_bindings.iter().any(|binding| {
-            self.source_binding_is_selected(binding)
-                && binding.binds_declaration(name)
-                && (binding.declaration_source == left_span.source_id
-                    || binding.declaration_source == right_span.source_id)
-        })
+        true
     }
 
     /*
@@ -3928,8 +3874,7 @@ impl SymbolTable {
     /*
         Whether a source-backed reference may select this declaration as a
         candidate: the declaration is authored in the reference's own source,
-        in the same logical module of its checked package instance, or in a
-        source the reference's file imported. A declaration is never a candidate
+        or in a source the reference's file imported. A declaration is never a candidate
         merely because its source was loaded (modules spec, "Import scope and
         exposure"): every target's entry contract joins every compilation, and
         the bundled spellings and names it pulls in must not change the
@@ -3945,16 +3890,10 @@ impl SymbolTable {
         if !self.source_reference_can_see_symbol(reference, symbol) {
             return false;
         }
-        let Some(sources) = self.sources.as_deref() else {
-            return true;
-        };
         let Some(declaration) = self.provenance_source_span(symbol) else {
             return true;
         };
         declaration.source_id == reference.source_id
-            || (sources.same_checked_instance(reference, declaration)
-                && self.source_module(reference.source_id)
-                    == self.source_module(declaration.source_id))
             || self
                 .source_scoped_bindings_for(reference.source_id)
                 .iter()
@@ -3962,7 +3901,7 @@ impl SymbolTable {
                     match &binding.target {
                         BindingTarget::Module(_) => self.binding_exposes_member(binding, symbol),
                         BindingTarget::Declaration(_) => binding.declaration_source == declaration.source_id,
-                        BindingTarget::FileAlias(_) => false,
+                        BindingTarget::FileAlias(_) => binding.declaration_source == declaration.source_id,
                     }
                 })
     }
