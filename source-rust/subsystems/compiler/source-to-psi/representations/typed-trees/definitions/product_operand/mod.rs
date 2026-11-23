@@ -109,19 +109,13 @@ impl<'program> ProductDeclarationLookup<'program> {
         let program = self.program;
         let role = product_role_position(kind)?;
         let occurrence = program.symbols.rejoin_product_occurrence(occurrence);
-        let declaration_path = path
-            .split_once("::")
-            .and_then(|(alias, remaining)| {
-                program
-                    .symbols
-                    .product_dependency_target(occurrence, alias)
-                    .map(|_| remaining)
-            })
-            .unwrap_or(path);
+        // The final name narrows the candidates. The symbol table checks the
+        // complete path, source file and visibility at the authored occurrence.
+        let name = product_member_name(path);
         let index = &self.declarations;
         let rows = &index.roles[role];
-        let first = rows.partition_point(|row| row.path.as_ref() < declaration_path);
-        let last = rows.partition_point(|row| row.path.as_ref() <= declaration_path);
+        let first = rows.partition_point(|row| row.name.as_ref() < name);
+        let last = rows.partition_point(|row| row.name.as_ref() <= name);
         program.symbols.find_build_subject_declaration_from_source(
             path,
             occurrence,
@@ -158,8 +152,12 @@ fn product_role_position(role: ProductOperandKind) -> Option<usize> {
         .position(|candidate| *candidate == role)
 }
 
+fn product_member_name(path: &str) -> &str {
+    path.rsplit_once("::").map_or(path, |(_, name)| name)
+}
+
 struct ProductDeclarationName {
-    path: Box<str>,
+    name: Box<str>,
     symbol: SymbolHandle,
     is_public: bool,
 }
@@ -191,23 +189,15 @@ impl TypedTrees {
                     continue;
                 }
                 let name = self.symbols.name(symbol);
-                let path = self.symbols.display_path(symbol, "::");
                 rows.push(ProductDeclarationName {
-                    path: name.into(),
+                    name: product_member_name(name).into(),
                     symbol,
                     is_public,
                 });
-                if path != name {
-                    rows.push(ProductDeclarationName {
-                        path: path.into(),
-                        symbol,
-                        is_public,
-                    });
-                }
             }
             // Stable sorting retains the original representative of an
             // operator family and every competing exact declaration.
-            rows.sort_by(|left, right| left.path.cmp(&right.path));
+            rows.sort_by(|left, right| left.name.cmp(&right.name));
         }
         if roles.contains(&ProductOperandKind::BoundarySubject)
             || roles.contains(&ProductOperandKind::RootGrantSubject)

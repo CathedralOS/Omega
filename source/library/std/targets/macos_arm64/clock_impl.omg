@@ -1,11 +1,11 @@
-use Clock;
+use clock.omg as clock;
+
 // Complete macos_arm64 `Clock` provider closure. Darwin's kernel ABI has no
 // millisecond sleep with the requirement's shape; its timed wait is POSIX
 // `poll(fds, nfds, timeout)`, which waits out the timeout when it is given no
 // descriptors. The leaf states poll's own parameters through the one-member
 // `DarwinClockWait` trait, and `MacosArm64Clock::sleep` is an ordinary
 // checked adapter over it.
-use omega\language\core\narrow_u32_to_i32_wrapping;
 
 // The darwin timed wait. It is the `Clock` service's own wait, so the
 // one-member `DarwinClockWait` trait reaches `Clock` and the adapter calling
@@ -16,7 +16,7 @@ use omega\language\core\narrow_u32_to_i32_wrapping;
 boundary trait DarwinClockWait {
     machine poll(descriptors: u64, descriptor_count: u64, timeout_milliseconds: i32)
     reaches
-        Clock
+        |clock|::Clock
     blocks
     crashes none;
 }

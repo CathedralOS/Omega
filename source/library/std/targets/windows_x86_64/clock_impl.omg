@@ -1,4 +1,5 @@
-use Clock;
+use clock.omg as clock;
+
 // Complete windows_x86_64 `Clock` provider closure. kernel32 `Sleep(DWORD)`
 // treats 0xFFFFFFFF as `INFINITE`, so binding `Clock::sleep` straight to it
 // would make the largest `u32` count wait forever on Windows while the Linux
@@ -14,7 +15,7 @@ use Clock;
 boundary trait WindowsClockWait {
     machine sleep(milliseconds: u32)
     reaches
-        Clock
+        |clock|::Clock
     blocks
     crashes none;
 }

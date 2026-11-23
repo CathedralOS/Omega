@@ -13,6 +13,9 @@ use crate::source::source_imports::{
 use artifacts::compile_timings::CompileTimings;
 use diagnostics::Diagnostic;
 use source_compiler::SourceSyntax;
+use source_compiler::representations::declaration_selection::{
+    ProductDeclarationRequest, ProductEntryBinding, RootBindingSelection,
+};
 use std::collections::HashSet;
 use std::path::Path;
 use std::sync::Arc;
@@ -37,7 +40,8 @@ impl DeferredProductSources {
     pub fn assemble(
         self,
         package_inputs: Option<&PackageCompilationInputs>,
-        bindings: &[source_compiler::representations::declaration_selection::ProductEntryBinding],
+        bindings: &[ProductEntryBinding],
+        declarations: &[Arc<ProductDeclarationRequest>],
         timings: &mut CompileTimings,
         catalogue: &mut source_compiler::representations::source_inputs::SourceCatalogue,
     ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
@@ -61,8 +65,15 @@ impl DeferredProductSources {
                 source_provenance::DependencyScope::Product,
             );
         }
+        seed_operand_files(
+            &mut imports,
+            &mut storage,
+            package_inputs,
+            bindings,
+            declarations,
+        )?;
         if let Some(packages) = package_inputs {
-            seed_entry_files(&mut imports, &mut storage, packages, bindings)?;
+            seed_described_entries(&mut imports, packages, bindings);
             for path in storage.product_subject_sources()? {
                 imports.seed(path, source_provenance::DependencyScope::Product);
             }
@@ -86,47 +97,66 @@ impl DeferredProductSources {
     }
 }
 
-/// Load only the Product files requested by bindings the Build actually issued.
-fn seed_entry_files(
+/// Admit the Product instance of each file named by a declaration operand at its Build source.
+fn seed_operand_files(
     imports: &mut ImportQueue,
     storage: &mut SourceStorage,
-    packages: &PackageCompilationInputs,
-    bindings: &[source_compiler::representations::declaration_selection::ProductEntryBinding],
+    packages: Option<&PackageCompilationInputs>,
+    bindings: &[ProductEntryBinding],
+    declarations: &[Arc<ProductDeclarationRequest>],
 ) -> Result<(), Vec<Diagnostic>> {
-    use source_compiler::representations::declaration_selection::RootBindingSelection;
-    let mut closure = None;
-    for binding in bindings {
+    let entry_operands = bindings.iter().flat_map(|binding| {
         let implementation = match &binding.implementation {
             RootBindingSelection::AuthoredPath(path) => Some(path.as_str()),
             RootBindingSelection::Described(_) => None,
         };
-        for operand in std::iter::once(binding.slot.as_str()).chain(implementation) {
-            let Some((alias, _)) = operand
-                .strip_prefix('|')
-                .and_then(|path| path.split_once("|::"))
-            else {
-                continue;
-            };
-            let source = storage
-                .sources
-                .file_at(binding.source_span)
-                .and_then(|source| storage.sources.rejoined_source_id(source))
-                .ok_or_else(|| {
-                    vec![
-                        Diagnostic::error("root binding lost its authored Build source")
-                            .with_source_span(binding.source_span),
-                    ]
-                })?;
-            let occurrence = source_text::SourceSpan::new(source, binding.source_span.span);
-            for path in crate::source::source_imports::product_file_sources(
-                storage,
-                occurrence,
-                alias,
-                [packages],
+        std::iter::once(binding.slot.as_str())
+            .chain(implementation)
+            .map(|path| (binding.source_span, path))
+    });
+    let declaration_operands = declarations.iter().flat_map(|request| {
+        request
+            .operands
+            .iter()
+            .map(|operand| (operand.source_span, operand.path.as_str()))
+    });
+    let mut visited = HashSet::new();
+    for (span, path) in entry_operands.chain(declaration_operands) {
+        let Some((alias, _)) = path
+            .strip_prefix('|')
+            .and_then(|path| path.split_once("|::"))
+        else {
+            continue;
+        };
+        let source = storage
+            .sources
+            .file_at(span)
+            .and_then(|source| storage.sources.rejoined_source_id(source))
+            .ok_or_else(|| {
+                vec![
+                    Diagnostic::error("product operand lost its authored Build source")
+                        .with_source_span(span),
+                ]
+            })?;
+        if visited.insert((source, alias)) {
+            let occurrence = source_text::SourceSpan::new(source, span.span);
+            for file in crate::source::source_imports::product_file_sources(
+                storage, occurrence, alias, packages,
             )? {
-                imports.seed(path, source_provenance::DependencyScope::Product);
+                imports.seed(file, source_provenance::DependencyScope::Product);
             }
         }
+    }
+    Ok(())
+}
+
+fn seed_described_entries(
+    imports: &mut ImportQueue,
+    packages: &PackageCompilationInputs,
+    bindings: &[ProductEntryBinding],
+) {
+    let mut closure = None;
+    for binding in bindings {
         let RootBindingSelection::Described(entry) = &binding.implementation else {
             continue;
         };
@@ -152,7 +182,6 @@ fn seed_entry_files(
             imports.seed(source.path.clone(), source.dependency_scope);
         }
     }
-    Ok(())
 }
 
 impl ImmutableSourceParseCheckpoint {

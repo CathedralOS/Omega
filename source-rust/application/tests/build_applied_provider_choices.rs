@@ -34,6 +34,20 @@ data Holder<T> { value: T; }
 /// Checks a staged program that depends on a staged package whose Build
 /// helper, generic in `Tag` and called at `(8u64 + 9u64)`, runs `choice`.
 fn check(name: &str, choice: &str) -> (bool, String) {
+    let build = format!(
+        "machine build(builder: @mutable Build) {{
+    Build::package(builder, \"reading\");
+    configure::<(8u64 + 9u64)>(builder);
+}}
+machine configure<const Tag: u64>(builder: @mutable Build) {{
+    {choice}
+}}
+"
+    );
+    check_package(name, &build, &[("main.omg", PACKAGE)])
+}
+
+fn check_package(name: &str, build: &str, files: &[(&str, &str)]) -> (bool, String) {
     let root = std::env::temp_dir().join(format!(
         "omega-build-applied-provider-{}-{name}",
         std::process::id()
@@ -43,21 +57,10 @@ fn check(name: &str, choice: &str) -> (bool, String) {
     let program = root.join("program");
     std::fs::create_dir_all(&package).expect("staged package directory");
     std::fs::create_dir_all(&program).expect("staged program directory");
-    std::fs::write(package.join("main.omg"), PACKAGE).expect("staged package");
-    std::fs::write(
-        package.join("build.omg"),
-        format!(
-            "machine build(builder: @mutable Build) {{
-    Build::package(builder, \"reading\");
-    configure::<(8u64 + 9u64)>(builder);
-}}
-machine configure<const Tag: u64>(builder: @mutable Build) {{
-    {choice}
-}}
-"
-        ),
-    )
-    .expect("staged package Build");
+    for (file, source) in files {
+        std::fs::write(package.join(file), source).expect("staged package source");
+    }
+    std::fs::write(package.join("build.omg"), build).expect("staged package Build");
     std::fs::write(program.join("main.omg"), "machine main() { }\n").expect("staged program");
     std::fs::write(
         program.join("build.omg"),
@@ -130,4 +133,29 @@ fn a_tag_stated_in_another_integer_type_is_rejected() {
         stderr.contains("the value parameter `Tag` of type `u64` the literal `17`"),
         "{stderr}"
     );
+}
+
+#[test]
+fn a_package_selects_its_slot_and_provider_from_separate_files() {
+    let (compiled, stderr) = check_package(
+        "file_operands",
+        r#"use slot.omg;
+use provider.omg;
+machine build(builder: @mutable Build) {
+    Build::package(builder, "reading");
+    Build::select_provider::<|slot|::Reading, |provider|::Selected>(builder, linux_x86_64);
+}"#,
+        &[
+            ("main.omg", ""),
+            (
+                "slot.omg",
+                "public boundary trait Reading { machine total() -> u64 reaches none crashes none; }",
+            ),
+            (
+                "provider.omg",
+                "use slot.omg; Selected satisfies |slot|::Reading { machine total() -> u64 { 42 } }",
+            ),
+        ],
+    );
+    assert!(compiled, "{stderr}");
 }

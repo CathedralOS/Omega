@@ -1,7 +1,8 @@
-use targets\linux_arm64\LinuxArmClockWait;
-use targets\linux_x86_64\LinuxClockWait;
-use targets\macos_arm64\DarwinClockWait;
-use targets\windows_x86_64\WindowsClockWait;
+use targets/linux_arm64/clock_impl.omg as linux_arm64_wait;
+use targets/linux_x86_64/clock_impl.omg as linux_x86_64_wait;
+use targets/macos_arm64/clock_impl.omg as macos_arm64_wait;
+use targets/windows_x86_64/clock_impl.omg as windows_x86_64_wait;
+
 // Portable pacing requirement. The owning package Build selects ordinary
 // checked adapters where the native protocol differs, and binds the exact
 // requirement directly where the native signature already matches. Source
@@ -14,10 +15,10 @@ public boundary trait Clock {
     // names are synchronous invocation edges, not extra reach members.
     machine sleep(milliseconds: u32)
     reaches Clock
-    invokes LinuxClockWait
-    invokes LinuxArmClockWait
-    invokes DarwinClockWait
-    invokes WindowsClockWait
+    invokes |linux_x86_64_wait|::LinuxClockWait
+    invokes |linux_arm64_wait|::LinuxArmClockWait
+    invokes |macos_arm64_wait|::DarwinClockWait
+    invokes |windows_x86_64_wait|::WindowsClockWait
     blocks
     crashes none;
 }
