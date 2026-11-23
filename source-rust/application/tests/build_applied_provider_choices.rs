@@ -12,11 +12,9 @@ written once in a helper generic in `Tag` and called with `(8u64 + 9u64)`,
 chooses `FirstReading<[Holder<u64>; 2], 17>` for `Reading<17>` and for no
 other tag.
 
-The first test stages that package and a program depending on it; both Builds
-must complete and the program must compile. The twins change one thing each
-in the package's Build and must be rejected there: a provider applied to a
-different tag than the slot, an application with one argument too many, and a
-tag written as a literal of another integer type.
+The consumer calls the chosen method at tag 17. The controls change the
+requested tag, one argument of the package’s Build, or the provider’s result
+at a different tag. The same public result bound applies to every tag.
 
 */
 
@@ -118,6 +116,22 @@ fn a_consumer_cannot_use_the_choice_for_a_different_tag() {
     assert!(!compiled, "{stderr}");
     assert!(
         stderr.contains("Reading::total") && stderr.contains("has no provider"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn the_implementation_owes_its_result_bound_at_unselected_tags() {
+    let package = PACKAGE.replace("_ -> 1129u64", "_ -> 0u64");
+    let (compiled, stderr) = check_tag(
+        "unselected_branch",
+        "Build::select_provider::<Reading<Tag>, FirstReading<[Holder<u64>; 2], Tag>>(builder, linux_x86_64);",
+        &package,
+        17,
+    );
+    assert!(!compiled, "{stderr}");
+    assert!(
+        stderr.contains("cannot prove ensures contract") && stderr.contains("total"),
         "{stderr}"
     );
 }
