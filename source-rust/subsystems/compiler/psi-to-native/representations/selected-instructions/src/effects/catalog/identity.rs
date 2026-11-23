@@ -9,7 +9,7 @@ use crate::codec_bytes::push_encoded;
 use crate::{
     MachineAlternativeApplicability, MachineAlternativeFamily, MachineBarrier,
     MachineEffectCatalog, MachineEffectCatalogIdentity, MachineEncodedControlEffect,
-    MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
+    MachineEncodedEffects, MachineEncodedStackEffect,
     MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineSemanticKind, MachineSizeKnowledge,
     SaturatingCarrier, SaturatingOperation,
 };
@@ -41,7 +41,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v43\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v44\0");
     bytes.extend_from_slice(&catalog.target.identity_bytes());
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -274,230 +274,7 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
     encode_units(bytes, &effects.implicit_unit_uses);
     encode_units(bytes, &effects.implicit_unit_defs);
     encode_units(bytes, &effects.implicit_unit_clobbers);
-    match effects.memory {
-        MachineEncodedMemoryEffect::ReadTableFieldV1 {
-            pointer_operand,
-            byte_offset,
-        } => {
-            bytes.identity_bytes(&[19]);
-            bytes.identity_bytes(&pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&byte_offset.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            bytes.identity_bytes(&[12]);
-            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
-            bytes.identity_bytes(&byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::HostedReadByteV1 { stack_pointer } => {
-            bytes.identity_bytes(&[8]);
-            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::HostedWriteByteV1 { stack_pointer } => {
-            bytes.identity_bytes(&[6]);
-            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::CopyBytesV1 {
-            source_pointer_operand,
-            destination_pointer_operand,
-            count_operand,
-        } => {
-            bytes.identity_bytes(&[9]);
-            bytes.identity_bytes(&source_pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&destination_pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&count_operand.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
-            pointer_operand,
-            codec_operand,
-        } => {
-            bytes.identity_bytes(&[16]);
-            bytes.identity_bytes(&pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&codec_operand.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::WriteEncodedScalarV1 {
-            pointer_operand,
-            codec_operand,
-        } => {
-            bytes.identity_bytes(&[17]);
-            bytes.identity_bytes(&pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&codec_operand.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::ScanByteSequenceV1 {
-            base_pointer_operand,
-            count_operand,
-        } => {
-            bytes.identity_bytes(&[13]);
-            bytes.identity_bytes(&base_pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&count_operand.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::CompareByteSequencesV1 {
-            left_base_operand,
-            left_count_operand,
-            right_base_operand,
-            right_count_operand,
-        } => {
-            bytes.identity_bytes(&[14]);
-            bytes.identity_bytes(&left_base_operand.to_le_bytes());
-            bytes.identity_bytes(&left_count_operand.to_le_bytes());
-            bytes.identity_bytes(&right_base_operand.to_le_bytes());
-            bytes.identity_bytes(&right_count_operand.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::ZeroBytesV1 {
-            destination_pointer_operand,
-            count_operand,
-        } => {
-            bytes.identity_bytes(&[15]);
-            bytes.identity_bytes(&destination_pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&count_operand.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::InstalledInterruptCpuCheckV1 {
-            table_pointer_operand,
-            task_pointer_operand,
-            scratch_pointer_operand,
-            stack_pointer,
-        } => {
-            bytes.identity_bytes(&[25]);
-            bytes.identity_bytes(&table_pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&task_pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&scratch_pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::InstalledInterruptTaskCommitV1 {
-            table_pointer_operand,
-            task_pointer_operand,
-            scratch_pointer_operand,
-            stack_pointer,
-        } => {
-            bytes.identity_bytes(&[26]);
-            bytes.identity_bytes(&table_pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&task_pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&scratch_pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::InstalledInterruptTablePublicationV1 {
-            table_pointer_operand,
-            scratch_pointer_operand,
-        } => {
-            bytes.identity_bytes(&[27]);
-            bytes.identity_bytes(&table_pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&scratch_pointer_operand.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::NoneV1 => bytes.identity_bytes(&[0]),
-        MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
-            table_pointer_operand,
-            table_byte_count_operand,
-            task_pointer_operand,
-            selector_operand,
-            scratch_pointer_operand,
-            stack_pointer,
-        } => {
-            bytes.identity_bytes(&[22]);
-            for operand in [
-                table_pointer_operand,
-                table_byte_count_operand,
-                task_pointer_operand,
-                selector_operand,
-                scratch_pointer_operand,
-            ] {
-                bytes.identity_bytes(&operand.to_le_bytes());
-            }
-            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::SegmentDescriptorReloadV1 {
-            table_pointer_operand,
-            table_byte_count_operand,
-            selector_operand,
-            scratch_pointer_operand,
-            stack_pointer,
-        } => {
-            bytes.identity_bytes(&[23]);
-            for operand in [
-                table_pointer_operand,
-                table_byte_count_operand,
-                selector_operand,
-                scratch_pointer_operand,
-            ] {
-                bytes.identity_bytes(&operand.to_le_bytes());
-            }
-            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::WriteFixedPointerV1 {
-            pointer_operand,
-            byte_count,
-        } => {
-            bytes.identity_bytes(&[21]);
-            bytes.identity_bytes(&pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand } => {
-            bytes.identity_bytes(&[7]);
-            bytes.identity_bytes(&pointer_operand.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::AtomicFenceV1 => bytes.identity_bytes(&[18]),
-        MachineEncodedMemoryEffect::CatalogFenceV1 => bytes.identity_bytes(&[19]),
-        MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1 => bytes.identity_bytes(&[20]),
-        MachineEncodedMemoryEffect::AtomicPointerV1 {
-            pointer_operand,
-            form,
-        } => {
-            bytes.identity_bytes(&[11]);
-            bytes.identity_bytes(&pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&[form.ordinal()]);
-        }
-        MachineEncodedMemoryEffect::ReadPointerV1 {
-            pointer_operand,
-            byte_count,
-        } => {
-            bytes.identity_bytes(&[3]);
-            bytes.identity_bytes(&pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
-            pointer_operand,
-            index_operand,
-            byte_count,
-        } => {
-            bytes.identity_bytes(&[5]);
-            bytes.identity_bytes(&pointer_operand.to_le_bytes());
-            bytes.identity_bytes(&index_operand.to_le_bytes());
-            bytes.identity_bytes(&byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::WriteFrameStorageV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            bytes.identity_bytes(&[4]);
-            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
-            bytes.identity_bytes(&byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::ReadFrameStorageV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            bytes.identity_bytes(&[10]);
-            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
-            bytes.identity_bytes(&byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::ReadActivationStackV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            bytes.identity_bytes(&[1]);
-            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
-            bytes.identity_bytes(&byte_count.to_le_bytes());
-        }
-        MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
-            stack_pointer,
-            byte_count,
-        } => {
-            bytes.identity_bytes(&[2]);
-            bytes.identity_bytes(&stack_pointer.0.to_le_bytes());
-            bytes.identity_bytes(&byte_count.to_le_bytes());
-        }
-    }
+    effects.memory.encode(bytes);
     match effects.stack {
         MachineEncodedStackEffect::TemporaryBytesV1 {
             stack_pointer,
@@ -780,10 +557,11 @@ pub const fn trapping_family_tag(form: crate::TrappingForm) -> u8 {
 
 #[cfg(test)]
 mod tests {
+    use crate::MachineEncodedMemoryEffect;
     use super::{
         MachineAlternativeApplicability, MachineAlternativeFamily, MachineBarrier,
         MachineEffectCatalog, MachineEncodedControlEffect, MachineEncodedEffects,
-        MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
+        MachineEncodedStackEffect, MachineEncodedTrapBehavior,
         MachineSemanticKind, alternative_family_tag, encode_machine_alternative_identity,
         encode_machine_alternative_key_identity, encode_machine_encoded_effects_identity,
         machine_effect_catalog_identity, semantic_kind_tag,
@@ -1879,8 +1657,16 @@ mod tests {
 
     #[test]
     fn encoded_memory_effect_identity_bytes_are_pinned() {
-        let cases: [(MachineEncodedMemoryEffect, &[u8]); 11] = [
+        let cases: [(MachineEncodedMemoryEffect, &[u8]); 13] = [
             (MachineEncodedMemoryEffect::NoneV1, &[0]),
+            (MachineEncodedMemoryEffect::CatalogFenceV1, &[28]),
+            (
+                MachineEncodedMemoryEffect::ReadTableFieldV1 {
+                    pointer_operand: 0x0102,
+                    byte_offset: 0x03040506,
+                },
+                &[19, 2, 1, 6, 5, 4, 3],
+            ),
             (
                 MachineEncodedMemoryEffect::ReadActivationStackV1 {
                     stack_pointer: RegisterViewId(0x0201),

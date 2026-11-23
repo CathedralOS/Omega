@@ -237,9 +237,9 @@ mod tests {
             }
             source.identity = pre_allocation_machine_effect_identity(&source);
             let encoded = source.encode();
-            assert_eq!(&encoded[8..12], &51_u32.to_le_bytes());
+            assert_eq!(&encoded[8..12], &52_u32.to_le_bytes());
             assert_eq!(PreAllocationMachineEffectPlan::decode(&encoded), Ok(source));
-            for version in (0_u32..51).chain([52]) {
+            for version in (0_u32..52).chain([53]) {
                 let mut wrong_version = encoded.clone();
                 crate::codec_bytes::patch_encoded(&mut wrong_version, 8, version.to_le_bytes());
                 assert_eq!(
@@ -1132,6 +1132,24 @@ mod tests {
     }
 
     #[test]
+    fn catalog_fences_and_table_reads_survive_plan_publication() {
+        for memory in [
+            MachineEncodedMemoryEffect::CatalogFenceV1,
+            MachineEncodedMemoryEffect::ReadTableFieldV1 {
+                pointer_operand: 3,
+                byte_offset: 0x0102_0304,
+            },
+        ] {
+            let mut source = plan();
+            source.functions[0].blocks[0].instructions[0].alternatives[0]
+                .encoded
+                .memory = memory;
+            source.identity = pre_allocation_machine_effect_identity(&source);
+            round_trip!(source);
+        }
+    }
+
+    #[test]
     fn codec_round_trips_complete_effect_content() {
         let source = plan();
         let encoded = source.encode();
@@ -1152,7 +1170,7 @@ mod tests {
             MachineEncodedControlEffect::UnconditionalRelativeBranchV1;
         source.identity = pre_allocation_machine_effect_identity(&source);
         let mut bytes = source.encode();
-        assert_eq!(&bytes[8..12], &51_u32.to_le_bytes());
+        assert_eq!(&bytes[8..12], &52_u32.to_le_bytes());
         assert_eq!(
             PreAllocationMachineEffectPlan::decode(&bytes).unwrap(),
             source
