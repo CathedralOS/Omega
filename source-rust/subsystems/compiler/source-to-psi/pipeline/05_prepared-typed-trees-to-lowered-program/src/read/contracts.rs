@@ -1278,6 +1278,9 @@ impl Program<'_> {
         if !expression.is_valid() {
             return unserved("missing term");
         }
+        // A clause such as `requires value < LIMIT` reads the value `LIMIT`'s
+        // declaration stores, as the body's value reader does.
+        let expression = self.constant_value(id, expression)?;
         if let ExpressionNode::Call(call) = typed.expression_table.expression(expression)
             && let Some((predicate, argument)) = self.byte_observation_clause_call(id, call)?
         {

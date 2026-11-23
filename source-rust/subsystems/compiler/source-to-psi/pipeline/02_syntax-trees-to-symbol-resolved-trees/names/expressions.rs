@@ -507,6 +507,27 @@ mod references {
                 }
             }
         }
+        // `bind_constant_uses` selects a constant through its source-scoped
+        // name, a type-scoped one such as `FloatFormat::BINARY64` included.
+        // Completing deferred bodies binds the same contract again. This
+        // lookup searches only the carrier's members and finds no leaf, so
+        // the use keeps the constant already selected for it: the path
+        // resolves through its carrier and ends at that constant.
+        if !symbol.is_valid()
+            && symbols.symbols().nodes().is_valid(path.symbol)
+            && symbols.get(path.symbol).kind == SymbolKind::Const
+        {
+            symbol = path.symbol;
+            let members = expression_table.name_path_members(path.members);
+            if head_symbol.is_valid() && members.len() >= 2 {
+                member_symbols = resolve_path_members_from_head(
+                    symbols,
+                    head_symbol,
+                    &members[1..members.len() - 1],
+                );
+                member_symbols.push(symbol);
+            }
+        }
         if symbol.is_valid()
             && member_symbols.len() == path.members.count() as usize
             && member_symbols.last().is_some_and(|last| last.is_valid())
