@@ -52,48 +52,51 @@ impl DeferredProductSources {
                 "Product source continuation has already been consumed",
             )]
         })?;
-        let mut storage = Arc::unwrap_or_clone(checkpoint.source_storage);
-        let mut imports = ImportQueue::default();
-        for source in storage.sources.selected_files() {
-            imports.mark_loaded(&source.path, source.dependency_scope);
-        }
-        if let Some(named) = &storage.entry
-            && named.selected_by(bindings)
-        {
-            imports.seed(
-                named.path.clone(),
-                source_provenance::DependencyScope::Product,
-            );
-        }
-        seed_operand_files(
-            &mut imports,
-            &mut storage,
+        checkpoint.assemble_sources(
             package_inputs,
-            bindings,
-            declarations,
-        )?;
-        if let Some(packages) = package_inputs {
-            seed_described_entries(&mut imports, packages, bindings);
-            for path in storage.product_subject_sources()? {
-                imports.seed(path, source_provenance::DependencyScope::Product);
-            }
-        }
-        for root in roots.iter() {
-            imports.seed(root.clone(), source_provenance::DependencyScope::Product);
-        }
-        let mut package_imports = checkpoint.package_imports.to_vec();
-        package_imports.extend(load_imports(
-            &mut storage,
-            &mut imports,
-            &checkpoint.root_path,
-            package_inputs,
-            PackageImportPhase::TargetIndependent,
+            Some(ProductSourceSelection {
+                roots,
+                bindings,
+                declarations,
+            }),
             timings,
             catalogue,
-        )?);
-        checkpoint.source_storage = Arc::new(storage);
-        checkpoint.package_imports = package_imports.into();
-        checkpoint.assemble(package_inputs, timings, catalogue)
+        )
+    }
+}
+
+pub(super) struct ProductSourceSelection<'a> {
+    roots: Arc<[std::path::PathBuf]>,
+    bindings: &'a [ProductEntryBinding],
+    declarations: &'a [Arc<ProductDeclarationRequest>],
+}
+
+impl ProductSourceSelection<'_> {
+    /// Select Product roots after the dependency Builds have supplied their files.
+    /// The import queue already knows which files came from published bytes.
+    pub(super) fn seed(
+        self,
+        storage: &mut SourceStorage,
+        imports: &mut ImportQueue,
+        packages: Option<&PackageCompilationInputs>,
+    ) -> Result<(), Vec<Diagnostic>> {
+        use source_provenance::DependencyScope::Product;
+        if let Some(named) = &storage.entry
+            && named.selected_by(self.bindings)
+        {
+            imports.seed(named.path.clone(), Product);
+        }
+        seed_operand_files(imports, storage, packages, self.bindings, self.declarations)?;
+        if let Some(packages) = packages {
+            seed_described_entries(imports, packages, self.bindings);
+            for path in storage.product_subject_sources()? {
+                imports.seed(path, Product);
+            }
+        }
+        for root in self.roots.iter() {
+            imports.seed(root.clone(), Product);
+        }
+        Ok(())
     }
 }
 
