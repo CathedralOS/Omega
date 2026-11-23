@@ -99,7 +99,7 @@ pub struct ReturnedBuild {
     pub(crate) native_bindings: Vec<ExecutedNativeBinding>,
     pub(crate) exclusions: Vec<ExecutedEnumExclusion>,
     pub(crate) declared_product_selections: Vec<Arc<ProductDeclarationRequest>>,
-    pub(crate) log: crate::host::requests::BuildLog,
+    pub(crate) output: crate::host::requests::BuildRequestOutput,
     pub(crate) filesystem: Option<package_compilation::build_execution::BuildFilesystemEffects>,
 }
 
@@ -980,7 +980,7 @@ impl TerminalBuildActivation {
             native_formations: self.host.bindings.native_formations()?,
             exclusions,
             declared_product_selections,
-            log: self.host.requests.take_log()?,
+            output: self.host.requests.take_output()?,
             filesystem: self.host.filesystem.take_effects()?,
         })
     }
