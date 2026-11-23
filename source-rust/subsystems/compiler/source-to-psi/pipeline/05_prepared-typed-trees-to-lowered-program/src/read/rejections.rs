@@ -172,6 +172,19 @@ impl Program<'_> {
             }
             Some((symbol, self.typed.normalized_nominal_type_identity(symbol)?))
         };
+        if self.is_borrowed_view(expected)
+            && let Some((carried, _)) = nominal(found)
+        {
+            return reject(
+                id,
+                at,
+                format!(
+                    "{} expects a slice, but the supplied data type is `{}`",
+                    destination.named(),
+                    self.typed.symbols.display_path(carried, "::"),
+                ),
+            );
+        }
         if let (Some((wanted, wanted_identity)), Some((carried, carried_identity))) =
             (nominal(expected), nominal(found))
             && wanted_identity != carried_identity
