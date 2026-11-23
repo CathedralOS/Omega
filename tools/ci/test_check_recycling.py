@@ -95,8 +95,7 @@ class RecyclingBoundary(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp)
             paths = ["docs/_recycling/design.md", "_recycling/owner/_recycling/dump.bin",
-                     "_recycling/owner/dump.bin", "assets/live.bin",
-                     "omega-rust-v2/owner/_recycling/legacy.bin", "notes/near_recycling/design.md"]
+                     "_recycling/owner/dump.bin", "assets/live.bin", "notes/near_recycling/design.md"]
             for name in paths:
                 path = repo / name
                 path.parent.mkdir(parents=True, exist_ok=True)

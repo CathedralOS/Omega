@@ -13,15 +13,13 @@ Cargo targets and Rust modules or literal file includes must resolve outside
 `_recycling/`. The check follows literal `#[path]` attributes, including in
 `cfg_attr`, and the `include!`, `include_bytes!` and `include_str!` macros. It
 also evaluates literal `concat!` arguments and `env!("CARGO_MANIFEST_DIR")`.
-Generated source and arbitrary build-script execution are outside its scope.
+Generated source, arbitrary build-script execution and the dependency
+frontmatter of single-file Cargo scripts are outside its scope.
 
 Run `python3 -B tools/ci/check_recycling.py` from a checkout with Python 3.11 or
 newer. `python3 -B tools/ci/test_check_recycling.py` runs its regression checks.
-Both commands run while the root Cargo workspace is under repair.
-
-Changes to the standalone V2 workspace or its CI toolchain also run
-`mbx test --locked --workspace` under `omega-rust-v2/`.
-[mbx setup](../../wiki/development/testing.md#checksum-capable-mbx-setup)
+Admission also requires the shared specification under `wiki/spec/`. It
+compiles and tests no Rust code while root workspace builds are paused.
 
 ## Post-merge check
 

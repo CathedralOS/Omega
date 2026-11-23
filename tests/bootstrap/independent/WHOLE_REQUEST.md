@@ -111,8 +111,9 @@ Epsilon parser's representation at `7baa8d6a64c`.
 | Statements | 17,479 | 16,384 |
 | Expressions | 20,715 | 16,384 |
 
-The [counter](parser-capacity.rs) reads the exact unit bytes from
-`product.bin` and uses the independent V2 lexer and parser. It counted 181
+The [counter](../../../_recycling/tests/bootstrap/independent/parser-capacity.rs)
+reads the exact unit bytes from `product.bin` and uses the lexer and parser of
+the archived V2 compiler, so it lives in the archive beside them. It counted 181
 whole-unit syntax trees. For the other 124 units it retried fragments ending
 at a top-level semicolon or closing brace. It omitted 568 refused fragments.
 Each counted root is a top-level use, data or machine declaration. Each
@@ -129,7 +130,7 @@ checkout with the same product sources, run these commands from its root.
 
 ```sh
 python3 source/application/construction/construct.py --input /tmp/omega-product.bin
-cargo -Zscript tests/bootstrap/independent/parser-capacity.rs /tmp/omega-product.bin
+cargo -Zscript _recycling/tests/bootstrap/independent/parser-capacity.rs /tmp/omega-product.bin
 ```
 
 Doubling the type-node arena still leaves it short. The checker also stores

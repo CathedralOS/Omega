@@ -221,7 +221,7 @@ def violations(root, files):
     for file in sorted(files):
         relative = file.relative_to(root)
         directories = relative.parts[:-1]
-        if relative.parts[0] != "omega-rust-v2" and "_recycling" in directories[1:]:
+        if "_recycling" in directories[1:]:
             yield f"{relative}: nested _recycling directory; use the repository-root _recycling"
             continue
         if "_recycling" in directories:
