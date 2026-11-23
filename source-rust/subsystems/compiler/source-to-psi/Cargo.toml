@@ -324,3 +324,8 @@ name = "resolver_timing"
 path = "pipeline/02_syntax-trees-to-symbol-resolved-trees/benchmarks/resolver_timing.rs"
 harness = false
 required-features = ["test-support"]
+
+[[test]]
+name = "lowering_operation_questions"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/operation_questions.rs"
+required-features = ["test-support"]
