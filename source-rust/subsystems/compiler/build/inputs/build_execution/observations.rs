@@ -22,7 +22,6 @@ pub use filesystem_authority::{
     FilesystemOperationResult as BuildFilesystemOperationResult,
 };
 
-pub(crate) const STAGED_SOURCE_SCHEMA_VERSION: u32 = 82;
 pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 83;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -159,8 +158,6 @@ pub struct BuildObservationSummary {
     pub(crate) captured_source_inventory: Option<BuildCapturedSourceInventory>,
     pub(crate) named_input_inventories: Vec<BuildNamedInputInventory>,
     pub(super) generated_sources: Vec<build_output::PackageGeneratedSource>,
-    // Older reviews referenced a closed output at each ordinal. Keep their original encoding and identity.
-    pub(super) staged_source_ordinals: Option<Vec<u64>>,
     pub(crate) required_output_settlements: Vec<BuildRequiredOutputSettlement>, // Completed `BuildOutput::require` obligations in issue order.
     pub(crate) staged_output_tree: Option<BuildStagedOutputTree>,
     pub(crate) build_log: Vec<u8>,
@@ -184,10 +181,7 @@ impl BuildRequiredOutputSettlement {
 
 impl BuildObservationSummary {
     pub const fn schema_version(&self) -> u32 {
-        match self.staged_source_ordinals {
-            Some(_) => STAGED_SOURCE_SCHEMA_VERSION,
-            None => BUILD_OBSERVATION_SCHEMA_VERSION,
-        }
+        BUILD_OBSERVATION_SCHEMA_VERSION
     }
 
     pub const fn filesystem_host_observed(&self) -> bool {

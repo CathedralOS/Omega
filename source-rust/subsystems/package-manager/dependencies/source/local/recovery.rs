@@ -6,8 +6,8 @@
 // verification.
 
 use super::super::{
-    COMPILED_REVIEW_CACHE_LANE, PackageSourceCustody, PackageSourceMaterialization,
-    PackageSourceNavigation, PackageSourceSelectionEvidence, ResolvePackageSourceError,
+    PackageSourceCustody, PackageSourceMaterialization, PackageSourceNavigation,
+    PackageSourceSelectionEvidence, ResolvePackageSourceError,
 };
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::dependencies::read::DependencyProjections;
@@ -40,25 +40,17 @@ pub(crate) fn recover_cached_external_local_source(
     };
     verify_package_source_snapshot(&source.root, expected, current.source_limits())?;
     storage.verify_path_identity()?;
-    let review_cache_dir = storage
-        .external_local_sources()
-        .retain_child(COMPILED_REVIEW_CACHE_LANE)?
-        .path()
-        .to_path_buf();
-    Ok(Some(
-        PackageSourceCustody::from_resolved_parts(
-            current.key().clone(),
-            recorded_role,
-            ImmutableSourceResolution::external_local(expected.clone()),
-            PackageSourceMaterialization::from_local(&source),
-            source.root,
-            PackageSourceNavigation::Root,
-            PackageSourceSelectionEvidence::Root,
-            current.source_limits(),
-            recorded_dependencies.clone(),
-        )
-        .with_compiled_review_cache_dir(review_cache_dir),
-    ))
+    Ok(Some(PackageSourceCustody::from_resolved_parts(
+        current.key().clone(),
+        recorded_role,
+        ImmutableSourceResolution::external_local(expected.clone()),
+        PackageSourceMaterialization::from_local(&source),
+        source.root,
+        PackageSourceNavigation::Root,
+        PackageSourceSelectionEvidence::Root,
+        current.source_limits(),
+        recorded_dependencies.clone(),
+    )))
 }
 
 #[cfg(test)]

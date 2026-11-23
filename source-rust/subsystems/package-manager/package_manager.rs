@@ -22,7 +22,7 @@ pub use transaction::{
 pub(crate) use lockfile::hex::{Hex, hex_digest};
 pub(crate) use review::build_session;
 pub use review::build_session::{PackageBuildSession, PackageSourceBindings};
-pub(crate) use wire::{codec_bytes, digest_encoder};
+pub(crate) use wire::digest_encoder;
 
 /// Source selection and graph queries used by Build and review.
 pub mod resolution {
