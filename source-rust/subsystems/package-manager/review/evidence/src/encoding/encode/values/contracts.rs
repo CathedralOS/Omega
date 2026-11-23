@@ -1,6 +1,6 @@
 // Canonical encoding for callable contracts, contract facts, and proposition applications.
 
-use super::super::declarations::{encode_carry_permission, encode_type_identity};
+use super::super::declarations::encode_type_identity;
 use super::super::encoder::Encoder;
 use crate::encoding::PackageReviewEncodingError;
 use crate::record::{
@@ -59,11 +59,6 @@ pub(crate) fn encode_contract_fact(
         PackageReviewContractFact::Expression(expression) => {
             encoder.tag("expression", 0);
             encoder.field_by("expression", expression, encode_contract_expression)
-        }
-        PackageReviewContractFact::CarryMembership { value, permission } => {
-            encoder.tag("carry_membership", 4);
-            encoder.field_by("value", value, encode_contract_expression)?;
-            encoder.field_by("permission", *permission, encode_carry_permission)
         }
         PackageReviewContractFact::Membership {
             value,
@@ -170,26 +165,4 @@ pub(crate) fn encode_proposition_application(
         Ok(())
     })?;
     Ok(())
-}
-
-#[cfg(test)]
-mod codec_tests {
-    use super::*;
-    use crate::record::PackageReviewContractExpression;
-
-    #[test]
-    fn closed_carry_fact_has_stable_distinct_wire_tags() {
-        for (tag, permission) in language_core::CarryPermission::ALL
-            .into_iter()
-            .enumerate()
-        {
-            let fact = PackageReviewContractFact::CarryMembership {
-                value: PackageReviewContractExpression::Result,
-                permission,
-            };
-            let mut encoder = Encoder::bounded(3);
-            encode_contract_fact(&mut encoder, &fact).unwrap();
-            assert_eq!(encoder.finish().unwrap(), [4, 3, tag as u8]);
-        }
-    }
 }

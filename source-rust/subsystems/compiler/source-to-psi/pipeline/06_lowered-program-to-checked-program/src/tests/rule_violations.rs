@@ -73,6 +73,21 @@ fn a_type_naming_a_domain_nothing_declares_is_rejected() {
     );
 }
 
+#[test]
+fn a_carry_domain_name_requires_its_own_visible_declaration() {
+    let program = |declared: &str| {
+        format!(
+            "data Carry {{ value: u32; }}\ndomain Carry::{declared};\n\
+             machine relay(value: Carry in Carry::Portable) -> Carry in Carry::Portable {{ value }}\n"
+        )
+    };
+    accepted(&program("Portable"));
+    rejected(
+        &program("Other"),
+        "this type names the domain `Carry::Portable`, but no domain of that name is visible here",
+    );
+}
+
 /// modules.md, "Resolution", and effects.md: "A row names a parameter path
 /// or a requirement identity". Typing decides whether a written domain or
 /// `invokes` name names nothing from what the use's own source can see, not

@@ -83,14 +83,6 @@ framework or a list of unimplemented features.
 - Cost: The refusal is safe, but it reports a changed contract that did not change, and it ties staged Build execution to source reuse. The owner's portable identity (`portable_lifetime_parameter_identity`, which already names data, machine and trait owners) would make the comparison independent of symbol numbering.
 - Reported: 2026-11-22, Claude Code, while repairing `build_staged_dependency_calls`
 
-### The source parser still grants special meaning to retired Carry permissions
-
-- Category: Zombie machinery
-- Where: [field constraints](source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/types/references.rs) and [proof facts](source-rust/subsystems/compiler/source-to-psi/pipeline/01_tokens-to-syntax-trees/contracts/facts.rs).
-- Saw: The parser expands `Carry::Portable` on a field and in a proof fact into four compiler permission atoms. The parser tests for both spellings require this expansion. The [suspension specification](wiki/spec/resources/suspension.md) retired these source permissions.
-- Cost: Source code can name apparent guarantees about CPU, thread, suspension and address stability that must come from resource and operation contracts. Remove the special treatment from source and keep genuine platform guarantees on the selected service.
-- Reported: 2026-11-22, Codex, while removing the retired source carry property.
-
 ### A pattern's field reads get their fields in typing and its roster gets them again in preparation
 
 - Category: One idea, several implementations

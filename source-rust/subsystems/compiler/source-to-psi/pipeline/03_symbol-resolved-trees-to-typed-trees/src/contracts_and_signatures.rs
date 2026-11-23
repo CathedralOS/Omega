@@ -154,25 +154,12 @@ pub(crate) mod contracts {
                             let TypeConstraintNode::Domain(domain) = constraint else {
                                 continue;
                             };
-                            if domain.symbol.is_valid() {
-                                if let Some(definition) = program.domain_definition(domain.symbol) {
-                                    domains.push((
-                                        domain.symbol,
-                                        definition.name.as_str().to_owned(),
-                                        domain.arguments.clone(),
-                                        domain.semantic_id,
-                                    ));
-                                }
-                            } else if language_core::CarryPermission::from_name(
-                                domain.name.as_str(),
-                            )
-                            .is_some()
-                            {
+                            if let Some(definition) = program.domain_definition(domain.symbol) {
                                 domains.push((
-                                    symbols::SymbolHandle::invalid(),
-                                    domain.name.as_str().to_owned(),
-                                    Vec::new(),
-                                    semantic_vocabulary::SemanticDomainId::NULL,
+                                    domain.symbol,
+                                    definition.name.as_str().to_owned(),
+                                    domain.arguments.clone(),
+                                    domain.semantic_id,
                                 ));
                             }
                         }

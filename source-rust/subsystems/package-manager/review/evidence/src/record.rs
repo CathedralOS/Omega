@@ -122,9 +122,8 @@ pub use data::{
     PackageReviewDataProperties,
 };
 pub(crate) use domains::{
-    PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
-    PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
-    PackageReviewDomainSemanticRole,
+    PackageReviewDomainClassification, PackageReviewDomainEstablishmentKind,
+    PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
 };
 pub use identity::{
     PackageReviewNominalIdentity, PackageReviewNominalOwner, PackageReviewServiceIdentity,

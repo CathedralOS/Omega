@@ -1,22 +1,5 @@
-# suspend route
+# Suspension and a token domain
 
-Compile-scope probe. No standard-library dependency.
+The `Sleeper` boundary trait declares a suspending operation. The caller keeps its token across the call, then removes its `AcrossSuspend` domain before returning a plain token. The domain proves that the token ID is positive.
 
-- suspend_route: `pub boundary data Sleeper`, `boundary machine
-  Sleeper::park suspends;`, `suspend Sleeper::park(7)` inside a
-  `suspends;` machine, `Token in AcrossSuspend` domain param.
-- crash_guard_face: `crashes Trap <face>` — member and scalar
-  crash-route guard faces between the route decl and the body.
-- scoped_const_shadow: `const Sizes::SIZE: Index` scoped const +
-  record-typed const param + `let Sizes: u64` local shadow.
-- slice_reborrow: `@mutable buf` reborrow of a `@mutable [u64]` param
-  into a second machine.
-
-Compile-checked only (no ProcessExit provider):
-
-```sh
-mbx run -p omega -- --check samples/cli/probes/suspend_route/main.omg
-mbx run -p omega -- packages update --project samples/cli/probes/suspend_route
-```
-
-Both green on Linux x86-64; `omega.lock` publishes locally, ignored.
+Run `omega --check main.omg` from this directory. The entry records a hit without calling the suspending operation.

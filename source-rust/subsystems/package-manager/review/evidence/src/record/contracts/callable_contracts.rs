@@ -1,8 +1,7 @@
 // Callable contract facts, outcome-specific result-arm coordinates, and
 // synchronous invocation targets.
 //
-// `CarryMembership` records a closed compiler permission fact without a nominal
-// value-domain owner. `PackageReviewResultCaseIdentity` names the exact nominal
+// `PackageReviewResultCaseIdentity` names the exact nominal
 // result-arm coordinate guarding an outcome-specific guarantee (`None` for
 // unconditional `requires`/`ensures` rows).
 
@@ -22,10 +21,6 @@ pub enum PackageReviewContractFact {
         domain: PackageReviewNominalIdentity,
         /// Exact canonical application, including index arguments.
         application: String,
-    },
-    CarryMembership {
-        value: PackageReviewContractExpression,
-        permission: language_core::CarryPermission,
     },
     Proposition(PackageReviewPropositionApplication),
     PropositionParameter(PackageReviewPropositionParameterApplication),

@@ -4,6 +4,7 @@ use crate::expressions::parse::parse_expression_handle_without_struct_literals_o
 use crate::expressions::parse::parse_logical_proof_fact_expression_handle;
 use crate::expressions::parse::parse_proof_fact_expression_handle;
 use crate::token_input::cursor::{Input, parse_path_handle_span};
+use crate::types::references::parse_domain_argument_handles;
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
@@ -12,7 +13,6 @@ use syntax_trees::expression::{
 };
 use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{ProofFact, ProofMembershipFact};
-use syntax_trees::types::TypeReferenceHandle;
 use tokens::PunctuationKind;
 
 fn copy_item_path_to_expression_path(
@@ -36,47 +36,6 @@ fn copy_item_path_to_expression_path(
     }
 
     copy
-}
-
-type MembershipDomain = (HandleSpan<Identifier>, HandleSpan<TypeReferenceHandle>);
-
-fn expand_carry_portable_item_paths(
-    syntax_trees: &mut SyntaxTrees,
-    domains: Vec<MembershipDomain>,
-) -> Vec<MembershipDomain> {
-    let mut expanded = Vec::new();
-    for (domain, domain_arguments) in domains {
-        let name = syntax_trees
-            .tables
-            .items
-            .identifier_path_members(domain)
-            .iter()
-            .map(|member| member.as_str(syntax_trees))
-            .collect::<Vec<_>>()
-            .join("::");
-        if name != "Carry::Portable" {
-            expanded.push((domain, domain_arguments));
-            continue;
-        }
-
-        for permission in language_core::CarryPermission::ALL {
-            let mut parts = permission.name().split("::");
-            let namespace =
-                syntax_trees
-                    .items
-                    .append_identifier_path_member(Identifier::generated(
-                        parts.next().expect("carry permission has a namespace"),
-                    ));
-            let member = syntax_trees
-                .items
-                .append_identifier_path_member(Identifier::generated(
-                    parts.next().expect("carry permission has a member"),
-                ));
-            debug_assert_eq!(member.arena_index(), namespace.arena_index() + 1);
-            expanded.push((HandleSpan::from_parts(namespace, 2), HandleSpan::empty()));
-        }
-    }
-    expanded
 }
 
 pub(crate) fn parse_proof_facts_until<'tokens, 'source>(
@@ -159,8 +118,7 @@ fn parse_fact_list<'tokens, 'source>(
                     syntax_trees.items.append_identifier_path_member(member)
                 })?;
                 let argument_start = rest;
-                let (first_arguments, rest) =
-                    parse_proof_fact_domain_arguments(syntax_trees, first_domain, rest)?;
+                let (first_arguments, rest) = parse_domain_argument_handles(syntax_trees, rest)?;
                 let mut argument_site = (!first_arguments.is_empty()).then_some(argument_start);
                 input = rest;
 
@@ -197,7 +155,7 @@ fn parse_fact_list<'tokens, 'source>(
                     })?;
                     let argument_start = rest;
                     let (domain_arguments, rest) =
-                        parse_proof_fact_domain_arguments(syntax_trees, domain, rest)?;
+                        parse_domain_argument_handles(syntax_trees, rest)?;
                     if !domain_arguments.is_empty() && argument_site.is_none() {
                         argument_site = Some(argument_start);
                     }
@@ -232,9 +190,7 @@ fn parse_fact_list<'tokens, 'source>(
                     authored_fact_handles.push(handle);
                     facts.push_contiguous(handle);
                 } else {
-                    for (domain, domain_arguments) in
-                        expand_carry_portable_item_paths(syntax_trees, membership_domains)
-                    {
+                    for (domain, domain_arguments) in membership_domains {
                         let handle = syntax_trees.items.append_proof_fact(ProofFact::Membership(
                             ProofMembershipFact {
                                 value,
@@ -362,26 +318,4 @@ fn range_membership_expression(
             operator: BinaryOperator::And,
             right: upper,
         }))
-}
-
-fn parse_proof_fact_domain_arguments<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
-    domain: HandleSpan<Identifier>,
-    input: Input<'tokens, 'source>,
-) -> Result<(HandleSpan<TypeReferenceHandle>, Input<'tokens, 'source>), ParseError> {
-    if !input.at_punctuation(PunctuationKind::Less) {
-        return Ok((HandleSpan::empty(), input));
-    }
-    let name = syntax_trees
-        .tables
-        .items
-        .identifier_path_members(domain)
-        .iter()
-        .map(|member| member.as_str(syntax_trees))
-        .collect::<Vec<_>>()
-        .join("::");
-    if name == "Carry::Portable" || language_core::CarryPermission::from_name(&name).is_some() {
-        return Err(input.error_here("compiler carry permissions do not take index arguments"));
-    }
-    crate::types::references::parse_domain_argument_handles(syntax_trees, input)
 }

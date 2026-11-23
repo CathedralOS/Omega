@@ -37,7 +37,6 @@ use super::arguments::validate_declared_integer;
 use super::values::CanonicalConstNode;
 use super::values::canonicalize_selected_declaration_value;
 use crate::resolution::declarations::generic_data::source_modules::module_path;
-use language_core::CarryPermission;
 use language_core::Multiplicity;
 use numeric_literals::LandedIntegerType;
 use syntax_trees::item::DataMember;
@@ -796,11 +795,6 @@ fn evaluate_named_const_domain(
         }
     };
     let Some(domain) = domain else {
-        if authored == "Carry::Portable" || CarryPermission::from_name(authored).is_some() {
-            return Err(format!(
-                "domain constraint `{authored}` names a compiler carry permission; const declarations cannot supply its boundary-grant evidence",
-            ));
-        }
         return Ok(None);
     };
     let Some(index_parameters) = domain_index_parameters(syntax, domain) else {

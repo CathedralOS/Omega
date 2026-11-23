@@ -6,7 +6,6 @@ use crate::record::PackagePolicyDomainShape;
 use crate::record::PackagePolicyOperatorShape;
 use crate::record::PackagePolicyPublicApi;
 use crate::record::PackagePolicyTraitShape;
-use crate::record::PackageReviewDomainAliasAtom;
 use crate::record::PackageReviewDomainEstablishmentRoute;
 use crate::record::PackageReviewEvidenceInterface;
 use crate::record::PackageReviewNominalIdentity;
@@ -155,10 +154,8 @@ pub(super) fn domain(value: &PackagePolicyDomainShape) -> Result {
     }
     if let Some(atoms) = &value.alias_expansion {
         ordered(atoms)?;
-        for atom in atoms {
-            if let PackageReviewDomainAliasAtom::Declared(value) = atom {
-                value.validate_resolved()?;
-            }
+        for domain in atoms {
+            domain.validate_resolved()?;
         }
     }
     ordered(&value.semantic_roles)?;

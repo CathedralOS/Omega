@@ -315,58 +315,6 @@ impl std::fmt::Display for CarryPolicy {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, record_storage::Record)]
-pub enum CarryPermission {
-    AcrossSuspend,
-    AnyCpu,
-    AnyThread,
-    MovableAddress,
-}
-
-impl CarryPermission {
-    pub const ALL: [Self; 4] = [
-        Self::AcrossSuspend,
-        Self::AnyCpu,
-        Self::AnyThread,
-        Self::MovableAddress,
-    ];
-
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::AcrossSuspend => "Carry::AcrossSuspend",
-            Self::AnyCpu => "Carry::AnyCpu",
-            Self::AnyThread => "Carry::AnyThread",
-            Self::MovableAddress => "Carry::MovableAddress",
-        }
-    }
-
-    pub fn from_name(name: &str) -> Option<Self> {
-        match name {
-            "Carry::AcrossSuspend" => Some(Self::AcrossSuspend),
-            "Carry::AnyCpu" => Some(Self::AnyCpu),
-            "Carry::AnyThread" => Some(Self::AnyThread),
-            "Carry::MovableAddress" => Some(Self::MovableAddress),
-            _ => None,
-        }
-    }
-
-    pub const fn relax(self, mut policy: CarryPolicy) -> CarryPolicy {
-        match self {
-            Self::AcrossSuspend => policy.suspension = CarrySuspension::Allowed,
-            Self::AnyCpu => policy.cpu = CarryCpu::Any,
-            Self::AnyThread => policy.host_thread = CarryHostThread::Any,
-            Self::MovableAddress => policy.address = CarryAddress::Movable,
-        }
-        policy
-    }
-}
-
-impl std::fmt::Display for CarryPermission {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.name().fmt(formatter)
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, record_storage::Record)]
 pub struct CallOperationalAcknowledgement {
     pub origin: CallOperationalAcknowledgementOrigin,

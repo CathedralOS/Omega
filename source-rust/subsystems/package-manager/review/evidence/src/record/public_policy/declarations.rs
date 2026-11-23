@@ -5,11 +5,11 @@ use crate::record::{
     PackagePolicyCrashRoute, PackagePolicyTermination, PackagePolicyTypeParameter,
     PackageReviewCallableContract, PackageReviewConformanceBound, PackageReviewContractFact,
     PackageReviewDataKind, PackageReviewDataMember, PackageReviewDataProperties,
-    PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
-    PackageReviewDomainEstablishmentRoute, PackageReviewDomainSemanticRole,
-    PackageReviewEvidenceInterface, PackageReviewNominalIdentity, PackageReviewOperatorCoordinate,
-    PackageReviewParameterQualification, PackageReviewSignatureParameter,
-    PackageReviewSynchronousInvocation, PackageReviewTraitParent, PackageReviewTypeIdentity,
+    PackageReviewDomainClassification, PackageReviewDomainEstablishmentRoute,
+    PackageReviewDomainSemanticRole, PackageReviewEvidenceInterface, PackageReviewNominalIdentity,
+    PackageReviewOperatorCoordinate, PackageReviewParameterQualification,
+    PackageReviewSignatureParameter, PackageReviewSynchronousInvocation, PackageReviewTraitParent,
+    PackageReviewTypeIdentity,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,7 +64,7 @@ pub struct PackagePolicyDomainShape {
     pub index_arguments: Vec<PackageReviewTypeIdentity>,
     pub predicate_presence: language_core::DomainPredicatePresence,
     pub predicate_facts: Vec<PackageReviewContractFact>,
-    pub alias_expansion: Option<Vec<PackageReviewDomainAliasAtom>>,
+    pub alias_expansion: Option<Vec<PackageReviewNominalIdentity>>,
     pub classification: Option<PackageReviewDomainClassification>,
     pub semantic_roles: Vec<PackageReviewDomainSemanticRole>,
     pub establishment_routes: Vec<PackageReviewDomainEstablishmentRoute>,

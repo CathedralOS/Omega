@@ -1201,7 +1201,6 @@ pub enum AuthoredDeclarationSelectionIntrinsic {
     BuildNativeBinding,
     BuildProviderReadiness,
     BuiltinOperator,
-    CarryPermission(language_core::CarryPermission),
     CollectionLength,
     CollectionCapacity,
     ByteSequencePredicate(language_core::byte_predicates::ByteSequencePredicate),

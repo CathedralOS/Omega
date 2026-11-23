@@ -356,7 +356,7 @@ fn preserves_open_index_operator_expression_in_domain_argument() {
 }
 
 #[test]
-fn parses_compiler_owned_carry_atoms_and_expands_portable() {
+fn qualified_field_domains_keep_their_written_names() {
     let source = r#"
         data Sample {
             local: u64 in Carry::MovableAddress;
@@ -388,20 +388,17 @@ fn parses_compiler_owned_carry_atoms_and_expands_portable() {
             .iter()
             .map(|constraint| match constraint {
                 TypeConstraintNode::Domain(name) => name.name.as_str(&parsed).to_owned(),
-                other => panic!("carry permission became {other:?}"),
+                other => panic!("expected a domain, got {other:?}"),
             })
             .collect::<Vec<_>>()
     };
 
     assert_eq!(names(fields[0]), ["Carry::MovableAddress"]);
-    assert_eq!(
-        names(fields[1]),
-        language_core::CarryPermission::ALL.map(|permission| permission.name().to_owned())
-    );
+    assert_eq!(names(fields[1]), ["Carry::Portable"]);
 }
 
 #[test]
-fn expands_carry_portable_contract_guarantee_to_four_atomic_facts() {
+fn an_ensures_clause_keeps_its_single_qualified_domain() {
     let source = r#"
         machine grant(value: u64) -> u64
         ensures
@@ -428,14 +425,11 @@ fn expands_carry_portable_contract_guarantee_to_four_atomic_facts() {
                 .map(|member| member.as_str(&parsed))
                 .collect::<Vec<_>>()
                 .join("::"),
-            other => panic!("portable atom became {other:?}"),
+            other => panic!("expected domain membership, got {other:?}"),
         })
         .collect::<Vec<_>>();
 
-    assert_eq!(
-        domains,
-        language_core::CarryPermission::ALL.map(|permission| permission.name().to_owned())
-    );
+    assert_eq!(domains, ["Carry::Portable"]);
 }
 
 #[test]

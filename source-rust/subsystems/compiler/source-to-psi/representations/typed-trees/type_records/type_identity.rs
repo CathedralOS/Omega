@@ -989,8 +989,7 @@ pub(crate) mod constraint_identity {
                     DomainConstraintSubject::Declared => NormalizedConstraint::DeclaredDomain(
                         normalized_declared_domain_identity(program, domain, context),
                     ),
-                    DomainConstraintSubject::Carry(_)
-                    | DomainConstraintSubject::Value(_)
+                    DomainConstraintSubject::Value(_)
                     | DomainConstraintSubject::OmegaLayout { .. } => {
                         NormalizedConstraint::CompilerDomain(normalized_compiler_domain_identity(
                             program, domain, context,
@@ -1053,21 +1052,6 @@ pub(crate) mod constraint_identity {
             DomainConstraintSubject::Declared => {
                 normalized_declared_domain_identity(program, domain, context)
             }
-            DomainConstraintSubject::Carry(permission) => compound(
-                ConstraintForm::CompilerDomain,
-                [
-                    atom(Label::Family, DomainFamily::Carry.spelling()),
-                    atom(
-                        Label::Permission,
-                        match permission {
-                            language_core::CarryPermission::AcrossSuspend => "across-suspend",
-                            language_core::CarryPermission::AnyCpu => "any-cpu",
-                            language_core::CarryPermission::AnyThread => "any-thread",
-                            language_core::CarryPermission::MovableAddress => "movable-address",
-                        },
-                    ),
-                ],
-            ),
             DomainConstraintSubject::Value(value_domain) => compound(
                 ConstraintForm::CompilerDomain,
                 [
@@ -5226,7 +5210,6 @@ pub(crate) mod package_policy_reading_tests {
 
         node_kinds!(DomainKind, domain_kind for DomainConstraintSubject {
             Declared => DomainConstraintSubject::Declared,
-            Carry => DomainConstraintSubject::Carry(_),
             Value => DomainConstraintSubject::Value(_),
             OmegaLayout => DomainConstraintSubject::OmegaLayout { .. },
         });
@@ -5316,7 +5299,6 @@ pub(crate) mod package_policy_reading_tests {
             TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
         };
         use application_identity::const_value::CanonicalConstValue;
-        use language_core::CarryPermission;
         use language_core::atomic::{
             AtomicExpressionResultCustody, AtomicOrderingPlan, MemoryOrdering,
         };
@@ -5526,20 +5508,6 @@ pub(crate) mod package_policy_reading_tests {
                 ))],
                 &[1, 4],
             );
-            for permission in CarryPermission::ALL {
-                add(
-                    &mut witnesses,
-                    fixture,
-                    "carry domain",
-                    vec![TypeConstraintNode::Domain(domain(
-                        DomainConstraintSubject::Carry(permission),
-                        SymbolHandle::invalid(),
-                        "carry",
-                        Vec::new(),
-                    ))],
-                    &[],
-                );
-            }
             add(
                 &mut witnesses,
                 fixture,
