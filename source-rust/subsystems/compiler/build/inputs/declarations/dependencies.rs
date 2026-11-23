@@ -7,6 +7,13 @@ pub enum DependencyPurpose {
 }
 
 impl DependencyPurpose {
+    pub const fn canonical_tag(self) -> u8 {
+        match self {
+            Self::Product => 0,
+            Self::Build => 1,
+        }
+    }
+
     pub const ALL: [Self; 2] = [Self::Product, Self::Build];
 
     pub const fn is_product(self) -> bool {

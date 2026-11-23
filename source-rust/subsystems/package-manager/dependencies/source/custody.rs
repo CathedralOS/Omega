@@ -2,8 +2,7 @@
 // Persistent sources retain a sealed physical root, while an ordinary
 // compilation root retains its complete acquisition inventory so transport
 // erasure never drops the captured bytes or forces loading or `Build` to reopen
-// a changed checkout. Optional storage cache coordinates select retained
-// resolver lanes only and are ignored by equality and semantic equivalence.
+// a changed checkout.
 
 use crate::declarations::BuildDeclarationKind;
 use crate::declarations::PackageKey;
@@ -30,32 +29,6 @@ pub(crate) struct PackageSourceCustody {
     selection_evidence: PackageSourceSelectionEvidence,
     source_limits: LocalSourceLimits,
     dependency_projections: DependencyProjections,
-    compiled_review_cache_dir: Option<PathBuf>, // Storage location only; ignored by equality and semantic equivalence
-}
-
-pub(crate) const COMPILED_REVIEW_CACHE_LANE: &str = "compiled-review-cache";
-
-#[derive(Debug, Clone)]
-pub(super) struct SourceCacheDirectories {
-    compiled_review: PathBuf,
-}
-
-impl SourceCacheDirectories {
-    pub(super) fn retain(storage: &source_acquisition::SourceResolver) -> Option<Self> {
-        let retained = (|| {
-            storage.verify_path_identity()?;
-            let compiled_review = retain_compiled_review_storage(storage)?;
-            storage.verify_path_identity()?;
-            Ok::<_, source_acquisition::SourceResolveError>(Self {
-                compiled_review: compiled_review.path().to_path_buf(),
-            })
-        })();
-        retained.ok()
-    }
-
-    pub(super) fn apply_to(&self, custody: PackageSourceCustody) -> PackageSourceCustody {
-        custody.with_compiled_review_cache_dir(self.compiled_review.clone())
-    }
 }
 
 impl PartialEq for PackageSourceCustody {
@@ -101,7 +74,6 @@ impl PackageSourceCustody {
             selection_evidence,
             source_limits,
             dependency_projections: projected_dependencies.into(),
-            compiled_review_cache_dir: None,
         }
     }
 
@@ -115,15 +87,6 @@ impl PackageSourceCustody {
 
     pub fn captured_source(&self) -> Option<&Arc<source_capture::CapturedSourceTree>> {
         self.captured_source.as_ref()
-    }
-
-    pub(crate) fn with_compiled_review_cache_dir(mut self, directory: PathBuf) -> Self {
-        self.compiled_review_cache_dir = Some(directory);
-        self
-    }
-
-    pub(crate) fn compiled_review_cache_dir(&self) -> Option<&Path> {
-        self.compiled_review_cache_dir.as_deref()
     }
 
     pub fn key(&self) -> &PackageKey {
@@ -183,16 +146,4 @@ impl PackageSourceCustody {
             && self.selection_evidence == other.selection_evidence
             && self.dependency_projections == other.dependency_projections
     }
-}
-
-pub(super) fn retain_compiled_review_storage(
-    storage: &source_acquisition::SourceResolver,
-) -> Result<source_acquisition::storage::RetainedStorageLane, source_acquisition::SourceResolveError>
-{
-    storage.verify_path_identity()?;
-    let retained = storage
-        .external_local_sources()
-        .retain_child(COMPILED_REVIEW_CACHE_LANE)?;
-    storage.verify_path_identity()?;
-    Ok(retained)
 }

@@ -1,18 +1,8 @@
-/*
-    We admit package review work across a resolved immutable source closure,
-    verify transitive source custody, cache content-addressed compiled reviews,
-    and join compiler-issued evidence to normalized policy rows.
-*/
-
-/*
-    Candidate review orchestration belongs to the package review candidate
-    boundary (`review/candidate/mod.rs`).
-*/
+//! Review the packages in one resolved source closure and retain the results for later passes of this invocation.
 
 mod custody;
 mod error;
 mod passes;
-mod review_cache;
 mod review_set;
 mod semantic_bindings;
 

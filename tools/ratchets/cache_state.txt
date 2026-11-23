@@ -16,7 +16,6 @@
 21 source-rust/subsystems/compiler/source-to-psi/representations/typed-trees/storage/declaration_tables_and_index.rs
 4 source-rust/subsystems/package-manager/dependencies/source/custody.rs
 1 source-rust/subsystems/package-manager/dependencies/source/local/recovery.rs
-5 source-rust/subsystems/package-manager/review/candidate/review_cache.rs
 2 source-rust/subsystems/package-manager/review/candidate/review_cache/record_codec.rs
 12 source-rust/subsystems/package-manager/source-acquisition/custody/lock.rs
 22 source-rust/subsystems/package-manager/source-acquisition/custody/platform.rs

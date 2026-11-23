@@ -15,7 +15,6 @@ use crate::declarations::dependencies::read::{
 };
 use crate::resolution::graph::ResolvedSourceIdentity;
 use crate::resolution::source::PackageSourceNavigation;
-use package_compilation::review_record_encoding::{declaration_kind_tag, purpose_tag};
 use target::TargetProfile;
 
 pub(in super::super) fn encode_subject(
@@ -87,7 +86,7 @@ fn encode_subject_to(
             limits.maximum_request_bytes,
         )?;
         encoder.count(dependency.ordinal)?;
-        encoder.byte(purpose_tag(dependency.purpose));
+        encoder.byte(dependency.purpose.canonical_tag());
         encode_dependency_request(encoder, Request::from(&dependency.request), limits)?;
         encoder.bytes_bounded(
             dependency.provider.canonical_bytes(),
@@ -161,7 +160,7 @@ fn encode_root_selection(
             encoder.fixed(source_context.digest());
         }
     }
-    encoder.byte(declaration_kind_tag(root.role));
+    encoder.byte(root.role.canonical_tag());
     encode_source_identity(encoder, &root.selected, limits.maximum_identity_bytes)
 }
 
@@ -171,7 +170,7 @@ fn encode_dependency_selection(
     limits: CanonicalSourceClosureSubjectLimits,
 ) -> Result<(), CanonicalSourceClosureSubjectError> {
     encode_package_key(encoder, &selection.requester, limits.maximum_identity_bytes)?;
-    encoder.byte(purpose_tag(selection.purpose));
+    encoder.byte(selection.purpose.canonical_tag());
     encoder.u32(u32::try_from(selection.dependency_index).map_err(|_| {
         CanonicalSourceClosureSubjectError::new("dependency ordinal exceeds canonical range")
     })?);
