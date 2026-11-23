@@ -60,6 +60,22 @@ pub(super) fn pr_diff_base(root: &Path, requested: Option<&str>) -> Result<Strin
     }
 }
 
+fn changed_paths(root: &Path, base: &str) -> Result<Vec<(char, String)>, String> {
+    let diff = git(
+        root,
+        &["diff", "--name-status", "--no-renames", base, "HEAD"],
+    )?;
+    let mut changes = Vec::new();
+    for line in diff.lines() {
+        let (status, path) = line
+            .split_once('\t')
+            .ok_or_else(|| format!("invalid git diff entry: {line}"))?;
+        let status = status.chars().next().ok_or("missing git diff status")?;
+        changes.push((status, path.to_owned()));
+    }
+    Ok(changes)
+}
+
 pub(super) fn is_ident_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
@@ -225,22 +241,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         2u8
     })?;
 
-    // Diff checks against `base_rev`
-    if let Ok(diff_out) = git(
-        &root,
-        &["diff", "--name-status", "--no-renames", &base_rev, "HEAD"],
-    ) {
-        let mut changes = Vec::new();
-        for line in diff_out.lines() {
-            if let Some((status, path)) = line.split_once('\t')
-                && let Some(ch) = status.chars().next()
-            {
-                changes.push((ch, path.to_owned()));
-            }
-        }
-        violations.extend(diff_hygiene_violations(&changes));
-        violations.extend(measurement_violations(&root, &changes));
-    }
+    let changes = changed_paths(&root, &base_rev).map_err(report_error)?;
+    violations.extend(diff_hygiene_violations(&changes));
+    violations.extend(measurement_violations(&root, &changes));
 
     let head_tasks = fs::read_to_string(root.join(TASKS_BOARD))
         .unwrap_or_else(|_| show_git_file(&root, "HEAD", TASKS_BOARD));
