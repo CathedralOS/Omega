@@ -282,6 +282,16 @@ name = "lowering_field_reads"
 path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/field_reads.rs"
 required-features = ["test-support"]
 
+[[test]]
+name = "lowering_pattern_payloads"
+path = "pipeline/05_prepared-typed-trees-to-lowered-program/tests/pattern_payloads.rs"
+required-features = ["test-support"]
+
+[[test]]
+name = "checking_indexed_and_member_contracts"
+path = "pipeline/06_lowered-program-to-checked-program/tests/indexed_and_member_contracts.rs"
+required-features = ["test-support"]
+
 [[example]]
 name = "checking_machine_checks"
 path = "pipeline/06_lowered-program-to-checked-program/examples/machine_checks.rs"
