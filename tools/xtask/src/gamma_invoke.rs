@@ -12,20 +12,19 @@ use std::process::{Child, Command, ExitStatus, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub(crate) fn run(args: &[String]) -> Result<(), u8> {
+pub(crate) fn run(args: &[String]) -> i32 {
     let invocation = match parse_args(args) {
         Ok(invocation) => invocation,
         Err(message) => {
             eprintln!("{message}");
-            return Err(2);
+            return 2;
         }
     };
     match invoke(&invocation) {
-        Ok(0) => Ok(()),
-        Ok(status) => Err(status),
+        Ok(status) => status,
         Err(message) => {
             eprintln!("gamma invoke: {message}");
-            Err(1)
+            1
         }
     }
 }
@@ -82,7 +81,7 @@ fn usage() -> String {
     "usage: mbx xtask gamma-invoke --evaluator PATH --source PATH --output PATH [--input PATH] [--timeout SECONDS]".to_owned()
 }
 
-fn invoke(invocation: &Invocation) -> Result<u8, String> {
+fn invoke(invocation: &Invocation) -> Result<i32, String> {
     let source = fs::read(&invocation.source).map_err(|error| error.to_string())?;
     let sealed = invocation
         .input
@@ -93,7 +92,7 @@ fn invoke(invocation: &Invocation) -> Result<u8, String> {
         .unwrap_or_default();
     let request = match frame_request(&source, &sealed) {
         Ok(request) => request,
-        Err(status) => return Ok(status),
+        Err(status) => return Ok(i32::from(status)),
     };
     let (output, status) = match run_evaluator(&invocation.evaluator, &request, invocation.timeout)
     {
@@ -206,15 +205,15 @@ fn terminate(child: &mut Child) {
     let _ = child.wait();
 }
 
-fn exit_code(status: ExitStatus) -> u8 {
+fn exit_code(status: ExitStatus) -> i32 {
     if let Some(code) = status.code() {
-        return code as u8;
+        return code;
     }
     #[cfg(unix)]
     {
         use std::os::unix::process::ExitStatusExt;
         if let Some(signal) = status.signal() {
-            return (-signal) as u8;
+            return i32::from((-signal) as u8);
         }
     }
     1
@@ -276,6 +275,16 @@ mod tests {
     #[test]
     fn source_longer_than_u32_returns_status_3() {
         assert_eq!(frame_request_len(u32::MAX as usize + 1, b"", b""), Err(3));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_evaluator_status_preserves_all_32_bits() {
+        use std::os::windows::process::ExitStatusExt;
+
+        for code in [0, 7, 255, 256, 257, 65_536, u32::MAX] {
+            assert_eq!(exit_code(ExitStatus::from_raw(code)) as u32, code);
+        }
     }
 
     /// The evaluator in these tests is a `/bin/sh` script, so they and the
