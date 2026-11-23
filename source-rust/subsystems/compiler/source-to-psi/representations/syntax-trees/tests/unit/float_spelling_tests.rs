@@ -33,6 +33,25 @@ fn equality_uses_exact_spelling_across_owners_and_generated_provenance() {
 }
 
 #[test]
+fn generated_infinity_spelling_keeps_its_sign_and_landing() {
+    use numeric_literals::FloatFormat;
+
+    let owner = SyntaxTextOwner::default();
+    for (text, expected, landing) in [
+        ("+inff64", f64::INFINITY, Some(FloatFormat::F64)),
+        ("+inf", f64::INFINITY, None),
+        ("-inff32", f64::NEG_INFINITY, Some(FloatFormat::F32)),
+        ("-inf", f64::NEG_INFINITY, None),
+    ] {
+        let literal = FloatSpelling::generated(text)
+            .literal(&owner)
+            .unwrap_or_else(|| panic!("cannot read generated spelling {text}"));
+        assert_eq!(literal.landing(), landing, "{text}");
+        assert_eq!(literal.landed_f64().to_bits(), expected.to_bits(), "{text}");
+    }
+}
+
+#[test]
 fn negating_a_materialized_float_keeps_the_nan_payload() {
     use numeric_literals::{FloatFormat, FloatLiteral};
     let literal = FloatLiteral::from_bits(FloatFormat::F32, 0x7f80_1234).unwrap();

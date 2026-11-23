@@ -255,7 +255,11 @@ fn strip_float_literal_suffix(source: &str) -> (&str, Option<FloatFormat>) {
     if let Some(body) = source.strip_suffix("f64") {
         return (body, Some(FloatFormat::F64));
     }
-    (source.trim_end_matches(['f', 'F']), None)
+    // The formatter spells infinity as "inf"; its final f belongs to the value.
+    match source {
+        "inf" | "+inf" | "-inf" => (source, None),
+        _ => (source.trim_end_matches(['f', 'F']), None),
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
@@ -671,6 +675,16 @@ mod tests {
         FixedInteger, FloatFormat, FloatLiteral, IntegerLanding, IntegerLiteral, IntegerRadix,
         LandedIntegerType,
     };
+
+    #[test]
+    fn formatted_infinities_round_trip_through_literal_text() {
+        for value in [1.25, f64::INFINITY, f64::NEG_INFINITY] {
+            let text = FloatLiteral::from_f64(value).to_string();
+            let parsed = FloatLiteral::parse(&text).unwrap_or_else(|| panic!("cannot read {text}"));
+            assert_eq!(parsed.landing(), None);
+            assert_eq!(parsed.value_f64().to_bits(), value.to_bits());
+        }
+    }
 
     #[test]
     fn negating_an_explicit_positive_sign_preserves_the_magnitude() {
