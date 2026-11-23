@@ -17,7 +17,7 @@ data ConstructionInput {
     // Three Product tables (3776), up to 64 two-word Build entry selections,
     // and up to 512 five-word Build source rows.
     rows: [u32; 6464];
-    bytes: [u8; 4194304];
+    bytes: [u8; 8388608];
 }
 
 machine malformed() reaches |process_exit|::ProcessExit crashes none {

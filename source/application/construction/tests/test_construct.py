@@ -26,6 +26,26 @@ class BuildSourceTests(unittest.TestCase):
             build_sources=self.sources if sources is None else sources,
             build_entries=self.entries if entries is None else entries)[0]
 
+    def test_scoped_frame_accepts_eight_mib_and_rejects_one_more_byte(self):
+        paths = [f'unit_{i}.omg' for i in range(64)]
+        units = [(0, b'')] * len(paths)
+
+        def encode():
+            return construct.encode(self.packages, [], units, 0, b'entry', paths=paths,
+                                    build_sources=self.sources, build_entries=self.entries)[0]
+
+        metadata_size = struct.unpack_from('<I', encode(), 32)[0]
+        unit_size = 128 * 1024
+        full_unit = bytes(unit_size)
+        units[:-1] = [(0, full_unit)] * (len(units) - 1)
+        last_size = 8 * 1024 * 1024 - metadata_size - (len(units) - 1) * unit_size
+        units[-1] = (0, bytes(last_size))
+        self.assertEqual(struct.unpack_from('<I', encode(), 32)[0], 8 * 1024 * 1024)
+
+        units[-1] = (0, bytes(last_size + 1))
+        with self.assertRaisesRegex(ValueError, 'constructor byte capacity exceeded'):
+            encode()
+
     def test_v2_exact_build_bytes_and_scopes(self):
         wire = self.frame()
         (marker, version, packages, edges, units, entry, name_start, name_end,
