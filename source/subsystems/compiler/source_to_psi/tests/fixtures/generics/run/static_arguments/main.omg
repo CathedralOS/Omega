@@ -16,8 +16,6 @@ public data TypeReference [copy] {
 }
 public data NameResolution [copy] { binding_count: u64 in Trapping; machine_row: u64 in Trapping; }
 data Resolver [copy] { output: NameResolution; }
-data TypedReferences [copy] {}
-data Typer { output: TypedReferences; }
 
 machine syntax_trees_type_reference(syntax: @SyntaxTrees, row: u64 in Trapping) -> TypeReference {
     transition row < 10 { true -> form(TypeReferenceKind::Literal, row, 0), _ -> named(row) }
@@ -78,13 +76,13 @@ machine syntax_trees_generic_parameter(syntax: @SyntaxTrees, row: u64 in Trappin
     machine parameter(kind: GenericParameterKind) -> GenericParameter { GenericParameter { kind: kind, has_type_reference: false, type_reference: 0 as +Trapping } }
 }
 machine type_argument(syntax: @SyntaxTrees, row: u64 in Trapping) -> u64 in Trapping { row }
-machine reference_type(output: @TypedReferences, row: u64 in Trapping) -> u64 in Trapping { row }
-machine typer_bind(typer: @mutable Typer, handle: u64 in Trapping, argument: u64 in Trapping) crashes Trap {
+machine reference_type(output: @|typing_state|::TypedReferences, row: u64 in Trapping) -> u64 in Trapping { row }
+machine typer_bind(typer: @mutable |typing_state|::Typer, handle: u64 in Trapping, argument: u64 in Trapping) crashes Trap {
     transition handle == 1 && argument == 5 { true -> done(), _ -> wrong_binding() }
     machine done() {}
     machine wrong_binding() { crash Trap; }
 }
-machine bind_machine(typer: @mutable Typer, handle: u64 in Trapping, argument: MachineArgument) crashes Trap {
+machine bind_machine(typer: @mutable |typing_state|::Typer, handle: u64 in Trapping, argument: MachineArgument) crashes Trap {
     transition argument {
         MachineArgument::Declared { machine as selected } -> check(handle, selected),
         _ -> wrong_binding()
@@ -97,7 +95,7 @@ machine bind_machine(typer: @mutable Typer, handle: u64 in Trapping, argument: M
 }
 
 machine call_fits(syntax: @SyntaxTrees, machine_row: u64, count: u64, expected: bool) -> bool crashes Trap {
-    let mutable typer: Typer = Typer { output: TypedReferences {} };
+    let mutable typer: |typing_state|::Typer = |typing_state|::Typer { output: |typing_state|::TypedReferences {} };
     let resolution: NameResolution = NameResolution { binding_count: 9u64 as +Trapping, machine_row: machine_row as +Trapping };
     let arguments: StaticArguments = StaticArguments { first: 5u64 as +Trapping, count: count as +Trapping };
     let fits: bool = bind_static_arguments(@mutable typer, syntax, @resolution, 0u64 as +Trapping, 3u64 as +Trapping, arguments);

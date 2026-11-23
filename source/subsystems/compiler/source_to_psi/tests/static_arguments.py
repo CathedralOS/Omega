@@ -51,6 +51,10 @@ def main():
         numeric = Path("representations/tokens/numeric.omg")
         (root / numeric).parent.mkdir(parents=True)
         shutil.copyfile(PACKAGE / numeric, root / numeric)
+        state = Path(TYPER) / "typing_state.omg"
+        (root / state.parent).mkdir(parents=True)
+        shutil.copyfile(fixture / state.name, root / state)
+        units.insert(0, f"use {state.as_posix()};")
         program = root / "main.omg"
         units.insert(0, "use representations/tokens/numeric.omg;")
         units.append((fixture / "main.omg").read_text())

@@ -1,35 +1,15 @@
-use foundation\ExactInteger;
-use representations\source_files\SourceSet;
-use representations\source_files\SourceSpan;
-use representations\symbol_resolved_trees\BuiltinType;
-use representations\symbol_resolved_trees\MachineArgument;
-use representations\symbol_resolved_trees\NameResolution;
-use representations\syntax_trees\ConstantItem;
-use representations\syntax_trees\MachineItem;
-use representations\syntax_trees\ReferenceAccess;
-use representations\syntax_trees\SyntaxTrees;
-use representations\syntax_trees\constant_item;
-use representations\syntax_trees\machine_item;
-use representations\typed_trees\Adaptation;
-use representations\typed_trees\MemberTarget;
-use representations\typed_trees\Selection;
-use representations\typed_trees\TypeDiagnosticCode;
-use representations\typed_trees\TypeKind;
-use representations\typed_trees\TypeRow;
-use representations\typed_trees\Typing;
-use representations\typed_trees\reference_type;
-use representations\typed_trees\set_adaptation;
-use representations\typed_trees\set_binder_member;
-use representations\typed_trees\set_binder_type;
-use representations\typed_trees\set_construct_target;
-use representations\typed_trees\set_expression_type;
-use representations\typed_trees\set_roster;
-use representations\typed_trees\set_selection;
-use representations\typed_trees\type_row_of;
-use representations\typed_trees\type_table_intern;
-use representations\typed_trees\type_table_row;
-use representations\typed_trees\typing_reject;
-use representations\typed_trees\typing_set_value;
+use pipeline/symbol_resolved_trees_to_typed_trees/admission.omg;
+use pipeline/symbol_resolved_trees_to_typed_trees/clauses.omg;
+use pipeline/symbol_resolved_trees_to_typed_trees/expressions.omg;
+use pipeline/symbol_resolved_trees_to_typed_trees/facts.omg;
+use pipeline/symbol_resolved_trees_to_typed_trees/references.omg;
+use pipeline/symbol_resolved_trees_to_typed_trees/statements.omg;
+use foundation/integers.omg;
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
+use pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg;
 
 // Typing over a name-resolved source set. The pass runs in fail-closed
 // steps: every written type reference interns (references.omg), then each
@@ -39,38 +19,17 @@ use representations\typed_trees\typing_set_value;
 // (expressions.omg). An anonymous integer tree lands where its destination
 // is known: a declared local, a parameter, a field, an operand of a typed
 // operation, a cast or a result. The first rejection is the diagnostic.
-public data Typer {
-    output: Typing;
-    // Which expressions have typed.
-    typed: [bool; 131072];
-    // Generic bindings (generics.omg): a type per generic-parameter handle,
-    // live while its stamp equals `binding_generation`.
-    bound: [u64; 256];
-    bound_stamps: [u64; 256];
-    binding_generation: u64 in Wrapping;
-    // Each machine binder's selected static argument (binders.omg), live
-    // while its stamp equals `binding_generation`.
-    machine_bound: [MachineArgument; 256];
-    machine_stamps: [u64; 256];
-    // Substitution memo per type handle, live while its stamp equals
-    // `memo_generation`, and the work stack substitution and unification share.
-    memo: [u64; 8192];
-    memo_stamps: [u64; 8192];
-    memo_generation: u64 in Wrapping;
-    work: [u64; 4096];
-}
-
-public machine type_check(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution)
+public machine type_check(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution)
 crashes Trap
 {
     typer_clear(typer, syntax);
-    type_references(typer, sources, syntax, resolution);
+    |references|::type_references(typer, sources, syntax, resolution);
     transition typer.output.accepted {
         true -> constants(typer, sources, syntax, resolution),
         _ -> done()
     }
 
-    machine constants(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution) {
+    machine constants(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution) {
         type_constants(typer, sources, syntax, resolution);
         transition typer.output.accepted {
             true -> bodies(typer, sources, syntax, resolution),
@@ -78,7 +37,7 @@ crashes Trap
         }
     }
 
-    machine bodies(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution) {
+    machine bodies(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution) {
         type_bodies(typer, sources, syntax, resolution);
         transition typer.output.accepted {
             true -> facts(typer, sources, syntax, resolution),
@@ -86,16 +45,16 @@ crashes Trap
         }
     }
 
-    machine facts(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution) {
-        type_facts(typer, sources, syntax, resolution);
+    machine facts(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution) {
+        |facts|::type_facts(typer, sources, syntax, resolution);
         transition typer.output.accepted {
             true -> clauses(typer, sources, syntax, resolution),
             _ -> done()
         }
     }
 
-    machine clauses(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution) {
-        type_clauses(typer, sources, syntax, resolution);
+    machine clauses(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution) {
+        |clauses|::type_clauses(typer, sources, syntax, resolution);
     }
 
     machine done() {}
@@ -103,12 +62,12 @@ crashes Trap
 
 // Empty annotations over `syntax`, with the absent row and the unit,
 // Boolean and anonymous-integer types interned first.
-machine typer_clear(typer: @mutable Typer, syntax: @SyntaxTrees)
+machine typer_clear(typer: @mutable |typing_state|::Typer, syntax: @|syntax_trees|::SyntaxTrees)
 crashes Trap
 {
     typer.output.accepted = true;
-    typer.output.diagnostic.code = TypeDiagnosticCode::None;
-    let absent_row: TypeRow = type_row_of(TypeKind::Absent);
+    typer.output.diagnostic.code = |typed_trees|::TypeDiagnosticCode::None;
+    let absent_row: |typed_trees|::TypeRow = |typed_trees|::type_row_of(|typed_trees|::TypeKind::Absent);
     typer.output.types.rows[0] = absent_row;
     typer.output.types.row_count = 1;
     typer.output.types.argument_count = 0;
@@ -116,60 +75,60 @@ crashes Trap
     typer.output.binder_count = syntax.pattern_field_count;
     typer.output.construct_count = syntax.construct_field_count;
     typer.output.expression_count = syntax.expression_count;
-    let unit_row: TypeRow = type_row_of(TypeKind::Unit);
-    let unit: u64 in Trapping = type_table_intern(@mutable typer.output.types, unit_row);
-    let mutable boolean_row: TypeRow = type_row_of(TypeKind::Builtin);
-    boolean_row.builtin = BuiltinType::Bool;
-    let boolean: u64 in Trapping = type_table_intern(@mutable typer.output.types, boolean_row);
-    let anonymous_row: TypeRow = type_row_of(TypeKind::AnonymousInteger);
-    let anonymous: u64 in Trapping = type_table_intern(@mutable typer.output.types, anonymous_row);
-    let anonymous_float_row: TypeRow = type_row_of(TypeKind::AnonymousFloat);
-    let anonymous_float: u64 in Trapping = type_table_intern(@mutable typer.output.types, anonymous_float_row);
+    let unit_row: |typed_trees|::TypeRow = |typed_trees|::type_row_of(|typed_trees|::TypeKind::Unit);
+    let unit: u64 in Trapping = |typed_trees|::type_table_intern(@mutable typer.output.types, unit_row);
+    let mutable boolean_row: |typed_trees|::TypeRow = |typed_trees|::type_row_of(|typed_trees|::TypeKind::Builtin);
+    boolean_row.builtin = |symbol_resolved_trees|::BuiltinType::Bool;
+    let boolean: u64 in Trapping = |typed_trees|::type_table_intern(@mutable typer.output.types, boolean_row);
+    let anonymous_row: |typed_trees|::TypeRow = |typed_trees|::type_row_of(|typed_trees|::TypeKind::AnonymousInteger);
+    let anonymous: u64 in Trapping = |typed_trees|::type_table_intern(@mutable typer.output.types, anonymous_row);
+    let anonymous_float_row: |typed_trees|::TypeRow = |typed_trees|::type_row_of(|typed_trees|::TypeKind::AnonymousFloat);
+    let anonymous_float: u64 in Trapping = |typed_trees|::type_table_intern(@mutable typer.output.types, anonymous_float_row);
     typer.output.unit = unit;
     typer.output.boolean = boolean;
     typer.output.anonymous = anonymous;
     typer.output.anonymous_float = anonymous_float;
-    transition { _ -> expression(typer, 0) }
+    transition { _ -> expression(typer, 0 as +Trapping) }
 
-    machine expression(typer: @mutable Typer, index: u64 in Trapping) {
+    machine expression(typer: @mutable |typing_state|::Typer, index: u64 in Trapping) {
         transition index < typer.output.expression_count {
             true -> clear_expression(typer, index),
-            _ -> binder(typer, 0)
+            _ -> binder(typer, 0 as +Trapping)
         }
     }
 
-    machine clear_expression(typer: @mutable Typer, index: u64 in Trapping) {
-        set_expression_type(@mutable typer.output, index, 0);
-        set_selection(@mutable typer.output, index, Selection::None);
-        set_adaptation(@mutable typer.output, index, Adaptation::None);
-        typing_set_value(@mutable typer.output, index, ExactInteger { negative: false, magnitude: 0 });
-        set_roster(@mutable typer.output, index, 0);
-        mark_typed(typer, index, false);
+    machine clear_expression(typer: @mutable |typing_state|::Typer, index: u64 in Trapping) {
+        |typed_trees|::set_expression_type(@mutable typer.output, index, 0 as +Trapping);
+        |typed_trees|::set_selection(@mutable typer.output, index, |typed_trees|::Selection::None);
+        |typed_trees|::set_adaptation(@mutable typer.output, index, |typed_trees|::Adaptation::None);
+        |typed_trees|::typing_set_value(@mutable typer.output, index, |integers|::ExactInteger { negative: false, magnitude: 0 as +Wrapping });
+        |typed_trees|::set_roster(@mutable typer.output, index, 0 as +Trapping);
+        |typing_state|::mark_typed(typer, index, false);
         transition { _ -> expression(typer, index + 1) }
     }
 
-    machine binder(typer: @mutable Typer, index: u64 in Trapping) {
+    machine binder(typer: @mutable |typing_state|::Typer, index: u64 in Trapping) {
         transition index < typer.output.binder_count {
             true -> clear_binder(typer, index),
-            _ -> construct(typer, 0)
+            _ -> construct(typer, 0 as +Trapping)
         }
     }
 
-    machine clear_binder(typer: @mutable Typer, index: u64 in Trapping) {
-        set_binder_type(@mutable typer.output, index, 0);
-        set_binder_member(@mutable typer.output, index, MemberTarget::Unknown);
+    machine clear_binder(typer: @mutable |typing_state|::Typer, index: u64 in Trapping) {
+        |typed_trees|::set_binder_type(@mutable typer.output, index, 0 as +Trapping);
+        |typed_trees|::set_binder_member(@mutable typer.output, index, |typed_trees|::MemberTarget::Unknown);
         transition { _ -> binder(typer, index + 1) }
     }
 
-    machine construct(typer: @mutable Typer, index: u64 in Trapping) {
+    machine construct(typer: @mutable |typing_state|::Typer, index: u64 in Trapping) {
         transition index < typer.output.construct_count {
             true -> clear_construct(typer, index),
             _ -> done()
         }
     }
 
-    machine clear_construct(typer: @mutable Typer, index: u64 in Trapping) {
-        set_construct_target(@mutable typer.output, index, MemberTarget::Unknown);
+    machine clear_construct(typer: @mutable |typing_state|::Typer, index: u64 in Trapping) {
+        |typed_trees|::set_construct_target(@mutable typer.output, index, |typed_trees|::MemberTarget::Unknown);
         transition { _ -> construct(typer, index + 1) }
     }
 
@@ -178,30 +137,30 @@ crashes Trap
 
 // Each constant's value, landed at its declared type like a `let`
 // initializer (wiki/spec/language/constants.md).
-machine type_constants(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution)
+machine type_constants(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution)
 crashes Trap
 {
-    transition { _ -> next(typer, sources, syntax, resolution, 0) }
+    transition { _ -> next(typer, sources, syntax, resolution, 0 as +Trapping) }
 
-    machine next(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
+    machine next(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, index: u64 in Trapping) {
         transition index < syntax.constant_count && typer.output.accepted {
             true -> value(typer, sources, syntax, resolution, index),
             _ -> done()
         }
     }
 
-    machine value(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
-        let item: ConstantItem = constant_item(syntax, index);
-        type_tree(typer, sources, syntax, resolution, item.value);
-        let declared: u64 in Trapping = reference_type(@typer.output, item.type_reference);
+    machine value(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, index: u64 in Trapping) {
+        let item: |syntax_trees|::ConstantItem = |syntax_trees|::constant_item(syntax, index);
+        |expressions|::type_tree(typer, sources, syntax, resolution, item.value);
+        let declared: u64 in Trapping = |typed_trees|::reference_type(@typer.output, item.type_reference);
         transition typer.output.accepted {
             true -> admit(typer, sources, syntax, resolution, index, declared, item.value),
             _ -> done()
         }
     }
 
-    machine admit(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping, declared: u64 in Trapping, value: u64 in Trapping) {
-        let admitted: bool = typer_admit(typer, syntax, declared, value, false);
+    machine admit(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, index: u64 in Trapping, declared: u64 in Trapping, value: u64 in Trapping) {
+        let admitted: bool = |admission|::typer_admit(typer, syntax, declared, value, false);
         transition { _ -> next(typer, sources, syntax, resolution, index + 1) }
     }
 
@@ -210,163 +169,25 @@ crashes Trap
 
 // Every declaration checks its own executable body and result. An omitted
 // result is Unit, independent of lexical ancestry.
-machine type_bodies(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution)
+machine type_bodies(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution)
 crashes Trap
 {
-    transition { _ -> next_machine(typer, sources, syntax, resolution, 0) }
+    transition { _ -> next_machine(typer, sources, syntax, resolution, 0 as +Trapping) }
 
-    machine next_machine(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
+    machine next_machine(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, index: u64 in Trapping) {
         transition index < syntax.machine_count && typer.output.accepted {
             true -> entry(typer, sources, syntax, resolution, index),
             _ -> done()
         }
     }
 
-    machine entry(typer: @mutable Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, index: u64 in Trapping) {
-        let item: MachineItem = machine_item(syntax, index);
-        let result: u64 in Trapping = declared_result(typer, item.has_return_type, item.return_type, typer.output.unit);
-        type_body(typer, sources, syntax, resolution, item.first_statement, item.statement_count, result);
-        require_body_completion(typer, syntax, item, result);
+    machine entry(typer: @mutable |typing_state|::Typer, sources: @|source|::SourceSet, syntax: @|syntax_trees|::SyntaxTrees, resolution: @|symbol_resolved_trees|::NameResolution, index: u64 in Trapping) {
+        let item: |syntax_trees|::MachineItem = |syntax_trees|::machine_item(syntax, index);
+        let result: u64 in Trapping = |typing_state|::declared_result(typer, item.has_return_type, item.return_type, typer.output.unit);
+        |statements|::type_body(typer, sources, syntax, resolution, item.first_statement, item.statement_count, result);
+        |statements|::require_body_completion(typer, syntax, item, result);
         transition { _ -> next_machine(typer, sources, syntax, resolution, index + 1) }
     }
 
     machine done() {}
-}
-
-// The type a declared result reference names, or `otherwise`.
-public machine declared_result(typer: @Typer, has_type: bool, reference: u64 in Trapping, otherwise: u64 in Trapping) -> u64 in Trapping
-crashes Trap
-{
-    transition has_type {
-        true -> declared(typer, reference),
-        _ -> fallback(otherwise)
-    }
-
-    machine declared(typer: @Typer, reference: u64 in Trapping) -> u64 in Trapping {
-        reference_type(@typer.output, reference)
-    }
-
-    machine fallback(otherwise: u64 in Trapping) -> u64 in Trapping {
-        otherwise
-    }
-}
-
-// `handle` with every reference layer removed: what `.field` and `[index]`
-// project from (wiki/spec/language/expressions.md, "Dot access remains
-// data-field projection").
-public machine typer_referent(typer: @Typer, handle: u64 in Trapping) -> u64 in Trapping
-crashes Trap
-{
-    let row: TypeRow = type_table_row(@typer.output.types, handle);
-    transition row.kind == TypeKind::Reference {
-        true -> inner(typer, row.inner),
-        _ -> result(handle)
-    }
-
-    machine inner(typer: @Typer, handle: u64 in Trapping) -> u64 in Trapping {
-        let row: TypeRow = type_table_row(@typer.output.types, handle);
-        transition row.kind == TypeKind::Reference {
-            true -> inner(typer, row.inner),
-            _ -> result(handle)
-        }
-    }
-
-    machine result(handle: u64 in Trapping) -> u64 in Trapping {
-        handle
-    }
-}
-
-// The type a value is read as: a reference to a builtin scalar, through
-// every layer, reads as its referent where the scalar is needed, as a place
-// of reference type denotes its referent's storage. Every traversed layer
-// must permit observation: a write-only layer anywhere in the chain keeps
-// the original reference type, so no scalar read is admitted. Other types
-// likewise read as themselves.
-public machine typer_read_type(typer: @Typer, handle: u64 in Trapping) -> u64 in Trapping
-crashes Trap
-{
-    transition { _ -> referenced(typer, handle, handle, typer.output.types.row_count) }
-
-    machine referenced(typer: @Typer, original: u64 in Trapping, handle: u64 in Trapping, remaining: u64) -> u64 in Trapping {
-        let row: TypeRow = type_table_row(@typer.output.types, handle);
-        transition row.kind == TypeKind::Reference {
-            true -> layer(typer, original, row, remaining),
-            _ -> scalar(original, handle, row)
-        }
-    }
-
-    machine layer(typer: @Typer, original: u64 in Trapping, row: TypeRow, remaining: u64) -> u64 in Trapping {
-        transition row.access != ReferenceAccess::WriteOnly && remaining > 0 {
-            true -> referenced(typer, original, row.inner, remaining - 1),
-            _ -> result(original)
-        }
-    }
-
-    machine scalar(original: u64 in Trapping, handle: u64 in Trapping, row: TypeRow) -> u64 in Trapping {
-        transition row.kind == TypeKind::Builtin {
-            true -> result(handle),
-            _ -> result(original)
-        }
-    }
-
-    machine result(handle: u64 in Trapping) -> u64 in Trapping {
-        handle
-    }
-}
-
-// Intern a row the typer builds; a full table rejects at `source_span` and
-// yields the absent type.
-public machine typer_intern(typer: @mutable Typer, row: TypeRow, source_span: SourceSpan) -> u64 in Trapping
-crashes Trap
-{
-    let handle: u64 in Trapping = type_table_intern(@mutable typer.output.types, row);
-    transition handle > 0 {
-        true -> result(handle),
-        _ -> full(typer, source_span)
-    }
-
-    machine full(typer: @mutable Typer, source_span: SourceSpan) -> u64 in Trapping {
-        typing_reject(@mutable typer.output, TypeDiagnosticCode::TypeCapacityExceeded, source_span);
-        transition { _ -> result(0) }
-    }
-
-    machine result(handle: u64 in Trapping) -> u64 in Trapping {
-        handle
-    }
-}
-
-// Guarded scratch access: the typed marks share the expression table's
-// bound, and the traversal stack its own.
-public machine is_typed(typer: @Typer, index: u64 in Trapping) -> bool
-crashes Trap
-{
-    transition index < 131072 {
-        true -> read(typer, index),
-        _ -> invalid()
-    }
-
-    machine read(typer: @Typer, index: u64 in Trapping) -> bool {
-        typer.typed[index]
-    }
-
-    machine invalid() -> bool {
-        crash Trap;
-    }
-}
-
-public machine mark_typed(typer: @mutable Typer, index: u64 in Trapping, typed: bool)
-crashes Trap
-{
-    transition index < 131072 {
-        true -> write(typer, index, typed),
-        _ -> invalid()
-    }
-
-    machine write(typer: @mutable Typer, index: u64 in Trapping, typed: bool) {
-        typer.typed[index] = typed;
-    }
-
-    machine invalid() {
-        crash Trap;
-    }
 }

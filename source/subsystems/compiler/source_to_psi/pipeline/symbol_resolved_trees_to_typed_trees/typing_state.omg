@@ -1,0 +1,163 @@
+use representations/source_files/source.omg;
+use representations/symbol_resolved_trees/symbol_resolved_trees.omg;
+use representations/syntax_trees/syntax_trees.omg;
+use representations/typed_trees/typed_trees.omg;
+
+public data Typer {
+    output: |typed_trees|::Typing;
+    // Which expressions have typed.
+    typed: [bool; 131072];
+    // Generic bindings (generics.omg): a type per generic-parameter handle,
+    // live while its stamp equals `binding_generation`.
+    bound: [u64; 256];
+    bound_stamps: [u64; 256];
+    binding_generation: u64 in Wrapping;
+    // Each machine binder's selected static argument (binders.omg), live
+    // while its stamp equals `binding_generation`.
+    machine_bound: [|symbol_resolved_trees|::MachineArgument; 256];
+    machine_stamps: [u64; 256];
+    // Substitution memo per type handle, live while its stamp equals
+    // `memo_generation`, and the work stack substitution and unification share.
+    memo: [u64; 8192];
+    memo_stamps: [u64; 8192];
+    memo_generation: u64 in Wrapping;
+    work: [u64; 4096];
+}
+
+// The type a declared result reference names, or `otherwise`.
+public machine declared_result(typer: @Typer, has_type: bool, reference: u64 in Trapping, otherwise: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition has_type {
+        true -> declared(typer, reference),
+        _ -> fallback(otherwise)
+    }
+
+    machine declared(typer: @Typer, reference: u64 in Trapping) -> u64 in Trapping {
+        |typed_trees|::reference_type(@typer.output, reference)
+    }
+
+    machine fallback(otherwise: u64 in Trapping) -> u64 in Trapping {
+        otherwise
+    }
+}
+
+// `handle` with every reference layer removed: what `.field` and `[index]`
+// project from (wiki/spec/language/expressions.md, "Dot access remains
+// data-field projection").
+public machine typer_referent(typer: @Typer, handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typer.output.types, handle);
+    transition row.kind == |typed_trees|::TypeKind::Reference {
+        true -> inner(typer, row.inner),
+        _ -> result(handle)
+    }
+
+    machine inner(typer: @Typer, handle: u64 in Trapping) -> u64 in Trapping {
+        let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typer.output.types, handle);
+        transition row.kind == |typed_trees|::TypeKind::Reference {
+            true -> inner(typer, row.inner),
+            _ -> result(handle)
+        }
+    }
+
+    machine result(handle: u64 in Trapping) -> u64 in Trapping {
+        handle
+    }
+}
+
+// The type a value is read as: a reference to a builtin scalar, through
+// every layer, reads as its referent where the scalar is needed, as a place
+// of reference type denotes its referent's storage. Every traversed layer
+// must permit observation: a write-only layer anywhere in the chain keeps
+// the original reference type, so no scalar read is admitted. Other types
+// likewise read as themselves.
+public machine typer_read_type(typer: @Typer, handle: u64 in Trapping) -> u64 in Trapping
+crashes Trap
+{
+    transition { _ -> referenced(typer, handle, handle, typer.output.types.row_count) }
+
+    machine referenced(typer: @Typer, original: u64 in Trapping, handle: u64 in Trapping, remaining: u64) -> u64 in Trapping {
+        let row: |typed_trees|::TypeRow = |typed_trees|::type_table_row(@typer.output.types, handle);
+        transition row.kind == |typed_trees|::TypeKind::Reference {
+            true -> layer(typer, original, row, remaining),
+            _ -> scalar(original, handle, row)
+        }
+    }
+
+    machine layer(typer: @Typer, original: u64 in Trapping, row: |typed_trees|::TypeRow, remaining: u64) -> u64 in Trapping {
+        transition row.access != |syntax_trees|::ReferenceAccess::WriteOnly && remaining > 0 {
+            true -> referenced(typer, original, row.inner, remaining - 1),
+            _ -> result(original)
+        }
+    }
+
+    machine scalar(original: u64 in Trapping, handle: u64 in Trapping, row: |typed_trees|::TypeRow) -> u64 in Trapping {
+        transition row.kind == |typed_trees|::TypeKind::Builtin {
+            true -> result(handle),
+            _ -> result(original)
+        }
+    }
+
+    machine result(handle: u64 in Trapping) -> u64 in Trapping {
+        handle
+    }
+}
+
+// Intern a row the typer builds; a full table rejects at `source_span` and
+// yields the absent type.
+public machine typer_intern(typer: @mutable Typer, row: |typed_trees|::TypeRow, source_span: |source|::SourceSpan) -> u64 in Trapping
+crashes Trap
+{
+    let handle: u64 in Trapping = |typed_trees|::type_table_intern(@mutable typer.output.types, row);
+    transition handle > 0 {
+        true -> result(handle),
+        _ -> full(typer, source_span)
+    }
+
+    machine full(typer: @mutable Typer, source_span: |source|::SourceSpan) -> u64 in Trapping {
+        |typed_trees|::typing_reject(@mutable typer.output, |typed_trees|::TypeDiagnosticCode::TypeCapacityExceeded, source_span);
+        transition { _ -> result(0 as +Trapping) }
+    }
+
+    machine result(handle: u64 in Trapping) -> u64 in Trapping {
+        handle
+    }
+}
+
+// Guarded scratch access: the typed marks share the expression table's
+// bound, and the traversal stack its own.
+public machine is_typed(typer: @Typer, index: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition index < 131072 {
+        true -> read(typer, index),
+        _ -> invalid()
+    }
+
+    machine read(typer: @Typer, index: u64 in Trapping) -> bool {
+        typer.typed[index as -Trapping]
+    }
+
+    machine invalid() -> bool {
+        crash Trap;
+    }
+}
+
+public machine mark_typed(typer: @mutable Typer, index: u64 in Trapping, typed: bool)
+crashes Trap
+{
+    transition index < 131072 {
+        true -> write(typer, index, typed),
+        _ -> invalid()
+    }
+
+    machine write(typer: @mutable Typer, index: u64 in Trapping, typed: bool) {
+        typer.typed[index as -Trapping] = typed;
+    }
+
+    machine invalid() {
+        crash Trap;
+    }
+}

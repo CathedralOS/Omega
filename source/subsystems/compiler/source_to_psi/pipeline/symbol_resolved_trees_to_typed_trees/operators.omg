@@ -1,3 +1,4 @@
+use pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg;
 use pipeline\syntax_trees_to_symbol_resolved_trees\homed_at;
 use pipeline\syntax_trees_to_symbol_resolved_trees\machine_public;
 use pipeline\syntax_trees_to_symbol_resolved_trees\resolver_same_package;
@@ -34,7 +35,7 @@ use representations\typed_trees\typing_reject;
 // selection, so checking owes the machine's contract as at a named call. A
 // generic token machine is no candidate yet.
 public machine type_operator_call(
-    typer: @mutable Typer,
+    typer: @mutable |typing_state|::Typer,
     sources: @SourceSet,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
@@ -50,7 +51,7 @@ crashes Trap
     }
 
     machine select(
-        typer: @mutable Typer,
+        typer: @mutable |typing_state|::Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -65,9 +66,9 @@ crashes Trap
         }
     }
 
-    machine selected(typer: @mutable Typer, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, candidate: u64 in Trapping) {
+    machine selected(typer: @mutable |typing_state|::Typer, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression, candidate: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, candidate);
-        let result: u64 in Trapping = declared_result(typer, item.has_return_type, item.return_type, typer.output.unit);
+        let result: u64 in Trapping = |typing_state|::declared_result(typer, item.has_return_type, item.return_type, typer.output.unit);
         set_selection(@mutable typer.output, index, Selection::Machine { handle: candidate });
         set_expression_type(@mutable typer.output, index, result);
         let left: Parameter = syntax_trees_parameter(syntax, item.first_parameter);
@@ -78,21 +79,21 @@ crashes Trap
         let right_admitted: bool = typer_admit(typer, syntax, right_type, expression.right, true);
     }
 
-    machine unmatched(typer: @mutable Typer, expression: Expression, matches: u64 in Trapping) {
+    machine unmatched(typer: @mutable |typing_state|::Typer, expression: Expression, matches: u64 in Trapping) {
         transition matches == 0 {
             true -> reject(typer, expression, TypeDiagnosticCode::OperandMismatch),
             _ -> reject(typer, expression, TypeDiagnosticCode::AmbiguousMachine)
         }
     }
 
-    machine reject(typer: @mutable Typer, expression: Expression, code: TypeDiagnosticCode) {
+    machine reject(typer: @mutable |typing_state|::Typer, expression: Expression, code: TypeDiagnosticCode) {
         typing_reject(@mutable typer.output, code, expression.source_span);
     }
 }
 
 // How many machines from `candidate` on admit operator `expression`.
 machine operator_matches(
-    typer: @mutable Typer,
+    typer: @mutable |typing_state|::Typer,
     sources: @SourceSet,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
@@ -108,7 +109,7 @@ crashes Trap
     }
 
     machine test(
-        typer: @mutable Typer,
+        typer: @mutable |typing_state|::Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -124,7 +125,7 @@ crashes Trap
     }
 
     machine next(
-        typer: @mutable Typer,
+        typer: @mutable |typing_state|::Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -146,7 +147,7 @@ crashes Trap
 // Whether machine `candidate` binds operator `expression`'s token, is homed
 // at an operand's data, is visible to the use, and admits both operands.
 machine operator_admits(
-    typer: @mutable Typer,
+    typer: @mutable |typing_state|::Typer,
     sources: @SourceSet,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
@@ -163,7 +164,7 @@ crashes Trap
     }
 
     machine homed(
-        typer: @mutable Typer,
+        typer: @mutable |typing_state|::Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -183,7 +184,7 @@ crashes Trap
     }
 
     machine visible(
-        typer: @mutable Typer,
+        typer: @mutable |typing_state|::Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         resolution: @NameResolution,
@@ -201,7 +202,7 @@ crashes Trap
         }
     }
 
-    machine operands(typer: @mutable Typer, syntax: @SyntaxTrees, expression: Expression, item: MachineItem) -> bool {
+    machine operands(typer: @mutable |typing_state|::Typer, syntax: @SyntaxTrees, expression: Expression, item: MachineItem) -> bool {
         let left: Parameter = syntax_trees_parameter(syntax, item.first_parameter);
         let right: Parameter = syntax_trees_parameter(syntax, item.first_parameter + 1);
         let left_type: u64 in Trapping = reference_type(@typer.output, left.type_reference);
@@ -217,7 +218,7 @@ crashes Trap
 }
 
 // Whether type `handle` is data homed at `home`.
-machine homed_operand(typer: @Typer, home: TypeBinding, handle: u64 in Trapping) -> bool
+machine homed_operand(typer: @|typing_state|::Typer, home: TypeBinding, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let row: TypeRow = type_table_row(@typer.output.types, handle);
@@ -236,7 +237,7 @@ crashes Trap
 }
 
 // Whether type `handle` is data.
-public machine typer_data_type(typer: @Typer, handle: u64 in Trapping) -> bool
+public machine typer_data_type(typer: @|typing_state|::Typer, handle: u64 in Trapping) -> bool
 crashes Trap
 {
     let row: TypeRow = type_table_row(@typer.output.types, handle);

@@ -1,3 +1,4 @@
+use pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg;
 use foundation\ExactInteger;
 use representations\source_files\SourceSet;
 use representations\source_files\SourceSpan;
@@ -41,7 +42,7 @@ use representations\typed_trees\typing_value;
 // pair to the second may write storage (`guard_may_change_storage`). Any
 // other ladder of literals, comparisons or predicates closes with `_`.
 public machine covers(
-    typer: @Typer,
+    typer: @|typing_state|::Typer,
     sources: @SourceSet,
     syntax: @SyntaxTrees,
     resolution: @NameResolution,
@@ -56,15 +57,15 @@ crashes Trap
         _ -> open(typer, sources, syntax, resolution, range, subject_type)
     }
 
-    machine open(typer: @Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, range: ArmRange, subject_type: u64 in Trapping) -> bool {
+    machine open(typer: @|typing_state|::Typer, sources: @SourceSet, syntax: @SyntaxTrees, resolution: @NameResolution, range: ArmRange, subject_type: u64 in Trapping) -> bool {
         transition subject_type > 0 {
             true -> subject(typer, syntax, resolution, range, subject_type),
             _ -> guards(typer, sources, syntax, range)
         }
     }
 
-    machine subject(typer: @Typer, syntax: @SyntaxTrees, resolution: @NameResolution, range: ArmRange, subject_type: u64 in Trapping) -> bool {
-        let base: u64 in Trapping = typer_referent(typer, subject_type);
+    machine subject(typer: @|typing_state|::Typer, syntax: @SyntaxTrees, resolution: @NameResolution, range: ArmRange, subject_type: u64 in Trapping) -> bool {
+        let base: u64 in Trapping = |typing_state|::typer_referent(typer, subject_type);
         let row: TypeRow = type_table_row(@typer.output.types, base);
         transition row.kind == TypeKind::Data {
             true -> data(syntax, resolution, range, row.item),
@@ -72,7 +73,7 @@ crashes Trap
         }
     }
 
-    machine boolean(typer: @Typer, syntax: @SyntaxTrees, resolution: @NameResolution, range: ArmRange, base: u64 in Trapping) -> bool {
+    machine boolean(typer: @|typing_state|::Typer, syntax: @SyntaxTrees, resolution: @NameResolution, range: ArmRange, base: u64 in Trapping) -> bool {
         let holds: bool = arm_present(syntax, resolution, range, ArmPatternKind::Literal, true, 0);
         let fails: bool = arm_present(syntax, resolution, range, ArmPatternKind::Literal, false, 0);
         let covered: bool = base == typer.output.boolean && holds && fails;
@@ -103,7 +104,7 @@ crashes Trap
         }
     }
 
-    machine guards(typer: @Typer, sources: @SourceSet, syntax: @SyntaxTrees, range: ArmRange) -> bool {
+    machine guards(typer: @|typing_state|::Typer, sources: @SourceSet, syntax: @SyntaxTrees, range: ArmRange) -> bool {
         let opposed: bool = opposed_guards(typer, sources, syntax, range);
         transition { _ -> answer(opposed) }
     }
@@ -304,19 +305,19 @@ machine typer_named_case(binding: ValueBinding) -> u64 in Trapping {
 
 // Whether two guards are complementary: `x == true` and `x == false`, or
 // `l == r` and `l != r`.
-machine opposed_guards(typer: @Typer, sources: @SourceSet, syntax: @SyntaxTrees, range: ArmRange) -> bool
+machine opposed_guards(typer: @|typing_state|::Typer, sources: @SourceSet, syntax: @SyntaxTrees, range: ArmRange) -> bool
 crashes Trap
 {
     transition { _ -> first(typer, sources, syntax, range, 0) }
 
-    machine first(typer: @Typer, sources: @SourceSet, syntax: @SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> bool {
+    machine first(typer: @|typing_state|::Typer, sources: @SourceSet, syntax: @SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> bool {
         transition offset < range.count {
             true -> first_guard(typer, sources, syntax, range, offset),
             _ -> answer(false)
         }
     }
 
-    machine first_guard(typer: @Typer, sources: @SourceSet, syntax: @SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> bool {
+    machine first_guard(typer: @|typing_state|::Typer, sources: @SourceSet, syntax: @SyntaxTrees, range: ArmRange, offset: u64 in Trapping) -> bool {
         let arm: TransitionArm = range_arm(syntax, range, offset);
         let pattern: Expression = syntax_trees_expression(syntax, arm.pattern);
         transition arm.kind == ArmPatternKind::Guard && pattern.kind == ExpressionKind::Binary
@@ -327,7 +328,7 @@ crashes Trap
     }
 
     machine second(
-        typer: @Typer,
+        typer: @|typing_state|::Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         range: ArmRange,
@@ -342,7 +343,7 @@ crashes Trap
     }
 
     machine second_guard(
-        typer: @Typer,
+        typer: @|typing_state|::Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         range: ArmRange,
@@ -364,7 +365,7 @@ crashes Trap
     // evaluated from the first of the pair to the second may change what the
     // later one reads.
     machine unchanged(
-        typer: @Typer,
+        typer: @|typing_state|::Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         range: ArmRange,
@@ -399,12 +400,12 @@ machine lower_offset(first: u64 in Trapping, second: u64 in Trapping) -> u64 in 
 
 // Whether any guard of the arms `low` through `high` may write storage: an
 // arm's guard expression, or its `if` guard.
-machine arms_may_change_storage(typer: @Typer, syntax: @SyntaxTrees, range: ArmRange, low: u64 in Trapping, high: u64 in Trapping) -> bool
+machine arms_may_change_storage(typer: @|typing_state|::Typer, syntax: @SyntaxTrees, range: ArmRange, low: u64 in Trapping, high: u64 in Trapping) -> bool
 crashes Trap
 {
     transition { _ -> arm(typer, syntax, range, low, high) }
 
-    machine arm(typer: @Typer, syntax: @SyntaxTrees, range: ArmRange, offset: u64 in Trapping, high: u64 in Trapping) -> bool {
+    machine arm(typer: @|typing_state|::Typer, syntax: @SyntaxTrees, range: ArmRange, offset: u64 in Trapping, high: u64 in Trapping) -> bool {
         let arm: TransitionArm = range_arm(syntax, range, offset);
         let pattern: bool = arm.kind == ArmPatternKind::Guard && guard_may_change_storage(typer, syntax, arm.pattern);
         let guard: bool = arm.has_guard && guard_may_change_storage(typer, syntax, arm.guard);
@@ -426,13 +427,13 @@ crashes Trap
 // a block may; so may any node not known to only read. A tree's nodes are
 // contiguous and children precede parents, so the walk visits rows from the
 // tree's lowest node to its root.
-machine guard_may_change_storage(typer: @Typer, syntax: @SyntaxTrees, root: u64 in Trapping) -> bool
+machine guard_may_change_storage(typer: @|typing_state|::Typer, syntax: @SyntaxTrees, root: u64 in Trapping) -> bool
 crashes Trap
 {
     let tree: Expression = syntax_trees_expression(syntax, root);
     transition { _ -> node(typer, syntax, tree.first_row, root) }
 
-    machine node(typer: @Typer, syntax: @SyntaxTrees, handle: u64 in Trapping, root: u64 in Trapping) -> bool {
+    machine node(typer: @|typing_state|::Typer, syntax: @SyntaxTrees, handle: u64 in Trapping, root: u64 in Trapping) -> bool {
         let expression: Expression = syntax_trees_expression(syntax, handle);
         let selection: Selection = typing_selection(@typer.output, handle);
         let changes: bool = node_may_change_storage(expression, selection);
@@ -496,7 +497,7 @@ machine node_may_change_storage(expression: Expression, selection: Selection) ->
 // Whether `other` fails exactly where the equality `equal` holds: it is
 // `!=` of the same sides, or, when `equal` compares an expression with a
 // Boolean literal, the same comparison with the other literal.
-machine typer_complementary(typer: @Typer, sources: @SourceSet, syntax: @SyntaxTrees, equal: Expression, other: Expression) -> bool
+machine typer_complementary(typer: @|typing_state|::Typer, sources: @SourceSet, syntax: @SyntaxTrees, equal: Expression, other: Expression) -> bool
 crashes Trap
 {
     transition other.kind == ExpressionKind::Binary {
@@ -504,7 +505,7 @@ crashes Trap
         _ -> answer(false)
     }
 
-    machine binary(typer: @Typer, sources: @SourceSet, syntax: @SyntaxTrees, equal: Expression, other: Expression) -> bool {
+    machine binary(typer: @|typing_state|::Typer, sources: @SourceSet, syntax: @SyntaxTrees, equal: Expression, other: Expression) -> bool {
         transition other.operator {
             OperatorKind::NotEqual -> negated(typer, sources, syntax, equal, other),
             OperatorKind::Equal -> literals(typer, sources, syntax, equal, other),
@@ -512,13 +513,13 @@ crashes Trap
         }
     }
 
-    machine negated(typer: @Typer, sources: @SourceSet, syntax: @SyntaxTrees, equal: Expression, other: Expression) -> bool {
+    machine negated(typer: @|typing_state|::Typer, sources: @SourceSet, syntax: @SyntaxTrees, equal: Expression, other: Expression) -> bool {
         let left: bool = same_tree(typer, sources, syntax, equal.left, other.left);
         let right: bool = same_tree(typer, sources, syntax, equal.right, other.right);
         transition { _ -> answer(left && right) }
     }
 
-    machine literals(typer: @Typer, sources: @SourceSet, syntax: @SyntaxTrees, equal: Expression, other: Expression) -> bool {
+    machine literals(typer: @|typing_state|::Typer, sources: @SourceSet, syntax: @SyntaxTrees, equal: Expression, other: Expression) -> bool {
         let first: BooleanComparison = boolean_comparison(syntax, equal);
         let second: BooleanComparison = boolean_comparison(syntax, other);
         transition first.compared && second.compared && first.value != second.value {
@@ -527,7 +528,7 @@ crashes Trap
         }
     }
 
-    machine same_subject(typer: @Typer, sources: @SourceSet, syntax: @SyntaxTrees, first: BooleanComparison, second: BooleanComparison) -> bool {
+    machine same_subject(typer: @|typing_state|::Typer, sources: @SourceSet, syntax: @SyntaxTrees, first: BooleanComparison, second: BooleanComparison) -> bool {
         let same: bool = same_tree(typer, sources, syntax, first.subject, second.subject);
         transition { _ -> answer(same) }
     }
@@ -576,7 +577,7 @@ crashes Trap
 // among them, never the same. A tree's nodes are contiguous and children
 // precede parents, so equal trees align at equal offsets from their lowest
 // nodes.
-public machine same_tree(typer: @Typer, sources: @SourceSet, syntax: @SyntaxTrees, left_root: u64 in Trapping, right_root: u64 in Trapping) -> bool
+public machine same_tree(typer: @|typing_state|::Typer, sources: @SourceSet, syntax: @SyntaxTrees, left_root: u64 in Trapping, right_root: u64 in Trapping) -> bool
 crashes Trap
 {
     let left: Expression = syntax_trees_expression(syntax, left_root);
@@ -588,7 +589,7 @@ crashes Trap
     }
 
     machine node(
-        typer: @Typer,
+        typer: @|typing_state|::Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         left_low: u64 in Trapping,
@@ -609,7 +610,7 @@ crashes Trap
 }
 
 // Whether the nodes at `offset` within two aligned trees are the same.
-machine same_node(typer: @Typer, sources: @SourceSet, syntax: @SyntaxTrees, left_low: u64 in Trapping, right_low: u64 in Trapping, offset: u64 in Trapping) -> bool
+machine same_node(typer: @|typing_state|::Typer, sources: @SourceSet, syntax: @SyntaxTrees, left_low: u64 in Trapping, right_low: u64 in Trapping, offset: u64 in Trapping) -> bool
 crashes Trap
 {
     let left_handle: u64 in Trapping = left_low + offset;
@@ -626,7 +627,7 @@ crashes Trap
     }
 
     machine kind(
-        typer: @Typer,
+        typer: @|typing_state|::Typer,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         left_low: u64 in Trapping,
@@ -672,7 +673,7 @@ crashes Trap
         }
     }
 
-    machine valued(typer: @Typer, left_handle: u64 in Trapping, right_handle: u64 in Trapping) -> bool {
+    machine valued(typer: @|typing_state|::Typer, left_handle: u64 in Trapping, right_handle: u64 in Trapping) -> bool {
         let left_value: ExactInteger = typing_value(@typer.output, left_handle);
         let right_value: ExactInteger = typing_value(@typer.output, right_handle);
         let left_denominator: u64 in Trapping = typing_denominator(@typer.output, left_handle);
