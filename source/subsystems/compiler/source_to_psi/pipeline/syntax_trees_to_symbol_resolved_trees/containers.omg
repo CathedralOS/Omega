@@ -1,3 +1,4 @@
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
 use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
 use representations\source_files\SourceSet;
 use representations\source_files\SourceSpan;
@@ -37,19 +38,19 @@ use representations\syntax_trees\trait_item;
 // Every machine's `MachineOwner`, in machine order: a root machine keeps its
 // authored owner; a member takes its container's name. Containers cover
 // contiguous machine ranges, so one pass per container table places them.
-public machine place_machines(resolver: @mutable Resolver, syntax: @SyntaxTrees)
+public machine place_machines(resolver: @mutable |resolution_state|::Resolver, syntax: @SyntaxTrees)
 crashes Trap
 {
     transition { _ -> root(resolver, syntax, 0) }
 
-    machine root(resolver: @mutable Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine root(resolver: @mutable |resolution_state|::Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count {
             true -> root_owner(resolver, syntax, index),
             _ -> traits(resolver, syntax, 0)
         }
     }
 
-    machine root_owner(resolver: @mutable Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine root_owner(resolver: @mutable |resolution_state|::Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
         set_machine_owner(resolver, index, MachineOwner {
             container: item.container,
@@ -60,14 +61,14 @@ crashes Trap
         transition { _ -> root(resolver, syntax, index + 1) }
     }
 
-    machine traits(resolver: @mutable Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine traits(resolver: @mutable |resolution_state|::Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.trait_count {
             true -> trait_members(resolver, syntax, index),
             _ -> conformances(resolver, syntax, 0)
         }
     }
 
-    machine trait_members(resolver: @mutable Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine trait_members(resolver: @mutable |resolution_state|::Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: TraitItem = trait_item(syntax, index);
         let container: MachineContainer = resolver_trait_container(item.is_refinement);
         let owner: MachineOwner = MachineOwner {
@@ -80,14 +81,14 @@ crashes Trap
         transition { _ -> traits(resolver, syntax, index + 1) }
     }
 
-    machine conformances(resolver: @mutable Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine conformances(resolver: @mutable |resolution_state|::Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.conformance_count {
             true -> conformance_members(resolver, syntax, index),
             _ -> done(resolver, syntax)
         }
     }
 
-    machine conformance_members(resolver: @mutable Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine conformance_members(resolver: @mutable |resolution_state|::Resolver, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: ConformanceItem = conformance_item(syntax, index);
         let owner: MachineOwner = MachineOwner {
             container: MachineContainer::Conformance,
@@ -99,7 +100,7 @@ crashes Trap
         transition { _ -> conformances(resolver, syntax, index + 1) }
     }
 
-    machine done(resolver: @mutable Resolver, syntax: @SyntaxTrees) {
+    machine done(resolver: @mutable |resolution_state|::Resolver, syntax: @SyntaxTrees) {
         resolver.output.machine_owner_count = syntax.machine_count;
     }
 }
@@ -117,19 +118,19 @@ machine resolver_trait_container(is_refinement: bool) -> MachineContainer {
     }
 }
 
-machine place_members(resolver: @mutable Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner)
+machine place_members(resolver: @mutable |resolution_state|::Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner)
 crashes Trap
 {
     transition { _ -> next(resolver, syntax, first, count, owner, 0) }
 
-    machine next(resolver: @mutable Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
         transition offset < count {
             true -> place(resolver, syntax, first, count, owner, offset),
             _ -> done()
         }
     }
 
-    machine place(resolver: @mutable Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
+    machine place(resolver: @mutable |resolution_state|::Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, first + offset);
         transition item.parent == 0 {
             true -> place_direct(resolver, syntax, first, count, owner, offset),
@@ -137,7 +138,7 @@ crashes Trap
         }
     }
 
-    machine place_direct(resolver: @mutable Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
+    machine place_direct(resolver: @mutable |resolution_state|::Resolver, syntax: @SyntaxTrees, first: u64 in Trapping, count: u64 in Trapping, owner: MachineOwner, offset: u64 in Trapping) {
         set_machine_owner(resolver, first + offset, owner);
         transition { _ -> next(resolver, syntax, first, count, owner, offset + 1) }
     }
@@ -145,7 +146,7 @@ crashes Trap
     machine done() {}
 }
 
-machine set_machine_owner(resolver: @mutable Resolver, handle: u64 in Trapping, owner: MachineOwner)
+machine set_machine_owner(resolver: @mutable |resolution_state|::Resolver, handle: u64 in Trapping, owner: MachineOwner)
 crashes Trap
 {
     transition handle < 10240 {
@@ -153,7 +154,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine store(resolver: @mutable Resolver, handle: u64 in Trapping, owner: MachineOwner) {
+    machine store(resolver: @mutable |resolution_state|::Resolver, handle: u64 in Trapping, owner: MachineOwner) {
         resolver.output.machine_owners[handle] = owner;
     }
 
@@ -208,7 +209,7 @@ crashes Trap
 
 // Bind name path `path` to the machine it names as a callee would, or
 // reject it as unknown or ambiguous at its span.
-public machine bind_machine_path(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, path: u64 in Trapping)
+public machine bind_machine_path(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, path: u64 in Trapping)
 crashes Trap
 {
     let name_path: NamePath = syntax_trees_name_path(syntax, path);
@@ -219,15 +220,15 @@ crashes Trap
         |declarations|::Lookup::Absent -> unknown(resolver, name_path)
     }
 
-    machine bound(resolver: @mutable Resolver, path: u64 in Trapping, handle: u64 in Trapping) {
+    machine bound(resolver: @mutable |resolution_state|::Resolver, path: u64 in Trapping, handle: u64 in Trapping) {
         set_path_binding(resolver, path, PathBinding::Machine { handle: handle });
     }
 
-    machine ambiguous(resolver: @mutable Resolver, name_path: NamePath) {
+    machine ambiguous(resolver: @mutable |resolution_state|::Resolver, name_path: NamePath) {
         name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::AmbiguousName, name_path.source_span);
     }
 
-    machine unknown(resolver: @mutable Resolver, name_path: NamePath) {
+    machine unknown(resolver: @mutable |resolution_state|::Resolver, name_path: NamePath) {
         name_resolution_reject(@mutable resolver.output, ResolveDiagnosticCode::UnknownName, name_path.source_span);
     }
 }
@@ -334,7 +335,7 @@ crashes Trap
     }
 }
 
-public machine set_path_binding(resolver: @mutable Resolver, path: u64 in Trapping, binding: PathBinding)
+public machine set_path_binding(resolver: @mutable |resolution_state|::Resolver, path: u64 in Trapping, binding: PathBinding)
 crashes Trap
 {
     transition path < 2048 {
@@ -342,7 +343,7 @@ crashes Trap
         _ -> invalid()
     }
 
-    machine store(resolver: @mutable Resolver, path: u64 in Trapping, binding: PathBinding) {
+    machine store(resolver: @mutable |resolution_state|::Resolver, path: u64 in Trapping, binding: PathBinding) {
         resolver.output.path_bindings[path] = binding;
     }
 

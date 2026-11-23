@@ -15,7 +15,6 @@ public data TypeReference [copy] {
     literal: u64 in Trapping;
 }
 public data NameResolution [copy] { binding_count: u64 in Trapping; machine_row: u64 in Trapping; }
-data Resolver [copy] { output: NameResolution; }
 
 machine syntax_trees_type_reference(syntax: @SyntaxTrees, row: u64 in Trapping) -> TypeReference {
     transition row < 10 { true -> form(TypeReferenceKind::Literal, row, 0), _ -> named(row) }
@@ -104,7 +103,7 @@ machine call_fits(syntax: @SyntaxTrees, machine_row: u64, count: u64, expected: 
 
 machine same_integer(left: IntegerLiteral, right: IntegerLiteral, expected: bool) -> bool crashes Trap {
     let syntax: SyntaxTrees = SyntaxTrees { left: left, right: right };
-    let resolver: Resolver = Resolver { output: NameResolution { binding_count: 2u64 as +Trapping, machine_row: 6u64 as +Trapping } };
+    let resolver: |resolution_state|::Resolver = |resolution_state|::Resolver { output: NameResolution { binding_count: 2u64 as +Trapping, machine_row: 6u64 as +Trapping } };
     let zero: u64 in Trapping = 0u64 as +Trapping;
     let one: u64 in Trapping = 1u64 as +Trapping;
     let scope: TypeScope = TypeScope { lexical_machine: zero, first_generic_parameter: zero, generic_parameter_count: zero, first_outer_parameter: zero, outer_parameter_count: zero };

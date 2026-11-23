@@ -1,3 +1,4 @@
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
 use representations\source_files\SourceSet;
 use representations\source_files\SourceSpan;
 use representations\source_files\spans_equal;
@@ -22,43 +23,43 @@ use representations\syntax_trees\syntax_trees_generic_parameter;
 // than inferring it from calls, so a contract naming no such binder, or a
 // second contract for one binder, rejects. A binder without a contract has
 // none: calling it rejects in typing.
-public machine bind_machine_contracts(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+public machine bind_machine_contracts(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
 crashes Trap
 {
     transition { _ -> clear(resolver, sources, syntax, 0) }
 
-    machine clear(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, parameter: u64 in Trapping) {
+    machine clear(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, parameter: u64 in Trapping) {
         transition parameter < syntax.generic_parameter_count {
             true -> cleared(resolver, sources, syntax, parameter),
             _ -> next_machine(resolver, sources, syntax, 0)
         }
     }
 
-    machine cleared(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, parameter: u64 in Trapping) {
+    machine cleared(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, parameter: u64 in Trapping) {
         set_binder_contract(@mutable resolver.output, parameter, BinderContract { present: false, contract: 0 });
         transition { _ -> clear(resolver, sources, syntax, parameter + 1) }
     }
 
-    machine next_machine(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next_machine(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.machine_count && resolver.output.accepted {
             true -> machine(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine machine(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine machine(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: MachineItem = machine_item(syntax, index);
         transition { _ -> next_contract(resolver, sources, syntax, index, item, 0) }
     }
 
-    machine next_contract(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine next_contract(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         transition offset < item.contract_count && resolver.output.accepted {
             true -> contract(resolver, sources, syntax, index, item, offset),
             _ -> next_machine(resolver, sources, syntax, index + 1)
         }
     }
 
-    machine contract(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
+    machine contract(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: MachineItem, offset: u64 in Trapping) {
         let handle: u64 in Trapping = item.first_contract + offset;
         let written: Contract = syntax_trees_contract(syntax, handle);
         let binder: u64 in Trapping = contract_binder(sources, syntax, item, written.name.source_span);
@@ -69,7 +70,7 @@ crashes Trap
     }
 
     machine named(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         index: u64 in Trapping,
@@ -87,7 +88,7 @@ crashes Trap
     }
 
     machine bound(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         index: u64 in Trapping,
@@ -100,7 +101,7 @@ crashes Trap
         transition { _ -> next_contract(resolver, sources, syntax, index, item, offset + 1) }
     }
 
-    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
+    machine reject(resolver: @mutable |resolution_state|::Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
         name_resolution_reject(@mutable resolver.output, code, source_span);
     }
 

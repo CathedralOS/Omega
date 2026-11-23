@@ -1,3 +1,4 @@
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
 use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
 use representations\source_files\SourceSet;
 use representations\source_files\SourceSpan;
@@ -46,7 +47,7 @@ data BoundKind [copy] {
 // or integer row binds by its form. Nested rows need no recursion. `role` is
 // what the root's position admits.
 public machine bind_type_reference(
-    resolver: @mutable Resolver,
+    resolver: @mutable |resolution_state|::Resolver,
     sources: @SourceSet,
     syntax: @SyntaxTrees,
     scope: TypeScope,
@@ -59,7 +60,7 @@ crashes Trap
     transition { _ -> next(resolver, sources, syntax, scope, root, role, root_row.first_row) }
 
     machine next(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         scope: TypeScope,
@@ -74,7 +75,7 @@ crashes Trap
     }
 
     machine bind(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         scope: TypeScope,
@@ -94,7 +95,7 @@ crashes Trap
 // root or as an applied name's argument, never under a reference, array or
 // slice, which bind only types.
 machine bind_type_row(
-    resolver: @mutable Resolver,
+    resolver: @mutable |resolution_state|::Resolver,
     sources: @SourceSet,
     syntax: @SyntaxTrees,
     scope: TypeScope,
@@ -113,7 +114,7 @@ crashes Trap
     }
 
     machine kinds(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         scope: TypeScope,
@@ -135,7 +136,7 @@ crashes Trap
     // An applied data name supplies as many lifetime arguments as the data
     // declares lifetime binders, or elides them all; other names take none.
     machine arity(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         scope: TypeScope,
@@ -153,7 +154,7 @@ crashes Trap
     }
 
     machine named(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         scope: TypeScope,
@@ -178,7 +179,7 @@ crashes Trap
     // callee's machine binder (wiki/spec/language/generics.md, Static
     // machine binder categories); anything else is unknown.
     machine unnamed(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         scope: TypeScope,
@@ -193,7 +194,7 @@ crashes Trap
         }
     }
 
-    machine machine_argument(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, row: u64 in Trapping, type_reference: TypeReference) {
+    machine machine_argument(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, row: u64 in Trapping, type_reference: TypeReference) {
         let binding: ValueBinding = declaration_callee(@resolver.output, sources, syntax, scope.lexical_machine, type_reference.name.source_span);
         transition binding {
             ValueBinding::Machine { handle } -> bounded(resolver, sources, syntax, scope, row, type_reference, TypeBinding::Machine { handle: handle }),
@@ -204,7 +205,7 @@ crashes Trap
 
     // A reference, array or slice holds a type, never a conformance.
     machine holder(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         scope: TypeScope,
@@ -224,7 +225,7 @@ crashes Trap
     }
 
     machine placed(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         scope: TypeScope,
@@ -247,7 +248,7 @@ crashes Trap
     }
 
     machine admitted(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         scope: TypeScope,
@@ -265,7 +266,7 @@ crashes Trap
     }
 
     machine bounded(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         scope: TypeScope,
@@ -280,7 +281,7 @@ crashes Trap
     }
 
     machine store(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         scope: TypeScope,
@@ -298,7 +299,7 @@ crashes Trap
     }
 
     machine qualified(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         scope: TypeScope,
@@ -308,7 +309,7 @@ crashes Trap
         bind_domain(resolver, sources, syntax, scope, row, type_reference);
     }
 
-    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
+    machine reject(resolver: @mutable |resolution_state|::Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
         name_resolution_reject(@mutable resolver.output, code, name.source_span);
     }
 
@@ -440,7 +441,7 @@ crashes Trap
 // A longer path crosses a package, which this source set cannot bind.
 // Generic parameters do not bind domains.
 machine bind_domain(
-    resolver: @mutable Resolver,
+    resolver: @mutable |resolution_state|::Resolver,
     sources: @SourceSet,
     syntax: @SyntaxTrees,
     scope: TypeScope,
@@ -457,7 +458,7 @@ crashes Trap
         _ -> bare(resolver, sources, syntax, reference, type_reference.domain)
     }
 
-    machine bare(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, reference: u64 in Trapping, domain: IdentifierSpan) {
+    machine bare(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, reference: u64 in Trapping, domain: IdentifierSpan) {
         let known: DomainBinding = known_domain(sources, domain.source_span);
         transition known {
             DomainBinding::Unqualified -> declared(resolver, sources, syntax, reference, domain),
@@ -465,7 +466,7 @@ crashes Trap
         }
     }
 
-    machine declared(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, reference: u64 in Trapping, domain: IdentifierSpan) {
+    machine declared(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, reference: u64 in Trapping, domain: IdentifierSpan) {
         let lookup: |declarations|::Lookup = resolver_declared_domain(resolver, sources, syntax, reference, domain.source_span);
         transition lookup {
             |declarations|::Lookup::Found { handle } -> bind(resolver, reference, DomainBinding::Declared, handle),
@@ -475,7 +476,7 @@ crashes Trap
     }
 
     machine owned(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         scope: TypeScope,
@@ -494,7 +495,7 @@ crashes Trap
         }
     }
 
-    machine case_domain(resolver: @mutable Resolver, reference: u64 in Trapping, whole: SourceSpan, owner: u64 in Trapping, data_case: u64 in Trapping) {
+    machine case_domain(resolver: @mutable |resolution_state|::Resolver, reference: u64 in Trapping, whole: SourceSpan, owner: u64 in Trapping, data_case: u64 in Trapping) {
         let qualified: TypeBinding = type_binding_at(@resolver.output, reference);
         transition qualified {
             TypeBinding::Data { item } -> case_carrier(resolver, reference, whole, item == owner, data_case),
@@ -502,7 +503,7 @@ crashes Trap
         }
     }
 
-    machine case_carrier(resolver: @mutable Resolver, reference: u64 in Trapping, whole: SourceSpan, own: bool, data_case: u64 in Trapping) {
+    machine case_carrier(resolver: @mutable |resolution_state|::Resolver, reference: u64 in Trapping, whole: SourceSpan, own: bool, data_case: u64 in Trapping) {
         transition own {
             true -> bind(resolver, reference, DomainBinding::Case, data_case),
             _ -> reject(resolver, ResolveDiagnosticCode::UnknownDomain, whole)
@@ -510,7 +511,7 @@ crashes Trap
     }
 
     machine declared_carrier(
-        resolver: @mutable Resolver,
+        resolver: @mutable |resolution_state|::Resolver,
         sources: @SourceSet,
         syntax: @SyntaxTrees,
         reference: u64 in Trapping,
@@ -525,12 +526,12 @@ crashes Trap
         }
     }
 
-    machine bind(resolver: @mutable Resolver, reference: u64 in Trapping, binding: DomainBinding, item: u64 in Trapping) {
+    machine bind(resolver: @mutable |resolution_state|::Resolver, reference: u64 in Trapping, binding: DomainBinding, item: u64 in Trapping) {
         resolver.output.domain_bindings[reference] = binding;
         resolver.output.domain_items[reference] = item as u64;
     }
 
-    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
+    machine reject(resolver: @mutable |resolution_state|::Resolver, code: ResolveDiagnosticCode, source_span: SourceSpan) {
         name_resolution_reject(@mutable resolver.output, code, source_span);
     }
 }
