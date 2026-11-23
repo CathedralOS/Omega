@@ -250,12 +250,8 @@ mod static_operands {
                             .map(|selector| selector.binding.as_str(syntax).to_owned()),
                     );
                     for target in transition.targets() {
-                        match syntax.statements.transition_target(target) {
-                            syntax_trees::statement::TransitionTargetNode::Named(value)
-                            | syntax_trees::statement::TransitionTargetNode::Value(value) => {
-                                collect_expression_handles(syntax, *value, &mut target_expressions)
-                            }
-                            _ => {}
+                        if let Some(value) = syntax.statements.transition_target(target).expression() {
+                            collect_expression_handles(syntax, value, &mut target_expressions);
                         }
                     }
                     expressions.retain(|expression| !target_expressions.contains(expression));

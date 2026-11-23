@@ -445,9 +445,8 @@ impl TableDispatch {
             if let TransitionGuardNode::When(guard) = arm.guard {
                 visit(guard);
             }
-            match trees.statements.transition_target(arm.target) {
-                TransitionTargetNode::Named(value) | TransitionTargetNode::Value(value) => visit(*value),
-                TransitionTargetNode::Terminal => {}
+            if let Some(value) = trees.statements.transition_target(arm.target).expression() {
+                visit(value);
             }
         }
     }
@@ -562,6 +561,15 @@ pub enum TransitionTargetNode {    Named(ExpressionHandle),
     Value(ExpressionHandle),
     #[default]
     Terminal,
+}
+
+impl TransitionTargetNode {
+    pub fn expression(&self) -> Option<ExpressionHandle> {
+        match self {
+            Self::Named(expression) | Self::Value(expression) => Some(*expression),
+            Self::Terminal => None,
+        }
+    }
 }
 
 #[cfg(test)]

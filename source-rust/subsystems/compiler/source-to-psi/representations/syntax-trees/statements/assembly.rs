@@ -42,10 +42,8 @@ impl AuthoredAssembly {
                         }
                     }
                     AssemblyOperands::Transition(target) => {
-                        use crate::statement::TransitionTargetNode;
-                        match trees.statements.transition_target(*target) {
-                            TransitionTargetNode::Named(value) | TransitionTargetNode::Value(value) => visit(*value),
-                            TransitionTargetNode::Terminal => {}
+                        if let Some(value) = trees.statements.transition_target(*target).expression() {
+                            visit(value);
                         }
                     }
                 }

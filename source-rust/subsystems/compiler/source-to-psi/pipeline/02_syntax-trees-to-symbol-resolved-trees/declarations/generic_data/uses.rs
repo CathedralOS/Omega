@@ -1178,7 +1178,7 @@ mod expressions {
         statement: syntax_trees::statement::StatementHandle,
         handles: &mut impl ExpressionMarks,
     ) {
-        use syntax_trees::statement::{TransitionGuardNode, TransitionTargetNode};
+        use syntax_trees::statement::TransitionGuardNode;
         match syntax.tables.statements.statement(statement) {
             StatementNode::AuthoredAssembly(handle) => {
                 syntax
@@ -1253,12 +1253,8 @@ mod expressions {
                     collect_expression_handles(syntax, guard, handles);
                 }
                 for target in transition.targets() {
-                    match syntax.tables.statements.transition_target(target) {
-                        TransitionTargetNode::Named(value) |
-                        TransitionTargetNode::Value(value) => {
-                            collect_expression_handles(syntax, *value, handles)
-                        }
-                        TransitionTargetNode::Terminal => {}
+                    if let Some(value) = syntax.tables.statements.transition_target(target).expression() {
+                        collect_expression_handles(syntax, value, handles);
                     }
                 }
             }

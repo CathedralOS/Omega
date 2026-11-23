@@ -329,11 +329,7 @@ fn suspending_arm(
     syntax: &SyntaxTrees,
     target: syntax_trees::statement::TransitionTargetHandle,
 ) -> Option<Span> {
-    let value = match syntax.statements.transition_target(target) {
-        syntax_trees::statement::TransitionTargetNode::Named(value)
-        | syntax_trees::statement::TransitionTargetNode::Value(value) => *value,
-        syntax_trees::statement::TransitionTargetNode::Terminal => return None,
-    };
+    let value = syntax.statements.transition_target(target).expression()?;
     let ExpressionNode::Call(call) = syntax.expressions.expression(value) else {
         return None;
     };
