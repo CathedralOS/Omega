@@ -130,6 +130,7 @@ Find Rust owners in the [compiler map](source-rust/README.md#where-code-belongs)
   - Lower width-indexed domain families. `domain<const N: u64> u<N>::Tag requires N > 3;` with `machine a(x: u13 in Tag) -> u13 in Tag { x }` is refused in lowering ("type domain application without its prepared theory"). Each use must owe the family's predicate at its own width (`13 > 3` holds, `7 > 3` for a `u7` use does not), and `domain<const N: u64, const Limit: u64> u<N>::Bound<Limit> requires N > Limit` must keep `Bound<4>`'s index apart from the carrier's width.
 
 - **OPERATION-ARITHMETIC-POLICY.** Implement [policy operators](wiki/spec/language/numeric_values.md#policy-operators) and their [declared policy-domain overloads](wiki/spec/language/numeric_values.md#policy-domains). Preserve exact qualified/plain signatures through selection, lowered-form checking and realization; no implicit conversions or surrounding-policy propagation.
+  - Supply the core domains and their published overloads through ordinary declarations and imports. Migrate bare policy uses in consumers and tests, then remove the resolver's spelling fallback. Check that an imported core domain and a same-named local select their respective operators, and a bare name with no declaration is refused.
   - Retain each selected operation's exact carrier and policy in canonical callable/index identities. Raw non-Exact recipes require that complete representation before they can publish an exact identity.
   - Verify the SHA-256 and wire customers after static-machine and qualification migration.
 
