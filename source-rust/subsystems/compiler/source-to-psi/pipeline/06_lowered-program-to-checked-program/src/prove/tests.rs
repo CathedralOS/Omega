@@ -1701,6 +1701,33 @@ fn ieee_literal_and_copy_equations_reach_the_closed_kernel_judgment() {
 }
 
 #[test]
+fn a_strict_comparison_proves_the_same_order_on_widened_results() {
+    let narrow = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+    let wide = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+    let scalar_type = ScalarType::Integer(narrow);
+    let mut values = IdTable::default();
+    let [left, right] = [0, 1].map(|position| {
+        let id = values.push(ValueRow {
+            scalar_type,
+            origin: ValueOrigin::MachineParameter { position },
+            rigid: None,
+        });
+        ScalarTerm::integer_widen(narrow, wide, ScalarTerm::value(id, scalar_type)).unwrap()
+    });
+    let context =
+        PropositionContext::from_value_types(values.iter().map(|(id, row)| (id, row.scalar_type)))
+            .unwrap();
+    let guard = Proposition::LessThan(left.clone(), right.clone());
+    let goal = Proposition::LessOrEqual(left.clone(), right.clone());
+    let premises = [guard];
+    let mut activity = ProofSearchActivity::default();
+    let mut prover = Prover::new(&context, &premises, &[], &values, &mut activity);
+    let proof = prover.prove(&goal).unwrap();
+    proof_admission::accept_certificate(&context, &goal, &premises, &[], &proof).unwrap();
+    assert!(prover.prove(&Proposition::LessOrEqual(right, left)).is_err());
+}
+
+#[test]
 fn compound_exact_orders_prove_value_relations_and_reject_unsound_variants() {
     use proof_admission::MathematicalCoreDecision;
     let mut activity = ProofSearchActivity::default();

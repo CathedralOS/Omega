@@ -2495,8 +2495,7 @@ impl<'a> Prover<'a> {
         ))
     }
 
-    /// `left <= right` or `left < right` from the left side's upper bound and
-    /// the right side's lower bound.
+    /// Prove an integer comparison from a known order or bounds on its operands.
     fn compare(
         &mut self,
         left: &ScalarTerm,
@@ -2506,6 +2505,11 @@ impl<'a> Prover<'a> {
         let ScalarType::Integer(integer) = left.scalar_type() else {
             return Err("order of non-integers");
         };
+        if !strict
+            && let Some(fact) = self.exact_fact(&Proposition::LessThan(left.clone(), right.clone()))
+        {
+            return weaken(self.facts[fact].proof(&self.facts));
+        }
         if let (ScalarTerm::Value { .. }, ScalarTerm::Value { .. }) = (left, right)
             && let Some(proof) = self
                 .relation(left, right, strict)
