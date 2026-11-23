@@ -141,6 +141,7 @@ pub(super) fn prepare_selected(
             capture.conformance_application.declaration == record.declaration
                 && capture.conformance_application.identity_encoding == record.identity_encoding
                 && program
+                    .expression_table
                     .static_machine_application(capture.binding_application())
                     .lexical_owner
                     == owner
