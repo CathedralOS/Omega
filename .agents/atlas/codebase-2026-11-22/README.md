@@ -8,6 +8,13 @@ file does, how it decides, and where the same work is written more than once, wi
 It describes one commit and goes stale as the code moves, so check a claim against the code before acting
 on it.
 
+## Verified follow-ups
+
+The counts below describe the November 22 survey. The area digests also record fixes verified after that revision.
+
+- Source stage 05 can pass a final guarded arm to the ordinary coverage proof. [Guarded matches and transitions](digests/03-source-stage-05.md#verified-follow-ups)
+- Native plans preserve memory fences when reopened, and editing an existing spill slot invalidates its cached digest. [Native representations](digests/12-native-representations.md#verified-follow-ups)
+
 ## How to use it
 
 - **Start from the crate map.** `crate-map/README.md` follows a program through the compiler end to end and
