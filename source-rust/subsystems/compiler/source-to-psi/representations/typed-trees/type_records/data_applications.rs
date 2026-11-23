@@ -248,9 +248,9 @@ impl<'source> ApplicationPreparation<'source> {
             .type_reference(reference)
             .clone()
         {
-            TypeReferenceNode::Named { symbol, .. } => {
+            TypeReferenceNode::Named { symbol, name } => {
                 if !self.source.symbols.symbols().nodes().is_valid(symbol) {
-                    return Err("data application has an unresolved type argument".into());
+                    return Err(format!("unknown type `{name}`"));
                 }
                 if self.source.symbols.builtin_type_atom(symbol).is_some() {
                     return Ok(true);
