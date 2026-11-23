@@ -17,7 +17,9 @@ Delete it when that task closes or its plan carries these findings.
    `validation/src/quotients.rs` (8,175 lines). The kernel and its tests
    survived intact, but no stage now gives it definitions with binders,
    universe levels, `data` families, theorem machines, Identity over
-   non-scalar types or quotients.
+   non-scalar types or quotients. It also deleted the code that proved
+   Identity laws, `structural_judgment` in `validation/src/contract_entailment.rs`
+   (37,507 lines), which never called the kernel.
 2. **Still needed.** Three general rules, not a port: (R1) every
    mathematical declaration becomes a kernel signature entry with its levels,
    and Identity works for every type; (R2) a `data` family becomes one W
@@ -46,13 +48,15 @@ Delete it when that task closes or its plan carries these findings.
    and none that takes a type. That is why Identity serves two types and a
    call inside a clause serves one shape of machine. See
    [how a clause becomes a proof term today](#how-a-clause-becomes-a-proof-term-today).
-6. **Do first.** Build toward the core library, not the samples: it needs no
-   level binder, no `core\Squash` and no `data` family. Give stage 05 one
-   term reader, add the two term forms `Proposition` lacks (application of a
-   declaration, and `Id` at a type), and take `core/algebra.omg` as the first
-   customer. Families, induction and quotients follow when a library
-   declaration or a repaired sample needs them. See
-   [plan order](#plan-order).
+6. **Do first.** Build toward the core library, not the samples. It needs no
+   level binder, no `core\Squash` and no value-indexed family, but every law
+   in `core/nat.omg` is an induction over the recursive `data Nat`. Give
+   stage 05 one term reader and the two term forms `Proposition` lacks
+   (application of a declaration, and `Id` at a type), proved first on a law
+   cited over an abstract type. Then make a plain `data` a kernel type and a
+   law machine an induction, with the deleted fixture
+   `pass/proofs/ring_law_conformance` and its rejected twin as the customer.
+   See [plan order](#plan-order).
 
 ## How to read this audit
 
@@ -103,6 +107,7 @@ Old files, all under `omega-rust/psi/compilation/`:
 | `proof/src/derivation_store.rs` | 299 | #2823 |
 | `validation/src/proof_contracts_core.rs` | 11,591 | #2823 |
 | `validation/src/quotients.rs` | 8,175 | #2823 |
+| `validation/src/contract_entailment.rs` | 92,926 | #2823; see [the deleted Identity prover](#the-deleted-identity-prover) |
 | `validation/src/float_and_mathematical_contracts.rs` | 3,771 | #2823 |
 | `proof/src/lemmas.rs`, `boundary.rs`, rest of `lib.rs` | 377, 213, 815 | #2911 (`c3dd18abe600`); they had no callers at `cea9cdcde460^` |
 
@@ -210,6 +215,33 @@ The old checker never called `mathematical_declarations` (only `pub mod` at
 04/05 and the review-evidence crate. So nothing in `checker.rs` is needed for
 R1-R3.
 
+## The deleted Identity prover
+
+The first version of this audit did not read
+`validation/src/contract_entailment.rs`, the largest file #2823 deleted. It
+held the code that decided whether a `core\Identity` law holds, so it is the
+larger part of what the library's laws lost.
+
+| Module | Lines | What it did |
+| --- | --- | --- |
+| `structural_judgment` | 37,507 | `StructuralJudge`: decided equalities between structural terms by rewriting. Its parts include `identity_normalization` (1,216), `data_identity` (1,031), `identity_elimination` (336), `algebraic_identity` (322), `constructor_identity` (263), `induction_values` (154) and `runtime_induction` (101). |
+| `law_conformance` | 2,788 | checked that a satisfier's proved `ensures` backs the law its trait declares |
+| `citations` | 865 | made a cited machine's guarantee available to the caller |
+| `inductive_judgment` | 510 | induction over a `data` value |
+| `quotient_congruence` | 220 | congruence for quotient relations |
+
+`structural_judgment` contains no reference to proof admission, `ProofNode`
+or a certificate, and its judgments return `bool` (for example
+`ring_rearranged_equal`, `:47961`). So the old compiler accepted these laws
+on a rewriting procedure, not on evidence the kernel checked. That is the
+same fault as the range checker's interval fallback, and it justifies the
+deletion by the same standard. Whether another stage re-checked those
+results with the kernel was not determined.
+
+It also means there is nothing to port. The mathematical kernel already has
+what these proofs are made of (`W`, `IndW`, `Id`, `IdElim`); what is missing
+is the path from source to those terms and a producer of the proof term.
+
 ## How a clause becomes a proof term today
 
 Stage 06 treats every value alike, but the path that brings a source clause
@@ -310,8 +342,19 @@ thirteen readers.
 | `core/cauchy.omg` (28 uses), `nat.omg` (46), `nat_metric.omg` (32), `rat.omg` (28), `int.omg` (19), `math.omg` (14), `seq.omg` (12), `float_operations.omg` (78, mostly `FloatMeaning`) | `core\Identity`/`core\Type`/`core\Strict` over `Nat`, `Rat` and generic sequences, in `requires`/`ensures` | C5 for non-scalar T; C8 where a machine is a theorem |
 
 No `[erased]` binding and no other top-level mathematical `let` appears in
-`source/library/`. Nor does `core\Level` or `core\Squash`, so the library
-needs neither level binders (C2) nor the Squash mapping (C3).
+`source/library/`. Nor does `core\Level`, `core\Squash` or a quotient type,
+so the library needs neither level binders (C2), the Squash mapping (C3) nor
+quotients (C10) today.
+
+It does need induction over plain data. `Nat` is `data Nat { case Zero;
+case Succ(prev: Nat); }` (`core/nat.omg:34`), and its laws are proved the way
+`add_assoc` is (`:217-234`): the machine `terminates by a`, branches on `a`,
+and calls itself on `prev` as the inductive hypothesis. The comment there
+says both sides "normalize by unfolding plus the inductive hypothesis". So
+`nat.omg` needs four things together: `Nat` as a kernel type (R2 without
+indices), `add` as a kernel function defined by cases, the law machine as an
+induction (R3), and a proof of each case from unfolding and the cited
+equalities.
 
 The algebra laws need one thing no capability row above names: a call used
 as a term. `ensures core\Identity::<T>(add(a, b), add(b, a))` applies `add`,
@@ -327,6 +370,39 @@ the same operation and unchanged arguments have the same Boolean denotation
 ([contracts.md#equality-bridges-and-comparison-facts](../../spec/proofs/contracts.md#equality-bridges-and-comparison-facts)).
 The [proofs lane plan](proofs_evidence_lane.md) lists this as slice 10;
 change L2 above serves it and Identity with the same two forms.
+
+### The deleted corpus
+
+`tests/omega/` held 30,661 `.omg` files when #2828 deleted it
+(`f4c7a70beb^`). It is not to be restored, but it records which proof
+features had programs. Counting fixture directories whose path contains a
+keyword, as passing-or-running / rejected:
+
+| Keyword | Fixtures | Reading |
+| --- | --- | --- |
+| `identity` | 73 / 78 | Identity had the most programs of any feature in this audit |
+| `quotient` | 59 / 73 | quotients were exercised, though no sample and no library file uses one today |
+| `erased` | 51 / 56 | erased bindings and evidence |
+| `induct` | 13 / 14 | induction |
+| `theorem` | 4 / 6 | named theorem machines |
+
+Two fixtures are the smallest whole customer for a library law:
+`pass/proofs/ring_law_conformance` proves associativity of `plus` over a
+Peano `data` by induction and satisfies the trait's law with it, and
+`fail/proofs/ring_law_unproven_rejected` is its twin.
+
+The corpus also shows the per-placement pattern from the test side. One
+feature, comparing a value against a machine that has a body, has 18
+fixtures named `body_bearing_comparison_through_<placement>`: through a
+local, a field, a parameter, a call result, a constant, a match join, another
+state, another machine and the target body, each accepted and rejected.
+`pass/facts` and `fail/facts` together are 14,628 of the `.omg` files.
+
+The only measured comparison of the old and new checkers is
+`wiki/drafts/designs/route_one_measures.md` (2026-11-11, removed by #3062;
+read from `76bce12121^`). It covers scalar programs: the new route lowered
+121 of 3,486 passing fixtures at that time and agreed with the old checker
+on 101. Its disagreements were all about scalar arithmetic and contracts.
 
 ### Samples
 
@@ -406,13 +482,24 @@ there adds a case per construct, take the rule here instead.
 
 | Step | Build | Owner | First customers |
 | --- | --- | --- | --- |
-| 1 | L1 and L2 together: the single term reader, serving an application of a declaration and `Id` at a type in every clause position. Stage 06 gets the equality route for them (reflexivity, symmetry, transitivity, congruence). | stage 05, lowered program, stage 06, kernel translation | `core/algebra.omg`: a caller that cites `add_comm` and relies on the Identity, and a twin that relies on it without the citation |
-| 2 | L3 with R1: definitions with binders and `boundary let` become declarations in the one published signature; stage 06 checks it once | stage 05, Terminal Psi, stage 06 | `cauchy.omg`, `nat.omg`, `rat.omg`, `extent.omg:219` |
-| 3 | Move each existing term form into the single reader and delete the reader it came from | stage 05 | each position refusal listed [above](#how-a-clause-becomes-a-proof-term-today), with its twin |
-| 4 | R2: `data` to indexed W description; construction operations carry `sup`/`pack` evidence on their value. Needs value-indexed type arguments (`Vector<previous, previous_total>`) evaluated in stage 03 first. | stages 03, 05 | the first library declaration that needs a family, else `source_indexed_*` once their other blockers are repaired |
-| 5 | R3: theorem machines as Π statements, induction through `indW`, assumption closure from the kernel | stage 06 | `source_indexed_family` (`vector_bound`), `induction_call_guarantee` |
-| 6 | Quotient formation (L2, L3) and the correspondence judgment (R3) | stages 05, 06 | none measured |
+| 1 | L1 and L2 on an abstract type: the single term reader, serving an application of a declaration and `Id` at a type in every clause position. Stage 06 proves such a goal from cited equalities by reflexivity, symmetry, transitivity and congruence, as a kernel term. No `data`, no induction. | stage 05, lowered program, stage 06, kernel translation | one new pair: a generic machine over a `CommutativeSemiring<T>` that cites `add_comm` and relies on the Identity, and a twin that relies on it without the citation |
+| 2 | A plain `data` as a kernel type with its constructors as terms (R2 without indices); a machine defined by cases on one parameter as a kernel function; a law machine as an induction (R3); L3, so these declarations are published once and checked once with `check_signature`. The proof producer normalizes both sides with the kernel, then closes the goal by congruence over the cited equalities and the inductive hypothesis. | stages 05 and 06, Terminal Psi | `pass/proofs/ring_law_conformance` and `fail/proofs/ring_law_unproven_rejected`, recovered from `f4c7a70beb^` beside the owning test |
+| 3 | `core/nat.omg` checked in full as a validation subject | stages 05 and 06 | its eleven `satisfies CommutativeSemiring<Nat>` machines |
+| 4 | The rest of R1: definitions with binders and `boundary let` as declarations in the same signature | stage 05, stage 06 | `cauchy.omg`, `rat.omg`, `int.omg`, `extent.omg:219` |
+| 5 | Move each existing term form into the single reader and delete the reader it came from | stage 05 | each position refusal listed [above](#how-a-clause-becomes-a-proof-term-today), with its twin |
+| 6 | The rest of R2: value-indexed families. Needs value-indexed type arguments (`Vector<previous, previous_total>`) evaluated in stage 03 first. | stages 03, 05 | `source_indexed_*`, once their other blockers are repaired |
+| 7 | Quotient formation (L2, L3) and the correspondence judgment (R3) | stages 05, 06 | none in the library or samples today; the corpus had about 130 fixtures to recover a pair from |
 | — | In parallel, each independent: (a) divide/remainder/shift endpoints from an interval divisor in `IntegerAffineBound`; (b) irreflexivity of `<` on an open value; (c) L4; (d) L5; (e) `core\Level` binders in stages 02-03, once open question 1 is answered | stage 06, kernel, stages 02-03 | S06 README:1039-1052 programs; `representation_agreement` for (e) |
+
+Step 1 is small on purpose. [Check on the lowered form](check_on_lowered_form.md#lane-order)
+says not to spread a new representation before one checked end-to-end route
+works, so the two term forms are proved on the case with no `data` and no
+induction before step 2 leans on them.
+
+Step 2 carries the main risk. The kernel encodes a `data` as a W type, and
+the old elaborator needed budget tests for its indexed-vector terms
+(`mathematical_declarations.rs:9847-10330`). Measure the kernel's cost on the
+Peano fixture before taking on all of `nat.omg`.
 
 The first version of this plan started with level binders and value-indexed
 type arguments because they move 66 samples. They move those samples to
@@ -472,6 +559,17 @@ Recorded, not answered:
   1,252 refusal sites are lines outside test files matching
   `Unserved::<Variant>(` or `unserved(`; the 57 that name a position are a
   keyword count over their messages and are approximate.
+- Third reading (2026-11-23), after the question of whether the plan rests
+  on the deleted code and corpus: read `check_on_lowered_form.md`,
+  `route_one_measures.md` from `76bce12121^`, the module outline of
+  `contract_entailment.rs` from `cea9cdcde460^`, the corpus file list from
+  `f4c7a70beb^` and the two `ring_law` fixtures. Corpus counts are of
+  directory paths containing a keyword and are approximate. It added the
+  deleted Identity prover and the corpus section, corrected the claim that
+  the library needs no `data` type in the kernel, and reordered the plan.
+  Of the 861,818 lines #2823 deleted, this audit has read the proof crate,
+  `quotients.rs` and the outline of `contract_entailment.rs`; the rest is
+  unread.
 - Not determined: whether a full core library check with `no_wrap` passes
   end to end (no sample reaches it); `erased_array_evidence`'s signal 9;
   whether old level constraints were ever published; the two samples bound to
