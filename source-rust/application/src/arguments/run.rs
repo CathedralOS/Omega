@@ -41,7 +41,7 @@ pub(super) const USAGE: &str = concat!(
     run_help!(work_budget),
     "\n",
     run_help!(host_packages),
-    "\nWithout --target, --both runs native code and Psi on this host and compares their exits.\nWith --target, the default engine, --engine native, and --both emit artifacts\nwithout running the program, even when the target matches this host.\nWith --engine psi, --target selects the target environment for Psi execution.",
+    "\nWithout --target, --both runs native code and Psi on this host and compares their exits and output.\nWith --target, the default engine, --engine native, and --both emit artifacts\nwithout running the program, even when the target matches this host.\nWith --engine psi, --target selects the target environment for Psi execution.",
 );
 
 pub(super) fn parse_arguments(

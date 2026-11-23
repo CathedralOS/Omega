@@ -30,8 +30,10 @@ disposable output on success and failure, and keeps requested output, including
 from an interpreter disagreement. A native run with
 only `--target` compiles without running the image. The Psi engine keeps the
 target but runs through its admitted host adapters. Host
-execution returns raw stdout/stderr bytes and process status; a program the
-interpreter cannot run is a decline, not an agreement.
+execution returns raw stdout/stderr bytes and process status. `--both` agrees
+only when both runs finish the same way and write the same stdout and stderr
+bytes; a divergence names the stream and its first differing line. A program
+the interpreter cannot run is a decline, not an agreement.
 
 The current `omega run --both` compares process termination. In single-run
 mode it also compares observed entry RAM. Different stdout or stderr bytes can
@@ -194,8 +196,8 @@ exits 2 only when every refused target is incomplete; any rejection exits 1.
 Argument errors exit 64 (`EX_USAGE`) before compilation starts. `omega run`
 has its own statuses: the program's exit status; 200 when compilation or launch
 fails; 202 when compilation stopped at a named private provision
-(`Incomplete`); and 201 when the `--both` interpreter run disagrees or hits a
-runtime or artifact defect; and 204 when `--both` could not compare the two
+(`Incomplete`); and 201 when the `--both` interpreter run disagrees on its exit,
+crash or stdout/stderr bytes, or hits a runtime or artifact defect; and 204 when `--both` could not compare the two
 runs. That covers a Psi run that ran out of work, waited on the host, returned
 no process result or hit an unsupported construct, and a Psi exit status
 outside 0..=255 that a Unix host shows only as its low byte. Such a run reports
