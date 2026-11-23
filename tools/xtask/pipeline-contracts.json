@@ -22148,6 +22148,40 @@
         "independent object readback"
       ],
       "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "function:check_windows_internet_companion#1",
+      "kind": "checker",
+      "meaning": "Reject Windows helper code unless its presence matches the object's actual normalized imports.",
+      "producer": "native body object publication",
+      "signature": "968903790fa5648c06a5355a580345620a7556e35b45bec4057ab104369f6f6b"
+    },
+    {
+      "consumers": [
+        "native object publication unit tests"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "module:windows_import_rosters#1",
+      "kind": "definition",
+      "meaning": "Load the shared Windows import rosters for the object-publication unit test.",
+      "producer": "native object publication tests",
+      "signature": "98aaeb0ccb377fe775e432be789f809da5b19da5033ba25a652fce19fb602721"
+    },
+    {
+      "consumers": [
+        "native object publication unit tests"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
+      "item": "function:checks_windows_companion_against_the_objects_imports#1",
+      "kind": "definition",
+      "meaning": "Test matching and inverted helper claims against the actual import checker.",
+      "producer": "native object publication tests",
+      "signature": "f7b143dfd7e77abe15aa58a36b5cfad553e9ca1457c14710680c471329058e86"
+    },
+    {
+      "consumers": [
+        "native image composition",
+        "independent object readback"
+      ],
+      "file": "source-rust/subsystems/compiler/psi-to-native/pipeline/14_placed-functions-to-objects/src/body_object.rs",
       "item": "function:find_object_function#1",
       "kind": "definition",
       "meaning": "Resolve a semantic machine to its object-local function symbol and extent.",
