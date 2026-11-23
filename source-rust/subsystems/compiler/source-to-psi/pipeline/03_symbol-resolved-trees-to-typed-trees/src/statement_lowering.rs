@@ -1128,6 +1128,7 @@ pub(crate) mod statement {
                 statement_table_mut(&mut lowerer.typed_trees).insert_transition_patterns(patterns);
             Ok(typed::statement::TableTransition {
                 patterns,
+                ends_dispatch: transition.ends_dispatch,
                 target: lower_transition_target(lowerer, transition.target)?,
                 continuation: transition
                     .continuation

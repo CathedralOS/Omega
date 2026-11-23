@@ -4,7 +4,7 @@
 // from the evidence alone, and a tampered certificate must be refused.
 
 use crate::lowering::{
-    Body, CaseSelector, CrashCeiling, Expression, ExpressionKind, Selector, Signature,
+    ArmGuard, Body, CaseSelector, CrashCeiling, Expression, ExpressionKind, Selector, Signature,
     SourceOrigin, Statement, Strict, Target, Termination, Unpositioned, ValueType,
 };
 use arena::{IdTable, NumericId};
@@ -171,7 +171,7 @@ fn call(callee: u64, arguments: Vec<Expression>) -> Expression {
 
 fn returns(value: Expression) -> Statement {
     Statement::Arm {
-        guard: None,
+        guard: ArmGuard::Always,
         target: Target::Value(value),
         source: nowhere(),
     }
@@ -656,7 +656,7 @@ fn knowledge_after_an_arm_operation_is_not_available_after_the_guard() {
             vec![u32_type()],
             vec![
                 Statement::Arm {
-                    guard: Some(expression(
+                    guard: ArmGuard::When(expression(
                         ExpressionKind::Strict {
                             operation: Strict::Equal,
                             policy: None,
@@ -742,7 +742,7 @@ fn compare(operation: Strict, left: Expression, right: Expression) -> Expression
 
 fn guarded(guard: Expression, target: Expression) -> Statement {
     Statement::Arm {
-        guard: Some(guard),
+        guard: ArmGuard::When(guard),
         target: Target::Value(target),
         source: nowhere(),
     }
@@ -7034,7 +7034,7 @@ fn crashing_below_ten(
         slots: vec![u32_type().into()],
         statements: vec![
             Statement::Arm {
-                guard: Some(compare(Strict::Less, slot(0, u32_type()), unsigned(10))),
+                guard: ArmGuard::When(compare(Strict::Less, slot(0, u32_type()), unsigned(10))),
                 target: Target::Crash(semantic_vocabulary::CrashCause::Trap),
                 source: nowhere(),
             },
@@ -7125,7 +7125,7 @@ fn crashing_at_zero(requires: Vec<Proposition>) -> (crate::lowering::Elaboration
         slots: vec![u32_type().into()],
         statements: vec![
             Statement::Arm {
-                guard: Some(compare(Strict::Equal, slot(0, u32_type()), unsigned(0))),
+                guard: ArmGuard::When(compare(Strict::Equal, slot(0, u32_type()), unsigned(0))),
                 target: Target::Crash(semantic_vocabulary::CrashCause::Trap),
                 source: nowhere(),
             },
@@ -7205,7 +7205,7 @@ fn calling_a_zero_route(requires: Vec<Proposition>) -> (crate::lowering::Elabora
         slots: vec![u32_type().into()],
         statements: vec![
             Statement::Arm {
-                guard: Some(compare(Strict::Equal, slot(0, u32_type()), unsigned(0))),
+                guard: ArmGuard::When(compare(Strict::Equal, slot(0, u32_type()), unsigned(0))),
                 target: Target::Crash(semantic_vocabulary::CrashCause::Trap),
                 source: nowhere(),
             },
@@ -7334,7 +7334,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             slots: vec![u32_type().into()],
             statements: vec![
                 Statement::Arm {
-                    guard: Some(compare(Strict::Less, slot(0, u32_type()), unsigned(10))),
+                    guard: ArmGuard::When(compare(Strict::Less, slot(0, u32_type()), unsigned(10))),
                     target: Target::Crash(semantic_vocabulary::CrashCause::Trap),
                     source: nowhere(),
                 },

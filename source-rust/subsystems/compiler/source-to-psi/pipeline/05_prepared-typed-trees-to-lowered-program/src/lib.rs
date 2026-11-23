@@ -171,15 +171,15 @@ impl SharedProgram {
 
 #[cfg(any(test, feature = "test-support"))]
 pub use body::{
-    Axis, Body, Borrowed, BorrowedReferent, CaseSelector, CaseType, Ceiling, CrashCeiling,
-    DomainInstance, DomainSet, Expression, ExpressionKind, Policy, Qualification, Ranking,
-    RecordField, RecordType, Selector, Signature, Statement, StorageShape, Strict, Target,
+    ArmGuard, Axis, Body, Borrowed, BorrowedReferent, CaseSelector, CaseType, Ceiling,
+    CrashCeiling, DomainInstance, DomainSet, Expression, ExpressionKind, Policy, Qualification,
+    Ranking, RecordField, RecordType, Selector, Signature, Statement, StorageShape, Strict, Target,
     Termination, ValueType, self_place,
 };
 #[cfg(not(any(test, feature = "test-support")))]
 pub use body::{
-    Body, Borrowed, Ceiling, DomainSet, Expression, ExpressionKind, RecordType, Signature,
-    Statement, StorageShape, Target, Termination, ValueType,
+    ArmGuard, Body, Borrowed, Ceiling, DomainSet, Expression, ExpressionKind, RecordType,
+    Signature, Statement, StorageShape, Target, Termination, ValueType,
 };
 pub use callable_formations::check_bound_callable_shapes;
 #[cfg(any(test, feature = "test-support"))]
@@ -939,7 +939,7 @@ pub(crate) fn callable_refinement_body(required: &body::Signature, call: Express
         slots: required.parameters.clone(),
         statements: vec![match required.result {
             Some(_) => Statement::Arm {
-                guard: None,
+                guard: ArmGuard::Always,
                 target: Target::Value(call),
                 source,
             },

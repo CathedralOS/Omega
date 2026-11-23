@@ -20,8 +20,8 @@ use terminal_psi::{CrashPredicateTerm, CrashRouteGuard};
 use super::contracts::{ClauseScope, ResultTerm};
 use super::{LocalSummaryBodies, Program, Slot, crash_cause, span};
 use crate::lowering::body::{
-    Body, BorrowedReferent, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Target,
-    Termination, ValueType,
+    ArmGuard, Body, BorrowedReferent, CrashCeiling, Expression, ExpressionKind, Signature,
+    Statement, Target, Termination, ValueType,
 };
 use crate::lowering::canonical::{self, Repeated};
 use crate::lowering::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
@@ -4425,7 +4425,7 @@ impl<'t> Program<'t> {
                                 names.exits.push((span, position));
                             }
                             Statement::Arm {
-                                guard: None,
+                                guard: ArmGuard::Always,
                                 source: expression.source,
                                 target: Target::Value(expression),
                             }
@@ -4506,13 +4506,18 @@ impl<'t> Program<'t> {
                         continue;
                     }
                     let (guard, target) = self.transition(id, &slots, handle, signature.result)?;
-                    let guard = if decided == Some(true) {
-                        statically_completed = true;
-                        None
-                    } else {
-                        guard
+                    let guard = match (decided, guard) {
+                        (Some(true), _) => {
+                            statically_completed = true;
+                            ArmGuard::Always
+                        }
+                        (_, None) => ArmGuard::Always,
+                        (_, Some(condition)) if transition.ends_dispatch => {
+                            ArmGuard::Final(condition)
+                        }
+                        (_, Some(condition)) => ArmGuard::When(condition),
                     };
-                    completed = guard.is_none();
+                    completed = guard.closes_dispatch();
                     Statement::Arm {
                         guard,
                         target,

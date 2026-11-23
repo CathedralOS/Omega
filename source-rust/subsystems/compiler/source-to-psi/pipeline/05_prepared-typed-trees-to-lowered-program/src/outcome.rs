@@ -550,13 +550,13 @@ impl<'b> Walk<'b> {
                     return Ok(normal);
                 }
                 Statement::Arm { guard, target, .. } => {
-                    if let Some(guard) = guard
+                    if let Some(guard) = guard.condition()
                         && !self.expression(machine, guard)?
                     {
                         return Ok(normal);
                     }
                     normal |= self.target(machine, target)?;
-                    if guard.is_none() {
+                    if guard.closes_dispatch() {
                         return Ok(normal);
                     }
                 }

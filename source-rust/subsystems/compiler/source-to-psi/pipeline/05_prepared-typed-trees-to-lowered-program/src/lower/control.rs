@@ -21,7 +21,8 @@ use terminal_psi::{
 use super::places::Bound;
 use super::{Draft, Evaluation, Lowering, Reached, Value, declaration, successor};
 use crate::lowering::body::{
-    CaseSelector, Expression, ExpressionKind, Selector, Statement, Strict, Target, ValueType,
+    ArmGuard, CaseSelector, Expression, ExpressionKind, Selector, Statement, Strict, Target,
+    ValueType,
 };
 use crate::lowering::canonical;
 use crate::lowering::{SourceOrigin, Unpositioned, Unserved, refuse};
@@ -406,7 +407,7 @@ impl Lowering<'_> {
                 }
             }
             Statement::Arm {
-                guard: Some(guard),
+                guard: ArmGuard::When(guard),
                 target,
                 source,
             } => {
@@ -448,7 +449,16 @@ impl Lowering<'_> {
                 Ok(Reached::Value(()))
             }
             Statement::Arm {
-                guard: None,
+                guard: ArmGuard::Final(guard),
+                target,
+                source,
+            } => {
+                let condition = continuing!(self.scalar(guard));
+                self.enter_final_arm(condition, guard, *source)?;
+                self.complete(target, *source).map(Reached::Value)
+            }
+            Statement::Arm {
+                guard: ArmGuard::Always,
                 target,
                 source,
             } => {
@@ -891,11 +901,9 @@ impl Lowering<'_> {
         default: Option<&Expression>,
         mut finish: impl FnMut(&mut Self, &Expression, Option<PlaceId>) -> Checked<()>,
     ) -> Evaluation<()> {
-        let Some(default) = default else {
-            return Err(self.internal("a scalar match without a default arm"));
-        };
         let mut decided_in = None;
-        for (selector, value) in arms {
+        let mut remaining = arms.iter().peekable();
+        while let Some((selector, value)) = remaining.next() {
             let (condition, pattern) = match (selector, tested) {
                 // A condition arm is its own branch condition.
                 (Selector::Guard(guard), _) => (continuing!(self.scalar(guard)), guard),
@@ -921,6 +929,11 @@ impl Lowering<'_> {
                     return Err(self.internal("a case pattern on a scalar subject"));
                 }
             };
+            if remaining.peek().is_none() && default.is_none() {
+                self.enter_final_arm(condition, pattern, value.source)?;
+                finish(self, value, None)?;
+                return Ok(Reached::Value(()));
+            }
             let here = self.current()?;
             let arm = self.block(value.source);
             let rest = self.block(SourceOrigin::Unpositioned(
@@ -938,12 +951,38 @@ impl Lowering<'_> {
             self.enter(rest);
             decided_in = Some(here);
         }
+        let default = default.ok_or_else(|| self.internal("an empty scalar match"))?;
         if let Some(decided_in) = decided_in {
             let block = self.current()?;
             self.authored_arm(block, decided_in, default.source, default.source);
         }
         finish(self, default, None)?;
         Ok(Reached::Value(()))
+    }
+
+    /// Preserve the final guard's evaluation and source. An ordinary block
+    /// invariant requires every incoming edge to prove the guard true.
+    fn enter_final_arm(
+        &mut self,
+        condition: ValueId,
+        guard: &Expression,
+        arm: SourceOrigin,
+    ) -> Checked<()> {
+        let here = self.current()?;
+        let Some(ValueType::Scalar(ScalarType::Boolean, qualification)) = guard.result else {
+            return Err(self.internal("a final dispatch guard without a Boolean result"));
+        };
+        let formal = ValueId::new(1).expect("first scalar formal");
+        self.establish_predicates(
+            condition,
+            ScalarType::Boolean,
+            qualification,
+            &[self.decision(formal, true)?],
+            Some(&terminal_check_tables::program::EstablishedCondition::DispatchCoverage),
+            guard.source,
+        )?;
+        self.authored_arm(self.current()?, here, arm, guard.source);
+        Ok(())
     }
 
     /// Records an authored arm's entry and the decision point preceding it.

@@ -577,7 +577,7 @@ fn statements<'body>(statements: &'body [Statement], sites: &mut BodyWalk<'body,
             Statement::Arm {
                 guard, target: arm, ..
             } => {
-                if let Some(guard) = guard {
+                if let Some(guard) = guard.condition() {
                     expression(guard, false, sites);
                 }
                 target(arm, sites);

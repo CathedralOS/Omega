@@ -130,7 +130,7 @@ fn statements(machine: MachineId, statements: &[Statement]) -> Checked<()> {
             Statement::Arm {
                 guard, target: arm, ..
             } => {
-                if let Some(guard) = guard {
+                if let Some(guard) = guard.condition() {
                     expression(machine, guard)?;
                 }
                 target(machine, arm)?;

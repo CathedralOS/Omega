@@ -84,7 +84,7 @@ fn explicit_array_views_retain_backing_and_a_separate_loan() {
         let mut statements = statements;
         statements.push(Statement::discard(call(2, vec![argument], None)));
         statements.push(Statement::Arm {
-            guard: None,
+            guard: ArmGuard::Always,
             target: Target::Unit,
             source: nowhere(),
         });
@@ -191,7 +191,7 @@ fn direct_array_windows_check_endpoints_against_the_whole_loan() {
     let statements = vec![
         bind(1, window),
         Statement::Arm {
-            guard: None,
+            guard: ArmGuard::Always,
             target: Target::Unit,
             source: nowhere(),
         },

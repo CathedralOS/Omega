@@ -661,7 +661,7 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
                     value: unsigned(3),
                 },
                 Statement::Arm {
-                    guard: Some(named(0, ScalarType::Boolean.into())),
+                    guard: ArmGuard::When(named(0, ScalarType::Boolean.into())),
                     target: Target::Value(Expression {
                         call_context: None,
                         kind: ExpressionKind::Call {

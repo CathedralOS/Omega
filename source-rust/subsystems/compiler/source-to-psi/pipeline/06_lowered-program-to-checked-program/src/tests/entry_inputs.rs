@@ -16,7 +16,7 @@ fn guarded_calls(other: u128) -> Machine {
         vec![u32_type()],
         vec![
             Statement::Arm {
-                guard: Some(expression(
+                guard: ArmGuard::When(expression(
                     ExpressionKind::Strict {
                         operation: Strict::Less,
                         policy: None,
@@ -448,7 +448,7 @@ fn a_private_call_without_normal_return_still_owes_its_inferred_input() {
         statements: vec![
             Statement::discard(strict(Strict::Subtract, slot(0, u32_type()), unsigned(1))),
             Statement::Arm {
-                guard: None,
+                guard: ArmGuard::Always,
                 target: Target::Crash(semantic_vocabulary::CrashCause::Trap),
                 source: nowhere(),
             },

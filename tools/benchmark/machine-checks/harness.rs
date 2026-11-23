@@ -7,6 +7,7 @@ use arena::{IdTable};
 use std::hash::{Hash, Hasher};
 use std::time::{Duration, Instant};
 use source_compiler::test_support::lowering::{
+    ArmGuard,
     Body, Ceiling, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement,
     Strict, Target, Termination, Unpositioned, ValueType,
 };
@@ -60,7 +61,7 @@ fn generated(
             });
         }
         statements.push(Statement::Arm {
-            guard: None,
+            guard: ArmGuard::Always,
             target: Target::Value(expression(ExpressionKind::Slot(0), scalar)),
             source: SourceOrigin::Unpositioned(Unpositioned::SpanAbsent),
         });

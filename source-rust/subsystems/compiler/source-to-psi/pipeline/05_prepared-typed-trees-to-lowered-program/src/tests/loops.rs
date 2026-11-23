@@ -9,7 +9,7 @@ use crate::lowering::Elaboration;
 
 fn guarded(guard: Expression, value: Expression) -> Statement {
     Statement::Arm {
-        guard: Some(guard),
+        guard: ArmGuard::When(guard),
         target: Target::Value(value),
         source: nowhere(),
     }
@@ -310,7 +310,7 @@ fn a_loop_with_no_way_out_never_completes_and_its_caller_does_not_continue() {
     let spin = Body {
         slots: Vec::new(),
         statements: vec![Statement::Arm {
-            guard: None,
+            guard: ArmGuard::Always,
             target: Target::Value(call(2, Vec::new(), None)),
             source: nowhere(),
         }],
