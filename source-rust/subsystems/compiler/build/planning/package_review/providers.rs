@@ -201,14 +201,17 @@ impl<'module> AcceptedDeclarations<'module> {
     fn validate_parameter_domains(
         &self,
         signature: &StateSignature,
+        requirement: &PackageReviewNominalIdentity,
         boundary: &BoundaryMachineDeclaration,
     ) -> Result<(), Vec<Diagnostic>> {
         use terminal_psi::{BoundaryParameterKind, StructuralDomainRequirement};
         use terminal_semantics::scalar_qualifications::{
             primitive_qualifications, qualification_domains, scalar_domain,
         };
-        let mismatch =
-            || unavailable("the exact root domain applications of a boundary's parameters");
+        let mismatch = || unavailable(format!(
+            "the parameter domain applications of boundary requirement `{}`",
+            requirement.path()
+        ));
         if !boundary.has_valid_parameter_order()
             || !StructuralDomainRequirement::declared_roots(&boundary.structural_parameters)
                 .eq(boundary.requires.iter().cloned())
@@ -1361,7 +1364,7 @@ impl PolicySource<'_> {
         let authored_routes = source.state_signature_contracts(signature).iter().any(|clause| {
             matches!(clause.kind, source_compiler::representations::source_state::signature::SignatureContractKind::Crashes { .. })
         });
-        declarations.validate_parameter_domains(signature, boundary)?;
+        declarations.validate_parameter_domains(signature, &requirement, boundary)?;
         if !signature.lifetime_parameters.is_empty()
             || !signature.conformance_bounds.is_empty()
             || signature.spelling.is_some()
@@ -1400,9 +1403,10 @@ impl PolicySource<'_> {
                 .as_ref()
                 .is_some_and(|rows| !rows.is_empty())
         {
-            return Err(unavailable(
-                "the boundary requirement's complete published contract",
-            ));
+            return Err(unavailable(format!(
+                "the complete published contract of boundary requirement `{}`",
+                requirement.path(),
+            )));
         }
         let parameters = self.requirement_parameters(signature)?;
         let type_parameters = source
