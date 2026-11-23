@@ -1,14 +1,15 @@
-use targets\linux_x86_64\LinuxClockWait;
-use omega\language\core\narrow_u32_to_i32_wrapping;
+use clock.omg as clock;
+use targets/linux_x86_64/clock_impl.omg as wait;
+use {omega}/language/core/numeric_conversion.omg as numeric;
 
 // Negative poll timeouts wait indefinitely. Divide large u32 durations into
 // three signed-range parts and the remainder, preserving the full duration
 // without converting a value above i32 maximum to a negative timeout. As with
 // the Darwin adapter, a delivered signal may interrupt an individual wait.
-public LinuxX8664Clock satisfies Clock {
+public LinuxX8664Clock satisfies |clock|::Clock {
     machine sleep(milliseconds: u32)
-    reaches Clock
-    invokes LinuxClockWait
+    reaches |clock|::Clock
+    invokes |wait|::LinuxClockWait
     blocks
     {
         transition milliseconds > 2147483647 {
@@ -17,15 +18,15 @@ public LinuxX8664Clock satisfies Clock {
         }
 
         machine at_once(milliseconds: u32) {
-            block LinuxClockWait::poll(0, 0, narrow_u32_to_i32_wrapping(milliseconds));
+            block |wait|::LinuxClockWait::poll(0, 0, |numeric|::narrow_u32_to_i32_wrapping(milliseconds));
         }
 
         machine in_parts(milliseconds: u32) {
-            let third: i32 = narrow_u32_to_i32_wrapping(milliseconds / 3);
-            block LinuxClockWait::poll(0, 0, third);
-            block LinuxClockWait::poll(0, 0, third);
-            block LinuxClockWait::poll(0, 0, third);
-            block LinuxClockWait::poll(0, 0, narrow_u32_to_i32_wrapping(milliseconds % 3));
+            let third: i32 = |numeric|::narrow_u32_to_i32_wrapping(milliseconds / 3);
+            block |wait|::LinuxClockWait::poll(0, 0, third);
+            block |wait|::LinuxClockWait::poll(0, 0, third);
+            block |wait|::LinuxClockWait::poll(0, 0, third);
+            block |wait|::LinuxClockWait::poll(0, 0, |numeric|::narrow_u32_to_i32_wrapping(milliseconds % 3));
         }
     }
 }

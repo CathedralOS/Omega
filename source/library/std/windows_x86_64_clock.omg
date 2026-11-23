@@ -1,10 +1,12 @@
-use targets\windows_x86_64\WindowsClockWait;
+use clock.omg as clock;
+use targets/windows_x86_64/clock_impl.omg as wait;
+
 // Every count below `u32 maximum` is a finite `Sleep`. The maximum itself is
 // `INFINITE`, so it waits in two halves, each finite, for the same total.
-public WindowsX8664Clock satisfies Clock {
+public WindowsX8664Clock satisfies |clock|::Clock {
     machine sleep(milliseconds: u32)
-    reaches Clock
-    invokes WindowsClockWait
+    reaches |clock|::Clock
+    invokes |wait|::WindowsClockWait
     blocks
     {
         transition milliseconds == 4294967295 {
@@ -13,13 +15,13 @@ public WindowsX8664Clock satisfies Clock {
         }
 
         machine at_once(milliseconds: u32) {
-            block WindowsClockWait::sleep(milliseconds);
+            block |wait|::WindowsClockWait::sleep(milliseconds);
         }
 
         // 2147483647 + 2147483648 == 4294967295.
         machine in_halves() {
-            block WindowsClockWait::sleep(2147483647);
-            block WindowsClockWait::sleep(2147483648);
+            block |wait|::WindowsClockWait::sleep(2147483647);
+            block |wait|::WindowsClockWait::sleep(2147483648);
         }
     }
 }

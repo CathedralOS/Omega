@@ -1,4 +1,5 @@
-use Clock;
+use clock.omg as clock;
+
 // Linux x86-64 timed waiting uses poll with no descriptors. Its timeout is
 // an integer millisecond count; nanosleep instead needs a timespec pointer,
 // so binding Clock::sleep's u32 directly to nanosleep would not implement it.
@@ -8,14 +9,13 @@ use Clock;
 // Admission retains the selected syscall and its exact ABI. Native execution
 // still requires general syscall lowering and emission; this checked adapter
 // supplies neither target instructions nor fabricated import-stack evidence.
-use omega\language\core\narrow_u32_to_i32_wrapping;
 
 // The raw poll wait is its own boundary trait. Selecting `Clock` does not
 // grant this seam; the requirement names `Clock` as its explicit reach.
 boundary trait LinuxClockWait {
     machine poll(descriptors: u64, descriptor_count: u32, timeout_milliseconds: i32)
     reaches
-        Clock
+        |clock|::Clock
     blocks
     crashes none;
 }

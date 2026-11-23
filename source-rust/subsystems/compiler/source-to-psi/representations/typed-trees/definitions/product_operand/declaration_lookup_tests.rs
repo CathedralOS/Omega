@@ -181,3 +181,63 @@ fn product_declaration_authors_keep_exact_span_and_ambiguity() {
             .contains("no authored selecting machine")
     );
 }
+
+#[test]
+fn product_file_aliases_select_only_the_boundary_in_the_imported_file() {
+    use crate::source_symbols::{SourceScopedTopLevelBinding, SymbolTableBuilder};
+    use source_text::{SourceSpan, Span};
+    use symbols::{SymbolKind, SymbolNameRef};
+
+    let mut sources = crate::source_inputs::SourceMap::default();
+    let [author, first, second] = ["build.omg", "one.omg", "two.omg"].map(|file| {
+        sources
+            .add_with_metadata(
+                std::path::Path::new("package").join(file),
+                "Clock".to_owned(),
+                "package".into(),
+                semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]),
+                source_admission::SourceOrigin::User,
+            )
+            .source_id
+    });
+    let span = |source| SourceSpan::new(source, Span::new(0, 5));
+    let bindings = vec![
+        SourceScopedTopLevelBinding::file_import(author, first, "one"),
+        SourceScopedTopLevelBinding::file_import(author, second, "two"),
+    ];
+    let mut builder = SymbolTableBuilder::with_sources_and_top_level_bindings(
+        Some(std::sync::Arc::new(sources)),
+        bindings,
+    );
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let traits = builder.insert_children(
+        root,
+        [first, second].map(|file| (SymbolKind::Trait, SymbolNameRef::Source(span(file)))),
+    );
+    let mut program = TypedTrees {
+        symbols: builder.finish(),
+        ..Default::default()
+    };
+    for symbol in traits.handles() {
+        program.tables.traits.append_to_span(
+            &mut program.roots.traits,
+            crate::source_state::trait_definition::TraitDefinition {
+                symbol,
+                is_boundary: true,
+                ..Default::default()
+            },
+        );
+    }
+
+    let role = ProductOperandKind::BoundarySubject;
+    let lookup = ProductDeclarationLookup::new(&program, &[role]);
+    assert_eq!(
+        lookup.resolve("|one|::Clock", span(author), role),
+        Some(traits.handle_at(0))
+    );
+    assert_eq!(
+        lookup.resolve("|two|::Clock", span(author), role),
+        Some(traits.handle_at(1))
+    );
+    assert_eq!(lookup.resolve("|missing|::Clock", span(author), role), None);
+}

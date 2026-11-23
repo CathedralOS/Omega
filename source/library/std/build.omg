@@ -1,3 +1,12 @@
+use clock.omg as clock;
+use linux_arm64_clock.omg as linux_arm64_clock;
+use targets/linux_arm64/clock_impl.omg as linux_arm64_wait;
+use linux_x86_64_clock.omg as linux_x86_64_clock;
+use targets/linux_x86_64/clock_impl.omg as linux_x86_64_wait;
+use macos_arm64_clock.omg as macos_arm64_clock;
+use targets/macos_arm64/clock_impl.omg as macos_arm64_wait;
+use windows_x86_64_clock.omg as windows_x86_64_clock;
+use targets/windows_x86_64/clock_impl.omg as windows_x86_64_wait;
 use omega\language\core\DllImport;
 use omega\language\core\ForeignBinding;
 use omega\language\core\ProcessExit;
@@ -101,24 +110,24 @@ machine configure_filesystem_providers(builder: @mutable Build) {
 // use Clock without repeating imports or naming the dependency's private seams.
 // Forward the activation's original Build value through this ordinary helper.
 machine configure_clock(builder: @mutable Build) {
-    Build::select_provider::<Clock, WindowsX8664Clock>(builder, windows_x86_64);
-    Build::bind::<targets\windows_x86_64\WindowsClockWait::sleep>(builder, windows_x86_64,
+    Build::select_provider::<|clock|::Clock, |windows_x86_64_clock|::WindowsX8664Clock>(builder, windows_x86_64);
+    Build::bind::<|windows_x86_64_wait|::WindowsClockWait::sleep>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "Sleep"
         } });
 
-    Build::select_provider::<Clock, MacosArm64Clock>(builder, macos_arm64);
-    Build::bind::<targets\macos_arm64\DarwinClockWait::poll>(builder, macos_arm64,
+    Build::select_provider::<|clock|::Clock, |macos_arm64_clock|::MacosArm64Clock>(builder, macos_arm64);
+    Build::bind::<|macos_arm64_wait|::DarwinClockWait::poll>(builder, macos_arm64,
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_poll"
         } });
 
-    Build::select_provider::<Clock, LinuxX8664Clock>(builder, linux_x86_64);
-    Build::bind::<targets\linux_x86_64\LinuxClockWait::poll>(builder, linux_x86_64,
+    Build::select_provider::<|clock|::Clock, |linux_x86_64_clock|::LinuxX8664Clock>(builder, linux_x86_64);
+    Build::bind::<|linux_x86_64_wait|::LinuxClockWait::poll>(builder, linux_x86_64,
         ForeignBinding::Syscall { number: 7 });
 
-    Build::select_provider::<Clock, LinuxArm64Clock>(builder, linux_arm64);
-    Build::bind::<targets\linux_arm64\LinuxArmClockWait::nanosleep>(builder, linux_arm64,
+    Build::select_provider::<|clock|::Clock, |linux_arm64_clock|::LinuxArm64Clock>(builder, linux_arm64);
+    Build::bind::<|linux_arm64_wait|::LinuxArmClockWait::nanosleep>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 101 });
 }
 
