@@ -106,13 +106,13 @@ impl PackageGeneratedSource {
             )
         {
             return Err(format!(
-                "invalid generated source filename \"{}\": expected a package-relative .omg filename",
+                "invalid generated source filename `{}`: expected a package-relative .omg filename",
                 logical_name.escape_ascii()
             ));
         }
         std::str::from_utf8(bytes).map_err(|_| {
             format!(
-                "generated source \"{}\" must contain UTF-8 bytes",
+                "generated source `{}` must contain UTF-8 bytes",
                 logical_name.escape_ascii()
             )
         })?;
@@ -456,7 +456,7 @@ pub fn recover_included_output_sources(
         }
         std::str::from_utf8(bytes).map_err(|_| {
             diagnostics(format!(
-                "generated source \"{}\" must contain UTF-8 bytes",
+                "generated source `{}` must contain UTF-8 bytes",
                 relative_path.escape_ascii()
             ))
         })?;

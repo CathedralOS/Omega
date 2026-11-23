@@ -26,7 +26,7 @@ impl BuildSourcePublications {
         PackageGeneratedSource::validate_publication(logical_name, bytes)?;
         if self.sources.contains_key(logical_name) {
             return Err(format!(
-                "generated source filename \"{}\" was already published",
+                "generated source filename `{}` was already published",
                 logical_name.escape_ascii()
             ));
         }
