@@ -1,3 +1,4 @@
+use pipeline/syntax_trees_to_symbol_resolved_trees/resolution_state.omg;
 use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
 use representations\source_files\SourceSet;
 use representations\source_files\SourceSpan;
@@ -39,19 +40,19 @@ use representations\syntax_trees\type_argument;
 
 // Each domain's generic annotations, carrier and index arguments, in its
 // own scope.
-public machine bind_domain_carriers(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+public machine bind_domain_carriers(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, 0) }
 
-    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.domain_count && resolver.output.accepted {
             true -> carrier(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine carrier(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine carrier(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: DomainItem = syntax_trees_domain_item(syntax, index);
         let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
         bind_generic_annotations(resolver, sources, syntax, scope, false);
@@ -59,14 +60,14 @@ crashes Trap
         transition { _ -> argument(resolver, sources, syntax, index, item, scope, 0) }
     }
 
-    machine argument(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: DomainItem, scope: TypeScope, offset: u64 in Trapping) {
+    machine argument(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: DomainItem, scope: TypeScope, offset: u64 in Trapping) {
         transition offset < item.argument_count && resolver.output.accepted {
             true -> bind_argument(resolver, sources, syntax, index, item, scope, offset),
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
 
-    machine bind_argument(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: DomainItem, scope: TypeScope, offset: u64 in Trapping) {
+    machine bind_argument(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: DomainItem, scope: TypeScope, offset: u64 in Trapping) {
         let row: u64 in Trapping = type_argument(syntax, item.first_argument + offset);
         bind_type_reference(resolver, sources, syntax, scope, row, TypeRole::StaticArgument);
         transition { _ -> argument(resolver, sources, syntax, index, item, scope, offset + 1) }
@@ -77,19 +78,19 @@ crashes Trap
 
 // Domain names: none spells a compiler-known domain, and a module declares
 // one name over one carrier type once.
-public machine check_domains(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+public machine check_domains(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, 0) }
 
-    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.domain_count && resolver.output.accepted {
             true -> domain(resolver, sources, syntax, index),
             _ -> done()
         }
     }
 
-    machine domain(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine domain(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         let item: DomainItem = syntax_trees_domain_item(syntax, index);
         let known: DomainBinding = known_domain(sources, item.name.source_span);
         transition known {
@@ -98,14 +99,14 @@ crashes Trap
         }
     }
 
-    machine prior(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: DomainItem, earlier: u64 in Trapping) {
+    machine prior(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: DomainItem, earlier: u64 in Trapping) {
         transition earlier < index {
             true -> compare(resolver, sources, syntax, index, item, earlier),
             _ -> next(resolver, sources, syntax, index + 1)
         }
     }
 
-    machine compare(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: DomainItem, earlier: u64 in Trapping) {
+    machine compare(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: DomainItem, earlier: u64 in Trapping) {
         let earlier_item: DomainItem = syntax_trees_domain_item(syntax, earlier);
         let named: bool = spans_equal(sources, item.name.source_span, earlier_item.name.source_span);
         let same_module: bool = resolver_same_module(sources, item.name.source_span.source.value as -Trapping as u64 +Trapping,
@@ -116,7 +117,7 @@ crashes Trap
         }
     }
 
-    machine carriers(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: DomainItem, earlier: u64 in Trapping, earlier_item: DomainItem) {
+    machine carriers(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, item: DomainItem, earlier: u64 in Trapping, earlier_item: DomainItem) {
         let scope: TypeScope = resolver_scope(item.first_generic_parameter, item.generic_parameter_count);
         let earlier_scope: TypeScope = resolver_scope(earlier_item.first_generic_parameter, earlier_item.generic_parameter_count);
         let same: bool = same_type(resolver, syntax, scope, item.carrier, earlier_scope, earlier_item.carrier);
@@ -126,7 +127,7 @@ crashes Trap
         }
     }
 
-    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
+    machine reject(resolver: @mutable |resolution_state|::Resolver, code: ResolveDiagnosticCode, name: IdentifierSpan) {
         name_resolution_reject(@mutable resolver.output, code, name.source_span);
     }
 
@@ -174,19 +175,19 @@ crashes Trap
 
 // The declared domain `name` selects for the type whose root is row `row`:
 // the one visible domain of that name whose carrier admits the type.
-public machine resolver_declared_domain(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan) -> |declarations|::Lookup
+public machine resolver_declared_domain(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan) -> |declarations|::Lookup
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, row, name, 0) }
 
-    machine next(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
+    machine next(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
         transition index < syntax.domain_count {
             true -> candidate(resolver, sources, syntax, row, name, index),
             _ -> absent()
         }
     }
 
-    machine candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
+    machine candidate(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
         let admitted: bool = domain_admits(resolver, sources, syntax, index, row, name);
         transition admitted {
             true -> rival(resolver, sources, syntax, row, name, index, index + 1),
@@ -194,14 +195,14 @@ crashes Trap
         }
     }
 
-    machine rival(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> |declarations|::Lookup {
+    machine rival(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> |declarations|::Lookup {
         transition index < syntax.domain_count {
             true -> rival_candidate(resolver, sources, syntax, row, name, found, index),
             _ -> unique(found)
         }
     }
 
-    machine rival_candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> |declarations|::Lookup {
+    machine rival_candidate(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, row: u64 in Trapping, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> |declarations|::Lookup {
         let admitted: bool = domain_admits(resolver, sources, syntax, index, row, name);
         transition admitted {
             true -> ambiguous(),
@@ -224,7 +225,7 @@ crashes Trap
 
 // Whether domain `index` is named `name`, visible from it, and carried by
 // the type rooted at `row`.
-public machine domain_admits(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, row: u64 in Trapping, name: SourceSpan) -> bool
+public machine domain_admits(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, row: u64 in Trapping, name: SourceSpan) -> bool
 crashes Trap
 {
     let item: DomainItem = syntax_trees_domain_item(syntax, index);
@@ -235,7 +236,7 @@ crashes Trap
         _ -> no()
     }
 
-    machine carried(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item: DomainItem, row: u64 in Trapping) -> bool {
+    machine carried(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, item: DomainItem, row: u64 in Trapping) -> bool {
         carrier_matches(resolver, syntax, item, row)
     }
 
@@ -250,7 +251,7 @@ crashes Trap
 // order whenever the rows agree. A carrier row naming one of the domain's
 // own generic parameters stands for any type: the walk skips the whole
 // subtree the actual type has in its place. No recursion or stack is needed.
-public machine carrier_matches(resolver: @Resolver, syntax: @SyntaxTrees, item: DomainItem, actual: u64 in Trapping) -> bool
+public machine carrier_matches(resolver: @|resolution_state|::Resolver, syntax: @SyntaxTrees, item: DomainItem, actual: u64 in Trapping) -> bool
 crashes Trap
 {
     let carrier_root: TypeReference = syntax_trees_type_reference(syntax, item.carrier);
@@ -259,7 +260,7 @@ crashes Trap
 
     // `carrier_end` and `actual_end` are one past the next rows to compare.
     machine step(
-        resolver: @Resolver,
+        resolver: @|resolution_state|::Resolver,
         syntax: @SyntaxTrees,
         item: DomainItem,
         carrier_first: u64 in Trapping,
@@ -274,7 +275,7 @@ crashes Trap
     }
 
     machine pair(
-        resolver: @Resolver,
+        resolver: @|resolution_state|::Resolver,
         syntax: @SyntaxTrees,
         item: DomainItem,
         carrier_first: u64 in Trapping,
@@ -289,7 +290,7 @@ crashes Trap
     }
 
     machine wildcard(
-        resolver: @Resolver,
+        resolver: @|resolution_state|::Resolver,
         syntax: @SyntaxTrees,
         item: DomainItem,
         carrier_first: u64 in Trapping,
@@ -305,7 +306,7 @@ crashes Trap
     }
 
     machine generic(
-        resolver: @Resolver,
+        resolver: @|resolution_state|::Resolver,
         syntax: @SyntaxTrees,
         item: DomainItem,
         carrier_first: u64 in Trapping,
@@ -322,7 +323,7 @@ crashes Trap
     }
 
     machine head(
-        resolver: @Resolver,
+        resolver: @|resolution_state|::Resolver,
         syntax: @SyntaxTrees,
         item: DomainItem,
         carrier_first: u64 in Trapping,
@@ -348,7 +349,7 @@ crashes Trap
 
 // Whether two rows agree in form, access, argument count and binding,
 // regardless of their own `in` qualifiers. Integer rows compare by value.
-machine same_head(resolver: @Resolver, syntax: @SyntaxTrees, left: u64 in Trapping, right: u64 in Trapping) -> bool
+machine same_head(resolver: @|resolution_state|::Resolver, syntax: @SyntaxTrees, left: u64 in Trapping, right: u64 in Trapping) -> bool
 crashes Trap
 {
     let left_row: TypeReference = syntax_trees_type_reference(syntax, left);
@@ -358,7 +359,7 @@ crashes Trap
         _ -> different()
     }
 
-    machine bindings(resolver: @Resolver, left: u64 in Trapping, right: u64 in Trapping) -> bool {
+    machine bindings(resolver: @|resolution_state|::Resolver, left: u64 in Trapping, right: u64 in Trapping) -> bool {
         same_bound_rows(@resolver.output, left, right)
     }
 
@@ -415,19 +416,19 @@ crashes Trap
 }
 
 // Establishment routes and alias constituents, in domain order.
-public machine bind_domain_paths(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
+public machine bind_domain_paths(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees)
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, 0) }
 
-    machine next(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
+    machine next(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping) {
         transition index < syntax.domain_count && resolver.output.accepted {
             true -> routes(resolver, sources, syntax, index, 0),
             _ -> done()
         }
     }
 
-    machine routes(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) {
+    machine routes(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) {
         let item: DomainItem = syntax_trees_domain_item(syntax, index);
         transition offset < item.route_count && resolver.output.accepted {
             true -> route(resolver, sources, syntax, index, offset, item.first_route + offset),
@@ -435,12 +436,12 @@ crashes Trap
         }
     }
 
-    machine route(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, path: u64 in Trapping) {
+    machine route(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, path: u64 in Trapping) {
         bind_machine_path(resolver, sources, syntax, path);
         transition { _ -> routes(resolver, sources, syntax, index, offset + 1) }
     }
 
-    machine constituents(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) {
+    machine constituents(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping) {
         let item: DomainItem = syntax_trees_domain_item(syntax, index);
         transition offset < item.constituent_count && resolver.output.accepted {
             true -> constituent(resolver, sources, syntax, index, offset, item, item.first_constituent + offset),
@@ -448,7 +449,7 @@ crashes Trap
         }
     }
 
-    machine constituent(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, item: DomainItem, path: u64 in Trapping) {
+    machine constituent(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, item: DomainItem, path: u64 in Trapping) {
         let name_path: NamePath = syntax_trees_name_path(syntax, path);
         let lookup: |declarations|::Lookup = constituent_domain(resolver, sources, syntax, item, name_path);
         transition lookup {
@@ -458,12 +459,12 @@ crashes Trap
         }
     }
 
-    machine bound(resolver: @mutable Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, path: u64 in Trapping, handle: u64 in Trapping) {
+    machine bound(resolver: @mutable |resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, offset: u64 in Trapping, path: u64 in Trapping, handle: u64 in Trapping) {
         set_path_binding(resolver, path, PathBinding::Domain { item: handle });
         transition { _ -> constituents(resolver, sources, syntax, index, offset + 1) }
     }
 
-    machine reject(resolver: @mutable Resolver, code: ResolveDiagnosticCode, name_path: NamePath) {
+    machine reject(resolver: @mutable |resolution_state|::Resolver, code: ResolveDiagnosticCode, name_path: NamePath) {
         name_resolution_reject(@mutable resolver.output, code, name_path.source_span);
     }
 
@@ -473,7 +474,7 @@ crashes Trap
 // The domain an alias constituent names: `Name` over the alias's own
 // carrier, or `Carrier::Name` over the type `Carrier` names in the alias's
 // scope. A longer path crosses a package, which this source set cannot bind.
-machine constituent_domain(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, alias: DomainItem, name_path: NamePath) -> |declarations|::Lookup
+machine constituent_domain(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, alias: DomainItem, name_path: NamePath) -> |declarations|::Lookup
 crashes Trap
 {
     transition name_path.member_count {
@@ -482,12 +483,12 @@ crashes Trap
         _ -> absent()
     }
 
-    machine bare(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, alias: DomainItem, name_path: NamePath) -> |declarations|::Lookup {
+    machine bare(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, alias: DomainItem, name_path: NamePath) -> |declarations|::Lookup {
         let name: IdentifierSpan = syntax_trees_member(syntax, name_path.first_member);
         resolver_declared_domain(resolver, sources, syntax, alias.carrier, name.source_span)
     }
 
-    machine qualified(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, alias: DomainItem, name_path: NamePath) -> |declarations|::Lookup {
+    machine qualified(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, alias: DomainItem, name_path: NamePath) -> |declarations|::Lookup {
         let carrier: IdentifierSpan = syntax_trees_member(syntax, name_path.first_member);
         let name: IdentifierSpan = syntax_trees_member(syntax, name_path.first_member + 1);
         let scope: TypeScope = resolver_scope(alias.first_generic_parameter, alias.generic_parameter_count);
@@ -502,19 +503,19 @@ crashes Trap
 // The visible domain named `name` whose carrier's root binds like the type
 // `carrier` names in `scope`, or is one of the domain's own generic
 // parameters.
-public machine domain_by_head(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan) -> |declarations|::Lookup
+public machine domain_by_head(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan) -> |declarations|::Lookup
 crashes Trap
 {
     transition { _ -> next(resolver, sources, syntax, scope, carrier, name, 0) }
 
-    machine next(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
+    machine next(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
         transition index < syntax.domain_count {
             true -> candidate(resolver, sources, syntax, scope, carrier, name, index),
             _ -> absent()
         }
     }
 
-    machine candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
+    machine candidate(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
         let admitted: bool = domain_head_admits(resolver, sources, syntax, index, scope, carrier, name);
         transition admitted {
             true -> rival(resolver, sources, syntax, scope, carrier, name, index, index + 1),
@@ -522,14 +523,14 @@ crashes Trap
         }
     }
 
-    machine rival(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> |declarations|::Lookup {
+    machine rival(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> |declarations|::Lookup {
         transition index < syntax.domain_count {
             true -> rival_candidate(resolver, sources, syntax, scope, carrier, name, found, index),
             _ -> unique(found)
         }
     }
 
-    machine rival_candidate(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> |declarations|::Lookup {
+    machine rival_candidate(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, scope: TypeScope, carrier: SourceSpan, name: SourceSpan, found: u64 in Trapping, index: u64 in Trapping) -> |declarations|::Lookup {
         let admitted: bool = domain_head_admits(resolver, sources, syntax, index, scope, carrier, name);
         transition admitted {
             true -> ambiguous(),
@@ -551,7 +552,7 @@ crashes Trap
 }
 
 machine domain_head_admits(
-    resolver: @Resolver,
+    resolver: @|resolution_state|::Resolver,
     sources: @SourceSet,
     syntax: @SyntaxTrees,
     index: u64 in Trapping,
@@ -569,7 +570,7 @@ crashes Trap
         _ -> answer(false)
     }
 
-    machine head(resolver: @Resolver, sources: @SourceSet, syntax: @SyntaxTrees, declared: DomainItem, scope: TypeScope, carrier: SourceSpan) -> bool {
+    machine head(resolver: @|resolution_state|::Resolver, sources: @SourceSet, syntax: @SyntaxTrees, declared: DomainItem, scope: TypeScope, carrier: SourceSpan) -> bool {
         let own: TypeBinding = type_binding_at(@resolver.output, declared.carrier);
         transition own {
             TypeBinding::GenericParameter { parameter } -> own_generic(declared, parameter),

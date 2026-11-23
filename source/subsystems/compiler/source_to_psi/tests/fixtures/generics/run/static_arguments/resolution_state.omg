@@ -1,0 +1,3 @@
+use main.omg as rows;
+
+public data Resolver [copy] { output: |rows|::NameResolution; }
