@@ -1051,6 +1051,7 @@ mod header_reading_tests {
                     operator: BinaryOperator::And,
                     right: negation,
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                 }));
         for expression in [predicate, negation] {
             let occurrence = typed

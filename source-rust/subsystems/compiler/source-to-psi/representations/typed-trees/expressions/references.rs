@@ -1000,6 +1000,7 @@ pub(crate) mod source_occurrences {
                     .expression_table
                     .insert(ExpressionNode::Binary(TableBinaryExpression {
                         policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                        negation: false,
                         left: leaf,
                         right: leaf,
                         operator: BinaryOperator::Add,

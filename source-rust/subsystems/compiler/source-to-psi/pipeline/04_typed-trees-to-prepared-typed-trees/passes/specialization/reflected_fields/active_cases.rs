@@ -598,6 +598,7 @@ fn case_arm(
             right: head,
             operator: BinaryOperator::CaseMembership,
             policy: ArithmeticDomain::Exact,
+            negation: false,
         }),
         span,
     );
@@ -609,6 +610,7 @@ fn case_arm(
             right: truth,
             operator: BinaryOperator::And,
             policy: ArithmeticDomain::Exact,
+            negation: false,
         }),
         span,
     );

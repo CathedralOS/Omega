@@ -116,6 +116,7 @@ pub(crate) fn hoist_scalar_value_call_comparison(
         });
     let rewritten = TableBinaryExpression {
         policy: binary.policy,
+        negation: binary.negation,
         left: if call_is_left {
             name_reference
         } else {

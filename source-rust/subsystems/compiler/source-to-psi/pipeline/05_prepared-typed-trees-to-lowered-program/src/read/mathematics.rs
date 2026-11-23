@@ -637,6 +637,7 @@ mod address_context_tests {
                     operator: BinaryOperator::Add,
                     right: length,
                     policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    negation: false,
                 }));
         let body = typed
             .expression_table
@@ -645,6 +646,7 @@ mod address_context_tests {
                 operator: BinaryOperator::LessOrEqual,
                 right: bound,
                 policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                negation: false,
             }));
         let base = name(&mut typed, parameters[1][0], "base");
         let length = name(&mut typed, parameters[1][1], "length");

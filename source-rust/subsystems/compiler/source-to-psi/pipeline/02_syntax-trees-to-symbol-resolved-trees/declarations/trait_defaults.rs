@@ -615,6 +615,7 @@ fn synthesized_equality_member(
         .expressions
         .insert(ExpressionNode::Binary(TableBinaryExpression {
             policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            negation: false,
             left,
             operator: BinaryOperator::Equal,
             right,
