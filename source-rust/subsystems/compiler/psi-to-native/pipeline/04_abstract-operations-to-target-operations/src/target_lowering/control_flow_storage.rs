@@ -2883,19 +2883,12 @@ pub(crate) mod primitive_storage {
             Some((terminal_psi::StructuralPathSegment::Case(_), prefix)) => prefix,
             _ => &argument.path,
         };
-        let regions = crate::target_lowering::structural_layout::reference_projection_regions(
+        let runs = crate::target_lowering::structural_layout::reference_formation_indices(
             root,
+            function.arrival_parameter(argument.place),
             carrier_path,
             types,
-        )
-        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
-        let (_, _, _, leaf_indices) =
-            crate::target_lowering::structural_layout::runtime_projection(
-                regions.root,
-                regions.path,
-                types,
-            )?;
-        let runs = regions.selector_runs(leaf_indices);
+        )?;
         super::scalar_sources::runtime_indices(
             runs,
             function,

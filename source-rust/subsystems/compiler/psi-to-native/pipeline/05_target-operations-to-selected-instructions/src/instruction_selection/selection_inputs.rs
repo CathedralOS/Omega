@@ -73,8 +73,8 @@ pub(crate) mod address_join_input {
         arrivals, declares_block_parameter,
     };
     use crate::instruction_selection::structural_inputs::structural_reference_input::{
-        PointerSlot, owner_loan_geometry, projected_scalar_codec, reference_source_geometry,
-        scalar_storage_type,
+        PointerSlot, descriptor_source_geometry_at, projected_scalar_codec_at,
+        reference_source_geometry_at, scalar_storage_type,
     };
     use structural_storage_queries::address_joins::is_address_join_in;
 
@@ -181,10 +181,14 @@ pub(crate) mod address_join_input {
             parameter,
             source.geometry(),
         );
+        let formal = crate::instruction_selection::selection::arrival_parameter_input::parameter(
+            source,
+            argument.place,
+        );
         let mut geometry = if owner_loan {
-            owner_loan_geometry(root, &argument.path, source.geometry())
+            descriptor_source_geometry_at(root, formal, &argument.path, source.geometry())
         } else {
-            reference_source_geometry(root, &argument.path, source.geometry())
+            reference_source_geometry_at(root, formal, &argument.path, source.geometry())
         }?;
         if !crate::instruction_selection::structural_inputs::runtime_indices_match(
             indices,
@@ -218,8 +222,9 @@ pub(crate) mod address_join_input {
                     argument.place,
                 )
                 .is_some();
-        let codec =
-            scalar.and_then(|_| projected_scalar_codec(root, &argument.path, source.geometry()));
+        let codec = scalar.and_then(|_| {
+            projected_scalar_codec_at(root, formal, &argument.path, source.geometry())
+        });
         let storage_offset = geometry
             .pointer_slots
             .first()
