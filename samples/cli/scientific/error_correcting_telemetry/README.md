@@ -57,8 +57,9 @@ omega --check samples/cli/independent/error_correcting_telemetry/controls/out_of
 ```
 
 The CLI Terminal comparison must report exit agreement explicitly; a decline is
-recorded as unsupported. Its stdout is native output: this public route does not
-establish Terminal output equivalence. Generated compiler output stays in
+recorded as unsupported. The CLI forwards native stdout and checks that both engines produce
+identical stdout
+and stderr. Generated compiler output stays in
 ignored `build/`. See `VALIDATION.md` for the actual revision, binary, commands,
 observations and blockers from this candidate.
 

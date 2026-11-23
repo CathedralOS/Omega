@@ -94,7 +94,7 @@ but CLI stdout/stderr contain the native program streams. `interp exit: N`
 reports Terminal termination agreement only. The host-comparison verifier checks
 native stdout against the oracle and requires that positive Terminal exit report;
 `DECLINED`, missing agreement, divergence and interpretation failures cannot pass.
-It does not claim to capture or compare Terminal stdout.
+The CLI also compares both output streams. The verifier reads the forwarded native bytes.
 
 Exact direct Terminal streams use the supported public SDK route below. Build
 one Omega CLI, retain its successful Cargo JSON, and link the private sponsor to

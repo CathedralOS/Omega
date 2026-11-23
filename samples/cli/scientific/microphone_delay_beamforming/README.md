@@ -79,7 +79,8 @@ avoid the compiler defect.
 
 The fixture matrix covers ten valid variants and eight runtime refusals. The
 separate complete bounds source must reject for its authored index-eight rule.
-`run --both` compares termination only. The ordinary harness checks native
+`omega run --both` compares termination and the exact stdout and stderr bytes from
+both engines. The ordinary harness checks native
 stdout and interpreted exit agreement; the qualification packet also includes
 an independently authored consumer of the public admitted Terminal runtime,
 capturing full interpreted stdout for every fixture. Retained native executable

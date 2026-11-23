@@ -75,9 +75,9 @@ omega --check samples/cli/independent/layered_toolpath_coverage/controls/out_of_
 ```
 
 The final command is expected to exit 1 with the intended bounds diagnostic.
-Native and `--both` results/logs are retained in ignored `build/`. The portable
-Console supports Terminal comparison on this Linux host; compare stdout against
-the frozen oracle separately because CLI comparison itself compares termination.
+Native and `--both` results/logs are retained in ignored `build/`. The CLI compares
+termination, stdout and stderr on this Linux host. Check the
+forwarded stdout against the frozen oracle as well.
 Review and custody denials must be reported without bypass or acceptance retries.
 
 See `VALIDATION.md` for actual routes, identities and any remaining blockers. Linux

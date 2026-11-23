@@ -70,10 +70,9 @@ $OMEGA run --both --keep samples/cli/independent/laboratory_protocol/main.omg < 
 ```
 
 The public `run --both` route replays the same finite stdin for Terminal and
-native execution. Its comparison checks exit status; the forwarded stdout is
-native. Validation checks all native trace bytes against the frozen oracle and
-requires explicit Terminal exit agreement. It does not claim that this CLI
-verifies Terminal stdout equality.
+native execution. It compares termination, stdout and stderr and forwards the native output.
+Validation checks all native trace bytes against the frozen oracle and
+requires explicit Terminal exit agreement.
 
 Validation records and generated artifacts belong in ignored `build/`.
 The candidate's validation record identifies exact binary hash, base, host,

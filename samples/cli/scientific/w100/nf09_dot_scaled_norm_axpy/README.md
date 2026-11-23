@@ -44,10 +44,9 @@ them. Both applications import core `float_operations` so comparisons select
 the exact source requirements/providers. IEEE comparison is not structural
 proof equality.
 
-`run --both` qualifies Terminal termination only when it reports execution and
-agreement, not `DECLINED`. It does not compare program streams. Native and
-Terminal stdout/stderr need independent observation; matching exits cannot
-stand in for output evidence. A requested review, denial or custody hold remains
+A completed `omega run --both` comparison checks termination, stdout and stderr. The
+validation route also needs expected stream bytes to verify the numerical results. A requested
+review, denial or custody hold remains
 a refusal, not permission to accept policy or reuse old locks.
 
 ## Provenance and scope

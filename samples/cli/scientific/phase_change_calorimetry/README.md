@@ -81,8 +81,9 @@ The Linux numerical SDK runner compiles once through normal package preparation,
 executes the exact retained Terminal artifact with its admitted provisions and
 isolated domain-exit delegation, then publishes and runs the native image.
 Every input stream is finite, each native child is bounded, and the outer
-validation invocation is timed. It saves actual native and Terminal stdout,
-stderr and statuses; termination-only `--both` agreement is insufficient.
+validation invocation is timed. It saves stdout, stderr and the exit status from each engine
+for comparison with the
+frozen expectations.
 The separate source-invalid project writes observation 8 into an eight-element
 array and must reject specifically for its bounds obligation.
 

@@ -90,7 +90,7 @@ omega run --both --keep samples/cli/independent/adc_quantization/main.omg < samp
 Validation runs one Omega command at a time, retains commands, status, stdout
 and stderr in ignored `build/validation`, requires each valid CSV to equal its
 frozen oracle, checks rational error bounds, checks runtime-invalid status and
-error text, and checks the separate source-invalid diagnostic. `--both` compares
-native and Terminal completion status using replayed identical stdin. The public
-CLI does not compare their stdout; native CSV is independently checked exactly. A declined comparison is
+error text, and checks the separate source-invalid diagnostic. The CLI replays the same stdin
+and compares termination, stdout and stderr between
+engines. The validator checks native CSV against the frozen oracle. A declined comparison is
 reported as unsupported rather than agreement.

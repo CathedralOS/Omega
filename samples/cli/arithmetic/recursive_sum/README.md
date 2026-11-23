@@ -20,7 +20,8 @@ PASS: sum=50 and count=4 both verified (exit 70)
 ```
 
 The program emits no stderr; the CLI separately reports the two exits.
-The combined CLI route compares exits, so verify native output bytes as well.
+The combined CLI route compares exits and both output streams. Check the forwarded
+bytes against the sample’s expected output as well.
 
 Windows x86-64 is verified at `b80e3d12bdd` with an optimized dev compiler
 after local package review, using EOF and finite Enter input. Remaining

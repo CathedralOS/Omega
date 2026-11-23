@@ -202,6 +202,8 @@ Path shorthands:
 
 ## H11. Native process and Psi run back to the CLI (`--both` comparison)
 
+**Follow-up.** After the survey, [#5188](https://github.com/CathedralOS/Omega/pull/5188) added a byte-for-byte check of stdout and stderr after termination agrees. A single run and each case in a batch use the same check. A mismatch names the stream and its first differing line. The observations below describe the survey revision.
+
 1. **What crosses.**
    - The native side returns `(output, private_entry_ram, frames)` from `private_observation::capture` (code: `app/execution/mod.rs:262-264`) and an exit from `ProcessExitObservation::observe` (code: `app/execution/mod.rs:278`).
    - The Psi side returns a `TerminalRuntimeObservation` (code: `app/execution/mod.rs:220-237`).
@@ -357,4 +359,4 @@ These handoffs share one pattern:
 - **H12**, compiled-review cache hits. A self-hash only; field checks reuse the stored record.
 - **H13** review decisions under `--dangerously-accept-all`.
 - **H14 to H20**, every Omega-written compiler stage. Only the producing stage's `accepted` flag gates the handoff, and the checks are in the same package.
-- **H21**, sample-gate's output check. It reads native stdout only, and the Psi stdout is never compared.
+- **H21**, sample-gate's output check. At the survey revision it checked the forwarded native stdout against expected text. The CLI now also compares native and Psi streams (H11).

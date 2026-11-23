@@ -57,7 +57,8 @@ independently sums all traceback column scores. The variants cover both gap
 directions, internal mismatch, N ambiguity, competing maxima, earliest ties,
 lowercase, and capacity.
 
-Terminal comparison must report actual agreement, not DECLINED. The CLI compares
-termination only; separate native output checks remain necessary. Generated
+Terminal comparison must report actual agreement, not DECLINED. The CLI compares both engines’
+termination and output. The sample checks the result
+against its expected output separately. Generated
 products and execution evidence belong in ignored `build/`. Reference Python is
 validation tooling; the Omega application performs all runtime work.

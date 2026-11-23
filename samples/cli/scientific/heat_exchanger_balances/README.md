@@ -80,6 +80,5 @@ omega run --both samples/cli/independent/heat_exchanger_balances/main.omg < samp
 omega --check samples/cli/independent/heat_exchanger_balances/controls/out_of_bounds/main.omg
 ```
 
-The CLI's `--both` contract compares termination only; it does not expose
-interpreted stdout, so native output verification does not establish Terminal
-output identity. Build products and validation logs belong in ignored `build/`.
+`omega run --both` compares termination and the exact stdout and stderr bytes from
+both engines. Build products and validation logs belong in ignored `build/`.
