@@ -221,13 +221,8 @@ impl FloatLiteral {
             return Self::from_bits(format, bits ^ sign)
                 .expect("validated floating representation");
         }
-        let text: &str = &self.text;
-        let flipped = match text.strip_prefix('-') {
-            Some(positive) => Arc::from(positive),
-            None => Arc::from(format!("-{text}")),
-        };
         Self {
-            text: flipped,
+            text: negated_float_spelling(&self.text).into(),
             landing: self.landing,
             presented: None,
         }
@@ -241,6 +236,15 @@ impl FloatLiteral {
 impl std::fmt::Display for FloatLiteral {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(&self.text)
+    }
+}
+
+/// Negate only the leading sign. The exponent, digits and any format suffix
+/// stay in their authored form until the literal is read at its selected precision.
+pub fn negated_float_spelling(spelling: &str) -> String {
+    match spelling.strip_prefix('-') {
+        Some(magnitude) => magnitude.to_owned(),
+        None => format!("-{}", spelling.strip_prefix('+').unwrap_or(spelling)),
     }
 }
 
@@ -667,6 +671,16 @@ mod tests {
         FixedInteger, FloatFormat, FloatLiteral, IntegerLanding, IntegerLiteral, IntegerRadix,
         LandedIntegerType,
     };
+
+    #[test]
+    fn negating_an_explicit_positive_sign_preserves_the_magnitude() {
+        let negative = FloatLiteral::parse("+1.25e+1f32").unwrap().negated();
+        assert_eq!(negative.landing(), Some(FloatFormat::F32));
+        assert_eq!(negative.value_f32(), -12.5);
+        assert_eq!(negative.value_f64(), -12.5);
+        let zero = FloatLiteral::parse("+0.0").unwrap().negated();
+        assert_eq!(zero.value_f32().to_bits(), (-0.0_f32).to_bits());
+    }
 
     #[test]
     fn presented_float_bits_survive_wide_storage_and_negation() {
