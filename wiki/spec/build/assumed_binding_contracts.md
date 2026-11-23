@@ -49,11 +49,11 @@ operations. The domain must authorize the exact claim requirement as an issuer.
 
 ```omega
 public boundary trait WritableMemory {
-    machine claim(region: Range) -> Range in Writable crashes none;
+    machine claim(region: Range) -> Range in Writable reaches none crashes none;
 }
 
 public boundary trait RangeSupplier {
-    machine supply(region: Range) -> Range crashes none;
+    machine supply(region: Range) -> Range reaches none crashes none;
 }
 
 public EchoSupplier satisfies RangeSupplier {

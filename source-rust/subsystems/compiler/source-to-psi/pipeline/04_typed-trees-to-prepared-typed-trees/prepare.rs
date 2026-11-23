@@ -12,10 +12,11 @@ use source_symbol_table::source_symbols;
 use typed_trees::source_state;
 
 mod passes;
-mod values;
-pub use values::{PreparedTarget, PreparedValue, TargetInputs, ValueInputs};
+pub use prepared_source::{
+    PreparedTarget, PreparedTypedTrees, PreparedValue, TargetInputs, ValueInputs,
+};
 
-use crate::source_state::{FrozenTypedTrees, TypedTrees};
+use crate::source_state::TypedTrees;
 use diagnostics::Diagnostic;
 
 /// Prepare the typed program that stage 05 will lower.
@@ -33,61 +34,7 @@ pub fn prepare_typed_trees(
         .map_err(|reason| vec![Diagnostic::error(reason)])?;
     passes::domain_applications::prepare(&mut program);
     passes::record_patterns::prepare(&mut program);
-    let constants = values::constant_inputs(&program, values)?;
-    Ok(PreparedTypedTrees {
-        typed: std::sync::Arc::new(program.into()),
-        values: values.into(),
-        constants: constants.into(),
-    })
-}
-
-/// A shared snapshot of the exact trees that completed every stage 04 pass.
-///
-/// Cloning the result retains the same source owner for later judgments.
-///
-/// ```
-/// use typed_trees::source_state::TypedTrees;
-/// use typed_trees_to_prepared_typed_trees::prepare_typed_trees;
-/// let prepared = prepare_typed_trees(TypedTrees::default(), &[], &[]).unwrap();
-/// assert!(std::sync::Arc::ptr_eq(prepared.trees(), prepared.clone().trees()));
-/// ```
-///
-/// A read-only snapshot alone cannot establish that those passes ran.
-///
-/// ```compile_fail,E0277
-/// use typed_trees::source_state::FrozenTypedTrees;
-/// use typed_trees_to_prepared_typed_trees::PreparedTypedTrees;
-/// let _: PreparedTypedTrees = FrozenTypedTrees::default().into();
-/// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PreparedTypedTrees {
-    typed: std::sync::Arc<FrozenTypedTrees>,
-    values: std::sync::Arc<[ValueInputs]>,
-    constants: std::sync::Arc<[arena::Handle<source_state::constant::ConstDeclaration>]>,
-}
-
-impl PreparedTypedTrees {
-    /// Read the exact source snapshot used to prepare this program.
-    pub fn trees(&self) -> &std::sync::Arc<FrozenTypedTrees> {
-        &self.typed
-    }
-
-    /// The source computations demanded during this preparation.
-    pub fn values(&self) -> &[ValueInputs] {
-        &self.values
-    }
-
-    /// Constants needed by the request or by its computed type arguments.
-    pub fn constants(&self) -> impl Iterator<Item = &source_state::constant::ConstDeclaration> {
-        self.constants
-            .iter()
-            .map(|&handle| self.typed.tables.const_declarations.get(handle))
-    }
-
-    /// Return to mutable source. A new preparation establishes its own inputs.
-    pub fn into_inner(self) -> TypedTrees {
-        std::sync::Arc::unwrap_or_clone(self.typed).into_inner()
-    }
+    PreparedTypedTrees::new(program, values)
 }
 
 #[cfg(test)]

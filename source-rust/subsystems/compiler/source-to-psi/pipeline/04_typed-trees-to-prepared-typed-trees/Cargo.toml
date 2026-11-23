@@ -11,9 +11,9 @@ autobenches = false
 path = "prepare.rs"
 
 [dependencies]
+prepared-source = { path = "../../representations/prepared-source" }
 source-declarations = { path = "../../representations/symbol-resolved-trees/declarations" }
 typed-trees = { path = "../../representations/typed-trees" }
-layout-plans = { path = "../../../psi/layouts/geometry" }
 numeric-literals = { path = "../../../foundation/numeric-literals" }
 source-text = { path = "../../../../../foundation/source-text" }
 wire = { path = "../../../../../foundation/wire" }
