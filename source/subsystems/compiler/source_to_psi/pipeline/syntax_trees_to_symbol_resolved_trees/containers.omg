@@ -1,3 +1,4 @@
+use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
 use representations\source_files\SourceSet;
 use representations\source_files\SourceSpan;
 use representations\source_files\spans_equal;
@@ -211,11 +212,11 @@ public machine bind_machine_path(resolver: @mutable Resolver, sources: @SourceSe
 crashes Trap
 {
     let name_path: NamePath = syntax_trees_name_path(syntax, path);
-    let lookup: Lookup = machine_path_lookup(@resolver.output, sources, syntax, name_path);
+    let lookup: |declarations|::Lookup = machine_path_lookup(@resolver.output, sources, syntax, name_path);
     transition lookup {
-        Lookup::Found { handle } -> bound(resolver, path, handle),
-        Lookup::Ambiguous -> ambiguous(resolver, name_path),
-        Lookup::Absent -> unknown(resolver, name_path)
+        |declarations|::Lookup::Found { handle } -> bound(resolver, path, handle),
+        |declarations|::Lookup::Ambiguous -> ambiguous(resolver, name_path),
+        |declarations|::Lookup::Absent -> unknown(resolver, name_path)
     }
 
     machine bound(resolver: @mutable Resolver, path: u64 in Trapping, handle: u64 in Trapping) {
@@ -234,7 +235,7 @@ crashes Trap
 // The machine a name path names: a free machine for one member, an owned
 // machine (a trait requirement or conformance member included) for two. A
 // longer path crosses a package, which this source set cannot bind.
-public machine machine_path_lookup(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, name_path: NamePath) -> Lookup
+public machine machine_path_lookup(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, name_path: NamePath) -> |declarations|::Lookup
 crashes Trap
 {
     transition name_path.member_count {
@@ -243,38 +244,38 @@ crashes Trap
         _ -> absent()
     }
 
-    machine free(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, name_path: NamePath) -> Lookup {
+    machine free(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, name_path: NamePath) -> |declarations|::Lookup {
         let name: IdentifierSpan = syntax_trees_member(syntax, name_path.first_member);
         machine_named(resolution, sources, syntax, false, name.source_span, name.source_span)
     }
 
-    machine owned(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, name_path: NamePath) -> Lookup {
+    machine owned(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, name_path: NamePath) -> |declarations|::Lookup {
         let owner: IdentifierSpan = syntax_trees_member(syntax, name_path.first_member);
         let name: IdentifierSpan = syntax_trees_member(syntax, name_path.first_member + 1);
         machine_named(resolution, sources, syntax, true, owner.source_span, name.source_span)
     }
 
-    machine absent() -> Lookup {
-        Lookup::Absent
+    machine absent() -> |declarations|::Lookup {
+        |declarations|::Lookup::Absent
     }
 }
 
 // The first member of trait `trait_index` named `name`: its overload
 // family's representative.
-public machine trait_member_named(sources: @SourceSet, syntax: @SyntaxTrees, trait_index: u64 in Trapping, name: SourceSpan) -> Lookup
+public machine trait_member_named(sources: @SourceSet, syntax: @SyntaxTrees, trait_index: u64 in Trapping, name: SourceSpan) -> |declarations|::Lookup
 crashes Trap
 {
     let item: TraitItem = trait_item(syntax, trait_index);
     transition { _ -> next(sources, syntax, item, name, 0) }
 
-    machine next(sources: @SourceSet, syntax: @SyntaxTrees, item: TraitItem, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
+    machine next(sources: @SourceSet, syntax: @SyntaxTrees, item: TraitItem, name: SourceSpan, offset: u64 in Trapping) -> |declarations|::Lookup {
         transition offset < item.machine_count {
             true -> candidate(sources, syntax, item, name, offset),
             _ -> absent()
         }
     }
 
-    machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, item: TraitItem, name: SourceSpan, offset: u64 in Trapping) -> Lookup {
+    machine candidate(sources: @SourceSet, syntax: @SyntaxTrees, item: TraitItem, name: SourceSpan, offset: u64 in Trapping) -> |declarations|::Lookup {
         let member: MachineItem = machine_item(syntax, item.first_machine + offset);
         let named: bool = spans_equal(sources, member.name.source_span, name);
         transition named && member.parent == 0 {
@@ -283,12 +284,12 @@ crashes Trap
         }
     }
 
-    machine found(handle: u64 in Trapping) -> Lookup {
-        Lookup::Found { handle: handle }
+    machine found(handle: u64 in Trapping) -> |declarations|::Lookup {
+        |declarations|::Lookup::Found { handle: handle }
     }
 
-    machine absent() -> Lookup {
-        Lookup::Absent
+    machine absent() -> |declarations|::Lookup {
+        |declarations|::Lookup::Absent
     }
 }
 
@@ -305,11 +306,11 @@ public machine conformance_requirement_named(
 ) -> ValueBinding
 crashes Trap
 {
-    let conformance: Lookup = declared_named(sources, syntax, DeclarationKind::Conformance, false, owner, owner);
+    let conformance: |declarations|::Lookup = declared_named(sources, syntax, |declarations|::DeclarationKind::Conformance, false, owner, owner);
     transition conformance {
-        Lookup::Found { handle } -> trait_requirement(resolution, sources, syntax, conformance_item(syntax, handle), name),
-        Lookup::Ambiguous -> found(ValueBinding::Ambiguous),
-        Lookup::Absent -> found(ValueBinding::Unresolved)
+        |declarations|::Lookup::Found { handle } -> trait_requirement(resolution, sources, syntax, conformance_item(syntax, handle), name),
+        |declarations|::Lookup::Ambiguous -> found(ValueBinding::Ambiguous),
+        |declarations|::Lookup::Absent -> found(ValueBinding::Unresolved)
     }
 
     machine trait_requirement(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, declared: ConformanceItem, name: SourceSpan) -> ValueBinding {
@@ -321,9 +322,9 @@ crashes Trap
     }
 
     machine requirement(sources: @SourceSet, syntax: @SyntaxTrees, trait_index: u64 in Trapping, name: SourceSpan) -> ValueBinding {
-        let member: Lookup = trait_member_named(sources, syntax, trait_index, name);
+        let member: |declarations|::Lookup = trait_member_named(sources, syntax, trait_index, name);
         transition member {
-            Lookup::Found { handle } -> found(ValueBinding::Machine { handle: handle }),
+            |declarations|::Lookup::Found { handle } -> found(ValueBinding::Machine { handle: handle }),
             _ -> found(ValueBinding::Unresolved)
         }
     }

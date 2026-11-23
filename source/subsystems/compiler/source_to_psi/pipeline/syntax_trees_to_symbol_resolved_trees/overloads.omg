@@ -1,3 +1,4 @@
+use pipeline/syntax_trees_to_symbol_resolved_trees/declarations.omg;
 use representations\source_files\SourceId;
 use representations\source_files\SourceSet;
 use representations\source_files\SourceSpan;
@@ -164,19 +165,19 @@ public machine machine_named(
     owned: bool,
     owner: SourceSpan,
     name: SourceSpan
-) -> Lookup
+) -> |declarations|::Lookup
 crashes Trap
 {
     transition { _ -> next(resolution, sources, syntax, owned, owner, name, 0) }
 
-    machine next(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
+    machine next(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
         transition index < syntax.machine_count {
             true -> candidate(resolution, sources, syntax, owned, owner, name, index),
             _ -> absent()
         }
     }
 
-    machine candidate(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> Lookup {
+    machine candidate(resolution: @NameResolution, sources: @SourceSet, syntax: @SyntaxTrees, owned: bool, owner: SourceSpan, name: SourceSpan, index: u64 in Trapping) -> |declarations|::Lookup {
         let item: MachineItem = machine_item(syntax, index);
         let named: bool = item.parent == 0 && machine_spells(resolution, sources, item, index, owned, owner, name);
         let visible: bool = machine_visible_if(resolution, sources, syntax, named, name.source, item, index);
@@ -196,7 +197,7 @@ crashes Trap
         found: u64 in Trapping,
         family: SourceId,
         index: u64 in Trapping
-    ) -> Lookup {
+    ) -> |declarations|::Lookup {
         transition index < syntax.machine_count {
             true -> rival_candidate(resolution, sources, syntax, owned, owner, name, found, family, index),
             _ -> unique(found)
@@ -213,7 +214,7 @@ crashes Trap
         found: u64 in Trapping,
         family: SourceId,
         index: u64 in Trapping
-    ) -> Lookup {
+    ) -> |declarations|::Lookup {
         let item: MachineItem = machine_item(syntax, index);
         let named: bool = item.parent == 0 && machine_spells(resolution, sources, item, index, owned, owner, name);
         let visible: bool = machine_visible_if(resolution, sources, syntax, named, name.source, item, index);
@@ -225,16 +226,16 @@ crashes Trap
         }
     }
 
-    machine unique(found: u64 in Trapping) -> Lookup {
-        Lookup::Found { handle: found }
+    machine unique(found: u64 in Trapping) -> |declarations|::Lookup {
+        |declarations|::Lookup::Found { handle: found }
     }
 
-    machine absent() -> Lookup {
-        Lookup::Absent
+    machine absent() -> |declarations|::Lookup {
+        |declarations|::Lookup::Absent
     }
 
-    machine ambiguous() -> Lookup {
-        Lookup::Ambiguous
+    machine ambiguous() -> |declarations|::Lookup {
+        |declarations|::Lookup::Ambiguous
     }
 }
 
