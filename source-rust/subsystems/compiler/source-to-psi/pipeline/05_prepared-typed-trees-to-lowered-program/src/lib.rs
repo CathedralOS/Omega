@@ -2177,7 +2177,7 @@ fn finish_storage(
         further.append(&mut unsupported);
         return Err(first);
     }
-    lower::publish_write_frames(diagnostic, module, tables)?;
+    lower::publish_write_frames(module, tables)?;
     claim_publication::publish(diagnostic, module)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.

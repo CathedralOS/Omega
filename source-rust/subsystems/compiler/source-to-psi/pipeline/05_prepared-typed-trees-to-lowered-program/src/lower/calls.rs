@@ -41,7 +41,6 @@ use crate::lowering::{SourceOrigin, Unserved, refuse};
 /// effects in the existing write log. This changes which old contents are
 /// invalidated; it never supplies a new field value.
 pub(crate) fn publish_write_frames(
-    diagnostic: MachineId,
     module: &mut terminal_psi::TerminalModule,
     tables: &mut terminal_check_tables::CheckTables,
 ) -> Checked<()> {
@@ -55,7 +54,11 @@ pub(crate) fn publish_write_frames(
         detail,
     };
     let frames = terminal_semantics::borrowed_storage::inferred_write_frames(module)
-        .map_err(|detail| problem(diagnostic, Construct::Machine, detail))?;
+        .map_err(|error| Refusal::at(
+            RefusalReason::ForeignIdentity,
+            error.machine.map_or(terminal_check_tables::RefusalSite::Program, Into::into),
+            error.detail,
+        ))?;
     for machine in &mut module.machines {
         machine.contract.published_writes = frames
             .get(machine.id)

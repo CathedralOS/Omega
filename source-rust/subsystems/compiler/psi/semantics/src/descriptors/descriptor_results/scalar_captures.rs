@@ -171,8 +171,7 @@ impl TerminalScalarCaptures {
                         path,
                         edge.case,
                         &edge.payload_fields,
-                    )
-                    .ok_or("scalar case arrival has no exact declared field roster")?;
+                    )?;
                     let mut selected = path.clone();
                     selected.push(terminal_psi::StructuralPathSegment::Case(edge.case));
                     target

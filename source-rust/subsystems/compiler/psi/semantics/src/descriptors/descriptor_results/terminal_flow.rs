@@ -1968,7 +1968,7 @@ fn adapt_flow(
                         )?;
                         let captured = super::scalar_contracts::case_payload_scalar_types(
                             &module.types.structural_types, root, path, case, fields,
-                        ).ok_or("descriptor arrival case payload fields have no exact scalar types")?;
+                        )?;
                         if captured
                             .iter()
                             .zip(&block.parameters)

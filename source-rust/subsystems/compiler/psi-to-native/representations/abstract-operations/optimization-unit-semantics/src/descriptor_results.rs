@@ -2942,7 +2942,7 @@ fn adapt(
                             path,
                             case.case,
                             &fields,
-                        )?;
+                        ).ok()?;
                         if captured
                             .iter()
                             .zip(&target.parameters)
