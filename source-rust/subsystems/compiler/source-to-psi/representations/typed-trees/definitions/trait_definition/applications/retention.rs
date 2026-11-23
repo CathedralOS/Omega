@@ -27,6 +27,8 @@ pub struct RetainedTraitScope {
 #[derive(Debug, Clone, Default, PartialEq, Eq, record_storage::Record)]
 pub(crate) struct RetainedTraitApplicationFrame {
     declaration: SymbolHandle,
+    // A parent argument names binders in the child that supplied it.
+    argument_owner: SymbolHandle,
     arguments: HandleSpan<CallableSubstitution>,
     lifetimes: HandleSpan<StaticMachineLifetimeBinding>,
 }
@@ -53,12 +55,15 @@ impl TraitApplicationEnvironment {
             *argument = application.type_reference(program, *argument)?;
         }
         for frame in &mut self.region_scopes {
-            for (_, argument) in &mut frame.lifetimes {
-                *argument = application
-                    .lifetime(&Identifier::generated(argument.as_str()))
-                    .as_str()
-                    .to_owned();
+            if frame.argument_owner == self.argument_owner {
+                for (_, argument) in &mut frame.lifetimes {
+                    *argument = application
+                        .lifetime(&Identifier::generated(argument.as_str()))
+                        .as_str()
+                        .to_owned();
+                }
             }
+            frame.argument_owner = application.symbol(frame.argument_owner);
         }
         self.argument_owner = application.symbol(self.argument_owner);
         Ok(())
@@ -96,7 +101,6 @@ impl TraitApplicationEnvironment {
                     return type_identity::applied_lifetime_parameter_identity_with_supplier(
                         program,
                         retained_owner,
-                        self.argument_owner,
                         name,
                         visible,
                     );
@@ -108,11 +112,7 @@ impl TraitApplicationEnvironment {
                 self.argument_owner
             };
             type_identity::applied_lifetime_parameter_identity_with_supplier(
-                program,
-                owner,
-                self.argument_owner,
-                name,
-                visible,
+                program, owner, name, visible,
             )
         })
     }
@@ -128,7 +128,6 @@ impl TraitApplicationEnvironment {
             type_identity::apply_resolved_lifetime_parameter_identity(
                 program,
                 region,
-                self.argument_owner,
                 frames.get(..preceding_frames)?,
             )
         })
@@ -191,6 +190,7 @@ impl TraitApplicationEnvironment {
                     }));
             frames.push(RetainedTraitApplicationFrame {
                 declaration: region.declaration,
+                argument_owner: region.argument_owner,
                 arguments,
                 lifetimes,
             });
@@ -216,6 +216,11 @@ impl RetainedTraitScope {
         retained.formation_owner(self.argument_owner);
         for frame in program.trait_application_frames.span_or_empty(self.frames) {
             retained.declaration_description_dependency(frame.declaration);
+            if frame.argument_owner != self.argument_owner
+                && (!frame.arguments.is_empty() || !frame.lifetimes.is_empty())
+            {
+                retained.formation_owner(frame.argument_owner);
+            }
             for binding in program
                 .callable_substitutions
                 .span_or_empty(frame.arguments)
@@ -227,7 +232,7 @@ impl RetainedTraitScope {
                 retained.leave_lexical_scope();
 
                 // Copies retain an operand's original source scope.
-                // The application supplier owns only operands without
+                // This frame's supplier owns only operands without
                 // a more specific retained author; target parentage
                 // cannot supply missing lexical authority.
                 let owner = program
@@ -236,7 +241,7 @@ impl RetainedTraitScope {
                 let owner = if owner.is_valid() {
                     owner
                 } else {
-                    self.argument_owner
+                    frame.argument_owner
                 };
                 retained.enter_lexical_scope(owner);
                 crate::source_state::references::visit_type_reference(
@@ -267,6 +272,7 @@ impl RetainedTraitScope {
             );
             region_scopes.push(AppliedDeclarationRegionScope {
                 declaration: frame.declaration,
+                argument_owner: frame.argument_owner,
                 lifetimes: program
                     .callable_lifetime_substitutions
                     .span_or_empty(frame.lifetimes)
@@ -320,6 +326,95 @@ mod retained_reference_tests {
         fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
             self.descriptions.push((self.owner, symbol));
         }
+    }
+
+    #[test]
+    fn inherited_lifetime_arguments_use_their_supplying_declaration() {
+        use crate::source_state::trait_definition::{
+            Conformance, TraitDefinition, TraitRequirement,
+        };
+        use type_identity::{
+            LifetimeParameterIdentity, apply_resolved_lifetime_parameter_identity,
+        };
+        let mut symbols = SymbolTableBuilder::default();
+        let parent = symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Parent"));
+        let child = symbols.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Child"));
+        let owner = symbols.insert_root(SymbolKind::Conformance, SymbolNameRef::Static("Owner"));
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let lifetimes = || vec![Identifier::generated("one"), Identifier::generated("two")];
+        // Child<'one, 'two> : Parent<'one, 'two>, but the receiver supplies
+        // Child<'two, 'one>. All three declarations deliberately reuse names.
+        let parents = program.trait_requirements.insert_many([TraitRequirement {
+            symbol: parent,
+            lifetime_arguments: lifetimes(),
+            ..Default::default()
+        }]);
+        program.push_trait_definition(TraitDefinition {
+            symbol: parent,
+            lifetime_parameters: lifetimes(),
+            ..Default::default()
+        });
+        program.push_trait_definition(TraitDefinition {
+            symbol: child,
+            lifetime_parameters: lifetimes(),
+            requires: parents,
+            ..Default::default()
+        });
+        program.push_conformance(Conformance {
+            symbol: owner,
+            trait_symbol: child,
+            lifetime_parameters: lifetimes(),
+            trait_lifetime_arguments: vec![1, 0],
+            ..Default::default()
+        });
+        let root = AppliedTraitScope::from_conformance(
+            &program,
+            program.conformance_by_symbol(owner).unwrap(),
+        )
+        .unwrap();
+        let parents = root.parent_scopes(&program).unwrap();
+        let [inherited] = parents.as_slice() else {
+            panic!("expected one Parent application");
+        };
+        let environment = inherited.environment();
+        let retained = environment.retain(&mut program).unwrap();
+        let scope = retained.scope(&program).unwrap();
+        scope.with_identity_scopes(&program, |frames| {
+            for ordinal in 0..2 {
+                let (actual, _) = apply_resolved_lifetime_parameter_identity(
+                    &program,
+                    LifetimeParameterIdentity {
+                        declaration: parent,
+                        ordinal,
+                    },
+                    frames,
+                )
+                .unwrap();
+                assert_eq!(
+                    actual,
+                    LifetimeParameterIdentity {
+                        declaration: owner,
+                        ordinal: 1 - ordinal
+                    }
+                );
+            }
+            let mut missing_owner = frames.to_vec();
+            missing_owner.last_mut().unwrap().argument_owner = SymbolHandle::invalid();
+            assert!(
+                apply_resolved_lifetime_parameter_identity(
+                    &program,
+                    LifetimeParameterIdentity {
+                        declaration: parent,
+                        ordinal: 0
+                    },
+                    &missing_owner
+                )
+                .is_none()
+            );
+        });
     }
 
     #[test]
@@ -394,10 +489,12 @@ mod retained_reference_tests {
             region_scopes: vec![
                 AppliedDeclarationRegionScope {
                     declaration: formal_owner,
+                    argument_owner: supplier,
                     lifetimes: Vec::new(),
                 },
                 AppliedDeclarationRegionScope {
                     declaration: nested_owner,
+                    argument_owner: formal_owner,
                     lifetimes: Vec::new(),
                 },
             ],
