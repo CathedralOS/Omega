@@ -2889,7 +2889,13 @@ impl<'artifact> TerminalExecution<'artifact> {
         let Some(scalar_type) = result.scalar_type.as_integer() else {
             return Err(malformed());
         };
-        if program.catalogs.execution.dynamic_dispatch.table(table).is_none() {
+        if program
+            .catalogs
+            .execution
+            .dynamic_dispatch
+            .table(table)
+            .is_none()
+        {
             return Err(malformed());
         }
         self.values.insert(
@@ -2918,12 +2924,20 @@ impl<'artifact> TerminalExecution<'artifact> {
         else {
             return Err(malformed());
         };
-        if actual_contract != contract || program.catalogs.execution.callables.contract(contract).is_none() {
+        if actual_contract != contract
+            || program
+                .catalogs
+                .execution
+                .callables
+                .contract(contract)
+                .is_none()
+        {
             return Err(malformed());
         }
         let selected = program
             .catalogs
-            .execution.callables
+            .execution
+            .callables
             .descriptor(descriptor)
             .ok_or_else(malformed)?;
         if selected.contract != contract {
@@ -3625,13 +3639,23 @@ impl<'artifact> TerminalExecution<'artifact> {
             && operation.result.structural().is_some_and(|result| {
                 self.supports_provider_reference_result(boundary_declaration, result)
             });
-        let TerminalEffect::BoundaryCall { arguments, .. } = &effect else {
+        // The call took the argument values into its effect; a guarantee
+        // reads a shared borrow through the same values the host was given.
+        let TerminalEffect::BoundaryCall {
+            arguments,
+            structural_arguments: exported_values,
+            ..
+        } = &effect
+        else {
             return Err(malformed());
         };
         crate::boundary::effects::boundary_predicates::validate_output_guarantees(
             boundary_declaration,
             arguments,
             &returned,
+            self,
+            structural_arguments,
+            exported_values,
         )?;
         if matches!(&returned, TerminalEffectResult::Reference(_))
             && !provider_reference
@@ -3889,7 +3913,8 @@ mod finite_family_tests {
             .operations
             .push(operation.clone());
         module
-            .execution.dynamic_dispatch
+            .execution
+            .dynamic_dispatch
             .interfaces
             .push(TerminalDynamicInterface {
                 id: 0,
@@ -3911,12 +3936,16 @@ mod finite_family_tests {
                     })
                     .collect(),
             });
-        module.execution.dynamic_dispatch.tables.push(TerminalDynamicTable {
-            id: 0,
-            interface: 0,
-            implementation_identity,
-            rows,
-        });
+        module
+            .execution
+            .dynamic_dispatch
+            .tables
+            .push(TerminalDynamicTable {
+                id: 0,
+                interface: 0,
+                implementation_identity,
+                rows,
+            });
         for (value, selected) in [
             (integer(-4), Some(2)),
             (integer(16), Some(3)),

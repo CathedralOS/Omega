@@ -135,11 +135,12 @@ pub(crate) mod boundary_predicates {
         )
         .map_err(|_| malformed())?;
         let mut integers = ClosedIntegerEvaluator::default();
-        let observations = InputObservations {
+        let observations = ArgumentObservations {
             execution,
             boundary,
             arguments: structural_arguments,
             values: structural_values,
+            phase: ObservationPhase::Entry,
         };
         for requirement in &boundary.scalar_requires {
             if requirement.validate().is_err() || context.validate(requirement).is_err() {
@@ -166,10 +167,15 @@ pub(crate) mod boundary_predicates {
     /// Imported normal results must support the declaration's scalar promises
     /// before caller values or borrowed storage are committed. Unobserved
     /// storage predicates remain unknown, never assumed from an earlier image.
+    /// A shared borrow is observed: the host cannot write it, so the caller's
+    /// storage is already its completion image (`ObservationPhase::Completion`).
     pub(crate) fn validate_output_guarantees(
         boundary: &BoundaryMachineDeclaration,
         arguments: &[TerminalScalarValue],
         returned: &crate::TerminalEffectResult,
+        execution: &TerminalExecution<'_>,
+        structural_arguments: &[StructuralArgument],
+        structural_values: &[TerminalStructuralValue],
     ) -> Result<(), TerminalInterpretError> {
         if boundary.scalar_ensures.is_empty() {
             return Ok(());
@@ -213,21 +219,19 @@ pub(crate) mod boundary_predicates {
         )
         .map_err(|_| malformed())?;
         let mut integers = ClosedIntegerEvaluator::default();
+        let observations = ArgumentObservations {
+            execution,
+            boundary,
+            arguments: structural_arguments,
+            values: structural_values,
+            phase: ObservationPhase::Completion,
+        };
         for guarantee in &boundary.scalar_ensures {
             if guarantee.validate().is_err() || context.validate(guarantee).is_err() {
                 return Err(malformed());
             }
             let guarantee = bind_scalars(guarantee, &arguments);
-            match closed_predicates::closed_guard_with_float_meanings(
-                &guarantee,
-                &mut integers,
-                &|term| bound_meaning(term, &arguments),
-            )
-            .map_err(|_| {
-                TerminalInterpretError::UnsupportedSemanticVariant(
-                    "boundary output guarantee evaluation exceeds the resource limit",
-                )
-            })? {
+            match observations.evaluate(&guarantee, &arguments, &mut integers)? {
                 Some(true) => {}
                 Some(false) => {
                     return Err(TerminalInterpretError::UnsupportedSemanticVariant(
@@ -244,20 +248,41 @@ pub(crate) mod boundary_predicates {
         Ok(())
     }
 
-    struct InputObservations<'execution, 'artifact, 'call> {
+    /// When a boundary clause reads its structural arguments.
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum ObservationPhase {
+        /// Input requirements read every readable argument before the call.
+        Entry,
+        /// Output guarantees read only shared borrows after the call. A
+        /// mutable or write-only borrow's completion contents are not yet
+        /// committed, an owned argument has moved, and the result is not an
+        /// argument, so a read of any of them stays unknown.
+        Completion,
+    }
+
+    struct ArgumentObservations<'execution, 'artifact, 'call> {
         execution: &'execution TerminalExecution<'artifact>,
         boundary: &'call BoundaryMachineDeclaration,
         arguments: &'call [StructuralArgument],
         values: &'call [TerminalStructuralValue],
+        phase: ObservationPhase,
     }
 
-    impl InputObservations<'_, '_, '_> {
+    impl ArgumentObservations<'_, '_, '_> {
         fn evaluate(
             &self,
             predicate: &Proposition,
             arguments: &[BoundScalar],
             integers: &mut ClosedIntegerEvaluator,
         ) -> Result<Option<bool>, TerminalInterpretError> {
+            let exhausted = match self.phase {
+                ObservationPhase::Entry => {
+                    "boundary input requirement evaluation exceeds the resource limit"
+                }
+                ObservationPhase::Completion => {
+                    "boundary output guarantee evaluation exceeds the resource limit"
+                }
+            };
             // Close each leaf as the shared walk reaches it. A deciding child
             // still skips later siblings; an unknown child does not.
             closed_predicates::closed_guard_with(predicate, |leaf| {
@@ -266,12 +291,28 @@ pub(crate) mod boundary_predicates {
                 closed_predicates::closed_guard_with_float_meanings(&closed, integers, &|term| {
                     bound_meaning(term, arguments)
                 })
-                .map_err(|_| {
-                    TerminalInterpretError::UnsupportedSemanticVariant(
-                        "boundary input requirement evaluation exceeds the resource limit",
-                    )
-                })
+                .map_err(|_| TerminalInterpretError::UnsupportedSemanticVariant(exhausted))
             })
+        }
+
+        /// The argument position whose storage this phase may read at `root`.
+        fn observed_argument(
+            &self,
+            root: PlaceId,
+        ) -> Result<Option<usize>, TerminalInterpretError> {
+            let position = self
+                .boundary
+                .structural_parameters
+                .iter()
+                .position(|parameter| parameter.place == root);
+            match (self.phase, position) {
+                (ObservationPhase::Entry, None) => Err(malformed()),
+                (ObservationPhase::Entry, Some(position)) => Ok(Some(position)),
+                (ObservationPhase::Completion, position) => Ok(position.filter(|position| {
+                    self.boundary.structural_parameters[*position].access
+                        == terminal_psi::StructuralAccess::SharedBorrow
+                })),
+            }
         }
 
         fn close_predicate(
@@ -344,32 +385,32 @@ pub(crate) mod boundary_predicates {
                             }
                         });
                     }
-                    Some(if extent {
+                    if extent {
                         let ScalarType::Integer(carrier) = scalar_type else {
                             return Err(malformed());
                         };
                         self.read_extent(*root, &selected, *carrier)?
                     } else {
                         self.read(*root, &selected, *scalar_type)?
-                    })
+                    }
                 }
                 ScalarTerm::ViewExtent {
                     root,
                     path,
                     scalar_type,
-                } => Some(self.read_extent(*root, path, *scalar_type)?),
+                } => self.read_extent(*root, path, *scalar_type)?,
                 ScalarTerm::BooleanField { root, path, .. } => {
-                    Some(self.read(*root, path, ScalarType::Boolean)?)
+                    self.read(*root, path, ScalarType::Boolean)?
                 }
                 ScalarTerm::IntegerField {
                     version: _,
                     root,
                     path,
                     scalar_type,
-                } => Some(self.read(*root, path, ScalarType::Integer(*scalar_type))?),
+                } => self.read(*root, path, ScalarType::Integer(*scalar_type))?,
                 ScalarTerm::IeeeFloatField {
                     root, path, format, ..
-                } => Some(self.read(*root, path, ScalarType::IeeeFloat(*format))?),
+                } => self.read(*root, path, ScalarType::IeeeFloat(*format))?,
                 _ => None,
             };
             if let Some(value) = observed {
@@ -383,14 +424,11 @@ pub(crate) mod boundary_predicates {
             root: PlaceId,
             path: &[CanonicalStructuralPathSegment],
             carrier: semantic_vocabulary::IntegerType,
-        ) -> Result<TerminalScalarValue, TerminalInterpretError> {
+        ) -> Result<Option<TerminalScalarValue>, TerminalInterpretError> {
             use terminal_psi::{StructuralAccess, StructuralTypeShape};
-            let position = self
-                .boundary
-                .structural_parameters
-                .iter()
-                .position(|parameter| parameter.place == root)
-                .ok_or(malformed())?;
+            let Some(position) = self.observed_argument(root)? else {
+                return Ok(None);
+            };
             let parameter = &self.boundary.structural_parameters[position];
             let actual = self.arguments.get(position).ok_or(malformed())?;
             self.values.get(position).ok_or(malformed())?;
@@ -462,10 +500,10 @@ pub(crate) mod boundary_predicates {
             if !carrier.admits(value) {
                 return Err(malformed());
             }
-            Ok(TerminalScalarValue::Integer {
+            Ok(Some(TerminalScalarValue::Integer {
                 scalar_type: carrier,
                 value,
-            })
+            }))
         }
 
         fn read(
@@ -473,13 +511,10 @@ pub(crate) mod boundary_predicates {
             root: PlaceId,
             path: &[CanonicalStructuralPathSegment],
             scalar_type: ScalarType,
-        ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-            let position = self
-                .boundary
-                .structural_parameters
-                .iter()
-                .position(|parameter| parameter.place == root)
-                .ok_or(malformed())?;
+        ) -> Result<Option<TerminalScalarValue>, TerminalInterpretError> {
+            let Some(position) = self.observed_argument(root)? else {
+                return Ok(None);
+            };
             let parameter = &self.boundary.structural_parameters[position];
             if !matches!(
                 parameter.access,
@@ -501,6 +536,7 @@ pub(crate) mod boundary_predicates {
             .ok_or(malformed())?;
             self.execution
                 .read_primitive_argument(argument, value, &path, scalar_type)
+                .map(Some)
         }
     }
 
@@ -508,7 +544,7 @@ pub(crate) mod boundary_predicates {
 
     #[cfg(test)]
     pub(crate) mod tests {
-        use super::{InputObservations, closed_guard};
+        use super::{ArgumentObservations, ObservationPhase, closed_guard};
         use closed_predicates::ClosedIntegerEvaluator;
         use semantic_vocabulary::{
             IeeeFloatComparisonKind, IeeeFloatFormat, IeeeFloatValue, Proposition, PropositionId,
@@ -530,6 +566,82 @@ pub(crate) mod boundary_predicates {
                 left: binary32(left),
                 right: binary32(right),
             }
+        }
+
+        fn empty_execution() -> crate::engine::execution::TerminalExecution<'static> {
+            crate::engine::execution::TerminalExecution::start_with_program(
+                crate::engine::calls::frames::tests::empty_program(),
+                &[],
+                crate::TerminalStructuralInputs::default(),
+                None,
+                None,
+            )
+            .unwrap()
+        }
+
+        /// Scalar guarantees of a boundary with no structural arguments.
+        fn validate_output(
+            boundary: &terminal_psi::BoundaryMachineDeclaration,
+            arguments: &[crate::TerminalScalarValue],
+            returned: &crate::TerminalEffectResult,
+        ) -> Result<(), crate::TerminalInterpretError> {
+            super::validate_output_guarantees(
+                boundary,
+                arguments,
+                returned,
+                &empty_execution(),
+                &[],
+                &[],
+            )
+        }
+
+        #[test]
+        fn completion_observes_only_shared_borrows() {
+            // A host cannot write a shared borrow, so its storage after the
+            // call is what a guarantee names. A mutable borrow's contents are
+            // not committed yet, and a place that is no argument (the result)
+            // has nothing to read: both stay unknown after the call. Before
+            // it, every argument is readable and an unknown place is malformed.
+            use semantic_vocabulary::PlaceId;
+            use terminal_psi::{StructuralAccess, StructuralParameterDeclaration};
+            let execution = empty_execution();
+            let mut boundary = idle_boundary();
+            let parameter = |place, position, access| StructuralParameterDeclaration {
+                place: PlaceId::new(place).unwrap(),
+                position,
+                structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
+                multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,
+                access,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+            };
+            boundary.structural_parameters = vec![
+                parameter(1, 0, StructuralAccess::SharedBorrow),
+                parameter(2, 1, StructuralAccess::MutableBorrow),
+            ];
+            let observed = |phase| {
+                let observations = ArgumentObservations {
+                    execution: &execution,
+                    boundary: &boundary,
+                    arguments: &[],
+                    values: &[],
+                    phase,
+                };
+                [1, 2, 3].map(|place| {
+                    observations
+                        .observed_argument(PlaceId::new(place).unwrap())
+                        .ok()
+                })
+            };
+            assert_eq!(
+                observed(ObservationPhase::Completion),
+                [Some(Some(0)), Some(None), Some(None)]
+            );
+            assert_eq!(
+                observed(ObservationPhase::Entry),
+                [Some(Some(0)), Some(Some(1)), None]
+            );
         }
 
         #[test]
@@ -564,11 +676,12 @@ pub(crate) mod boundary_predicates {
             )
             .unwrap();
             let boundary = idle_boundary();
-            let observations = InputObservations {
+            let observations = ArgumentObservations {
                 execution: &execution,
                 boundary: &boundary,
                 arguments: &[],
                 values: &[],
+                phase: ObservationPhase::Entry,
             };
             let mut integers = ClosedIntegerEvaluator::default();
             let false_then_unknown =
@@ -648,10 +761,10 @@ pub(crate) mod boundary_predicates {
                 ),
                 ieee(IeeeFloatComparisonKind::NotEqual),
             ];
-            super::validate_output_guarantees(&boundary, &[], &actual).unwrap();
+            validate_output(&boundary, &[], &actual).unwrap();
             boundary.scalar_ensures = vec![ieee(IeeeFloatComparisonKind::Equal)];
             assert!(matches!(
-                super::validate_output_guarantees(&boundary, &[], &actual),
+                validate_output(&boundary, &[], &actual),
                 Err(crate::TerminalInterpretError::UnsupportedSemanticVariant(
                     "boundary output guarantee is false for this invocation"
                 ))
@@ -683,20 +796,20 @@ pub(crate) mod boundary_predicates {
                 ScalarTerm::value(ValueId::new(2).unwrap(), kind),
                 ScalarTerm::value(ValueId::new(1).unwrap(), kind),
             )];
-            super::validate_output_guarantees(
+            validate_output(
                 &declaration,
                 &[scalar(17)],
                 &TerminalEffectResult::Scalar(scalar(17)),
             )
             .unwrap();
-            let false_return = super::validate_output_guarantees(
+            let false_return = validate_output(
                 &declaration,
                 &[scalar(17)],
                 &TerminalEffectResult::Scalar(scalar(18)),
             )
             .unwrap_err();
             declaration.scalar_ensures = vec![unknown()];
-            let unknown_return = super::validate_output_guarantees(
+            let unknown_return = validate_output(
                 &declaration,
                 &[scalar(17)],
                 &TerminalEffectResult::Scalar(scalar(17)),
@@ -706,7 +819,7 @@ pub(crate) mod boundary_predicates {
                 ScalarTerm::value(ValueId::new(3).unwrap(), kind),
                 ScalarTerm::value(ValueId::new(2).unwrap(), kind),
             )];
-            let foreign_formal = super::validate_output_guarantees(
+            let foreign_formal = validate_output(
                 &declaration,
                 &[scalar(17)],
                 &TerminalEffectResult::Scalar(scalar(17)),
@@ -743,7 +856,7 @@ pub(crate) mod boundary_predicates {
             );
             let mut unit = idle_boundary();
             unit.scalar_ensures = vec![Proposition::Truth];
-            super::validate_output_guarantees(&unit, &[], &TerminalEffectResult::Unit).unwrap();
+            validate_output(&unit, &[], &TerminalEffectResult::Unit).unwrap();
         }
 
         pub(crate) fn idle_boundary() -> terminal_psi::BoundaryMachineDeclaration {
@@ -2293,7 +2406,8 @@ pub(crate) mod normal_qualifications {
                 let domain = self
                     .program
                     .catalogs
-                    .types.structural_domains
+                    .types
+                    .structural_domains
                     .iter()
                     .find(|domain| domain.id == row.domain && domain.carrier == carrier)
                     .ok_or(malformed())?;
@@ -3272,7 +3386,8 @@ pub(crate) mod results {
                 Arc::get_mut(&mut program)
                     .unwrap()
                     .fixture_module_mut()
-                    .types.structural_types
+                    .types
+                    .structural_types
                     .push(StructuralTypeDeclaration {
                         declaration_identity: Default::default(),
                         requires: Vec::new(),
@@ -3499,7 +3614,8 @@ pub(crate) mod results {
                     Arc::get_mut(&mut program)
                         .unwrap()
                         .fixture_module_mut()
-                        .types.structural_types
+                        .types
+                        .structural_types
                         .push(StructuralTypeDeclaration {
                             declaration_identity: Default::default(),
                             requires: Vec::new(),
@@ -4179,7 +4295,8 @@ use std::collections::BTreeMap;
 use terminal_psi::{BoundaryMachineResult, CompletionReceipt};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TerminalEffect {    MemoryFence {
+pub enum TerminalEffect {
+    MemoryFence {
         operation: OperationId,
         kind: terminal_psi::MemoryFenceKind,
     },
