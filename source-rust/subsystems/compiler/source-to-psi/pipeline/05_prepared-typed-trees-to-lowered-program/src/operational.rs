@@ -98,7 +98,8 @@ fn statements(machine: MachineId, statements: &[Statement]) -> Checked<()> {
     }
     for statement in statements {
         match statement {
-            Statement::Bind { value, .. }
+            Statement::Observe { value, .. }
+            | Statement::Bind { value, .. }
             | Statement::Decompose { subject: value }
             | Statement::Evaluate {
                 expression: value, ..

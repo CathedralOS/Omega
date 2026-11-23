@@ -147,6 +147,11 @@ pub enum Justification {
     /// Boolean value, and the row says what the edge delivers, not which way
     /// it went. Its availability is ordinary dominance from the edge.
     DispatchBinding { edge: EdgeId },
+    /// The case established at the dispatch differs from the tag on this edge.
+    ExcludedDispatchCase {
+        edge: EdgeId,
+        selected: semantic_vocabulary::StructuralCaseId,
+    },
     /// The checked invariant of a block, available after every arrival
     /// obligation checks. control_flow.md: "There is one row per block;
     /// multiple assertions form a conjunction."

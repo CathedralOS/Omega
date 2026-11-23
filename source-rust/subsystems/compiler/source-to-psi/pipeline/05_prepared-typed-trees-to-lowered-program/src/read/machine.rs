@@ -4762,7 +4762,7 @@ fn mutable_formal(
 /// binder.
 fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceSpan, Binder)>) {
     match statement {
-        Statement::Bind { slot, value } => {
+        Statement::Observe { slot, value } | Statement::Bind { slot, value } => {
             if let Some(name) = slot_names.get(*slot) {
                 spans(value, &Binder::Local(name.clone()), out);
             }
@@ -4802,6 +4802,7 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
         | Statement::Decompose { .. }
         | Statement::Declare { .. }
         | Statement::Witness { .. }
+        | Statement::Observe { .. }
         | Statement::Bind { .. }
         | Statement::Store { .. }
         | Statement::Evaluate { .. } => Vec::new(),

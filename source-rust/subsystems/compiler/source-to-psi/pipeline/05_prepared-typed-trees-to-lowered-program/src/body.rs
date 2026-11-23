@@ -939,6 +939,8 @@ pub enum Statement {
     /// the statements of a body lie on one spine and a slot has one binding
     /// at each of them.
     Bind { slot: usize, value: Expression },
+    /// Save the address of a borrowed dispatch subject before later operands run.
+    Observe { slot: usize, value: Expression },
     /// Capture an existing reference binding without reading or copying its
     /// referent. Both slots retain the same storage and access authority.
     CaptureReference { slot: usize, original: usize },

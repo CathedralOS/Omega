@@ -1313,6 +1313,9 @@ impl Lowering<'_> {
                 Some(super::Bound::Home(place) | super::Bound::Record(place)) => {
                     storage.push(place)
                 }
+                Some(super::Bound::Observed(index)) => {
+                    self.observed[index].retain_operands(&mut storage, &mut scalars);
+                }
                 Some(super::Bound::Erased(_)) => {}
                 None => return Err(self.internal("a projected Build body lost a retained binding")),
             }

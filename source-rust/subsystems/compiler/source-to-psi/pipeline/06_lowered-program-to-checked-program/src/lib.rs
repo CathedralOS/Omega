@@ -1249,6 +1249,14 @@ fn fill_knowledge<'a>(
     // type of that storage states of it, as a payload read would be. The
     // rows hold because that edge was taken and are available on it.
     for block in &lowered.blocks {
+        for (edge, selected) in storage.excluded_dispatch_cases(references, tables, block)? {
+            push_knowledge(
+                tables,
+                Proposition::Falsehood,
+                ProgramPoint::Edge(edge),
+                Justification::ExcludedDispatchCase { edge, selected },
+            );
+        }
         let equations = storage.payload_equations(references, tables, block)?;
         let premises = storage.payload_premises(references, tables, block)?;
         for (edge, proposition) in equations.into_iter().chain(
@@ -2545,6 +2553,7 @@ pub(crate) fn hypotheses(
             | Justification::FormalType
             | Justification::CalleeGuarantee { .. }
             | Justification::BranchCondition { .. }
+            | Justification::ExcludedDispatchCase { .. }
             | Justification::DispatchBinding { .. }
             | Justification::BlockInvariant { .. }
             | Justification::Derived { .. } => {
