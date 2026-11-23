@@ -861,3 +861,22 @@ fn file_qualifiers_respect_foreign_declaration_visibility() {
         }
     }
 }
+
+#[test]
+fn a_static_case_in_a_file_uses_the_type_even_when_a_parameter_has_its_name() {
+    let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
+    for (second, complete) in [(", cell::Supplied -> 9u8", true), ("", false)] {
+        let source = format!("data cell {{ case Stored; case Supplied; }}
+            machine value(cell: u8, kind: cell) -> u8 {{
+                transition kind {{ cell::Stored -> cell{second} }}
+            }}");
+        let (files, root) = captured(package, &source);
+        let result = compile(product(files, root, package, &[]).unwrap(), None);
+        if complete {
+            result.expect("the declared cases exhaust the type");
+        } else {
+            let errors = result.expect_err("Supplied remains possible");
+            assert!(errors.iter().any(|d| d.message.contains("cell::Supplied")), "{errors:?}");
+        }
+    }
+}
