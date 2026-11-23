@@ -1,354 +1,347 @@
-use omega\language\core\FilesystemContentRead;
-use omega\language\core\FilesystemContentWrite;
-use omega\language\core\FilesystemMetadataQuery;
-use omega\language\core\FilesystemMetadataMutation;
-use omega\language\core\DirectoryEnumeration;
-use omega\language\core\FilesystemNamespaceMutation;
+use filesystem.omg as filesystem;
+use filesystem_host.omg as paths;
+use posix_filesystem_host.omg as raw;
+use {omega}/language/core/filesystem_authority.omg as authority;
+use {omega}/language/core/numeric_conversion.omg as numeric;
+
 // POSIX implementation state is local to an entered portable operation. Raw
 // calls are static provider dependencies; no raw binding enters app data.
 // Free helpers receive operation scratch explicitly; PosixFilesystem is data only.
 // Portable operations and directory traversal are shared. Target files own
 // stat layouts, directory-record geometry, flags, errno translation and libc
 // imports; only a target with that complete implementation installs defaults.
-use omega\language\core\widen_i32_to_i64;
-use omega\language\core\widen_u8_to_u64;
-use omega\language\core\narrow_i64_to_i32_wrapping;
-use omega\language\core\narrow_i32_to_u64_wrapping;
-use omega\language\core\narrow_i64_to_u8_wrapping;
-use omega\language\core\narrow_i64_to_u64_exact;
-use omega\language\core\narrow_i64_to_u64_wrapping;
 
 // Native mode bits are decoded only inside the POSIX family. The portable
 // metadata kind is not an alias for a POSIX permission or file-type bitfield.
-machine posix_metadata_kind(mode: u32) -> FileKind {
+machine posix_metadata_kind(mode: u32) -> |filesystem|::FileKind {
     transition mode & 61440 {
-        32768 -> FileKind::File,
-        16384 -> FileKind::Directory,
-        40960 -> FileKind::Symlink,
-        8192 -> FileKind::CharacterDevice,
-        24576 -> FileKind::BlockDevice,
-        4096 -> FileKind::Fifo,
-        49152 -> FileKind::Socket,
-        _ -> FileKind::Other
+        32768 -> |filesystem|::FileKind::File,
+        16384 -> |filesystem|::FileKind::Directory,
+        40960 -> |filesystem|::FileKind::Symlink,
+        8192 -> |filesystem|::FileKind::CharacterDevice,
+        24576 -> |filesystem|::FileKind::BlockDevice,
+        4096 -> |filesystem|::FileKind::Fifo,
+        49152 -> |filesystem|::FileKind::Socket,
+        _ -> |filesystem|::FileKind::Other
     }
 }
 
-FilesystemPosixProvider satisfies FilesystemService {
-    machine create(path: @[u8] in Path) -> OpenResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+FilesystemPosixProvider satisfies |filesystem|::FilesystemService {
+    machine create(path: @[u8] in |paths|::Path) -> |filesystem|::OpenResult
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_create(@mutable context, path)
     }
 
-    machine create_new(path: @[u8] in Path) -> OpenResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    machine create_new(path: @[u8] in |paths|::Path) -> |filesystem|::OpenResult
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_create_new(@mutable context, path)
     }
 
-    machine open(path: @[u8] in Path) -> OpenResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    machine open(path: @[u8] in |paths|::Path) -> |filesystem|::OpenResult
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_open(@mutable context, path)
     }
 
-    machine append(path: @[u8] in Path) -> OpenResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    machine append(path: @[u8] in |paths|::Path) -> |filesystem|::OpenResult
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_append(@mutable context, path)
     }
 
-    machine read(file: File, buffer: @mutable [u8], count: u64) -> IoResult
-    reaches FilesystemContentRead
+    machine read(file: |filesystem|::File, buffer: @mutable [u8], count: u64) -> |filesystem|::IoResult
+    reaches |authority|::FilesystemContentRead
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_read(@mutable context, file, buffer, count)
     }
 
-    machine write(file: File, bytes: @[u8]) -> IoResult
-    reaches FilesystemContentWrite
+    machine write(file: |filesystem|::File, bytes: @[u8]) -> |filesystem|::IoResult
+    reaches |authority|::FilesystemContentWrite
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_write(@mutable context, file, bytes)
     }
 
-    machine close(file: File) -> UnitResult
+    machine close(file: |filesystem|::File) -> |filesystem|::UnitResult
     {
         let mutable context: PosixFilesystem;
         let result: i32 = posix_filesystem_close(@mutable context, file);
         transition result == 0 { true -> closed(), false -> failed(result) }
-        machine closed() -> UnitResult { UnitResult::Ok }
-        machine failed(result: i32) -> UnitResult {
+        machine closed() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+        machine failed(result: i32) -> |filesystem|::UnitResult {
             let mutable context: PosixFilesystem;
-            let kind: ErrorKind = posix_filesystem_last_error_i32(@mutable context, result);
-            UnitResult::Error { kind: kind }
+            let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(@mutable context, result);
+            |filesystem|::UnitResult::Error { kind: kind }
         }
     }
 
-    machine write_all(path: @[u8] in Path, bytes: @[u8]) -> UnitResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    machine write_all(path: @[u8] in |paths|::Path, bytes: @[u8]) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_write_all(@mutable context, path, bytes)
     }
 
-    machine read_all(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    machine read_all(path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> |filesystem|::IoResult
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_read_all(@mutable context, path, buffer, count)
     }
 
-    machine copy(from: @[u8] in Path, to: @[u8] in Path, buffer: @mutable [u8], cap: u64) -> IoResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
+    machine copy(from: @[u8] in |paths|::Path, to: @[u8] in |paths|::Path, buffer: @mutable [u8], cap: u64) -> |filesystem|::IoResult
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::FilesystemMetadataQuery
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_copy(@mutable context, from, to, buffer, cap)
     }
 
-    machine exists(path: @[u8] in Path) -> bool
-    reaches FilesystemMetadataQuery
+    machine exists(path: @[u8] in |paths|::Path) -> bool
+    reaches |authority|::FilesystemMetadataQuery
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_exists(@mutable context, path)
     }
 
-    machine try_exists(path: @[u8] in Path) -> ExistsResult
-    reaches FilesystemMetadataQuery
+    machine try_exists(path: @[u8] in |paths|::Path) -> |filesystem|::ExistsResult
+    reaches |authority|::FilesystemMetadataQuery
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_try_exists(@mutable context, path)
     }
 
-    machine metadata_path(path: @[u8] in Path) -> MetadataResult
-    reaches FilesystemMetadataQuery
+    machine metadata_path(path: @[u8] in |paths|::Path) -> |filesystem|::MetadataResult
+    reaches |authority|::FilesystemMetadataQuery
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_metadata_path(@mutable context, path)
     }
 
-    machine symlink_metadata(path: @[u8] in Path) -> MetadataResult
-    reaches FilesystemMetadataQuery
+    machine symlink_metadata(path: @[u8] in |paths|::Path) -> |filesystem|::MetadataResult
+    reaches |authority|::FilesystemMetadataQuery
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_symlink_metadata(@mutable context, path)
     }
 
-    machine remove(path: @[u8] in Path) -> UnitResult
-    reaches FilesystemNamespaceMutation
+    machine remove(path: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemNamespaceMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_remove(@mutable context, path)
     }
 
-    machine create_dir(path: @[u8] in Path) -> UnitResult
-    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+    machine create_dir(path: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_create_dir(@mutable context, path)
     }
 
-    machine remove_dir(path: @[u8] in Path) -> UnitResult
-    reaches FilesystemNamespaceMutation
+    machine remove_dir(path: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemNamespaceMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_remove_dir(@mutable context, path)
     }
 
-    machine create_dir_all(path: @[u8] in Path) -> UnitResult
-    reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
+    machine create_dir_all(path: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::FilesystemMetadataQuery
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_create_dir_all(@mutable context, path)
     }
 
-    machine read_dir_is_empty(path: @[u8] in Path) -> EmptyResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+    machine read_dir_is_empty(path: @[u8] in |paths|::Path) -> |filesystem|::EmptyResult
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::DirectoryEnumeration + |authority|::FilesystemMetadataQuery
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_read_dir_is_empty(@mutable context, path)
     }
 
-    machine set_permissions(path: @[u8] in Path, perms: Permissions) -> UnitResult
-    reaches FilesystemMetadataQuery + FilesystemMetadataMutation
+    machine set_permissions(path: @[u8] in |paths|::Path, perms: |filesystem|::Permissions) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_set_permissions(@mutable context, path, perms)
     }
 
-    machine symlink(target: @[u8] in Path, link: @[u8] in Path) -> UnitResult
-    reaches FilesystemNamespaceMutation
+    machine symlink(target: @[u8] in |paths|::Path, link: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemNamespaceMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_symlink(@mutable context, target, link)
     }
 
-    machine read_link(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult
-    reaches FilesystemMetadataQuery
+    machine read_link(path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> |filesystem|::IoResult
+    reaches |authority|::FilesystemMetadataQuery
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_read_link(@mutable context, path, buffer, count)
     }
 
-    machine set_file_permissions(file: File, perms: Permissions) -> UnitResult
-    reaches FilesystemMetadataQuery + FilesystemMetadataMutation
+    machine set_file_permissions(file: |filesystem|::File, perms: |filesystem|::Permissions) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_set_file_permissions(@mutable context, file, perms)
     }
 
-    machine rename(from: @[u8] in Path, to: @[u8] in Path) -> UnitResult
-    reaches FilesystemNamespaceMutation
+    machine rename(from: @[u8] in |paths|::Path, to: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemNamespaceMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_rename(@mutable context, from, to)
     }
 
-    machine set_len(file: File, length: i64) -> UnitResult
-    reaches FilesystemContentWrite + FilesystemMetadataMutation
+    machine set_len(file: |filesystem|::File, length: i64) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_set_len(@mutable context, file, length)
     }
 
-    machine sync(file: File) -> UnitResult
+    machine sync(file: |filesystem|::File) -> |filesystem|::UnitResult
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_sync(@mutable context, file)
     }
 
-    machine sync_data(file: File) -> UnitResult
+    machine sync_data(file: |filesystem|::File) -> |filesystem|::UnitResult
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_sync_data(@mutable context, file)
     }
 
-    machine try_clone(file: File) -> OpenResult
+    machine try_clone(file: |filesystem|::File) -> |filesystem|::OpenResult
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_try_clone(@mutable context, file)
     }
 
-    machine set_owner(path: @[u8] in Path, uid: i32, gid: i32) -> UnitResult
-    reaches FilesystemMetadataMutation
+    machine set_owner(path: @[u8] in |paths|::Path, uid: i32, gid: i32) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemMetadataMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_set_owner(@mutable context, path, uid, gid)
     }
 
-    machine set_owner_no_follow(path: @[u8] in Path, uid: i32, gid: i32) -> UnitResult
-    reaches FilesystemMetadataMutation
+    machine set_owner_no_follow(path: @[u8] in |paths|::Path, uid: i32, gid: i32) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemMetadataMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_set_owner_no_follow(@mutable context, path, uid, gid)
     }
 
-    machine set_file_owner(file: File, uid: i32, gid: i32) -> UnitResult
-    reaches FilesystemMetadataMutation
+    machine set_file_owner(file: |filesystem|::File, uid: i32, gid: i32) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemMetadataMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_set_file_owner(@mutable context, file, uid, gid)
     }
 
-    machine metadata(file: File) -> MetadataResult
-    reaches FilesystemMetadataQuery
+    machine metadata(file: |filesystem|::File) -> |filesystem|::MetadataResult
+    reaches |authority|::FilesystemMetadataQuery
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_metadata(@mutable context, file)
     }
 
-    machine open_with(path: @[u8] in Path, options: OpenOptions) -> OpenResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+    machine open_with(path: @[u8] in |paths|::Path, options: |filesystem|::OpenOptions) -> |filesystem|::OpenResult
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_open_with(@mutable context, path, options)
     }
 
-    machine read_dir_count(path: @[u8] in Path) -> IoResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+    machine read_dir_count(path: @[u8] in |paths|::Path) -> |filesystem|::IoResult
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::DirectoryEnumeration
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_read_dir_count(@mutable context, path)
     }
 
-    machine read_dir_nth(path: @[u8] in Path, n: u64) -> DirEntryResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+    machine read_dir_nth(path: @[u8] in |paths|::Path, n: u64) -> |filesystem|::DirEntryResult
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::DirectoryEnumeration + |authority|::FilesystemMetadataQuery
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_read_dir_nth(@mutable context, path, n)
     }
 
-    machine remove_dir_all(path: @[u8] in Path) -> UnitResult
-    reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+    machine remove_dir_all(path: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::DirectoryEnumeration + |authority|::FilesystemMetadataQuery
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_remove_dir_all(@mutable context, path)
     }
 
-    machine read_at(file: File, buffer: @mutable [u8], count: u64, offset: i64) -> IoResult
-    reaches FilesystemContentRead
+    machine read_at(file: |filesystem|::File, buffer: @mutable [u8], count: u64, offset: i64) -> |filesystem|::IoResult
+    reaches |authority|::FilesystemContentRead
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_read_at(@mutable context, file, buffer, count, offset)
     }
 
-    machine write_at(file: File, bytes: @[u8], offset: i64) -> IoResult
-    reaches FilesystemContentWrite
+    machine write_at(file: |filesystem|::File, bytes: @[u8], offset: i64) -> |filesystem|::IoResult
+    reaches |authority|::FilesystemContentWrite
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_write_at(@mutable context, file, bytes, offset)
     }
 
-    machine hard_link(original: @[u8] in Path, link: @[u8] in Path) -> UnitResult
-    reaches FilesystemNamespaceMutation
+    machine hard_link(original: @[u8] in |paths|::Path, link: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemNamespaceMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_hard_link(@mutable context, original, link)
     }
 
-    machine set_times(file: File, accessed: i64, modified: i64) -> UnitResult
-    reaches FilesystemMetadataMutation
+    machine set_times(file: |filesystem|::File, accessed: i64, modified: i64) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemMetadataMutation
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_set_times(@mutable context, file, accessed, modified)
     }
 
-    machine canonicalize(path: @[u8] in Path, buffer: @mutable [u8]) -> UnitResult
-    reaches FilesystemMetadataQuery
+    machine canonicalize(path: @[u8] in |paths|::Path, buffer: @mutable [u8]) -> |filesystem|::UnitResult
+    reaches |authority|::FilesystemMetadataQuery
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_canonicalize(@mutable context, path, buffer)
     }
 
-    machine lock(file: File) -> UnitResult
+    machine lock(file: |filesystem|::File) -> |filesystem|::UnitResult
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_lock(@mutable context, file)
     }
 
-    machine lock_shared(file: File) -> UnitResult
+    machine lock_shared(file: |filesystem|::File) -> |filesystem|::UnitResult
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_lock_shared(@mutable context, file)
     }
 
-    machine try_lock(file: File) -> TryLockResult
+    machine try_lock(file: |filesystem|::File) -> |filesystem|::TryLockResult
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_try_lock(@mutable context, file)
     }
 
-    machine try_lock_shared(file: File) -> TryLockResult
+    machine try_lock_shared(file: |filesystem|::File) -> |filesystem|::TryLockResult
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_try_lock_shared(@mutable context, file)
     }
 
-    machine unlock(file: File) -> UnitResult
+    machine unlock(file: |filesystem|::File) -> |filesystem|::UnitResult
     {
         let mutable context: PosixFilesystem;
         posix_filesystem_unlock(@mutable context, file)
@@ -374,7 +367,7 @@ requires open_writable >= 0 && open_writable <= 1,
 
     open_flags: i32;
 
-    open_options: OpenOptions;
+    open_options: |filesystem|::OpenOptions;
 
     open_writable: i32;
     open_readable: i32;
@@ -391,7 +384,7 @@ requires open_writable >= 0 && open_writable <= 1,
     lock_errno: i32;
 
     err_code: i32;
-    err_kind: ErrorKind;
+    err_kind: |filesystem|::ErrorKind;
 
     dir_buf: [u8; 512];
     directory_descriptor: i32;
@@ -436,34 +429,34 @@ ensures result == 0 || result == 1
     match flag { true -> 1, false -> 0 }
 }
 
-machine posix_filesystem_creation_open_options() -> OpenOptions {
-    (OpenOptions { read: false, write: true, append: false, truncate: true, create: true, create_new: false })
+machine posix_filesystem_creation_open_options() -> |filesystem|::OpenOptions {
+    (|filesystem|::OpenOptions { read: false, write: true, append: false, truncate: true, create: true, create_new: false })
 }
 
-machine posix_filesystem_empty_open_options() -> OpenOptions {
-    (OpenOptions { read: false, write: false, append: false, truncate: false, create: false, create_new: false })
+machine posix_filesystem_empty_open_options() -> |filesystem|::OpenOptions {
+    (|filesystem|::OpenOptions { read: false, write: false, append: false, truncate: false, create: false, create_new: false })
 }
 
-machine posix_filesystem_create(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> OpenResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+machine posix_filesystem_create(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> |filesystem|::OpenResult
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
     filesystem.open_options = posix_filesystem_creation_open_options();
-    PosixFilesystemTarget::encode_open_options(filesystem);
+    |raw|::PosixFilesystemTarget::encode_open_options(filesystem);
 
-    let fd: i32 = PosixFilesystemHost::open_create(path, filesystem.open_flags, 438);
+    let fd: i32 = |raw|::PosixFilesystemHost::open_create(path, filesystem.open_flags, 438);
     transition fd >= 0 { true -> ok(fd), _ -> err(filesystem, fd) }
-    machine ok(fd: i32) -> OpenResult
+    machine ok(fd: i32) -> |filesystem|::OpenResult
     requires fd >= 0
     {
-        OpenResult::Ok { file: posix_filesystem_file(fd) }
+        |filesystem|::OpenResult::Ok { file: posix_filesystem_file(fd) }
     }
-    machine err(filesystem: @mutable PosixFilesystem, fd: i32) -> OpenResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
+    machine err(filesystem: @mutable PosixFilesystem, fd: i32) -> |filesystem|::OpenResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); |filesystem|::OpenResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_create_new(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> OpenResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+machine posix_filesystem_create_new(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> |filesystem|::OpenResult
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
-    filesystem.open_options = OpenOptions {
+    filesystem.open_options = |filesystem|::OpenOptions {
         read: true,
         write: true,
         append: false,
@@ -471,37 +464,37 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         create: false,
         create_new: true,
     };
-    PosixFilesystemTarget::encode_open_options(filesystem);
-    let fd: i32 = PosixFilesystemHost::open_create(path, filesystem.open_flags, 438);
+    |raw|::PosixFilesystemTarget::encode_open_options(filesystem);
+    let fd: i32 = |raw|::PosixFilesystemHost::open_create(path, filesystem.open_flags, 438);
     transition fd >= 0 { true -> ok(filesystem, fd), _ -> err(filesystem, fd) }
-    machine ok(filesystem: @mutable PosixFilesystem, fd: i32) -> OpenResult
+    machine ok(filesystem: @mutable PosixFilesystem, fd: i32) -> |filesystem|::OpenResult
     requires fd >= 0
     {
-        OpenResult::Ok { file: posix_filesystem_file(fd) }
+        |filesystem|::OpenResult::Ok { file: posix_filesystem_file(fd) }
     }
-    machine err(filesystem: @mutable PosixFilesystem, fd: i32) -> OpenResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
+    machine err(filesystem: @mutable PosixFilesystem, fd: i32) -> |filesystem|::OpenResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); |filesystem|::OpenResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_open(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> OpenResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+machine posix_filesystem_open(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> |filesystem|::OpenResult
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
     filesystem.open_options = posix_filesystem_empty_open_options();
-    PosixFilesystemTarget::encode_open_options(filesystem);
+    |raw|::PosixFilesystemTarget::encode_open_options(filesystem);
     filesystem.read_flags = filesystem.open_flags;
-    let fd: i32 = PosixFilesystemHost::open(path, filesystem.read_flags);
+    let fd: i32 = |raw|::PosixFilesystemHost::open(path, filesystem.read_flags);
     transition fd >= 0 { true -> ok(fd), _ -> err(filesystem, fd) }
-    machine ok(fd: i32) -> OpenResult
+    machine ok(fd: i32) -> |filesystem|::OpenResult
     requires fd >= 0
     {
-        OpenResult::Ok { file: posix_filesystem_file(fd) }
+        |filesystem|::OpenResult::Ok { file: posix_filesystem_file(fd) }
     }
-    machine err(filesystem: @mutable PosixFilesystem, fd: i32) -> OpenResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
+    machine err(filesystem: @mutable PosixFilesystem, fd: i32) -> |filesystem|::OpenResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); |filesystem|::OpenResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_append(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> OpenResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+machine posix_filesystem_append(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> |filesystem|::OpenResult
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
-    filesystem.open_options = OpenOptions {
+    filesystem.open_options = |filesystem|::OpenOptions {
         read: false,
         write: false,
         append: true,
@@ -509,69 +502,69 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         create: false,
         create_new: false,
     };
-    PosixFilesystemTarget::encode_open_options(filesystem);
-    let fd: i32 = PosixFilesystemHost::open(path, filesystem.open_flags);
+    |raw|::PosixFilesystemTarget::encode_open_options(filesystem);
+    let fd: i32 = |raw|::PosixFilesystemHost::open(path, filesystem.open_flags);
     transition fd >= 0 { true -> ok(filesystem, fd), _ -> err(filesystem, fd) }
-    machine ok(filesystem: @mutable PosixFilesystem, fd: i32) -> OpenResult
+    machine ok(filesystem: @mutable PosixFilesystem, fd: i32) -> |filesystem|::OpenResult
     requires fd >= 0
     {
-        OpenResult::Ok { file: posix_filesystem_file(fd) }
+        |filesystem|::OpenResult::Ok { file: posix_filesystem_file(fd) }
     }
-    machine err(filesystem: @mutable PosixFilesystem, fd: i32) -> OpenResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
+    machine err(filesystem: @mutable PosixFilesystem, fd: i32) -> |filesystem|::OpenResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); |filesystem|::OpenResult::Error { kind: kind } }
 }
 
 // A count larger than the buffer is the caller's error on every target; the
 // raw read would otherwise clamp it silently.
-machine posix_filesystem_read(filesystem: @mutable PosixFilesystem, file: File, buffer: @mutable [u8], count: u64) -> IoResult
-reaches FilesystemContentRead
+machine posix_filesystem_read(filesystem: @mutable PosixFilesystem, file: |filesystem|::File, buffer: @mutable [u8], count: u64) -> |filesystem|::IoResult
+reaches |authority|::FilesystemContentRead
 {
     transition count <= buffer.length {
         true -> transfer(filesystem, file, buffer, count),
-        false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
+        false -> (|filesystem|::IoResult::Error { kind: |filesystem|::ErrorKind::InvalidInput })
     }
-    machine transfer(filesystem: @mutable PosixFilesystem, file: File, buffer: @mutable [u8], count: u64) -> IoResult {
+    machine transfer(filesystem: @mutable PosixFilesystem, file: |filesystem|::File, buffer: @mutable [u8], count: u64) -> |filesystem|::IoResult {
         filesystem.file_fd = posix_filesystem_descriptor(file);
-        let n: i64 = PosixFilesystemHost::read(filesystem.file_fd, buffer, count);
+        let n: i64 = |raw|::PosixFilesystemHost::read(filesystem.file_fd, buffer, count);
         transition n >= 0 { true -> ok(n), _ -> err(filesystem, n) }
     }
-    machine ok(n: i64) -> IoResult
+    machine ok(n: i64) -> |filesystem|::IoResult
     requires n >= 0
     {
         let converted_count: u64 = n as u64;
-        IoResult::Ok { count: converted_count }
+        |filesystem|::IoResult::Ok { count: converted_count }
     }
-    machine err(filesystem: @mutable PosixFilesystem, n: i64) -> IoResult { let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, n); IoResult::Error { kind: kind } }
+    machine err(filesystem: @mutable PosixFilesystem, n: i64) -> |filesystem|::IoResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i64(filesystem, n); |filesystem|::IoResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_write(filesystem: @mutable PosixFilesystem, file: File, bytes: @[u8]) -> IoResult
-reaches FilesystemContentWrite
+machine posix_filesystem_write(filesystem: @mutable PosixFilesystem, file: |filesystem|::File, bytes: @[u8]) -> |filesystem|::IoResult
+reaches |authority|::FilesystemContentWrite
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let n: i64 = PosixFilesystemHost::write(filesystem.file_fd, bytes);
+    let n: i64 = |raw|::PosixFilesystemHost::write(filesystem.file_fd, bytes);
     transition n >= 0 { true -> ok(n), _ -> err(filesystem, n) }
-    machine ok(n: i64) -> IoResult
+    machine ok(n: i64) -> |filesystem|::IoResult
     requires n >= 0
     {
         let converted_count: u64 = n as u64;
-        IoResult::Ok { count: converted_count }
+        |filesystem|::IoResult::Ok { count: converted_count }
     }
-    machine err(filesystem: @mutable PosixFilesystem, n: i64) -> IoResult { let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, n); IoResult::Error { kind: kind } }
+    machine err(filesystem: @mutable PosixFilesystem, n: i64) -> |filesystem|::IoResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i64(filesystem, n); |filesystem|::IoResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_close(filesystem: @mutable PosixFilesystem, file: File) -> i32
+machine posix_filesystem_close(filesystem: @mutable PosixFilesystem, file: |filesystem|::File) -> i32
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let rc: i32 = PosixFilesystemHost::close(filesystem.file_fd);
+    let rc: i32 = |raw|::PosixFilesystemHost::close(filesystem.file_fd);
     rc
 }
 
 // Complete a checked byte view, preserving the OS error and refusing zero
 // progress. A short successful write advances the same original backing.
-machine posix_filesystem_write_descriptor(filesystem: @mutable PosixFilesystem, descriptor: i32, bytes: @[u8]) -> UnitResult
-reaches FilesystemContentWrite
+machine posix_filesystem_write_descriptor(filesystem: @mutable PosixFilesystem, descriptor: i32, bytes: @[u8]) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemContentWrite
 {
     transition { _ -> remaining(filesystem, descriptor, bytes, 0) }
-    machine remaining(filesystem: @mutable PosixFilesystem, descriptor: i32, bytes: @[u8], position: u64) -> UnitResult
+    machine remaining(filesystem: @mutable PosixFilesystem, descriptor: i32, bytes: @[u8], position: u64) -> |filesystem|::UnitResult
     requires position <= bytes.length
     {
         transition position < bytes.length {
@@ -579,25 +572,25 @@ reaches FilesystemContentWrite
             false -> complete()
         }
     }
-    machine write(filesystem: @mutable PosixFilesystem, descriptor: i32, bytes: @[u8], position: u64) -> UnitResult
+    machine write(filesystem: @mutable PosixFilesystem, descriptor: i32, bytes: @[u8], position: u64) -> |filesystem|::UnitResult
     requires position < bytes.length
     {
-        let count: i64 = PosixFilesystemHost::write(descriptor, @bytes[position..bytes.length]);
+        let count: i64 = |raw|::PosixFilesystemHost::write(descriptor, @bytes[position..bytes.length]);
         transition count > 0 {
             true -> progressed(filesystem, descriptor, bytes, position, count),
             false -> stalled(filesystem, descriptor, bytes, position, count)
         }
     }
-    machine progressed(filesystem: @mutable PosixFilesystem, descriptor: i32, bytes: @[u8], position: u64, count: i64) -> UnitResult
+    machine progressed(filesystem: @mutable PosixFilesystem, descriptor: i32, bytes: @[u8], position: u64, count: i64) -> |filesystem|::UnitResult
     requires position <= bytes.length, count > 0
     {
-        let written: u64 = narrow_i64_to_u64_exact(count);
+        let written: u64 = |numeric|::narrow_i64_to_u64_exact(count);
         transition written <= bytes.length - position {
             true -> remaining(filesystem, descriptor, bytes, position + written),
             false -> invalid()
         }
     }
-    machine stalled(filesystem: @mutable PosixFilesystem, descriptor: i32, bytes: @[u8], position: u64, count: i64) -> UnitResult
+    machine stalled(filesystem: @mutable PosixFilesystem, descriptor: i32, bytes: @[u8], position: u64, count: i64) -> |filesystem|::UnitResult
     requires position <= bytes.length
     {
         transition count == -4 {
@@ -605,226 +598,226 @@ reaches FilesystemContentWrite
             false -> failure(filesystem, count)
         }
     }
-    machine failure(filesystem: @mutable PosixFilesystem, count: i64) -> UnitResult {
+    machine failure(filesystem: @mutable PosixFilesystem, count: i64) -> |filesystem|::UnitResult {
         transition count == 0 { true -> zero_progress(), false -> failed(filesystem, count) }
     }
-    machine failed(filesystem: @mutable PosixFilesystem, count: i64) -> UnitResult {
-        let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, count);
-        UnitResult::Error { kind: kind }
+    machine failed(filesystem: @mutable PosixFilesystem, count: i64) -> |filesystem|::UnitResult {
+        let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i64(filesystem, count);
+        |filesystem|::UnitResult::Error { kind: kind }
     }
-    machine zero_progress() -> UnitResult { UnitResult::Error { kind: ErrorKind::WriteZero } }
-    machine invalid() -> UnitResult { UnitResult::Error { kind: ErrorKind::Other } }
-    machine complete() -> UnitResult { UnitResult::Ok }
+    machine zero_progress() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Error { kind: |filesystem|::ErrorKind::WriteZero } }
+    machine invalid() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Error { kind: |filesystem|::ErrorKind::Other } }
+    machine complete() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
 }
 
-machine posix_filesystem_write_all(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, bytes: @[u8]) -> UnitResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+machine posix_filesystem_write_all(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, bytes: @[u8]) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
     filesystem.open_options = posix_filesystem_creation_open_options();
-    PosixFilesystemTarget::encode_open_options(filesystem);
-    let descriptor: i32 = PosixFilesystemHost::open_create(path, filesystem.open_flags, 438);
+    |raw|::PosixFilesystemTarget::encode_open_options(filesystem);
+    let descriptor: i32 = |raw|::PosixFilesystemHost::open_create(path, filesystem.open_flags, 438);
     transition descriptor >= 0 { true -> opened(filesystem, descriptor, bytes), false -> open_failed(filesystem, descriptor) }
-    machine opened(filesystem: @mutable PosixFilesystem, descriptor: i32, bytes: @[u8]) -> UnitResult {
-        let outcome: UnitResult = posix_filesystem_write_descriptor(filesystem, descriptor, bytes);
-        let closed: i32 = PosixFilesystemHost::close(descriptor);
+    machine opened(filesystem: @mutable PosixFilesystem, descriptor: i32, bytes: @[u8]) -> |filesystem|::UnitResult {
+        let outcome: |filesystem|::UnitResult = posix_filesystem_write_descriptor(filesystem, descriptor, bytes);
+        let closed: i32 = |raw|::PosixFilesystemHost::close(descriptor);
         transition outcome {
-            UnitResult::Ok -> close_result(filesystem, closed),
-            UnitResult::Error { kind } -> failed(kind)
+            |filesystem|::UnitResult::Ok -> close_result(filesystem, closed),
+            |filesystem|::UnitResult::Error { kind } -> failed(kind)
         }
     }
-    machine close_result(filesystem: @mutable PosixFilesystem, result: i32) -> UnitResult {
+    machine close_result(filesystem: @mutable PosixFilesystem, result: i32) -> |filesystem|::UnitResult {
         transition result == 0 { true -> complete(), false -> open_failed(filesystem, result) }
     }
-    machine open_failed(filesystem: @mutable PosixFilesystem, result: i32) -> UnitResult {
-        let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, result);
-        UnitResult::Error { kind: kind }
+    machine open_failed(filesystem: @mutable PosixFilesystem, result: i32) -> |filesystem|::UnitResult {
+        let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, result);
+        |filesystem|::UnitResult::Error { kind: kind }
     }
-    machine failed(kind: ErrorKind) -> UnitResult { UnitResult::Error { kind: kind } }
-    machine complete() -> UnitResult { UnitResult::Ok }
+    machine failed(kind: |filesystem|::ErrorKind) -> |filesystem|::UnitResult { |filesystem|::UnitResult::Error { kind: kind } }
+    machine complete() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
 }
 
-machine posix_filesystem_read_all(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+machine posix_filesystem_read_all(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> |filesystem|::IoResult
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
     transition count <= buffer.length {
         true -> acquire(filesystem, path, buffer, count),
-        false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
+        false -> (|filesystem|::IoResult::Error { kind: |filesystem|::ErrorKind::InvalidInput })
     }
-    machine acquire(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult {
+    machine acquire(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> |filesystem|::IoResult {
         filesystem.open_options = posix_filesystem_empty_open_options();
-        PosixFilesystemTarget::encode_open_options(filesystem);
-        let descriptor: i32 = PosixFilesystemHost::open(path, filesystem.open_flags);
+        |raw|::PosixFilesystemTarget::encode_open_options(filesystem);
+        let descriptor: i32 = |raw|::PosixFilesystemHost::open(path, filesystem.open_flags);
         transition descriptor >= 0 { true -> opened(filesystem, descriptor, buffer, count), false -> failed_open(filesystem, descriptor) }
     }
-    machine opened(filesystem: @mutable PosixFilesystem, descriptor: i32, buffer: @mutable [u8], count: u64) -> IoResult {
-        let received: i64 = PosixFilesystemHost::read(descriptor, buffer, count);
-        let closed: i32 = PosixFilesystemHost::close(descriptor);
+    machine opened(filesystem: @mutable PosixFilesystem, descriptor: i32, buffer: @mutable [u8], count: u64) -> |filesystem|::IoResult {
+        let received: i64 = |raw|::PosixFilesystemHost::read(descriptor, buffer, count);
+        let closed: i32 = |raw|::PosixFilesystemHost::close(descriptor);
         transition received >= 0 { true -> read_result(filesystem, received, closed), false -> read_failed(filesystem, received) }
     }
-    machine read_result(filesystem: @mutable PosixFilesystem, received: i64, closed: i32) -> IoResult
+    machine read_result(filesystem: @mutable PosixFilesystem, received: i64, closed: i32) -> |filesystem|::IoResult
     requires received >= 0
     {
         transition closed == 0 { true -> complete(received), false -> failed_open(filesystem, closed) }
     }
-    machine complete(received: i64) -> IoResult requires received >= 0 {
-        let count: u64 = narrow_i64_to_u64_exact(received);
-        IoResult::Ok { count: count }
+    machine complete(received: i64) -> |filesystem|::IoResult requires received >= 0 {
+        let count: u64 = |numeric|::narrow_i64_to_u64_exact(received);
+        |filesystem|::IoResult::Ok { count: count }
     }
-    machine failed_open(filesystem: @mutable PosixFilesystem, result: i32) -> IoResult {
-        let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, result);
-        IoResult::Error { kind: kind }
+    machine failed_open(filesystem: @mutable PosixFilesystem, result: i32) -> |filesystem|::IoResult {
+        let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, result);
+        |filesystem|::IoResult::Error { kind: kind }
     }
-    machine read_failed(filesystem: @mutable PosixFilesystem, result: i64) -> IoResult {
-        let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, result);
-        IoResult::Error { kind: kind }
+    machine read_failed(filesystem: @mutable PosixFilesystem, result: i64) -> |filesystem|::IoResult {
+        let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i64(filesystem, result);
+        |filesystem|::IoResult::Error { kind: kind }
     }
 }
 
 // Preserve the existing bounded-copy contract: cap is the maximum prefix.
 // Only initialized bytes cross the destination seam. Opening, metadata,
 // writing, permission restoration and release each retain their own failure.
-machine posix_filesystem_copy(filesystem: @mutable PosixFilesystem, from: @[u8] in Path, to: @[u8] in Path, buffer: @mutable [u8], cap: u64) -> IoResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
+machine posix_filesystem_copy(filesystem: @mutable PosixFilesystem, from: @[u8] in |paths|::Path, to: @[u8] in |paths|::Path, buffer: @mutable [u8], cap: u64) -> |filesystem|::IoResult
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::FilesystemMetadataQuery
 {
     transition cap <= buffer.length {
         true -> acquire(filesystem, from, to, buffer, cap),
-        false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
+        false -> (|filesystem|::IoResult::Error { kind: |filesystem|::ErrorKind::InvalidInput })
     }
-    machine acquire(filesystem: @mutable PosixFilesystem, from: @[u8] in Path, to: @[u8] in Path, buffer: @mutable [u8], cap: u64) -> IoResult {
+    machine acquire(filesystem: @mutable PosixFilesystem, from: @[u8] in |paths|::Path, to: @[u8] in |paths|::Path, buffer: @mutable [u8], cap: u64) -> |filesystem|::IoResult {
         filesystem.open_options = posix_filesystem_empty_open_options();
-        PosixFilesystemTarget::encode_open_options(filesystem);
-        let source: i32 = PosixFilesystemHost::open(from, filesystem.open_flags);
+        |raw|::PosixFilesystemTarget::encode_open_options(filesystem);
+        let source: i32 = |raw|::PosixFilesystemHost::open(from, filesystem.open_flags);
         transition source >= 0 { true -> metadata(filesystem, source, to, buffer, cap), false -> failed_open(filesystem, source) }
     }
-    machine metadata(filesystem: @mutable PosixFilesystem, source: i32, to: @[u8] in Path, buffer: @mutable [u8], cap: u64) -> IoResult {
-        let result: i32 = PosixFilesystemHost::read_file_metadata(source, @mutable filesystem.stat_buf);
+    machine metadata(filesystem: @mutable PosixFilesystem, source: i32, to: @[u8] in |paths|::Path, buffer: @mutable [u8], cap: u64) -> |filesystem|::IoResult {
+        let result: i32 = |raw|::PosixFilesystemHost::read_file_metadata(source, @mutable filesystem.stat_buf);
         transition result == 0 { true -> read(filesystem, source, to, buffer, cap), false -> metadata_failed(filesystem, source, result) }
     }
-    machine metadata_failed(filesystem: @mutable PosixFilesystem, source: i32, result: i32) -> IoResult {
-        let closed: i32 = PosixFilesystemHost::close(source);
-        let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, result);
-        IoResult::Error { kind: kind }
+    machine metadata_failed(filesystem: @mutable PosixFilesystem, source: i32, result: i32) -> |filesystem|::IoResult {
+        let closed: i32 = |raw|::PosixFilesystemHost::close(source);
+        let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, result);
+        |filesystem|::IoResult::Error { kind: kind }
     }
-    machine read(filesystem: @mutable PosixFilesystem, source: i32, to: @[u8] in Path, buffer: @mutable [u8], cap: u64) -> IoResult {
-        let result: MetadataResult = PosixFilesystemTarget::decode_metadata(filesystem);
+    machine read(filesystem: @mutable PosixFilesystem, source: i32, to: @[u8] in |paths|::Path, buffer: @mutable [u8], cap: u64) -> |filesystem|::IoResult {
+        let result: |filesystem|::MetadataResult = |raw|::PosixFilesystemTarget::decode_metadata(filesystem);
         transition result {
-            MetadataResult::Ok { meta } -> read_contents(filesystem, source, to, buffer, cap, meta),
-            MetadataResult::Error { kind } -> invalid_metadata(source, kind)
+            |filesystem|::MetadataResult::Ok { meta } -> read_contents(filesystem, source, to, buffer, cap, meta),
+            |filesystem|::MetadataResult::Error { kind } -> invalid_metadata(source, kind)
         }
     }
-    machine invalid_metadata(source: i32, kind: ErrorKind) -> IoResult {
-        let closed: i32 = PosixFilesystemHost::close(source);
-        IoResult::Error { kind: kind }
+    machine invalid_metadata(source: i32, kind: |filesystem|::ErrorKind) -> |filesystem|::IoResult {
+        let closed: i32 = |raw|::PosixFilesystemHost::close(source);
+        |filesystem|::IoResult::Error { kind: kind }
     }
-    machine read_contents(filesystem: @mutable PosixFilesystem, source: i32, to: @[u8] in Path, buffer: @mutable [u8], cap: u64, metadata: Metadata) -> IoResult {
+    machine read_contents(filesystem: @mutable PosixFilesystem, source: i32, to: @[u8] in |paths|::Path, buffer: @mutable [u8], cap: u64, metadata: |filesystem|::Metadata) -> |filesystem|::IoResult {
         transition metadata.posix {
-            PosixMetadataResult::Ok { details } -> read_permissioned(filesystem, source, to, buffer, cap, details.mode & 511),
-            PosixMetadataResult::Error { kind } -> invalid_metadata(source, kind)
+            |filesystem|::PosixMetadataResult::Ok { details } -> read_permissioned(filesystem, source, to, buffer, cap, details.mode & 511),
+            |filesystem|::PosixMetadataResult::Error { kind } -> invalid_metadata(source, kind)
         }
     }
-    machine read_permissioned(filesystem: @mutable PosixFilesystem, source: i32, to: @[u8] in Path, buffer: @mutable [u8], cap: u64, mode: u32) -> IoResult {
-        let count: i64 = PosixFilesystemHost::read(source, buffer, cap);
-        let closed: i32 = PosixFilesystemHost::close(source);
+    machine read_permissioned(filesystem: @mutable PosixFilesystem, source: i32, to: @[u8] in |paths|::Path, buffer: @mutable [u8], cap: u64, mode: u32) -> |filesystem|::IoResult {
+        let count: i64 = |raw|::PosixFilesystemHost::read(source, buffer, cap);
+        let closed: i32 = |raw|::PosixFilesystemHost::close(source);
         transition count >= 0 { true -> read_result(filesystem, to, buffer, count, mode, closed), false -> read_failed(filesystem, count) }
     }
-    machine read_result(filesystem: @mutable PosixFilesystem, to: @[u8] in Path, buffer: @mutable [u8], count: i64, mode: u32, closed: i32) -> IoResult
+    machine read_result(filesystem: @mutable PosixFilesystem, to: @[u8] in |paths|::Path, buffer: @mutable [u8], count: i64, mode: u32, closed: i32) -> |filesystem|::IoResult
     requires count >= 0
     {
         transition closed == 0 { true -> bounded(filesystem, to, buffer, count, mode), false -> failed_open(filesystem, closed) }
     }
-    machine bounded(filesystem: @mutable PosixFilesystem, to: @[u8] in Path, buffer: @mutable [u8], count: i64, mode: u32) -> IoResult
+    machine bounded(filesystem: @mutable PosixFilesystem, to: @[u8] in |paths|::Path, buffer: @mutable [u8], count: i64, mode: u32) -> |filesystem|::IoResult
     requires count >= 0
     {
-        let received: u64 = narrow_i64_to_u64_exact(count);
+        let received: u64 = |numeric|::narrow_i64_to_u64_exact(count);
         transition received <= buffer.length { true -> destination(filesystem, to, buffer, received, mode), false -> invalid() }
     }
-    machine destination(filesystem: @mutable PosixFilesystem, to: @[u8] in Path, buffer: @mutable [u8], count: u64, mode: u32) -> IoResult
+    machine destination(filesystem: @mutable PosixFilesystem, to: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64, mode: u32) -> |filesystem|::IoResult
     requires count <= buffer.length
     {
         filesystem.open_options = posix_filesystem_creation_open_options();
-        PosixFilesystemTarget::encode_open_options(filesystem);
-        let descriptor: i32 = PosixFilesystemHost::open_create(to, filesystem.open_flags, 438);
+        |raw|::PosixFilesystemTarget::encode_open_options(filesystem);
+        let descriptor: i32 = |raw|::PosixFilesystemHost::open_create(to, filesystem.open_flags, 438);
         transition descriptor >= 0 { true -> write(filesystem, descriptor, buffer, count, mode), false -> failed_open(filesystem, descriptor) }
     }
-    machine write(filesystem: @mutable PosixFilesystem, descriptor: i32, buffer: @mutable [u8], count: u64, mode: u32) -> IoResult
+    machine write(filesystem: @mutable PosixFilesystem, descriptor: i32, buffer: @mutable [u8], count: u64, mode: u32) -> |filesystem|::IoResult
     requires count <= buffer.length
     {
         let bytes: @[u8] = @buffer[0..count];
-        let outcome: UnitResult = posix_filesystem_write_descriptor(filesystem, descriptor, bytes);
-        transition outcome { UnitResult::Ok -> permissions(filesystem, descriptor, count, mode), UnitResult::Error { kind } -> write_failed(descriptor, kind) }
+        let outcome: |filesystem|::UnitResult = posix_filesystem_write_descriptor(filesystem, descriptor, bytes);
+        transition outcome { |filesystem|::UnitResult::Ok -> permissions(filesystem, descriptor, count, mode), |filesystem|::UnitResult::Error { kind } -> write_failed(descriptor, kind) }
     }
-    machine permissions(filesystem: @mutable PosixFilesystem, descriptor: i32, count: u64, mode: u32) -> IoResult {
-        let changed: i32 = PosixFilesystemHost::set_file_permissions(descriptor, mode);
-        let closed: i32 = PosixFilesystemHost::close(descriptor);
+    machine permissions(filesystem: @mutable PosixFilesystem, descriptor: i32, count: u64, mode: u32) -> |filesystem|::IoResult {
+        let changed: i32 = |raw|::PosixFilesystemHost::set_file_permissions(descriptor, mode);
+        let closed: i32 = |raw|::PosixFilesystemHost::close(descriptor);
         transition changed == 0 { true -> close_result(filesystem, count, closed), false -> failed_open(filesystem, changed) }
     }
-    machine close_result(filesystem: @mutable PosixFilesystem, count: u64, closed: i32) -> IoResult {
+    machine close_result(filesystem: @mutable PosixFilesystem, count: u64, closed: i32) -> |filesystem|::IoResult {
         transition closed == 0 { true -> complete(count), false -> failed_open(filesystem, closed) }
     }
-    machine write_failed(descriptor: i32, kind: ErrorKind) -> IoResult {
-        let closed: i32 = PosixFilesystemHost::close(descriptor);
-        IoResult::Error { kind: kind }
+    machine write_failed(descriptor: i32, kind: |filesystem|::ErrorKind) -> |filesystem|::IoResult {
+        let closed: i32 = |raw|::PosixFilesystemHost::close(descriptor);
+        |filesystem|::IoResult::Error { kind: kind }
     }
-    machine failed_open(filesystem: @mutable PosixFilesystem, result: i32) -> IoResult {
-        let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, result);
-        IoResult::Error { kind: kind }
+    machine failed_open(filesystem: @mutable PosixFilesystem, result: i32) -> |filesystem|::IoResult {
+        let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, result);
+        |filesystem|::IoResult::Error { kind: kind }
     }
-    machine read_failed(filesystem: @mutable PosixFilesystem, result: i64) -> IoResult {
-        let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, result);
-        IoResult::Error { kind: kind }
+    machine read_failed(filesystem: @mutable PosixFilesystem, result: i64) -> |filesystem|::IoResult {
+        let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i64(filesystem, result);
+        |filesystem|::IoResult::Error { kind: kind }
     }
-    machine invalid() -> IoResult { IoResult::Error { kind: ErrorKind::Other } }
-    machine complete(count: u64) -> IoResult { IoResult::Ok { count: count } }
+    machine invalid() -> |filesystem|::IoResult { |filesystem|::IoResult::Error { kind: |filesystem|::ErrorKind::Other } }
+    machine complete(count: u64) -> |filesystem|::IoResult { |filesystem|::IoResult::Ok { count: count } }
 }
 
-machine posix_filesystem_exists(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> bool
-reaches FilesystemMetadataQuery
+machine posix_filesystem_exists(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> bool
+reaches |authority|::FilesystemMetadataQuery
 {
-    filesystem.stat_rc = PosixFilesystemHost::read_metadata(path, @mutable filesystem.stat_buf);
+    filesystem.stat_rc = |raw|::PosixFilesystemHost::read_metadata(path, @mutable filesystem.stat_buf);
     filesystem.stat_rc == 0
 }
 
-machine posix_filesystem_try_exists(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> ExistsResult
-reaches FilesystemMetadataQuery
+machine posix_filesystem_try_exists(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> |filesystem|::ExistsResult
+reaches |authority|::FilesystemMetadataQuery
 {
 
-    filesystem.stat_rc = PosixFilesystemHost::read_metadata(path, @mutable filesystem.stat_buf);
+    filesystem.stat_rc = |raw|::PosixFilesystemHost::read_metadata(path, @mutable filesystem.stat_buf);
     let metadata_rc: i32 = filesystem.stat_rc;
     filesystem.stat_errno = posix_filesystem_native_error_code_i32(filesystem, metadata_rc);
     transition filesystem.stat_rc == 0 { true -> present(filesystem), _ -> absent(filesystem) }
-    machine present(filesystem: @mutable PosixFilesystem) -> ExistsResult { ExistsResult::Yes }
-    machine absent(filesystem: @mutable PosixFilesystem) -> ExistsResult {
+    machine present(filesystem: @mutable PosixFilesystem) -> |filesystem|::ExistsResult { |filesystem|::ExistsResult::Yes }
+    machine absent(filesystem: @mutable PosixFilesystem) -> |filesystem|::ExistsResult {
         transition filesystem.stat_errno == 2 { true -> no(filesystem), _ -> other(filesystem) }
     }
-    machine no(filesystem: @mutable PosixFilesystem) -> ExistsResult { ExistsResult::No }
-    machine other(filesystem: @mutable PosixFilesystem) -> ExistsResult { let metadata_rc: i32 = filesystem.stat_rc; let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, metadata_rc); ExistsResult::Error { kind: kind } }
+    machine no(filesystem: @mutable PosixFilesystem) -> |filesystem|::ExistsResult { |filesystem|::ExistsResult::No }
+    machine other(filesystem: @mutable PosixFilesystem) -> |filesystem|::ExistsResult { let metadata_rc: i32 = filesystem.stat_rc; let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, metadata_rc); |filesystem|::ExistsResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_metadata_path(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> MetadataResult
-reaches FilesystemMetadataQuery
+machine posix_filesystem_metadata_path(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> |filesystem|::MetadataResult
+reaches |authority|::FilesystemMetadataQuery
 {
-    let rc: i32 = PosixFilesystemHost::read_metadata(path, @mutable filesystem.stat_buf);
+    let rc: i32 = |raw|::PosixFilesystemHost::read_metadata(path, @mutable filesystem.stat_buf);
     transition rc == 0 { true -> decode(filesystem), _ -> err(filesystem, rc) }
-    machine decode(filesystem: @mutable PosixFilesystem) -> MetadataResult { PosixFilesystemTarget::decode_metadata(filesystem) }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> MetadataResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); MetadataResult::Error { kind: kind } }
+    machine decode(filesystem: @mutable PosixFilesystem) -> |filesystem|::MetadataResult { |raw|::PosixFilesystemTarget::decode_metadata(filesystem) }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::MetadataResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::MetadataResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_symlink_metadata(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> MetadataResult
-reaches FilesystemMetadataQuery
+machine posix_filesystem_symlink_metadata(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> |filesystem|::MetadataResult
+reaches |authority|::FilesystemMetadataQuery
 {
-    let rc: i32 = PosixFilesystemHost::read_symlink_metadata(path, @mutable filesystem.stat_buf);
+    let rc: i32 = |raw|::PosixFilesystemHost::read_symlink_metadata(path, @mutable filesystem.stat_buf);
     transition rc == 0 { true -> decode(filesystem), _ -> err(filesystem, rc) }
-    machine decode(filesystem: @mutable PosixFilesystem) -> MetadataResult { PosixFilesystemTarget::decode_metadata(filesystem) }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> MetadataResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); MetadataResult::Error { kind: kind } }
+    machine decode(filesystem: @mutable PosixFilesystem) -> |filesystem|::MetadataResult { |raw|::PosixFilesystemTarget::decode_metadata(filesystem) }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::MetadataResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::MetadataResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_remove(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> UnitResult
-reaches FilesystemNamespaceMutation
+machine posix_filesystem_remove(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemNamespaceMutation
 {
-    let rc: i32 = PosixFilesystemHost::remove(path);
+    let rc: i32 = |raw|::PosixFilesystemHost::remove(path);
     transition rc == 0 { true -> ok(), _ -> err(filesystem, rc) }
-    machine ok() -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
 // Raw POSIX providers return negative errno on every supported target.
@@ -836,41 +829,41 @@ machine posix_filesystem_native_error_code_i32(filesystem: @mutable PosixFilesys
 }
 machine posix_filesystem_native_error_code_i64(filesystem: @mutable PosixFilesystem, result: i64) -> i32 {
     let code: i64 in Wrapping = (0 as i64 +Wrapping) - (result as i64 +Wrapping);
-    filesystem.err_code = narrow_i64_to_i32_wrapping(code as i64);
+    filesystem.err_code = |numeric|::narrow_i64_to_i32_wrapping(code as i64);
     filesystem.err_code
 }
 
-machine posix_filesystem_last_error_i32(filesystem: @mutable PosixFilesystem, result: i32) -> ErrorKind {
+machine posix_filesystem_last_error_i32(filesystem: @mutable PosixFilesystem, result: i32) -> |filesystem|::ErrorKind {
     filesystem.err_code = posix_filesystem_native_error_code_i32(filesystem, result);
-    PosixFilesystemTarget::kind_of_stored_error_code(filesystem)
+    |raw|::PosixFilesystemTarget::kind_of_stored_error_code(filesystem)
 }
 
-machine posix_filesystem_last_error_i64(filesystem: @mutable PosixFilesystem, result: i64) -> ErrorKind {
+machine posix_filesystem_last_error_i64(filesystem: @mutable PosixFilesystem, result: i64) -> |filesystem|::ErrorKind {
     filesystem.err_code = posix_filesystem_native_error_code_i64(filesystem, result);
-    PosixFilesystemTarget::kind_of_stored_error_code(filesystem)
+    |raw|::PosixFilesystemTarget::kind_of_stored_error_code(filesystem)
 }
 
-machine posix_filesystem_create_dir(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> UnitResult
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
+machine posix_filesystem_create_dir(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
     filesystem.dir_mode = 493;
-    let rc: i32 = PosixFilesystemHost::create_dir(path, filesystem.dir_mode);
+    let rc: i32 = |raw|::PosixFilesystemHost::create_dir(path, filesystem.dir_mode);
     transition rc == 0 { true -> ok(), _ -> err(filesystem, rc) }
-    machine ok() -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_remove_dir(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> UnitResult
-reaches FilesystemNamespaceMutation
+machine posix_filesystem_remove_dir(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemNamespaceMutation
 {
-    let rc: i32 = PosixFilesystemHost::remove_dir(path);
+    let rc: i32 = |raw|::PosixFilesystemHost::remove_dir(path);
     transition rc == 0 { true -> ok(), _ -> err(filesystem, rc) }
-    machine ok() -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_create_dir_all(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> UnitResult
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
+machine posix_filesystem_create_dir_all(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::FilesystemMetadataQuery
 {
     filesystem.dir_mode = 493;
     transition { _ -> posix_filesystem_mkall_walk(filesystem, path, 1, path.length) }
@@ -880,35 +873,35 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMet
 // prefix that already exists as a directory is fine; any other failure stops
 // the walk and returns that error. No prefix is skipped for its length.
 // `remaining` counts the bytes left to scan; each step descends it.
-machine posix_filesystem_mkall_walk(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, i: u64, remaining: u64) -> UnitResult
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
+machine posix_filesystem_mkall_walk(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, i: u64, remaining: u64) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::FilesystemMetadataQuery
 terminates by remaining
 {
     transition i < path.length && remaining > 0 {
         true -> inspect(filesystem, path, i, remaining),
         false -> posix_filesystem_create_dir_existing(filesystem, path)
     }
-    machine inspect(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, i: u64, remaining: u64) -> UnitResult
+    machine inspect(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, i: u64, remaining: u64) -> |filesystem|::UnitResult
     requires i < path.length && remaining > 0
     terminates by remaining
     {
         // A builtin index takes an unqualified view (domains.md, "Operands").
-        transition (path as -Path)[i] == 47 {
+        transition (path as - |paths|::Path)[i] == 47 {
             true -> create(filesystem, path, i, remaining),
             false -> posix_filesystem_mkall_walk(filesystem, path, i + 1, remaining - 1)
         }
     }
-    machine create(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, i: u64, remaining: u64) -> UnitResult
+    machine create(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, i: u64, remaining: u64) -> |filesystem|::UnitResult
     requires i < path.length && remaining > 0
     terminates by remaining
     {
         // A builtin range takes an unqualified view (domains.md, "Operands"): remove
         // `Path` before the prefix and add it back to the prefix.
-        let prefix: @[u8] = @(path as -Path)[0..i];
-        let result: UnitResult = posix_filesystem_create_dir_existing(filesystem, prefix as +Path);
+        let prefix: @[u8] = @(path as - |paths|::Path)[0..i];
+        let result: |filesystem|::UnitResult = posix_filesystem_create_dir_existing(filesystem, prefix as + |paths|::Path);
         transition result {
-            UnitResult::Error { kind } -> (UnitResult::Error { kind: kind }),
-            UnitResult::Ok -> posix_filesystem_mkall_walk(filesystem, path, i + 1, remaining - 1)
+            |filesystem|::UnitResult::Error { kind } -> (|filesystem|::UnitResult::Error { kind: kind }),
+            |filesystem|::UnitResult::Ok -> posix_filesystem_mkall_walk(filesystem, path, i + 1, remaining - 1)
         }
     }
 }
@@ -916,224 +909,224 @@ terminates by remaining
 // `mkdir`, treating an existing directory as success. EEXIST also names
 // ordinary files, so only a followed directory satisfies the request; a failed
 // query preserves the original mkdir error.
-machine posix_filesystem_create_dir_existing(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> UnitResult
-reaches FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery
+machine posix_filesystem_create_dir_existing(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::FilesystemMetadataQuery
 {
-    let rc: i32 = PosixFilesystemHost::create_dir(path, filesystem.dir_mode);
+    let rc: i32 = |raw|::PosixFilesystemHost::create_dir(path, filesystem.dir_mode);
     transition rc == 0 { true -> ok(), _ -> exists_ok(filesystem, path, rc) }
-    machine ok() -> UnitResult { UnitResult::Ok }
-    machine exists_ok(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, rc: i32) -> UnitResult {
+    machine ok() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine exists_ok(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, rc: i32) -> |filesystem|::UnitResult {
         let code: i32 = posix_filesystem_native_error_code_i32(filesystem, rc);
         transition code == 17 { true -> existing_kind(filesystem, path, rc), _ -> failed(filesystem, rc) }
     }
-    machine existing_kind(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, rc: i32) -> UnitResult {
-        let result: MetadataResult = posix_filesystem_metadata_path(filesystem, path);
+    machine existing_kind(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, rc: i32) -> |filesystem|::UnitResult {
+        let result: |filesystem|::MetadataResult = posix_filesystem_metadata_path(filesystem, path);
         transition result {
-            MetadataResult::Ok { meta } -> existing_metadata(filesystem, rc, meta),
+            |filesystem|::MetadataResult::Ok { meta } -> existing_metadata(filesystem, rc, meta),
             _ -> failed(filesystem, rc)
         }
     }
-    machine existing_metadata(filesystem: @mutable PosixFilesystem, rc: i32, metadata: Metadata) -> UnitResult {
-        transition metadata.kind { FileKind::Directory -> ok(), _ -> failed(filesystem, rc) }
+    machine existing_metadata(filesystem: @mutable PosixFilesystem, rc: i32, metadata: |filesystem|::Metadata) -> |filesystem|::UnitResult {
+        transition metadata.kind { |filesystem|::FileKind::Directory -> ok(), _ -> failed(filesystem, rc) }
     }
-    machine failed(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult {
-        let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc);
-        UnitResult::Error { kind: kind }
+    machine failed(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult {
+        let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc);
+        |filesystem|::UnitResult::Error { kind: kind }
     }
 }
 
-machine posix_filesystem_read_dir_is_empty(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> EmptyResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+machine posix_filesystem_read_dir_is_empty(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> |filesystem|::EmptyResult
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::DirectoryEnumeration + |authority|::FilesystemMetadataQuery
 {
-    let first: DirEntryResult = posix_filesystem_read_dir_nth(filesystem, path, 0);
+    let first: |filesystem|::DirEntryResult = posix_filesystem_read_dir_nth(filesystem, path, 0);
     transition first {
-        DirEntryResult::End -> rdie_empty(filesystem),
-        DirEntryResult::Ok { entry } -> rdie_non(filesystem),
-        DirEntryResult::Error { kind } -> rdie_err(filesystem, kind)
+        |filesystem|::DirEntryResult::End -> rdie_empty(filesystem),
+        |filesystem|::DirEntryResult::Ok { entry } -> rdie_non(filesystem),
+        |filesystem|::DirEntryResult::Error { kind } -> rdie_err(filesystem, kind)
     }
-    machine rdie_empty(filesystem: @mutable PosixFilesystem) -> EmptyResult { EmptyResult::Empty }
-    machine rdie_non(filesystem: @mutable PosixFilesystem) -> EmptyResult { EmptyResult::NonEmpty }
-    machine rdie_err(filesystem: @mutable PosixFilesystem, kind: ErrorKind) -> EmptyResult { EmptyResult::Error { kind: kind } }
+    machine rdie_empty(filesystem: @mutable PosixFilesystem) -> |filesystem|::EmptyResult { |filesystem|::EmptyResult::Empty }
+    machine rdie_non(filesystem: @mutable PosixFilesystem) -> |filesystem|::EmptyResult { |filesystem|::EmptyResult::NonEmpty }
+    machine rdie_err(filesystem: @mutable PosixFilesystem, kind: |filesystem|::ErrorKind) -> |filesystem|::EmptyResult { |filesystem|::EmptyResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_set_permissions(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, perms: Permissions) -> UnitResult
-reaches FilesystemMetadataQuery + FilesystemMetadataMutation
+machine posix_filesystem_set_permissions(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, perms: |filesystem|::Permissions) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation
 {
     transition perms {
-        Permissions::Default -> inspect(filesystem, path, false),
-        Permissions::Posix { mode } -> apply(filesystem, path, mode),
-        Permissions::Readonly { value } -> inspect(filesystem, path, value)
+        |filesystem|::Permissions::Default -> inspect(filesystem, path, false),
+        |filesystem|::Permissions::Posix { mode } -> apply(filesystem, path, mode),
+        |filesystem|::Permissions::Readonly { value } -> inspect(filesystem, path, value)
     }
     // A portable read-only request changes only write bits of the live mode;
     // an exact POSIX request needs no preliminary query. The path-based query
     // and update are not atomic against concurrent replacement or mode changes.
-    machine inspect(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, readonly: bool) -> UnitResult {
-        let result: i32 = PosixFilesystemHost::read_metadata(path, @mutable filesystem.stat_buf);
+    machine inspect(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, readonly: bool) -> |filesystem|::UnitResult {
+        let result: i32 = |raw|::PosixFilesystemHost::read_metadata(path, @mutable filesystem.stat_buf);
         transition result == 0 { true -> derive(filesystem, path, readonly), false -> err(filesystem, result) }
     }
-    machine derive(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, readonly: bool) -> UnitResult {
-        let existing: u32 = PosixFilesystemTarget::permission_bits(filesystem);
-        let requested: u32 = posix_mode_with_readonly(existing, readonly);
+    machine derive(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, readonly: bool) -> |filesystem|::UnitResult {
+        let existing: u32 = |raw|::PosixFilesystemTarget::permission_bits(filesystem);
+        let requested: u32 = |filesystem|::posix_mode_with_readonly(existing, readonly);
         transition { _ -> apply(filesystem, path, requested) }
     }
-    machine apply(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, mode: u32) -> UnitResult {
-        let result: i32 = PosixFilesystemHost::set_permissions(path, mode);
+    machine apply(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, mode: u32) -> |filesystem|::UnitResult {
+        let result: i32 = |raw|::PosixFilesystemHost::set_permissions(path, mode);
         transition result == 0 { true -> ok(), false -> err(filesystem, result) }
     }
-    machine ok() -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_symlink(filesystem: @mutable PosixFilesystem, target: @[u8] in Path, link: @[u8] in Path) -> UnitResult
-reaches FilesystemNamespaceMutation
+machine posix_filesystem_symlink(filesystem: @mutable PosixFilesystem, target: @[u8] in |paths|::Path, link: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemNamespaceMutation
 {
-    let rc: i32 = PosixFilesystemHost::symlink(target, link);
+    let rc: i32 = |raw|::PosixFilesystemHost::symlink(target, link);
     transition rc == 0 { true -> ok(filesystem), _ -> err(filesystem, rc) }
-    machine ok(filesystem: @mutable PosixFilesystem) -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok(filesystem: @mutable PosixFilesystem) -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_read_link(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult
-reaches FilesystemMetadataQuery
+machine posix_filesystem_read_link(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> |filesystem|::IoResult
+reaches |authority|::FilesystemMetadataQuery
 {
-    let n: i64 = PosixFilesystemHost::read_link(path, buffer, count);
+    let n: i64 = |raw|::PosixFilesystemHost::read_link(path, buffer, count);
     transition n >= 0 { true -> ok(filesystem, n), _ -> err(filesystem, n) }
-    machine ok(filesystem: @mutable PosixFilesystem, n: i64) -> IoResult
+    machine ok(filesystem: @mutable PosixFilesystem, n: i64) -> |filesystem|::IoResult
     requires n >= 0
     {
         let converted_count: u64 = n as u64;
-        IoResult::Ok { count: converted_count }
+        |filesystem|::IoResult::Ok { count: converted_count }
     }
-    machine err(filesystem: @mutable PosixFilesystem, n: i64) -> IoResult { let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, n); IoResult::Error { kind: kind } }
+    machine err(filesystem: @mutable PosixFilesystem, n: i64) -> |filesystem|::IoResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i64(filesystem, n); |filesystem|::IoResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_set_file_permissions(filesystem: @mutable PosixFilesystem, file: File, perms: Permissions) -> UnitResult
-reaches FilesystemMetadataQuery + FilesystemMetadataMutation
+machine posix_filesystem_set_file_permissions(filesystem: @mutable PosixFilesystem, file: |filesystem|::File, perms: |filesystem|::Permissions) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemMetadataQuery + |authority|::FilesystemMetadataMutation
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
     transition perms {
-        Permissions::Default -> inspect(filesystem, false),
-        Permissions::Posix { mode } -> apply(filesystem, mode),
-        Permissions::Readonly { value } -> inspect(filesystem, value)
+        |filesystem|::Permissions::Default -> inspect(filesystem, false),
+        |filesystem|::Permissions::Posix { mode } -> apply(filesystem, mode),
+        |filesystem|::Permissions::Readonly { value } -> inspect(filesystem, value)
     }
-    machine inspect(filesystem: @mutable PosixFilesystem, readonly: bool) -> UnitResult {
-        let result: i32 = PosixFilesystemHost::read_file_metadata(filesystem.file_fd, @mutable filesystem.stat_buf);
+    machine inspect(filesystem: @mutable PosixFilesystem, readonly: bool) -> |filesystem|::UnitResult {
+        let result: i32 = |raw|::PosixFilesystemHost::read_file_metadata(filesystem.file_fd, @mutable filesystem.stat_buf);
         transition result == 0 { true -> derive(filesystem, readonly), false -> err(filesystem, result) }
     }
-    machine derive(filesystem: @mutable PosixFilesystem, readonly: bool) -> UnitResult {
-        let existing: u32 = PosixFilesystemTarget::permission_bits(filesystem);
-        let requested: u32 = posix_mode_with_readonly(existing, readonly);
+    machine derive(filesystem: @mutable PosixFilesystem, readonly: bool) -> |filesystem|::UnitResult {
+        let existing: u32 = |raw|::PosixFilesystemTarget::permission_bits(filesystem);
+        let requested: u32 = |filesystem|::posix_mode_with_readonly(existing, readonly);
         transition { _ -> apply(filesystem, requested) }
     }
-    machine apply(filesystem: @mutable PosixFilesystem, mode: u32) -> UnitResult {
-        let result: i32 = PosixFilesystemHost::set_file_permissions(filesystem.file_fd, mode);
+    machine apply(filesystem: @mutable PosixFilesystem, mode: u32) -> |filesystem|::UnitResult {
+        let result: i32 = |raw|::PosixFilesystemHost::set_file_permissions(filesystem.file_fd, mode);
         transition result == 0 { true -> ok(filesystem), false -> err(filesystem, result) }
     }
-    machine ok(filesystem: @mutable PosixFilesystem) -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok(filesystem: @mutable PosixFilesystem) -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_rename(filesystem: @mutable PosixFilesystem, from: @[u8] in Path, to: @[u8] in Path) -> UnitResult
-reaches FilesystemNamespaceMutation
+machine posix_filesystem_rename(filesystem: @mutable PosixFilesystem, from: @[u8] in |paths|::Path, to: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemNamespaceMutation
 {
-    let rc: i32 = PosixFilesystemHost::rename(from, to);
+    let rc: i32 = |raw|::PosixFilesystemHost::rename(from, to);
     transition rc == 0 { true -> ok(), _ -> err(filesystem, rc) }
-    machine ok() -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_set_len(filesystem: @mutable PosixFilesystem, file: File, length: i64) -> UnitResult
-reaches FilesystemContentWrite + FilesystemMetadataMutation
+machine posix_filesystem_set_len(filesystem: @mutable PosixFilesystem, file: |filesystem|::File, length: i64) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let rc: i32 = PosixFilesystemHost::set_len(filesystem.file_fd, length);
+    let rc: i32 = |raw|::PosixFilesystemHost::set_len(filesystem.file_fd, length);
     transition rc == 0 { true -> ok(filesystem), _ -> err(filesystem, rc) }
-    machine ok(filesystem: @mutable PosixFilesystem) -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok(filesystem: @mutable PosixFilesystem) -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_sync(filesystem: @mutable PosixFilesystem, file: File) -> UnitResult
+machine posix_filesystem_sync(filesystem: @mutable PosixFilesystem, file: |filesystem|::File) -> |filesystem|::UnitResult
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let rc: i32 = PosixFilesystemHost::sync(filesystem.file_fd);
+    let rc: i32 = |raw|::PosixFilesystemHost::sync(filesystem.file_fd);
     transition rc == 0 { true -> ok(), _ -> err(filesystem, rc) }
-    machine ok() -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_sync_data(filesystem: @mutable PosixFilesystem, file: File) -> UnitResult
+machine posix_filesystem_sync_data(filesystem: @mutable PosixFilesystem, file: |filesystem|::File) -> |filesystem|::UnitResult
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let rc: i32 = PosixFilesystemHost::sync_data(filesystem.file_fd);
+    let rc: i32 = |raw|::PosixFilesystemHost::sync_data(filesystem.file_fd);
     transition rc == 0 { true -> ok(filesystem), _ -> err(filesystem, rc) }
-    machine ok(filesystem: @mutable PosixFilesystem) -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok(filesystem: @mutable PosixFilesystem) -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_try_clone(filesystem: @mutable PosixFilesystem, file: File) -> OpenResult
+machine posix_filesystem_try_clone(filesystem: @mutable PosixFilesystem, file: |filesystem|::File) -> |filesystem|::OpenResult
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let fd: i32 = PosixFilesystemHost::duplicate(filesystem.file_fd);
+    let fd: i32 = |raw|::PosixFilesystemHost::duplicate(filesystem.file_fd);
     transition fd >= 0 { true -> ok(filesystem, fd), _ -> err(filesystem, fd) }
-    machine ok(filesystem: @mutable PosixFilesystem, fd: i32) -> OpenResult
+    machine ok(filesystem: @mutable PosixFilesystem, fd: i32) -> |filesystem|::OpenResult
     requires fd >= 0
     {
-        OpenResult::Ok { file: posix_filesystem_file(fd) }
+        |filesystem|::OpenResult::Ok { file: posix_filesystem_file(fd) }
     }
-    machine err(filesystem: @mutable PosixFilesystem, fd: i32) -> OpenResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
+    machine err(filesystem: @mutable PosixFilesystem, fd: i32) -> |filesystem|::OpenResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); |filesystem|::OpenResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_set_owner(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, uid: i32, gid: i32) -> UnitResult
-reaches FilesystemMetadataMutation
+machine posix_filesystem_set_owner(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, uid: i32, gid: i32) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemMetadataMutation
 {
-    let rc: i32 = PosixFilesystemHost::change_owner(path, uid, gid);
+    let rc: i32 = |raw|::PosixFilesystemHost::change_owner(path, uid, gid);
     transition rc == 0 { true -> ok(filesystem), _ -> err(filesystem, rc) }
-    machine ok(filesystem: @mutable PosixFilesystem) -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok(filesystem: @mutable PosixFilesystem) -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_set_owner_no_follow(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, uid: i32, gid: i32) -> UnitResult
-reaches FilesystemMetadataMutation
+machine posix_filesystem_set_owner_no_follow(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, uid: i32, gid: i32) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemMetadataMutation
 {
-    let rc: i32 = PosixFilesystemHost::change_owner_no_follow(path, uid, gid);
+    let rc: i32 = |raw|::PosixFilesystemHost::change_owner_no_follow(path, uid, gid);
     transition rc == 0 { true -> ok(filesystem), _ -> err(filesystem, rc) }
-    machine ok(filesystem: @mutable PosixFilesystem) -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok(filesystem: @mutable PosixFilesystem) -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_set_file_owner(filesystem: @mutable PosixFilesystem, file: File, uid: i32, gid: i32) -> UnitResult
-reaches FilesystemMetadataMutation
+machine posix_filesystem_set_file_owner(filesystem: @mutable PosixFilesystem, file: |filesystem|::File, uid: i32, gid: i32) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemMetadataMutation
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let rc: i32 = PosixFilesystemHost::change_file_owner(filesystem.file_fd, uid, gid);
+    let rc: i32 = |raw|::PosixFilesystemHost::change_file_owner(filesystem.file_fd, uid, gid);
     transition rc == 0 { true -> ok(filesystem), _ -> err(filesystem, rc) }
-    machine ok(filesystem: @mutable PosixFilesystem) -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok(filesystem: @mutable PosixFilesystem) -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_metadata(filesystem: @mutable PosixFilesystem, file: File) -> MetadataResult
-reaches FilesystemMetadataQuery
+machine posix_filesystem_metadata(filesystem: @mutable PosixFilesystem, file: |filesystem|::File) -> |filesystem|::MetadataResult
+reaches |authority|::FilesystemMetadataQuery
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let rc: i32 = PosixFilesystemHost::read_file_metadata(filesystem.file_fd, @mutable filesystem.stat_buf);
+    let rc: i32 = |raw|::PosixFilesystemHost::read_file_metadata(filesystem.file_fd, @mutable filesystem.stat_buf);
     transition rc == 0 { true -> decode(filesystem), _ -> err(filesystem, rc) }
-    machine decode(filesystem: @mutable PosixFilesystem) -> MetadataResult { PosixFilesystemTarget::decode_metadata(filesystem) }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> MetadataResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); MetadataResult::Error { kind: kind } }
+    machine decode(filesystem: @mutable PosixFilesystem) -> |filesystem|::MetadataResult { |raw|::PosixFilesystemTarget::decode_metadata(filesystem) }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::MetadataResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::MetadataResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_file(descriptor: i32) -> File
+machine posix_filesystem_file(descriptor: i32) -> |filesystem|::File
 requires descriptor >= 0
 {
     let widened: u64 = descriptor as u64;
-    File { handle: widened + 1 }
+    |filesystem|::File { handle: widened + 1 }
 }
 
-machine posix_filesystem_descriptor(file: File) -> i32 {
+machine posix_filesystem_descriptor(file: |filesystem|::File) -> i32 {
     transition file.handle > 0 && file.handle <= 2147483648 {
         true -> present(file),
         false -> absent()
     }
-    machine present(file: File) -> i32
+    machine present(file: |filesystem|::File) -> i32
     requires file.handle > 0 && file.handle <= 2147483648
     {
         (file.handle - 1) as i32
@@ -1142,58 +1135,58 @@ machine posix_filesystem_descriptor(file: File) -> i32 {
 }
 
 // Shared POSIX algorithms consume target-specific geometry and flag values.
-machine posix_filesystem_open_with(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, options: OpenOptions) -> OpenResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
+machine posix_filesystem_open_with(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, options: |filesystem|::OpenOptions) -> |filesystem|::OpenResult
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation
 {
     // O_RDONLY|O_TRUNC would empty the file; refuse before encoding any flag.
-    transition open_options_truncate_conflict(options) {
-        true -> (OpenResult::Error { kind: ErrorKind::InvalidInput }),
+    transition |filesystem|::open_options_truncate_conflict(options) {
+        true -> (|filesystem|::OpenResult::Error { kind: |filesystem|::ErrorKind::InvalidInput }),
         false -> open(filesystem, path, options)
     }
-    machine open(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, options: OpenOptions) -> OpenResult {
+    machine open(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, options: |filesystem|::OpenOptions) -> |filesystem|::OpenResult {
         filesystem.open_options = options;
-        PosixFilesystemTarget::encode_open_options(filesystem);
-        let fd: i32 = PosixFilesystemHost::open_create(path, filesystem.open_flags, 438);
+        |raw|::PosixFilesystemTarget::encode_open_options(filesystem);
+        let fd: i32 = |raw|::PosixFilesystemHost::open_create(path, filesystem.open_flags, 438);
         transition fd >= 0 { true -> ok(fd), _ -> err(filesystem, fd) }
     }
-    machine ok(fd: i32) -> OpenResult
+    machine ok(fd: i32) -> |filesystem|::OpenResult
     requires fd >= 0
     {
-        OpenResult::Ok { file: posix_filesystem_file(fd) }
+        |filesystem|::OpenResult::Ok { file: posix_filesystem_file(fd) }
     }
-    machine err(filesystem: @mutable PosixFilesystem, fd: i32) -> OpenResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); OpenResult::Error { kind: kind } }
+    machine err(filesystem: @mutable PosixFilesystem, fd: i32) -> |filesystem|::OpenResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, fd); |filesystem|::OpenResult::Error { kind: kind } }
 }
 
 // Both native directory record layouts store the length in bytes 16 and 17.
 machine posix_directory_record_length(low: u8, high: u8) -> u64 {
-    (widen_u8_to_u64(high) << 8) | widen_u8_to_u64(low)
+    (|numeric|::widen_u8_to_u64(high) << 8) | |numeric|::widen_u8_to_u64(low)
 }
 
-machine posix_filesystem_read_dir_count(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> IoResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
+machine posix_filesystem_read_dir_count(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> |filesystem|::IoResult
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::DirectoryEnumeration
 {
     filesystem.read_flags = 0;
     filesystem.rd_position = 0;
     filesystem.rd_off = 0u64 as +Wrapping;
     filesystem.rd_count = 0i32 as +Wrapping;
-    let dfd: i32 = PosixFilesystemHost::open(path, filesystem.read_flags);
+    let dfd: i32 = |raw|::PosixFilesystemHost::open(path, filesystem.read_flags);
     transition dfd >= 0 { true -> rd_read(filesystem, dfd), _ -> rd_err_i32(filesystem, dfd) }
-    machine rd_read(filesystem: @mutable PosixFilesystem, dfd: i32) -> IoResult {
+    machine rd_read(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::IoResult {
         filesystem.rd_off = 0u64 as +Wrapping;
-        let total: i64 = PosixFilesystemHost::read_dir(dfd, @mutable filesystem.dir_buf[..], 512, @mutable filesystem.rd_position);
-        filesystem.rd_total = narrow_i64_to_u64_wrapping(total) as u64 +Wrapping;
+        let total: i64 = |raw|::PosixFilesystemHost::read_dir(dfd, @mutable filesystem.dir_buf[..], 512, @mutable filesystem.rd_position);
+        filesystem.rd_total = |numeric|::narrow_i64_to_u64_wrapping(total) as u64 +Wrapping;
         transition total > 0 { true -> rd_walk(filesystem, dfd), _ -> rd_nonpositive(filesystem, dfd, total) }
     }
-    machine rd_nonpositive(filesystem: @mutable PosixFilesystem, dfd: i32, total: i64) -> IoResult {
+    machine rd_nonpositive(filesystem: @mutable PosixFilesystem, dfd: i32, total: i64) -> |filesystem|::IoResult {
         transition total == 0 { true -> rd_finish(filesystem, dfd), _ -> rd_err_i64(filesystem, dfd, total) }
     }
-    machine rd_walk(filesystem: @mutable PosixFilesystem, dfd: i32) -> IoResult {
+    machine rd_walk(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::IoResult {
         transition filesystem.rd_off < filesystem.rd_total { true -> rd_header(filesystem, dfd), _ -> rd_read(filesystem, dfd) }
     }
-    machine rd_header(filesystem: @mutable PosixFilesystem, dfd: i32) -> IoResult {
+    machine rd_header(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::IoResult {
         transition filesystem.rd_off < 495 { true -> rd_body(filesystem, dfd), _ -> rd_malformed(filesystem, dfd) }
     }
-    machine rd_body(filesystem: @mutable PosixFilesystem, dfd: i32) -> IoResult
+    machine rd_body(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::IoResult
     requires filesystem.rd_off < 495
     {
 
@@ -1204,58 +1197,58 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         filesystem.rd_reclen = posix_directory_record_length(filesystem.rd_lo, filesystem.rd_hi) as +Wrapping;
         transition filesystem.rd_reclen > 0 && filesystem.rd_off + filesystem.rd_reclen <= filesystem.rd_total { true -> rd_accept(filesystem, dfd), _ -> rd_malformed(filesystem, dfd) }
     }
-    machine rd_accept(filesystem: @mutable PosixFilesystem, dfd: i32) -> IoResult {
+    machine rd_accept(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::IoResult {
         filesystem.rd_count = filesystem.rd_count + 1;
         filesystem.rd_off = filesystem.rd_off + filesystem.rd_reclen;
         transition { _ -> rd_walk(filesystem, dfd) }
     }
-    machine rd_finish(filesystem: @mutable PosixFilesystem, dfd: i32) -> IoResult {
-        let closed: i32 = PosixFilesystemHost::close(dfd);
+    machine rd_finish(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::IoResult {
+        let closed: i32 = |raw|::PosixFilesystemHost::close(dfd);
 
         transition filesystem.rd_count > 2 { true -> rd_ok(filesystem), _ -> rd_empty() }
     }
-    machine rd_empty() -> IoResult { IoResult::Ok { count: 0 } }
-    machine rd_ok(filesystem: @mutable PosixFilesystem) -> IoResult {
+    machine rd_empty() -> |filesystem|::IoResult { |filesystem|::IoResult::Ok { count: 0 } }
+    machine rd_ok(filesystem: @mutable PosixFilesystem) -> |filesystem|::IoResult {
         let remaining: i32 in Wrapping = filesystem.rd_count - 2;
-        let count: u64 = narrow_i32_to_u64_wrapping(remaining as -Wrapping);
-        IoResult::Ok { count: count }
+        let count: u64 = |numeric|::narrow_i32_to_u64_wrapping(remaining as -Wrapping);
+        |filesystem|::IoResult::Ok { count: count }
     }
-    machine rd_err_i32(filesystem: @mutable PosixFilesystem, result: i32) -> IoResult {
-        let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, result);
-        IoResult::Error { kind: kind }
+    machine rd_err_i32(filesystem: @mutable PosixFilesystem, result: i32) -> |filesystem|::IoResult {
+        let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, result);
+        |filesystem|::IoResult::Error { kind: kind }
     }
-    machine rd_err_i64(filesystem: @mutable PosixFilesystem, dfd: i32, result: i64) -> IoResult {
-        let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, result);
-        let closed: i32 = PosixFilesystemHost::close(dfd);
-        IoResult::Error { kind: kind }
+    machine rd_err_i64(filesystem: @mutable PosixFilesystem, dfd: i32, result: i64) -> |filesystem|::IoResult {
+        let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i64(filesystem, result);
+        let closed: i32 = |raw|::PosixFilesystemHost::close(dfd);
+        |filesystem|::IoResult::Error { kind: kind }
     }
-    machine rd_malformed(filesystem: @mutable PosixFilesystem, dfd: i32) -> IoResult {
-        let closed: i32 = PosixFilesystemHost::close(dfd);
-        filesystem.err_kind = ErrorKind::Other;
-        IoResult::Error { kind: ErrorKind::Other }
+    machine rd_malformed(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::IoResult {
+        let closed: i32 = |raw|::PosixFilesystemHost::close(dfd);
+        filesystem.err_kind = |filesystem|::ErrorKind::Other;
+        |filesystem|::IoResult::Error { kind: |filesystem|::ErrorKind::Other }
     }
 }
 
 // Both public enumeration and recursive deletion use the same name-filtering
 // record reader. POSIX does not promise that dot entries precede ordinary names.
-machine posix_filesystem_read_dir_nth(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, n: u64) -> DirEntryResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+machine posix_filesystem_read_dir_nth(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, n: u64) -> |filesystem|::DirEntryResult
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::DirectoryEnumeration + |authority|::FilesystemMetadataQuery
 {
-    let descriptor: i32 = PosixFilesystemHost::open(path, 0);
+    let descriptor: i32 = |raw|::PosixFilesystemHost::open(path, 0);
     transition descriptor >= 0 { true -> read(filesystem, descriptor, n), _ -> failed(filesystem, descriptor) }
-    machine read(filesystem: @mutable PosixFilesystem, descriptor: i32, n: u64) -> DirEntryResult {
-        let result: DirEntryResult = posix_filesystem_read_dir_entry_fd(filesystem, descriptor, n);
-        let closed: i32 = PosixFilesystemHost::close(descriptor);
+    machine read(filesystem: @mutable PosixFilesystem, descriptor: i32, n: u64) -> |filesystem|::DirEntryResult {
+        let result: |filesystem|::DirEntryResult = posix_filesystem_read_dir_entry_fd(filesystem, descriptor, n);
+        let closed: i32 = |raw|::PosixFilesystemHost::close(descriptor);
         transition closed == 0 { true -> result, _ -> failed(filesystem, closed) }
     }
-    machine failed(filesystem: @mutable PosixFilesystem, result: i32) -> DirEntryResult {
-        let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, result);
-        DirEntryResult::Error { kind: kind }
+    machine failed(filesystem: @mutable PosixFilesystem, result: i32) -> |filesystem|::DirEntryResult {
+        let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, result);
+        |filesystem|::DirEntryResult::Error { kind: kind }
     }
 }
 
-machine posix_filesystem_read_dir_entry_fd(filesystem: @mutable PosixFilesystem, dfd: i32, n: u64) -> DirEntryResult
-reaches DirectoryEnumeration + FilesystemMetadataQuery
+machine posix_filesystem_read_dir_entry_fd(filesystem: @mutable PosixFilesystem, dfd: i32, n: u64) -> |filesystem|::DirEntryResult
+reaches |authority|::DirectoryEnumeration + |authority|::FilesystemMetadataQuery
 
 {
     filesystem.directory_descriptor = dfd;
@@ -1264,33 +1257,33 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
     filesystem.rd_recno = 0u64 as +Wrapping;
     filesystem.rd_target = n as u64 +Wrapping;
 
-    filesystem.rd_seek_rc = PosixFilesystemHost::seek(dfd, 0, 0);
+    filesystem.rd_seek_rc = |raw|::PosixFilesystemHost::seek(dfd, 0, 0);
     let seek_rc: i64 = filesystem.rd_seek_rc;
     transition seek_rc >= 0 { true -> rdef_read(filesystem, dfd), _ -> rdef_err(filesystem, seek_rc) }
-    machine rdef_read(filesystem: @mutable PosixFilesystem, dfd: i32) -> DirEntryResult {
+    machine rdef_read(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::DirEntryResult {
         filesystem.rd_off = 0u64 as +Wrapping;
-        let total: i64 = PosixFilesystemHost::read_dir(dfd, @mutable filesystem.dir_buf[..], 512, @mutable filesystem.rd_position);
-        filesystem.rd_total = narrow_i64_to_u64_wrapping(total) as u64 +Wrapping;
+        let total: i64 = |raw|::PosixFilesystemHost::read_dir(dfd, @mutable filesystem.dir_buf[..], 512, @mutable filesystem.rd_position);
+        filesystem.rd_total = |numeric|::narrow_i64_to_u64_wrapping(total) as u64 +Wrapping;
         transition total > 0 { true -> rdef_walk(filesystem, dfd), _ -> rdef_nonpositive(filesystem, total) }
     }
-    machine rdef_nonpositive(filesystem: @mutable PosixFilesystem, total: i64) -> DirEntryResult {
+    machine rdef_nonpositive(filesystem: @mutable PosixFilesystem, total: i64) -> |filesystem|::DirEntryResult {
         transition total == 0 { true -> rdef_end(), _ -> rdef_err(filesystem, total) }
     }
-    machine rdef_err(filesystem: @mutable PosixFilesystem, total: i64) -> DirEntryResult {
-        filesystem.rda_rc = narrow_i64_to_i32_wrapping(total);
-        let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, total);
-        DirEntryResult::Error { kind: kind }
+    machine rdef_err(filesystem: @mutable PosixFilesystem, total: i64) -> |filesystem|::DirEntryResult {
+        filesystem.rda_rc = |numeric|::narrow_i64_to_i32_wrapping(total);
+        let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i64(filesystem, total);
+        |filesystem|::DirEntryResult::Error { kind: kind }
     }
-    machine rdef_walk(filesystem: @mutable PosixFilesystem, dfd: i32) -> DirEntryResult {
+    machine rdef_walk(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::DirEntryResult {
         transition filesystem.rd_off < filesystem.rd_total { true -> rdef_header(filesystem, dfd), _ -> rdef_read(filesystem, dfd) }
     }
-    machine rdef_header(filesystem: @mutable PosixFilesystem, dfd: i32) -> DirEntryResult {
+    machine rdef_header(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::DirEntryResult {
         transition filesystem.rd_off < 489 { true -> rdef_advance(filesystem, dfd), _ -> rdef_malformed(filesystem) }
     }
-    machine rdef_at(filesystem: @mutable PosixFilesystem, dfd: i32) -> DirEntryResult {
+    machine rdef_at(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::DirEntryResult {
         transition filesystem.rd_recno == filesystem.rd_target { true -> rdef_extract(filesystem), _ -> rdef_accept(filesystem, dfd) }
     }
-    machine rdef_advance(filesystem: @mutable PosixFilesystem, dfd: i32) -> DirEntryResult
+    machine rdef_advance(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::DirEntryResult
     requires filesystem.rd_off < 489
     {
         filesystem.rd_idx = filesystem.rd_off + 16;
@@ -1300,11 +1293,11 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
         filesystem.rd_reclen = posix_directory_record_length(filesystem.rd_lo, filesystem.rd_hi) as +Wrapping;
         transition filesystem.rd_reclen >= 24 && filesystem.rd_off + filesystem.rd_reclen <= filesystem.rd_total { true -> rdef_name(filesystem, dfd), _ -> rdef_malformed(filesystem) }
     }
-    machine rdef_name(filesystem: @mutable PosixFilesystem, dfd: i32) -> DirEntryResult {
-        filesystem.rd_idx = filesystem.rd_off + (PosixFilesystemTarget::directory_name_offset() as u64 +Wrapping);
+    machine rdef_name(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::DirEntryResult {
+        filesystem.rd_idx = filesystem.rd_off + (|raw|::PosixFilesystemTarget::directory_name_offset() as u64 +Wrapping);
         transition filesystem.rd_idx < 510 { true -> rdef_dot(filesystem, dfd), _ -> rdef_malformed(filesystem) }
     }
-    machine rdef_dot(filesystem: @mutable PosixFilesystem, dfd: i32) -> DirEntryResult
+    machine rdef_dot(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::DirEntryResult
     requires filesystem.rd_idx < 510
     {
         // Check complete names, not positions, prefixes or d_type. Some Linux
@@ -1315,113 +1308,113 @@ reaches DirectoryEnumeration + FilesystemMetadataQuery
                     && filesystem.dir_buf[(filesystem.rd_idx + 2) as u64] == 0));
         transition dot { true -> rdef_skip(filesystem, dfd), _ -> rdef_at(filesystem, dfd) }
     }
-    machine rdef_accept(filesystem: @mutable PosixFilesystem, dfd: i32) -> DirEntryResult {
+    machine rdef_accept(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::DirEntryResult {
         filesystem.rd_recno = filesystem.rd_recno + 1;
         transition { _ -> rdef_skip(filesystem, dfd) }
     }
-    machine rdef_skip(filesystem: @mutable PosixFilesystem, dfd: i32) -> DirEntryResult {
+    machine rdef_skip(filesystem: @mutable PosixFilesystem, dfd: i32) -> |filesystem|::DirEntryResult {
         filesystem.rd_off = filesystem.rd_off + filesystem.rd_reclen;
         transition { _ -> rdef_walk(filesystem, dfd) }
     }
-    machine rdef_extract(filesystem: @mutable PosixFilesystem) -> DirEntryResult {
-        filesystem.rd_idx = filesystem.rd_off + (PosixFilesystemTarget::directory_type_offset() as u64 +Wrapping);
+    machine rdef_extract(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult {
+        filesystem.rd_idx = filesystem.rd_off + (|raw|::PosixFilesystemTarget::directory_type_offset() as u64 +Wrapping);
         transition filesystem.rd_idx < 512 { true -> rdef_type(filesystem), _ -> rdef_malformed(filesystem) }
     }
-    machine rdef_type(filesystem: @mutable PosixFilesystem) -> DirEntryResult
+    machine rdef_type(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult
     requires filesystem.rd_idx < 512
     {
         filesystem.rd_dtype = filesystem.dir_buf[filesystem.rd_idx as u64];
         filesystem.rd_j = 0u64 as +Wrapping;
         transition { _ -> rdef_copy(filesystem) }
     }
-    machine rdef_copy(filesystem: @mutable PosixFilesystem) -> DirEntryResult {
+    machine rdef_copy(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult {
         transition filesystem.rd_j < 256 { true -> rdef_cbyte(filesystem), _ -> rdef_malformed(filesystem) }
     }
 
-    machine rdef_nul(filesystem: @mutable PosixFilesystem) -> DirEntryResult {
+    machine rdef_nul(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult {
         transition filesystem.rd_j < 256 { true -> rdef_nul_go(filesystem), _ -> rdef_build(filesystem) }
     }
-    machine rdef_nul_go(filesystem: @mutable PosixFilesystem) -> DirEntryResult
+    machine rdef_nul_go(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult
     requires filesystem.rd_j < 256
     {
         filesystem.entry_name[filesystem.rd_j as u64] = 0;
         transition { _ -> rdef_build(filesystem) }
     }
-    machine rdef_cbyte(filesystem: @mutable PosixFilesystem) -> DirEntryResult {
-        filesystem.rd_ridx = filesystem.rd_off + (PosixFilesystemTarget::directory_name_offset() as u64 +Wrapping) + filesystem.rd_j;
+    machine rdef_cbyte(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult {
+        filesystem.rd_ridx = filesystem.rd_off + (|raw|::PosixFilesystemTarget::directory_name_offset() as u64 +Wrapping) + filesystem.rd_j;
         transition filesystem.rd_ridx < 512 && filesystem.rd_ridx < filesystem.rd_off + filesystem.rd_reclen { true -> rdef_cdo(filesystem), _ -> rdef_malformed(filesystem) }
     }
-    machine rdef_cdo(filesystem: @mutable PosixFilesystem) -> DirEntryResult
+    machine rdef_cdo(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult
     requires filesystem.rd_ridx < 512
     {
         filesystem.rd_nb = filesystem.dir_buf[filesystem.rd_ridx as u64];
         transition filesystem.rd_nb == 0 { true -> rdef_nul(filesystem), _ -> rdef_room(filesystem) }
     }
-    machine rdef_room(filesystem: @mutable PosixFilesystem) -> DirEntryResult {
+    machine rdef_room(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult {
         // A 255-byte name fits only when the next native byte really is NUL.
         // Never truncate a longer record into a different deletable name.
         transition filesystem.rd_j < 255 { true -> rdef_store(filesystem), _ -> rdef_malformed(filesystem) }
     }
-    machine rdef_store(filesystem: @mutable PosixFilesystem) -> DirEntryResult
+    machine rdef_store(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult
     requires filesystem.rd_j < 255
     {
         filesystem.entry_name[filesystem.rd_j as u64] = filesystem.rd_nb;
         filesystem.rd_j = filesystem.rd_j + 1;
         transition { _ -> rdef_copy(filesystem) }
     }
-    machine rdef_build(filesystem: @mutable PosixFilesystem) -> DirEntryResult {
+    machine rdef_build(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult {
         // DT_UNKNOWN is an absent optimization hint, never a file kind. Query
         // relative to the same open directory and inspect the symlink itself.
         transition filesystem.rd_dtype == 0 { true -> rdef_unknown(filesystem), _ -> rdef_known(filesystem) }
     }
-    machine rdef_unknown(filesystem: @mutable PosixFilesystem) -> DirEntryResult {
+    machine rdef_unknown(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult {
         let name_length: u64 = filesystem.rd_j as u64;
         transition name_length < 256 { true -> rdef_metadata(filesystem, name_length), _ -> rdef_malformed(filesystem) }
     }
-    machine rdef_metadata(filesystem: @mutable PosixFilesystem, name_length: u64) -> DirEntryResult
+    machine rdef_metadata(filesystem: @mutable PosixFilesystem, name_length: u64) -> |filesystem|::DirEntryResult
         requires name_length <= 255
     {
-        let outcome: i32 = PosixFilesystemHost::read_metadata_at(filesystem.directory_descriptor,
+        let outcome: i32 = |raw|::PosixFilesystemHost::read_metadata_at(filesystem.directory_descriptor,
             @filesystem.entry_name[0..name_length], @mutable filesystem.stat_buf,
-            PosixFilesystemTarget::metadata_no_follow_flag());
+            |raw|::PosixFilesystemTarget::metadata_no_follow_flag());
         transition outcome == 0 { true -> rdef_classify(filesystem), _ -> rdef_err(filesystem, outcome as i64) }
     }
-    machine rdef_classify(filesystem: @mutable PosixFilesystem) -> DirEntryResult {
-        let kind: PosixDirectoryKind = PosixFilesystemTarget::decode_directory_kind(filesystem);
+    machine rdef_classify(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult {
+        let kind: PosixDirectoryKind = |raw|::PosixFilesystemTarget::decode_directory_kind(filesystem);
         transition kind {
             PosixDirectoryKind::Directory -> rdef_ok_dir(filesystem),
             PosixDirectoryKind::Regular -> rdef_ok_file(filesystem),
             PosixDirectoryKind::Other -> rdef_ok_other(filesystem)
         }
     }
-    machine rdef_known(filesystem: @mutable PosixFilesystem) -> DirEntryResult {
+    machine rdef_known(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult {
         transition filesystem.rd_dtype == 4 { true -> rdef_ok_dir(filesystem), _ -> rdef_maybe_file(filesystem) }
     }
-    machine rdef_ok_dir(filesystem: @mutable PosixFilesystem) -> DirEntryResult {
+    machine rdef_ok_dir(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult {
         let name_len: u64 = filesystem.rd_j as u64;
-        DirEntryResult::Ok { entry: DirEntry { name: filesystem.entry_name, name_len: name_len, is_dir: true, is_file: false } }
+        |filesystem|::DirEntryResult::Ok { entry: |filesystem|::DirEntry { name: filesystem.entry_name, name_len: name_len, is_dir: true, is_file: false } }
     }
-    machine rdef_maybe_file(filesystem: @mutable PosixFilesystem) -> DirEntryResult {
+    machine rdef_maybe_file(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult {
         transition filesystem.rd_dtype == 8 { true -> rdef_ok_file(filesystem), _ -> rdef_ok_other(filesystem) }
     }
-    machine rdef_ok_file(filesystem: @mutable PosixFilesystem) -> DirEntryResult {
+    machine rdef_ok_file(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult {
         let name_len: u64 = filesystem.rd_j as u64;
-        DirEntryResult::Ok { entry: DirEntry { name: filesystem.entry_name, name_len: name_len, is_dir: false, is_file: true } }
+        |filesystem|::DirEntryResult::Ok { entry: |filesystem|::DirEntry { name: filesystem.entry_name, name_len: name_len, is_dir: false, is_file: true } }
     }
-    machine rdef_ok_other(filesystem: @mutable PosixFilesystem) -> DirEntryResult {
+    machine rdef_ok_other(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult {
         let name_len: u64 = filesystem.rd_j as u64;
-        DirEntryResult::Ok { entry: DirEntry { name: filesystem.entry_name, name_len: name_len, is_dir: false, is_file: false } }
+        |filesystem|::DirEntryResult::Ok { entry: |filesystem|::DirEntry { name: filesystem.entry_name, name_len: name_len, is_dir: false, is_file: false } }
     }
-    machine rdef_end() -> DirEntryResult { DirEntryResult::End }
-    machine rdef_malformed(filesystem: @mutable PosixFilesystem) -> DirEntryResult {
+    machine rdef_end() -> |filesystem|::DirEntryResult { |filesystem|::DirEntryResult::End }
+    machine rdef_malformed(filesystem: @mutable PosixFilesystem) -> |filesystem|::DirEntryResult {
         filesystem.rda_rc = 0 - 5;
-        filesystem.err_kind = ErrorKind::Other;
-        DirEntryResult::Error { kind: ErrorKind::Other }
+        filesystem.err_kind = |filesystem|::ErrorKind::Other;
+        |filesystem|::DirEntryResult::Error { kind: |filesystem|::ErrorKind::Other }
     }
 }
 
-machine posix_filesystem_remove_dir_all(filesystem: @mutable PosixFilesystem, path: @[u8] in Path) -> UnitResult
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+machine posix_filesystem_remove_dir_all(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::DirectoryEnumeration + |authority|::FilesystemMetadataQuery
 {
     // Never follow a final symlink, including a child replaced between its
     // directory record and openat. A rejected root must not drain its target.
@@ -1429,10 +1422,10 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     // frames: both families allow 4096 nested levels and no step budget, so a
     // wide tree is never cut off part-way.
     let mutable stack: [i32; 4096];
-    filesystem.read_flags = PosixFilesystemTarget::directory_descent_flags();
-    let dfd: i32 = PosixFilesystemHost::open(path, filesystem.read_flags);
+    filesystem.read_flags = |raw|::PosixFilesystemTarget::directory_descent_flags();
+    let dfd: i32 = |raw|::PosixFilesystemHost::open(path, filesystem.read_flags);
     transition dfd >= 0 { true -> rda_run(filesystem, @mutable stack, dfd, path), _ -> rda_err(filesystem, @mutable stack, path, dfd) }
-    machine rda_run(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], dfd: i32, path: @[u8] in Path) -> UnitResult {
+    machine rda_run(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], dfd: i32, path: @[u8] in |paths|::Path) -> |filesystem|::UnitResult {
 
         filesystem.rda_depth = 1;
         stack[0] = dfd;
@@ -1440,18 +1433,18 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         filesystem.rda_rc = drained;
         transition drained == 0 { true -> rda_rmdir(filesystem, stack, path), _ -> rda_err(filesystem, stack, path, drained) }
     }
-    machine rda_rmdir(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], path: @[u8] in Path) -> UnitResult {
-        let rc: i32 = PosixFilesystemHost::remove_dir(path);
+    machine rda_rmdir(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], path: @[u8] in |paths|::Path) -> |filesystem|::UnitResult {
+        let rc: i32 = |raw|::PosixFilesystemHost::remove_dir(path);
         transition rc == 0 { true -> rda_ok(), _ -> rda_err(filesystem, stack, path, rc) }
     }
-    machine rda_ok() -> UnitResult { UnitResult::Ok }
+    machine rda_ok() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
 
-    machine rda_err(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], path: @[u8] in Path, result: i32) -> UnitResult {
+    machine rda_err(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], path: @[u8] in |paths|::Path, result: i32) -> |filesystem|::UnitResult {
         // A failed walk owns every directory still on the stack. Stop on the
         // first failure and close them, rather than retrying and leaking opens.
         posix_filesystem_release_directory_stack(filesystem, stack, 4096);
-        let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, result);
-        UnitResult::Error { kind: kind }
+        let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, result);
+        |filesystem|::UnitResult::Error { kind: kind }
     }
 }
 
@@ -1459,7 +1452,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 // the tree is empty or a step fails; it promises no termination of its own,
 // since another process may keep adding entries.
 machine posix_filesystem_rda_drain(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096]) -> i32
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::DirectoryEnumeration + |authority|::FilesystemMetadataQuery
 {
     posix_filesystem_rda_step(filesystem, stack, 0);
     transition filesystem.rda_verdict == 1 { true -> posix_filesystem_rda_drain(filesystem, stack), _ -> rdd_settle(filesystem) }
@@ -1471,7 +1464,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 }
 
 machine posix_filesystem_rda_step(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], step: u64)
-reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
+reaches |authority|::FilesystemContentRead + |authority|::FilesystemContentWrite + |authority|::FilesystemMetadataMutation + |authority|::FilesystemNamespaceMutation + |authority|::DirectoryEnumeration + |authority|::FilesystemMetadataQuery
 
 {
     filesystem.rda_rc = 0 - 5;
@@ -1497,16 +1490,16 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         filesystem.rda_fd = stack[filesystem.rda_depth - 1];
 
         let fd: i32 = filesystem.rda_fd;
-        let result: DirEntryResult = posix_filesystem_read_dir_entry_fd(filesystem, fd, 0);
+        let result: |filesystem|::DirEntryResult = posix_filesystem_read_dir_entry_fd(filesystem, fd, 0);
         transition result {
-            DirEntryResult::End -> rds_pop(filesystem, stack),
-            DirEntryResult::Ok { entry } -> rds_entry(filesystem, stack, entry),
-            DirEntryResult::Error { kind } -> rds_fail(filesystem)
+            |filesystem|::DirEntryResult::End -> rds_pop(filesystem, stack),
+            |filesystem|::DirEntryResult::Ok { entry } -> rds_entry(filesystem, stack, entry),
+            |filesystem|::DirEntryResult::Error { kind } -> rds_fail(filesystem)
         }
     }
 
     machine rds_pop(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096]) {
-        filesystem.rda_close_rc = PosixFilesystemHost::close(filesystem.rda_fd);
+        filesystem.rda_close_rc = |raw|::PosixFilesystemHost::close(filesystem.rda_fd);
         transition filesystem.rda_depth >= 1 { true -> rds_pop_go(filesystem, stack), _ -> rds_fail(filesystem) }
     }
     machine rds_pop_go(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096])
@@ -1541,27 +1534,27 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         filesystem.rda_fd = stack[filesystem.rda_depth - 1];
 
         let fd: i32 = filesystem.rda_fd;
-        let result: DirEntryResult = posix_filesystem_read_dir_entry_fd(filesystem, fd, 0);
+        let result: |filesystem|::DirEntryResult = posix_filesystem_read_dir_entry_fd(filesystem, fd, 0);
         transition result {
-            DirEntryResult::Ok { entry } -> rds_rm_child(filesystem, stack, entry),
-            DirEntryResult::End -> rds_continue(filesystem),
-            DirEntryResult::Error { kind } -> rds_fail(filesystem)
+            |filesystem|::DirEntryResult::Ok { entry } -> rds_rm_child(filesystem, stack, entry),
+            |filesystem|::DirEntryResult::End -> rds_continue(filesystem),
+            |filesystem|::DirEntryResult::Error { kind } -> rds_fail(filesystem)
         }
     }
-    machine rds_rm_child(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], entry: DirEntry) {
+    machine rds_rm_child(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], entry: |filesystem|::DirEntry) {
         transition entry.name_len < 256 { true -> rds_rm_child_go(filesystem, stack, entry, entry.name_len), _ -> rds_fail(filesystem) }
     }
-    machine rds_rm_child_go(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], entry: DirEntry, name_len: u64)
+    machine rds_rm_child_go(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], entry: |filesystem|::DirEntry, name_len: u64)
         requires name_len <= 255
     {
-        filesystem.rda_rc = PosixFilesystemHost::unlink_at(filesystem.rda_fd, @entry.name[0..name_len], PosixFilesystemTarget::remove_directory_flag());
+        filesystem.rda_rc = |raw|::PosixFilesystemHost::unlink_at(filesystem.rda_fd, @entry.name[0..name_len], |raw|::PosixFilesystemTarget::remove_directory_flag());
         transition filesystem.rda_rc == 0 { true -> rds_continue(filesystem), _ -> rds_fail(filesystem) }
     }
 
-    machine rds_entry(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], entry: DirEntry) {
+    machine rds_entry(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], entry: |filesystem|::DirEntry) {
         transition entry.name_len < 256 { true -> rds_kind(filesystem, stack, entry, entry.name_len), _ -> rds_fail(filesystem) }
     }
-    machine rds_kind(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], entry: DirEntry, name_len: u64)
+    machine rds_kind(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], entry: |filesystem|::DirEntry, name_len: u64)
         requires name_len <= 255
     {
         transition entry.is_dir {
@@ -1569,16 +1562,16 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
             false -> rds_unlink(filesystem, stack, entry, name_len)
         }
     }
-    machine rds_unlink(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], entry: DirEntry, name_len: u64)
+    machine rds_unlink(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], entry: |filesystem|::DirEntry, name_len: u64)
         requires name_len <= 255
     {
-        filesystem.rda_rc = PosixFilesystemHost::unlink_at(filesystem.rda_fd, @entry.name[0..name_len], 0);
+        filesystem.rda_rc = |raw|::PosixFilesystemHost::unlink_at(filesystem.rda_fd, @entry.name[0..name_len], 0);
         transition filesystem.rda_rc == 0 { true -> rds_continue(filesystem), _ -> rds_fail(filesystem) }
     }
-    machine rds_descend(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], entry: DirEntry, name_len: u64)
+    machine rds_descend(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], entry: |filesystem|::DirEntry, name_len: u64)
         requires name_len <= 255
     {
-        filesystem.rda_sub = PosixFilesystemHost::open_at(filesystem.rda_fd, @entry.name[0..name_len], filesystem.read_flags);
+        filesystem.rda_sub = |raw|::PosixFilesystemHost::open_at(filesystem.rda_fd, @entry.name[0..name_len], filesystem.read_flags);
         filesystem.rda_rc = filesystem.rda_sub;
         transition filesystem.rda_sub >= 0 { true -> rds_push(filesystem, stack), _ -> rds_fail(filesystem) }
     }
@@ -1586,7 +1579,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
         transition filesystem.rda_depth < 4096 { true -> rds_push_go(filesystem, stack), _ -> rds_full(filesystem, stack) }
     }
     machine rds_full(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096]) {
-        let closed: i32 = PosixFilesystemHost::close(filesystem.rda_sub);
+        let closed: i32 = |raw|::PosixFilesystemHost::close(filesystem.rda_sub);
         filesystem.rda_rc = -24;
         transition { _ -> rds_fail(filesystem) }
     }
@@ -1625,7 +1618,7 @@ terminates by remaining
     terminates by index
     {
         let descriptor: i32 = stack[index];
-        let closed: i32 = PosixFilesystemHost::close(descriptor);
+        let closed: i32 = |raw|::PosixFilesystemHost::close(descriptor);
         transition { _ -> next(filesystem, stack, index) }
     }
     machine next(filesystem: @mutable PosixFilesystem, stack: @mutable [i32; 4096], remaining: u64)
@@ -1637,142 +1630,142 @@ terminates by remaining
     machine done(filesystem: @mutable PosixFilesystem) { filesystem.rda_depth = 0; }
 }
 
-machine posix_filesystem_read_at(filesystem: @mutable PosixFilesystem, file: File, buffer: @mutable [u8], count: u64, offset: i64) -> IoResult
-reaches FilesystemContentRead
+machine posix_filesystem_read_at(filesystem: @mutable PosixFilesystem, file: |filesystem|::File, buffer: @mutable [u8], count: u64, offset: i64) -> |filesystem|::IoResult
+reaches |authority|::FilesystemContentRead
 {
     transition count <= buffer.length {
         true -> transfer(filesystem, file, buffer, count, offset),
-        false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
+        false -> (|filesystem|::IoResult::Error { kind: |filesystem|::ErrorKind::InvalidInput })
     }
-    machine transfer(filesystem: @mutable PosixFilesystem, file: File, buffer: @mutable [u8], count: u64, offset: i64) -> IoResult {
+    machine transfer(filesystem: @mutable PosixFilesystem, file: |filesystem|::File, buffer: @mutable [u8], count: u64, offset: i64) -> |filesystem|::IoResult {
         filesystem.file_fd = posix_filesystem_descriptor(file);
-        let n: i64 = PosixFilesystemHost::read_at(filesystem.file_fd, buffer, count, offset);
+        let n: i64 = |raw|::PosixFilesystemHost::read_at(filesystem.file_fd, buffer, count, offset);
         transition n >= 0 { true -> ok(n), _ -> err(filesystem, n) }
     }
-    machine ok(n: i64) -> IoResult
+    machine ok(n: i64) -> |filesystem|::IoResult
     requires n >= 0
     {
         let converted_count: u64 = n as u64;
-        IoResult::Ok { count: converted_count }
+        |filesystem|::IoResult::Ok { count: converted_count }
     }
-    machine err(filesystem: @mutable PosixFilesystem, n: i64) -> IoResult { let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, n); IoResult::Error { kind: kind } }
+    machine err(filesystem: @mutable PosixFilesystem, n: i64) -> |filesystem|::IoResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i64(filesystem, n); |filesystem|::IoResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_write_at(filesystem: @mutable PosixFilesystem, file: File, bytes: @[u8], offset: i64) -> IoResult
-reaches FilesystemContentWrite
+machine posix_filesystem_write_at(filesystem: @mutable PosixFilesystem, file: |filesystem|::File, bytes: @[u8], offset: i64) -> |filesystem|::IoResult
+reaches |authority|::FilesystemContentWrite
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let n: i64 = PosixFilesystemHost::write_at(filesystem.file_fd, bytes, offset);
+    let n: i64 = |raw|::PosixFilesystemHost::write_at(filesystem.file_fd, bytes, offset);
     transition n >= 0 { true -> ok(n), _ -> err(filesystem, n) }
-    machine ok(n: i64) -> IoResult
+    machine ok(n: i64) -> |filesystem|::IoResult
     requires n >= 0
     {
         let converted_count: u64 = n as u64;
-        IoResult::Ok { count: converted_count }
+        |filesystem|::IoResult::Ok { count: converted_count }
     }
-    machine err(filesystem: @mutable PosixFilesystem, n: i64) -> IoResult { let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, n); IoResult::Error { kind: kind } }
+    machine err(filesystem: @mutable PosixFilesystem, n: i64) -> |filesystem|::IoResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i64(filesystem, n); |filesystem|::IoResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_hard_link(filesystem: @mutable PosixFilesystem, original: @[u8] in Path, link: @[u8] in Path) -> UnitResult
-reaches FilesystemNamespaceMutation
+machine posix_filesystem_hard_link(filesystem: @mutable PosixFilesystem, original: @[u8] in |paths|::Path, link: @[u8] in |paths|::Path) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemNamespaceMutation
 {
-    let rc: i32 = PosixFilesystemHost::hard_link(original, link);
+    let rc: i32 = |raw|::PosixFilesystemHost::hard_link(original, link);
     transition rc == 0 { true -> ok(), _ -> err(filesystem, rc) }
-    machine ok() -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_set_times(filesystem: @mutable PosixFilesystem, file: File, accessed: i64, modified: i64) -> UnitResult
-reaches FilesystemMetadataMutation
+machine posix_filesystem_set_times(filesystem: @mutable PosixFilesystem, file: |filesystem|::File, accessed: i64, modified: i64) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemMetadataMutation
 {
-    filesystem.times_buf[0] = narrow_i64_to_u8_wrapping(accessed);
-    filesystem.times_buf[1] = narrow_i64_to_u8_wrapping(accessed >> 8);
-    filesystem.times_buf[2] = narrow_i64_to_u8_wrapping(accessed >> 16);
-    filesystem.times_buf[3] = narrow_i64_to_u8_wrapping(accessed >> 24);
-    filesystem.times_buf[4] = narrow_i64_to_u8_wrapping(accessed >> 32);
-    filesystem.times_buf[5] = narrow_i64_to_u8_wrapping(accessed >> 40);
-    filesystem.times_buf[6] = narrow_i64_to_u8_wrapping(accessed >> 48);
-    filesystem.times_buf[7] = narrow_i64_to_u8_wrapping(accessed >> 56);
-    filesystem.times_buf[16] = narrow_i64_to_u8_wrapping(modified);
-    filesystem.times_buf[17] = narrow_i64_to_u8_wrapping(modified >> 8);
-    filesystem.times_buf[18] = narrow_i64_to_u8_wrapping(modified >> 16);
-    filesystem.times_buf[19] = narrow_i64_to_u8_wrapping(modified >> 24);
-    filesystem.times_buf[20] = narrow_i64_to_u8_wrapping(modified >> 32);
-    filesystem.times_buf[21] = narrow_i64_to_u8_wrapping(modified >> 40);
-    filesystem.times_buf[22] = narrow_i64_to_u8_wrapping(modified >> 48);
-    filesystem.times_buf[23] = narrow_i64_to_u8_wrapping(modified >> 56);
+    filesystem.times_buf[0] = |numeric|::narrow_i64_to_u8_wrapping(accessed);
+    filesystem.times_buf[1] = |numeric|::narrow_i64_to_u8_wrapping(accessed >> 8);
+    filesystem.times_buf[2] = |numeric|::narrow_i64_to_u8_wrapping(accessed >> 16);
+    filesystem.times_buf[3] = |numeric|::narrow_i64_to_u8_wrapping(accessed >> 24);
+    filesystem.times_buf[4] = |numeric|::narrow_i64_to_u8_wrapping(accessed >> 32);
+    filesystem.times_buf[5] = |numeric|::narrow_i64_to_u8_wrapping(accessed >> 40);
+    filesystem.times_buf[6] = |numeric|::narrow_i64_to_u8_wrapping(accessed >> 48);
+    filesystem.times_buf[7] = |numeric|::narrow_i64_to_u8_wrapping(accessed >> 56);
+    filesystem.times_buf[16] = |numeric|::narrow_i64_to_u8_wrapping(modified);
+    filesystem.times_buf[17] = |numeric|::narrow_i64_to_u8_wrapping(modified >> 8);
+    filesystem.times_buf[18] = |numeric|::narrow_i64_to_u8_wrapping(modified >> 16);
+    filesystem.times_buf[19] = |numeric|::narrow_i64_to_u8_wrapping(modified >> 24);
+    filesystem.times_buf[20] = |numeric|::narrow_i64_to_u8_wrapping(modified >> 32);
+    filesystem.times_buf[21] = |numeric|::narrow_i64_to_u8_wrapping(modified >> 40);
+    filesystem.times_buf[22] = |numeric|::narrow_i64_to_u8_wrapping(modified >> 48);
+    filesystem.times_buf[23] = |numeric|::narrow_i64_to_u8_wrapping(modified >> 56);
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let rc: i32 = PosixFilesystemHost::set_file_times(filesystem.file_fd, @filesystem.times_buf);
+    let rc: i32 = |raw|::PosixFilesystemHost::set_file_times(filesystem.file_fd, @filesystem.times_buf);
     transition rc == 0 { true -> ok(), _ -> err(filesystem, rc) }
-    machine ok() -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_canonicalize(filesystem: @mutable PosixFilesystem, path: @[u8] in Path, buffer: @mutable [u8]) -> UnitResult
-reaches FilesystemMetadataQuery
+machine posix_filesystem_canonicalize(filesystem: @mutable PosixFilesystem, path: @[u8] in |paths|::Path, buffer: @mutable [u8]) -> |filesystem|::UnitResult
+reaches |authority|::FilesystemMetadataQuery
 {
     let rc: i64 = posix_canonicalize(path, buffer);
     transition rc > 0 { true -> ok(), _ -> err(filesystem, rc) }
-    machine ok() -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i64) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i64(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i64) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i64(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_lock(filesystem: @mutable PosixFilesystem, file: File) -> UnitResult
+machine posix_filesystem_lock(filesystem: @mutable PosixFilesystem, file: |filesystem|::File) -> |filesystem|::UnitResult
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let rc: i32 = PosixFilesystemHost::lock_file(filesystem.file_fd, 2);
+    let rc: i32 = |raw|::PosixFilesystemHost::lock_file(filesystem.file_fd, 2);
     transition rc == 0 { true -> ok(), _ -> err(filesystem, rc) }
-    machine ok() -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_lock_shared(filesystem: @mutable PosixFilesystem, file: File) -> UnitResult
+machine posix_filesystem_lock_shared(filesystem: @mutable PosixFilesystem, file: |filesystem|::File) -> |filesystem|::UnitResult
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let rc: i32 = PosixFilesystemHost::lock_file(filesystem.file_fd, 1);
+    let rc: i32 = |raw|::PosixFilesystemHost::lock_file(filesystem.file_fd, 1);
     transition rc == 0 { true -> ok(), _ -> err(filesystem, rc) }
-    machine ok() -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_try_lock(filesystem: @mutable PosixFilesystem, file: File) -> TryLockResult
+machine posix_filesystem_try_lock(filesystem: @mutable PosixFilesystem, file: |filesystem|::File) -> |filesystem|::TryLockResult
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let rc: i32 = PosixFilesystemHost::lock_file(filesystem.file_fd, 6);
+    let rc: i32 = |raw|::PosixFilesystemHost::lock_file(filesystem.file_fd, 6);
     filesystem.lock_errno = posix_filesystem_native_error_code_i32(filesystem, rc);
     transition rc == 0 { true -> acquired(), _ -> contended(filesystem, rc) }
-    machine acquired() -> TryLockResult { TryLockResult::Acquired }
-    machine contended(filesystem: @mutable PosixFilesystem, rc: i32) -> TryLockResult { transition filesystem.lock_errno == PosixFilesystemTarget::would_block_error() { true -> would_block(), _ -> failed(filesystem, rc) } }
-    machine would_block() -> TryLockResult { TryLockResult::WouldBlock }
-    machine failed(filesystem: @mutable PosixFilesystem, rc: i32) -> TryLockResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); TryLockResult::Error { kind: kind } }
+    machine acquired() -> |filesystem|::TryLockResult { |filesystem|::TryLockResult::Acquired }
+    machine contended(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::TryLockResult { transition filesystem.lock_errno == |raw|::PosixFilesystemTarget::would_block_error() { true -> would_block(), _ -> failed(filesystem, rc) } }
+    machine would_block() -> |filesystem|::TryLockResult { |filesystem|::TryLockResult::WouldBlock }
+    machine failed(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::TryLockResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::TryLockResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_try_lock_shared(filesystem: @mutable PosixFilesystem, file: File) -> TryLockResult
+machine posix_filesystem_try_lock_shared(filesystem: @mutable PosixFilesystem, file: |filesystem|::File) -> |filesystem|::TryLockResult
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let rc: i32 = PosixFilesystemHost::lock_file(filesystem.file_fd, 5);
+    let rc: i32 = |raw|::PosixFilesystemHost::lock_file(filesystem.file_fd, 5);
     filesystem.lock_errno = posix_filesystem_native_error_code_i32(filesystem, rc);
     transition rc == 0 { true -> acquired(), _ -> contended(filesystem, rc) }
-    machine acquired() -> TryLockResult { TryLockResult::Acquired }
-    machine contended(filesystem: @mutable PosixFilesystem, rc: i32) -> TryLockResult { transition filesystem.lock_errno == PosixFilesystemTarget::would_block_error() { true -> would_block(), _ -> failed(filesystem, rc) } }
-    machine would_block() -> TryLockResult { TryLockResult::WouldBlock }
-    machine failed(filesystem: @mutable PosixFilesystem, rc: i32) -> TryLockResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); TryLockResult::Error { kind: kind } }
+    machine acquired() -> |filesystem|::TryLockResult { |filesystem|::TryLockResult::Acquired }
+    machine contended(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::TryLockResult { transition filesystem.lock_errno == |raw|::PosixFilesystemTarget::would_block_error() { true -> would_block(), _ -> failed(filesystem, rc) } }
+    machine would_block() -> |filesystem|::TryLockResult { |filesystem|::TryLockResult::WouldBlock }
+    machine failed(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::TryLockResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::TryLockResult::Error { kind: kind } }
 }
 
-machine posix_filesystem_unlock(filesystem: @mutable PosixFilesystem, file: File) -> UnitResult
+machine posix_filesystem_unlock(filesystem: @mutable PosixFilesystem, file: |filesystem|::File) -> |filesystem|::UnitResult
 {
     filesystem.file_fd = posix_filesystem_descriptor(file);
-    let rc: i32 = PosixFilesystemHost::lock_file(filesystem.file_fd, 8);
+    let rc: i32 = |raw|::PosixFilesystemHost::lock_file(filesystem.file_fd, 8);
     transition rc == 0 { true -> ok(), _ -> err(filesystem, rc) }
-    machine ok() -> UnitResult { UnitResult::Ok }
-    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> UnitResult { let kind: ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); UnitResult::Error { kind: kind } }
+    machine ok() -> |filesystem|::UnitResult { |filesystem|::UnitResult::Ok }
+    machine err(filesystem: @mutable PosixFilesystem, rc: i32) -> |filesystem|::UnitResult { let kind: |filesystem|::ErrorKind = posix_filesystem_last_error_i32(filesystem, rc); |filesystem|::UnitResult::Error { kind: kind } }
 }
 
 // realpath resolves all components into private PATH_MAX storage. The portable
 // caller's view is copied only after the resulting extent is checked.
 boundary trait PosixCanonicalLibc {
     machine resolve(path: @[u8; 4096], output: @mutable [u8; 4096]) -> u64
-    reaches FilesystemMetadataQuery
+    reaches |authority|::FilesystemMetadataQuery
     crashes none;
 }
 
@@ -1797,13 +1790,13 @@ machine posix_errno() -> i32 {
 machine posix_errno_value(slot: @i32) -> i32 { $slot }
 // `PosixCanonicalLibc` requirements are bound by Build rows in the std package
 // (`std/build.omg`); no provider machine forwards them.
-machine posix_canonicalize(path: @[u8] in Path, output: @mutable [u8]) -> i64
-reaches FilesystemMetadataQuery
+machine posix_canonicalize(path: @[u8] in |paths|::Path, output: @mutable [u8]) -> i64
+reaches |authority|::FilesystemMetadataQuery
 
 {
     let mutable terminated: [u8; 4096];
     let mutable resolved: [u8; 4096];
-    let fits: bool = posix_terminated_path(path as -Path, @mutable terminated[..]);
+    let fits: bool = |raw|::posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
     transition fits { true -> resolve(terminated, resolved, output), false -> failed() }
     machine resolve(terminated: [u8; 4096], resolved: [u8; 4096], output: @mutable [u8]) -> i64 {
         let mutable source: [u8; 4096] = terminated;
@@ -1853,6 +1846,6 @@ reaches FilesystemMetadataQuery
 // The negated `errno` of a failed realpath. No ambient error slot survives
 // the portable call.
 machine posix_canonical_error() -> i64 {
-    let code: i64 = widen_i32_to_i64(posix_errno());
+    let code: i64 = |numeric|::widen_i32_to_i64(posix_errno());
     0 - code
 }
