@@ -532,6 +532,35 @@ impl<'base> ConstantSelection<'base> {
     }
 
     /*
+        Whether the authored spelling reaches any domain declaration visible
+        from `reference` under module name law, in this forest or the
+        retained base, whatever its carrier or index telescope.
+    */
+    pub(super) fn names_a_domain(
+        &self,
+        authored: &str,
+        reference: source_text::SourceSpan,
+    ) -> bool {
+        let selected = self
+            .symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                authored,
+                &[SymbolKind::Domain],
+                reference,
+            )
+            .unwrap_or_else(symbols::SymbolHandle::invalid);
+        selected.is_valid()
+            || self
+                .symbols
+                .child_handles(self.symbols.root())
+                .into_iter()
+                .flatten()
+                .any(|symbol| {
+                    self.domain_symbol_is_reachable(symbol, selected, authored, reference)
+                })
+    }
+
+    /*
         Whether the authored spelling reaches an in-forest domain declaration
         under module name law, including generic families whose closed
         membership `domain` declines to evaluate. When `domain` returns `None`

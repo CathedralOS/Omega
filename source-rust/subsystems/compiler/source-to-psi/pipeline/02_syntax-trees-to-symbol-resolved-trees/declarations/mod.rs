@@ -17,6 +17,7 @@ pub(in crate::resolution::declarations) mod callable_signatures;
 pub(crate) mod assembly;
 mod builtin_type_names;
 mod callable_types;
+mod core_policy_names;
 pub(crate) mod declaration_selection;
 pub(crate) mod declared_types;
 pub(super) mod dispatches;
@@ -76,6 +77,7 @@ pub(crate) fn prepare(
         top_level_bindings,
         base,
     )?;
+    core_policy_names::normalize(&mut syntax, &constant_selection)?;
     declared_types::normalize(&mut syntax, &constant_selection)?;
     // Closed literal widths must name carriers before constants land in them.
     // Named widths remain for resolution in their lexical scope.
