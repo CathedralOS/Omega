@@ -50,15 +50,12 @@ pub enum ZeroedStructuralLeaf {
     },
 }
 
-/// All elements start with the same record fields. Their declaration supplies
-/// ordinary zeroes while each element retains its active case and payload.
+/// Each element starts with the same zero fields and first declared case.
+/// A write supplies the contents for that element independently of its neighbors.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepeatedZeroedElement {
     pub path: Vec<StructuralPathSegment>,
     pub array_type: StructuralTypeId,
-    pub length: u64,
-    /// Discriminators and payloads still have their ordinary cells.
-    pub represented: Vec<ZeroedStructuralLeaf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -218,6 +215,8 @@ fn zeroed_declaration_graph(
             StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), Some(cases)),
             _ => return false,
         };
+        active[position] = true;
+        pending.push((current, true));
         if let Some(cases) = cases {
             let Some(first) = cases.first() else {
                 return false;
@@ -244,8 +243,6 @@ fn zeroed_declaration_graph(
                 }
             }
         }
-        active[position] = true;
-        pending.push((current, true));
         for field in fields {
             if allow_established_fields && established_field_identity(field).is_some() {
                 continue;
@@ -330,26 +327,38 @@ pub fn zeroed_structural_storage<'types>(
     Some(ZeroedStructuralStorage { leaves, arrays })
 }
 
-fn repeated_element_cells(
+fn is_byte_element(declarations: &[&StructuralTypeDeclaration], element: StructuralTypeId) -> bool {
+    declarations.iter().any(|declaration| declaration.id == element && matches!(
+        declaration.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+            if integer.sign() == IntegerSign::Unsigned && integer.bits() == Some(8) && !integer.is_address()
+    ))
+}
+
+fn element_uses_declared_zeroes(
     declarations: &[&StructuralTypeDeclaration],
     element: StructuralTypeId,
-) -> Option<Vec<ZeroedStructuralLeaf>> {
-    let mut cells = zeroed_structural_leaves(declarations.iter().copied(), element)?;
-    if !cells.iter().all(|cell| {
-        matches!(
-            cell,
-            ZeroedStructuralLeaf::RecordField { .. }
-                | ZeroedStructuralLeaf::CaseField { .. }
-                | ZeroedStructuralLeaf::ArrayScalar { .. }
-                | ZeroedStructuralLeaf::SumSelection { .. }
-        )
-    }) {
-        return None;
-    }
-    let total = cells.len();
-    cells.retain(|cell| !matches!(cell, ZeroedStructuralLeaf::RecordField { path, .. }
-        if path.iter().all(|part| matches!(part, StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_)))));
-    (cells.len() < total).then_some(cells)
+) -> bool {
+    // Byte buffers, empty arrays and views each have a distinct storage representation.
+    // Scalar fields and case tags can be read from the declaration until written.
+    zeroed_declaration_graph(
+        declarations,
+        element,
+        false,
+        false,
+        &|declaration| match &declaration.shape {
+            StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::AtomicCell(_)
+            | StructuralTypeShape::Record { .. }
+            | StructuralTypeShape::Sum { .. }
+            | StructuralTypeShape::Mixed { .. } => true,
+            StructuralTypeShape::FixedArray { element, length } => {
+                length.literal().is_some_and(|length| length > 0)
+                    && !is_byte_element(declarations, *element)
+            }
+            _ => false,
+        },
+        &|field| !zeroed_byte_field(field),
+    )
 }
 
 fn zeroed_structural_leaves_impl<'types>(
@@ -374,7 +383,6 @@ fn zeroed_structural_leaves_impl<'types>(
     let mut leaves = Vec::new();
     let mut pending = vec![(root, Vec::new())];
     let mut visited_cells = 0usize;
-    let mut repeated_cells = 0usize;
     while let Some((current, path)) = pending.pop() {
         let declaration = declarations
             .iter()
@@ -474,16 +482,7 @@ fn zeroed_structural_leaves_impl<'types>(
             StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
-            } if *length != 0
-                && declarations.iter().any(|declaration| {
-                    declaration.id == *element
-                        && matches!(declaration.shape,
-                                StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-                                    if integer.sign() == IntegerSign::Unsigned
-                                        && integer.bits() == Some(8)
-                                        && !integer.is_address())
-                }) =>
-            {
+            } if *length != 0 && is_byte_element(&declarations, *element) => {
                 leaves.push(ZeroedStructuralLeaf::ByteArray {
                     path,
                     length: *length,
@@ -495,20 +494,14 @@ fn zeroed_structural_leaves_impl<'types>(
             } => {
                 if let Some(arrays) = arrays.as_deref_mut()
                     && *length > 1
-                    && let Some(represented) = repeated_element_cells(&declarations, *element)
+                    && element_uses_declared_zeroes(&declarations, *element)
                 {
-                    let extent = usize::try_from(*length).ok()?;
-                    repeated_cells = repeated_cells
-                        .checked_add(1)?
-                        .checked_add(represented.len().checked_mul(extent)?)?;
-                    if repeated_cells.checked_add(leaves.len())? > MAX_ZEROED_LEAVES {
+                    if arrays.len().checked_add(leaves.len())? >= MAX_ZEROED_LEAVES {
                         return None;
                     }
                     arrays.push(RepeatedZeroedElement {
                         path,
                         array_type: current,
-                        length: *length,
-                        represented,
                     });
                     continue;
                 }
@@ -562,7 +555,8 @@ fn zeroed_structural_leaves_impl<'types>(
             return None;
         }
     }
-    (repeated_cells.checked_add(leaves.len())? <= MAX_ZEROED_LEAVES
+    let arrays = arrays.as_ref().map_or(0, |arrays| arrays.len());
+    (arrays.checked_add(leaves.len())? <= MAX_ZEROED_LEAVES
         && consumed.iter().all(|consumed| *consumed))
     .then_some(leaves)
 }

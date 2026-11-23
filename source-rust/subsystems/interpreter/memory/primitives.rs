@@ -443,7 +443,7 @@ pub(crate) mod activation_storage {
                 let case = match field.namespace {
                     crate::boundary::values::StructuralFieldNamespace::Member => None,
                     crate::boundary::values::StructuralFieldNamespace::CasePayload => {
-                        Some(self.structural_cases.require(&field.parent)?.case)
+                        Some(self.require_case(&field.parent)?.case)
                     }
                 };
                 let (fields, _) =
@@ -1616,7 +1616,7 @@ pub(crate) mod primitive_storage {
                 endpoint: &PrimitiveStorageEndpoint,
             ) -> Result<TerminalScalarValue, TerminalInterpretError> {
                 let value = match endpoint {
-            PrimitiveStorageEndpoint::Scalar(place) => self.structural_primitive_storage.get(place).cloned(),
+            PrimitiveStorageEndpoint::Scalar(place) => self.primitive_cell(place)?,
             PrimitiveStorageEndpoint::ScalarField(field) => self.scalar_field_cell(field)?,
             _ => return Err(malformed()),
         }
@@ -2281,8 +2281,7 @@ pub(crate) mod primitive_storage {
                 }
                 PrimitiveStorageEndpoint::Scalar(home) => {
                     if execution
-                        .structural_primitive_storage
-                        .get(home)
+                        .primitive_cell(home)?
                         .is_some_and(|stored| stored.scalar_type() != scalar_type)
                     {
                         return Err(malformed());
@@ -3664,9 +3663,7 @@ pub(crate) mod primitive_storage {
                         if selected_case.is_some() {
                             return Err(malformed());
                         }
-                        let actual = self
-                            .structural_cases
-                            .get(&StructuralRuntimePlace::from(&projected))
+                        let actual = self.case_at(&StructuralRuntimePlace::from(&projected))
                             .ok_or(malformed())?;
                         if actual.structural_type != carrier || actual.case != *case {
                             return Err(malformed());
@@ -3928,7 +3925,7 @@ pub(crate) mod primitive_storage {
             let payload = match &declaration.shape {
                 terminal_psi::StructuralTypeShape::Sum { cases }
                 | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => {
-                    let stored = self.structural_cases.require(&parent_place)?;
+                    let stored = self.require_case(&parent_place)?;
                     if stored.structural_type != parent {
                         return Err(malformed());
                     }
@@ -4401,9 +4398,8 @@ pub(crate) mod primitive_storage {
                         ))
                 }
                 PrimitiveStorageEndpoint::Scalar(storage) => self
-                    .structural_primitive_storage
-                    .get(&storage)
-                    .map(crate::storage::scalar_storage::ScalarCell::read)
+                    .primitive_cell(&storage)?
+                    .map(|cell| cell.read())
                     .transpose()?
                     .ok_or(TerminalInterpretError::StructuralPrimitiveStorageMissing(
                         source,
@@ -5625,6 +5621,26 @@ pub(crate) mod scalar_storage {
             }
             self.0.insert(key, cell)
         }
+        pub(crate) fn prepare_resident_install(
+            &self,
+            key: &Key,
+            resident: &ScalarCell,
+            new_cells: &mut Self,
+        ) -> Result<(), TerminalInterpretError>
+        where
+            Key: Clone,
+        {
+            if let Some(previous) = new_cells.get(key).or_else(|| self.get(key)) {
+                if (matches!(previous, ScalarCell::Resident { .. }) && previous != resident)
+                    || previous.read()? != resident.read()?
+                {
+                    return Err(malformed());
+                }
+            } else {
+                new_cells.insert_cell(key.clone(), resident.clone())?;
+            }
+            Ok(())
+        }
         pub(crate) fn prune(&mut self, root: &crate::boundary::values::StructuralRuntimePlace)
         where
             Key: crate::storage::structural_storage::StorageKey,
@@ -6272,7 +6288,7 @@ pub(crate) mod storage_addresses {
                                 Shape::Sum { cases } | Shape::Mixed { cases, .. },
                                 StructuralFieldNamespace::CasePayload,
                             ) => {
-                                let tag = self.structural_cases.require(place)?;
+                                let tag = self.require_case(place)?;
                                 if tag.structural_type != owner.id {
                                     return Err(malformed());
                                 }

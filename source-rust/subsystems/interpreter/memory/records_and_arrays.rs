@@ -296,7 +296,7 @@ pub(crate) mod record {
                             crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
                         &types,
                         self.structural_values.get(&current.place)?,
-                        self.structural_cases.as_map(),
+                        &self.array_initialization.cases(&self.structural_cases),
                         &current.path,
                     )
                         },
@@ -329,7 +329,7 @@ pub(crate) mod record {
                         crate::boundary::structural_inputs::case_membership::stored_case_at_projection(
                             &types,
                             self.structural_values.get(&current.place)?,
-                            self.structural_cases.as_map(),
+                            &self.array_initialization.cases(&self.structural_cases),
                             &current.path,
                         )
                     },
@@ -392,7 +392,7 @@ pub(crate) mod record {
                     } else if !crate::engine::custody::consume_projected_affine_complement(
                         &self.structural_types(),
                         &self.structural_values,
-                        self.structural_cases.as_map(),
+                        &self.array_initialization.cases(&self.structural_cases),
                         frontier,
                         argument,
                     )? {
@@ -2154,9 +2154,10 @@ pub(crate) mod record {
                 execution: &TerminalExecution<'_>,
                 root: &StructuralRuntimePlace,
             ) -> Result<ConstructorResidentWrites, TerminalInterpretError> {
-                // A resident field belongs to its lender. Stage its replacement
-                // even when the incoming array supplies zero from its declaration.
+                // A resident cell belongs to its lender. Stage the write even
+                // when the incoming array supplies zero from its declaration.
                 if !self.array_initialization.rows.is_empty() {
+                    let types = execution.structural_types();
                     for (field, cell) in crate::storage::structural_storage::cells(
                         &execution.structural_scalar_fields,
                         root,
@@ -2167,12 +2168,23 @@ pub(crate) mod record {
                         ) && !self.scalars.contains_key(field)
                             && let Some(scalar) = self
                                 .array_initialization
-                                .zero_record_field(&execution.structural_types(), field)?
+                                .zero_element_field(&types, &self.cases, field)?
                         {
                             self.scalars.insert(
                                 field.clone(),
                                 TerminalScalarValue::zero(scalar).ok_or(malformed())?,
                             )?;
+                        }
+                    }
+                    for (home, cell) in crate::storage::structural_storage::cells(
+                        &execution.structural_primitive_storage,
+                        root,
+                    ) {
+                        if matches!(cell, crate::storage::scalar_storage::ScalarCell::Resident { .. })
+                            && !self.primitives.contains_key(home)
+                            && let Some(zero) = self.array_initialization.zero_primitive(&types, home)?
+                        {
+                            self.primitives.insert(home.clone(), zero)?;
                         }
                     }
                 }
@@ -2348,7 +2360,7 @@ pub(crate) mod record {
                     && !crate::boundary::structural_inputs::case_membership::case_projection_in_value_is_active(
                         &execution.structural_types(),
                         value,
-                        execution.structural_cases.as_map(),
+                        &execution.array_initialization.cases(&execution.structural_cases),
                         &row.path,
                     )?
                 {
@@ -3036,7 +3048,7 @@ pub(crate) mod scalar_array {
         #[derive(Clone, Copy, PartialEq, Eq)]
         enum InitialValue {
             EmptyArray,
-            ZeroRecordFields,
+            ZeroedElements,
         }
 
         #[derive(Clone, Copy)]
@@ -3054,25 +3066,49 @@ pub(crate) mod scalar_array {
             ) -> Result<Option<StructuralTypeId>, TerminalInterpretError> {
                 match self.value {
                     InitialValue::EmptyArray => select(types, self.structural_type, path).map(Some),
-                    InitialValue::ZeroRecordFields
-                        if path.iter().all(|part| {
-                            matches!(
-                                part,
-                                StructuralPathSegment::Field(_)
-                                    | StructuralPathSegment::FixedIndex(_)
-                            )
-                        }) =>
-                    {
+                    InitialValue::ZeroedElements => {
+                        for (index, step) in path.iter().enumerate() {
+                            match step {
+                                StructuralPathSegment::Field(_) | StructuralPathSegment::FixedIndex(_) => {}
+                                StructuralPathSegment::Case(case) => {
+                                    let owner = crate::engine::custody::resolve_structural_path_type(
+                                        types, self.structural_type, &path[..index],
+                                    )?;
+                                    let declaration = types.get(&owner).ok_or_else(malformed)?;
+                                    if declaration.shape.cases().first().map(|first| first.id) != Some(*case) {
+                                        return Ok(None);
+                                    }
+                                }
+                                _ => return Ok(None),
+                            }
+                        }
                         crate::engine::custody::resolve_structural_path_type(
-                            types,
-                            self.structural_type,
-                            path,
-                        )
-                        .map(Some)
+                            types, self.structural_type, path,
+                        ).map(Some)
                     }
-                    // Case payloads have their own cells. A dynamic path must resolve to a concrete index before it can identify storage.
-                    InitialValue::ZeroRecordFields => Ok(None),
                 }
+            }
+        }
+
+        use crate::boundary::structural_inputs::case_membership::{
+            CaseSelections, StructuralCaseContents,
+        };
+
+        pub(crate) struct ArrayCases<'a> {
+            written: &'a RuntimeRows<StructuralRuntimePlace, StructuralCaseContents>,
+            initialization: &'a ArrayInitialization,
+        }
+
+        impl CaseSelections for ArrayCases<'_> {
+            fn selected(
+                &self,
+                types: &ProgramDeclarations<'_, StructuralTypeDeclaration>,
+                home: &StructuralRuntimePlace,
+            ) -> Option<StructuralCaseContents> {
+                self.written
+                    .get(home)
+                    .copied()
+                    .or_else(|| self.initialization.zero_case(types, home))
             }
         }
 
@@ -3121,7 +3157,7 @@ pub(crate) mod scalar_array {
                 Ok(())
             }
 
-            pub(crate) fn establish_zero_record_fields(
+            pub(crate) fn establish_zeroed_elements(
                 &mut self,
                 home: StructuralRuntimePlace,
                 structural_type: StructuralTypeId,
@@ -3132,13 +3168,13 @@ pub(crate) mod scalar_array {
                     ArrayInitializationState {
                         structural_type,
                         initialized: true,
-                        value: InitialValue::ZeroRecordFields,
+                        value: InitialValue::ZeroedElements,
                     },
                 )?;
                 Ok(())
             }
 
-            fn zero_record_type(
+            pub(crate) fn zero_element_type(
                 &self,
                 types: &ProgramDeclarations<'_, StructuralTypeDeclaration>,
                 home: &StructuralRuntimePlace,
@@ -3146,34 +3182,97 @@ pub(crate) mod scalar_array {
                 let Some((prefix, state)) = self.containing(home, false) else {
                     return Ok(None);
                 };
-                if !state.initialized || state.value != InitialValue::ZeroRecordFields {
+                if !state.initialized || state.value != InitialValue::ZeroedElements {
                     return Ok(None);
                 }
                 state.project(types, &home.path[prefix..])
             }
 
-            pub(crate) fn zero_record_field(
+            pub(crate) fn zero_primitive(
                 &self,
                 types: &ProgramDeclarations<'_, StructuralTypeDeclaration>,
+                home: &StructuralRuntimePlace,
+            ) -> Result<Option<crate::TerminalScalarValue>, TerminalInterpretError> {
+                let Some(owner) = self.zero_element_type(types, home)? else {
+                    return Ok(None);
+                };
+                let declaration = types.get(&owner).ok_or_else(malformed)?;
+                let scalar = match declaration.shape {
+                    StructuralTypeShape::PrimitiveScalar(scalar) => scalar,
+                    StructuralTypeShape::AtomicCell(cell) => cell.scalar_type(),
+                    _ => return Ok(None),
+                };
+                crate::TerminalScalarValue::zero(scalar)
+                    .map(Some)
+                    .ok_or_else(malformed)
+            }
+
+            pub(crate) fn cases<'a>(
+                &'a self,
+                written: &'a RuntimeRows<StructuralRuntimePlace, StructuralCaseContents>,
+            ) -> ArrayCases<'a> {
+                ArrayCases {
+                    written,
+                    initialization: self,
+                }
+            }
+
+            pub(crate) fn zero_case(
+                &self,
+                types: &ProgramDeclarations<'_, StructuralTypeDeclaration>,
+                home: &StructuralRuntimePlace,
+            ) -> Option<crate::boundary::structural_inputs::case_membership::StructuralCaseContents>
+            {
+                let structural_type = self.zero_element_type(types, home).ok()??;
+                let first = types.get(&structural_type)?.shape.cases().first()?;
+                Some(
+                    crate::boundary::structural_inputs::case_membership::StructuralCaseContents {
+                        structural_type,
+                        case: first.id,
+                    },
+                )
+            }
+
+            pub(crate) fn zero_element_field(
+                &self,
+                types: &ProgramDeclarations<'_, StructuralTypeDeclaration>,
+                written: &RuntimeRows<StructuralRuntimePlace, StructuralCaseContents>,
                 key: &crate::boundary::values::StructuralScalarRuntimeField,
             ) -> Result<Option<semantic_vocabulary::ScalarType>, TerminalInterpretError>
             {
-                if key.namespace != crate::boundary::values::StructuralFieldNamespace::Member {
+                use crate::boundary::values::StructuralFieldNamespace;
+                let Some(owner) = self.zero_element_type(types, &key.parent)? else {
                     return Ok(None);
+                };
+                match key.namespace {
+                    StructuralFieldNamespace::Member => Ok(
+                        crate::engine::custody::direct_scalar_field_type(types, owner, key.field),
+                    ),
+                    StructuralFieldNamespace::CasePayload => {
+                        let declaration = types.get(&owner).ok_or_else(malformed)?;
+                        let Some(first) = declaration.shape.cases().first() else {
+                            return Ok(None);
+                        };
+                        if written.get(&key.parent).is_some_and(|stored| {
+                            stored.structural_type != owner || stored.case != first.id
+                        }) {
+                            return Ok(None);
+                        }
+                        Ok(first
+                            .fields
+                            .iter()
+                            .find(|field| field.id == key.field && !field.relevance.is_erased())
+                            .and_then(|field| field.field_type.scalar_type()))
+                    }
                 }
-                Ok(self
-                    .zero_record_type(types, &key.parent)?
-                    .and_then(|owner| {
-                        crate::engine::custody::direct_scalar_field_type(types, owner, key.field)
-                    }))
             }
 
             pub(crate) fn reclaim_orphan_records(
                 &mut self,
                 roots: &mut std::collections::BTreeSet<u64>,
             ) {
-                // Empty arrays establish storage even when there are no scalar
-                // cells. A record's initial zero fields follow its other scalars.
+                // An empty array's marker owns its identity. The owner of a zeroed array
+                // determines when its element defaults can be reclaimed.
                 roots.extend(self.rows.iter().filter_map(|(home, state)| {
                     (state.value == InitialValue::EmptyArray).then_some(home.opaque_identity)
                 }));
@@ -3186,11 +3285,11 @@ pub(crate) mod scalar_array {
                     .any(|(_, state)| state.value == InitialValue::EmptyArray)
             }
 
-            pub(crate) fn has_zero_record_fields(&self, root: &StructuralRuntimePlace) -> bool {
+            pub(crate) fn has_zeroed_elements(&self, root: &StructuralRuntimePlace) -> bool {
                 self.containing(root, false).is_some_and(|(_, state)| {
-                    state.initialized && state.value == InitialValue::ZeroRecordFields
+                    state.initialized && state.value == InitialValue::ZeroedElements
                 }) || crate::storage::structural_storage::cells(&self.rows, root).any(
-                    |(_, state)| state.initialized && state.value == InitialValue::ZeroRecordFields,
+                    |(_, state)| state.initialized && state.value == InitialValue::ZeroedElements,
                 )
             }
 
@@ -3308,7 +3407,7 @@ pub(crate) mod scalar_array {
                 let Some((prefix, state)) = self.containing(home, false) else {
                     return Ok(None);
                 };
-                if state.value == InitialValue::ZeroRecordFields {
+                if state.value == InitialValue::ZeroedElements {
                     return Ok(None);
                 }
                 let selected = select(types, state.structural_type, &home.path[prefix..])?;
@@ -3336,8 +3435,8 @@ pub(crate) mod scalar_array {
                 source: &StructuralRuntimePlace,
                 destination: &StructuralRuntimePlace,
             ) -> Result<(), TerminalInterpretError> {
-                if let Some(owner) = original.zero_record_type(types, source)? {
-                    self.establish_zero_record_fields(destination.clone(), owner)?;
+                if let Some(owner) = original.zero_element_type(types, source)? {
+                    self.establish_zeroed_elements(destination.clone(), owner)?;
                 }
                 if let Some(structural_type) = original.initialized_type(types, bytes, source)? {
                     self.establish(types, destination.clone(), structural_type)?;
@@ -5053,7 +5152,7 @@ pub(crate) mod structural_storage {
                         };
                         case
                     } else {
-                        let contents = execution.structural_cases.require(destination)?;
+                        let contents = execution.require_case(destination)?;
                         if contents.structural_type != root {
                             return Err(malformed());
                         }
