@@ -132,7 +132,7 @@ quantification over arbitrary mathematical functions and predicates. Machine
 parameters provide symbolic subjects, but enumeration of executable declaration
 symbols cannot substitute for general mathematical quantification.
 
-Use [machine-shaped logical hypotheses](mathematical_bindings.md#logical-hypotheses-and-machine-use)
+Use [explicit theorem parameters with named proof contracts](mathematical_bindings.md#logical-hypotheses-and-machine-use)
 for universal evidence and ordinary witness bundles plus squash for existence.
 No quantifier keywords are introduced. Mathematical parameters range over terms;
 closed top-level mathematical `let` definitions and prefix application construct

@@ -64,36 +64,29 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-<a id="machine-hypothesis-without-a-binder"></a>
-### 1. Does a theorem’s machine hypothesis require an explicit binder?
-
-When a theorem writes `requires machine Step(...)` but its generic binders do not name `Step`, must the compiler reject the declaration, or does the hypothesis introduce an evidence parameter? For the latter interpretation, which argument at a citation supplies that evidence? The archived V2 compiler rejects a citation with no evidence for the root hypothesis during typing. The declaration alone still reaches lowering, where it lacks a binder slot. The corresponding declaration with an explicit machine binder gives the citation an evidence position.
-
-[Logical hypotheses and machine use](wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use) describes nested machine-shaped requirements. Its [proof-construction example](wiki/spec/proofs/mathematical_bindings.md#witnesses-existence-and-proof-construction) binds `machine Step` explicitly. An answer settles which declarations type and what evidence a citation must supply.
-
 <a id="whole-subject-region-constructor"></a>
-### 2. Which core declaration names the whole subject of an access policy?
+### 1. Which core declaration names the whole subject of an access policy?
 
 A domain can restrict reads of an entire value to one machine and writes to another. The documented policy passes `TypeSchema::root(@schema)` to both rule constructors. Which ordinary core declaration should a caller select to identify that whole subject? The access chapter gives the spelling and its meaning. The machine declaration rule reserves `::` for specific owners, and reflection defines `TypeSchema` as data. [Access plan construction](wiki/spec/resources/access.md) · [Worked domain policy](wiki/spec/language/domains.md#domain-owned-read-and-write-authority) · [Machine declarations](wiki/spec/language/machines.md#static-declarations-and-explicit-state) · [Semantic reflection](wiki/spec/language/reflection.md)
 
 The archived V2 compiler's resolver stops at `TypeSchema::root` even when the reader and writer constructors are available. With the whole region expressed as `AccessRegion::Subject { schema: schema }` and the lifetime argument supplied, the same rule call reaches typing successfully. Is that case part of the authored interface, or should callers use a module-level core machine? The choice settles the public API. The whole-subject meaning and the intersection of repeated rules are already specified.
 
 <a id="independent-product-builds"></a>
-### 3. Can one root request independent product builds and consume their artifacts?
+### 2. Can one root request independent product builds and consume their artifacts?
 
 Suppose Cathedral wants one `build.omg` to build a kernel and a bootloader, then give both binaries to an image builder. Should the root be able to name both product entries and ask the driver to start the image build once both have published? Or should a caller outside that root run the builds and supply the two immutable artifacts to the image build?
 
 Omega's own workspace lists members. Dependency registration schedules a package's build, and an import only makes declarations available. The stage plan selects an exact next entry, and the composition rules already allow a later build to consume published artifacts. What is missing for this example is who can request both independent products and deliver their results to that later stage. [Workspace example](build.omg) · [Workspaces](wiki/spec/build/declarations.md#workspaces) · [Dependency execution](wiki/spec/build/execution.md#admission-before-execution) · [Next-stage selection](wiki/spec/build/command_line.md#build-first-entry-selection) · [Composition from published artifacts](wiki/spec/build/scoped_execution.md#target-inspection-and-reflection)
 
 <a id="per-child-filesystem-grant"></a>
-### 4. How does a parent supply a particular filesystem view to a child build?
+### 3. How does a parent supply a particular filesystem view to a child build?
 
 Suppose the root wants a generator's own `build.omg` to read a captured schema directory while a sibling sees only its package snapshot. What does the parent supply at registration to bind that view to just the generator? When the invocation permits live backing and the parent constructs a narrowed view over it, must it transfer the view to the child, or can the child borrow it until the dependency join?
 
 The spec fixes the delegated context at registration, confines the default filesystem and lets the parent narrow its grant. An ordinary helper can already take a filesystem argument within the caller's activation. The public dependency description carries only source and alias information. The unresolved handoff is between separate Build activations. [Dependency description](source-rust/subsystems/compiler/build/inputs/declarations/prelude/declarations/dependency_requests.omg) · [Registration](wiki/spec/build/scoped_execution.md#dependency-declarations-and-binding) · [Filesystem delegation](wiki/spec/build/scoped_execution.md#inputs-and-default-filesystem)
 
 <a id="build-network-and-subprocess-grants"></a>
-### 5. Should an interpreted build be able to request network access or launch a host tool?
+### 4. Should an interpreted build be able to request network access or launch a host tool?
 
 A release build might need to fetch a pinned firmware image or run a vendor image packer. For each operation, should the caller perform it outside Omega and supply the captured bytes, or may the build request it through a scoped host service? If admitted, what does the consumer approve and the executor enforce for the remote resource or the executable, its inputs and its outputs?
 

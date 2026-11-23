@@ -2,13 +2,12 @@
 
 This is the starting map for the repair pass at `f572107080eda`. The readiness case ledger remains the source of the current verdict. Each row names the original cases, the producer and consumer involved, and a control that distinguishes this decision from nearby ones. Grouped cases share an observed first stop. Other failures may appear after that stop is repaired.
 
-## Cases awaiting a language-owner ruling
+## Language rulings
 
-One case still awaits a ruling. The alias case is settled by the [resource rules](../../../wiki/spec/resources/suspension.md).
-
-| Case | Decision that would change its expected output |
-| --- | --- |
-| Hypothesis outside a theorem binder | [Machine hypotheses without a binder](../../../OWNER_QUESTIONS.md#machine-hypothesis-without-a-binder) determines whether the declaration is invalid or the citation owes an implicit evidence argument. |
+The [resource rules](../../../../wiki/spec/resources/suspension.md) settle the
+alias case. The subsequent [theorem parameter ruling](../../../../wiki/spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+requires the theorem to name its proof parameter and contract alias in its
+generic header. A trailing hypothesis cannot introduce a parameter.
 
 ## Storage, views and suspension
 

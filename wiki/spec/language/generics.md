@@ -702,8 +702,10 @@ A callable alias may describe a family whose signature binds static parameters
 of its own. Such a family is usable only where the value is static. Each call
 supplies its explicit arguments under [nested callable types](#nested-contracts-and-proof-families).
 
-Prose elsewhere that speaks of a static machine binder or an evidence binder
-means a `const` parameter of callable type or of implementation type.
+An executable static machine binder or a conformance evidence binder is a
+`const` parameter of callable or implementation type. A theorem declares a
+[logical proof parameter](../proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+as `Step: Alias`. Its argument supplies checked evidence of that contract.
 
 ### Declaration identity
 
@@ -753,10 +755,9 @@ structural contract. `<machine F>` with
 `<const F: Trait::member>`. A `machine Requirement` binder with no clause is
 written `<const Requirement: reflect\CallableInfo>`. `<Order satisfies Ranked<T>>`
 is written `<const Order: Ranked<T>>`. `satisfies` remains the spelling of
-declarations and of the binding expression. Mathematical declarations keep
-their machine-shaped hypotheses and binders under
-[logical hypotheses](../proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use);
-this decision covers executable code.
+declarations and of the binding expression. For a logical hypothesis, write
+`<Step: Alias>` in the theorem header and supply its proof at the citation.
+[Theorem proof parameters](../proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
 
 <a id="forwarded-callback-requirements"></a>
 ## Inferred callable parameter types
@@ -870,10 +871,8 @@ machine forward<const Schema: StreamTransform, const Selected: Coefficient>(
 ```
 
 `Inner` belongs to the callable signature in `StreamTransform`. `Selected`
-belongs to `forward`. Each alias ends after its complete contract. The
-machine-shaped hypotheses of a mathematical declaration keep one terminator
-for each nested bodyless callable under
-[machine header delimiters](state_contracts.md#machine-header-delimiters).
+belongs to `forward`. Each alias ends after its complete contract. A nested proof parameter also
+names its own alias and stays in the header that declares it.
 
 Here `Stream` denotes an appropriate proof-only family. Refinement is
 positional: renaming `Inner` changes no contract, but changing its nested shape,

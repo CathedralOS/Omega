@@ -151,7 +151,7 @@ accepted and now always runs through the requirement.
 
 ## Left open
 
-- Mathematical declarations keep `requires machine` hypotheses and machine
-  binders used as proof-family indices. Whether those take the typed form is
-  a separate decision.
+- The later [theorem parameter ruling](../../spec/proofs/mathematical_bindings.md#logical-hypotheses-and-machine-use)
+  requires explicit, alias-typed proof parameters. Migration of machine binders
+  used as proof-family indices is a separate question.
 - Callables as runtime-capable generic indices are out of scope.

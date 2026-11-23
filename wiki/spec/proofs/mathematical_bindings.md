@@ -119,22 +119,36 @@ A kernel lambda is an elaboration result, not an anonymous source machine.
 
 ## Logical hypotheses and machine use
 
-A theorem's parameters bind arbitrary eligible mathematical subjects. Its
-premises/conclusions express implication, and nested machine-shaped requirements
-express universal logical hypotheses. A representative requirement is:
+A theorem declares each proof its caller must supply as an explicit generic
+parameter, such as `Step: NonzeroIsPositive`. A
+[named alias](../language/machine_values.md#named-structural-callable-types)
+defines the hypothesis's premises and conclusions over its own formal
+parameters. The theorem header determines the order of the proof arguments.
 
-```text
-requires machine Step(value: A)
-    requires P(value)
-    ensures Q(value);
+```omega
+data NonzeroIsPositive = machine(x: u8)
+    requires x != 0
+    ensures x > 0;
+
+machine use_step<Step: NonzeroIsPositive>(n: u8)
+requires n != 0
+ensures n > 0
+{
+    Step(n);
+}
 ```
 
-At a logical application, the supplied argument may be a checked proof term for
-that complete theorem contract, not only a selected named declaration. The term
-may have been obtained by instantiating another theorem or projecting an evidence
-bundle. The existing requirement name and contract bind this evidence; no new
-quantifier expression or anonymous body is required. Named proof machines are
-one producer of it, not the universe of admissible proofs.
+A citation such as `use_step::<nonzero_is_positive>(7)` supplies a proof that
+works for every `x` admitted by the alias. The theorem supplies the premise
+for the particular application `Step(n)`. Reject an inline `requires machine`
+hypothesis at the declaration, including one that repeats a header parameter.
+Reject a citation that omits a required proof argument.
+
+A proof argument may cite a named theorem, instantiate another theorem, or
+project checked evidence from a bundle. Check the evidence against the full
+aliased contract after substituting its arguments. If the contract itself
+takes a proof parameter, that parameter belongs to the contract's own header.
+The outer caller supplies one proof of the whole contract.
 
 Checked theorem citations may supply logical evidence under the expected
 requirement without adding a dummy Type result to theorem machines. This is
@@ -219,34 +233,30 @@ when evidence is relevant, a bundle carries that evidence explicitly, rather
 than identifying it with predicate gating. Universe levels of bundles and
 squashes follow the checked formation rules, never a fixed level-zero shortcut.
 
-The flagship theorem has mathematical parameters `P` and `Q`, at independent
-levels, logical hypothesis `Step` above, and input evidence of squashed `P`
-witness existence. Its source contract is:
+The following theorem transfers existence from predicate `P` to predicate `Q`.
+The alias takes the predicates explicitly so its contract applies to exactly
+the predicates named in the theorem header.
 
 ```omega
-machine existence_follows<
+data Implication<
     u: core\Level, v: core\Level, w: core\Level,
-    A: core\Type<u>, machine Step
->(
-    P: A -> core\Strict<v>,
-    Q: A -> core\Strict<w>,
-    present: core\Squash<Witness<u,v,A,P>>
-)
-requires machine Step(value: A)
+    A: core\Type<u>, P: A -> core\Strict<v>, Q: A -> core\Strict<w>
+> = machine(value: A)
     requires P(value)
     ensures Q(value);
+
+machine existence_follows<
+    u: core\Level, v: core\Level, w: core\Level,
+    A: core\Type<u>, P: A -> core\Strict<v>, Q: A -> core\Strict<w>,
+    Step: Implication<u,v,w,A,P,Q>
+>(
+    present: core\Squash<Witness<u,v,A,P>>
+)
 ensures core\Squash::<Witness<u,w,A,Q>>
 {
-    // Checked squash-elimination proof described below; not an empty proof.
+    // Open present, apply Step to the witness, then squash the resulting Q witness.
 }
 ```
-
-The declaration-ending semicolon on the nested `requires machine` contract
-separates its clauses from the enclosing theorem's clauses. The outer `ensures`
-has no semicolon before the body; neither do clauses within `Step` before its
-final declaration terminator. The `Step` argument may cite named
-theorem evidence or a term already checked against that logical requirement;
-the latter must not be forced through executable declaration lookup.
 
 The conclusion is squashed `Q` witness existence. The proof
 eliminates the input squash into that strict conclusion, obtains the temporary
