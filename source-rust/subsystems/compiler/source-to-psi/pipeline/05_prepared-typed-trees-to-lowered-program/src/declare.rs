@@ -262,7 +262,7 @@ pub(crate) fn declare(
                     && program.is_generic_check_form()
                     && typed
                         .machine_by_symbol(*symbol)
-                        .is_some_and(|source| !typed.machine_type_parameters(source).is_empty())
+                        .is_some_and(|source| crate::lowering::is_generic_template(typed, source))
                 {
                     Some(
                         elaboration

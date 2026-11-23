@@ -31,7 +31,7 @@ pub(crate) use access_views_and_commitments::{access_views, commitments};
 pub use callable_applications::{
     AppliedMachineCallable, AppliedMachineCallableId, AppliedStaticCallbackRequirement,
     CallableApplication, CallableContractScope, CallableSubstitution, ClosedRequirementApplication,
-    MachineInstantiation, NamedCaptureError, NamedConformanceCaptureIndex,
+    CopiedCallableBody, MachineInstantiation, NamedCaptureError, NamedConformanceCaptureIndex,
     RequirementLocalArgument,
 };
 pub use calls_and_control_flow::{calls, control_flow, names};

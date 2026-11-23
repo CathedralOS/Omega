@@ -1,0 +1,23 @@
+data Identity<T> = machine(value: T) -> T;
+machine invoke<T, const Apply: Identity<T>>(value: T) -> T { Apply(value) }
+trait IdentityMap<T> {
+    machine relay(first: T, value: T) -> T {
+        match true {
+            true -> {
+                invoke::<T, local>(first);
+                invoke::<T, local>(value)
+            },
+            false -> value,
+        }
+        machine local(value: T) -> T requires false { value }
+    }
+}
+Selected<Element> satisfies IdentityMap<Element> {}
+machine forward<T>(first: T, value: T) -> T { Selected::<T>::relay(first, value) }
+machine main() crashes Trap {
+    let x: u32 = forward::<u32>(17, 42);
+    let flag: bool = forward::<bool>(false, true);
+    transition flag && x == 42 { true -> done(), false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

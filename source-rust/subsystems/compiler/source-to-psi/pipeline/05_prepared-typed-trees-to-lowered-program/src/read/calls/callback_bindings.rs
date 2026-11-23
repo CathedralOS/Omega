@@ -306,7 +306,7 @@ impl Program<'_> {
                 Unserved::Call("supplied callable has no declared machine body"),
             )
         })?;
-        let (body, nested) = if let Some(applied) = &argument.application {
+        let actual = if let Some(applied) = &argument.application {
             if applied.member.is_valid() || !applied.lifetime_arguments.is_empty() {
                 return Err(refuse(
                     caller,
@@ -316,13 +316,17 @@ impl Program<'_> {
                     ),
                 ));
             }
-            let actual = self.application_arguments(
+            Some(self.application_arguments(
                 caller,
                 supplier,
                 target,
                 argument.authored_machine_application,
                 &applied.arguments,
-            )?;
+            )?)
+        } else {
+            self.inherited_application_arguments(caller, target)?
+        };
+        let (body, nested) = if let Some(actual) = actual {
             let body = self.application(
                 caller,
                 target,
