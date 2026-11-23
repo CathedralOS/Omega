@@ -8,16 +8,18 @@ use source_compiler::representations::source_state::types::{
     DomainConstraintSubject, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use std::collections::BTreeSet;
-use terminal_psi::{StructuralParameterDeclaration, StructuralPathSegment};
+use terminal_psi::{StructuralPathQualification, StructuralPathSegment};
 
 pub(super) fn retained(
     accepted: &AcceptedTerminalSource,
-    formal: &StructuralParameterDeclaration,
+    root: StructuralTypeId,
+    published: &[StructuralPathQualification],
     reference: TypeReferenceHandle,
 ) -> bool {
-    let root = formal.structural_type;
-    let published = &formal.projected_qualifications;
     if !published.is_empty() {
+        if !reference.is_valid() {
+            return false;
+        }
         let records = accepted.source_records();
         let Ok(index) = records.binary_search_by_key(&root, |row| row.record) else {
             return false;

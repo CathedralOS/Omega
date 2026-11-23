@@ -254,7 +254,12 @@ impl<'module> AcceptedDeclarations<'module> {
                 .state_signature_parameters(signature)
                 .get(position)
                 .ok_or_else(mismatch)?;
-            if !field_domains::retained(self.accepted, formal, parameter.type_reference) {
+            if !field_domains::retained(
+                self.accepted,
+                formal.structural_type,
+                &formal.projected_qualifications,
+                parameter.type_reference,
+            ) {
                 return Err(mismatch());
             }
             for &id in &formal.qualifications {
@@ -1471,7 +1476,17 @@ impl PolicySource<'_> {
                     && result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             );
             unretained!(result.qualifications);
-            unretained!(result.projected_qualifications);
+            let fields_retained = if completes_normally {
+                field_domains::retained(
+                    declarations.accepted,
+                    result.structural_type,
+                    &result.projected_qualifications,
+                    signature.return_type,
+                )
+            } else {
+                result.projected_qualifications.is_empty()
+            };
+            unretained!(result.projected_qualifications, !fields_retained);
         }
         if !fields.is_empty() {
             fields.sort_unstable();
