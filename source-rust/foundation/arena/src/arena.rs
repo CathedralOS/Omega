@@ -296,7 +296,16 @@ impl<T> HandleSpan<T> {
         self.count == 0
     }
 
+    /// Returns the handle at a zero-based offset within this span.
+    ///
+    /// # Panics
+    /// Panics if the offset is outside the span or the index overflows.
     pub fn handle_at(self, offset: u32) -> Handle<T> {
+        assert!(
+            offset < self.count,
+            "handle span offset {offset} out of bounds for {} rows",
+            self.count
+        );
         Handle::from_parts(
             self.start
                 .arena_index()
@@ -304,6 +313,19 @@ impl<T> HandleSpan<T> {
                 .expect("handle span index overflow"),
             self.start.generation(),
         )
+    }
+
+    /// Drops the first `offset` rows. Dropping the entire span returns an empty span.
+    pub fn suffix(self, offset: u32) -> Self {
+        let remaining = self
+            .count
+            .checked_sub(offset)
+            .expect("span suffix starts past the end");
+        if remaining == 0 {
+            Self::empty()
+        } else {
+            Self::from_parts(self.handle_at(offset), remaining)
+        }
     }
 
     pub fn handles(self) -> SpanHandles<T> {
@@ -2220,6 +2242,32 @@ mod tests {
                 assert_eq!(unique_handles_in_order(sequence), expected);
             }
         }
+    }
+
+    #[test]
+    #[should_panic(expected = "handle span offset 2 out of bounds for 2 rows")]
+    fn indexing_a_span_stops_before_the_next_row() {
+        let mut arena = Arena::new();
+        let span = arena.insert_many([10_u32, 20]);
+        arena.insert(30);
+
+        assert_eq!(*arena.get(span.handle_at(1)), 20);
+        span.handle_at(2);
+    }
+
+    #[test]
+    #[should_panic(expected = "handle span offset 0 out of bounds for 0 rows")]
+    fn an_empty_span_has_no_first_row() {
+        HandleSpan::<u32>::empty().handle_at(0);
+    }
+
+    #[test]
+    fn a_suffix_can_end_at_the_last_representable_handle() {
+        let last = Handle::<u32>::from_parts(u32::MAX, 3);
+        let span = HandleSpan::from_parts(last, 1);
+        assert_eq!(span.suffix(0), span);
+        assert_eq!(span.suffix(1), HandleSpan::empty());
+        assert_eq!(HandleSpan::<u32>::empty().suffix(0), HandleSpan::empty());
     }
 
     #[test]

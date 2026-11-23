@@ -166,11 +166,7 @@ mod child_batches {
             loop {
                 if ordinal < self.children.len() {
                     let selected = self.children.handle_at(ordinal as u32);
-                    let remaining = self.children.count() - ordinal as u32 - 1;
-                    self.children = HandleSpan::from_parts_or_empty(
-                        self.children.handle_at(ordinal as u32 + 1),
-                        remaining,
-                    );
+                    self.children = self.children.suffix(ordinal as u32 + 1);
                     return Some(selected);
                 }
                 ordinal -= self.children.len();
