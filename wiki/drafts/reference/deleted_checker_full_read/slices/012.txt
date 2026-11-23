@@ -1,0 +1,5 @@
+# slice 012: 6543 lines in 4 file range(s)
+omega-rust/psi/compilation/build-time-evaluation/src/product.rs	1	3543
+omega-rust/psi/compilation/build-time-evaluation/src/syntax_probes.rs	1	666
+omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md	1	130
+omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/assembly_and_operators.rs	1	2204

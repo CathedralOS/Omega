@@ -1,0 +1,9 @@
+# slice 075: 2482 lines in 8 file range(s)
+omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/README.md	1	18
+omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/control_flow_and_retention.rs	1	965
+omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/lib.rs	1	112
+omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/psi_optimization.rs	1	100
+omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/scalar_and_value_passes.rs	1	659
+omega-rust/psi/compilation/pipeline/08_lowered-psi-to-terminal-psi/README.md	1	31
+omega-rust/psi/compilation/pipeline/08_lowered-psi-to-terminal-psi/src/lib.rs	1	69
+omega-rust/psi/compilation/pipeline/08_lowered-psi-to-terminal-psi/src/result_policy_verification.rs	1	528

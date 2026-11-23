@@ -1,0 +1,2 @@
+# slice 115: 3771 lines in 1 file range(s)
+omega-rust/psi/compilation/validation/src/float_and_mathematical_contracts.rs	1	3771

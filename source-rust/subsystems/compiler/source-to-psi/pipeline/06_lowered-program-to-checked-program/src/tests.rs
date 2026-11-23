@@ -85,6 +85,7 @@ mod representation_views;
 mod result_fields;
 mod result_summaries;
 mod returned_views;
+mod routed_domain_writes;
 mod rule_violations;
 mod runtime_indexed_elements;
 mod scalar_joins;

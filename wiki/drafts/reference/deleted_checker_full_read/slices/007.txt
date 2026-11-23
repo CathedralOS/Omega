@@ -1,0 +1,2 @@
+# slice 007: 5276 lines in 1 file range(s)
+omega-rust/psi/compilation/build-time-evaluation/src/const_evaluation.rs	1	5276

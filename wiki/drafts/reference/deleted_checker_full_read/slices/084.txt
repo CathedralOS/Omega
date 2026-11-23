@@ -1,0 +1,10 @@
+# slice 084: 4995 lines in 9 file range(s)
+omega-rust/psi/compilation/representations/checked-trees/src/values_and_views.rs	1	2803
+omega-rust/psi/compilation/representations/lowered-psi/src/lib.rs	1	266
+omega-rust/psi/compilation/validation/README.md	1	477
+omega-rust/psi/compilation/validation/numeric_proofs.md	1	77
+omega-rust/psi/compilation/validation/recasts.md	1	268
+omega-rust/psi/compilation/validation/representation-planning/README.md	1	86
+omega-rust/psi/compilation/validation/representation-planning/selections/src/lib.rs	1	261
+omega-rust/psi/compilation/validation/representation-planning/src/lib.rs	1	81
+omega-rust/psi/compilation/validation/representation-planning/src/representation_selection.rs	1	676

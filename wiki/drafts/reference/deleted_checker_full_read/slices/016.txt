@@ -1,0 +1,4 @@
+# slice 016: 5185 lines in 3 file range(s)
+omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/selection_and_reflection.rs	1	4305
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md	1	776
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/authored_selections.md	1	104

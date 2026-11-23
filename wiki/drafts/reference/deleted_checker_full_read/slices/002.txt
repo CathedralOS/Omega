@@ -1,0 +1,26 @@
+# slice 002: 8459 lines in 25 file range(s)
+omega-rust/omega/compilation/realization/provider-planning/src/program_entry.rs	1	970
+omega-rust/omega/compilation/realization/provider-planning/src/program_entry/discovery.rs	1	100
+omega-rust/omega/compilation/realization/provider-planning/src/program_entry/source_contract.rs	1	364
+omega-rust/omega/compilation/realization/provider-planning/src/provider_declarations.rs	1	103
+omega-rust/omega/compilation/realization/provider-planning/src/provider_identity.rs	1	260
+omega-rust/omega/compilation/realization/provider-planning/src/provider_instances.rs	1	291
+omega-rust/omega/compilation/realization/provider-planning/src/provider_planning.rs	1	388
+omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/external_binding_rows.rs	1	314
+omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/provenance_replay.rs	1	517
+omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/provenance_replay/adapter_conformance.rs	1	353
+omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/provenance_replay/named_provider_plans.rs	1	269
+omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/provenance_replay/plan_derivation.rs	1	698
+omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/provider_rows.rs	1	471
+omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/selected_declarations.rs	1	107
+omega-rust/omega/compilation/realization/provider-planning/src/provider_planning/source_provider_selections.rs	1	186
+omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement.rs	1	520
+omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/assumed_bindings.rs	1	191
+omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/completion.rs	1	767
+omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/semantic_roles.rs	1	153
+omega-rust/omega/compilation/realization/provider-planning/src/sealed_accessors.rs	1	191
+omega-rust/omega/compilation/realization/provider-planning/src/service_declarations.rs	1	172
+omega-rust/omega/compilation/realization/provider-planning/src/service_schema/mod.rs	1	206
+omega-rust/omega/compilation/realization/provider-planning/src/source_guards.rs	1	91
+omega-rust/omega/compilation/realization/provider-planning/src/target_machines.rs	1	196
+omega-rust/omega/compilation/realization/provider-planning/src/target_machines/prepared_providers.rs	1	581

@@ -77,6 +77,34 @@ fn a_nested_arm_binding_may_not_reuse_its_enclosing_arm_binding() {
     );
 }
 
+/// "A runtime parameter or local cannot reuse the name of a visible value
+/// parameter or local": with two parameters of one name, every use reaches
+/// the first and the second cannot be named. The twin renames one parameter.
+#[test]
+fn two_parameters_of_one_machine_may_not_share_a_name() {
+    let positive = "machine pick(first: u32, second: u32) -> u32 { first }";
+    accepts(positive);
+    let message = refusal(&positive.replace("second", "first"));
+    assert!(
+        message.contains("has duplicate parameter `first`"),
+        "{message}"
+    );
+}
+
+/// The rule holds for each machine's own parameter list, nested ones too.
+#[test]
+fn a_nested_machine_may_not_repeat_a_parameter_name() {
+    let positive = "machine outer(seed: u32) -> u32 { \
+             transition { _ -> inner(seed, seed) } \
+             machine inner(left: u32, right: u32) -> u32 { left } }";
+    accepts(positive);
+    let message = refusal(&positive.replace("right: u32", "left: u32"));
+    assert!(
+        message.contains("has duplicate parameter `left`"),
+        "{message}"
+    );
+}
+
 #[test]
 fn different_arms_of_one_match_may_reuse_a_binding_name() {
     accepts(

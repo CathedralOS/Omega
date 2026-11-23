@@ -1,0 +1,2 @@
+# slice 066: 5348 lines in 1 file range(s)
+omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published.rs	1	5348

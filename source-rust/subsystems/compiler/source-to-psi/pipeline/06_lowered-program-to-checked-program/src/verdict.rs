@@ -1408,7 +1408,7 @@ fn conclude(
         return fall_back_or_defect(refused);
     }
     if let Err(refused) = crate::checking::static_contracts::publish(&mut elaboration) {
-        return fall_back_or_defect(refused);
+        return fall_back_or_defect(Roster::of(&elaboration).locate(refused));
     }
     let applications = &mut elaboration.module.scalars.scalar_applications;
     let mut pending = Vec::new();

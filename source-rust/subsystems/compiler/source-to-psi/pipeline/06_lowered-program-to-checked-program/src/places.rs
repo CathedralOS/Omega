@@ -1064,9 +1064,21 @@ pub(crate) struct Storage<'a> {
         OperationId,
         Vec<terminal_semantics::structural_qualifications::DefaultRequirement>,
     >,
+    /// The first operation that changes part of a value carrying a routed
+    /// domain in a machine none of that domain's routes names.
+    routed_write: Option<(OperationId, semantic_vocabulary::StructuralDomainId)>,
 }
 
 impl<'a> Storage<'a> {
+    /// A write that would keep a routed domain on a value it changes, in a
+    /// machine that may not establish that domain. The caller refuses the
+    /// machine; this model only finds the operation and the domain.
+    pub(crate) fn unauthorized_routed_write(
+        &self,
+    ) -> Option<(OperationId, semantic_vocabulary::StructuralDomainId)> {
+        self.routed_write
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         machine: MachineId,
@@ -1113,6 +1125,7 @@ impl<'a> Storage<'a> {
         for _ in 0..graph.operation_count() {
             default_operations.push(Vec::new());
         }
+        let mut routed_write = None;
         for block in &lowered.blocks {
             for (before, operation) in block.operations.iter().enumerate() {
                 let before = u32::try_from(before).map_err(|_| {
@@ -1133,6 +1146,24 @@ impl<'a> Storage<'a> {
                             error.detail,
                         )
                     })?;
+                if routed_write.is_none() {
+                    routed_write = defaults
+                        .unauthorized_routed_write(
+                            module,
+                            operation,
+                            (block.id, before),
+                            references,
+                        )
+                        .map_err(|error| {
+                            refusal(
+                                RefusalReason::ForeignIdentity,
+                                machine,
+                                Construct::Operation(operation.id),
+                                error.detail,
+                            )
+                        })?
+                        .map(|owner| (operation.id, owner.domain));
+                }
                 *default_operations.get_mut(operation.id).ok_or_else(|| {
                     refusal(
                         RefusalReason::ForeignIdentity,
@@ -1171,6 +1202,7 @@ impl<'a> Storage<'a> {
             domains,
             defaults,
             default_operations,
+            routed_write,
         };
         // Entry observations occupy position zero. Install them before the
         // operation loop appends reads in position order for binary search.

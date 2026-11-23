@@ -1,0 +1,2 @@
+# slice 133: 5870 lines in 1 file range(s)
+omega-rust/psi/compilation/validation/src/value_custody_core.rs	1	5870

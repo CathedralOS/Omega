@@ -1,0 +1,3 @@
+# slice 113: 4188 lines in 2 file range(s)
+omega-rust/psi/compilation/validation/src/effect_inference.rs	1	3767
+omega-rust/psi/compilation/validation/src/erased_actuals.rs	1	421
