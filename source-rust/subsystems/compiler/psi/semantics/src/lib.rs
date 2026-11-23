@@ -14,6 +14,7 @@ pub mod callable_values;
 pub mod entry_values;
 pub mod synchronous_calls;
 pub mod evaluation_crashes;
+pub mod external_completions;
 pub mod evaluation_scope;
 pub mod scalar_conditions;
 pub mod calls;

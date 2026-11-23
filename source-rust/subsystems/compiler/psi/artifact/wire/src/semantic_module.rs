@@ -4216,6 +4216,13 @@ pub fn decode_closed_parts(
     // checker does; an artifact cannot carry a domain the checker would refuse.
     terminal_semantics::structural_qualifications::validate(&module)
         .map_err(|error| CodecError::MalformedStructuralFoundation(error.detail))?;
+    // A stored provider of a requirement that ends the process gets the
+    // lowered-form checker's judgment too.
+    terminal_semantics::external_completions::validate(&module).map_err(|_| {
+        CodecError::MalformedStructuralFoundation(
+            "a provider of an external completion does not pass on its own arguments",
+        )
+    })?;
     // Canonical shape only; source-bound `verify_identity_formations` replays
     // the kernel. Decoding does not re-decide a carried judgment.
     crate::identity_formations::validate_identity_formations(&module)?;
