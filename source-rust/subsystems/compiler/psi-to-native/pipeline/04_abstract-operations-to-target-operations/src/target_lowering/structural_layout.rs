@@ -561,6 +561,15 @@ pub(crate) fn structural_shape(
     declarations.shape(structural_type).map_err(geometry_error)
 }
 
+pub(crate) fn parameter_storage_shape(
+    parameter: &terminal_psi::StructuralParameterDeclaration,
+    declarations: &StructuralLayouts<'_>,
+) -> Result<ValueShape, LoweringError> {
+    declarations
+        .formal_storage_shape(parameter.structural_type, parameter.access)
+        .map_err(geometry_error)
+}
+
 pub(crate) fn scalar_storage_type(
     structural_type: StructuralTypeId,
     declarations: &StructuralLayouts<'_>,
