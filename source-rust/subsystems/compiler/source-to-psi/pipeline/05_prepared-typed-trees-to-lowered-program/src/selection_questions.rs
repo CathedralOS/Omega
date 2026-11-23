@@ -217,8 +217,8 @@ pub use lowered_source_publication::selection_questions::{
     RawSelectionQuestions, RawSelectionRole, RawSelectionTarget,
 };
 
-/// Give each anonymous declaration of this form that emits no row of its own
-/// the invocation identity the lowered form uses for it.
+/// Give each anonymous declaration this form selects or names, and that emits
+/// no row of its own, the invocation identity the lowered form uses for it.
 pub(super) fn bind_invocation_declarations(
     mut questions: RawSelectionQuestions,
     typed: &TypedTrees,
@@ -237,10 +237,33 @@ pub(super) fn bind_invocation_declarations(
         emitted.insert(record.declaration);
         emitted.extend(record.fields.iter().map(|field| field.declaration));
     }
+    // Publication names a called entry by its emitted machine. A generic
+    // helper emits only its applications, so a call to it still selects the
+    // template's own entry, which needs an identity here like any other.
+    let named_by_emitted_machine = |symbol: SymbolHandle| {
+        typed.symbols.get(symbol).kind == SymbolKind::State
+            && typed
+                .unique_machine_by_entry_state_symbol(symbol)
+                .is_some_and(|(machine, _)| emitted.contains(&machine.symbol))
+    };
+    let selected = questions
+        .questions
+        .iter()
+        .filter(|question| question.designation.is_none())
+        .filter_map(|question| match question.target {
+            RawSelectionTarget::Declaration(symbol) => Some(symbol),
+            _ => None,
+        })
+        .chain(questions.dependencies.iter().map(|row| row.target));
+    let mut named = questions.declarations.clone();
+    named.extend(selected);
+    named.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+    named.dedup();
     let mut identities = std::mem::take(&mut form.module.identities).into_builder();
     let mut bound = Vec::new();
-    for &symbol in &questions.declarations {
+    for symbol in named {
         if !emitted.contains(&symbol)
+            && !named_by_emitted_machine(symbol)
             && typed.symbols.symbol_source_origin(symbol)
                 == Some(source_admission::SourceOrigin::User)
             && typed.symbols.symbol_package_identity(symbol).is_none()

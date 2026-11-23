@@ -126,11 +126,7 @@ fn deferred_product_inputs_are_inert_and_cannot_be_ordinary_reads() {
         SelectionPurpose::Product,
     );
     row.role = SelectionRole::ProductDesignation(SelectionProductDesignation {
-        site: BuildCallSite {
-            machine: MachineId::new(1).unwrap(),
-            operation: OperationId::new(1).unwrap(),
-            boundary: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
-        },
+        site: None,
         operand: 2,
         input_selection: input,
         static_application: None,
@@ -142,6 +138,23 @@ fn deferred_product_inputs_are_inert_and_cannot_be_ordinary_reads() {
         product: None,
     };
     assert!(admit_selection_questions(&module, &packet, &authorities).is_ok());
+    // This row belongs to a generic form's own check, which emits no Build
+    // call; it cannot borrow a site from the published module.
+    let SelectionRole::ProductDesignation(designation) =
+        &mut packet.questions.get_mut(question).unwrap().role
+    else {
+        unreachable!()
+    };
+    designation.site = Some(BuildCallSite {
+        machine: MachineId::new(1).unwrap(),
+        operation: OperationId::new(1).unwrap(),
+        boundary: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
+    });
+    assert!(
+        admit_selection_questions(&module, &packet, &authorities)
+            .unwrap_err()
+            .contains("Build site outside its own form")
+    );
     packet.questions.get_mut(question).unwrap().role = SelectionRole::Executable;
     assert!(
         admit_selection_questions(&module, &packet, &authorities)
@@ -322,11 +335,7 @@ fn invocation_consent_is_exact_and_confined_to_build_source_questions() {
     let input = [7; 32];
     let question = packet.questions.get_mut(id).unwrap();
     question.role = SelectionRole::ProductDesignation(SelectionProductDesignation {
-        site: BuildCallSite {
-            machine: MachineId::new(1).unwrap(),
-            operation: OperationId::new(1).unwrap(),
-            boundary: semantic_vocabulary::BoundaryMachineId::new(1).unwrap(),
-        },
+        site: None,
         operand: 2,
         input_selection: input,
         static_application: None,

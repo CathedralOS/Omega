@@ -395,33 +395,34 @@ pub fn prepare_with_source_defaults(
                     selection: provider_supply::SupplySelection::Checked(row.source.clone()),
                 })
                 .collect::<Vec<_>>();
-            let selected = choose_supply(&supplies).map_err(|reason| {
-                let detail = match reason {
-                    UnchosenSupply::Unsupplied => {
-                        "explicit source slot has no provider supply".to_owned()
-                    }
-                    UnchosenSupply::Competing(rows) => {
-                        let category = match rows[0].authority {
-                            SupplyAuthority::Build => "ConflictingOverrides",
-                            SupplyAuthority::TargetDefault => "ConflictingDefaults",
-                            SupplyAuthority::NativeBinding => "ConflictingNativeBindings",
-                        };
-                        let providers = rows
-                            .iter()
-                            .map(|row| {
-                                row.checked().map_or("<native binding>", |selection| {
-                                    selection.provider_type.authored_path.as_str()
-                                })
-                            })
-                            .collect::<Vec<_>>()
-                            .join(", ");
-                        format!("{category}: {providers}")
-                    }
-                };
-                diagnostic(format!(
-                    "source provider selection for {}: {detail}",
+            let selected = choose_supply(&supplies).map_err(|reason| match reason {
+                UnchosenSupply::Unsupplied => diagnostic(format!(
+                    "source provider selection for {}: explicit source slot has no provider supply",
                     *target
-                ))
+                )),
+                // Name who made the competing choices and which providers they
+                // chose, in the words settlement uses for the same conflict.
+                UnchosenSupply::Competing(rows) => {
+                    let declarer = match rows[0].authority {
+                        SupplyAuthority::Build => "the Build",
+                        SupplyAuthority::TargetDefault => "the target package",
+                        SupplyAuthority::NativeBinding => "native binding suppliers",
+                    };
+                    let providers = rows
+                        .iter()
+                        .map(|row| {
+                            row.checked().map_or_else(
+                                || "a native binding".to_owned(),
+                                |selection| format!("`{}`", selection.provider_type.authored_path),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" and ");
+                    diagnostic(format!(
+                        "conflicting providers on target `{}`: {declarer} declares {providers}",
+                        *target
+                    ))
+                }
             })?;
             let origin = declarations
                 .iter()
