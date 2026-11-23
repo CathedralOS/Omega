@@ -945,10 +945,9 @@ mod outgoing_premises {
 
     #[test]
     fn a_port_mechanism_binds_its_exact_checked_operation() {
-        let (mut description, artifact) = decode_component_description_with_artifact(
-            include_bytes!("tests/provider-free.component"),
-        )
-        .unwrap();
+        let (mut description, artifact) =
+            decode_component_description_with_artifact(&crate::tests::provider_free_component())
+                .unwrap();
         let mut inventory = derive_component_inventory(artifact.semantic_module()).unwrap();
         let service = semantic_vocabulary::ServiceId::new(1).unwrap();
         inventory.port_writes.insert((service, 7, 1));
