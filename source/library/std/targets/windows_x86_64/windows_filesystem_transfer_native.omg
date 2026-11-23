@@ -1,3 +1,8 @@
+use {omega}/language/core/layout.omg as layout;
+use {omega}/language/core/access/access.omg as access;
+use {omega}/language/core/reflect/reflect.omg as reflect;
+use targets/windows_x86_64/windows_filesystem_transfer.omg as transfer;
+
 use Calling;
 use WindowsFilesystemTransferCalling;
 // Exact whole-window imports. Their policy, not a first-byte reference plus
@@ -12,7 +17,15 @@ use omega\language\core\FilesystemContentWrite;
 // Zero is the failed acquisition. Only nonzero classified values may enter I/O.
 domain i64::WindowsSynchronousFileOrAbsent
 requires self != -1
-established by windows_synchronous_duplicate;
+access WindowsSynchronousFileIssuance;
+
+WindowsSynchronousFileIssuance satisfies |layout|::AccessPolicy {
+    machine plan(schema: |reflect|::TypeSchema) -> |layout|::AccessPlan reaches none crashes none terminates {
+        |access|::new_plan(@schema, |layout|::Issuance::Only { routes: [
+            |reflect|::callable(|transfer|::windows_synchronous_duplicate)
+        ] })
+    }
+}
 
 boundary trait WindowsFilesystemTransferIo: Calling<WindowsFilesystemTransferCalling> {
     machine write_file(handle: i64 in WindowsSynchronousFileOrAbsent, bytes: @[u8], transferred: @mutable u32, overlapped: u64) -> i32
