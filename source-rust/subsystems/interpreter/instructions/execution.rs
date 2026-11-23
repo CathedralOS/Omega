@@ -4614,8 +4614,9 @@ pub(crate) mod scalar_operations {
                 let first = malformed();
                 let second = malformed();
                 assert_ne!(first, second);
+                // `malformed` records its caller, so the report names this file.
                 let report = first.to_string();
-                assert!(report.contains("engine_execution.rs:"), "{report}");
+                assert!(report.contains(concat!(file!(), ":")), "{report}");
             }
         }
     }
