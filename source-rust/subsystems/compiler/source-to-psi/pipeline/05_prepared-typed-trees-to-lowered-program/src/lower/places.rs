@@ -1062,7 +1062,7 @@ fn statement_homes<'b>(
             }
         }
         Statement::Arm { guard, target, .. } => {
-            if let Some(guard) = guard {
+            if let Some(guard) = guard.condition() {
                 expression_homes(guard, slots, homes);
             }
             target_homes(target, slots, homes);
@@ -5241,7 +5241,7 @@ impl<'a> Lowering<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lowering::body::CallTarget;
+    use crate::lowering::body::{ArmGuard, CallTarget};
     use crate::lowering::{Borrowed, CrashCeiling, Policy, Signature, Termination};
     use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 
@@ -5577,7 +5577,7 @@ mod tests {
                     source,
                 }),
                 Statement::Arm {
-                    guard: None,
+                    guard: ArmGuard::Always,
                     target: Target::Value(Expression {
                         call_context: None,
                         kind: ExpressionKind::Slot(0),
@@ -5592,7 +5592,7 @@ mod tests {
         bodies.push(Body {
             slots: vec![plain],
             statements: vec![Statement::Arm {
-                guard: None,
+                guard: ArmGuard::Always,
                 target: Target::Value(Expression {
                     call_context: None,
                     kind: ExpressionKind::Slot(0),

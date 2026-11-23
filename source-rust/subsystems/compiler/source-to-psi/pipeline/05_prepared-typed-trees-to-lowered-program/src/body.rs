@@ -1018,12 +1018,9 @@ pub enum Statement {    /// At this wait the successor still observes these loca
         default: Option<(Target, SourceOrigin)>,
         source: SourceOrigin,
     },
-    /// One transition arm. With a guard, the arm runs when it is true and the
-    /// following statements run when it is false; without one, the arm runs
-    /// and nothing follows it. A `crash` statement is an unguarded arm whose
-    /// target is `Target::Crash`.
+    /// An arm that completes the current invocation.
     Arm {
-        guard: Option<Expression>,
+        guard: ArmGuard,
         target: Target,
         source: SourceOrigin,
     },
@@ -1038,6 +1035,27 @@ impl Statement {
             expression,
             discards_result: true,
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArmGuard {
+    Always,
+    When(Expression),
+    /// The checker must prove the condition on all remaining arrivals.
+    Final(Expression),
+}
+
+impl ArmGuard {
+    pub fn condition(&self) -> Option<&Expression> {
+        match self {
+            Self::Always => None,
+            Self::When(condition) | Self::Final(condition) => Some(condition),
+        }
+    }
+
+    pub fn closes_dispatch(&self) -> bool {
+        !matches!(self, Self::When(_))
     }
 }
 
@@ -1230,6 +1248,8 @@ pub enum ExpressionKind {    /// Operand indices refer to the event's source eva
     /// `default` is always present: the wildcard, or the last arm of a
     /// Boolean match whose arms name both values (patterns.md: "Boolean
     /// coverage includes true/false").
+    /// A subjectless match retains each guard. Without a wildcard the last
+    /// guard owes coverage on all remaining arrivals.
     Match {
         capture: Option<arena::Handle<crate::source_state::expression::CompletedValueCapture>>,
         subject: Box<Expression>,

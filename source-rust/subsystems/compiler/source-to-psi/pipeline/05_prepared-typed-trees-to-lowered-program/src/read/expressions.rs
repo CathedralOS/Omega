@@ -1490,12 +1490,8 @@ impl Program<'_> {
     /// value of `ready`"; "Value-position `match` | Subject once; first
     /// matching arm only").
     ///
-    /// Coverage ("Missing runtime coverage is a compile error"): only a
-    /// wildcard closes a ladder of conditions here. patterns.md also lets
-    /// complementary equality and inequality guards over unchanged subjects
-    /// cover their domain; no ladder is judged that way yet, so one without
-    /// `_` is refused, as "Other value/comparison ladders ... require a
-    /// wildcard" requires of the rest.
+    /// Without a wildcard, the final guard must hold on every remaining
+    /// arrival. Lowering records that obligation on the edge into its arm.
     fn guarded_match(
         &mut self,
         id: MachineId,
@@ -1543,7 +1539,7 @@ impl Program<'_> {
                 None => default = Some(Box::new(value)),
             }
         }
-        if default.is_none() {
+        if arms.is_empty() && default.is_none() {
             return Err(reject(
                 id,
                 source,

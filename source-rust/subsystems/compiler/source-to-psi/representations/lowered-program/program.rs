@@ -76,6 +76,8 @@ impl SourceOrigin {
 /// The invariant carries the proposition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EstablishedCondition {
+    /// Every remaining arrival must satisfy the last authored guard.
+    DispatchCoverage,
     /// `value as +D` for a domain with predicates
     /// (`wiki/spec/language/domains.md`, "Domain-only casts": "Has
     /// predicates | Prove them for this value."). Holds the domain's stated

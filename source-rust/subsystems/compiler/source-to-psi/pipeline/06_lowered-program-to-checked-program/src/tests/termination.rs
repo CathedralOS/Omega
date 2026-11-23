@@ -159,7 +159,7 @@ fn lower_ranked(
         slots: parameters.clone(),
         statements: vec![
             Statement::Arm {
-                guard: Some(positive),
+                guard: ArmGuard::When(positive),
                 target: Target::Value(call(1, vec![next, slot(1, u32_type())])),
                 source: nowhere(),
             },

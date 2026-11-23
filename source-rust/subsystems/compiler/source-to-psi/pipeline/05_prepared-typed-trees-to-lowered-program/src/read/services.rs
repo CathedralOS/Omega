@@ -1127,7 +1127,7 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut CallCollector<'a>
             }
         }
         Statement::Arm { guard, target, .. } => {
-            if let Some(guard) = guard {
+            if let Some(guard) = guard.condition() {
                 collect_expression(guard, calls);
             }
             collect_target(target, calls);

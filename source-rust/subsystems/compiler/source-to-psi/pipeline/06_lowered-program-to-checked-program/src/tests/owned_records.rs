@@ -103,7 +103,7 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
         statements: vec![
             Statement::discard(read(place(0, point()), 0)),
             Statement::Arm {
-                guard: None,
+                guard: ArmGuard::Always,
                 target: Target::Crash(semantic_vocabulary::CrashCause::Trap),
                 source: nowhere(),
             },

@@ -151,7 +151,7 @@ fn calls_with(argument: u128) -> (crate::lowering::Elaboration, Discharge) {
         slots: vec![u32_type().into()],
         statements: vec![
             Statement::Arm {
-                guard: Some(zero()),
+                guard: ArmGuard::When(zero()),
                 target: Target::Crash(semantic_vocabulary::CrashCause::Trap),
                 source: nowhere(),
             },

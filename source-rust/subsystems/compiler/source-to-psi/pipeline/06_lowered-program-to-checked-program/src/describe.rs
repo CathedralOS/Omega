@@ -237,6 +237,12 @@ fn established_predicate_arrival(
         .find(|(block, _)| *block == established)?
         .1
     {
+        EstablishedCondition::DispatchCoverage => {
+            return Some(format!(
+                "cannot prove the last guard covers every remaining arrival in {}. Add a `_ ->` arm",
+                owner(names, site)
+            ));
+        }
         EstablishedCondition::RankRange => {
             return Some(format!(
                 "cannot prove the normalized `terminates by` measure lies in its declared rank range in {}",
