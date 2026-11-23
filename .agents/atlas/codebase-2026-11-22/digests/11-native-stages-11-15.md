@@ -160,6 +160,7 @@ Stage 11:
 - x86 `trapping_form` returns `None` for other kinds (`X64sfe:21667`). Open, not traced past `:2989`.
 - Validators accept by design: two non-trapping truncate forms accept each other's bytes (`X64sfe:7076-7085`), equal-shape trapping forms likewise (test `:20239`), and a different unused scratch register (test `:20106`). Traced to tests.
 - `S11/adapters.rs:267-292`: `X86RequireEqual` and `X86IncrementChecked` use `codec_index()` without an architecture check; `X86DescriptorStore` shifts `operation << 3` unchecked (`:294`); `X86Require` pushes a raw byte (`:304`). Open.
+  - Rechecked on 2026-11-23. The ordinary adapter encoder accepted `X86RequireEqual` with `xmm0` and emitted a comparison on `rax`. Both `X86RequireEqual` and `X86IncrementChecked` now require the calling convention's x86 general-purpose register code. The native-encoding test `integer_adapter_checks_require_an_x86_general_purpose_register` covers x86 vector registers and both AArch64 register banks. The descriptor operation and branch condition remain open.
 - `S11/physical_stack_switch.rs:57`, `:64`: any width other than 8, 4, 2 is encoded as a one-byte move. Open in `unit_019`; my check found the one producer emits only 8, 4, 2, 1 (checked).
 - `S11/row_encoding.rs:269-271`: unnamed kinds go to `encode_scalar`, relying on the ISA encoder to refuse. Open.
 - `S11/frame_protocol.rs:103`: frame encoding is independently checked only when `audit` is true. Stated.
