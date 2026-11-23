@@ -37,7 +37,7 @@ fn snapshot_entry(entry: &CapturedSourceEntry) -> SourceSnapshotEntry<'_> {
 
 impl CapturedBuildSourceInput {
     pub fn lookup(&self, path: &[u8]) -> Result<SourceSnapshotEntry<'_>, SourceSnapshotError> {
-        if !source_snapshot_path_is_canonical(path) {
+        if !filesystem_authority::source_snapshot_path_is_canonical(path, true) {
             return Err(SourceSnapshotError::InvalidPath);
         }
         for (index, byte) in path.iter().enumerate() {
@@ -126,15 +126,4 @@ impl CapturedBuildSourceInput {
         }
         Ok(children)
     }
-}
-
-fn source_snapshot_path_is_canonical(path: &[u8]) -> bool {
-    std::str::from_utf8(path).is_ok()
-        && !path.contains(&0)
-        && !path.contains(&b'\\')
-        && !(path.len() >= 2 && path[1] == b':')
-        && (path.is_empty()
-            || path
-                .split(|byte| *byte == b'/')
-                .all(|component| !component.is_empty() && component != b"." && component != b".."))
 }

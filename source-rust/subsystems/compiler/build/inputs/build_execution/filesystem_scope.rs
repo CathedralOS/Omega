@@ -258,7 +258,7 @@ impl BuildMachineFilesystemScope {
         } else {
             self.canonical_source_metadata = Some(input.canonical_source_metadata().clone());
         }
-        Ok(self.bind_captured_source_input(input))
+        self.bind_captured_source_input(input)
     }
 
     fn with_scoped_package_source_input(
@@ -273,13 +273,17 @@ impl BuildMachineFilesystemScope {
                 "scoped build source input does not match the validated complete package capture",
             )]);
         }
-        Ok(self.bind_captured_source_input(input))
+        self.bind_captured_source_input(input)
     }
 
-    fn bind_captured_source_input(mut self, input: CapturedBuildSourceInput) -> Self {
+    fn bind_captured_source_input(
+        mut self,
+        input: CapturedBuildSourceInput,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        input.validate_snapshot_paths()?;
         self.captured_source_input = Some(input);
         self.live_source = None;
-        self
+        Ok(self)
     }
 
     pub(crate) fn with_named_inputs(

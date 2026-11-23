@@ -28,6 +28,16 @@ pub fn canonical_filesystem_metadata_path_is_canonical(relative: &[u8], allow_em
         .any(|component| component.is_empty() || component == b"." || component == b"..")
 }
 
+/// Logical names exposed by an immutable Build snapshot must round-trip as UTF-8.
+pub fn source_snapshot_path_is_canonical(relative: &[u8], allow_root: bool) -> bool {
+    canonical_filesystem_metadata_path_is_canonical(relative, allow_root)
+        && std::str::from_utf8(relative).is_ok()
+        && !relative.split(|byte| *byte == b'/').any(|component| {
+            component.first().is_some_and(u8::is_ascii_alphabetic)
+                && component.get(1) == Some(&b':')
+        })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceCaptureObligation {
     Required, // Member must exist under the captured root; absence fails capture.
@@ -53,14 +63,7 @@ impl SourceCaptureRequest {
     ) -> Result<Self, String> {
         let mut request = BTreeMap::new();
         for (relative_path, obligation) in entries {
-            let drive_qualified = relative_path.split(|byte| *byte == b'/').any(|component| {
-                component.first().is_some_and(u8::is_ascii_alphabetic)
-                    && component.get(1) == Some(&b':')
-            });
-            if std::str::from_utf8(&relative_path).is_err()
-                || drive_qualified
-                || !canonical_filesystem_metadata_path_is_canonical(&relative_path, false)
-            {
+            if !source_snapshot_path_is_canonical(&relative_path, false) {
                 return Err(format!(
                     "source capture entry is not a canonical relative path: {relative_path:?}"
                 ));

@@ -115,13 +115,16 @@ impl BuildFilesystemRuntime {
         root: FilesystemGrantRootIdentity,
         relative: &[u8],
     ) -> Result<(), String> {
-        if !filesystem_root_relative_path_is_canonical(relative, false) {
-            return Err("Build path is not a canonical relative path".into());
-        }
-        if root != BUILD_OUTPUT_ROOT_IDENTITY
-            && !(root == BUILD_SOURCE_ROOT_IDENTITY && self.effects.scope.live_source.is_some())
-        {
+        let host_backed = root == BUILD_OUTPUT_ROOT_IDENTITY
+            || (root == BUILD_SOURCE_ROOT_IDENTITY && self.effects.scope.live_source.is_some());
+        let canonical = if host_backed {
+            filesystem_root_relative_path_is_canonical(relative, false)
+        } else {
             self.snapshot(root)?;
+            filesystem_authority::source_snapshot_path_is_canonical(relative, false)
+        };
+        if !canonical {
+            return Err("Build path is not a canonical relative path".into());
         }
         Ok(())
     }
@@ -832,6 +835,55 @@ mod tests {
         .unwrap();
         scope.establish_filesystem_access().unwrap();
         scope
+    }
+
+    #[test]
+    fn source_and_named_inputs_validate_only_the_selected_snapshot() {
+        use build_output::{SourceSnapshotEntry, SourceSnapshotError};
+        let capture = |names: &[&[u8]]| {
+            let rows = std::iter::once(b"".as_slice())
+                .chain(names.iter().copied())
+                .map(|name| CanonicalFilesystemMetadataRow::new(name, Kind::Directory));
+            CapturedBuildSourceInput::from_capture_rows(
+                CanonicalFilesystemMetadataIndex::version_1([42; 32], rows).unwrap(),
+                names
+                    .iter()
+                    .map(|name| (name.to_vec(), CapturedSourceEntry::Directory)),
+            )
+            .unwrap()
+        };
+        let scope = |input: &CapturedBuildSourceInput| {
+            BuildMachineFilesystemScope::for_admitted_root(
+                ".".into(),
+                "out".into(),
+                None,
+                Some(input.canonical_source_metadata().clone()),
+            )
+        };
+        for path in [b"C:notes".as_slice(), b"assets/X:notes", &[0xff]] {
+            let inventory = capture(&[b"assets", b"clean", path]);
+            assert_eq!(
+                inventory.lookup(path),
+                Err(SourceSnapshotError::InvalidPath)
+            );
+            assert!(
+                scope(&inventory)
+                    .with_captured_source_input(inventory.clone())
+                    .is_err()
+            );
+            assert!(
+                crate::BuildSnapshotRequest::new([])
+                    .with_inputs([(b"assets".to_vec(), inventory.clone())])
+                    .is_err()
+            );
+            scope(&inventory)
+                .with_scoped_package_source_input(capture(&[b"clean"]), &inventory)
+                .unwrap();
+        }
+        let name = "7:café".as_bytes();
+        let input = capture(&[name]);
+        assert_eq!(input.lookup(name), Ok(SourceSnapshotEntry::Directory));
+        scope(&input).with_captured_source_input(input).unwrap();
     }
 
     #[test]
