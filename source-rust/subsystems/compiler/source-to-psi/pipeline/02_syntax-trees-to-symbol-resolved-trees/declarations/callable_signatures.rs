@@ -191,7 +191,8 @@ impl SignatureInputs {
                 }
                 TypeParameterKind::Machine {
                     contract: Some(MachineParameterContract::Structural(required)),
-                } => {
+                }
+                | TypeParameterKind::Proof { contract: required } => {
                     self.signature(syntax, required, Some(scope));
                 }
                 TypeParameterKind::Machine {

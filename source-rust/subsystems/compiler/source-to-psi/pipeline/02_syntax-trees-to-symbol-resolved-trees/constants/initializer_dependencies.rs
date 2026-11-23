@@ -355,7 +355,10 @@ mod types {
                     | TypeParameterKind::Value { type_reference } => {
                         self.queue_type(type_reference)
                     }
-                    TypeParameterKind::Machine {
+                    TypeParameterKind::Proof {
+                        contract: signature,
+                    }
+                    | TypeParameterKind::Machine {
                         contract: MachineParameterContract::Structural(signature),
                     } => {
                         self.signature(signature)?;

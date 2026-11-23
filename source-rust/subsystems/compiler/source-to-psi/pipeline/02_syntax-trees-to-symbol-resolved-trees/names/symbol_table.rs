@@ -483,28 +483,20 @@ mod children {
                 .iter()
                 .zip(SymbolTableBuilder::child_handles(children))
             {
-                match &parameter.kind {
-                    TypeParameterKind::Machine { contract } => {
-                        if let Some(contract) = contract.structural() {
-                            insert_callable_signature_children(
-                                builder,
-                                program,
-                                symbol,
-                                contract,
-                                has_sources,
-                            );
-                        }
-                    }
-                    TypeParameterKind::Proposition { contract } => {
-                        builder.insert_children(
-                            symbol,
-                            parameter_seeds(
-                                program.state_parameters(contract.parameters),
-                                has_sources,
-                            ),
-                        );
-                    }
-                    _ => {}
+                if let Some(contract) = parameter.kind.contract_signature() {
+                    insert_callable_signature_children(
+                        builder,
+                        program,
+                        symbol,
+                        contract,
+                        has_sources,
+                    );
+                }
+                if let TypeParameterKind::Proposition { contract } = &parameter.kind {
+                    builder.insert_children(
+                        symbol,
+                        parameter_seeds(program.state_parameters(contract.parameters), has_sources),
+                    );
                 }
             }
         }
@@ -558,18 +550,16 @@ mod children {
             let Some(parameter_symbol) = children.next() else {
                 break;
             };
+            if let Some(contract) = parameter.kind.contract_signature() {
+                insert_callable_signature_children(
+                    builder,
+                    program,
+                    parameter_symbol,
+                    contract,
+                    has_sources,
+                );
+            }
             match &parameter.kind {
-                TypeParameterKind::Machine { contract } => {
-                    if let Some(contract) = contract.structural() {
-                        insert_callable_signature_children(
-                            builder,
-                            program,
-                            parameter_symbol,
-                            contract,
-                            has_sources,
-                        );
-                    }
-                }
                 TypeParameterKind::Implementation => {
                     if let Some(bound) = bounds
                         .iter()
@@ -648,25 +638,20 @@ mod children {
             let Some(parameter_symbol) = children.next() else {
                 break;
             };
-            match &parameter.kind {
-                TypeParameterKind::Machine { contract } => {
-                    if let Some(contract) = contract.structural() {
-                        insert_callable_signature_children(
-                            builder,
-                            program,
-                            parameter_symbol,
-                            contract,
-                            has_sources,
-                        );
-                    }
-                }
-                TypeParameterKind::Proposition { contract } => {
-                    builder.insert_children(
-                        parameter_symbol,
-                        parameter_seeds(program.state_parameters(contract.parameters), has_sources),
-                    );
-                }
-                _ => {}
+            if let Some(contract) = parameter.kind.contract_signature() {
+                insert_callable_signature_children(
+                    builder,
+                    program,
+                    parameter_symbol,
+                    contract,
+                    has_sources,
+                );
+            }
+            if let TypeParameterKind::Proposition { contract } = &parameter.kind {
+                builder.insert_children(
+                    parameter_symbol,
+                    parameter_seeds(program.state_parameters(contract.parameters), has_sources),
+                );
             }
         }
     }

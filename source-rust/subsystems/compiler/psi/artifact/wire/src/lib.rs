@@ -45,7 +45,12 @@ pub use identity_formations::{
     ExpectedIdentityFormation, ExpectedIdentityFormations, verify_identity_formations,
 };
 mod mathematical_proof_actual;
+mod theorem_citations;
 pub(crate) use mathematical_proof_actual::indexed_theorem_roots;
+pub use theorem_citations::{
+    TheoremCitationContext, theorem_citation_actual, theorem_citation_context,
+    validate_theorem_evidence, validate_theorem_parameters, validate_theorem_supply_sites,
+};
 mod module_wire;
 mod obligation_evidence;
 mod sections;

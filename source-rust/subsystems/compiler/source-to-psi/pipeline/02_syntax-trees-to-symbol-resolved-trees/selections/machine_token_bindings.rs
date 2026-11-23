@@ -1156,6 +1156,9 @@ impl<'program> ShapeNormalizer<'program> {
                     TypeParameterKind::Value { type_reference } => {
                         format!("value {}", self.type_shape(type_reference))
                     }
+                    TypeParameterKind::Proof { contract } => {
+                        format!("proof {}", self.callable_shape(contract))
+                    }
                     TypeParameterKind::Machine {
                         contract: MachineParameterContract::Structural(signature),
                     } => self.callable_shape(signature),

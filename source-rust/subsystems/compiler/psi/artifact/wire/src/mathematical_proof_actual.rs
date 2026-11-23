@@ -234,10 +234,7 @@ pub(crate) mod slots {
                     .identities
                     .text(b.type_identity)
                     .filter(|s| !s.is_empty());
-                a.source_position != b.source_position
-                    || left.is_none()
-                    || right.is_none()
-                    || left != right
+                a.source != b.source || left.is_none() || right.is_none() || left != right
             })
         {
             return Err(Error::SourceCarrierMismatch);
@@ -590,13 +587,89 @@ pub fn mathematical_carrier_key(
     arena: &TermArena,
     certificate: &MathematicalCertificate,
 ) -> Result<Vec<u8>, CodecError> {
+    let prefix = mathematical_kernel::certificate_type_signature_prefix(arena, certificate)
+        .map_err(|_| {
+            CodecError::MalformedMathematicalCertificate(
+                "mathematical type has an invalid dependency",
+            )
+        })?;
     encode_mathematical_certificate(
         arena,
         &MathematicalCertificate {
+            signature: certificate.signature[..prefix].to_vec(),
             term: certificate.expected,
             ..certificate.clone()
         },
     )
+}
+
+#[cfg(test)]
+mod type_key_tests {
+    use super::*;
+    use mathematical_kernel::{Declaration, Level, Sort, Term};
+
+    fn constant(arena: &mut TermArena, declaration: u32) -> mathematical_kernel::TermHandle {
+        arena.insert(Term::Constant {
+            declaration,
+            levels: Vec::new(),
+        })
+    }
+
+    #[test]
+    fn a_private_proof_declaration_does_not_change_or_authorize_its_required_type() {
+        let mut arena = TermArena::new();
+        let strict = arena.insert(Term::Sort(Sort::Strict(Level::Constant(0))));
+        let proposition = constant(&mut arena, 0);
+        let required = MathematicalCertificate::with_signature(
+            vec![Declaration::assumption(0, strict)],
+            Vec::new(),
+            proposition,
+            proposition,
+        );
+        let key = mathematical_carrier_key(&arena, &required).unwrap();
+        let witness = constant(&mut arena, 1);
+        let supplied = MathematicalCertificate::with_signature(
+            vec![
+                Declaration::assumption(0, strict),
+                Declaration::assumption(0, proposition),
+            ],
+            Vec::new(),
+            witness,
+            proposition,
+        );
+        assert_eq!(mathematical_carrier_key(&arena, &supplied).unwrap(), key);
+        let actual = ProofTerm::Mathematical {
+            type_identity: "required-P".into(),
+            certificate: encode_mathematical_certificate(&arena, &supplied).unwrap(),
+        };
+        assert!(
+            matches!(verify_mathematical_proof_actual(
+            &actual, "required-P", &key, &BTreeSet::from([0]), &mut Budget::default()
+        ), Err(MathematicalProofActualError::UngrantedAssumptions(missing)) if missing == BTreeSet::from([1])),
+            "discarding a proof-only type-key suffix grants none of its assumptions"
+        );
+    }
+
+    #[test]
+    fn distinct_opaque_declarations_keep_their_original_positions() {
+        let mut arena = TermArena::new();
+        let strict = arena.insert(Term::Sort(Sort::Strict(Level::Constant(0))));
+        let left = constant(&mut arena, 0);
+        let right = constant(&mut arena, 1);
+        let signature = vec![
+            Declaration::assumption(0, strict),
+            Declaration::assumption(0, strict),
+        ];
+        let carrier =
+            |ty| MathematicalCertificate::with_signature(signature.clone(), Vec::new(), ty, ty);
+        assert_ne!(
+            mathematical_carrier_key(&arena, &carrier(left)).unwrap(),
+            mathematical_carrier_key(&arena, &carrier(right)).unwrap(),
+            "unused-prefix removal must never rename P and Q to the same constant"
+        );
+        let foreign = constant(&mut arena, 2);
+        assert!(mathematical_carrier_key(&arena, &carrier(foreign)).is_err());
+    }
 }
 
 pub fn verify_mathematical_proof_actual(

@@ -32,6 +32,11 @@ pub enum TypeParameterKind {
     Value {
         type_reference: crate::types::TypeReferenceHandle,
     },
+    /// A callable header requests evidence of this complete aliased contract.
+    /// This is a declaration to check, not an executable machine selection.
+    Proof {
+        contract: StateSignature,
+    },
     Machine {
         contract: Option<MachineParameterContract>,
     },

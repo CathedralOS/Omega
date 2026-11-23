@@ -278,6 +278,9 @@ pub mod calls {
             },
             Machine(StaticMachineArgument),
             Conformance(StaticMachineArgument),
+            /// An explicit logical citation, retained for checking. It does
+            /// not select executable code or establish its requested contract.
+            Proof(StaticMachineArgument),
         }
 
         impl Default for StaticMachineBindingValue {

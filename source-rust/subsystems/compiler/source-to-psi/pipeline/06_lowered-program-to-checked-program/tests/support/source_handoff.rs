@@ -268,41 +268,61 @@ impl Program {
     pub fn judged(&self, change: impl FnOnce(&mut Elaboration)) -> Verdict {
         let mut altered = self.lowered.clone();
         change(altered.closure.as_mut().unwrap());
-        let mut verdicts = judge_compilation(TerminalCompilation::Prepared(altered)).into_iter();
-        let verdict = verdicts.next().expect("one module, one verdict");
-        assert!(verdicts.next().is_none(), "the program is one module");
-        match verdict {
-            Ok(RouteVerdict::Accepted(_)) => Verdict::Accepted,
-            Ok(RouteVerdict::Rejected {
-                violations,
-                unproved,
-                unestablished,
-                conflicts,
-                exceeded,
-                formations,
-            }) => Verdict::Rejected(Rejection {
-                violations: violations
-                    .iter()
-                    .map(|violation| violation.statement.clone())
-                    .collect(),
-                unproved: unproved
-                    .iter()
-                    .map(|owed| format!("{:?}", owed.kind))
-                    .collect(),
-                unestablished: unestablished
-                    .iter()
-                    .map(|used| used.detail.clone())
-                    .collect(),
-                conflicts: conflicts
-                    .iter()
-                    .map(|loan| loan.statement.clone())
-                    .collect(),
-                exceeded: exceeded.iter().map(|call| call.statement.clone()).collect(),
-                formations: formations.len(),
-            }),
-            Ok(RouteVerdict::FallBack(refusal)) => Verdict::Unserved(refusal),
-            Err(CompilationRefusal::Elaboration(refusal)) => Verdict::Refused(refusal),
-            other => panic!("{other:?}"),
+        let mut verdicts: Vec<_> = judge_compilation(TerminalCompilation::Prepared(altered))
+            .into_iter()
+            .map(|verdict| match verdict {
+                Ok(RouteVerdict::Accepted(_)) => Verdict::Accepted,
+                Ok(RouteVerdict::Rejected {
+                    violations,
+                    unproved,
+                    unestablished,
+                    conflicts,
+                    exceeded,
+                    formations,
+                }) => Verdict::Rejected(Rejection {
+                    violations: violations
+                        .iter()
+                        .map(|violation| violation.statement.clone())
+                        .collect(),
+                    unproved: unproved
+                        .iter()
+                        .map(|owed| format!("{:?}", owed.kind))
+                        .collect(),
+                    unestablished: unestablished
+                        .iter()
+                        .map(|used| used.detail.clone())
+                        .collect(),
+                    conflicts: conflicts
+                        .iter()
+                        .map(|loan| loan.statement.clone())
+                        .collect(),
+                    exceeded: exceeded.iter().map(|call| call.statement.clone()).collect(),
+                    formations: formations.len(),
+                }),
+                Ok(RouteVerdict::FallBack(refusal)) => Verdict::Unserved(refusal),
+                Err(CompilationRefusal::Elaboration(refusal)) => Verdict::Refused(refusal),
+                Ok(RouteVerdict::Incomplete(unproved)) => {
+                    Verdict::Incomplete(unproved.iter().map(|owed| format!("{owed:?}")).collect())
+                }
+                Ok(RouteVerdict::AcceptedPrefix(_)) => Verdict::Incomplete(vec![
+                    "a checked prefix still needs an admitted successor".into(),
+                ]),
+                Err(CompilationRefusal::Binding(defect)) => Verdict::Binding(format!("{defect:?}")),
+            })
+            .collect();
+        assert!(!verdicts.is_empty(), "the compilation needs a verdict");
+        if verdicts.len() == 1 {
+            return verdicts.remove(0);
+        }
+        // Generic forms and the concrete closure all owe their own check.
+        // Preserve every failure instead of selecting one successful result.
+        if verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, Verdict::Accepted))
+        {
+            Verdict::Accepted
+        } else {
+            Verdict::Multiple(verdicts)
         }
     }
 
@@ -339,6 +359,10 @@ pub struct Rejection {
 #[derive(Debug)]
 pub enum Verdict {
     Accepted,
+    /// Every returned generic form and closure verdict, when any failed.
+    Multiple(Vec<Verdict>),
+    Incomplete(Vec<String>),
+    Binding(String),
     /// The checker judged the program and found it wrong.
     Rejected(Rejection),
     /// The lowered program disagrees with itself: the checker's answer to a

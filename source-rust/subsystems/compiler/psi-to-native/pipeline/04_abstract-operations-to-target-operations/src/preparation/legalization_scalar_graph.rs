@@ -3337,9 +3337,7 @@ pub(crate) mod control {
     }
 }
 pub(crate) mod element_views {
-    use crate::preparation::structural_inputs::structural_reference_input::{
-        ReferenceSourceGeometry, descriptor_source_geometry,
-    };
+    use crate::preparation::structural_inputs::structural_reference_input::ReferenceSourceGeometry;
     use terminal_psi::{StructuralAccess, StructuralArgument};
 
     pub(crate) fn descriptor_geometry(

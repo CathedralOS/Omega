@@ -35,7 +35,10 @@ pub(super) enum RequirementHeaderOrigin {
     Declared(SymbolHandle),
     AppliedService {
         requirement: SymbolHandle,
-        receiver: (SymbolHandle, crate::source_state::type_identity::NormalizedTypeIdentity),
+        receiver: (
+            SymbolHandle,
+            crate::source_state::type_identity::NormalizedTypeIdentity,
+        ),
     },
     CallableParameter(SymbolHandle),
 }
@@ -906,11 +909,14 @@ impl<'t> Program<'t> {
         let typed = self.typed;
         if let Some(closed) = typed.closed_requirement_application(requirement) {
             if closed.declaring_trait != declaring_trait
-                || !typed.trait_machine_signature(closed.template).is_some_and(|(owner, _)| {
-                    owner.symbol == declaring_trait
-                })
+                || !typed
+                    .trait_machine_signature(closed.template)
+                    .is_some_and(|(owner, _)| owner.symbol == declaring_trait)
             {
-                return Err(super::services::unavailable(id, "the applied requirement belongs to another trait"));
+                return Err(super::services::unavailable(
+                    id,
+                    "the applied requirement belongs to another trait",
+                ));
             }
             typed.require_closed_requirement_call_application(requirement, closed.application)
                 .map_err(|reason| super::services::unavailable(id, reason))?;
@@ -1635,9 +1641,16 @@ impl<'t> Program<'t> {
         // declaration: they are different constructs with different work
         // behind them, and one shared text sent a reader to the wrong one.
         let unserved_parameters = |what| Err(refuse_parameters(id, what, machine.name.as_str()));
+        // A logical parameter selects no executable specialization. Retain its
+        // erased formal when reading the body; callers still supply its proof.
         match reading {
             Reading::Closed | Reading::Implementation | Reading::Provider
-                if parameters.is_empty() => {}
+                if parameters.iter().all(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        crate::source_state::data::TypeParameterKind::Proof { .. }
+                    )
+                }) => {}
             Reading::Closed | Reading::Implementation | Reading::Provider => {
                 return unserved_parameters("generic machine read without arguments");
             }
@@ -1648,6 +1661,7 @@ impl<'t> Program<'t> {
                     match parameter.kind {
                         crate::source_state::data::TypeParameterKind::Implementation
                         | crate::source_state::data::TypeParameterKind::Const { .. }
+                        | crate::source_state::data::TypeParameterKind::Proof { .. }
                         | crate::source_state::data::TypeParameterKind::Machine {
                             contract:
                                 crate::source_state::data::MachineParameterContract::Structural(_)
@@ -1676,6 +1690,7 @@ impl<'t> Program<'t> {
                         parameter.kind,
                         crate::source_state::data::TypeParameterKind::Type
                             | crate::source_state::data::TypeParameterKind::Const { .. }
+                            | crate::source_state::data::TypeParameterKind::Proof { .. }
                             | crate::source_state::data::TypeParameterKind::Machine {
                                 contract: crate::source_state::data::MachineParameterContract::Structural(
                                     _
@@ -2141,6 +2156,7 @@ impl<'t> Program<'t> {
                 Unserved::Spelling("type parameter without a symbol"),
             ));
         }
+        self.read_theorem_parameters(id, machine)?;
         if matches!(reading, Reading::GenericEntry | Reading::Alternative(_)) {
             // Definition arguments belong to this preceding scope. Keep their
             // const binders here before adding any definition frame; actual
@@ -4796,6 +4812,11 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         out.push((span, binder.clone()));
     }
     match &expression.kind {
+        ExpressionKind::TheoremApplication { arguments, .. } => {
+            for argument in arguments {
+                spans(argument, binder, out);
+            }
+        }
         ExpressionKind::Atomic(operation) => {
             for operand in operation.inputs() {
                 spans(operand, binder, out);

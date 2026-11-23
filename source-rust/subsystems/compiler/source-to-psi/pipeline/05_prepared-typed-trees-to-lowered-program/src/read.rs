@@ -42,8 +42,8 @@ mod clause_calls;
 mod constant_values;
 mod contracts;
 mod expressions;
-mod float_meaning;
 mod fixed_bytes;
+mod float_meaning;
 pub(crate) mod logical;
 mod machine;
 mod mathematics;
@@ -70,6 +70,7 @@ mod static_contexts;
 pub(crate) mod storage_metadata;
 mod storage_path;
 mod subjects;
+mod theorems;
 mod traits;
 mod transitions;
 mod type_equations;
@@ -188,6 +189,8 @@ pub(crate) struct Program<'t> {
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
+    pub(crate) theorem_parameters: Vec<terminal_psi::TheoremParameter>,
+    pub(crate) theorem_parameter_sources: Vec<theorems::PreparedTheoremParameter>,
     /// Requirement headers keep their exact source parameter origins until
     /// the call closure completes their omitted bounds.
     declared_envelope_policies: IdTable<MachineId, Option<services::Policy>>,
@@ -518,6 +521,8 @@ impl<'t> Program<'t> {
             shared,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
+            theorem_parameters: Vec::new(),
+            theorem_parameter_sources: Vec::new(),
             declared_envelope_policies: IdTable::default(),
             checking_envelopes: IdTable::default(),
             callables: crate::lowering::callables::CallableNamespace::default(),
@@ -920,10 +925,10 @@ mod tests {
         use crate::source_inputs::SourceMap;
         use crate::source_state::domain::{DomainDefinition, ProofFact};
         use language_core::DomainPredicatePresence;
-        use source_provenance::DependencyScope;
         use semantic_vocabulary::Proposition;
         use source_admission::SourceOrigin;
         use source_admission::SourceResolutionStratum;
+        use source_provenance::DependencyScope;
         use source_text::SourceSpan;
 
         // Each domain's subject is the record `Point`: lowering refuses a
@@ -1044,6 +1049,7 @@ mod tests {
             &bodies,
             &components,
             crate::lowering::body::Signatures {
+                theorems: &program.theorem_parameters,
                 machines: &program.signatures,
                 declarations: &program.declaration_signatures,
                 declaration_aliases: None,
@@ -2272,6 +2278,7 @@ mod tests {
                 required_contract: None,
                 static_reach_binding: None,
                 static_reach_arguments: Vec::new(),
+                proof_arguments: Vec::new(),
             },
             result: None,
             source,

@@ -118,6 +118,10 @@ pub enum Justification {
     /// value outside its required domain", so the caller proved it where it
     /// passed the formal.
     FormalType,
+    /// The supplied implication applies only after its exact premises on this edge.
+    /// `wiki/spec/proofs/mathematical_bindings.md`, "Logical hypotheses and
+    /// machine use": "application supplies their proof at the exact substitution."
+    TheoremGuarantee { edge: EdgeId, clause: u32 },
     /// One normal-return guarantee of a callee, by position, on the normal
     /// continuation of that invocation. calls_and_outcomes.md: "They apply
     /// only on normal return".

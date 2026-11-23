@@ -2746,6 +2746,7 @@ pub mod signatures {
                 TypeParameterKind::Type => CallingOperandKind::Type,
                 TypeParameterKind::Const { .. } => CallingOperandKind::Const,
                 TypeParameterKind::Value { .. } => CallingOperandKind::Value,
+                TypeParameterKind::Proof { .. } => CallingOperandKind::Proof,
                 TypeParameterKind::Machine { .. } => CallingOperandKind::Machine,
                 TypeParameterKind::Implementation => CallingOperandKind::Implementation,
                 TypeParameterKind::Proposition { .. } => CallingOperandKind::Proposition,

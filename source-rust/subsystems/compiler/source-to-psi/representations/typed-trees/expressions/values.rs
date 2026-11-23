@@ -1151,6 +1151,7 @@ pub mod expression {
                 let symbols = symbols.into();
                 match &mut binding.value {
                     StaticMachineBindingValue::Machine(argument)
+                    | StaticMachineBindingValue::Proof(argument)
                     | StaticMachineBindingValue::Conformance(argument) => {
                         self.remap_static_argument_symbols(argument, symbols)
                     }
@@ -1167,7 +1168,11 @@ pub mod expression {
                 self.native_code_layout
                     .iter()
                     .map(|request| &request.operand)
-                    .chain(self.layout_query.iter().filter_map(|request| request.type_operand()))
+                    .chain(
+                        self.layout_query
+                            .iter()
+                            .filter_map(|request| request.type_operand()),
+                    )
                     .chain(
                         self.private_layout_operation
                             .iter()
@@ -1535,6 +1540,9 @@ pub mod expression {
                         );
                     }
                     if let crate::source_state::static_applications::StaticMachineBindingValue::Machine(
+                        argument,
+                    )
+                    | crate::source_state::static_applications::StaticMachineBindingValue::Proof(
                         argument,
                     )
                     | crate::source_state::static_applications::StaticMachineBindingValue::Conformance(
@@ -3710,6 +3718,9 @@ pub mod expression {
                 .to_vec();
             for binding in &mut bindings {
                 if let crate::source_state::static_applications::StaticMachineBindingValue::Machine(argument)
+                | crate::source_state::static_applications::StaticMachineBindingValue::Proof(
+                    argument,
+                )
                 | crate::source_state::static_applications::StaticMachineBindingValue::Conformance(
                     argument,
                 ) = &mut binding.value

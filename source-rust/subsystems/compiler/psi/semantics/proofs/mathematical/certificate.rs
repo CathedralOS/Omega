@@ -214,9 +214,7 @@ mod batch {
     mod tests {
         use super::*;
         use crate::Level;
-        use crate::{
-            DEFAULT_CONVERSION_STEPS, Sort, verify_mathematical_certificate,
-        };
+        use crate::{DEFAULT_CONVERSION_STEPS, Sort, verify_mathematical_certificate};
 
         fn judgment(padding: bool) -> (TermArena, MathematicalCertificate) {
             let mut arena = TermArena::new();
@@ -586,11 +584,8 @@ mod batch {
                 verify_mathematical_certificate(&mut arena, &certificate, &mut Budget::new(0))
                     .expect("single verification uses complete handle judgments");
                 let source_nodes = arena.len();
-                verify_mathematical_certificates(
-                    &[(&arena, &certificate)],
-                    &mut Budget::new(0),
-                )
-                .expect("batch verification imports and checks the same complete judgment");
+                verify_mathematical_certificates(&[(&arena, &certificate)], &mut Budget::new(0))
+                    .expect("batch verification imports and checks the same complete judgment");
                 assert_eq!(
                     arena.len(),
                     source_nodes,
@@ -690,6 +685,44 @@ pub fn certificate_assumption_closure(
         .chain([certificate.term, certificate.expected])
         .collect();
     judgment_assumption_closure(arena, &signature, &roots)
+}
+
+/// A required type does not change when its proof appends private declarations.
+/// Keep the whole original prefix through its last dependency, so opaque
+/// declarations retain their positions and distinct types never collapse.
+pub fn certificate_type_signature_prefix(
+    arena: &TermArena,
+    certificate: &MathematicalCertificate,
+) -> Result<usize, CoreError> {
+    let mut pending = certificate.context.clone();
+    pending.push(certificate.expected);
+    let mut visited = Vec::new();
+    let mut required = 0;
+    while let Some(handle) = pending.pop() {
+        let node = arena.try_node(handle).ok_or(CoreError::DummyTerm)?;
+        match visited.binary_search_by_key(
+            &(handle.arena_index(), handle.generation()),
+            |saved: &TermHandle| (saved.arena_index(), saved.generation()),
+        ) {
+            Ok(_) => continue,
+            Err(position) => visited.insert(position, handle),
+        }
+        if let crate::Term::Constant { declaration, .. } = node {
+            let index = *declaration as usize;
+            let row = certificate
+                .signature
+                .get(index)
+                .ok_or(CoreError::UnknownDeclaration {
+                    declaration: *declaration,
+                    signature_len: certificate.signature.len(),
+                })?;
+            required = required.max(index + 1);
+            pending.push(row.ty);
+            pending.extend(row.body);
+        }
+        pending.extend(node.children());
+    }
+    Ok(required)
 }
 
 #[cfg(test)]
@@ -827,11 +860,8 @@ mod tests {
             let second = if invalid == 1 { zero } else { identity };
             let term = arena.insert(Term::Pair { first, second });
             let certificate = MathematicalCertificate::closed(Vec::new(), term, expected);
-            let checked = verify_mathematical_certificate(
-                &mut arena,
-                &certificate,
-                &mut default_budget(),
-            );
+            let checked =
+                verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget());
             assert_eq!(checked.is_ok(), invalid == 0, "case {invalid}: {checked:?}");
         }
     }
@@ -852,11 +882,8 @@ mod tests {
             let term = lambda(&mut arena, annotation, zero);
             let expected = pi(&mut arena, two, two);
             let certificate = MathematicalCertificate::closed(Vec::new(), term, expected);
-            let checked = verify_mathematical_certificate(
-                &mut arena,
-                &certificate,
-                &mut default_budget(),
-            );
+            let checked =
+                verify_mathematical_certificate(&mut arena, &certificate, &mut default_budget());
             if valid {
                 checked.expect("a well-typed computational annotation remains valid");
             } else {

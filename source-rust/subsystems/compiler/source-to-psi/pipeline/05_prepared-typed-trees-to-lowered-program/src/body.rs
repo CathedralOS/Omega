@@ -620,6 +620,7 @@ pub struct RankRange {
 /// creates a machine body nor selects a provider.
 #[derive(Clone, Copy)]
 pub(crate) struct Signatures<'a> {
+    pub theorems: &'a [terminal_psi::TheoremParameter],
     pub machines: &'a IdTable<MachineId, Signature>,
     pub declarations: &'a IdTable<semantic_vocabulary::ContractId, Signature>,
     pub declaration_aliases:
@@ -1089,6 +1090,11 @@ impl AtomicOperation {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExpressionKind {    /// Operand indices refer to the event's source evaluation order.
     Atomic(AtomicOperation),
+    /// Apply the supplied implication to fixed subjects without executing a call.
+    TheoremApplication {
+        proof_position: u32,
+        arguments: Vec<Expression>,
+    },
     /// The enclosing match's already captured place, never its selector again.
     SavedSubject(arena::Handle<crate::source_state::expression::CompletedValueCapture>),
     Integer(IntegerValue),
@@ -1313,6 +1319,7 @@ pub enum ExpressionKind {    /// Operand indices refer to the event's source eva
         required_contract: Option<semantic_vocabulary::ContractId>,
         static_reach_binding: Option<u32>,
         static_reach_arguments: Vec<terminal_psi::static_reach::StaticReachArgument>,
+        proof_arguments: Vec<terminal_psi::TheoremSource>,
         arguments: Vec<Expression>,
         designated: Option<DesignatedOperands>,
     },

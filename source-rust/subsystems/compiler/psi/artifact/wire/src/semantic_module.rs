@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 291`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 292`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -222,6 +222,30 @@ pub(crate) mod canonical_order {
                 .iter()
                 .map(|invariant| (invariant.machine, invariant.header)),
             "scalar block invariants by machine and header",
+        )?;
+        require_increasing(
+            module
+                .proofs
+                .theorem_parameters
+                .iter()
+                .map(|row| (row.machine, row.proof_position)),
+            "logical parameters by machine and header position",
+        )?;
+        require_increasing(
+            module
+                .proofs
+                .theorem_applications
+                .iter()
+                .map(|row| (row.machine, row.edge)),
+            "logical applications by machine and edge",
+        )?;
+        require_increasing(
+            module
+                .proofs
+                .theorem_citations
+                .iter()
+                .map(|row| (row.machine, row.site, row.proof_position)),
+            "logical supplies by machine, site and header position",
         )?;
         for invariant in &module.proofs.scalar_block_invariants {
             validate_canonical_proposition(&invariant.predicate)?;
@@ -1086,9 +1110,13 @@ pub(crate) mod dynamic_result_admission {
     ) -> Result<(), CodecError> {
         let mut rows = Vec::new();
         for table in &module.execution.dynamic_dispatch.tables {
-            let interface = module.execution.dynamic_dispatch.interface(table.interface).ok_or(
-                CodecError::MalformedStructuralFoundation("dynamic table has no interface"),
-            )?;
+            let interface = module
+                .execution
+                .dynamic_dispatch
+                .interface(table.interface)
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "dynamic table has no interface",
+                ))?;
             if table.rows.len() != interface.slots.len() {
                 return malformed("dynamic table row count disagrees with its interface");
             }
@@ -1231,12 +1259,10 @@ pub(crate) mod external_provider_wire {
         };
         let numeric_intrinsic = if reader.boolean()? {
             Some(
-                numerics::intrinsics::NumericIntrinsic::from_canonical_encoding(
-                    reader.array()?,
-                )
-                .ok_or(CodecError::MalformedStructuralFoundation(
-                    "invalid external provider numeric meaning",
-                ))?,
+                numerics::intrinsics::NumericIntrinsic::from_canonical_encoding(reader.array()?)
+                    .ok_or(CodecError::MalformedStructuralFoundation(
+                        "invalid external provider numeric meaning",
+                    ))?,
             )
         } else {
             None
@@ -2239,7 +2265,9 @@ mod numeric_intrinsic_tests {
         module.identities = identity_table(3);
         let signature = meaning.signature().unwrap();
         let result = match signature.result {
-            NumericResult::Primitive(primitive) => ScalarType::from_numeric_type(primitive).unwrap(),
+            NumericResult::Primitive(primitive) => {
+                ScalarType::from_numeric_type(primitive).unwrap()
+            }
             NumericResult::Boolean => ScalarType::Boolean,
             NumericResult::FloatClass => panic!("this helper creates scalar boundaries"),
         };
@@ -2314,7 +2342,10 @@ mod numeric_intrinsic_tests {
             let mut module = module(meaning);
             let boundary = &mut module.interfaces.boundary_machines[0];
             match mutation {
-                0 => boundary.scalar_parameters[0] = ScalarType::from_numeric_type(NumericType::F64).unwrap(),
+                0 => {
+                    boundary.scalar_parameters[0] =
+                        ScalarType::from_numeric_type(NumericType::F64).unwrap()
+                }
                 1 => boundary.result = BoundaryMachineResult::Unit,
                 2 => boundary.role = BoundaryDeclarationRole::ContractEvidence,
                 3 => {
@@ -3367,7 +3398,8 @@ mod routed_scalar_tests {
                         premises: Vec::new(),
                     },
                 },
-            });
+            },
+        );
         module.execution.declaration_contracts.push(public);
         let decoded = decode_module(&encode_module(&module).unwrap()).unwrap();
         assert_eq!(decoded, module);
@@ -4129,8 +4161,8 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 291 records suspension frontiers and generic contracts without data carry policies.
-pub(crate) const FORMAT_MARKER: u16 = 291;
+// Marker 292 retains theorem parameter contracts, applications and cited derivations.
+pub(crate) const FORMAT_MARKER: u16 = 292;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4219,6 +4251,10 @@ pub fn decode_closed_parts(
     // Canonical shape only; source-bound `verify_identity_formations` replays
     // the kernel. Decoding does not re-decide a carried judgment.
     crate::identity_formations::validate_identity_formations(&module)?;
+    crate::validate_theorem_parameters(&module)
+        .map_err(CodecError::MalformedStructuralFoundation)?;
+    crate::validate_theorem_evidence(&module, &mut mathematical_kernel::Budget::default())
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     dynamic_result_admission::validate_dynamic_descriptor_results(&module)?;
     opaque_storage
         .restore(&mut module)
@@ -4376,96 +4412,102 @@ mod normal_qualification_tests {
             });
         }
         let domain = StructuralDomainId::new(1).unwrap();
-        module.types.structural_domains.push(StructuralDomainDeclaration {
-            subject_identity: Default::default(),
-            access_policy: None,
-            id: domain,
-            semantic_domain: DomainSemanticId::new(1).unwrap(),
-            identity: TerminalIdentityIndex(10),
-            carrier: type_id(1),
-            required_memberships: Some(Vec::new()),
-            complete_predicate_theory: false,
-            predicate: None,
-            content_projection: None,
-            byte_predicate: None,
-            establishment_routes: None,
-        });
-        module.interfaces.boundary_machines.push(BoundaryMachineDeclaration {
-            id: BoundaryMachineId::new(1).unwrap(),
-            declaration: None,
-            role: terminal_psi::BoundaryDeclarationRole::Callable,
-            kind: BoundaryRequirementKind::Machine,
-            completion: BoundaryCompletion::NormalReturn,
-            numeric_intrinsic: None,
-            unconditional_termination: false,
-            identity: TerminalIdentityIndex(11),
-            owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
-            attachment: None,
-            scalar_parameters: Vec::new(),
-            parameter_order: vec![BoundaryParameterKind::Structural; 3],
-            crash_routes: Vec::new(),
-            structural_parameters: [1, 4, 3]
+        module
+            .types
+            .structural_domains
+            .push(StructuralDomainDeclaration {
+                subject_identity: Default::default(),
+                access_policy: None,
+                id: domain,
+                semantic_domain: DomainSemanticId::new(1).unwrap(),
+                identity: TerminalIdentityIndex(10),
+                carrier: type_id(1),
+                required_memberships: Some(Vec::new()),
+                complete_predicate_theory: false,
+                predicate: None,
+                content_projection: None,
+                byte_predicate: None,
+                establishment_routes: None,
+            });
+        module
+            .interfaces
+            .boundary_machines
+            .push(BoundaryMachineDeclaration {
+                id: BoundaryMachineId::new(1).unwrap(),
+                declaration: None,
+                role: terminal_psi::BoundaryDeclarationRole::Callable,
+                kind: BoundaryRequirementKind::Machine,
+                completion: BoundaryCompletion::NormalReturn,
+                numeric_intrinsic: None,
+                unconditional_termination: false,
+                identity: TerminalIdentityIndex(11),
+                owner: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+                attachment: None,
+                scalar_parameters: Vec::new(),
+                parameter_order: vec![BoundaryParameterKind::Structural; 3],
+                crash_routes: Vec::new(),
+                structural_parameters: [1, 4, 3]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(position, carrier)| StructuralParameterDeclaration {
+                        place: PlaceId::new(position as u64 + 1).unwrap(),
+                        position: position as u32,
+                        structural_type: type_id(carrier),
+                        multiplicity: StructuralMultiplicity::Affine,
+                        access: StructuralAccess::MutableBorrow,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                    })
+                    .collect(),
+                result: BoundaryMachineResult::Unit,
+                requires: vec![StructuralDomainRequirement {
+                    argument_index: 1,
+                    path: vec![field(8)],
+                    domain,
+                }],
+                membership_ensures: Vec::new(),
+                normal_qualifications: [
+                    (0, Vec::new()),
+                    (1, vec![field(8)]),
+                    (
+                        2,
+                        vec![
+                            StructuralPathSegment::Referent,
+                            StructuralPathSegment::AllElements,
+                        ],
+                    ),
+                ]
                 .into_iter()
-                .enumerate()
-                .map(|(position, carrier)| StructuralParameterDeclaration {
-                    place: PlaceId::new(position as u64 + 1).unwrap(),
-                    position: position as u32,
-                    structural_type: type_id(carrier),
-                    multiplicity: StructuralMultiplicity::Affine,
-                    access: StructuralAccess::MutableBorrow,
-                    qualifications: Vec::new(),
-                    projected_qualifications: Vec::new(),
-                    additional_input_qualifications: Vec::new(),
+                .map(|(argument_index, path)| StructuralDomainRequirement {
+                    argument_index,
+                    path,
+                    domain,
                 })
                 .collect(),
-            result: BoundaryMachineResult::Unit,
-            requires: vec![StructuralDomainRequirement {
-                argument_index: 1,
-                path: vec![field(8)],
-                domain,
-            }],
-            membership_ensures: Vec::new(),
-            normal_qualifications: [
-                (0, Vec::new()),
-                (1, vec![field(8)]),
-                (
-                    2,
-                    vec![
-                        StructuralPathSegment::Referent,
-                        StructuralPathSegment::AllElements,
-                    ],
-                ),
-            ]
-            .into_iter()
-            .map(|(argument_index, path)| StructuralDomainRequirement {
-                argument_index,
-                path,
-                domain,
-            })
-            .collect(),
-            scalar_domain_requirements: Vec::new(),
-            scalar_requires: Vec::new(),
-            scalar_ensures: Vec::new(),
-            result_reference_regions: Vec::new(),
-            result_lifetimes: None,
-            reference_outputs: vec![BoundaryReferenceOutput {
-                destination: BoundaryReferenceDestination::Parameter(2),
-                path: Vec::new(),
-                access: StructuralAccess::MutableBorrow,
-                dependencies: vec![BoundaryLifetimeDependency::Stored {
-                    argument_index: 2,
+                scalar_domain_requirements: Vec::new(),
+                scalar_requires: Vec::new(),
+                scalar_ensures: Vec::new(),
+                result_reference_regions: Vec::new(),
+                result_lifetimes: None,
+                reference_outputs: vec![BoundaryReferenceOutput {
+                    destination: BoundaryReferenceDestination::Parameter(2),
                     path: Vec::new(),
                     access: StructuralAccess::MutableBorrow,
+                    dependencies: vec![BoundaryLifetimeDependency::Stored {
+                        argument_index: 2,
+                        path: Vec::new(),
+                        access: StructuralAccess::MutableBorrow,
+                    }],
                 }],
-            }],
-            program_local_root_introductions: Vec::new(),
-            content_guarantees: Vec::new(),
-            fixed_service_reach: Vec::new(),
-            service_reach_is_installation_bound: false,
-            owning_service: None,
-            published_synchronous_entries: Vec::new(),
-            published_service_ceiling: Vec::new(),
-        });
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                fixed_service_reach: Vec::new(),
+                service_reach_is_installation_bound: false,
+                owning_service: None,
+                published_synchronous_entries: Vec::new(),
+                published_service_ceiling: Vec::new(),
+            });
         module
     }
 

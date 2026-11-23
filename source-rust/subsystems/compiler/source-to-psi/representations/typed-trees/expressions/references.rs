@@ -668,6 +668,7 @@ pub(crate) mod source_occurrences {
                             }
                         }
                         StaticMachineBindingValue::Machine(argument)
+                        | StaticMachineBindingValue::Proof(argument)
                         | StaticMachineBindingValue::Conformance(argument) => {
                             self.retain_static_operand_sources(
                                 std::slice::from_mut(argument),
@@ -2643,6 +2644,7 @@ fn visit_static_machine_bindings_inner(
                 visit_expression(program, retained, *expression);
             }
             StaticMachineBindingValue::Machine(argument)
+            | StaticMachineBindingValue::Proof(argument)
             | StaticMachineBindingValue::Conformance(argument) => {
                 visit_static_argument(program, retained, argument)
             }
@@ -3308,7 +3310,9 @@ pub fn visit_signature(
     {
         match invocation.target {
             AuthoredInvocationTarget::Service(symbol) => visit_symbol(retained, symbol),
-            AuthoredInvocationTarget::AppliedService(id) => visit_service_reach(program, retained, id),
+            AuthoredInvocationTarget::AppliedService(id) => {
+                visit_service_reach(program, retained, id)
+            }
             _ => {}
         }
     }
@@ -4029,6 +4033,7 @@ fn visit_type_parameters(
             | TypeParameterKind::Value { type_reference } => {
                 visit_type_reference(program, retained, *type_reference)
             }
+            TypeParameterKind::Proof { contract } => visit_signature(program, retained, contract),
             TypeParameterKind::Machine { contract } => {
                 let signature = match contract {
                     crate::source_state::data::MachineParameterContract::Structural(signature) => {
@@ -4201,7 +4206,9 @@ fn visit_machine_with_sidecars(
     for invocation in program.machine_invokes(machine) {
         match invocation.target {
             AuthoredInvocationTarget::Service(symbol) => visit_symbol(retained, symbol),
-            AuthoredInvocationTarget::AppliedService(id) => visit_service_reach(program, retained, id),
+            AuthoredInvocationTarget::AppliedService(id) => {
+                visit_service_reach(program, retained, id)
+            }
             _ => {}
         }
     }
@@ -4211,8 +4218,12 @@ fn visit_machine_with_sidecars(
             for &(_, index) in sidecar_symbol_rows(&sidecars.service_reaches, from) {
                 for target in &program.authored_service_reach_rows[index as usize].targets {
                     match target.service {
-                        crate::source_state::signature::ReachSubject::Static(symbol) => visit_symbol(retained, symbol),
-                        crate::source_state::signature::ReachSubject::Service(id) => visit_service_reach(program, retained, id),
+                        crate::source_state::signature::ReachSubject::Static(symbol) => {
+                            visit_symbol(retained, symbol)
+                        }
+                        crate::source_state::signature::ReachSubject::Service(id) => {
+                            visit_service_reach(program, retained, id)
+                        }
                     }
                 }
             }
@@ -4220,8 +4231,12 @@ fn visit_machine_with_sidecars(
             for row in program.authored_service_reach_rows_for(from) {
                 for target in &row.targets {
                     match target.service {
-                        crate::source_state::signature::ReachSubject::Static(symbol) => visit_symbol(retained, symbol),
-                        crate::source_state::signature::ReachSubject::Service(id) => visit_service_reach(program, retained, id),
+                        crate::source_state::signature::ReachSubject::Static(symbol) => {
+                            visit_symbol(retained, symbol)
+                        }
+                        crate::source_state::signature::ReachSubject::Service(id) => {
+                            visit_service_reach(program, retained, id)
+                        }
                     }
                 }
             }

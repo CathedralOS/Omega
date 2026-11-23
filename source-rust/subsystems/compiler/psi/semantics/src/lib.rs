@@ -11,13 +11,13 @@ pub mod bytes;
 pub mod call_projection;
 pub mod callable_envelopes;
 pub mod callable_values;
+pub mod calls;
+pub mod content_transformations;
 pub mod entry_values;
-pub mod synchronous_calls;
 pub mod evaluation_crashes;
 pub mod evaluation_scope;
 pub mod scalar_conditions;
-pub mod calls;
-pub mod content_transformations;
+pub mod synchronous_calls;
 pub use content_transformations::{domain_preservation, quotients};
 pub mod control_graph;
 pub mod descriptors;
@@ -41,6 +41,7 @@ pub mod structural;
 pub mod structural_qualifications;
 pub mod substitution;
 pub mod suspension_frontier;
+pub mod theorems;
 
 pub(crate) use ::wire::digest_encoder;
 pub use access::access_lifecycles::{
@@ -186,6 +187,10 @@ pub use calls::call_composition::{
     fixed_collection_storage_window, fixed_element_array_extent, shared_boundary_buffer_capacity,
     stored_view_field_presentation, validate_call_composition_semantic_rows,
 };
+pub use operations::{
+    OperationSemanticCustody, OperationSemanticError, OperationSemanticRow, OperationSemanticTag,
+    exact_operation_semantic_row_in, operation_semantic_row,
+};
 pub use references::reference_views::{
     borrowed_field_presentation, descriptor_geometry_matches, descriptor_reborrow_matches,
     descriptor_reborrow_shapes_match, descriptor_source_projection_accessible,
@@ -224,15 +229,6 @@ pub use scalars::scalar_leaf_schema::{
 pub use scalars::scalar_leaf_semantics::{
     GoalFreeScalarLeafSemantics, ScalarLeafLiteral, SortedValueTypes, ValueTypes,
     constant_goal_free_scalar_leaf, goal_free_scalar_leaf_semantics,
-};
-pub use terminal_psi::types::representation_views::{
-    ScalarRepresentationViewPair, ScalarViewValue, declaration as representation_view_declaration,
-    reference_storage_byte_width, reference_storage_view_is_compatible, scalar_reference_view_is_total,
-    scalar_reference_view_value,
-};
-pub use operations::{
-    OperationSemanticCustody, OperationSemanticError, OperationSemanticRow, OperationSemanticTag,
-    exact_operation_semantic_row_in, operation_semantic_row,
 };
 pub use storage::arrival_storage::{
     StorageNames, arrival_parameter, borrowed_storage_parameter,
@@ -303,6 +299,11 @@ pub use structural::zeroed_structural::{
     zeroed_structural_leaves, zeroed_structural_leaves_modulo_references,
     zeroed_structural_leaves_with_established_erased_fields, zeroed_structural_shape,
     zeroed_structural_types_and_fields_satisfy,
+};
+pub use terminal_psi::types::representation_views::{
+    ScalarRepresentationViewPair, ScalarViewValue, declaration as representation_view_declaration,
+    reference_storage_byte_width, reference_storage_view_is_compatible,
+    scalar_reference_view_is_total, scalar_reference_view_value,
 };
 
 pub use descriptors::descriptor_lifetimes;

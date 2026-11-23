@@ -75,6 +75,68 @@ pub(crate) mod borrow_wire {
         }
     }
 }
+
+mod theorem_parameter_wire {
+    use crate::obligation_evidence::Certificate;
+    use crate::wire_fields::{
+        Field, Id, InvocationSite, List, Proposition, U32, wire_enum, wire_record,
+    };
+    use psi_callable_encoding::signatures::Declaration;
+    use terminal_psi::{
+        TheoremApplication, TheoremCitation, TheoremContract, TheoremParameter, TheoremSource,
+    };
+
+    wire_enum! {
+        Source: TheoremSource, "TheoremSource" {
+            1 => Named(machine: Id),
+            2 => Formal(position: U32),
+        }
+    }
+
+    struct ScalarTerm;
+    impl Field<semantic_vocabulary::ScalarTerm> for ScalarTerm {
+        fn write(
+            writer: &mut crate::wire::Writer,
+            term: &semantic_vocabulary::ScalarTerm,
+        ) -> Result<(), crate::CodecError> {
+            crate::scalar_term_wire::encode_scalar_term(writer, term)
+        }
+
+        fn read(
+            reader: &mut crate::wire::Reader<'_>,
+        ) -> Result<semantic_vocabulary::ScalarTerm, crate::CodecError> {
+            crate::scalar_term_wire::decode_scalar_term(reader)
+        }
+    }
+
+    wire_record! {
+        Contract: TheoremContract {
+            parameters: List<Declaration>,
+            requires: List<Proposition>,
+            ensures: List<Proposition>,
+        }
+        Parameter: TheoremParameter {
+            machine: Id,
+            proof_position: U32,
+            contract: Contract,
+        }
+        Application: TheoremApplication {
+            machine: Id,
+            edge: Id,
+            successor: Id,
+            proof_position: U32,
+            arguments: List<ScalarTerm>,
+            requirements: List<Id>,
+        }
+        Citation: TheoremCitation {
+            machine: Id,
+            site: InvocationSite,
+            proof_position: U32,
+            source: Source,
+            derivations: List<Certificate>,
+        }
+    }
+}
 pub(crate) mod boundary_application_wire {
 
     use super::super::CodecError;
@@ -603,6 +665,7 @@ pub(crate) mod calling_signature_wire {
                 Machine => 3,
                 Implementation => 4,
                 Proposition => 5,
+                Proof => 6,
             });
             Ok(())
         }
@@ -617,6 +680,7 @@ pub(crate) mod calling_signature_wire {
                 3 => Machine,
                 4 => Implementation,
                 5 => Proposition,
+                6 => Proof,
                 _ => {
                     return Err(CodecError::MalformedStructuralFoundation(
                         "unknown calling operand kind",
@@ -3943,6 +4007,9 @@ module_wire_record! {
             task_activation_demands,
         },
         proofs: terminal_psi::ProgramProofs {
+            theorem_parameters,
+            theorem_applications,
+            theorem_citations,
             indexed_theorems,
             proposition_declarations,
             proposition_applications,
@@ -3962,6 +4029,9 @@ module_wire_record! {
     vocabulary_marker: Vocabulary,
     entry: Optional<callable_wire::Callable>,
     identities: Identities,
+    theorem_parameters: List<theorem_parameter_wire::Parameter>,
+    theorem_applications: List<theorem_parameter_wire::Application>,
+    theorem_citations: List<theorem_parameter_wire::Citation>,
     indexed_theorems: List<IndexedTheorem>,
     mathematical_carriers: List<MathematicalCarrier>,
     identity_formations: IdentityFormations,

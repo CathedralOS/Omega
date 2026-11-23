@@ -803,6 +803,9 @@ pub mod data {
         Value {
             type_reference: TypeReferenceHandle,
         },
+        Proof {
+            contract: crate::source_state::signature::StateSignature,
+        },
         Machine {
             contract: MachineParameterContract,
         },
@@ -1411,9 +1414,11 @@ pub mod domain {
                     || program.normalized_type_identity_text(type_reference),
                     |primitive| primitive.name(),
                 )),
-            TypeReferenceNode::FixedArray {
-                ..
-            } if program.closed_fixed_array_length(type_reference).is_some() => Ok(program.normalized_type_identity_text(type_reference)),
+            TypeReferenceNode::FixedArray { .. }
+                if program.closed_fixed_array_length(type_reference).is_some() =>
+            {
+                Ok(program.normalized_type_identity_text(type_reference))
+            }
             TypeReferenceNode::Constrained { base_type, .. } => {
                 const_index_type_name(program, *base_type)
             }
@@ -1726,11 +1731,7 @@ pub mod domain {
             true
         }
 
-        pub fn set_theory(
-            &mut self,
-            position: usize,
-            theory: Result<DomainDefinition, String>,
-        ) {
+        pub fn set_theory(&mut self, position: usize, theory: Result<DomainDefinition, String>) {
             self.rows[position].theory = Some(theory);
         }
     }
@@ -2765,8 +2766,8 @@ pub mod numeric_intrinsics {
         }
     }
 }
-pub use crate::source_state::operator_declarations::operator;
 pub use crate::definitions::{product_operand, trait_definition};
+pub use crate::source_state::operator_declarations::operator;
 pub mod visibility {
     use symbols::{SymbolHandle, SymbolKind};
 

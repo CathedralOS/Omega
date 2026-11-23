@@ -16,8 +16,8 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        // Combined callable/source identities, typed conversions and owned cleanup.
-        142
+        // Logical proof parameters retain implications without executable selections.
+        143
     }
 }
 

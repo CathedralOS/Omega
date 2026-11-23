@@ -134,7 +134,7 @@ impl CallableScopeOwner {
             Self::Signature(PendingSignatureLocation::Trait(handle)) => {
                 declarations.trait_machine_signatures.get(handle).symbol
             }
-            Self::Signature(PendingSignatureLocation::MachineParameter(handle)) => {
+            Self::Signature(PendingSignatureLocation::ParameterContract(handle)) => {
                 declarations.data_type_parameters.get(handle).symbol
             }
             Self::Signature(PendingSignatureLocation::RuntimeCallable(handle)) => {

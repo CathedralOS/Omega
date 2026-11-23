@@ -145,6 +145,9 @@ impl<'source, 'target, 'records> TypeCopy<'source, 'target, 'records> {
                 | TypeParameterKind::Value { type_reference } => {
                     *type_reference = self.ty(*type_reference)
                 }
+                TypeParameterKind::Proof { contract } => {
+                    *contract = self.signature(contract.clone())
+                }
                 TypeParameterKind::Machine { contract } => match contract {
                     MachineParameterContract::Structural(required) => {
                         *required = self.signature(required.clone())
@@ -340,6 +343,7 @@ impl<'target, 'scope> TypeRemap<'target, 'scope> {
             match &mut parameter.kind {
                 TypeParameterKind::Const { type_reference }
                 | TypeParameterKind::Value { type_reference } => self.ty(*type_reference),
+                TypeParameterKind::Proof { contract } => self.signature(contract),
                 TypeParameterKind::Machine { contract } => match contract {
                     MachineParameterContract::Structural(required) => self.signature(required),
                     MachineParameterContract::Nominal {
@@ -640,6 +644,7 @@ fn application_types(
                 ..
             } => *reference = owner.reference(*reference),
             StaticMachineBindingValue::Conformance(argument)
+            | StaticMachineBindingValue::Proof(argument)
             | StaticMachineBindingValue::Machine(argument) => {
                 static_argument_types(owner, argument)
             }

@@ -1219,6 +1219,7 @@ pub mod reflection {
                 TypeParameterKind::Type => ("type", None),
                 TypeParameterKind::Const { type_reference } => ("const", Some(*type_reference)),
                 TypeParameterKind::Value { type_reference } => ("value", Some(*type_reference)),
+                TypeParameterKind::Proof { .. } => ("proof", None),
                 TypeParameterKind::Machine { .. } => ("machine", None),
                 TypeParameterKind::Implementation => ("implementation", None),
                 TypeParameterKind::Proposition { .. } => ("proposition", None),

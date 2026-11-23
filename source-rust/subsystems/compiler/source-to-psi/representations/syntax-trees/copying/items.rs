@@ -538,7 +538,13 @@ impl SyntaxCopy<'_> {
                 UseItem::Namespace { path } => UseItem::Namespace {
                     path: self.copy_item_identifier_span(other, *path),
                 },
-                UseItem::File { root, components, alias, span, only_product_operands } => UseItem::File {
+                UseItem::File {
+                    root,
+                    components,
+                    alias,
+                    span,
+                    only_product_operands,
+                } => UseItem::File {
                     only_product_operands: *only_product_operands,
                     root: root.clone(),
                     components: self.copy_item_identifier_span(other, *components),
@@ -853,6 +859,9 @@ impl SyntaxCopy<'_> {
                     },
                     TypeParameterKind::Value { type_reference } => TypeParameterKind::Value {
                         type_reference: this.copy_type_reference_handle(other, *type_reference),
+                    },
+                    TypeParameterKind::Proof { contract } => TypeParameterKind::Proof {
+                        contract: this.copy_state_signature(other, contract),
                     },
                     TypeParameterKind::Machine { contract } => TypeParameterKind::Machine {
                         contract: contract.as_ref().map(|contract| match contract {

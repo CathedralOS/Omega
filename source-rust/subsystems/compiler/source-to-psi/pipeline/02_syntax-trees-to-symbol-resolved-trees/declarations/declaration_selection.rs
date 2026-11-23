@@ -36,6 +36,7 @@ pub(crate) enum GenericParameterRole {
     Value,
     Machine,
     Proposition,
+    Proof,
 }
 
 /* Private selection state; transient symbols never escape into normalized syntax. */
@@ -231,7 +232,9 @@ impl<'base> ConstantSelection<'base> {
                         ));
                     }
                 }
-                Item::Use(syntax_trees::item::UseItem::Namespace { path }) => namespaces.record_import(syntax, *path),
+                Item::Use(syntax_trees::item::UseItem::Namespace { path }) => {
+                    namespaces.record_import(syntax, *path)
+                }
                 _ => {}
             }
         }
@@ -933,6 +936,9 @@ impl<'base> ConstantSelection<'base> {
                         syntax_trees::item::TypeParameterKind::Proposition { .. } => {
                             GenericParameterRole::Proposition
                         }
+                        syntax_trees::item::TypeParameterKind::Proof { .. } => {
+                            GenericParameterRole::Proof
+                        }
                     })
                     .collect::<Vec<_>>(),
             );
@@ -973,6 +979,7 @@ impl<'base> ConstantSelection<'base> {
                     Kind::Value { .. } => GenericParameterRole::Value,
                     Kind::Machine { .. } => GenericParameterRole::Machine,
                     Kind::Proposition { .. } => GenericParameterRole::Proposition,
+                    Kind::Proof { .. } => GenericParameterRole::Proof,
                 })
                 .collect(),
         )

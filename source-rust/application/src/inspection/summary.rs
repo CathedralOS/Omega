@@ -313,15 +313,17 @@ fn write_operation_summary(
             completion_receipts,
             ..
         } => {
-            let identity =
-                terminal_psi::find_boundary_machine(&module.interfaces.boundary_machines, *boundary)
-                    .map(|boundary| {
-                        module
-                            .identities
-                            .text(boundary.identity)
-                            .unwrap_or_default()
-                    })
-                    .unwrap_or("unknown");
+            let identity = terminal_psi::find_boundary_machine(
+                &module.interfaces.boundary_machines,
+                *boundary,
+            )
+            .map(|boundary| {
+                module
+                    .identities
+                    .text(boundary.identity)
+                    .unwrap_or_default()
+            })
+            .unwrap_or("unknown");
             let _ = writeln!(
                 output,
                 "operation machine=machine:{machine} block=block:{block} id=operation:{} kind=BoundaryCall boundary=boundary:{} boundary_identity={} arguments={} completion_receipts={}",
@@ -401,9 +403,12 @@ fn service_identity(module: &TerminalModule, id: ServiceId) -> Option<&str> {
 
 fn proof_formals(module: &TerminalModule, formals: &[terminal_psi::ErasedProofFormal]) -> String {
     format_ids(formals.iter().map(|formal| {
+        let (kind, position) = match formal.source {
+            terminal_psi::ProofFormalSource::ValueParameter(position) => ("parameter", position),
+            terminal_psi::ProofFormalSource::GenericParameter(position) => ("generic", position),
+        };
         format!(
-            "source:{}:{}",
-            formal.source_position,
+            "source:{kind}:{position}:{}",
             module
                 .identities
                 .text(formal.type_identity)

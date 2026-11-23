@@ -153,7 +153,7 @@ mod storage {
                         );
                         for (storage, _) in operation
                             .kind
-                            .storage_uses_with_arguments(&needs_argument_storage)
+                            .storage_uses_with_arguments(needs_argument_storage)
                         {
                             terminal_semantics::storage_operand_dependencies(
                                 machine,
@@ -169,7 +169,7 @@ mod storage {
                     }
                     for projection in block
                         .terminator
-                        .storage_uses_with_arguments(&needs_argument_storage)
+                        .storage_uses_with_arguments(needs_argument_storage)
                     {
                         terminal_semantics::storage_operand_dependencies(
                             machine,

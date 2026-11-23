@@ -15,7 +15,6 @@ use crate::resolution::selections::service_reaches::PendingAuthoredServiceReach;
 use crate::resolution::tables::resolved_declarations;
 use crate::source_inputs::SourceMap;
 use crate::source_resolved::SymbolResolvedTrees;
-use crate::source_resolved::data::TypeParameterKind;
 use crate::source_resolved::expression::ExpressionHandle;
 use crate::source_resolved::name::DiagnosticName;
 use crate::source_resolved::types::OperandLifetimeOwnerHandle;
@@ -410,16 +409,13 @@ impl Lowerer {
             }
         }
         for (handle, parameter) in base.tables.declarations.data_type_parameters.iter() {
-            let TypeParameterKind::Machine { contract } = &parameter.kind else {
-                continue;
-            };
-            let Some(signature) = contract.structural() else {
+            let Some(signature) = parameter.kind.contract_signature() else {
                 continue;
             };
             let reaches = retained_reach(signature.symbol, signature.service_reach_row);
             self.pending_signature_service_reaches
                 .push(PendingSignatureServiceReach {
-                    location: PendingSignatureLocation::MachineParameter(handle),
+                    location: PendingSignatureLocation::ParameterContract(handle),
                     owner: PendingSignatureOwner::Requirement(parameter.name.clone()),
                     reaches,
                 });
@@ -561,39 +557,47 @@ impl Lowerer {
         Vec<crate::resolution::selections::service_reaches::PendingSignatureServiceReach>,
         Vec<Diagnostic>,
     > {
-        self
-        .pending_signature_service_reaches
-        .iter()
-        .map(|pending| {
-            let symbol = match pending.location {
-                PendingSignatureLocation::Trait(handle) => {
-                    resolved_declarations(&self.symbol_resolved_trees).trait_machine_signatures
-                        .get(handle)
-                        .symbol
-                }
-                PendingSignatureLocation::MachineParameter(handle) => {
-                    let parameter = resolved_declarations(&self.symbol_resolved_trees).data_type_parameters
-                        .get(handle);
-                    let TypeParameterKind::Machine { contract } = &parameter.kind else {
-                        return Err(vec![Diagnostic::error("pending service reach no longer names a machine parameter")]);
-                    };
-                    contract.structural().ok_or_else(|| vec![Diagnostic::error("pending service reach lost its structural machine-parameter signature")])?.symbol
-                }
-                PendingSignatureLocation::RuntimeCallable(handle) => {
-                    resolved_declarations(&self.symbol_resolved_trees)
-                        .runtime_callable_contracts
-                        .get(handle)
-                        .signature
-                        .symbol
-                }
-            };
-            Ok(crate::resolution::selections::service_reaches::PendingSignatureServiceReach {
-                symbol,
-                owner: pending.owner.clone(),
-                reaches: pending.reaches.clone(),
+        self.pending_signature_service_reaches
+            .iter()
+            .map(|pending| {
+                let symbol = match pending.location {
+                    PendingSignatureLocation::Trait(handle) => {
+                        resolved_declarations(&self.symbol_resolved_trees)
+                            .trait_machine_signatures
+                            .get(handle)
+                            .symbol
+                    }
+                    PendingSignatureLocation::ParameterContract(handle) => {
+                        let parameter = resolved_declarations(&self.symbol_resolved_trees)
+                            .data_type_parameters
+                            .get(handle);
+                        parameter
+                            .kind
+                            .contract_signature()
+                            .ok_or_else(|| {
+                                vec![Diagnostic::error(
+                                    "pending service reach lost its parameter contract",
+                                )]
+                            })?
+                            .symbol
+                    }
+                    PendingSignatureLocation::RuntimeCallable(handle) => {
+                        resolved_declarations(&self.symbol_resolved_trees)
+                            .runtime_callable_contracts
+                            .get(handle)
+                            .signature
+                            .symbol
+                    }
+                };
+                Ok(
+                    crate::resolution::selections::service_reaches::PendingSignatureServiceReach {
+                        symbol,
+                        owner: pending.owner.clone(),
+                        reaches: pending.reaches.clone(),
+                    },
+                )
             })
-        })
-        .collect()
+            .collect()
     }
 }
 
@@ -610,7 +614,7 @@ fn handle_at_offset<T>(span: arena::HandleSpan<T>, offset: usize) -> arena::Hand
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum PendingSignatureLocation {
     Trait(arena::Handle<crate::source_resolved::signature::StateSignature>),
-    MachineParameter(arena::Handle<crate::source_resolved::data::TypeParameter>),
+    ParameterContract(arena::Handle<crate::source_resolved::data::TypeParameter>),
     RuntimeCallable(crate::source_resolved::callable_values::RuntimeCallableContractHandle),
 }
 

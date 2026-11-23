@@ -299,7 +299,9 @@ impl<'t> Program<'t> {
         let expected = match node {
             // A constant supplies its declared carrier through the ordinary
             // value reader. Only a local slot needs its storage or borrow type.
-            ExpressionNode::Name(path) if self.typed.named_const_declaration(path).is_some() => false,
+            ExpressionNode::Name(path) if self.typed.named_const_declaration(path).is_some() => {
+                false
+            }
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
                 if slots[slot].borrowed.is_none() {
@@ -1011,11 +1013,7 @@ impl<'t> Program<'t> {
         if self.constant_value(id, target)? != target {
             let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
             if access != Access::Borrow {
-                return Err(reject(
-                    id,
-                    source,
-                    "a constant has no writable storage",
-                ));
+                return Err(reject(id, source, "a constant has no writable storage"));
             }
             // Each use borrows its own materialized copy. Fields and indices
             // project from this storage and keep its lifetime.
@@ -2019,6 +2017,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
     let both = |a: &Expression, b: &Expression| same_computation(a, b);
     left.result == right.result
         && match (&left.kind, &right.kind) {
+            (ExpressionKind::TheoremApplication { .. }, _) => false,
             (ExpressionKind::Block { .. }, _) => false,
             (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
             (ExpressionKind::Float(a), ExpressionKind::Float(b)) => a == b,

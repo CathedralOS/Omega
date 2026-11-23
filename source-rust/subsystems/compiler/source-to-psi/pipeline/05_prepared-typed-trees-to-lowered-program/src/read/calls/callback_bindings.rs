@@ -52,7 +52,7 @@ impl Program<'_> {
         ))
     }
 
-    pub(super) fn static_argument_selections(
+    pub(in crate::lowering::read) fn static_argument_selections(
         &self,
         id: MachineId,
         argument: &StaticMachineArgument,

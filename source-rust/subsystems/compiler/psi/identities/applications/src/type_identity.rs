@@ -1653,6 +1653,7 @@ pub fn closed_requirement_matches_calling_abi(
                             CallingOperandKind::Machine => "machine",
                             CallingOperandKind::Implementation => "conformance",
                             CallingOperandKind::Proposition => "proposition",
+                            CallingOperandKind::Proof => "proof",
                         };
                         usize::try_from(operand.ordinal).ok() == Some(ordinal)
                             && kind == expected_kind

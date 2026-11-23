@@ -169,8 +169,9 @@ pub(crate) mod places {
         path.iter().all(|segment| match segment {
             StructuralPathSegment::Field(identity) => !identity.is_absent(),
             StructuralPathSegment::Case(_) => true,
-            StructuralPathSegment::FixedIndex(_)
-            | StructuralPathSegment::RuntimeIndex { .. } => true,
+            StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => {
+                true
+            }
             StructuralPathSegment::AllElements
             | StructuralPathSegment::FixedRange { .. }
             | StructuralPathSegment::RepresentationView { .. }
@@ -404,9 +405,7 @@ pub(crate) mod places {
             let mut projections = Vec::new();
             for (storage, _) in self.storage_uses() {
                 match storage {
-                    StructuralStorageUse::Projection(projection) => {
-                        projections.push(projection)
-                    }
+                    StructuralStorageUse::Projection(projection) => projections.push(projection),
                     StructuralStorageUse::Element { descriptor, .. } => {
                         projections.push(descriptor);
                     }
@@ -885,21 +884,21 @@ pub(crate) mod places {
                 Self::EstablishStructuralArray { elements } => {
                     paths.extend(elements.iter_mut().map(|argument| &mut argument.path));
                 }
-                Self::EstablishRecord { fields }
-                | Self::EstablishStructuralCase { fields, .. } => {
-                    paths.extend(fields.iter_mut().filter_map(
-                        |field| match &mut field.value {
-                            crate::RecordFieldValue::Structural(value) => Some(&mut value.path),
-                            crate::RecordFieldValue::Scalar { .. } => None,
-                        },
-                    ));
-                }
-                crate::call_structural_argument_variants!(structural_arguments) => paths
-                    .extend(
-                        structural_arguments
+                Self::EstablishRecord { fields } | Self::EstablishStructuralCase { fields, .. } => {
+                    paths.extend(
+                        fields
                             .iter_mut()
-                            .map(|argument| &mut argument.path),
-                    ),
+                            .filter_map(|field| match &mut field.value {
+                                crate::RecordFieldValue::Structural(value) => Some(&mut value.path),
+                                crate::RecordFieldValue::Scalar { .. } => None,
+                            }),
+                    );
+                }
+                crate::call_structural_argument_variants!(structural_arguments) => paths.extend(
+                    structural_arguments
+                        .iter_mut()
+                        .map(|argument| &mut argument.path),
+                ),
                 _ => {}
             }
             paths
@@ -1282,9 +1281,8 @@ pub(crate) mod places {
                     qualifications: Vec::new(),
                 },
             ] {
-                declaration.map_structural_uses(&mut |_| {
-                    panic!("a destination declaration is not a use")
-                });
+                declaration
+                    .map_structural_uses(&mut |_| panic!("a destination declaration is not a use"));
             }
         }
 
@@ -1394,9 +1392,7 @@ pub(crate) mod signatures {
         StructuralAccess, StructuralMultiplicity, StructuralPathQualification,
         StructuralPathSegment,
     };
-    use semantic_vocabulary::{
-        PlaceId, ScalarType, StructuralDomainId, StructuralTypeId, ValueId,
-    };
+    use semantic_vocabulary::{PlaceId, ScalarType, StructuralDomainId, StructuralTypeId, ValueId};
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub struct ValueDeclaration {
@@ -1414,9 +1410,15 @@ pub(crate) mod signatures {
         }
     }
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ProofFormalSource {
+        ValueParameter(u32),
+        GenericParameter(u32),
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ErasedProofFormal {
-        pub source_position: u32,
+        pub source: ProofFormalSource,
         pub type_identity: TerminalIdentityIndex,
     }
 
@@ -1580,7 +1582,7 @@ pub use places::{
     is_structural_scalar_store_path,
 };
 pub use signatures::{
-    ErasedProofFormal, StructuralArgument, StructuralParameterDeclaration,
+    ErasedProofFormal, ProofFormalSource, StructuralArgument, StructuralParameterDeclaration,
     StructuralReferenceOrigin, StructuralReferenceResultSource, StructuralResultDeclaration,
     TerminalMachineResult, ValueDeclaration,
 };

@@ -1464,6 +1464,11 @@ pub(crate) mod signatures {
                         type_reference: lower_type_reference_into_table(lowerer, type_reference)?,
                     })
                 }
+                resolved::data::TypeParameterKind::Proof { contract } => {
+                    Ok(typed::data::TypeParameterKind::Proof {
+                        contract: lower_state_signature(lowerer, contract)?,
+                    })
+                }
                 resolved::data::TypeParameterKind::Machine { contract } => {
                     let contract = match contract {
                         resolved::data::MachineParameterContract::Inferred => {
