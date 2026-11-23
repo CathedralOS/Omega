@@ -9797,12 +9797,7 @@ impl TypedTrees {
             return Ok(path);
         }
         let filename = source.logical_filename()?;
-        let module = self.symbols.symbol_module(symbol);
-        let module_path = self.symbols.display_path(module, "::");
-        let local = path
-            .strip_prefix(&module_path)
-            .and_then(|suffix| suffix.strip_prefix("::"))
-            .unwrap_or(&path);
+        let local = self.symbols.file_member_path(symbol, &path);
         Ok(format!("{filename}::{local}"))
     }
 

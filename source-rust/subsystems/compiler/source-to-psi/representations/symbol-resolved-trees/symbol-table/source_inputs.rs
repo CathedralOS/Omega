@@ -391,14 +391,21 @@ impl SourceMap {
         occurrence: SourceSpan,
         alias: &str,
     ) -> Option<PackageKeyIdentity> {
+        self.product_dependencies_at(occurrence)?
+            .get(alias)
+            .copied()
+    }
+
+    pub(super) fn product_dependencies_at(
+        &self,
+        occurrence: SourceSpan,
+    ) -> Option<&BTreeMap<String, PackageKeyIdentity>> {
         let file = self.file_at(occurrence)?;
         if let Some(owner) = file.package_identity {
-            return self.product_dependency_target(owner, alias);
+            return self.product_dependencies.get(&owner);
         }
         let (root, dependencies) = self.query_dependencies.as_ref()?;
-        (file.origin == SourceOrigin::User && file.package_root == *root)
-            .then(|| dependencies.get(alias).copied())
-            .flatten()
+        (file.origin == SourceOrigin::User && file.package_root == *root).then_some(dependencies)
     }
 
     pub fn add(&mut self, path: PathBuf, source: String) -> &SourceFile {
