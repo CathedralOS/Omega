@@ -2536,7 +2536,8 @@ pub struct SourceScopedTopLevelBinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
-enum BindingTarget {    Declaration(Arc<str>),
+enum BindingTarget {
+    Declaration(Arc<str>),
     Module(modules::ModuleImport),
     FileAlias(Arc<str>),
     ProductFileAlias(Arc<str>),
@@ -3727,7 +3728,9 @@ impl SymbolTable {
             let Some(source) = self.file_alias_source(reference.source_id, alias, false) else {
                 return Vec::new();
             };
-            if !reference_is_source_backed { return Vec::new(); }
+            if !reference_is_source_backed {
+                return Vec::new();
+            }
             return self
                 .top_level_children_matching_name(declaration, false)
                 .into_iter()

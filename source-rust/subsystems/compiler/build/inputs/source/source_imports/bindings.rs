@@ -292,8 +292,19 @@ pub(crate) fn retain_module_import_bindings(
         }
         use source_compiler::representations::source_symbols::SourceScopedTopLevelBinding;
         bindings.push(match &occurrence.binding {
-            ImportBinding::File { alias } => SourceScopedTopLevelBinding::file_import(occurrence.source, declaration.source_id, alias.as_str()),
-            ImportBinding::Namespace { package_prefix_members } => SourceScopedTopLevelBinding::logical_module_import(occurrence.source, declaration.source_id, &occurrence.authored_path, *package_prefix_members),
+            ImportBinding::File { alias } => SourceScopedTopLevelBinding::file_import(
+                occurrence.source,
+                declaration.source_id,
+                alias.as_str(),
+            ),
+            ImportBinding::Namespace {
+                package_prefix_members,
+            } => SourceScopedTopLevelBinding::logical_module_import(
+                occurrence.source,
+                declaration.source_id,
+                &occurrence.authored_path,
+                *package_prefix_members,
+            ),
         });
         previous = Some((occurrence, declaration));
     }

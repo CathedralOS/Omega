@@ -841,10 +841,11 @@ fn file_qualifiers_respect_foreign_declaration_visibility() {
         let (mut files, root) = captured(package, "machine value() -> u8 { |leaf|::read() }");
         let helper = capture_file(&mut files, "dependency", dependency, "helper.omg", source);
         let mut stage = product(files, root, package, &[]).unwrap();
-        stage.product.declaration_scope = Some(Arc::new(ProductDeclarationScope::from_direct_dependencies(
-            &[package, dependency],
-            direct.then_some((package, dependency)),
-        )));
+        stage.product.declaration_scope =
+            Some(Arc::new(ProductDeclarationScope::from_direct_dependencies(
+                &[package, dependency],
+                direct.then_some((package, dependency)),
+            )));
         stage.parsed.roots.push(helper);
         stage
             .parsed
@@ -855,7 +856,10 @@ fn file_qualifiers_respect_foreign_declaration_visibility() {
         let actual = compile(stage, None);
         if let Some(refusal) = refusal {
             let errors = actual.expect_err("loading a file cannot grant extra authority");
-            assert!(errors.iter().any(|d| d.message.contains(refusal)), "{errors:?}");
+            assert!(
+                errors.iter().any(|d| d.message.contains(refusal)),
+                "{errors:?}"
+            );
         } else {
             actual.expect("the direct dependency exposes its public machine");
         }
@@ -866,17 +870,22 @@ fn file_qualifiers_respect_foreign_declaration_visibility() {
 fn a_static_case_in_a_file_uses_the_type_even_when_a_parameter_has_its_name() {
     let package = PackageKeyIdentity::from_digest([0x63; 32]).unwrap();
     for (second, complete) in [(", cell::Supplied -> 9u8", true), ("", false)] {
-        let source = format!("data cell {{ case Stored; case Supplied; }}
+        let source = format!(
+            "data cell {{ case Stored; case Supplied; }}
             machine value(cell: u8, kind: cell) -> u8 {{
                 transition kind {{ cell::Stored -> cell{second} }}
-            }}");
+            }}"
+        );
         let (files, root) = captured(package, &source);
         let result = compile(product(files, root, package, &[]).unwrap(), None);
         if complete {
             result.expect("the declared cases exhaust the type");
         } else {
             let errors = result.expect_err("Supplied remains possible");
-            assert!(errors.iter().any(|d| d.message.contains("cell::Supplied")), "{errors:?}");
+            assert!(
+                errors.iter().any(|d| d.message.contains("cell::Supplied")),
+                "{errors:?}"
+            );
         }
     }
 }
