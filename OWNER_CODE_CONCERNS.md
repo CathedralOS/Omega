@@ -75,13 +75,6 @@ framework or a list of unimplemented features.
 
 ## Entries
 
-### The same program in another file order gets other Psi identity numbers
-- Category: The documents disagree
-- Where: identity interning in stage 05 (`source-rust/subsystems/compiler/source-to-psi/pipeline/05_prepared-typed-trees-to-lowered-program`) and `Identities::write` in `source-rust/subsystems/compiler/psi/artifact/wire/src/module_wire.rs:4046`
-- Saw: stage 05 interns identities and numbers record types in the order it meets files. For a package of `a.omg` (`data Alpha`) and `b.omg` (`data Beta`), the stage harness given the files as `[a, b]` and as `[b, a]` produces modules that differ from byte 94 of their `Debug` text: the identity table starts `"", "a", "…path(a.omg::Alpha)…"` in one and `"", "b", "c", "…path(b.omg::Beta)…"` in the other. No later stage reorders them: the codec writes `entries()` as given and its reader checks only uniqueness. `wiki/spec/terminal-psi/encoding.md` ("Canonical form") says unordered sets are strictly sorted by stable identity or canonical bytes. Two `omega --emit-psi` runs whose `main.omg` differ only in import order (`use a.omg; use b.omg;` against the reverse) emit different manifests (`52e41026…` and `83b198e1…`), but a comment-only edit also changes 3273 bytes, so that comparison alone does not separate file order from source custody.
-- Cost: a saved program's bytes and manifest can depend on the order a loader or test harness meets files rather than on the program, which defeats artifact identity, caching and reproducible builds; a test that compares products across file orders has to compare by name instead of by id.
-- Reported: 2026-11-23, Claude Code, while porting V2's file-order handoff observation to V1.
-
 ### A resumed Build refuses itself whenever it is typed again, because region owners print as symbol slots
 
 - Category: Knowledge crossing a boundary
