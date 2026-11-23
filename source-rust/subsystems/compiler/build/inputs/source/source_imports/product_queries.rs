@@ -492,7 +492,8 @@ impl ProductQueryInputs {
                     if mounted_owner { DependencyPurpose::Product } else { super::source_import_scope(inputs, authored.scope, &authored.path) }
                 };
                 if let Some(file) = super::files::FileImport::from(authored, import) {
-                    let mounted = file.root.and_then(|alias| self.mounted_for(authored.scope, alias)).map(|dependency| &dependency.inputs);
+                    let mount = file.root.and_then(|alias| self.mounted_for(authored.scope, alias));
+                    let mounted = mount.map(|dependency| &dependency.inputs);
                     let selected = if let Some(inputs) = owner {
                         file.reconciled(inputs, inputs.package_for_source(&authored.path), purpose(inputs), contract, &storage.filesystem)?
                     } else {
@@ -504,7 +505,7 @@ impl ProductQueryInputs {
                     };
                     let selected = match selected {
                         super::files::FileSelection::Selected(file) => vec![file],
-                        super::files::FileSelection::Package(pending) => pending.resolve_for_exact_target(owner.or(mounted).expect("a package import has an admitted graph"), &mut storage.package_roots)?,
+                        super::files::FileSelection::Package(pending) => pending.resolve_with_prepared_build(owner.or(mounted).expect("a package import has an admitted graph"), &mut storage.package_roots, mount.and_then(|dependency| dependency.generated.as_ref()))?,
                         super::files::FileSelection::Unprepared => continue,
                     };
                     for resolved in selected {
