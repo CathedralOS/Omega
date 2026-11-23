@@ -357,6 +357,7 @@ mod ownership {
 
     use super::values::encode_ids;
     use crate::codec_bytes::encode_len;
+    use target_vocabulary::identity::structural_types::encode_claim_transfers;
     use terminal_psi::ReferenceOriginProjection::Exact;
 
     pub fn encode_ownership(bytes: &mut Vec<u8>, ownership: &[OwnershipEvent]) {
@@ -436,12 +437,7 @@ mod ownership {
                     bytes,
                     cleanup.cleanup_machine.get().to_le_bytes(),
                 );
-                encode_len(bytes, cleanup.claim_transfers.len());
-                for transfer in &cleanup.claim_transfers {
-                    crate::codec_bytes::push_encoded(bytes, transfer.claim.get().to_le_bytes());
-                    crate::codec_bytes::push_encoded(bytes, transfer.argument_index.to_le_bytes());
-                    encode_path(bytes, &transfer.path);
-                }
+                encode_claim_transfers(bytes, &cleanup.claim_transfers);
                 encode_ids(
                     bytes,
                     cleanup.requirement_obligations.iter().map(|id| id.get()),

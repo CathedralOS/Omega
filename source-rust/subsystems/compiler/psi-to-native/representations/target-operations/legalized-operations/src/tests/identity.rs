@@ -245,7 +245,7 @@ fn scalar_graph_identity_binds_ordered_source_and_abi_custody() {
 fn call_aware_unit_identity_binds_semantic_and_target_custody() {
     let plan = call_aware_plan();
     let identity = legalized_operation_plan_identity(&plan);
-    for mutation in 0..23 {
+    for mutation in 0..24 {
         let mut changed = plan.clone();
         match mutation {
             0 => changed.scalar_functions[0].structural = None,
@@ -345,6 +345,11 @@ fn call_aware_unit_identity_binds_semantic_and_target_custody() {
                     .effect
                     .input += 1
             }
+            22 => structural_call_mut(&mut changed).claim_transfers[0]
+                .path
+                .push(StructuralPathSegment::Field(
+                    terminal_psi::TerminalIdentityIndex(2),
+                )),
             _ => {
                 let OwnershipEvent::Cleanup(actions) =
                     &mut scalar_return_mut(&mut changed.scalar_functions[0]).ownership[0]

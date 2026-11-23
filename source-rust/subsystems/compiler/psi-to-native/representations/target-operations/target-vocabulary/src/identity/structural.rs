@@ -8,8 +8,9 @@
 // function-level structural result declarations, including reference result sources and leaf paths.
 
 use super::structural_types::{
-    encode_access, encode_entry_claim, encode_multiplicity, encode_projected_qualifications,
-    encode_reference_origin, encode_string, encode_structural_argument, encode_structural_path,
+    encode_access, encode_claim_transfers, encode_entry_claim, encode_multiplicity,
+    encode_projected_qualifications, encode_reference_origin, encode_string,
+    encode_structural_argument, encode_structural_path,
 };
 use super::{encode_ids, encode_len, encode_option, encode_work};
 use crate::{LegalizedBoundarySettlement, NativeCallOrigin};
@@ -328,12 +329,7 @@ pub fn encode_cleanup_action(
             super::structural_types::encode_structural_argument(bytes, &cleanup.subject);
             crate::codec_bytes::push_encoded(bytes, cleanup.structural_type.get().to_le_bytes());
             crate::codec_bytes::push_encoded(bytes, cleanup.cleanup_machine.get().to_le_bytes());
-            encode_len(bytes, cleanup.claim_transfers.len());
-            for transfer in &cleanup.claim_transfers {
-                crate::codec_bytes::push_encoded(bytes, transfer.claim.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, transfer.argument_index.to_le_bytes());
-                encode_structural_path(bytes, &transfer.path);
-            }
+            encode_claim_transfers(bytes, &cleanup.claim_transfers);
             encode_ids(
                 bytes,
                 cleanup.requirement_obligations.iter().map(|id| id.get()),

@@ -2095,8 +2095,10 @@ An absent machine upper bound differs from an explicit empty bound. Vocabulary
 marker 142 describes this combined schema. The incompatible predecessor schemas
 marked 280 through 285, including independent layouts that shared marker 280, and
 every earlier semantic format reject before payload interpretation.
-The `OMGFCV\0\0` fixed-view recovery envelope uses version 117 for this semantic
-vocabulary; versions 103 through 116 reject at the recovery header.
+Version 117 of the `OMGFCV\0\0` fixed-view recovery envelope encoded this
+semantic vocabulary. Version 119 binds each transferred claim's structural path
+in the transformed instruction plan identity. The reader rejects earlier
+recovery envelopes at the header.
 
 Semantic schema images use version 2. Declaration shape 4 describes an exact
 compiler-owned scalar: its payload retains Boolean, integer sign and width,
