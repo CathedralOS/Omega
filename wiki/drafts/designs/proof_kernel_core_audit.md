@@ -61,11 +61,11 @@ Delete it when that task closes or its plan carries these findings.
    properties, names twelve patterns the earlier readings missed, lists 1,366
    old rules with what today's compiler does about each, and finds ten of the
    old faults still present today in small form. Probe programs then tested
-   eight of the rules the readers could not find. Three are real gaps: a
-   machine that issues no authority can rewrite the `base` and `length` of
-   an `Extent in Granted` and keep `Granted`; a process-exit provider can
-   change the exit status; and two parameters of one machine may share a
-   name. See
+   eight of the rules the readers could not find. Three were real gaps,
+   since repaired on this branch: a machine that issues no authority could
+   rewrite the `base` and `length` of an `Extent in Granted` and keep
+   `Granted`; a process-exit provider could change the exit status; and two
+   parameters of one machine could share a name. See
    [what the line-by-line read found](#what-the-line-by-line-read-found).
 8. **Do first.** Build toward the core library, not the samples. It needs no
    level binder, no `core\Squash` and no value-indexed family, but every law
@@ -441,14 +441,14 @@ upstream" does not show the wrong program is refused.
 
 | Rule | What the reader found | Checked for this audit |
 | --- | --- | --- |
-| Two parameters of one machine with one name | Nothing compares a machine's parameter names with each other | **Gap, confirmed by a probe.** `machine pick(a: i32, a: i32) -> i32 requires a > 0 { a }` compiles, and both the contract and the body read the first parameter: `pick(1, 0 - 7)` compiles and runs to Psi exit 0, and `pick(0 - 7, 1)` is refused. [State contracts](../../spec/language/state_contracts.md) forbids it: "A runtime parameter or local cannot reuse the name of a visible value parameter or local". The check for locals is there; `02_.../names/repeated_locals.rs:69-80` adds each parameter name to the list without comparing it with the earlier ones. |
+| Two parameters of one machine with one name | Nothing compares a machine's parameter names with each other | **Gap, confirmed by a probe.** `machine pick(a: i32, a: i32) -> i32 requires a > 0 { a }` compiles, and both the contract and the body read the first parameter: `pick(1, 0 - 7)` compiles and runs to Psi exit 0, and `pick(0 - 7, 1)` is refused. [State contracts](../../spec/language/state_contracts.md) forbids it: "A runtime parameter or local cannot reuse the name of a visible value parameter or local". The check for locals is there; `02_.../names/repeated_locals.rs:69-80` adds each parameter name to the list without comparing it with the earlier ones. **Repaired on this branch** (`abce222c1b`): the second parameter is refused where it is declared. |
 | Two declarations of one name in one scope (two `data`, two `trait`, a `data` and a `trait`), two machines with one callable identity | No refusal at the declaration; a later use is refused as ambiguous | Probed: all four are refused, so the reader's "likely unenforced" was wrong. The refusal is an internal check with no source position, and it prints a debug dump: "source selection dictionary repeats a declaration in one purpose: 34 SelectionDeclaration { identity: ..." |
 | The number of arguments in a type application matches the declaration | A mismatch is skipped with `continue` in const-argument admission (`03_.../src/type_reference.rs:908-932`); no other count check was found | Probed: `Box<i32, i32>` for a one-parameter `Box` is refused, with no source position: "data application does not retain its complete argument tuple" |
 | An `AccessCustody` implementation agrees with its schema | Nothing | Confirmed: no Rust file names it, and the trait is declared with no members (`source/library/core/layout.omg:514`), so a conformance has nothing to fail. Reach is limited today, because stage 05 refuses data with an erased field. The check has to exist before erased fields are served. |
 | A value stored into a narrowed integer field fits its stored width (four cross-checks) | No fit obligation | Unreachable today; see [old faults that remain](#old-faults-that-remain-in-todays-compiler) |
-| Content conservation: a content-bearing result descends from a consumed owned claim (four cross-checks) | Stage 05 has no reader for it and the prover refuses the goal form. No reader found the site that refuses the source form. | **Gap, confirmed by probes.** Three things are refused: a cast that adds an issuer-only qualification in a machine that is not an establishment route, the same forged on an `Extent`, and a declared content projection (`satisfies Content<...>::project`, "not supported yet"). A field write is not: a machine that is no establishment route takes an `Extent in Granted`, sets `base` to 4096 and `length` to 4096, and returns it as `Extent in Granted`. It compiles. So does growing one in place through `@mutable` from 16 bytes to 8,192, and the same on a user domain with one issuer. The write must keep the domain's `requires` (a `length` that breaks `no_wrap` is refused), but the qualification itself survives. [Domains](../../spec/language/domains.md) says "Mutation invalidates subject-bound facts unless preserved or re-established", and `extent.omg` says constructing the geometry does not establish `Granted`. Not shown: a program that uses the forged extent to reach memory. |
+| Content conservation: a content-bearing result descends from a consumed owned claim (four cross-checks) | Stage 05 has no reader for it and the prover refuses the goal form. No reader found the site that refuses the source form. | **Gap, confirmed by probes.** Three things are refused: a cast that adds an issuer-only qualification in a machine that is not an establishment route, the same forged on an `Extent`, and a declared content projection (`satisfies Content<...>::project`, "not supported yet"). A field write is not: a machine that is no establishment route takes an `Extent in Granted`, sets `base` to 4096 and `length` to 4096, and returns it as `Extent in Granted`. It compiles. So does growing one in place through `@mutable` from 16 bytes to 8,192, and the same on a user domain with one issuer. The write must keep the domain's `requires` (a `length` that breaks `no_wrap` is refused), but the qualification itself survives. [Domains](../../spec/language/domains.md) says "Mutation invalidates subject-bound facts unless preserved or re-established", and `extent.omg` says constructing the geometry does not establish `Granted`. Not shown: a program that uses the forged extent to reach memory. **Repaired on this branch** (`d090365e17`): a machine outside a domain's routes may not change part of a value that carries the domain, or lend part of it for change. All the programs above are refused at the write. Declared conservation equations are still not served. |
 | While an owned value is moved out of borrowed storage, boundary, service and blocking calls are fenced | Only a call that may suspend is refused (`psi/semantics/src/plain_affine.rs:2450-2477`) | Probed, and the reader is right about the behavior. With a field moved out, a boundary call with no reach, a boundary call that reaches a service and a blocking boundary call all compile; a suspending call is refused; lending the holder itself is refused. Whether the three accepted programs break the spec depends on a reading. [Ownership](../../spec/language/ownership.md) keeps the fence on "boundary/capability-carrying calls that may observe or expose the affected storage, including through authority not named as an argument" and says "Unknown access is not evidence of non-observation". The compiler has no test of whether a boundary call may observe the storage. |
-| An Omega-written provider of process exit never returns and passes its status on | Only native leaves are compared with the requirement's completion class | **Gap, confirmed by a probe.** A provider in the program's own package whose body is `ProcessExitPrimitive(0);` is selected with `Build::select_provider`. The program calls `ProcessExit::exit_process(7)` and exits with status 0 on both engines; the same provider passing `return_code` exits with 7. [Process exit](../../spec/language/process_exit.md) says "the exact exit argument survive[s]" and a provider "cannot reinterpret" the operation. |
+| An Omega-written provider of process exit never returns and passes its status on | Only native leaves are compared with the requirement's completion class | **Gap, confirmed by a probe.** A provider in the program's own package whose body is `ProcessExitPrimitive(0);` is selected with `Build::select_provider`. The program calls `ProcessExit::exit_process(7)` and exits with status 0 on both engines; the same provider passing `return_code` exits with 7. [Process exit](../../spec/language/process_exit.md) says "the exact exit argument survive[s]" and a provider "cannot reinterpret" the operation. **Repaired on this branch** (`5bc6119e59`): a provider must pass on the very values it received; the program above is refused at the call. |
 | A provider body selected by Build has no `crashes`, matches its requirement and is not generic | Crash freedom is checked only for the root of a build-time evaluation | Not checked |
 | A public `const` type, conformance header or domain alias does not name a private declaration | Machine signatures are checked. `02_.../names/public_interfaces.rs:16-18` says a domain written as a constraint "is not judged here yet". | That comment confirmed |
 | A write through a mutable view retires what is known about the collection | Could not confirm | Enforced, by a probe. After `poke(@mutable backing[..])` writes `view[1]`, a call that requires `backing[1] == 19` is refused; without the write it compiles. A reviewer traced the mechanism: the store is moved back onto the backing array's region (`06_.../src/places.rs:1185-1208`, `places/backing.rs:18-66`). |
@@ -504,12 +504,27 @@ program.
   exhausted budget separately from a missing proof, and keys nothing by
   source position or address. A cited law is used through its signature
   entry (L3), never because it was checked earlier in the same run.
-- **The probes found three gaps that are not proof-layer work and should
-  not wait for it.** A field write on a value that carries an issuer-only
-  qualification must drop the qualification unless the writer is an
-  establishment route; a selected process-exit provider must pass its
-  status to the primitive unchanged; two parameters of one machine must not
-  share a name.
+- **The probes found three gaps that are not proof-layer work, and they are
+  repaired on this branch.** A machine outside a domain's establishment
+  routes can no longer change part of a value that carries the domain; a
+  provider of the process exit must pass on the status it received; two
+  parameters of one machine cannot share a name.
+- **The first repair is evidence for L1.** The authority gap was a rule
+  guarded at one operation (the cast) and missing at another with the same
+  effect (a field write). The repair added no case per place. Stage 06
+  already had one walk that finds every value a write changes, in order to
+  reprove data `requires` clauses, and that walk resolves a store through a
+  reference to the storage that was lent. Asking it one more question
+  covered an owned local, a borrowed formal, a qualified field of a larger
+  record, a local reference to an inner field, and an inner field lent to a
+  callee that sees no domain. The old checker would have needed a copy per
+  arrangement; the corpus had nine.
+- **The second repair shows a limit of contract refinement.** A requirement
+  that never returns has no `ensures`, so the refinement proof of a provider
+  could not see that the provider changed the exit status. The rule had to
+  read the provider's body. It decides by identity of values, with no proof
+  search: a provider that passes `return_code + 0` is refused although the
+  value is equal. Proving equality there would need a new obligation kind.
 - **The faults that remain are small repairs for the parallel row.** In
   `complete_operator`, refuse when the caller did not mark the operator a
   known intrinsic and the loop saw no `Operator` selection (refusing
@@ -1059,6 +1074,18 @@ Recorded, not answered:
   that passes 0. The view probe is a pair that differs in one call. Only
   `linux_x86_64` was tried. A program rooted at `main.omg` does not read
   the Build rows, so provider probes must be rooted at `build.omg`.
+- Repairs (2026-11-23), commits `abce222c1b`, `d090365e17` and
+  `5bc6119e59` on this branch. Each commit body states its tests. In sum:
+  `mbx test` on the stage 02 crate (143 passed), the stage 06 crate (1,329
+  passed, 2 ignored), `terminal-semantics` (311), `terminal-wire` (180),
+  the stage 05 crate (212) and `omega --test process_exit_operand` (4), with
+  `mbx clippy -D warnings` on each changed crate. The probe programs were
+  rerun against the repaired compiler: every program that should be refused
+  is, at its source position, and every control still compiles. 47 probe
+  programs exist in all. `mbx xtask fmt --check` fails across the workspace
+  on `main` without these changes, so it was not used as a check. Nothing
+  was run on a target other than `linux_x86_64`, and no full-workspace test
+  run was made.
 - Two reviews by other models (2026-11-23) were checked claim by claim
   against the source, and these corrections come from them: the spec does
   forbid a repeated parameter name; `ElementViewWrite` is missing from the
