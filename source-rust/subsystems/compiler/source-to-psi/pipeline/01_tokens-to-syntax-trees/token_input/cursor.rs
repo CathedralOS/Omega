@@ -19,6 +19,7 @@ pub(crate) struct Input<'tokens, 'source> {
     pub(crate) source_id: SourceId,
     pub(crate) tokens: &'tokens [Token],
     stream: &'tokens TokenStream<'source>,
+    pub(crate) file_qualifiers: Option<&'tokens super::file_qualifiers::FileQualifiers<'tokens>>,
     source_owner: Handle<syntax_trees::RetainedSource>,
     depth: u16,
     /// Set while parsing a constant initializer or a constant integer
@@ -37,6 +38,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         Self {
             source_id,
             source_owner,
+            file_qualifiers: None,
             stream,
             tokens: skip_trivia(stream.as_slice()),
             depth: 0,
@@ -46,12 +48,8 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     fn advanced(&self, tokens: &'tokens [Token]) -> Self {
         Self {
-            source_id: self.source_id,
-            stream: self.stream,
-            source_owner: self.source_owner,
             tokens: skip_trivia(tokens),
-            depth: self.depth,
-            constant_position: self.constant_position,
+            ..*self
         }
     }
 
@@ -455,6 +453,9 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         let rest = rest.take_punctuation(PunctuationKind::Pipe, "|")?;
         let rest = rest.take_punctuation(PunctuationKind::ColonColon, "::")?;
         let (declaration, rest) = rest.take_identifier()?;
+        if let Some(uses) = self.file_qualifiers {
+            uses.record(self.source_span_until(rest).span.start, after_bar.spelling(&after_bar.tokens[0]));
+        }
         let name = format!("|{}|::{}", alias.as_str(&self), declaration.as_str(&self));
         Ok((Identifier::new(name, self.source_span_until(rest)), rest))
     }

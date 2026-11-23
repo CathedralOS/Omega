@@ -141,6 +141,10 @@ fn parse_statement_handle<'tokens, 'source>(
     let (expression, input) = parse_expression_handle(syntax_trees, input)?;
 
     if let Some(binding) = root_binding_declaration(syntax_trees, expression)? {
+        if let Some(uses) = input.file_qualifiers {
+            uses.mark_product_operand(&binding.slot);
+            uses.mark_product_operand(&binding.implementation);
+        }
         return finish_semicolon_statement(
             syntax_trees,
             StatementNode::RootBinding(binding),

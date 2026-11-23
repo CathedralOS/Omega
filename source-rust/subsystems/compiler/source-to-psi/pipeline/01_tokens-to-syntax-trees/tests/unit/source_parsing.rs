@@ -315,6 +315,28 @@ fn float_spellings_share_forest_custody_and_survive_cross_forest_copy() {
 }
 
 #[test]
+fn a_file_used_for_a_product_entry_can_also_be_used_as_build_code() {
+    use syntax_trees::item::UseItem;
+    let text = r#"
+use main.omg as app;
+use helper.omg as helper;
+machine build(builder: @mutable Build) {
+    Build::bind(builder, |helper|::Entry, |app|::main);
+    |helper|::configure(builder);
+}"#;
+    let mut trees = SyntaxTrees::new(SourceId(1));
+    let tokens = Lexer::new(text).tokenize().unwrap();
+    let roots = parse(&mut trees, SourceId(1), &tokens).unwrap();
+    let imports = roots.items.iter().filter_map(|root| match trees.root_item(*root) {
+        Item::Use(UseItem::File { alias, only_product_operands, .. }) => {
+            Some((alias.as_str(&trees), *only_product_operands))
+        }
+        _ => None,
+    }).collect::<Vec<_>>();
+    assert_eq!(imports, [("app", true), ("helper", false)]);
+}
+
+#[test]
 fn file_imports_keep_their_roots_filenames_and_local_aliases() {
     use syntax_trees::item::UseItem;
     let text = "use math/vector.omg; use {geometry}/math/value-cell.omg as chosen;";

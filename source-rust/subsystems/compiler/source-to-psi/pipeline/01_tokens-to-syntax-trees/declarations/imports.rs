@@ -72,6 +72,7 @@ pub(crate) fn parse_use_item<'tokens, 'source>(
     }
     Ok((
         UseItem::File {
+            only_product_operands: false,
             root,
             components,
             alias,
@@ -136,4 +137,30 @@ pub(crate) fn check_file_aliases(
         }
     }
     Ok(())
+}
+
+/// A root binding names a Product declaration without asking Build to check that
+/// file as host code. Keep the ordinary import if the alias also appears in a
+/// type, call, contract or any other use outside those operands.
+pub(crate) fn mark_product_operand_imports(
+    trees: &mut SyntaxTrees,
+    roots: &syntax_trees::ParsedRootItems,
+    qualifiers: &crate::token_input::file_qualifiers::FileQualifiers<'_>,
+) {
+    use syntax_trees::item::Item;
+
+    let operands = qualifiers.only_product_operands();
+    if operands.is_empty() {
+        return;
+    }
+    for handle in &roots.items[roots.import_range.clone()] {
+        let Item::Use(UseItem::File { alias, .. }) = trees.root_item(*handle) else { continue };
+        if operands.contains(alias.as_str(trees)) {
+            let mut item = trees.root_item(*handle).clone();
+            if let Item::Use(UseItem::File { only_product_operands, .. }) = &mut item {
+                *only_product_operands = true;
+            }
+            trees.items.replace_item(*handle, item);
+        }
+    }
 }

@@ -59,7 +59,9 @@ pub fn parse_into(
     source_id: SourceId,
     tokens: &TokenStream<'_>,
 ) -> Result<ParsedRootItems, ParseError> {
+    let qualifiers = token_input::file_qualifiers::FileQualifiers::default();
     let mut input = Input::new(source_id, tokens, syntax_trees);
+    input.file_qualifiers = Some(&qualifiers);
     let mut roots = ParsedRootItems::default();
     while !input.tokens.is_empty() {
         let (declaration, rest) = parse_item(syntax_trees, input)?;
@@ -81,6 +83,7 @@ pub fn parse_into(
     }
 
     crate::declarations::imports::check_file_aliases(syntax_trees, &roots, tokens.source_text())?;
+    crate::declarations::imports::mark_product_operand_imports(syntax_trees, &roots, &qualifiers);
     Ok(roots)
 }
 
@@ -329,6 +332,7 @@ mod errors {
     pub(crate) mod parse_error;
 }
 mod token_input {
+    pub(crate) mod file_qualifiers;
     pub(crate) mod cursor;
     pub(crate) mod delimiters;
 }
