@@ -76,6 +76,18 @@ pub(super) fn check_bindings(
                 }
                 let name = symbols.name(parameter.symbol);
                 record_overlap(&parameter.name);
+                // A use of the name could only ever reach the first of two
+                // parameters that share it, so the second is refused where
+                // it is declared, like a local that repeats a visible name.
+                if declared.iter().any(|earlier| earlier == name) {
+                    diagnostics.push(
+                        Diagnostic::error(format!(
+                            "machine `{machine}` state `{state_name}` has duplicate parameter \
+                             `{name}`: an earlier parameter with this name is still visible"
+                        ))
+                        .with_source_span(parameter.name.source_span()),
+                    );
+                }
                 declared.push(name.to_owned());
             }
             let parameter_count = declared.len();
