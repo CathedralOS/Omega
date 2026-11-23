@@ -97,6 +97,45 @@ fn declared(kind: &str, path: &str, file: usize, offset: usize) -> Selection {
     Some((kind.to_owned(), path.to_owned(), (file, offset)))
 }
 
+#[test]
+fn a_trait_value_argument_reads_the_providers_parameter_or_the_visible_constant() {
+    use crate::source_resolved::types::TypeReference;
+
+    let trees = resolved(&[(
+        "main.omg",
+        r#"
+data K { }
+const Tag: u64 = 29u64;
+public boundary trait Reading<const N: u64> { machine total() -> u64 reaches none crashes none; }
+Own<const K: u64> satisfies Reading<K> { machine total() -> u64 { 1u64 } }
+Fixed satisfies Reading<Tag> { machine total() -> u64 { 2u64 } }
+"#,
+    )]);
+    let global = trees
+        .const_declarations
+        .iter()
+        .find(|row| trees.symbols.name(row.symbol) == "Tag")
+        .unwrap()
+        .symbol;
+    assert!(global.is_valid());
+    assert_eq!(trees.roots.conformances.len(), 2);
+    for provider in trees.roots.conformances.iter() {
+        let [TypeReference::Named { symbol, .. }] = trees.child_type_references(provider.arguments)
+        else {
+            panic!("expected a named value argument");
+        };
+        let expected = match trees.data_type_parameters(provider.type_parameters) {
+            [formal] => {
+                assert!(formal.symbol.is_valid() && formal.symbol != global);
+                formal.symbol
+            }
+            [] => global,
+            _ => panic!("unexpected parameters on provider"),
+        };
+        assert_eq!(*symbol, expected);
+    }
+}
+
 /// `default_port` is nested in `connect`, which has a local also named
 /// `port`. A nested machine cannot read its enclosing machine's runtime
 /// values, so its `port` selects the package constant. The read stays a name
