@@ -4329,6 +4329,15 @@ impl<'t> Program<'t> {
         self.static_truths.clear();
         let mut position = 0;
         while let Some(statement) = statements.get(position) {
+            let handle = state
+                .statement_nodes
+                .handle_at(u32::try_from(position).map_err(|_| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Statement("statement position exceeds its source arena"),
+                    )
+                })?);
             if statically_completed && let StatementNode::Transition(transition) = statement {
                 // A later target is not executed, but a closed static guard
                 // still has an exact source operator selection. Evaluate only
@@ -4338,6 +4347,8 @@ impl<'t> Program<'t> {
                 {
                     self.read_static_truth(id, symbol, guard, super::types::Reading::Value)?;
                 }
+                self.completed_operators
+                    .record_transition_target(machine.symbol, handle, false);
                 position += 1;
                 continue;
             }
@@ -4352,15 +4363,6 @@ impl<'t> Program<'t> {
             // A statement skipped by `continue` may still have read a block.
             self.join_block_slots(&mut slots, &mut slot_names);
             self.block_slot_base = slots.len();
-            let handle = state
-                .statement_nodes
-                .handle_at(u32::try_from(position).map_err(|_| {
-                    refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Statement("statement position exceeds its source arena"),
-                    )
-                })?);
             let read = match statement {
                 StatementNode::Assembly(_) => {
                     return Err(refuse(
@@ -4486,6 +4488,13 @@ impl<'t> Program<'t> {
                         state.statement_nodes.handles().skip(position),
                         signature.result,
                     )?;
+                    for arm in state.statement_nodes.handles().skip(position).take(taken) {
+                        self.completed_operators.record_transition_target(
+                            machine.symbol,
+                            arm,
+                            true,
+                        );
+                    }
                     completed = true;
                     position += taken.saturating_sub(1);
                     dispatch
@@ -4500,6 +4509,11 @@ impl<'t> Program<'t> {
                         }
                         crate::source_state::statement::TransitionGuardNode::Always => None,
                     };
+                    self.completed_operators.record_transition_target(
+                        machine.symbol,
+                        handle,
+                        decided != Some(false),
+                    );
                     if decided == Some(false) {
                         self.transition_predicate(id, &slots, transition)?;
                         position += 1;

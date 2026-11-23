@@ -14,7 +14,7 @@ use crate::source_state::callable_values::RuntimeCallBinding;
 use crate::source_state::expression::{ExpressionHandle, ExpressionNode};
 use crate::source_state::references::StaticArgumentCall;
 use crate::source_state::references::{DeclarationSelection, TypedReferences};
-use crate::source_state::statement::{StatementHandle, StatementNode};
+use crate::source_state::statement::{StatementHandle, StatementNode, StatementRootRole};
 use crate::source_state::types::{ProductTypeInput, TypeOperandOrigin, TypeReferenceHandle};
 use symbols::{SymbolHandle, SymbolKind};
 
@@ -30,14 +30,17 @@ pub(crate) struct CompletedOperators {
     /// conjunction is false and its later conjuncts are not evaluated").
     /// Their operators owe no selection.
     vacuous: Vec<(SymbolHandle, ExpressionHandle)>,
+    // More than one body can use a statement. A reachable use wins when
+    // another type application rules out the same owner's target.
+    transition_targets: Vec<(SymbolHandle, StatementHandle, bool)>,
 }
 
-fn vacuous_key(row: &(SymbolHandle, ExpressionHandle)) -> (u32, u32, u32, u32) {
+fn source_location<T>(owner: SymbolHandle, node: arena::Handle<T>) -> (u32, u32, u32, u32) {
     (
-        row.0.arena_index(),
-        row.0.generation(),
-        row.1.arena_index(),
-        row.1.generation(),
+        owner.arena_index(),
+        owner.generation(),
+        node.arena_index(),
+        node.generation(),
     )
 }
 
@@ -143,16 +146,49 @@ impl CompletedOperators {
         self.vacuous.push((owner, expression));
     }
 
+    pub(crate) fn record_transition_target(
+        &mut self,
+        owner: SymbolHandle,
+        statement: StatementHandle,
+        read: bool,
+    ) {
+        self.transition_targets.push((owner, statement, read));
+    }
+
+    fn skipped_transition_target(&self, owner: SymbolHandle, statement: StatementHandle) -> bool {
+        self.transition_targets
+            .binary_search_by_key(
+                &source_location(owner, statement),
+                |&(owner, statement, _)| source_location(owner, statement),
+            )
+            .is_ok()
+    }
+
     pub(crate) fn finish(&mut self) {
         self.reads.sort_unstable_by_key(CompletedOperatorRead::key);
         self.reads.dedup();
-        self.vacuous.sort_unstable_by_key(vacuous_key);
+        self.vacuous
+            .sort_unstable_by_key(|&(owner, expression)| source_location(owner, expression));
         self.vacuous.dedup();
+        if self.transition_targets.iter().any(|&(_, _, read)| !read) {
+            self.transition_targets
+                .sort_unstable_by_key(|&(owner, statement, read)| {
+                    (source_location(owner, statement), !read)
+                });
+            self.transition_targets
+                .dedup_by_key(|&mut (owner, statement, _)| source_location(owner, statement));
+            self.transition_targets.retain(|&(_, _, read)| !read);
+        } else {
+            self.transition_targets.clear();
+        }
     }
 
     fn is_vacuous(&self, owner: SymbolHandle, expression: ExpressionHandle) -> bool {
         self.vacuous
-            .binary_search_by_key(&vacuous_key(&(owner, expression)), vacuous_key)
+            .binary_search_by_key(
+                &source_location(owner, expression),
+                |&(owner, expression)| source_location(owner, expression),
+            )
             .is_ok()
     }
 
@@ -933,6 +969,15 @@ impl TypedReferences for Capture<'_> {
         } else {
             self.statement = Some(statement);
         }
+    }
+    fn statement_expression(&mut self, role: StatementRootRole) -> bool {
+        !matches!(
+            role,
+            StatementRootRole::TransitionValue | StatementRootRole::TransitionArgument
+        ) || !self.statement.is_some_and(|statement| {
+            self.completed_operators
+                .skipped_transition_target(self.owner, statement)
+        })
     }
     fn statement(&mut self, statement: &StatementNode) -> bool {
         self.runtime_statement = None;

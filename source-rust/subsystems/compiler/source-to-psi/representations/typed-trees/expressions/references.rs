@@ -17,7 +17,7 @@ use crate::source_state::{
     machine::TraitConformance,
     proposition::{PropositionApplication, PropositionBinderArgumentKind, PropositionFormula},
     signature::{AuthoredInvocationTarget, SignatureContract},
-    statement::{StatementHandle, StatementNode, TransitionTargetNode},
+    statement::{StatementHandle, StatementNode, StatementRootRole, TransitionTargetNode},
     types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode},
 };
 use symbols::SymbolHandle;
@@ -1382,6 +1382,11 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn statement(&mut self, _: &StatementNode) -> bool {
         true
     }
+    /// A specialized body can omit a transition's result or arguments after
+    /// a static guard rules out that arm. Its guard is still visited.
+    fn statement_expression(&mut self, _: StatementRootRole) -> bool {
+        true
+    }
     fn call_arguments(&mut self, _: &TypedTrees, _: StaticArgumentCall<'_>) -> bool {
         true
     }
@@ -1506,6 +1511,9 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
     }
     fn statement(&mut self, statement: &StatementNode) -> bool {
         self.0.statement(statement)
+    }
+    fn statement_expression(&mut self, role: StatementRootRole) -> bool {
+        self.0.statement_expression(role)
     }
     fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
         self.0.call_arguments(program, call)
@@ -3878,8 +3886,10 @@ fn visit_statement(
     if !retained.statement(statement) {
         return;
     }
-    for (_, expression) in program.tables.expression_roots(statement) {
-        visit_expression(program, retained, expression);
+    for (role, expression) in program.tables.expression_roots(statement) {
+        if retained.statement_expression(role) {
+            visit_expression(program, retained, expression);
+        }
     }
     match statement {
         StatementNode::Assembly(_) => {}
