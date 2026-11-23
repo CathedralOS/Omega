@@ -560,6 +560,12 @@ mod assignment {
                 conformance.trait_symbol,
                 conformance.arguments,
             );
+            assign_value_binder_argument_symbols(
+                symbols,
+                child_type_references,
+                &local_type_parameters,
+                conformance.arguments,
+            );
             if let Some((_, proposition_slots)) = trait_proposition_slots
                 .iter()
                 .find(|(symbol, _)| *symbol == conformance.trait_symbol)
@@ -689,6 +695,29 @@ mod assignment {
                 .unwrap_or_else(|| {
                     top_level_symbol_for_source(symbols, SymbolKind::Conformance, name)
                 });
+        }
+    }
+
+    /*
+        A standalone implementation has no machine scope, so no value pass
+        rebinds its trait arguments. `FirstReading<const K: u64> satisfies
+        Reading<K>` names its value binder where the type pass reads only
+        types and leaves `K` unbound. Bind what the type pass left unbound in
+        the value role, as an integer width is bound, so each application of
+        the implementation substitutes its own value for `K`.
+    */
+    fn assign_value_binder_argument_symbols(
+        symbols: &SymbolTable,
+        child_type_references: &mut crate::source_resolved::types::TypeReferenceArena,
+        local_type_parameters: &[TypeParameter],
+        arguments: HandleSpan<TypeReference>,
+    ) {
+        for argument in child_type_references.span_mut_or_empty(arguments) {
+            if let TypeReference::Named { symbol, name, .. } = argument
+                && !symbol.is_valid()
+            {
+                *symbol = resolve_value_in_type_symbol(symbols, local_type_parameters, name);
+            }
         }
     }
 
