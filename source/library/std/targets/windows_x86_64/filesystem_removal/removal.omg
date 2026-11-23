@@ -1,3 +1,4 @@
+use filesystem_host.omg as paths;
 use targets/windows_x86_64/filesystem_removal/attributes.omg as attrs;
 use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
 use omega_language_std;
@@ -14,7 +15,7 @@ use omega\language\core\FilesystemMetadataMutation;
 use omega\language\core\DirectoryEnumeration;
 use omega\language\core\FilesystemNamespaceMutation;
 
-machine windows_remove_tree(path: @[u8] in Path) -> i32
+machine windows_remove_tree(path: @[u8] in |paths|::Path) -> i32
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + FilesystemMetadataQuery + DirectoryEnumeration {
     let root: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_removal_open_root(path);
     transition (root as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block inspect(root), false -> failed() }

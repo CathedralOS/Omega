@@ -1,3 +1,4 @@
+use filesystem_host.omg as paths;
 use targets/windows_x86_64/windows_filesystem_metadata_native.omg as metadata_io;
 use targets/windows_x86_64/windows_filesystem_path_query_native.omg as path_io;
 use targets/windows_x86_64/windows_filesystem_reparse_native.omg as reparse_io;
@@ -26,12 +27,12 @@ reaches FilesystemMetadataQuery {
     transition handle != 0 && handle != -1 { true -> (handle), false -> 0 }
 }
 
-machine windows_filesystem_native_read_link(path: @[u8] in Path, output: @mutable [u8], count: u64) -> i64
+machine windows_filesystem_native_read_link(path: @[u8] in |paths|::Path, output: @mutable [u8], count: u64) -> i64
 reaches FilesystemMetadataQuery {
     transition count > 0 && count <= output.length { true -> block convert_path(path, output, count), false -> (-87) }
-    machine convert_path(path: @[u8] in Path, output: @mutable [u8], count: u64) -> i64 {
+    machine convert_path(path: @[u8] in |paths|::Path, output: @mutable [u8], count: u64) -> i64 {
         let mutable wide: [u16; 4096];
-        let units: i64 = windows_wide_path(path as -Path, @mutable wide);
+        let units: i64 = windows_wide_path(path as - |paths|::Path, @mutable wide);
         wide[4095] = 0;
         transition units > 0 { true -> block open(wide as +WindowsNativePath, output, count), false -> (-87) }
     }

@@ -1,3 +1,4 @@
+use filesystem_host.omg as paths;
 use ErrorKind;
 use File;
 use IoResult;
@@ -31,63 +32,63 @@ machine windows_filesystem_opened(handle: u64) -> OpenResult
     }
 }
 
-machine windows_filesystem_open_with(path: @[u8] in Path, options: OpenOptions) -> OpenResult
+machine windows_filesystem_open_with(path: @[u8] in |paths|::Path, options: OpenOptions) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     transition open_options_truncate_conflict(options) {
         true -> (OpenResult::Error { kind: ErrorKind::InvalidInput }),
         false -> block access(path, options)
     }
-    machine access(path: @[u8] in Path, options: OpenOptions) -> OpenResult {
+    machine access(path: @[u8] in |paths|::Path, options: OpenOptions) -> OpenResult {
         transition options.read || (!options.write && !options.append) {
             true -> block writable(path, options, 2147483648),
             false -> block writable(path, options, 0)
         }
     }
-    machine writable(path: @[u8] in Path, options: OpenOptions, desired: u32) -> OpenResult {
+    machine writable(path: @[u8] in |paths|::Path, options: OpenOptions, desired: u32) -> OpenResult {
         transition options.append {
             true -> block disposition(path, options, desired | 1179924),
             false -> block ordinary_write(path, options, desired)
         }
     }
-    machine ordinary_write(path: @[u8] in Path, options: OpenOptions, desired: u32) -> OpenResult {
+    machine ordinary_write(path: @[u8] in |paths|::Path, options: OpenOptions, desired: u32) -> OpenResult {
         transition options.write {
             true -> block disposition(path, options, desired | 1073741824),
             false -> block disposition(path, options, desired)
         }
     }
-    machine disposition(path: @[u8] in Path, options: OpenOptions, desired: u32) -> OpenResult {
+    machine disposition(path: @[u8] in |paths|::Path, options: OpenOptions, desired: u32) -> OpenResult {
         transition options.create_new {
             true -> block acquire(path, desired, 1),
             false -> block creating(path, options, desired)
         }
     }
-    machine creating(path: @[u8] in Path, options: OpenOptions, desired: u32) -> OpenResult {
+    machine creating(path: @[u8] in |paths|::Path, options: OpenOptions, desired: u32) -> OpenResult {
         transition options.create {
             true -> block create_mode(path, options.truncate, desired),
             false -> block existing_mode(path, options.truncate, desired)
         }
     }
-    machine create_mode(path: @[u8] in Path, truncate: bool, desired: u32) -> OpenResult {
+    machine create_mode(path: @[u8] in |paths|::Path, truncate: bool, desired: u32) -> OpenResult {
         transition truncate { true -> block acquire(path, desired, 2), false -> block acquire(path, desired, 4) }
     }
-    machine existing_mode(path: @[u8] in Path, truncate: bool, desired: u32) -> OpenResult {
+    machine existing_mode(path: @[u8] in |paths|::Path, truncate: bool, desired: u32) -> OpenResult {
         transition truncate { true -> block acquire(path, desired, 5), false -> block acquire(path, desired, 3) }
     }
-    machine acquire(path: @[u8] in Path, desired: u32, disposition: u32) -> OpenResult {
+    machine acquire(path: @[u8] in |paths|::Path, desired: u32, disposition: u32) -> OpenResult {
         let handle: u64 = block WindowsFilesystemHost::create_file(path, desired, 7, disposition, 1048704);
         windows_filesystem_opened(handle)
     }
 }
 
-machine windows_filesystem_open(path: @[u8] in Path) -> OpenResult
+machine windows_filesystem_open(path: @[u8] in |paths|::Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let options: OpenOptions;
     block windows_filesystem_open_with(path, options)
 }
 
-machine windows_filesystem_create(path: @[u8] in Path) -> OpenResult
+machine windows_filesystem_create(path: @[u8] in |paths|::Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     block windows_filesystem_open_with(path, OpenOptions {
@@ -95,7 +96,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     })
 }
 
-machine windows_filesystem_create_new(path: @[u8] in Path) -> OpenResult
+machine windows_filesystem_create_new(path: @[u8] in |paths|::Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     block windows_filesystem_open_with(path, OpenOptions {
@@ -103,7 +104,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     })
 }
 
-machine windows_filesystem_append(path: @[u8] in Path) -> OpenResult
+machine windows_filesystem_append(path: @[u8] in |paths|::Path) -> OpenResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     block windows_filesystem_open_with(path, OpenOptions {

@@ -1,3 +1,4 @@
+use filesystem_host.omg as paths;
 use calling.omg as abi;
 use posix_byte_view_calling.omg as byte_views;
 use PosixFilesystemHost;
@@ -38,12 +39,12 @@ boundary trait PosixFilesystemLinuxArm64Metadata {
     crashes none;
 }
 
-machine linux_arm64_posix_open(path: @[u8] in Path, flags: i32) -> i32
+machine linux_arm64_posix_open(path: @[u8] in |paths|::Path, flags: i32) -> i32
     satisfies PosixFilesystemHost::open
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
-    let fits: bool = posix_terminated_path(path as -Path, @mutable terminated[..]);
+    let fits: bool = posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::openat(-100, @terminated, flags, 0);
     transition fits {
         true -> settle(outcome),
@@ -55,12 +56,12 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     }
 }
 
-machine linux_arm64_posix_open_create(path: @[u8] in Path, flags: i32, mode: i32) -> i32
+machine linux_arm64_posix_open_create(path: @[u8] in |paths|::Path, flags: i32, mode: i32) -> i32
     satisfies PosixFilesystemHost::open_create
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
-    let fits: bool = posix_terminated_path(path as -Path, @mutable terminated[..]);
+    let fits: bool = posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::openat(-100, @terminated, flags, mode);
     transition fits {
         true -> settle(outcome),
@@ -72,12 +73,12 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
     }
 }
 
-machine linux_arm64_posix_create(path: @[u8] in Path, mode: i32) -> i32
+machine linux_arm64_posix_create(path: @[u8] in |paths|::Path, mode: i32) -> i32
     satisfies PosixFilesystemHost::create
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
-    let fits: bool = posix_terminated_path(path as -Path, @mutable terminated[..]);
+    let fits: bool = posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::openat(-100, @terminated, 577, mode);
     transition fits {
         true -> settle(outcome),
@@ -127,12 +128,12 @@ machine linux_arm64_posix_close(fd: i32) -> i32
     outcome
 }
 
-machine linux_arm64_posix_remove(path: @[u8] in Path) -> i32
+machine linux_arm64_posix_remove(path: @[u8] in |paths|::Path) -> i32
     satisfies PosixFilesystemHost::remove
 reaches FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
-    let fits: bool = posix_terminated_path(path as -Path, @mutable terminated[..]);
+    let fits: bool = posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::unlinkat(-100, @terminated, 0);
     transition fits {
         true -> settle(outcome),
@@ -152,12 +153,12 @@ machine linux_arm64_posix_seek(fd: i32, offset: i64, whence: i32) -> i64
     outcome
 }
 
-machine linux_arm64_posix_create_dir(path: @[u8] in Path, mode: i32) -> i32
+machine linux_arm64_posix_create_dir(path: @[u8] in |paths|::Path, mode: i32) -> i32
     satisfies PosixFilesystemHost::create_dir
 reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
-    let fits: bool = posix_terminated_path(path as -Path, @mutable terminated[..]);
+    let fits: bool = posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::mkdirat(-100, @terminated, mode);
     transition fits {
         true -> settle(outcome),
@@ -169,12 +170,12 @@ reaches FilesystemMetadataMutation + FilesystemNamespaceMutation
     }
 }
 
-machine linux_arm64_posix_remove_dir(path: @[u8] in Path) -> i32
+machine linux_arm64_posix_remove_dir(path: @[u8] in |paths|::Path) -> i32
     satisfies PosixFilesystemHost::remove_dir
 reaches FilesystemNamespaceMutation
 {
     let mutable terminated: [u8; 4096];
-    let fits: bool = posix_terminated_path(path as -Path, @mutable terminated[..]);
+    let fits: bool = posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::unlinkat(-100, @terminated, 512);
     transition fits {
         true -> settle(outcome),
@@ -237,12 +238,12 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-machine linux_arm64_posix_set_permissions(path: @[u8] in Path, mode: u32) -> i32
+machine linux_arm64_posix_set_permissions(path: @[u8] in |paths|::Path, mode: u32) -> i32
     satisfies PosixFilesystemHost::set_permissions
 reaches FilesystemMetadataMutation
 {
     let mutable terminated: [u8; 4096];
-    let fits: bool = posix_terminated_path(path as -Path, @mutable terminated[..]);
+    let fits: bool = posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::fchmodat(-100, @terminated, mode);
     transition fits {
         true -> settle(outcome),
@@ -262,14 +263,14 @@ reaches FilesystemMetadataMutation
     outcome
 }
 
-machine linux_arm64_posix_rename(from: @[u8] in Path, to: @[u8] in Path) -> i32
+machine linux_arm64_posix_rename(from: @[u8] in |paths|::Path, to: @[u8] in |paths|::Path) -> i32
     satisfies PosixFilesystemHost::rename
 reaches FilesystemNamespaceMutation
 {
     let mutable first: [u8; 4096];
     let mutable second: [u8; 4096];
-    let first_fits: bool = posix_terminated_path(from as -Path, @mutable first[..]);
-    let second_fits: bool = posix_terminated_path(to as -Path, @mutable second[..]);
+    let first_fits: bool = posix_terminated_path(from as - |paths|::Path, @mutable first[..]);
+    let second_fits: bool = posix_terminated_path(to as - |paths|::Path, @mutable second[..]);
     let outcome: i32 = PosixFilesystemLinux::renameat(-100, @first, -100, @second);
     transition first_fits && second_fits {
         true -> settle(outcome),
@@ -281,14 +282,14 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-machine linux_arm64_posix_hard_link(original: @[u8] in Path, link: @[u8] in Path) -> i32
+machine linux_arm64_posix_hard_link(original: @[u8] in |paths|::Path, link: @[u8] in |paths|::Path) -> i32
     satisfies PosixFilesystemHost::hard_link
 reaches FilesystemNamespaceMutation
 {
     let mutable first: [u8; 4096];
     let mutable second: [u8; 4096];
-    let first_fits: bool = posix_terminated_path(original as -Path, @mutable first[..]);
-    let second_fits: bool = posix_terminated_path(link as -Path, @mutable second[..]);
+    let first_fits: bool = posix_terminated_path(original as - |paths|::Path, @mutable first[..]);
+    let second_fits: bool = posix_terminated_path(link as - |paths|::Path, @mutable second[..]);
     let outcome: i32 = PosixFilesystemLinux::linkat(-100, @first, -100, @second, 0);
     transition first_fits && second_fits {
         true -> settle(outcome),
@@ -300,14 +301,14 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-machine linux_arm64_posix_symlink(target: @[u8] in Path, link: @[u8] in Path) -> i32
+machine linux_arm64_posix_symlink(target: @[u8] in |paths|::Path, link: @[u8] in |paths|::Path) -> i32
     satisfies PosixFilesystemHost::symlink
 reaches FilesystemNamespaceMutation
 {
     let mutable first: [u8; 4096];
     let mutable second: [u8; 4096];
-    let first_fits: bool = posix_terminated_path(target as -Path, @mutable first[..]);
-    let second_fits: bool = posix_terminated_path(link as -Path, @mutable second[..]);
+    let first_fits: bool = posix_terminated_path(target as - |paths|::Path, @mutable first[..]);
+    let second_fits: bool = posix_terminated_path(link as - |paths|::Path, @mutable second[..]);
     let outcome: i32 = PosixFilesystemLinux::symlinkat(@first, -100, @second);
     transition first_fits && second_fits {
         true -> settle(outcome),
@@ -319,12 +320,12 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-machine linux_arm64_posix_read_link(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> i64
+machine linux_arm64_posix_read_link(path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> i64
     satisfies PosixFilesystemHost::read_link
 reaches FilesystemMetadataQuery
 {
     let mutable terminated: [u8; 4096];
-    let fits: bool = posix_terminated_path(path as -Path, @mutable terminated[..]);
+    let fits: bool = posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
     transition fits { true -> transfer(terminated, buffer, count), _ -> -36 }
     machine transfer(terminated: [u8; 4096], buffer: @mutable [u8], count: u64) -> i64 {
         // readlinkat's bufsiz is a signed int, not an arbitrary staging limit.
@@ -376,11 +377,11 @@ reaches FilesystemNamespaceMutation
     }
 }
 
-machine linux_arm64_posix_read_metadata(path: @[u8] in Path, buffer: @mutable [u8; 144]) -> i32
+machine linux_arm64_posix_read_metadata(path: @[u8] in |paths|::Path, buffer: @mutable [u8; 144]) -> i32
     satisfies PosixFilesystemHost::read_metadata
 reaches FilesystemMetadataQuery
 {
-    linux_arm64_posix_query_metadata_at(-100, path as -Path, buffer, 0)
+    linux_arm64_posix_query_metadata_at(-100, path as - |paths|::Path, buffer, 0)
 }
 
 machine linux_arm64_posix_read_file_metadata(fd: i32, buffer: @mutable [u8; 144]) -> i32
@@ -393,11 +394,11 @@ reaches FilesystemMetadataQuery
     }
 }
 
-machine linux_arm64_posix_read_symlink_metadata(path: @[u8] in Path, buffer: @mutable [u8; 144]) -> i32
+machine linux_arm64_posix_read_symlink_metadata(path: @[u8] in |paths|::Path, buffer: @mutable [u8; 144]) -> i32
     satisfies PosixFilesystemHost::read_symlink_metadata
 reaches FilesystemMetadataQuery
 {
-    linux_arm64_posix_query_metadata_at(-100, path as -Path, buffer, 256)
+    linux_arm64_posix_query_metadata_at(-100, path as - |paths|::Path, buffer, 256)
 }
 
 machine linux_arm64_posix_read_metadata_at(directory_descriptor: i32, name: @[u8], buffer: @mutable [u8; 144], flags: i32) -> i32
@@ -474,12 +475,12 @@ machine linux_arm64_posix_lock_file(fd: i32, operation: i32) -> i32
     outcome
 }
 
-machine linux_arm64_posix_change_owner(path: @[u8] in Path, uid: i32, gid: i32) -> i32
+machine linux_arm64_posix_change_owner(path: @[u8] in |paths|::Path, uid: i32, gid: i32) -> i32
     satisfies PosixFilesystemHost::change_owner
 reaches FilesystemMetadataMutation
 {
     let mutable terminated: [u8; 4096];
-    let fits: bool = posix_terminated_path(path as -Path, @mutable terminated[..]);
+    let fits: bool = posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::fchownat(-100, @terminated, uid, gid, 0);
     transition fits {
         true -> settle(outcome),
@@ -491,12 +492,12 @@ reaches FilesystemMetadataMutation
     }
 }
 
-machine linux_arm64_posix_change_owner_no_follow(path: @[u8] in Path, uid: i32, gid: i32) -> i32
+machine linux_arm64_posix_change_owner_no_follow(path: @[u8] in |paths|::Path, uid: i32, gid: i32) -> i32
     satisfies PosixFilesystemHost::change_owner_no_follow
 reaches FilesystemMetadataMutation
 {
     let mutable terminated: [u8; 4096];
-    let fits: bool = posix_terminated_path(path as -Path, @mutable terminated[..]);
+    let fits: bool = posix_terminated_path(path as - |paths|::Path, @mutable terminated[..]);
     let outcome: i32 = PosixFilesystemLinux::fchownat(-100, @terminated, uid, gid, 256);
     transition fits {
         true -> settle(outcome),

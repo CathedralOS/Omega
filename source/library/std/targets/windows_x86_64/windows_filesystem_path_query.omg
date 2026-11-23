@@ -1,3 +1,4 @@
+use filesystem_host.omg as paths;
 use targets/windows_x86_64/windows_filesystem_metadata_native.omg as metadata_io;
 use targets/windows_x86_64/windows_filesystem_path_query_native.omg as path_io;
 use omega_language_std;
@@ -11,10 +12,10 @@ use omega\language\core\narrow_u64_to_i32_exact;
 use omega\language\core\narrow_i32_to_u64_exact;
 use omega\language\core\narrow_i64_to_u64_wrapping;
 
-machine windows_filesystem_native_canonicalize(path: @[u8] in Path, output: @mutable [u8]) -> i32
+machine windows_filesystem_native_canonicalize(path: @[u8] in |paths|::Path, output: @mutable [u8]) -> i32
 reaches FilesystemMetadataQuery {
     let mutable wide: [u16; 4096];
-    let count: i64 = windows_wide_path(path as -Path, @mutable wide);
+    let count: i64 = windows_wide_path(path as - |paths|::Path, @mutable wide);
     wide[4095] = 0;
     transition count > 0 { true -> block open(wide as +WindowsNativePath, output), false -> (-87) }
     machine open(path: [u16; 4096] in WindowsNativePath, output: @mutable [u8]) -> i32 {

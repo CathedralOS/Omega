@@ -151,6 +151,22 @@ fn build(dependency: bool) -> String {
 }
 
 #[test]
+fn raw_windows_filesystem_methods_publish_the_shared_path_domain() {
+    let project = Project::new("windows-path-signatures");
+    let library = support::repository_root().join("source/library/std");
+    for file in ["filesystem_host.omg", "windows_filesystem_host.omg"] {
+        project.write(file, &std::fs::read_to_string(library.join(file)).unwrap());
+    }
+    project.write("main.omg", "");
+    project.write(
+        "build.omg",
+        r#"machine build(builder: @mutable Build) { Build::package(builder, "raw_fs"); }"#,
+    );
+    let output = project.observe(&["--check"], "main.omg");
+    assert!(output.status.success(), "{}", report(&output));
+}
+
+#[test]
 fn windows_adapter_values_preserve_counts_timestamps_and_whole_names() {
     let project = Project::new("values");
     let library = support::repository_root().join("source/library/std");

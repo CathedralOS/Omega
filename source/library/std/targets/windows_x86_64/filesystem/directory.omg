@@ -1,3 +1,4 @@
+use filesystem_host.omg as paths;
 use filesystem.omg as filesystem;
 use windows_filesystem_host.omg as win_fs;
 use EmptyResult;
@@ -13,14 +14,14 @@ use omega\language\core\FilesystemMetadataMutation;
 use omega\language\core\DirectoryEnumeration;
 use omega\language\core\FilesystemNamespaceMutation;
 
-machine windows_filesystem_read_dir_count(path: @[u8] in Path) -> IoResult
+machine windows_filesystem_read_dir_count(path: @[u8] in |paths|::Path) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
 {
     let result: i64 = block WindowsFilesystemHost::directory_count(path);
     windows_filesystem_transferred(result, 9223372036854775807)
 }
 
-machine windows_filesystem_read_dir_is_empty(path: @[u8] in Path) -> EmptyResult
+machine windows_filesystem_read_dir_is_empty(path: @[u8] in |paths|::Path) -> EmptyResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration
 {
     let result: IoResult = block windows_filesystem_read_dir_count(path);
@@ -36,7 +37,7 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 // Retain the enumeration record's no-follow classification. Reparse points
 // are neither ordinary files nor directories here, including directory links;
 // querying a child path afterward could classify a replacement object instead.
-machine windows_filesystem_read_dir_nth(path: @[u8] in Path, ordinal: u64) -> |filesystem|::DirEntryResult
+machine windows_filesystem_read_dir_nth(path: @[u8] in |paths|::Path, ordinal: u64) -> |filesystem|::DirEntryResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery
 {
     let result: |win_fs|::WindowsDirectoryEntryResult = block WindowsFilesystemHost::directory_nth(path, ordinal);
