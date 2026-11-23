@@ -1,12 +1,13 @@
-use targets\windows_x86_64\windows_filesystem_transfer_entry;
-use targets\windows_x86_64\windows_filesystem_transfer_signature;
-public WindowsFilesystemTransferCalling satisfies CallingPolicy {
-    machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        let accepted: bool = windows_filesystem_transfer_signature(@signature);
+use calling.omg as abi;
+use targets/windows_x86_64/windows_filesystem_calling.omg as transfer;
+
+public WindowsFilesystemTransferCalling satisfies |abi|::CallingPolicy {
+    machine plan(signature: |abi|::BoundarySignature) -> |abi|::BoundaryPlanResult {
+        let accepted: bool = |transfer|::windows_filesystem_transfer_signature(@signature);
         transition accepted {
-            true -> BoundaryPlanResult::Accepted { plan: windows_filesystem_transfer_entry() },
-            _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
-                reason: "expected handle, whole byte view, count reference and overlapped" as +Utf8
+            true -> |abi|::BoundaryPlanResult::Accepted { plan: |transfer|::windows_filesystem_transfer_entry() },
+            _ -> |abi|::BoundaryPlanResult::Rejected { reason: |abi|::CallingPolicyRejection {
+                reason: "expected handle, whole byte view, count reference and overlapped" as + |abi|::Utf8
             } }
         }
     }
