@@ -40,7 +40,7 @@ impl PackagePolicySelectedProviders {
                         && (plan.realizing_package.is_none()
                             || !plan.rows.is_empty()
                                 && plan.rows.iter().all(|row| row.native_build.is_some()))))
-                || (!plan.target.is_empty() && plan.target != self.target.target_name())
+                || plan.target != self.target.target_name()
                 || plan.methods.is_empty()
                 || plan.methods.len() != plan.rows.len()
             {
