@@ -135,6 +135,9 @@ impl<'a> FileImport<'a> {
         mounted: Option<&PackageCompilationInputs>,
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
+        if self.source.scope == DependencyScope::Build && self.import.only_product_operands {
+            return Ok(FileSelection::Unprepared);
+        }
         match self.root {
             Some("omega") => self.core(filesystem),
             Some(_) if let Some(inputs) = mounted => self.package(inputs, inputs.root(), true),
@@ -154,6 +157,9 @@ impl<'a> FileImport<'a> {
         contract_root: Option<&Path>,
         filesystem: &SourceFileSystem,
     ) -> Result<FileSelection, Vec<Diagnostic>> {
+        if self.source.scope == DependencyScope::Build && self.import.only_product_operands {
+            return Ok(FileSelection::Unprepared);
+        }
         if self.root == Some("omega") {
             return self.core(filesystem);
         }

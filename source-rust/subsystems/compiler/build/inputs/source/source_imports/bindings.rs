@@ -433,6 +433,7 @@ mod tests {
             DependencyScope::Product,
         );
         let import = SourceImport {
+            only_product_operands: false,
             ordinal: 0,
             span: Default::default(),
             target: SourceImportTarget::File {
