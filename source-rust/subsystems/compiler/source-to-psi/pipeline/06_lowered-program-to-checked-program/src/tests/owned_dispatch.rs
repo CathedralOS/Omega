@@ -158,6 +158,39 @@ machine consume(level: i32) requires level == 1 {{ }}
     assert!(unproved.iter().any(|row| row.statement.contains("requires contract for call consume")));
 }
 
+/// The controller's Dim arm also owes its contract when the caller supplies
+/// the command and every tag can reach the dispatch.
+#[test]
+fn an_unknown_borrowed_command_checks_each_selected_payload() {
+    let program = |maximum| {
+        format!(
+            r#"
+data Command requires ((self in Command::Set) && (self.level >= 0 && self.level <= 100))
+                   || ((self in Command::Dim) && (self.amount >= 0 && self.amount <= {maximum}))
+                   || (self in Command::Off) {{
+    case Set(level: i32);
+    case Dim(amount: i32);
+    case Off;
+}}
+data State {{ command: Command; }}
+machine build_entry(state: @mutable State) {{
+    transition state.command {{
+        Command::Set {{ level }} -> consume(state, level),
+        Command::Dim {{ amount }} -> consume(state, amount * 10),
+        Command::Off -> consume(state, 0)
+    }}
+}}
+machine consume(state: @mutable State, level: i32) requires level >= 0 && level <= 100 {{ }}
+"#
+        )
+    };
+    assert_eq!(verdict(&program(10)), "accepted");
+    let Ok(RouteVerdict::Rejected { unproved, .. }) = judge_build(&program(11)) else {
+        panic!("an eleven-step dim command can exceed one hundred");
+    };
+    assert!(unproved.iter().any(|row| row.statement.contains("requires contract for call consume")));
+}
+
 /// The discard on a dispatch edge is the affine judgment's to hold to its
 /// schedule: an edge that drops it, and an edge that disposes of storage
 /// the schedule does not own, are each refused.
