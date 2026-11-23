@@ -686,9 +686,10 @@ impl Lowering<'_> {
     ) -> Evaluation<()> {
         if let Some(ValueType::Scalar(subject_type, _)) = subject.result {
             // A match without a subject tests only its conditions.
-            let tested = if arms
-                .iter()
-                .all(|(selector, _)| matches!(selector, Selector::Guard(_)))
+            let tested = if capture.is_none()
+                && arms
+                    .iter()
+                    .all(|(selector, _)| matches!(selector, Selector::Guard(_)))
             {
                 None
             } else {

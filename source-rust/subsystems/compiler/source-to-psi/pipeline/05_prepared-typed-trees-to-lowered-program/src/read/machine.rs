@@ -4110,10 +4110,14 @@ impl<'t> Program<'t> {
             }
             ValueType::Record(_, _, _) => None,
             ValueType::Scalar(scalar, _) => Some(
-                Some(
-                    self.typed
-                        .normalized_type_identity_text(self.plain_scalar_reference(id, scalar)?),
-                )
+                Some(self.typed.normalized_type_identity_text(match scalar {
+                    semantic_vocabulary::ScalarType::Integer(integer)
+                        if integer.bits().is_none() =>
+                    {
+                        carrier
+                    }
+                    _ => self.plain_scalar_reference(id, scalar)?,
+                }))
                 .filter(|identity| !identity.is_empty())
                 .ok_or_else(|| {
                     refuse(

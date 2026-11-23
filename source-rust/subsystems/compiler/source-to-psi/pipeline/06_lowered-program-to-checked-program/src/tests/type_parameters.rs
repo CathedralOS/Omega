@@ -2371,7 +2371,7 @@ fn a_callable_alias_checks_its_clauses_and_closes_at_a_storage_use() {
         let invalid = judge_prepared_source(&format!("{signature} machine main() {{}}"));
         assert!(invalid.iter().any(|v| matches!(v, Ok(RouteVerdict::Rejected { violations, .. })
             if violations.iter().any(|row| row.statement.contains("a contract predicate must have type bool")
-                && row.statement.contains("the signature of `Callback`") && row.site.is_some()))),
+                && row.statement.contains("the alias expansion of `Callback`") && row.site.is_some()))),
             "the unused alias must reject its own ill-formed predicate: {invalid:?}");
     }
 }
