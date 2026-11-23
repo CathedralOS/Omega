@@ -28,6 +28,7 @@ Provenance:
 mod bindings;
 mod build_prelude;
 mod entry_contract_seed;
+mod files;
 mod source_targets;
 pub use source_targets::{source_target, source_targets};
 mod frontier;
@@ -66,10 +67,12 @@ pub(crate) use paths::bundled_omega_root;
 
 use crate::PackageCompilationInputs;
 use bindings::ImportOccurrence;
-use source_provenance::DependencyScope;
 use diagnostics::Diagnostic;
+use files::{FileImport, FileSelection};
 use paths::{identifier_path_text, is_bundled_omega_path};
 use source_compiler::ParsedSourceBatch;
+use source_compiler::SourceImportTarget;
+use source_provenance::DependencyScope;
 use std::path::{Path, PathBuf};
 
 pub(crate) fn discover_imports(
@@ -95,7 +98,19 @@ pub(crate) fn discover_imports(
         };
         for import in &unit.imports {
             let ordinal = import.ordinal;
-            let members = &import.members;
+            if let Some(file) = FileImport::from(unit, import) {
+                let root = contracts.root_for(&unit.path).unwrap_or(source_root);
+                match file.standalone(root, None, filesystem)? {
+                    FileSelection::Selected(resolved) => {
+                        imports.push((resolved.path.clone(), unit.scope));
+                        retained.push(resolved);
+                    }
+                    FileSelection::Unprepared => {}
+                    FileSelection::Package(_) => unreachable!("a standalone input has no mounted graph"),
+                }
+                continue;
+            }
+            let SourceImportTarget::Namespace(members) = &import.target else { unreachable!() };
             let (root, prefix) = if paths::is_bundled_core_path(members) {
                 (core.as_path(), 3)
             } else if is_bundled_omega_path(members) {
@@ -195,7 +210,18 @@ pub(crate) fn discover_package_imports(
         let contract_root = contract_custody.root_for(&parsed_source.path);
         for import in &parsed_source.imports {
             let ordinal = import.ordinal;
-            let members = &import.members;
+            if let Some(file) = FileImport::from(parsed_source, import) {
+                match file.reconciled(packages, requester, purpose, contract_root, filesystem)? {
+                    FileSelection::Selected(resolved) => {
+                        imports.push((resolved.path.clone(), parsed_source.scope));
+                        retained.push(resolved);
+                    }
+                    FileSelection::Package(pending) => collect_package_import(pending, phase, packages, discovery, &mut imports, retained, &mut requests)?,
+                    FileSelection::Unprepared => {}
+                }
+                continue;
+            }
+            let SourceImportTarget::Namespace(members) = &import.target else { unreachable!() };
             match reconciled_package_import(
                 &parsed_source.path,
                 members,
@@ -239,23 +265,37 @@ pub(crate) fn discover_package_imports(
                         scope: parsed_source.scope,
                         request,
                     };
-                    match phase {
-                        PackageImportPhase::TargetIndependent => {
-                            for physical in pending.physical_sources(packages, discovery)? {
-                                imports.push((physical, parsed_source.scope));
-                            }
-                            requests.push(pending);
-                        }
-                        PackageImportPhase::ExactTarget(_) => {
-                            for resolved in pending.resolve_for_exact_target(packages, discovery)? {
-                                imports.push((resolved.path.clone(), parsed_source.scope));
-                                retained.push(resolved);
-                            }
-                        }
-                    }
+                    collect_package_import(pending, phase, packages, discovery, &mut imports, retained, &mut requests)?;
                 }
             }
         }
     }
     Ok((imports, requests))
+}
+
+fn collect_package_import(
+    pending: PendingPackageImport,
+    phase: PackageImportPhase,
+    packages: &PackageCompilationInputs,
+    discovery: &mut impl LogicalSourceDiscovery,
+    imports: &mut Vec<(PathBuf, DependencyScope)>,
+    retained: &mut Vec<ResolvedSourceImport>,
+    requests: &mut Vec<PendingPackageImport>,
+) -> Result<(), Vec<Diagnostic>> {
+    let scope = pending.scope;
+    match phase {
+        PackageImportPhase::TargetIndependent => {
+            for physical in pending.physical_sources(packages, discovery)? {
+                imports.push((physical, scope));
+            }
+            requests.push(pending);
+        }
+        PackageImportPhase::ExactTarget(_) => {
+            for resolved in pending.resolve_for_exact_target(packages, discovery)? {
+                imports.push((resolved.path.clone(), scope));
+                retained.push(resolved);
+            }
+        }
+    }
+    Ok(())
 }
