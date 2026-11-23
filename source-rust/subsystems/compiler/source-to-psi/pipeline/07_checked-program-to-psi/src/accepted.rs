@@ -423,7 +423,9 @@ impl AcceptedTerminalSource {
                         .source()
                         .trait_requirement_callable_identity_text(owner, requirement);
                     if callable.is_empty() {
-                        return Err(lost("lost the complete application of a boundary requirement"));
+                        return Err(lost(
+                            "lost the complete application of a boundary requirement",
+                        ));
                     }
                     Ok(DeclaredRequirementApplication {
                         template: closed.template,
