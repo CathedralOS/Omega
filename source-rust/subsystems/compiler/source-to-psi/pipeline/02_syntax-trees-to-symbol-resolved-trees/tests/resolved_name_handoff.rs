@@ -1,0 +1,181 @@
+//! Name resolution must hand typing the declaration each written name selects.
+//! Typing reads `TableNamePath::symbol` and never looks a name up again, so a
+//! name bound to the wrong declaration becomes a program that reads the wrong
+//! value or calls the wrong machine, and still type-checks when the two have
+//! the same type.
+//!
+//! The spec rules are in `wiki/spec/language/machines.md` (nested machines
+//! cannot capture runtime values from enclosing machines) and
+//! `wiki/spec/language/constants.md`, "Evaluation".
+//!
+//! Each program is built so that the wrong choice is a different, valid
+//! binding: a local and a package constant with the same name, and a local
+//! with the same name as the value its initializer reads.
+
+use crate::resolution::frontend_fixture::Lexer;
+use crate::resolution::{ResolutionRequest, resolve};
+use crate::source_resolved::SymbolResolvedTrees;
+use crate::source_resolved::expression::ExpressionNode;
+use symbols::SymbolHandle;
+
+/// Resolve `files`, each `(path, text)` under the package directory `app`.
+fn resolved(files: &[(&str, &str)]) -> SymbolResolvedTrees {
+    let mut sources = crate::source_inputs::SourceMap::default();
+    let mut syntax = syntax_trees::SyntaxTrees::default();
+    for (path, text) in files {
+        let source = sources
+            .add_checked_instance(
+                format!("app/{path}").into(),
+                *text,
+                "app".into(),
+                None,
+                source_admission::SourceOrigin::User,
+                source_admission::SourceResolutionStratum::Base,
+                source_provenance::DependencyScope::Product,
+            )
+            .source_id;
+        let tokens = Lexer::new(text).tokenize().unwrap();
+        let unit = crate::resolution::frontend_fixture::parse_syntax_trees_with_id(source, &tokens)
+            .unwrap_or_else(|error| panic!("{path} does not parse: {}", error.message));
+        syntax.extend_from(&unit);
+    }
+    resolve(ResolutionRequest {
+        syntax,
+        sources: Some(std::sync::Arc::new(sources)),
+        top_level_bindings: Vec::new(),
+        retained_base: None,
+    })
+    .unwrap_or_else(|refusal| panic!("resolution refused: {refusal:?}"))
+}
+
+/// What a name selects: its kind, its path, and where the selected
+/// declaration is written as `(file, offset)`, or `None` when it selects
+/// nothing.
+type Selection = Option<(String, String, (usize, usize))>;
+
+fn selection(trees: &SymbolResolvedTrees, symbol: SymbolHandle) -> Selection {
+    symbol.is_valid().then(|| {
+        let span = trees
+            .symbols
+            .symbol_source_span(symbol)
+            .expect("a declared symbol has a source span");
+        (
+            format!("{:?}", trees.symbols.get(symbol).kind),
+            trees.symbols.display_path(symbol, "\\"),
+            (span.source_id.0, span.span.start),
+        )
+    })
+}
+
+/// The selection of every written name with this text, in source order of
+/// `(file, offset)`.
+fn uses(trees: &SymbolResolvedTrees, text: &str) -> Vec<((usize, usize), Selection)> {
+    let table = &trees.tables.bodies.expressions;
+    let mut found: Vec<_> = table
+        .iter_expressions()
+        .filter_map(|(handle, node)| {
+            let ExpressionNode::Name(name) = node else {
+                return None;
+            };
+            let members = table.name_path_members(name.members);
+            let spelled: Vec<_> = members.iter().map(|member| member.as_str()).collect();
+            (spelled.join("\\") == text).then(|| {
+                let span = table.source_span(handle);
+                (
+                    (span.source_id.0, span.span.start),
+                    selection(trees, name.symbol),
+                )
+            })
+        })
+        .filter(|((_, start), _)| *start != 0)
+        .collect();
+    found.sort_by_key(|(at, _)| *at);
+    found
+}
+
+fn declared(kind: &str, path: &str, file: usize, offset: usize) -> Selection {
+    Some((kind.to_owned(), path.to_owned(), (file, offset)))
+}
+
+/// `default_port` is nested in `connect`, which has a local also named
+/// `port`. A nested machine cannot read its enclosing machine's runtime
+/// values, so its `port` is the package constant, and resolution writes the
+/// constant's literal value at the read: typing sees `1`, not a name.
+#[test]
+fn a_literal_constant_read_in_a_nested_machine_arrives_as_its_value() {
+    let program = "const port: u32 = 1; machine connect() -> u32 { let port: u32 = 99; \
+        default_port() machine default_port() -> u32 { port } }";
+    let trees = resolved(&[("main.omg", program)]);
+    let at = program.rfind("port }").unwrap();
+    let table = &trees.tables.bodies.expressions;
+    let node = table
+        .iter_expressions()
+        .find(|(handle, _)| table.source_span(*handle).span.start == at)
+        .map(|(_, node)| format!("{node:?}"))
+        .expect("an expression at the nested read");
+    assert!(
+        node.starts_with("Integer(IntegerLiteral { text: \"1\""),
+        "{node}"
+    );
+    assert!(
+        uses(&trees, "port").is_empty(),
+        "{:?}",
+        uses(&trees, "port")
+    );
+}
+
+/// `let mutable total` introduces one local. The assignment, the read on
+/// its right-hand side and the tail all select it, and `seed` selects the
+/// parameter.
+#[test]
+fn every_use_after_a_let_selects_the_local_it_introduces() {
+    let program =
+        "machine step(seed: u8) -> u8 { let mutable total: u8 = seed; total = total + 1; total }";
+    let trees = resolved(&[("main.omg", program)]);
+    let local = declared("Local", "step\\entry\\total", 0, 43);
+    assert_eq!(
+        uses(&trees, "total"),
+        [
+            ((0, 61), local.clone()),
+            ((0, 69), local.clone()),
+            ((0, 80), local)
+        ]
+    );
+    assert_eq!(
+        uses(&trees, "seed"),
+        [((0, 55), declared("Parameter", "step\\entry\\seed", 0, 13))]
+    );
+}
+
+/// A local is in scope only after its initializer. In `let x = x;` the
+/// initializer's `x` selects nothing (there is no other `x`), and the tail
+/// selects the local. In the control, the initializer reads the parameter
+/// and the tail reads the local.
+#[test]
+fn a_local_is_not_in_scope_in_its_own_initializer() {
+    let program = "machine read_count(count: u32) -> u32 { let x = x; x }";
+    let trees = resolved(&[("main.omg", program)]);
+    assert_eq!(
+        uses(&trees, "x"),
+        [
+            ((0, 48), None),
+            ((0, 51), declared("Local", "read_count\\entry\\x", 0, 44)),
+        ]
+    );
+    let control = "machine read_count(count: u32) -> u32 { let saved = count; saved }";
+    let trees = resolved(&[("main.omg", control)]);
+    assert_eq!(
+        uses(&trees, "count"),
+        [(
+            (0, 52),
+            declared("Parameter", "read_count\\entry\\count", 0, 19)
+        )]
+    );
+    assert_eq!(
+        uses(&trees, "saved"),
+        [(
+            (0, 59),
+            declared("Local", "read_count\\entry\\saved", 0, 44)
+        )]
+    );
+}
