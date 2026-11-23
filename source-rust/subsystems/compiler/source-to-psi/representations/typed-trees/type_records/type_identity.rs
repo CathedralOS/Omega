@@ -9764,6 +9764,15 @@ impl TypedTrees {
         Ok(format!("{filename}::{local}"))
     }
 
+    /// The authored declaration path used by the ABI and package review.
+    /// Installed declarations keep their catalog path.
+    pub fn authored_declaration_path(&self, symbol: SymbolHandle) -> Result<String, String> {
+        if !self.symbols.symbols().nodes().is_valid(symbol) {
+            return Err("an authored path contains a stale declaration".to_owned());
+        }
+        self.file_declaration_path(symbol, self.symbols.display_path(symbol, "::"))
+    }
+
     pub fn normalized_hermetic_symbol_identity(
         &self,
         symbol: SymbolHandle,
@@ -9791,7 +9800,7 @@ impl TypedTrees {
         {
             return Ok(identity);
         }
-        let path = self.file_declaration_path(symbol, self.symbols.display_path(symbol, "::"))?;
+        let path = self.authored_declaration_path(symbol)?;
         // Overloads share a source path but are different declarations. Keep
         // the existing callable signature with that path, so selecting one
         // overload cannot name another declaration with different parameters.
