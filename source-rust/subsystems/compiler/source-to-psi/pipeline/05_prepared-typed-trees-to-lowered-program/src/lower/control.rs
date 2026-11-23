@@ -398,10 +398,10 @@ impl Lowering<'_> {
                     Reached::Value(_) if expression.result.is_none() || *discards_result => {
                         Ok(Reached::Value(()))
                     }
-                    Reached::Value(_) => Err(refuse(
+                    Reached::Value(_) => Err(crate::lowering::reject(
                         self.id,
-                        Construct::Machine,
-                        Unserved::Statement("expression statement that discards its value"),
+                        expression.source,
+                        "use the returned value or explicitly discard it with `_ =`",
                     )),
                 }
             }

@@ -175,7 +175,22 @@ mod statement_nodes {
                 hoisted.push(Statement::Assignment(Assignment { target, value }));
                 Ok(hoisted)
             }
-            StatementNode::Call(call) => {
+            StatementNode::Call(statement) => {
+                let call = statement.call(syntax_trees);
+                let build_declaration = BuildOperation::from_call_target(call.target.as_str(syntax_trees))
+                    .is_some_and(|operation| operation.selects_product_declarations()
+                        && operation != BuildOperation::NativeBinding);
+                let receiver_path = syntax_trees.expression_identifier_path(call.receiver);
+                // A static qualifier may carry type arguments. A runtime projection
+                // keeps its place (including indexes) in the complete callee below.
+                if build_declaration || (call.target_is_static && receiver_path.is_none()) {
+                    let expression =
+                        lower_statement_expression(lowerer, syntax_trees, statement.expression)?;
+                    return Ok(vec![Statement::Evaluate {
+                        expression,
+                        discards_result: statement.discards_result,
+                    }]);
+                }
                 let callee = call
                     .callee
                     .is_valid()
@@ -184,8 +199,16 @@ mod statement_nodes {
                     })
                     .transpose()?
                     .unwrap_or_else(ExpressionHandle::invalid);
-                let receiver = lower_statement_path_members(lowerer, syntax_trees, call.receiver);
-                let arguments = lower_statement_expressions(lowerer, syntax_trees, call.arguments)?;
+                let receiver = lower_statement_path_members(
+                    lowerer,
+                    syntax_trees,
+                    receiver_path.into_iter().flatten(),
+                );
+                let arguments = lower_statement_expressions(
+                    lowerer,
+                    syntax_trees,
+                    syntax_trees.expressions.expression_handles(call.arguments),
+                )?;
                 let mut hoisted = Vec::new();
                 for offset in 0..arguments.count() {
                     let argument =
@@ -218,31 +241,12 @@ mod statement_nodes {
                         evidence_arguments: lower_names(syntax_trees, &call.evidence_arguments)
                             .into_boxed_slice(),
                         operational_acknowledgement: call.operational_acknowledgement,
-                        discards_result: call.discards_result,
+                        discards_result: statement.discards_result,
                         authored_call_selection: None,
                         authored_static_argument_selections: Box::default(),
                     },
                 };
-                if matches!(
-                    BuildOperation::from_call_target(call.target.as_str(syntax_trees)),
-                    Some(
-                        BuildOperation::ProviderSelection
-                            | BuildOperation::AssumedBindingContract
-                            | BuildOperation::ServiceExclusion
-                            | BuildOperation::ServiceAudit
-                            | BuildOperation::TestGroupRegistration
-                            | BuildOperation::TestGroupService
-                            | BuildOperation::BoundaryAcceptance
-                            | BuildOperation::WireCompatibilityRequest
-                            | BuildOperation::RepresentationSelection
-                    )
-                ) {
-                    let expression =
-                        retain_build_declaration_call_expression(lowerer, lowered_call);
-                    hoisted.push(Statement::Expression(expression));
-                } else {
-                    hoisted.push(Statement::Call(lowered_call));
-                }
+                hoisted.push(Statement::Call(lowered_call));
                 Ok(hoisted)
             }
             StatementNode::ProofOutputBindingStatement(binding) => {
@@ -489,110 +493,6 @@ mod statement_nodes {
         }
     }
 
-    fn retain_build_declaration_call_expression(
-        lowerer: &mut Lowerer,
-        call: Call,
-    ) -> ExpressionHandle {
-        use crate::declaration_selection::AuthoredDeclarationSelectionExposure;
-        use crate::source_resolved::expression::{TableCallExpression, TableNamePath};
-
-        let receiver_members = lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .statement_path_members
-            .span_or_empty(call.receiver)
-            .to_vec();
-        let mut receiver_members = receiver_members;
-        // `owner.tests.group::<Requirement>()` passes the Build's `tests` facet
-        // as a value (wiki/spec/build/testing.md), so its receiver keeps the
-        // member projection an ordinary `owner.tests` value has instead of the
-        // static path a statement call's receiver otherwise becomes.
-        let facet = (BuildOperation::from_call_target(call.target.as_str())
-            .is_some_and(BuildOperation::uses_tests_facet)
-            && receiver_members.len() >= 2
-            && receiver_members
-                .last()
-                .is_some_and(|member| member.as_str() == "tests"))
-        .then(|| receiver_members.pop())
-        .flatten();
-        let receiver_span = receiver_members.first().map(|member| member.source_span());
-        let expression_table = &mut lowerer.symbol_resolved_trees.tables.bodies.expressions;
-        let mut members = HandleSpan::empty();
-        for member in receiver_members {
-            expression_table.push_name_path_member(&mut members, member);
-        }
-        let receiver = if members.is_empty() {
-            ExpressionHandle::invalid()
-        } else {
-            let member_symbols = expression_table.reserve_name_path_member_symbols(members.count());
-            expression_table.insert(ExpressionNode::Name(TableNamePath {
-                members,
-                member_symbols,
-                ..Default::default()
-            }))
-        };
-        let (owner, receiver, facet_span) = match facet {
-            Some(facet) => {
-                let span = facet.source_span();
-                let projected = expression_table.insert(ExpressionNode::Member(
-                    crate::source_resolved::expression::TableMemberExpression {
-                        receiver,
-                        member_symbol: SymbolHandle::invalid(),
-                        member: facet,
-                        position: None,
-                        case_variant: None,
-                    },
-                ));
-                (receiver, projected, Some(span))
-            }
-            None => (ExpressionHandle::invalid(), receiver, None),
-        };
-        let source_span = call.target.source_span();
-        let expression = expression_table.insert(ExpressionNode::Call(TableCallExpression {
-            callee: call.callee,
-            target_is_static: call.target_is_static,
-            authored_call_binding: None,
-            receiver,
-            target_symbol: call.target_symbol,
-            target: call.target,
-            requirement_application: arena::Handle::invalid(),
-            machine_arguments: call.storage.machine_arguments,
-            arguments: call.storage.arguments,
-            evidence_arguments: call.storage.evidence_arguments,
-            operational_acknowledgement: call.storage.operational_acknowledgement,
-        }));
-        let (owner_span, receiver_span) = if owner.is_valid() {
-            (receiver_span, facet_span)
-        } else {
-            (None, receiver_span)
-        };
-        for (handle, span) in [
-            (owner, owner_span),
-            (receiver, receiver_span),
-            (expression, Some(source_span)),
-        ] {
-            if !handle.is_valid() {
-                continue;
-            }
-            if let Some(span) = span {
-                expression_table.set_source_span(handle, span);
-            }
-            let exposure = AuthoredDeclarationSelectionExposure::PrivateImplementation;
-            expression_table.set_authored_expression_exposure(handle, exposure);
-            lowerer.pending_authored_expressions.push(
-                crate::resolution::lowering::lowerer::PendingAuthoredExpression {
-                    expression: handle,
-                    exposure,
-                },
-            );
-            if let Some(partition) = lowerer.current_compiler_selection_partition {
-                expression_table.set_compiler_selection_partition(handle, partition);
-            }
-        }
-        expression
-    }
-
     fn evidence_forwarding_names<'syntax>(
         evidence_names: &[String],
         syntax_trees: &'syntax SyntaxTrees,
@@ -649,16 +549,16 @@ mod statement_nodes {
     fn lower_statement_expressions(
         lowerer: &mut Lowerer,
         syntax_trees: &SyntaxTrees,
-        expressions: HandleSpan<syntax::expression::ExpressionHandle>,
+        expressions: &[syntax::expression::ExpressionHandle],
     ) -> Result<HandleSpan<crate::source_resolved::expression::ExpressionHandle>, Diagnostic> {
-        let span = expression_table(lowerer).reserve_expression_handles(expressions.count());
+        let span = expression_table(lowerer).reserve_expression_handles(
+            expressions
+                .len()
+                .try_into()
+                .expect("expression span overflow"),
+        );
 
-        for (offset, expression) in syntax_trees
-            .statements
-            .expression_handles(expressions)
-            .iter()
-            .enumerate()
-        {
+        for (offset, expression) in expressions.iter().enumerate() {
             let expression =
                 lower_private_expression_into_table(lowerer, syntax_trees, *expression)?;
             expression_table(lowerer).set_expression_handle_at_offset(
@@ -701,7 +601,11 @@ mod statement_nodes {
                 evidence_arguments,
                 source_span,
             } => {
-                let arguments = lower_statement_expressions(lowerer, syntax_trees, *arguments)?;
+                let arguments = lower_statement_expressions(
+                    lowerer,
+                    syntax_trees,
+                    syntax_trees.statements.expression_handles(*arguments),
+                )?;
                 for offset in 0..if unconditional { arguments.count() } else { 0 } {
                     let argument =
                         expression_table(lowerer).expression_handles(arguments)[offset as usize];
@@ -723,7 +627,11 @@ mod statement_nodes {
                     storage: NamedTransitionTargetStorage {
                         unresolved_name: Default::default(),
                         operational_acknowledgement: *operational_acknowledgement,
-                        path: lower_statement_path_members(lowerer, syntax_trees, *path),
+                        path: lower_statement_path_members(
+                            lowerer,
+                            syntax_trees,
+                            syntax_trees.statements.identifier_path_members(*path),
+                        ),
                         arguments,
                         evidence_arguments: lower_names(syntax_trees, evidence_arguments)
                             .into_boxed_slice(),
@@ -750,14 +658,14 @@ mod statement_nodes {
         }
     }
 
-    fn lower_statement_path_members(
+    fn lower_statement_path_members<'syntax>(
         lowerer: &mut Lowerer,
         syntax_trees: &SyntaxTrees,
-        members: HandleSpan<Identifier>,
+        members: impl IntoIterator<Item = &'syntax Identifier>,
     ) -> HandleSpan<DiagnosticName> {
         let mut span = HandleSpan::empty();
 
-        for member in syntax_trees.statements.identifier_path_members(members) {
+        for member in members {
             lowerer
                 .symbol_resolved_trees
                 .tables

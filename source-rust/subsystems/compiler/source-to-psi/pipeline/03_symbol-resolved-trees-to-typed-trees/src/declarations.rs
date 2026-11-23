@@ -1832,7 +1832,10 @@ pub(crate) mod provider_defaults {
                     {
                         occurrences.extend(call.authored_call_selection);
                     }
-                    crate::source_state::statement::StatementNode::Expression(expression) => {
+                    crate::source_state::statement::StatementNode::Expression(expression)
+                    | crate::source_state::statement::StatementNode::Evaluate {
+                        expression, ..
+                    } => {
                         if let crate::source_state::expression::ExpressionNode::Call(call) =
                             typed.expression_table.expression(*expression)
                             && BuildOperation::from_call_target(call.target.as_str())

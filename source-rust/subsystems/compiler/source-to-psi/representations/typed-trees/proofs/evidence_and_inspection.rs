@@ -4349,6 +4349,10 @@ pub mod inspection {
                 Expression {
                     value: ExpressionSnapshot,
                 },
+                Evaluate {
+                    expression: ExpressionSnapshot,
+                    discards_result: bool,
+                },
                 LocalData {
                     role: String,
                     name: String,
@@ -4698,6 +4702,7 @@ pub mod inspection {
             acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
             acknowledges_block: call.operational_acknowledgement.acknowledges_block,
         },
+        StatementNode::Evaluate { expression, discards_result } => StatementSnapshot::Evaluate { expression: expression_snapshot(program, *expression), discards_result: *discards_result },
         StatementNode::Expression(expression) => StatementSnapshot::Expression {
             value: expression_snapshot(program, *expression),
         },

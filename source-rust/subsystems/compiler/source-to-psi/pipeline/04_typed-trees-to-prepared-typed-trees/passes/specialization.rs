@@ -1404,6 +1404,7 @@ fn copied_parts(
             StatementNode::LocalData(local) => local.reflected_query_origin.is_none(),
             StatementNode::Assignment(_)
             | StatementNode::Expression(_)
+            | StatementNode::Evaluate { .. }
             | StatementNode::Transition(_) => true,
         };
         if !copied {

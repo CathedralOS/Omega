@@ -131,7 +131,9 @@ pub(crate) mod equality {
             StatementNode::ProofOutputBindingStatement(package) => {
                 scan_expression(program, package.call)
             }
-            StatementNode::Expression(expression) => scan_expression(program, *expression),
+            StatementNode::Expression(expression) | StatementNode::Evaluate { expression, .. } => {
+                scan_expression(program, *expression)
+            }
             StatementNode::LocalData(local_data) => {
                 scan_expression(program, local_data.initial_value)
             }

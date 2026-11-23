@@ -219,8 +219,8 @@ mod assignments {
 mod calls {
     /* Expected types from calls, returns and receiver paths. */
     use super::super::{
-        ExpressionHandle, ExpressionNode, HandleSpan, HashMap, HashSet, Identifier, StatementNode,
-        SyntaxTrees, TypeReferenceHandle, TypeReferenceNode,
+        ExpressionHandle, ExpressionNode, HashMap, HashSet, StatementNode, SyntaxTrees,
+        TypeReferenceHandle, TypeReferenceNode,
     };
     use crate::resolution::declarations::generic_data::uses::{
         ConstructorFrontier, collect_statement_expression_handles, named_type_name,
@@ -386,39 +386,6 @@ mod calls {
                             &frontier,
                         );
                     }
-                    StatementNode::Call(call) => {
-                        let owner = exact_statement_receiver_owner(
-                            syntax,
-                            call.receiver,
-                            &local_owner_types,
-                        );
-                        let parameters = if call.receiver.is_empty() {
-                            signatures.get(call.target.as_str(syntax))
-                        } else {
-                            let Some(owner) = owner else {
-                                continue;
-                            };
-                            attached_signatures.get(&(owner, call.target.as_str(syntax).to_owned()))
-                        };
-                        let Some(Some(parameters)) = parameters else {
-                            continue;
-                        };
-                        let arguments = syntax
-                            .tables
-                            .statements
-                            .expression_handles(call.arguments)
-                            .to_vec();
-                        for (argument, expected_type) in arguments.into_iter().zip(parameters) {
-                            relabel_data_literal_for_expected_type(
-                                syntax,
-                                argument,
-                                *expected_type,
-                                instances,
-                                selection,
-                                &frontier,
-                            );
-                        }
-                    }
                     StatementNode::Transition(transition) => {
                         for target in transition.targets() {
                             if let syntax_trees::statement::TransitionTargetNode::Value(value) =
@@ -438,18 +405,6 @@ mod calls {
                     _ => {}
                 }
             }
-        }
-    }
-
-    pub(in crate::resolution::declarations::generic_data) fn exact_statement_receiver_owner(
-        syntax: &SyntaxTrees,
-        receiver: HandleSpan<Identifier>,
-        local_owner_types: &HashMap<String, String>,
-    ) -> Option<String> {
-        let members = syntax.tables.statements.identifier_path_members(receiver);
-        match members {
-            [local] => local_owner_types.get(local.as_str(syntax)).cloned(),
-            _ => None,
         }
     }
 
@@ -1023,16 +978,8 @@ mod expressions {
         // A block value's statements declare their own locals and calls.
         let mut pending = vec![statement];
         while let Some(statement) = pending.pop() {
-            match syntax.statements.statement(statement) {
-                StatementNode::LocalData(local) => inputs.push(local.type_reference),
-                StatementNode::Call(call) => {
-                    visit_static_argument_type_inputs(
-                        syntax,
-                        &call.machine_arguments,
-                        &mut |reference| inputs.push(reference),
-                    );
-                }
-                _ => {}
+            if let StatementNode::LocalData(local) = syntax.statements.statement(statement) {
+                inputs.push(local.type_reference);
             }
             let first = expressions.handles.len();
             collect_statement_expression_handles(syntax, statement, &mut expressions);
@@ -1279,10 +1226,7 @@ mod expressions {
                 collect_expression_handles(syntax, assignment.value, handles);
             }
             StatementNode::Call(call) => {
-                collect_expression_handles(syntax, call.callee, handles);
-                for argument in syntax.tables.statements.expression_handles(call.arguments) {
-                    collect_expression_handles(syntax, *argument, handles);
-                }
+                collect_expression_handles(syntax, call.expression, handles)
             }
             StatementNode::ProofOutputBindingStatement(binding) => {
                 collect_expression_handles(syntax, binding.call, handles)

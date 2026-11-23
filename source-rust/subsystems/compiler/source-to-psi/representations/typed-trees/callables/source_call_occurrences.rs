@@ -175,7 +175,9 @@ pub fn find_in_statement<'program, Calls: StatementCalls<'program>>(
             }
             None
         }
-        StatementNode::Expression(expression) => find(traversal, *expression),
+        StatementNode::Expression(expression) | StatementNode::Evaluate { expression, .. } => {
+            find(traversal, *expression)
+        }
         StatementNode::LocalData(local) => find(traversal, local.initial_value),
         StatementNode::Transition(transition) => {
             if let TransitionGuardNode::When(guard) = transition.guard

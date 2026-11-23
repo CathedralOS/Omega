@@ -170,7 +170,9 @@ impl ArmBindings<'_> {
                 self.expressions_in(call.arguments);
             }
             Statement::ProofOutputBindingStatement(binding) => self.expression(binding.call),
-            Statement::Expression(expression) => self.expression(*expression),
+            Statement::Expression(expression) | Statement::Evaluate { expression, .. } => {
+                self.expression(*expression)
+            }
             Statement::LocalData(local) => self.expression(local.initial_value),
             Statement::Transition(transition) => {
                 let scope = self.declared.len();

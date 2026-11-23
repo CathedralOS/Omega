@@ -261,7 +261,7 @@ fn dependency_rows(
     let token_range = |handle| {
         let anchor = match syntax.statements.statement(handle) {
             StatementNode::LocalData(local) => local.name.source_span().span,
-            StatementNode::Call(call) => call.target.source_span().span,
+            StatementNode::Call(call) => call.call(syntax).target.source_span().span,
             _ => return None,
         };
         statements.iter().position(|&(first, last)| {
@@ -284,7 +284,7 @@ fn dependency_rows(
             let anchor = match syntax.statements.statement(handles[0]) {
                 StatementNode::LocalData(local) => (local.name.source_span().span.start, "let"),
                 StatementNode::Call(call) if call.discards_result => {
-                    (call.target.source_span().span.start, "_")
+                    (call.call(syntax).target.source_span().span.start, "_")
                 }
                 _ => return None,
             };

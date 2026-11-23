@@ -476,7 +476,8 @@ mod routing {
                 binding.state_symbol = state_symbol;
                 assign_expr!(binding.call);
             }
-            crate::source_resolved::statement::Statement::Expression(expression) => {
+            crate::source_resolved::statement::Statement::Expression(expression)
+            | crate::source_resolved::statement::Statement::Evaluate { expression, .. } => {
                 assign_expr!(*expression);
             }
             crate::source_resolved::statement::Statement::LocalData(local_data) => {

@@ -495,6 +495,10 @@ pub mod control_flow {
             Call(Call),
             ProofOutputBindingStatement(ProofOutputBindingStatement),
             Expression(crate::source_resolved::expression::ExpressionHandle),
+            Evaluate {
+                expression: crate::source_resolved::expression::ExpressionHandle,
+                discards_result: bool,
+            },
             LocalData(LocalData),
             Transition(Transition),
         }
@@ -614,7 +618,7 @@ pub mod control_flow {
                             .for_each(&mut visit);
                     }
                     Self::ProofOutputBindingStatement(binding) => visit(binding.call),
-                    Self::Expression(expression) => visit(*expression),
+                    Self::Expression(expression) | Self::Evaluate { expression, .. } => visit(*expression),
                     Self::LocalData(local) => visit(local.initial_value),
                     Self::Transition(transition) => {
                         for pattern in transition.patterns.iter() {
@@ -1158,6 +1162,13 @@ pub mod control_flow {
                             },
                         ))
                     }
+                    Statement::Evaluate {
+                        expression,
+                        discards_result,
+                    } => self.insert(StatementNode::Evaluate {
+                        expression: transplant.expression(expressions, *expression),
+                        discards_result: *discards_result,
+                    }),
                     Statement::Expression(expression) => {
                         let expression = transplant.expression(expressions, *expression);
                         self.insert(StatementNode::Expression(expression))
@@ -1390,6 +1401,10 @@ pub mod control_flow {
             Call(TableCall),
             ProofOutputBindingStatement(ProofOutputBindingStatement),
             Expression(crate::source_resolved::expression::ExpressionHandle),
+            Evaluate {
+                expression: crate::source_resolved::expression::ExpressionHandle,
+                discards_result: bool,
+            },
             LocalData(TableLocalData),
             Transition(TableTransition),
         }

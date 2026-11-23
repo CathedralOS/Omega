@@ -10,6 +10,7 @@ trait Step<Item> {
     }
 }
 trait Relay<T>: Step<T> {
+    machine observe(value: @T, seen: @mutable bool) { seen = !seen; }
     machine relay(value: T) -> T {
         let probe: bool = local::<bool>(true);
         forward::<bool>(value)
@@ -40,8 +41,11 @@ machine main() crashes Trap {
     let overridden: u64 = Override::relay(37);
     let relayed: u64 = Generic::<u64, bool>::relay(23);
     let copied: u64 = Generic::<u64, bool>::next(41);
+    let mutable seen: bool = false;
+    Generic::<u64, bool>::observe(@copied, @mutable seen);
+    _ = Generic::<u64, bool>::relay(37);
     let second: bool = Generic::<bool, u64>::relay(true);
-    transition relayed == 23 && copied == 41 && second && number == 37 && flag && overridden == 19 && array[1] == 25 {
+    transition seen && relayed == 23 && copied == 41 && second && number == 37 && flag && overridden == 19 && array[1] == 25 {
         true -> done(),
         false -> wrong()
     }

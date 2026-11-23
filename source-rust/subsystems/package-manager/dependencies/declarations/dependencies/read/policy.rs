@@ -1,5 +1,5 @@
 // Syntax policy guards rejecting package-authored toolchain vocabulary and unprojected dependency calls or literals.
-// `reject_unprojected_dependency_syntax` walks all statement containers (machine states, trait requirement default bodies, conformance members, and capability state signatures) as well as all expressions so registration and description-helper calls, `Source::`, and `PackageSelection::` occurrences outside projected direct rows are rejected.
+// Every authored call has an expression handle, including calls in nested statements.
 
 use super::error::DependencyProjectionError;
 use super::source_literal::{PACKAGE_SELECTION_TYPE_NAME, SOURCE_TYPE_NAME, constructor_parts};
@@ -11,7 +11,6 @@ use build_declarations::BUILD_TYPE_NAME;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::Item;
-use syntax_trees::statement::{StatementHandle, StatementNode};
 
 pub(super) fn reject_authored_toolchain_vocabulary(
     syntax_trees: &SyntaxTrees,
@@ -62,9 +61,8 @@ fn machine_leaf_name(name: &str) -> &str {
 
 pub(super) fn reject_unprojected_dependency_syntax(
     syntax_trees: &SyntaxTrees,
-    accepted_statements: &[StatementHandle],
     accepted_sources: &[ExpressionHandle],
-    accepted_calls: &[Vec<ExpressionHandle>],
+    accepted_calls: &[ExpressionHandle],
 ) -> Result<(), DependencyProjectionError> {
     let mut accepted_selections = Vec::new();
     for source_handle in accepted_sources {
@@ -80,13 +78,6 @@ pub(super) fn reject_unprojected_dependency_syntax(
         }
     }
 
-    for (_, statements) in syntax_trees.items.statement_bodies() {
-        reject_dependency_statements(
-            syntax_trees,
-            syntax_trees.items.statements(statements),
-            accepted_statements,
-        )?;
-    }
 
     for (expression_handle, expression) in syntax_trees.expressions.iter_expressions() {
         match expression {
@@ -110,40 +101,11 @@ pub(super) fn reject_unprojected_dependency_syntax(
                     call.target.as_str(syntax_trees),
                 ) =>
             {
-                let arguments = syntax_trees.expressions.expression_handles(call.arguments);
-                if !accepted_calls
-                    .iter()
-                    .any(|accepted| accepted.as_slice() == arguments)
-                {
+                if !accepted_calls.contains(&expression_handle) {
                     return Err(DependencyProjectionError::UnsupportedDependencyShape);
                 }
             }
             _ => {}
-        }
-    }
-    Ok(())
-}
-
-fn reject_dependency_statements(
-    syntax_trees: &SyntaxTrees,
-    statements: &[StatementHandle],
-    accepted_statements: &[StatementHandle],
-) -> Result<(), DependencyProjectionError> {
-    for statement_handle in statements {
-        let StatementNode::Call(call) = syntax_trees.statements.statement(*statement_handle) else {
-            continue;
-        };
-        let owner = match syntax_trees
-            .statements
-            .identifier_path_members(call.receiver)
-        {
-            [owner] => Some(owner.as_str(syntax_trees)),
-            _ => None,
-        };
-        if is_dependency_call(owner, call.target.as_str(syntax_trees))
-            && !accepted_statements.contains(statement_handle)
-        {
-            return Err(DependencyProjectionError::UnsupportedDependencyShape);
         }
     }
     Ok(())

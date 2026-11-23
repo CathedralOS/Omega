@@ -390,18 +390,7 @@ impl SyntaxCopy<'_> {
                 value: self.copy_expression_handle(other, assignment.value),
             }),
             StatementNode::Call(call) => StatementNode::Call(TableCall {
-                callee: self.copy_expression_handle(other, call.callee),
-                target_is_static: call.target_is_static,
-                receiver: self.copy_statement_identifier_span(other, call.receiver),
-                target: call.target.clone(),
-                machine_arguments: call
-                    .machine_arguments
-                    .iter()
-                    .map(|argument| self.copy_static_machine_argument(other, argument))
-                    .collect(),
-                arguments: self.copy_statement_expression_span(other, call.arguments),
-                evidence_arguments: call.evidence_arguments.clone(),
-                operational_acknowledgement: call.operational_acknowledgement,
+                expression: self.copy_expression_handle(other, call.expression),
                 discards_result: call.discards_result,
             }),
             StatementNode::ProofOutputBindingStatement(binding) => {

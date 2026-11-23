@@ -4014,7 +4014,7 @@ fn visit_statement(
             retained,
             arena::HandleSpan::from_parts(fact.fact, 1),
         ),
-        StatementNode::Expression(_) => {}
+        StatementNode::Expression(_) | StatementNode::Evaluate { .. } => {}
     }
 }
 

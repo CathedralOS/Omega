@@ -2,7 +2,7 @@ use crate::SyntaxTrees;
 use crate::item::{CrashCause, State, StateParameterHandle, StateParameterNode, StateSignature};
 use crate::snapshot::expression_and_type_snapshots::{
     snapshot_expression_handle, snapshot_identifier, snapshot_identifier_slice,
-    snapshot_static_argument, snapshot_type_reference_handle, snapshot_type_references,
+    snapshot_type_reference_handle, snapshot_type_references,
 };
 use crate::snapshot::item_snapshots::{
     snapshot_capability_contract, snapshot_capability_contracts,
@@ -10,7 +10,7 @@ use crate::snapshot::item_snapshots::{
 };
 use crate::snapshot::{
     CapabilityContractSnapshot, ExpressionSnapshot, GenericConformanceBoundSnapshot,
-    IdentifierSnapshot, StaticArgumentSnapshot, TypeParameterSnapshot, TypeReferenceSnapshot,
+    IdentifierSnapshot, TypeParameterSnapshot, TypeReferenceSnapshot,
 };
 use crate::statement::{
     AssemblyExit, AssemblyFactKind, StatementHandle, StatementNode, TransitionExit,
@@ -101,16 +101,7 @@ pub enum StatementSnapshot {
         value: ExpressionSnapshot,
     },
     Call {
-        callee: Option<Box<ExpressionSnapshot>>,
-        receiver: Vec<IdentifierSnapshot>,
-        target: IdentifierSnapshot,
-        machine_arguments: Vec<StaticArgumentSnapshot>,
-        arguments: Vec<ExpressionSnapshot>,
-        #[serde(skip_serializing_if = "Vec::is_empty")]
-        evidence_arguments: Vec<IdentifierSnapshot>,
-        acknowledgement_synthesized: bool,
-        acknowledges_suspend: bool,
-        acknowledges_block: bool,
+        expression: ExpressionSnapshot,
         discards_result: bool,
     },
     ProofOutputBindingStatement {
@@ -477,33 +468,7 @@ pub(crate) fn snapshot_statement(
             value: snapshot_expression_handle(syntax_trees, assignment.value),
         },
         StatementNode::Call(call) => StatementSnapshot::Call {
-            callee: call
-                .callee
-                .is_valid()
-                .then(|| Box::new(snapshot_expression_handle(syntax_trees, call.callee))),
-            receiver: snapshot_identifier_slice(
-                syntax_trees,
-                syntax_trees
-                    .statements
-                    .identifier_path_members(call.receiver),
-            ),
-            target: snapshot_identifier(syntax_trees, &call.target),
-            machine_arguments: call
-                .machine_arguments
-                .iter()
-                .map(|argument| snapshot_static_argument(syntax_trees, argument))
-                .collect(),
-            arguments: syntax_trees
-                .statements
-                .expression_handles(call.arguments)
-                .iter()
-                .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
-                .collect(),
-            evidence_arguments: snapshot_identifier_slice(syntax_trees, &call.evidence_arguments),
-            acknowledgement_synthesized: call.operational_acknowledgement.origin
-                == language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
-            acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
-            acknowledges_block: call.operational_acknowledgement.acknowledges_block,
+            expression: snapshot_expression_handle(syntax_trees, call.expression),
             discards_result: call.discards_result,
         },
         StatementNode::ProofOutputBindingStatement(binding) => {

@@ -9,9 +9,7 @@ inside a helper state, nested machine, or subexpression.
 Why inspect the expression table after scanning the root entry's statements?
 Statement calls are parsed as expressions first and then wrapped in statement
 nodes, so `syntax_trees.expressions` contains one `ExpressionNode::Call` for
-every call anywhere in the file. An accepted root-entry statement's call
-expression is the unique occurrence whose argument-handle slice matches the
-statement's argument-handle slice; any other call targeting a role operation
+every call anywhere in the file. The projection retains the handle of each accepted role call. Every other role call
 anywhere in the file fails with that operation's `Unsupported*Shape` error.
 */
 
@@ -161,11 +159,13 @@ pub fn project_build_declaration_in_entry(
     let mut applications = Vec::new();
     let mut members = Vec::new();
     let mut artifact_only = 0usize;
-    let mut accepted: Vec<&[ExpressionHandle]> = Vec::new();
+    let mut accepted: Vec<ExpressionHandle> = Vec::new();
     for statement_handle in syntax_trees.items.statements(entry.statements) {
-        let StatementNode::Call(call) = syntax_trees.statements.statement(*statement_handle) else {
+        let StatementNode::Call(statement) = syntax_trees.statements.statement(*statement_handle)
+        else {
             continue;
         };
+        let call = statement.call(syntax_trees);
         let Some(operation) = DeclarationOperation::classify(call.target.as_str(syntax_trees))
         else {
             continue;
@@ -175,6 +175,9 @@ pub fn project_build_declaration_in_entry(
                 DirectBuildCallError::WrongReceiver => operation.wrong_receiver(),
                 DirectBuildCallError::WrongArguments => operation.wrong_arguments(),
             })?;
+        if statement.discards_result {
+            return Err(operation.wrong_arguments());
+        }
         if operation == DeclarationOperation::ArtifactOnly {
             if !operands.is_empty() {
                 return Err(operation.wrong_arguments());
@@ -200,7 +203,7 @@ pub fn project_build_declaration_in_entry(
                 }
             }
         }
-        accepted.push(syntax_trees.statements.expression_handles(call.arguments));
+        accepted.push(statement.expression);
     }
 
     if packages.len() > 1 {
@@ -380,9 +383,9 @@ fn project_member_path_literal(
 
 fn reject_unprojected_build_declaration_syntax(
     syntax_trees: &SyntaxTrees,
-    accepted: &[&[ExpressionHandle]],
+    accepted: &[ExpressionHandle],
 ) -> Result<(), BuildDeclarationError> {
-    for (_, expression) in syntax_trees.expressions.iter_expressions() {
+    for (handle, expression) in syntax_trees.expressions.iter_expressions() {
         let ExpressionNode::Call(call) = expression else {
             continue;
         };
@@ -390,8 +393,7 @@ fn reject_unprojected_build_declaration_syntax(
         else {
             continue;
         };
-        let arguments = syntax_trees.expressions.expression_handles(call.arguments);
-        if !accepted.contains(&arguments) {
+        if !accepted.contains(&handle) {
             return Err(operation.unsupported_shape());
         }
     }

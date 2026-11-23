@@ -30,9 +30,8 @@ callers reject it as an unprojected shape rather than guess its meaning.
 use std::fmt;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
-use syntax_trees::statement::{StatementHandle, StatementNode, TableCall};
+use syntax_trees::statement::{StatementHandle, StatementNode};
 
-use super::BUILDER_PARAMETER_NAME;
 use super::BuildEntrySyntaxProjection;
 use super::direct_build_call::{DirectBuildCallError, direct_build_call_operands};
 use build_declarations::{DependencyOperation, DependencyPurpose};
@@ -66,7 +65,7 @@ pub struct DependencyRow {
     operation: DependencyOperation,
     alias: Option<ExpressionHandle>,
     source: ExpressionHandle,
-    calls: Vec<Vec<ExpressionHandle>>,
+    calls: Vec<ExpressionHandle>,
 }
 
 impl DependencyRow {
@@ -91,10 +90,8 @@ impl DependencyRow {
         self.source
     }
 
-    /// Argument rosters of every vocabulary call this row accepted, so a
-    /// caller scanning all call expressions can tell projected occurrences
-    /// from unprojected ones.
-    pub fn accepted_call_arguments(&self) -> &[Vec<ExpressionHandle>] {
+    /// The exact authored calls accepted by this row.
+    pub fn accepted_calls(&self) -> &[ExpressionHandle] {
         &self.calls
     }
 }
@@ -131,25 +128,23 @@ pub fn project_dependency_rows(
     while position < statements.len() {
         let handle = statements[position];
         if let Some(registration) = registration(syntax_trees, handle)? {
-            let (source, from_source) = fresh_description(syntax_trees, registration.description)
+            let source = fresh_description(syntax_trees, registration.description)
                 .ok_or(DependencyRowError::WrongArguments)?;
             rows.push(DependencyRow {
                 statements: vec![handle],
                 operation: registration.operation,
                 alias: None,
                 source,
-                calls: vec![registration.arguments, from_source],
+                calls: vec![registration.expression, registration.description],
             });
         } else if let StatementNode::LocalData(local) = syntax_trees.statements.statement(handle)
-            && let Some((source, from_source)) =
-                fresh_description(syntax_trees, local.initial_value)
+            && let Some(source) = fresh_description(syntax_trees, local.initial_value)
         {
             let row = aliased_row(
                 syntax_trees,
                 &statements[position..],
                 local,
                 source,
-                from_source,
             )?;
             position += row.statements.len();
             rows.push(row);
@@ -160,17 +155,10 @@ pub fn project_dependency_rows(
     Ok(rows)
 }
 
-fn arguments(syntax_trees: &SyntaxTrees, call: &TableCall) -> Vec<ExpressionHandle> {
-    syntax_trees
-        .statements
-        .expression_handles(call.arguments)
-        .to_vec()
-}
-
 struct Registration {
     operation: DependencyOperation,
     description: ExpressionHandle,
-    arguments: Vec<ExpressionHandle>,
+    expression: ExpressionHandle,
 }
 
 // A registration returns its non-unit `DependencyRegistration`, so its direct
@@ -180,89 +168,47 @@ fn registration(
     syntax_trees: &SyntaxTrees,
     statement: StatementHandle,
 ) -> Result<Option<Registration>, DependencyRowError> {
-    match syntax_trees.statements.statement(statement) {
-        StatementNode::Call(call) => {
-            let owner = match syntax_trees
-                .statements
-                .identifier_path_members(call.receiver)
-            {
-                [owner] => Some(owner.as_str(syntax_trees)),
-                _ => None,
-            };
-            if owner.is_some_and(|owner| owner != build_declarations::BUILD_TYPE_NAME) {
-                return Ok(None);
-            }
-            let Some(operation) = DependencyOperation::classify(call.target.as_str(syntax_trees))
-            else {
-                return Ok(None);
-            };
-            if !call.discards_result {
-                return Err(DependencyRowError::WrongArguments);
-            }
-            let undiscarded = TableCall {
-                discards_result: false,
-                ..call.clone()
-            };
-            let operands =
-                direct_build_call_operands(syntax_trees, &undiscarded).map_err(|failure| {
-                    match failure {
-                        DirectBuildCallError::WrongReceiver => DependencyRowError::WrongReceiver,
-                        DirectBuildCallError::WrongArguments => DependencyRowError::WrongArguments,
-                    }
-                })?;
-            let [description] = operands else {
-                return Err(DependencyRowError::WrongArguments);
-            };
-            Ok(Some(Registration {
-                operation,
-                description: *description,
-                arguments: arguments(syntax_trees, call),
-            }))
+    let (expression, discarded) = match syntax_trees.statements.statement(statement) {
+        StatementNode::Call(statement) => (statement.expression, Some(statement.discards_result)),
+        StatementNode::LocalData(local) if local.initial_value.is_valid() => {
+            (local.initial_value, None)
         }
-        StatementNode::LocalData(local) => {
-            let ExpressionNode::Call(call) =
-                syntax_trees.expressions.expression(local.initial_value)
-            else {
-                return Ok(None);
-            };
-            let Some(operation) = DependencyOperation::classify(call.target.as_str(syntax_trees))
-            else {
-                return Ok(None);
-            };
-            if expression_owner(syntax_trees, call.receiver)
-                != Some(build_declarations::BUILD_TYPE_NAME)
-            {
-                return Ok(None);
-            }
-            if !call.target_is_static
-                || !call.machine_arguments.is_empty()
-                || !call.evidence_arguments.is_empty()
-                || call.operational_acknowledgement != Default::default()
-            {
-                return Err(DependencyRowError::WrongArguments);
-            }
-            let operands = syntax_trees.expressions.expression_handles(call.arguments);
-            let [builder, description] = operands else {
-                return Err(DependencyRowError::WrongArguments);
-            };
-            if single_name(syntax_trees, *builder) != Some(BUILDER_PARAMETER_NAME) {
-                return Err(DependencyRowError::WrongReceiver);
-            }
-            Ok(Some(Registration {
-                operation,
-                description: *description,
-                arguments: operands.to_vec(),
-            }))
-        }
-        _ => Ok(None),
+        _ => return Ok(None),
+    };
+    let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression) else {
+        return Ok(None);
+    };
+    let Some(operation) = DependencyOperation::classify(call.target.as_str(syntax_trees)) else {
+        return Ok(None);
+    };
+    let owner = expression_owner(syntax_trees, call.receiver);
+    if owner != Some(build_declarations::BUILD_TYPE_NAME)
+        && (owner.is_some() || discarded.is_none())
+    {
+        return Ok(None);
     }
+    if discarded == Some(false) || (discarded.is_none() && !call.target_is_static) {
+        return Err(DependencyRowError::WrongArguments);
+    }
+    let operands = direct_build_call_operands(syntax_trees, call).map_err(|error| match error {
+        DirectBuildCallError::WrongReceiver => DependencyRowError::WrongReceiver,
+        DirectBuildCallError::WrongArguments => DependencyRowError::WrongArguments,
+    })?;
+    let [description] = operands else {
+        return Err(DependencyRowError::WrongArguments);
+    };
+    Ok(Some(Registration {
+        operation,
+        description: *description,
+        expression,
+    }))
 }
 
 // `dependency::from_source(source)` with exactly one source operand.
 fn fresh_description(
     syntax_trees: &SyntaxTrees,
     expression: ExpressionHandle,
-) -> Option<(ExpressionHandle, Vec<ExpressionHandle>)> {
+) -> Option<ExpressionHandle> {
     let ExpressionNode::Call(call) = syntax_trees.expressions.expression(expression) else {
         return None;
     };
@@ -276,7 +222,7 @@ fn fresh_description(
         return None;
     }
     match syntax_trees.expressions.expression_handles(call.arguments) {
-        [source] => Some((*source, vec![*source])),
+        [source] => Some(*source),
         _ => None,
     }
 }
@@ -313,7 +259,6 @@ fn aliased_row(
     statements: &[StatementHandle],
     local: &syntax_trees::statement::TableLocalData,
     source: ExpressionHandle,
-    from_source: Vec<ExpressionHandle>,
 ) -> Result<DependencyRow, DependencyRowError> {
     let name = local.name.as_str(syntax_trees);
     let [declaration, configuration, registration, ..] = statements else {
@@ -322,21 +267,22 @@ fn aliased_row(
     if !local.is_mutable {
         return Err(DependencyRowError::WrongArguments);
     }
-    let StatementNode::Call(configure) = syntax_trees.statements.statement(*configuration) else {
+    let StatementNode::Call(statement) = syntax_trees.statements.statement(*configuration) else {
         return Err(DependencyRowError::WrongArguments);
     };
+    let configure = statement.call(syntax_trees);
     if configure.target.as_str(syntax_trees) != WITH_ALIAS_HELPER_NAME
-        || !matches!(syntax_trees.statements.identifier_path_members(configure.receiver), [owner] if owner.as_str(syntax_trees) == DEPENDENCY_HELPER_OWNER)
+        || !matches!(syntax_trees.expression_identifier_path(configure.receiver).as_deref(), Some([owner]) if owner.as_str(syntax_trees) == DEPENDENCY_HELPER_OWNER)
         || !configure.target_is_static
         || !configure.machine_arguments.is_empty()
         || !configure.evidence_arguments.is_empty()
         || configure.operational_acknowledgement != Default::default()
-        || configure.discards_result
+        || statement.discards_result
     {
         return Err(DependencyRowError::WrongArguments);
     }
     let [borrowed, alias] = syntax_trees
-        .statements
+        .expressions
         .expression_handles(configure.arguments)
     else {
         return Err(DependencyRowError::WrongArguments);
@@ -359,9 +305,9 @@ fn aliased_row(
         alias: Some(*alias),
         source,
         calls: vec![
-            from_source,
-            arguments(syntax_trees, configure),
-            register.arguments,
+            local.initial_value,
+            statement.expression,
+            register.expression,
         ],
     })
 }

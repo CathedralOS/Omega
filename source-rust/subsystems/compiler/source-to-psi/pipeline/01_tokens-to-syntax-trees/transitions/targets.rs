@@ -1,4 +1,3 @@
-use crate::errors::parse_error::ParseError;
 use crate::expressions::context::ExpressionContext;
 use crate::expressions::operators::has_unary_expression_prefix;
 use crate::expressions::parse::parse_expression_handle;
@@ -7,7 +6,7 @@ use crate::token_input::cursor::{Input, ParseResult};
 use crate::transitions::guards::{DestructureBindings, rewrite_destructure_guard_expression};
 use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
+use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 use tokens::KeywordKind;
 
@@ -65,7 +64,7 @@ pub(crate) fn parse_transition_block_target_with_bindings<'tokens, 'source>(
             syntax_trees,
             expression,
             target_shaped || acknowledged_target,
-        )?,
+        ),
         rest,
     ))
 }
@@ -74,84 +73,37 @@ fn classify_transition_target_handle(
     syntax_trees: &mut SyntaxTrees,
     expression: ExpressionHandle,
     target_shaped: bool,
-) -> Result<TransitionTargetHandle, ParseError> {
-    let node = syntax_trees.expressions.expression(expression).clone();
-    let target = match node {
+) -> TransitionTargetHandle {
+    let target = match syntax_trees.expressions.expression(expression) {
         ExpressionNode::Call(call)
-            if target_shaped && call.target_is_static && call.machine_arguments.is_empty() =>
+            if target_shaped
+                && call.target_is_static
+                && call.machine_arguments.is_empty()
+                && let Some(receiver) = syntax_trees.expression_identifier_path(call.receiver)
+                && receiver.len() <= 1 =>
         {
-            classify_call_target_handle(syntax_trees, call)?
+            let owner = receiver.first().copied().cloned();
+            let target = call.target.clone();
+            let operational_acknowledgement = call.operational_acknowledgement;
+            let evidence_arguments = call.evidence_arguments.clone();
+            let arguments = syntax_trees.copy_expression_handles_to_statement_table(call.arguments);
+            let mut path = HandleSpan::empty();
+            for member in owner.into_iter().chain([target.clone()]) {
+                path.push_contiguous(
+                    syntax_trees
+                        .statements
+                        .append_identifier_path_member(member),
+                );
+            }
+            TransitionTargetNode::Named {
+                operational_acknowledgement,
+                path,
+                arguments,
+                evidence_arguments,
+                source_span: target.source_span(),
+            }
         }
         _ => TransitionTargetNode::Value(expression),
     };
-
-    Ok(syntax_trees.statements.insert_transition_target(target))
-}
-
-fn classify_call_target_handle(
-    syntax_trees: &mut SyntaxTrees,
-    call: TableCallExpression,
-) -> Result<TransitionTargetNode, ParseError> {
-    let receiver_depth = if call.receiver.is_valid() {
-        expression_handle_identifier_depth(syntax_trees, call.receiver)
-    } else {
-        Some(0)
-    };
-    let Some(receiver_depth) = receiver_depth else {
-        return Ok(TransitionTargetNode::Value(
-            syntax_trees.expressions.insert(ExpressionNode::Call(call)),
-        ));
-    };
-    if receiver_depth > 1 {
-        return Ok(TransitionTargetNode::Value(
-            syntax_trees.expressions.insert(ExpressionNode::Call(call)),
-        ));
-    }
-    let path = if call.receiver.is_valid() {
-        let receiver = syntax_trees
-            .copy_expression_to_statement_identifier_path(call.receiver)
-            .ok_or_else(|| {
-                ParseError::at_source_span(
-                    "call target must be a path or member access",
-                    call.target.source_span(),
-                )
-            })?;
-        syntax_trees.append_identifier_path_member_to_statement_table(receiver, call.target.clone())
-    } else {
-        let handle = syntax_trees
-            .statements
-            .append_identifier_path_member(call.target.clone());
-        HandleSpan::from_parts(handle, 1)
-    };
-
-    let arguments = syntax_trees.copy_expression_handles_to_statement_table(call.arguments);
-    Ok(TransitionTargetNode::Named {
-        operational_acknowledgement: call.operational_acknowledgement,
-        path,
-        arguments,
-        evidence_arguments: call.evidence_arguments,
-        source_span: call.target.source_span(),
-    })
-}
-
-fn expression_handle_identifier_depth(
-    syntax_trees: &SyntaxTrees,
-    expression: ExpressionHandle,
-) -> Option<usize> {
-    match syntax_trees.expressions.expression(expression) {
-        ExpressionNode::Name {
-            members: path,
-            application: path_application,
-        } if path_application.is_none() => Some(
-            syntax_trees
-                .expressions
-                .identifier_path_members(path.to_owned())
-                .len(),
-        ),
-        ExpressionNode::Member(member) => {
-            let depth = expression_handle_identifier_depth(syntax_trees, member.receiver)?;
-            Some(depth + 1)
-        }
-        _ => None,
-    }
+    syntax_trees.statements.insert_transition_target(target)
 }

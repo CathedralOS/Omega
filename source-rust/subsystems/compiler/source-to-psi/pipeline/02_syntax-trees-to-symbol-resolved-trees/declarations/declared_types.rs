@@ -235,12 +235,6 @@ mod static_operands {
             statement: StatementHandle,
             bound: &[String],
         ) -> Result<(), Diagnostic> {
-            if let StatementNode::Call(mut call) = syntax.statements.statement(statement).clone() {
-                self.static_arguments(syntax, &mut call.machine_arguments, bound)?;
-                syntax
-                    .statements
-                    .replace_statement(statement, StatementNode::Call(call));
-            }
             let mut expressions = HashSet::new();
             collect_statement_expression_handles(syntax, statement, &mut expressions);
             if let StatementNode::Transition(transition) = syntax.statements.statement(statement) {
