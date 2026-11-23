@@ -3526,15 +3526,16 @@ impl<'t> Program<'t> {
             self.representation_read_authorized(id, &place)?;
         }
         let crossed = self.reference_place_access(id, slots, &place, access)?;
-        let slot = root_slot(id, &place, &self.captures)?;
+        let root = super::storage_path::root(id, &place, &self.captures)?;
+        let slot = match root.kind {
+            ExpressionKind::Slot(slot) => Some(slot),
+            _ => None,
+        };
         if !crossed {
             if let Some(slot) = slot {
                 let lender = &slots[slot];
                 if !explicit && lender.borrowed.is_none() {
                     return unserved("argument for a borrowed formal that is not a borrow");
-                }
-                if !names_storage(&place) {
-                    return unserved("borrow of a value that is not a place");
                 }
                 if access == ReferenceAccess::Mutable
                     && lender.borrowed.is_none()
@@ -3542,38 +3543,7 @@ impl<'t> Program<'t> {
                 {
                     return unserved("exclusive loan of an immutable binding");
                 }
-            } else if explicit
-                && self
-                    .typed
-                    .expression_const_declaration(operand)
-                    .map_err(|detail| refuse(id, Construct::Machine, Unserved::Call(detail)))?
-                    .is_some()
-            {
-                if access != ReferenceAccess::Shared {
-                    return Err(crate::lowering::reject(
-                        id,
-                        source,
-                        "a constant has no writable storage to borrow",
-                    ));
-                }
-                // The constant names a value. Give this use its own
-                // storage before forming the shared loan.
-                let scalar_home = place
-                    .result
-                    .and_then(ValueType::scalar)
-                    .map(|scalar| self.plain_scalar_storage(id, scalar))
-                    .transpose()?;
-                place = Expression {
-                    call_context: None,
-                    result: place.result,
-                    source: place.source,
-                    kind: ExpressionKind::OwnedTemporary {
-                        occurrence: argument,
-                        value: Box::new(place),
-                        scalar_home,
-                    },
-                };
-            } else {
+            } else if !(explicit && matches!(root.kind, ExpressionKind::OwnedTemporary { .. })) {
                 return unserved("borrow of a value that is not a place");
             }
         }

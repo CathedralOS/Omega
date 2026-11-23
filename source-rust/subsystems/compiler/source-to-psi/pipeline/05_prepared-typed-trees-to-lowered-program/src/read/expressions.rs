@@ -139,13 +139,6 @@ impl<'t> Program<'t> {
         id: MachineId,
         expression: ExpressionHandle,
     ) -> Checked<&'t ExpressionNode> {
-        if !expression.is_valid() {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Expression("missing expression"),
-            ));
-        }
         let value = self.constant_value(id, expression)?;
         Ok(self.typed.expression_table.expression(value))
     }
@@ -161,6 +154,13 @@ impl<'t> Program<'t> {
         expression: ExpressionHandle,
     ) -> Checked<ExpressionHandle> {
         let table = &self.typed.expression_table;
+        if !table.expression_is_valid(expression) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Expression("missing expression"),
+            ));
+        }
         if let ExpressionNode::Name(path) = table.expression(expression)
             && let Some(constant) = self.typed.named_const_declaration(path)
             && constant.evaluated_value.is_some()
@@ -957,6 +957,34 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         if access == Access::Read {
             return self.expression(id, slots, target, expected);
+        }
+        if self.constant_value(id, target)? != target {
+            let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
+            if access != Access::Borrow {
+                return Err(reject(
+                    id,
+                    source,
+                    "a constant has no writable storage",
+                ));
+            }
+            // Each use borrows its own materialized copy. Fields and indices
+            // project from this storage and keep its lifetime.
+            let value = self.expression(id, slots, target, expected)?;
+            let scalar_home = value
+                .result
+                .and_then(ValueType::scalar)
+                .map(|scalar| self.plain_scalar_storage(id, scalar))
+                .transpose()?;
+            return Ok(Expression {
+                call_context: None,
+                result: value.result,
+                source,
+                kind: ExpressionKind::OwnedTemporary {
+                    occurrence: target,
+                    value: Box::new(value),
+                    scalar_home,
+                },
+            });
         }
         let projection = if access == Access::Replace {
             Access::Write
