@@ -1,3 +1,4 @@
+use pipeline/symbol_resolved_trees_to_typed_trees/quoted_literals.omg;
 use pipeline/symbol_resolved_trees_to_typed_trees/typing_state.omg;
 use pipeline/symbol_resolved_trees_to_typed_trees/literals.omg;
 use foundation\ExactInteger;
@@ -242,10 +243,9 @@ crashes Trap
         reference_row.inner = view;
         let handle: u64 in Trapping = |typing_state|::typer_intern(typer, reference_row, expression.source_span);
         set_expression_type(@mutable typer.output, index, handle);
-        let length: u64 in Trapping = |literals|::quoted_length(sources, expression.source_span);
-        typing_set_value(@mutable typer.output, index, exact_integer_of((length as -Trapping) as +Wrapping));
-        let roster: u64 in Trapping = |literals|::quoted_roster(sources, expression.source_span);
-        set_roster(@mutable typer.output, index, roster);
+        let quoted = |quoted_literals|::inspect_quoted(sources, expression.source_span);
+        typing_set_value(@mutable typer.output, index, exact_integer_of((quoted.length as -Trapping) as +Wrapping));
+        set_roster(@mutable typer.output, index, quoted.roster);
     }
 
     machine field(typer: @mutable |typing_state|::Typer, sources: @SourceSet, syntax: @SyntaxTrees, index: u64 in Trapping, expression: Expression) {

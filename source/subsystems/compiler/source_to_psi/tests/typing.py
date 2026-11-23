@@ -17,7 +17,7 @@ SHARED = (
     "representations/tokens/numeric.omg",
 )
 PROGRAMS = {
-    "literal_values": (f"{STAGE}/literals.omg",),
+    "literal_values": (f"{STAGE}/literals.omg", f"{STAGE}/quoted_literals.omg"),
     "typing_state": (
         f"{STAGE}/typing_state.omg",
         "foundation/integers.omg",
