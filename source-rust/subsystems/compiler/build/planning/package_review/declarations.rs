@@ -22,7 +22,7 @@ use source_compiler::representations::source_state::evidence::byte_predicates::{
     ByteSequencePredicate, byte_domain_predicate,
 };
 use source_compiler::representations::source_state::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode,
+    BinaryOperator, CollectionMeasure, ExpressionHandle, ExpressionNode, MemberSelection,
 };
 use source_compiler::representations::source_state::types::TypeReferenceHandle;
 use symbols::SymbolHandle;
@@ -632,6 +632,15 @@ impl<'a> PolicySource<'a> {
                     .map(|field| Some(field.type_reference))
                     .ok_or_else(|| unavailable("a contract field's declared type"));
             }
+            ExpressionNode::Member(member)
+                if member.selection
+                    == MemberSelection::CollectionMeasure(CollectionMeasure::Length) =>
+            {
+                (
+                    symbols::BuiltinTypeAtom::U64,
+                    numerics::arithmetic::ArithmeticDomain::Exact,
+                )
+            }
             ExpressionNode::Cast(cast) if cast.result_type.is_valid() => {
                 return Ok(Some(cast.result_type));
             }
@@ -660,7 +669,7 @@ impl<'a> PolicySource<'a> {
                     .type_reference_table
                     .find_arithmetic_result_type_reference(symbol, policy)
             })
-            .ok_or_else(|| unavailable("a literal's canonical declared carrier"))?;
+            .ok_or_else(|| unavailable("a contract operand's canonical declared carrier"))?;
         Ok(Some(reference))
     }
 
@@ -923,9 +932,6 @@ impl<'a> PolicySource<'a> {
                 }
             }
             ExpressionNode::Member(member) => {
-                use source_compiler::representations::source_state::expression::{
-                    CollectionMeasure, MemberSelection,
-                };
                 let receiver =
                     Box::new(self.scoped_expression(member.receiver, scope, depth + 1)?);
                 match member.selection {
