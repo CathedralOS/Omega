@@ -136,12 +136,12 @@ crashes Trap
 }
 
 machine main() crashes Trap {
-    let four: IntegerLiteral = IntegerLiteral { magnitude: 4u64 as +Wrapping, exact: true, empty_digits: false, suffix: IntegerSuffix::None };
-    let hex: IntegerLiteral = IntegerLiteral { magnitude: 0x4u64 as +Wrapping, exact: true, empty_digits: false, suffix: IntegerSuffix::None };
-    let five: IntegerLiteral = IntegerLiteral { magnitude: 5u64 as +Wrapping, exact: true, empty_digits: false, suffix: IntegerSuffix::None };
-    let overflow: IntegerLiteral = IntegerLiteral { magnitude: four.magnitude, exact: false, empty_digits: false, suffix: IntegerSuffix::None };
-    let empty: IntegerLiteral = IntegerLiteral { magnitude: four.magnitude, exact: true, empty_digits: true, suffix: IntegerSuffix::None };
-    let suffixed: IntegerLiteral = IntegerLiteral { magnitude: four.magnitude, exact: true, empty_digits: false, suffix: IntegerSuffix::U8 };
+    let four: IntegerLiteral = IntegerLiteral { magnitude: 4u64 as +Wrapping, exact: true, empty_digits: false, suffix: |numeric|::IntegerSuffix::None };
+    let hex: IntegerLiteral = IntegerLiteral { magnitude: 0x4u64 as +Wrapping, exact: true, empty_digits: false, suffix: |numeric|::IntegerSuffix::None };
+    let five: IntegerLiteral = IntegerLiteral { magnitude: 5u64 as +Wrapping, exact: true, empty_digits: false, suffix: |numeric|::IntegerSuffix::None };
+    let overflow: IntegerLiteral = IntegerLiteral { magnitude: four.magnitude, exact: false, empty_digits: false, suffix: |numeric|::IntegerSuffix::None };
+    let empty: IntegerLiteral = IntegerLiteral { magnitude: four.magnitude, exact: true, empty_digits: true, suffix: |numeric|::IntegerSuffix::None };
+    let suffixed: IntegerLiteral = IntegerLiteral { magnitude: four.magnitude, exact: true, empty_digits: false, suffix: |numeric|::IntegerSuffix::U8 };
     let syntax: SyntaxTrees = SyntaxTrees { left: four, right: hex };
     transition check_trait_static_slots(@syntax) && same_integer(four, hex, true) && same_integer(four, five, false)
         && same_integer(overflow, four, false) && same_integer(four, empty, false) && same_integer(suffixed, suffixed, false)
