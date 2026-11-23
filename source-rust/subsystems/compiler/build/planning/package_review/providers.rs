@@ -1382,47 +1382,87 @@ impl PolicySource<'_> {
             matches!(clause.kind, source_compiler::representations::source_state::signature::SignatureContractKind::Crashes { .. })
         });
         declarations.validate_parameter_domains(signature, &requirement, boundary, &contracts)?;
-        if !signature.lifetime_parameters.is_empty()
-            || !signature.conformance_bounds.is_empty()
-            || signature.spelling.is_some()
-            || signature.is_default
-            || !signature.native_callback_parameters.is_empty()
-            || signature.declares_no_crash_route == authored_routes
-            || signature.declares_no_crash_route != boundary.crash_routes.is_empty()
-            || boundary.role != BoundaryDeclarationRole::Callable
-            || declaration.execution != CheckedBoundaryExecution::Provider
-            || boundary.structural_parameters.iter().any(|parameter| {
+        use review_evidence::record::PackageReviewContractKind;
+        let has_clause = |kind| contracts.iter().any(|clause| clause.kind == kind);
+        let mut fields = Vec::new();
+        macro_rules! unretained {
+            ($field:expr, $when:expr) => {
+                if $when {
+                    fields.push(stringify!($field));
+                }
+            };
+            ($field:expr) => {
+                unretained!($field, !$field.is_empty());
+            };
+        }
+        unretained!(signature.lifetime_parameters);
+        unretained!(signature.conformance_bounds);
+        unretained!(signature.spelling, signature.spelling.is_some());
+        unretained!(signature.is_default, signature.is_default);
+        unretained!(signature.native_callback_parameters);
+        unretained!(
+            signature.declares_no_crash_route,
+            signature.declares_no_crash_route == authored_routes
+        );
+        unretained!(
+            boundary.crash_routes,
+            signature.declares_no_crash_route != boundary.crash_routes.is_empty()
+        );
+        unretained!(
+            boundary.role,
+            boundary.role != BoundaryDeclarationRole::Callable
+        );
+        unretained!(
+            declaration.execution,
+            declaration.execution != CheckedBoundaryExecution::Provider
+        );
+        for parameter in &boundary.structural_parameters {
+            unretained!(
+                parameter.multiplicity,
                 !matches!(
                     parameter.multiplicity,
                     terminal_psi::nonlinear_multiplicity_pair_pattern!()
-                ) || !parameter.projected_qualifications.is_empty()
-                    || !parameter.additional_input_qualifications.is_empty()
-            })
-            || (!boundary.scalar_requires.is_empty()
-                && !contracts.iter().any(|clause| {
-                    clause.kind == review_evidence::record::PackageReviewContractKind::Requires
-                }))
-            || (!boundary.scalar_ensures.is_empty()
-                && !contracts.iter().any(|clause| {
-                    clause.kind == review_evidence::record::PackageReviewContractKind::Ensures
-                }))
-            || !boundary.normal_qualifications.is_empty()
-            || !boundary.reference_outputs.is_empty()
-            || !boundary.program_local_root_introductions.is_empty()
-            || !boundary.content_guarantees.is_empty()
-            || !boundary.result_reference_regions.is_empty()
-            || matches!(&boundary.result, terminal_psi::BoundaryMachineResult::Structural(result)
-                if (completes_normally && result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted)
-                    || !result.qualifications.is_empty()
-                    || !result.projected_qualifications.is_empty())
-            || boundary
+                )
+            );
+            unretained!(parameter.projected_qualifications);
+            unretained!(parameter.additional_input_qualifications);
+        }
+        unretained!(
+            boundary.scalar_requires,
+            !boundary.scalar_requires.is_empty() && !has_clause(PackageReviewContractKind::Requires)
+        );
+        unretained!(
+            boundary.scalar_ensures,
+            !boundary.scalar_ensures.is_empty() && !has_clause(PackageReviewContractKind::Ensures)
+        );
+        unretained!(boundary.normal_qualifications);
+        unretained!(boundary.reference_outputs);
+        unretained!(boundary.program_local_root_introductions);
+        unretained!(boundary.content_guarantees);
+        unretained!(boundary.result_reference_regions);
+        if let terminal_psi::BoundaryMachineResult::Structural(result) = &boundary.result {
+            unretained!(
+                result.multiplicity,
+                completes_normally
+                    && result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
+            );
+            unretained!(result.qualifications);
+            unretained!(result.projected_qualifications);
+        }
+        unretained!(
+            boundary.result_lifetimes,
+            boundary
                 .result_lifetimes
                 .as_ref()
                 .is_some_and(|rows| !rows.is_empty())
-        {
+        );
+        if !fields.is_empty() {
+            fields.sort_unstable();
+            fields.dedup();
             return Err(unavailable(format!(
-                "the complete published contract of boundary requirement `{}`",
-                requirement.path(),
+                "{} on boundary requirement `{}`",
+                fields.join(", "),
+                requirement.path()
             )));
         }
         let parameters = self.requirement_parameters(signature)?;
