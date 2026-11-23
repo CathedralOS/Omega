@@ -18,6 +18,7 @@ use build_declarations::{
     BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName, WorkspaceMemberPath,
 };
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+use package_compilation::BuildSourcePublications;
 use source_compiler::publication::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation as Operation, TerminalBuildRequests,
 };
@@ -48,7 +49,7 @@ pub struct TerminalBuildRequestHost {
     account: Option<EvaluationInvocationAccount>,
     requests: Mutex<Vec<IssuedBuildRequest>>,
     registrations: Mutex<Registrations>,
-    log: Mutex<BuildLog>,
+    output: Mutex<BuildRequestOutput>,
     original_log: Option<TerminalStructuralValue>,
 }
 
@@ -78,11 +79,11 @@ struct Registrations {
 /// What the request host of a suspended stage hands to the host of the next
 /// stage of the same activation (`source-to-psi/driver/compile_build/waits`): every
 /// registration issued so far, so later registrations keep counting from
-/// them, and the log written so far. A live registration's marker follows
+/// them, and the log and generated source published so far. A live registration's marker follows
 /// the value saved in its checked continuation home.
 pub(crate) struct CarriedRequests {
     registrations: Registrations,
-    log: BuildLog,
+    output: BuildRequestOutput,
 }
 
 impl Registrations {
@@ -99,6 +100,12 @@ pub struct BuildDependencyPreparation {
     pub purpose: DependencyPurpose,
     /// Position among the activation's issued requests of `purpose`.
     pub request_ordinal: usize,
+}
+
+#[derive(Default)]
+pub(crate) struct BuildRequestOutput {
+    pub(crate) log: BuildLog,
+    pub(crate) sources: BuildSourcePublications,
 }
 
 #[derive(Default)]
@@ -139,7 +146,7 @@ impl TerminalBuildRequestHost {
             account: account.cloned(),
             requests: Mutex::new(Vec::new()),
             registrations: Mutex::new(Registrations::default()),
-            log: Mutex::new(BuildLog::default()),
+            output: Mutex::default(),
             original_log,
         }))
     }
@@ -215,7 +222,7 @@ impl TerminalBuildRequestHost {
         }
         Ok(CarriedRequests {
             registrations: std::mem::take(&mut *registrations),
-            log: self.take_log()?,
+            output: self.take_output()?,
         })
     }
 
@@ -231,19 +238,28 @@ impl TerminalBuildRequestHost {
             .registrations
             .lock()
             .map_err(|_| REGISTRATIONS_POISONED)?;
-        let mut log = self.log.lock().map_err(|_| "Build log lock was poisoned")?;
-        if !registrations.issued.is_empty() || !log.bytes.is_empty() {
+        let mut output = self
+            .output
+            .lock()
+            .map_err(|_| "Build request output lock was poisoned")?;
+        if !registrations.issued.is_empty()
+            || !output.log.bytes.is_empty()
+            || !output.sources.is_empty()
+        {
             return Err("a Build stage adopts earlier requests before it runs".into());
         }
         *registrations = carried.registrations;
         registrations.completed_preparation = false;
-        *log = carried.log;
+        *output = carried.output;
         Ok(())
     }
 
-    pub(crate) fn take_log(&self) -> Result<BuildLog, String> {
-        let mut log = self.log.lock().map_err(|_| "Build log lock was poisoned")?;
-        Ok(std::mem::take(&mut *log))
+    pub(crate) fn take_output(&self) -> Result<BuildRequestOutput, String> {
+        let mut output = self
+            .output
+            .lock()
+            .map_err(|_| "Build request output lock was poisoned")?;
+        Ok(std::mem::take(&mut *output))
     }
 }
 
@@ -254,7 +270,8 @@ pub(crate) fn build_facet(
 ) -> Result<TerminalStructuralValue, String> {
     let module = artifact.module();
     let declaration = module
-        .types.structural_types
+        .types
+        .structural_types
         .iter()
         .find(|declaration| declaration.id == original.structural_type)
         .ok_or("Build receiver lost its declaration")?;
@@ -438,11 +455,12 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 .map_err(|error| {
                     TerminalEffectRejection::new(format!("Build log accounting: {error}"))
                 })?;
-            let mut log = self
+            let mut output = self
                 .host
-                .log
+                .output
                 .lock()
-                .map_err(|_| refuse("Build log lock was poisoned"))?;
+                .map_err(|_| refuse("Build request output lock was poisoned"))?;
+            let log = &mut output.log;
             log.bytes
                 .try_reserve(appended)
                 .map_err(|_| refuse("Build log allocation was refused"))?;
@@ -487,6 +505,29 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 "project requests require the original compiler-issued Build receiver",
             ));
         }
+        if call.action == Operation::PublishSource {
+            let [None, Some(name), Some(source)] = byte_sequence_arguments.as_slice() else {
+                return Err(refuse(
+                    "Build source publication requires a filename and source bytes",
+                ));
+            };
+            if !arguments.is_empty() {
+                return Err(refuse(
+                    "Build source publication does not accept scalar arguments",
+                ));
+            }
+            let account = self.host.account.as_ref().ok_or_else(|| {
+                refuse("Build source publication requires the activation's evaluation account")
+            })?;
+            self.host
+                .output
+                .lock()
+                .map_err(|_| refuse("Build request output lock was poisoned"))?
+                .sources
+                .publish(account, name, source)
+                .map_err(TerminalEffectRejection::new)?;
+            return Ok(TerminalEffectResult::Unit);
+        }
         let text = |position: usize| -> Result<&str, TerminalEffectRejection> {
             let bytes = byte_sequence_arguments
                 .get(position)
@@ -508,7 +549,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             Operation::Package | Operation::Application | Operation::Member => (0, 2),
             Operation::PathDependency => (2, 3),
             Operation::GitDependency => (3, 5),
-            Operation::LogLine | Operation::PrepareDependency => {
+            Operation::LogLine | Operation::PrepareDependency | Operation::PublishSource => {
                 return Err(refuse("Build request did not complete its host request"));
             }
         };
@@ -582,7 +623,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         let project_name =
             |value: &str| ProjectName::parse(copy(value)?).map_err(TerminalEffectRejection::new);
         let request = match call.action {
-            Operation::LogLine | Operation::PrepareDependency => {
+            Operation::LogLine | Operation::PrepareDependency | Operation::PublishSource => {
                 return Err(refuse("Build request did not complete its host request"));
             }
             Operation::Package => BuildRequest::Package(project_name(text(1)?)?),

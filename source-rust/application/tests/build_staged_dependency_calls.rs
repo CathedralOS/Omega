@@ -1273,7 +1273,8 @@ fn a_preparation_refuses_shadowing_before_the_first_build_effects() {
     );
     assert!(!compiled, "{stderr}");
     assert!(
-        stderr.contains("an earlier local with this name is still visible") && stderr.contains("build.omg:13:9"),
+        stderr.contains("an earlier local with this name is still visible")
+            && stderr.contains("build.omg:13:9"),
         "{stderr}"
     );
 }
@@ -1293,7 +1294,10 @@ fn a_local_resolution_error_after_a_wait_is_reported_before_the_dependency_runs(
     assert!(!compiled, "{report}");
     assert!(report.contains("duplicate local data `seven`"), "{report}");
     assert!(!report.contains("while resuming"), "{report}");
-    assert!(!report.contains("while preparing the dependency"), "{report}");
+    assert!(
+        !report.contains("while preparing the dependency"),
+        "{report}"
+    );
 }
 
 #[test]
@@ -1348,9 +1352,7 @@ fn a_product_dependency_is_not_selectable_from_the_build() {
         "{stderr}"
     );
     assert!(
-        stderr.contains(
-            "while reading the signature of `build`"
-        ),
+        stderr.contains("while reading the signature of `build`"),
         "{stderr}"
     );
     let location = stderr.lines().map(str::trim).find_map(|line| {
@@ -1387,8 +1389,7 @@ fn a_dependency_build_error_reports_the_childs_source() {
         stderr.contains("during lowered-form checking while preparing the dependency"),
         "{stderr}"
     );
-    let prefix =
-        "machine build(builder: @mutable Build) {\n    Build::package(builder, \"kit_package\");\n    ";
+    let prefix = "machine build(builder: @mutable Build) {\n    Build::package(builder, \"kit_package\");\n    ";
     assert!(
         stderr.contains(&format!(
             "source bytes {}..{}",
@@ -1634,7 +1635,9 @@ machine build(builder: @mutable Build) suspends {
 
 #[test]
 fn a_dependency_publishes_source_bytes_under_the_name_the_product_imports() {
-    let target = target::TargetProfile::host_if_supported().unwrap().target_name();
+    let target = target::TargetProfile::host_if_supported()
+        .unwrap()
+        .target_name();
     let build = r#"use {kit}/generated/start.omg as entry;
 machine build(builder: @mutable Build) suspends {
     Build::application(builder, "generated_entry");
@@ -1645,10 +1648,17 @@ machine build(builder: @mutable Build) suspends {
     Build::bind(builder, HOST\ProgramEntry, |entry|::start);
 }"#.replace("HOST", target);
     let publish = r#"Build::include_source(builder, "generated/start.omg", "use main.omg as seed; public machine start() crashes Trap { transition |seed|::v() == 7 { true -> done(), _ -> bad() } machine done() {} machine bad() { crash Trap; } }");"#;
-    let run = |name, body: &str| check_project(name, &build, 7, body, &["run", "--both", "build.omg"]);
+    let run =
+        |name, body: &str| check_project(name, &build, 7, body, &["run", "--both", "build.omg"]);
     let (ok, report) = run("published-source-bytes", publish);
-    assert!(ok && report.contains("native exit 0") && report.contains("interp exit: 0"), "{report}");
+    assert!(
+        ok && report.contains("native exit 0") && report.contains("interp exit: 0"),
+        "{report}"
+    );
     let outside = publish.replace("generated/start.omg", "../start.omg");
     let (ok, report) = run("published-source-outside", &outside);
-    assert!(!ok && report.contains("..") && report.contains("source"), "{report}");
+    assert!(
+        !ok && report.contains("..") && report.contains("source"),
+        "{report}"
+    );
 }

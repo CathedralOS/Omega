@@ -368,6 +368,7 @@ pub(crate) mod build_requests {
         GitDependency,
         PrepareDependency,
         LogLine,
+        PublishSource,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
