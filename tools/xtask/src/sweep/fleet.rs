@@ -1066,7 +1066,7 @@ fn collect(args: &[String]) -> Result<(), String> {
     let (header, rows) = record::merge(&parts)?;
     // Beside the shards, never over the run record `<id>.json`.
     let out = out.unwrap_or_else(|| local.join("merged.json"));
-    record::write_output(&out, &header, &rows, super::render_rows)?;
+    record::write_output(&out, &header, &rows)?;
     print!("{}", super::summary(&rows));
     println!(
         "\nfleet: merged {} shards of run {} into {} rows for {} at {}; wrote {}",

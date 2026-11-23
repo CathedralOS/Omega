@@ -774,9 +774,9 @@ fn escape_tsv(text: &str) -> String {
     text.replace(['\t', '\n', '\r'], " ")
 }
 
-/// Writes rows as JSON when `path` ends in `.json`, else as tab-separated
+/// Formats rows as JSON when `path` ends in `.json`, else as tab-separated
 /// text; both carry the run's header.
-fn render_rows(path: &Path, header: &Header, rows: &[Row]) -> Result<(), String> {
+fn render_rows(path: &Path, header: &Header, rows: &[Row]) -> Result<String, String> {
     let text = if path
         .extension()
         .is_some_and(|extension| extension == "json")
@@ -816,7 +816,7 @@ fn render_rows(path: &Path, header: &Header, rows: &[Row]) -> Result<(), String>
         }
         text
     };
-    fs::write(path, text).map_err(|error| format!("{}: {error}", path.display()))
+    Ok(text)
 }
 
 fn summary(rows: &[Row]) -> String {
@@ -1124,7 +1124,7 @@ fn sweep(
     }
     rows.sort_by(|a, b| a.program.cmp(&b.program));
     if let Some(out) = &options.out {
-        record::write_output(out, header, &rows, render_rows)?;
+        record::write_output(out, header, &rows)?;
         if let Some(journal) = journal {
             journal.remove()?;
         }
@@ -1168,7 +1168,7 @@ fn merge_command(args: &[String]) -> Result<(), u8> {
         1
     };
     let (header, rows) = merge_files(&inputs).map_err(fail)?;
-    record::write_output(&out, &header, &rows, render_rows).map_err(fail)?;
+    record::write_output(&out, &header, &rows).map_err(fail)?;
     print!("{}", summary(&rows));
     println!(
         "\nmerged {} shards into {} rows at {}; wrote {}",
@@ -1442,7 +1442,7 @@ mod tests {
             fingerprint: record::fingerprint(["samples/cli/x/main.omg"]),
             total: 1,
         };
-        render_rows(&path, &header, &rows).unwrap();
+        record::write_output(&path, &header, &rows).unwrap();
         let read = read_previous(&path).unwrap();
         let _ = fs::remove_file(&path);
         assert_eq!(read.len(), 1);
