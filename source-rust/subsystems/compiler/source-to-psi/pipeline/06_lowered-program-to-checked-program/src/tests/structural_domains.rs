@@ -268,6 +268,14 @@ machine entry() -> u32 {
 }
 "#;
     assert_unsigned_invocation(source, 0);
+    let mut incomplete = invocation(source).unwrap();
+    let domain = &mut incomplete.module.types.structural_domains[0];
+    domain.complete_predicate_theory = false;
+    domain.predicate = None;
+    refused(
+        incomplete,
+        "zero provisioning cannot establish a structural domain",
+    );
     let predicated = source.replace(
         "domain Ticket::Stamped;",
         "domain Ticket::Stamped requires self.number > 0u32;",
