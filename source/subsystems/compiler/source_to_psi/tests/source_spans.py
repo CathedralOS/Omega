@@ -17,10 +17,12 @@ def main():
     fixture = PACKAGE / "tests/fixtures/source_spans"
     with tempfile.TemporaryDirectory(prefix="omega-source-spans-") as directory:
         project = Path(directory)
-        shutil.copyfile(PACKAGE / "representations/source_files/source.omg", project / "source.omg")
+        source = Path("representations/source_files/source.omg")
+        (project / source.parent).mkdir(parents=True)
+        shutil.copyfile(PACKAGE / source, project / source)
         for name in ("main.omg", "build.omg"):
             shutil.copyfile(fixture / name, project / name)
-        subprocess.run([cli, "run", "--engine", "psi", "build.omg"], cwd=project, check=True)
+        subprocess.run([cli, "run", "--both", "build.omg"], cwd=project, check=True)
 
 
 if __name__ == "__main__":
