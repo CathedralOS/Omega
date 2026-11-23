@@ -39,7 +39,6 @@ pub struct BuildSourceAcquisitions<'operation> {
     locked_activations: bool,
     git_sources: Vec<(GitSourceRequest, ResolvedGitSource)>,
     sources: Vec<AcquiredBuildSource>,
-    cache_directories: std::sync::OnceLock<Option<super::custody::SourceCacheDirectories>>,
     pub(super) workspaces: Vec<super::workspace_acquisition::ExecutedWorkspace>,
 }
 
@@ -74,7 +73,6 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
             locked_activations: false,
             git_sources: Vec::new(),
             sources: Vec::new(),
-            cache_directories: std::sync::OnceLock::new(),
             workspaces: Vec::new(),
         }
     }
@@ -291,12 +289,8 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
 
     pub(super) fn retain_source(
         &mut self,
-        mut acquired: AcquiredBuildSource,
+        acquired: AcquiredBuildSource,
     ) -> Result<AcquiredBuildSource, String> {
-        acquired.cache_directories = self
-            .cache_directories
-            .get_or_init(|| super::custody::SourceCacheDirectories::retain(self.storage))
-            .clone();
         if let Some(existing) = self.sources.iter().find(|source| {
             source.lineage == acquired.lineage && source.navigation == acquired.navigation
         }) {
@@ -391,7 +385,6 @@ pub struct AcquiredBuildSource {
     pub(super) root_request: PackageRootSourceRequest,
     pub(super) navigation: super::PackageSourceNavigation,
     pub(super) selection: super::PackageSourceSelectionEvidence,
-    pub(super) cache_directories: Option<super::custody::SourceCacheDirectories>,
 }
 
 #[derive(Debug)]
@@ -535,7 +528,6 @@ impl AcquiredBuildSource {
             root_request,
             navigation: super::PackageSourceNavigation::Root,
             selection: super::PackageSourceSelectionEvidence::Root,
-            cache_directories: None,
         })
     }
 
@@ -575,7 +567,6 @@ impl AcquiredBuildSource {
             root_request: PackageRootSourceRequest::Git(request),
             navigation,
             selection: super::PackageSourceSelectionEvidence::Root,
-            cache_directories: None,
         })
     }
 
@@ -659,10 +650,6 @@ impl AcquiredBuildSource {
             requests,
         )
         .with_captured_source(std::sync::Arc::clone(self.capture.tree()));
-        let custody = match &self.cache_directories {
-            Some(directories) => directories.apply_to(custody),
-            None => custody,
-        };
         Ok(DeclaredBuildSource {
             custody,
             root_request: self.root_request.clone(),

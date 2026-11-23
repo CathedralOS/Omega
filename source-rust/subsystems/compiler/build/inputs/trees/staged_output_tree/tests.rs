@@ -19,9 +19,33 @@ fn baseline_tree() -> BuildStagedOutputTree {
 }
 
 #[test]
-fn a_legacy_export_can_contain_binary_bytes_but_cannot_supply_them_as_source() {
-    let path = b"older.omg";
-    let tree = from_entries(&[OutputTreeEntry::regular_file(path, &[0xff], false)]).unwrap();
-    let refusal = super::recover_included_output_sources(&tree, &[path.to_vec()]).unwrap_err();
-    assert!(refusal[0].to_string().contains("must contain UTF-8 bytes"));
+fn an_explicit_output_tree_binds_its_symbolic_link_target() {
+    use super::BuildStagedOutputEntryInput as Entry;
+    let tree = from_entries(&[
+        OutputTreeEntry::regular_file(b"file", b"value", false),
+        OutputTreeEntry::symbolic_link(b"link", b"file"),
+    ])
+    .unwrap();
+    let reopen = |target: &[u8]| {
+        BuildStagedOutputTree::from_retained_parts(
+            &tree.commitment(),
+            [
+                (
+                    b"link".to_vec(),
+                    Entry::Symlink {
+                        target: target.to_vec(),
+                    },
+                ),
+                (
+                    b"file".to_vec(),
+                    Entry::File {
+                        bytes: b"value".as_slice().into(),
+                        executable: false,
+                    },
+                ),
+            ],
+        )
+    };
+    assert_eq!(reopen(b"file").unwrap(), tree);
+    assert!(reopen(b"other").is_err());
 }

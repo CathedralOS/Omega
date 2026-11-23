@@ -20,7 +20,7 @@ An explicit package review opens the Product from the Build that resolved that p
 
 ### Target-entry proposals
 
-A fresh nomination carries the supplier's checked declaration, role and service schema. Discovery passes it to consumers through their package compilation inputs. Cached nominations recover the same binding and schema, verify the digest and undergo the occurrence checks before reuse. [Candidate cache](../candidate/review_cache/record_codec.rs)
+A fresh nomination carries the supplier's checked declaration, role and service schema. Discovery passes it to consumers through their package compilation inputs. Within the same invocation, the package manager can reuse an earlier review when its inputs and permissions still match. [Review passes](../candidate/passes_occurrences.rs)
 
 ## Encoding
 

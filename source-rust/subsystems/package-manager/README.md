@@ -34,9 +34,8 @@ package-manager/
 while application Build runs the admitted target requests. Before it writes
 decision documents or publishes accepted files, completion needs every target
 from that admission. The original proposal handle stays borrowed throughout,
-so completion checks the file admission read, not a replacement. Binding
-discovery, exact occurrence reuse, policy comparison and cache admission live
-here. The [project module](project/mod.rs) resolves the dependencies that Build
+so completion checks the file admission read, not a replacement. The package manager discovers bindings, reuses matching reviews within
+this invocation and compares the resulting policies. The [project module](project/mod.rs) resolves the dependencies that Build
 requests. It reuses each workspace member's first Build result, looks up
 providers by their Build-scoped aliases, and prepares dependencies for the
 host or deployment target. Compilation calls `project::open_products`. Package
@@ -213,10 +212,10 @@ exports, and selects providers for the requested target. A consumer whose
 semantic bindings change during discovery is checked with the settled bindings.
 [Review passes](review/candidate/passes.rs)
 
-A cached review must match the package, compiler, target, execution profile,
-entry, compilation inputs and Build snapshot. Recovery rejoins its source
-commitment, Build observations, restricted requests and target handoff to the
-current occurrence. The closure retains up to 64 MiB of canonical policy data.
+When the same review makes a second pass, it can carry a package's first
+result if the selected entry, inputs, Build observations, permissions and
+target handoff still match. A later invocation starts a fresh review of the
+acquired source. The closure retains up to 64 MiB of canonical policy data.
 [Occurrence review](review/candidate/passes_occurrences.rs)
 
 Acquisition binds each returned package declaration and dependency ledger to
