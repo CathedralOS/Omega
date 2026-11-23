@@ -1746,14 +1746,33 @@ pub(crate) mod case_membership {
         pub(crate) case: StructuralCaseId,
     }
 
+    /// A written tag selects its case. An untouched zeroed element selects the first declared case.
+    pub(crate) trait CaseSelections {
+        fn selected(
+            &self,
+            types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+            home: &StructuralRuntimePlace,
+        ) -> Option<StructuralCaseContents>;
+    }
+
+    impl CaseSelections for BTreeMap<StructuralRuntimePlace, StructuralCaseContents> {
+        fn selected(
+            &self,
+            _types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
+            home: &StructuralRuntimePlace,
+        ) -> Option<StructuralCaseContents> {
+            self.get(home).copied()
+        }
+    }
+
     pub(crate) fn stored_case_at_projection(
         types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
         root: &TerminalStructuralValue,
-        cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
+        cases: &impl CaseSelections,
         path: &[StructuralPathSegment],
     ) -> Option<StructuralCaseId> {
         let selected = project_structural_value(types, root, path).ok()?;
-        let contents = cases.get(&StructuralRuntimePlace::from(&selected))?;
+        let contents = cases.selected(types, &StructuralRuntimePlace::from(&selected))?;
         let declaration = types.get(&selected.structural_type)?;
         let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
             &declaration.shape
@@ -1766,6 +1785,22 @@ pub(crate) mod case_membership {
     }
 
     impl TerminalExecution<'_> {
+        pub(crate) fn case_at(
+            &self,
+            home: &StructuralRuntimePlace,
+        ) -> Option<StructuralCaseContents> {
+            self.array_initialization
+                .cases(&self.structural_cases)
+                .selected(&self.structural_types(), home)
+        }
+
+        pub(crate) fn require_case(
+            &self,
+            home: &StructuralRuntimePlace,
+        ) -> Result<StructuralCaseContents, TerminalInterpretError> {
+            self.case_at(home).ok_or_else(malformed)
+        }
+
         pub(crate) fn active_field_declarations(
             &self,
             parent_type: StructuralTypeId,
@@ -1780,7 +1815,7 @@ pub(crate) mod case_membership {
                 else {
                     return Err(malformed());
                 };
-                let contents = self.structural_cases.require(parent)?;
+                let contents = self.require_case(parent)?;
                 if contents.structural_type != parent_type || contents.case != case {
                     return Err(malformed());
                 }
@@ -1820,7 +1855,7 @@ pub(crate) mod case_membership {
                     match case_projection_in_value_is_active(
                         &self.structural_types(),
                         root,
-                        self.structural_cases.as_map(),
+                        &self.array_initialization.cases(&self.structural_cases),
                         &binding.path,
                     ) {
                         Ok(true) => Some(Ok(binding.clone())),
@@ -1868,7 +1903,7 @@ pub(crate) mod case_membership {
                     if !case_projection_in_value_is_active(
                         &self.structural_types(),
                         owner,
-                        self.structural_cases.as_map(),
+                        &self.array_initialization.cases(&self.structural_cases),
                         &path,
                     )? {
                         continue;
@@ -2008,7 +2043,7 @@ pub(crate) mod case_membership {
                         else {
                             return Err(malformed());
                         };
-                        let actual = self.structural_cases.require(&parent)?;
+                        let actual = self.require_case(&parent)?;
                         if actual.structural_type != structural_type || actual.case != *case {
                             return Err(malformed());
                         }
@@ -2114,9 +2149,7 @@ pub(crate) mod case_membership {
                         else {
                             return Err(malformed());
                         };
-                        let contents = self
-                            .structural_cases
-                            .get(&StructuralRuntimePlace::from(&leaf))
+                        let contents = self.case_at(&StructuralRuntimePlace::from(&leaf))
                             .ok_or(malformed())?;
                         if contents.structural_type != leaf.structural_type
                             || contents.case != *case
@@ -2194,9 +2227,7 @@ pub(crate) mod case_membership {
             }
             let selected =
                 self.resolve_live_projection(source, path, StructuralAccess::SharedBorrow)?;
-            let contents = self
-                .structural_cases
-                .get(&StructuralRuntimePlace::from(&selected))
+            let contents = self.case_at(&StructuralRuntimePlace::from(&selected))
                 .ok_or(TerminalInterpretError::VerifiedStructuralPlaceMissing(
                     source,
                 ))?;
@@ -2210,7 +2241,7 @@ pub(crate) mod case_membership {
     pub(crate) fn validate_case_projection(
         types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
         values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-        cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
+        cases: &impl CaseSelections,
         source: PlaceId,
         path: &[StructuralPathSegment],
     ) -> Result<(), TerminalInterpretError> {
@@ -2224,7 +2255,7 @@ pub(crate) mod case_membership {
     pub(crate) fn case_projection_is_active(
         types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
         values: &RuntimeRows<PlaceId, TerminalStructuralValue>,
-        cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
+        cases: &impl CaseSelections,
         source: PlaceId,
         path: &[StructuralPathSegment],
     ) -> Result<bool, TerminalInterpretError> {
@@ -2241,7 +2272,7 @@ pub(crate) mod case_membership {
     pub(crate) fn case_projection_in_value_is_active(
         types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
         root: &TerminalStructuralValue,
-        cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
+        cases: &impl CaseSelections,
         path: &[StructuralPathSegment],
     ) -> Result<bool, TerminalInterpretError> {
         case_projection_with_membership_is_active(types, root.structural_type, path, &|prefix| {
@@ -2252,7 +2283,7 @@ pub(crate) mod case_membership {
     pub(crate) fn active_projected_qualifications(
         types: &crate::embedding::program::ProgramDeclarations<'_, StructuralTypeDeclaration>,
         root: &TerminalStructuralValue,
-        cases: &BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
+        cases: &impl CaseSelections,
         rows: &[terminal_psi::StructuralPathQualification],
     ) -> Result<Vec<terminal_psi::StructuralPathQualification>, TerminalInterpretError> {
         let mut active = Vec::new();

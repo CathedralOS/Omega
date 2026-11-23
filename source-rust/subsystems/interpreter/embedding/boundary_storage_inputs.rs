@@ -87,7 +87,7 @@ pub(crate) mod borrowed_completion {
                 case,
             } = &leaf.kind
             {
-                let original = execution.structural_cases.require(destination)?;
+                let original = execution.require_case(destination)?;
                 if original.structural_type != *structural_type || original.case != *case {
                     return Err(malformed());
                 }
@@ -596,7 +596,7 @@ pub(crate) mod original_residence {
         engine::execution::TerminalExecution,
         engine::execution::frame_field_mut,
         storage::primitive_storage::{ArrayCell, PrimitiveStorage, PrimitiveStorageEndpoint},
-        storage::scalar_storage::ScalarCell,
+        storage::scalar_storage::{ScalarCell, ScalarStorageRows},
     };
     use semantic_vocabulary::{
         BoundaryMachineId, CanonicalStructuralPathSegment as Path, IntegerType,
@@ -931,7 +931,26 @@ pub(crate) mod original_residence {
                     ));
                 }
             }
+            // An untouched zero has no row yet. Charge for every new row
+            // before publishing the host's original allocations.
+            let mut primitive_cells = ScalarStorageRows::new(execution.account.as_ref());
+            let mut field_cells = ScalarStorageRows::new(execution.account.as_ref());
             for (endpoint, resident) in &prepared {
+                match endpoint {
+                    PrimitiveStorageEndpoint::Scalar(home) => {
+                        execution.structural_primitive_storage.prepare_resident_install(
+                            home, resident, &mut primitive_cells,
+                        )?;
+                        continue;
+                    }
+                    PrimitiveStorageEndpoint::ScalarField(field) => {
+                        execution.structural_scalar_fields.prepare_resident_install(
+                            field, resident, &mut field_cells,
+                        )?;
+                        continue;
+                    }
+                    _ => {}
+                }
                 let storage = PrimitiveStorage {
                     endpoint: endpoint.clone(),
                     encoding: None,
@@ -982,18 +1001,30 @@ pub(crate) mod original_residence {
                 }
                 original_roots.insert(owner, allocation)?;
             }
+            execution
+                .structural_primitive_storage
+                .validate_append(&primitive_cells)?;
+            execution
+                .structural_scalar_fields
+                .validate_append(&field_cells)?;
             execution.original_byte_cells.validate_append(&raw_cells)?;
             execution
                 .original_storage_roots
                 .append(&mut original_roots)?;
             execution.original_byte_cells.append(&mut raw_cells)?;
+            execution
+                .structural_primitive_storage
+                .append(&mut primitive_cells)?;
+            execution
+                .structural_scalar_fields
+                .append(&mut field_cells)?;
             for (endpoint, resident) in prepared {
                 let cell = match endpoint {
                     PrimitiveStorageEndpoint::Scalar(home) => {
                         execution.structural_primitive_storage.get_mut(&home)
                     }
                     PrimitiveStorageEndpoint::ScalarField(field) => {
-                        execution.scalar_field_cell_mut(&field)?
+                        execution.structural_scalar_fields.get_mut(&field)
                     }
                     _ => {
                         let storage = PrimitiveStorage {
@@ -1426,11 +1457,11 @@ pub(crate) mod original_residence {
             let (selected, mut path) = self.actual_storage_projection(original, parent)?;
             let cell = match &storage.endpoint {
                 PrimitiveStorageEndpoint::Scalar(home) => {
-                    self.structural_primitive_storage.get(home).cloned()
+                    self.primitive_cell(home)?
                 }
                 PrimitiveStorageEndpoint::ScalarField(field) => {
                     if field.namespace == StructuralFieldNamespace::CasePayload {
-                        let active = self.structural_cases.require(parent)?;
+                        let active = self.require_case(parent)?;
                         if active.structural_type != selected {
                             return Err(malformed());
                         }
@@ -1915,7 +1946,7 @@ pub(crate) mod reference_outputs {
                 crate::boundary::structural_inputs::case_membership::active_projected_qualifications(
                     &types,
                     &actual,
-                    execution.structural_cases.as_map(),
+                    &execution.array_initialization.cases(&execution.structural_cases),
                     &required_paths,
                 )?;
                 if required_whole

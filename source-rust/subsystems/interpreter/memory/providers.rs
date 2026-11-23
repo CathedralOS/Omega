@@ -194,7 +194,7 @@ pub(crate) mod entry {
     use super::{ProviderByteAllocation, ProviderStorageBinding, ProviderStorageSlot};
     use crate::boundary::errors::TerminalInterpretError;
     use crate::boundary::structural_inputs::case_membership::{
-        StructuralCaseContents, case_projection_in_value_is_active,
+        CaseSelections, case_projection_in_value_is_active,
     };
     use crate::boundary::values::{
         StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue,
@@ -244,7 +244,7 @@ pub(crate) mod entry {
             if !case_projection_in_value_is_active(
                 &self.structural_types(),
                 &result.value,
-                self.structural_cases.as_map(),
+                &self.array_initialization.cases(&self.structural_cases),
                 path,
             )
             .map_err(|reason| format!("provider storage result case: {reason:?}"))?
@@ -273,7 +273,7 @@ pub(crate) mod entry {
             let home = StructuralRuntimePlace::from(&value);
             let returned_claim = returned_storage_claim(
                 &self.structural_types(),
-                self.structural_cases.as_map(),
+                &self.array_initialization.cases(&self.structural_cases),
                 result,
                 &self.returned_claims,
                 &home,
@@ -359,7 +359,7 @@ pub(crate) mod entry {
                         case_projection_in_value_is_active(
                             &self.structural_types(),
                             value,
-                            self.structural_cases.as_map(),
+                            &self.array_initialization.cases(&self.structural_cases),
                             &claim.path,
                         )
                         .is_ok_and(|active| active)
@@ -384,7 +384,7 @@ pub(crate) mod entry {
                                 ) && case_projection_in_value_is_active(
                                     &self.structural_types(),
                                     &selected,
-                                    self.structural_cases.as_map(),
+                                    &self.array_initialization.cases(&self.structural_cases),
                                     relative,
                                 )
                                 .is_ok_and(|active| active)
@@ -523,7 +523,7 @@ pub(crate) mod entry {
             if !case_projection_in_value_is_active(
                 &self.structural_types(),
                 root,
-                self.structural_cases.as_map(),
+                &self.array_initialization.cases(&self.structural_cases),
                 &input.path,
             )
             .map_err(|reason| format!("provider storage entry case: {reason:?}"))?
@@ -619,7 +619,7 @@ pub(crate) mod entry {
             '_,
             terminal_psi::StructuralTypeDeclaration,
         >,
-        cases: &std::collections::BTreeMap<StructuralRuntimePlace, StructuralCaseContents>,
+        cases: &impl CaseSelections,
         result: &crate::boundary::results::TerminalStructuralResult,
         returned_claims: &[terminal_psi::StructuralResultClaimBinding],
         home: &StructuralRuntimePlace,
@@ -2462,9 +2462,8 @@ pub(crate) mod profile_values {
             .map(|entry| {
                 let scalar = entry
                     .execution
-                    .structural_primitive_storage
-                    .get(&StructuralRuntimePlace::from(&entry.value))
-                    .map(crate::storage::scalar_storage::ScalarCell::read)
+                    .primitive_cell(&StructuralRuntimePlace::from(&entry.value))?
+                    .map(|cell| cell.read())
                     .transpose()?
                     .ok_or(malformed())?;
                 BoundaryServiceReachId::from_normalized_identity(unsigned(scalar)?).map_err(|_| {
@@ -2576,9 +2575,7 @@ pub(crate) mod profile_values {
                 return Err(malformed());
             }
             let stored = self
-                .execution
-                .structural_cases
-                .get(&StructuralRuntimePlace::from(&self.value))
+                .execution.case_at(&StructuralRuntimePlace::from(&self.value))
                 .ok_or(malformed())?;
             if stored.structural_type != self.value.structural_type {
                 return Err(malformed());
@@ -3974,7 +3971,7 @@ pub(crate) mod value_image {
                 &self.path,
                 self.source.access,
             )?;
-            let contents = self.execution.structural_cases.require(
+            let contents = self.execution.require_case(
                 &crate::boundary::values::StructuralRuntimePlace::from(&selected),
             )?;
             if contents.structural_type != root {
