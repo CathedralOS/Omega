@@ -1496,6 +1496,24 @@ fn with_prepared_machine<Outcome>(
             &types,
             &mut references,
         )?;
+        // domains.md: "Mutation invalidates subject-bound facts unless
+        // preserved or re-established." A routed domain is re-established
+        // only by a machine its declaration names, so any other machine
+        // that changes part of such a value cannot keep the domain on it.
+        if let Some((operation, domain)) = storage.unauthorized_routed_write() {
+            return Err(refusal(
+                RefusalReason::Violation,
+                id,
+                Construct::Operation(operation),
+                &format!(
+                    "this statement changes, or lends for change, part of a value that carries \
+                     {} in a machine that is not one of the domain's establishment routes: only \
+                     a machine the domain's declaration names may change such a value and keep \
+                     the domain on it",
+                    formed.domain_label(domain),
+                ),
+            ));
+        }
         let ranking_bindings = rankings::admit(lowered, tables, &graph, &storage, &mut references)?;
         if fill {
             storage.owed_are_minted(tables)?;

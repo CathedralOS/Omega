@@ -153,6 +153,10 @@ pub fn prepare_replay<'source>(
 pub(crate) struct FormedModule<'a> {
     module: &'a TerminalModule,
     nominal_calls: &'a [terminal_psi::generic_calls::NominalCallArgument],
+    domain_sources: &'a arena::IdTable<
+        semantic_vocabulary::DomainSemanticId,
+        terminal_check_tables::program::DomainSource,
+    >,
 }
 
 impl<'a> FormedModule<'a> {
@@ -162,6 +166,18 @@ impl<'a> FormedModule<'a> {
 
     pub(crate) fn source(self) -> &'a TerminalModule {
         self.module
+    }
+
+    /// The authored name of a structural domain, for a diagnostic.
+    pub(crate) fn domain_label(self, domain: semantic_vocabulary::StructuralDomainId) -> String {
+        self.module
+            .types
+            .structural_domains
+            .iter()
+            .find(|row| row.id == domain)
+            .and_then(|row| self.domain_sources.get(row.semantic_domain))
+            .map(|source| source.label.clone())
+            .unwrap_or_else(|| format!("structural domain {}", domain.get()))
     }
 }
 
@@ -173,6 +189,7 @@ impl ReplayScope<'_> {
         FormedModule {
             module: &self.elaboration.module,
             nominal_calls: &self.elaboration.nominal_calls,
+            domain_sources: &self.elaboration.domain_sources,
         }
     }
 
@@ -298,6 +315,7 @@ impl ReplayScope<'_> {
             FormedModule {
                 module: &self.elaboration.module,
                 nominal_calls: &self.elaboration.nominal_calls,
+                domain_sources: &self.elaboration.domain_sources,
             },
             &self.elaboration.domains,
             &mut self.elaboration.tables,
