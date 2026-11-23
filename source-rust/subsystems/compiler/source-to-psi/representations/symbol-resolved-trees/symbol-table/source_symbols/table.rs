@@ -571,8 +571,7 @@ mod modules {
             Self {
                 reference_source,
                 declaration_source,
-                name: Arc::from(""),
-                module_import: Some(ModuleImport {
+                target: super::BindingTarget::Module(ModuleImport {
                     path: Arc::from(authored_path),
                     package_prefix_members,
                     exact_source: true,
@@ -601,11 +600,9 @@ mod modules {
                 authored_path,
                 package_prefix_members,
             );
-            binding
-                .module_import
-                .as_mut()
-                .expect("module import")
-                .logical_selection = true;
+            if let super::BindingTarget::Module(import) = &mut binding.target {
+                import.logical_selection = true;
+            }
             binding
         }
     }
@@ -619,7 +616,7 @@ mod modules {
         pub fn is_source_package_qualifier(&self, reference: SourceSpan, qualifier: &str) -> bool {
             self.source_scoped_bindings_for(reference.source_id)
                 .iter()
-                .filter_map(|binding| binding.module_import.as_ref())
+                .filter_map(|binding| binding.module_import_target())
                 .any(|import| {
                     import.exact_source
                         && import.package_prefix_members != 0
@@ -637,7 +634,7 @@ mod modules {
                 .iter()
                 .filter_map(move |binding| {
                     (binding.reference_source == source)
-                        .then_some(binding.module_import.as_ref())
+                        .then_some(binding.module_import_target())
                         .flatten()
                         .map(|import| import.path.as_ref())
                 })
@@ -717,8 +714,7 @@ mod modules {
                 self.source_binding_is_selected(binding)
                     && binding.reference_source == reference_source
                     && binding
-                        .module_import
-                        .as_ref()
+                        .module_import_target()
                         .is_some_and(|import| import.path.as_ref() == path)
             }) {
                 return;
@@ -729,7 +725,7 @@ mod modules {
                 path,
                 0,
             );
-            if let Some(import) = &mut binding.module_import {
+            if let super::BindingTarget::Module(import) = &mut binding.target {
                 import.exact_source = false;
             }
             binding.producer = super::BindingProducer::AuthoredImport;
@@ -754,7 +750,7 @@ mod modules {
                 .iter()
                 .filter(|binding| binding.reference_source == reference_source)
             {
-                let Some(import) = &binding.module_import else {
+                let Some(import) = binding.module_import_target() else {
                     continue;
                 };
                 if import.path.as_ref() != path || !import.exact_source {
@@ -834,7 +830,7 @@ mod modules {
             path: &str,
         ) -> Vec<SymbolHandle> {
             for binding in self.source_scoped_bindings_for(reference_source) {
-                let Some(import) = &binding.module_import else {
+                let Some(import) = binding.module_import_target() else {
                     continue;
                 };
                 if import.path.as_ref() != path {
@@ -865,7 +861,7 @@ mod modules {
         }
 
         fn binding_imports_package_root(&self, binding: &SourceScopedTopLevelBinding) -> bool {
-            binding.module_import.as_ref().is_some_and(|import| {
+            binding.module_import_target().is_some_and(|import| {
                 import.logical_selection
                     && import.package_prefix_members != 0
                     && logical_import_path(import).is_empty()
@@ -884,7 +880,7 @@ mod modules {
             &self,
             binding: &SourceScopedTopLevelBinding,
         ) -> Vec<SymbolHandle> {
-            let Some(import) = &binding.module_import else {
+            let Some(import) = binding.module_import_target() else {
                 return Vec::new();
             };
             let logical = logical_import_path(import);
@@ -933,8 +929,7 @@ mod modules {
                         && sources.source_is_selected(binding.declaration_source)
                 }
                 None => !binding
-                    .module_import
-                    .as_ref()
+                    .module_import_target()
                     .is_some_and(|import| import.logical_selection),
             }
         }
@@ -1129,7 +1124,7 @@ mod modules {
             self.source_scoped_bindings_for(reference)
                 .iter()
                 .any(|binding| {
-                    let Some(import) = &binding.module_import else {
+                    let Some(import) = binding.module_import_target() else {
                         return false;
                     };
                     (self.import_owner_matches(binding, symbol)
@@ -1194,8 +1189,7 @@ mod modules {
                     .iter()
                     .any(|binding| {
                         binding
-                            .module_import
-                            .as_ref()
+                            .module_import_target()
                             .is_some_and(|import| import.path.as_ref() == path)
                             && self.binding_exposes_member(binding, domain)
                     })
@@ -1228,7 +1222,7 @@ mod modules {
             binding: &SourceScopedTopLevelBinding,
             symbol: SymbolHandle,
         ) -> bool {
-            let Some(import) = &binding.module_import else {
+            let Some(import) = binding.module_import_target() else {
                 return false;
             };
             if !self.import_owner_matches(binding, symbol) {
@@ -1313,7 +1307,7 @@ mod modules {
                         continue;
                     }
                     let scope = index.by_source.entry(binding.reference_source).or_default();
-                    if let Some(import) = &binding.module_import {
+                    if let Some(import) = binding.module_import_target() {
                         let logical = logical_import_path(import);
                         let package_prefix = import
                             .path
@@ -1422,8 +1416,7 @@ mod modules {
                         let binding = &source_scope.bindings[scope.binding_position];
                         let logical = &scope.logical;
                         let import = binding
-                            .module_import
-                            .as_ref()
+                            .module_import_target()
                             .expect("import bindings carry module imports");
                         if !self.import_owner_matches(binding, *candidate) {
                             return false;
@@ -1483,7 +1476,7 @@ mod modules {
             binding: &SourceScopedTopLevelBinding,
             candidate: SymbolHandle,
         ) -> bool {
-            let Some(import) = &binding.module_import else {
+            let Some(import) = binding.module_import_target() else {
                 return false;
             };
             if import.logical_selection {
@@ -1567,8 +1560,7 @@ mod modules {
                 }
                 for scope in import_bindings {
                     let import = source_scope.bindings[scope.binding_position]
-                        .module_import
-                        .as_ref()
+                        .module_import_target()
                         .expect("import bindings carry module imports");
                     let logical = scope.logical.as_str();
                     if import.exact_source
@@ -1639,8 +1631,7 @@ mod modules {
                 let imported_path = import_bindings.iter().any(|scope| {
                     let binding = &source_scope.bindings[scope.binding_position];
                     let import = binding
-                        .module_import
-                        .as_ref()
+                        .module_import_target()
                         .expect("import bindings carry module imports");
                     let logical = scope.logical.as_str();
                     if qualified
@@ -2573,9 +2564,15 @@ pub struct SymbolTableBuilder {
 pub struct SourceScopedTopLevelBinding {
     reference_source: SourceId,
     declaration_source: SourceId,
-    name: Arc<str>,
-    module_import: Option<modules::ModuleImport>,
+    target: BindingTarget,
     producer: BindingProducer,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
+enum BindingTarget {
+    Declaration(Arc<str>),
+    Module(modules::ModuleImport),
+    FileAlias(Arc<str>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
@@ -2593,10 +2590,30 @@ impl SourceScopedTopLevelBinding {
         Self {
             reference_source,
             declaration_source,
-            name: name.into(),
-            module_import: None,
+            target: BindingTarget::Declaration(name.into()),
             producer: BindingProducer::Loader,
         }
+    }
+
+    /// A file alias selects declarations from exactly one admitted source.
+    pub fn file_import(reference_source: SourceId, declaration_source: SourceId, alias: impl Into<Arc<str>>) -> Self {
+        Self {
+            reference_source,
+            declaration_source,
+            target: BindingTarget::FileAlias(alias.into()),
+            producer: BindingProducer::Loader,
+        }
+    }
+
+    fn module_import_target(&self) -> Option<&modules::ModuleImport> {
+        match &self.target {
+            BindingTarget::Module(import) => Some(import),
+            _ => None,
+        }
+    }
+
+    fn binds_declaration(&self, name: &str) -> bool {
+        matches!(&self.target, BindingTarget::Declaration(bound) if bound.as_ref() == name)
     }
 
     /* The source whose top-level references this binding scopes. */
@@ -3115,7 +3132,7 @@ impl SymbolTable {
         self.module_path_index.clear();
         self.module_scope_index.clear();
         for binding in authored_imports {
-            if let Some(import) = &binding.module_import {
+            if let Some(import) = binding.module_import_target() {
                 self.register_source_import(binding.reference_source, &import.path);
             }
         }
@@ -3625,6 +3642,21 @@ impl SymbolTable {
         {
             return Vec::new();
         }
+        if let Some((alias, declaration)) = name.strip_prefix('|').and_then(|path| path.split_once("|::")) {
+            let mut imports = self.source_scoped_bindings_for(reference.source_id).iter().filter(|binding| {
+                matches!(&binding.target, BindingTarget::FileAlias(bound) if bound.as_ref() == alias)
+            });
+            let Some(binding) = imports.next() else { return Vec::new() };
+            if !reference_is_source_backed || imports.next().is_some() {
+                return Vec::new();
+            }
+            return self.top_level_children_matching_name(declaration, false).into_iter().filter(|symbol| {
+                self.symbol_provenance_source_span(*symbol).is_some_and(|span| span.source_id == binding.declaration_source)
+                    && kinds.contains(&self.get(*symbol).kind)
+                    && self.source_reference_can_see_symbol(reference, *symbol)
+                    && matches_candidate(*symbol)
+            }).collect();
+        }
         if (reference_is_source_backed || selection == TopLevelSelection::Ordinary)
             && let Some(result) = self.find_module_qualified_candidates(
                 name,
@@ -3661,7 +3693,7 @@ impl SymbolTable {
         if let Some(binding) = self
             .source_scoped_bindings_for(reference.source_id)
             .iter()
-            .find(|binding| binding.module_import.is_none() && binding.name.as_ref() == name)
+            .find(|binding| binding.binds_declaration(name))
         {
             let targets = candidates.iter().copied().filter(|symbol| {
                 self.name(*symbol) == name
@@ -3740,7 +3772,7 @@ impl SymbolTable {
         let binding = self
             .source_scoped_bindings_for(reference.source_id)
             .iter()
-            .find(|binding| binding.module_import.is_none() && binding.name.as_ref() == name)?;
+            .find(|binding| binding.binds_declaration(name))?;
         let mut family = self.child_handles(self.root)?.filter(|symbol| {
             self.get(*symbol).kind == SymbolKind::Operator
                 && kinds.contains(&SymbolKind::Operator)
@@ -3812,8 +3844,7 @@ impl SymbolTable {
         }
         self.source_scoped_top_level_bindings.iter().any(|binding| {
             self.source_binding_is_selected(binding)
-                && binding.module_import.is_none()
-                && binding.name.as_ref() == name
+                && binding.binds_declaration(name)
                 && (binding.declaration_source == left_span.source_id
                     || binding.declaration_source == right_span.source_id)
         })
@@ -3914,10 +3945,10 @@ impl SymbolTable {
                 .source_scoped_bindings_for(reference.source_id)
                 .iter()
                 .any(|binding| {
-                    if binding.module_import.is_some() {
-                        self.binding_exposes_member(binding, symbol)
-                    } else {
-                        binding.declaration_source == declaration.source_id
+                    match &binding.target {
+                        BindingTarget::Module(_) => self.binding_exposes_member(binding, symbol),
+                        BindingTarget::Declaration(_) => binding.declaration_source == declaration.source_id,
+                        BindingTarget::FileAlias(_) => false,
                     }
                 })
     }
