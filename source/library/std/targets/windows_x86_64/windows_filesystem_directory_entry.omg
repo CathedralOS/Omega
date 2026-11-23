@@ -1,3 +1,4 @@
+use filesystem_host.omg as paths;
 use targets/windows_x86_64/windows_filesystem_directory.omg as directory;
 use targets/windows_x86_64/windows_filesystem_directory_native.omg as directory_io;
 use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
@@ -18,7 +19,7 @@ use omega\language\core\narrow_u64_to_i32_exact;
 use omega\language\core\narrow_i32_to_u64_exact;
 use omega\language\core\narrow_i64_to_u64_wrapping;
 
-machine windows_filesystem_native_directory_nth(path: @[u8] in Path, ordinal: u64) -> |win_fs|::WindowsDirectoryEntryResult
+machine windows_filesystem_native_directory_nth(path: @[u8] in |paths|::Path, ordinal: u64) -> |win_fs|::WindowsDirectoryEntryResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation + DirectoryEnumeration + FilesystemMetadataQuery {
     let handle: i64 in WindowsPrivateNonalertFileOrAbsent = block windows_directory_open(path);
     transition (handle as -WindowsPrivateNonalertFileOrAbsent) != 0 { true -> block query(handle, ordinal), false -> (windows_directory_entry_error()) }

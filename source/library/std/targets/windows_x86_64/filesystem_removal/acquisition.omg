@@ -1,3 +1,4 @@
+use filesystem_host.omg as paths;
 use targets/windows_x86_64/filesystem_removal/native.omg as removal_io;
 use targets/windows_x86_64/windows_filesystem_directory_native.omg as directory_io;
 use targets/windows_x86_64/windows_filesystem_native.omg as win_io;
@@ -16,17 +17,17 @@ use omega\language\core\FilesystemMetadataMutation;
 use omega\language\core\DirectoryEnumeration;
 use omega\language\core\FilesystemNamespaceMutation;
 
-machine windows_removal_open_root(path: @[u8] in Path) -> i64 in WindowsPrivateNonalertFileOrAbsent
+machine windows_removal_open_root(path: @[u8] in |paths|::Path) -> i64 in WindowsPrivateNonalertFileOrAbsent
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let handle: i64 = block windows_removal_acquire_root(path);
     handle as +WindowsPrivateNonalertFileOrAbsent
 }
 
-machine windows_removal_acquire_root(path: @[u8] in Path) -> i64
+machine windows_removal_acquire_root(path: @[u8] in |paths|::Path) -> i64
 ensures result != -1
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let mutable wide: [u16; 4096];
-    let units: i64 = windows_wide_path(path as -Path, @mutable wide);
+    let units: i64 = windows_wide_path(path as - |paths|::Path, @mutable wide);
     wide[4095] = 0;
     transition units > 0 { true -> block open(wide as +WindowsNativePath), false -> invalid() }
     machine invalid() -> i64

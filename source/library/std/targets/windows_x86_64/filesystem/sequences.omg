@@ -1,3 +1,4 @@
+use filesystem_host.omg as paths;
 use ErrorKind;
 use File;
 use IoResult;
@@ -74,7 +75,7 @@ reaches FilesystemContentWrite
     }
 }
 
-machine windows_filesystem_write_all(path: @[u8] in Path, bytes: @[u8]) -> UnitResult
+machine windows_filesystem_write_all(path: @[u8] in |paths|::Path, bytes: @[u8]) -> UnitResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     let acquired: OpenResult = block windows_filesystem_create(path);
@@ -91,14 +92,14 @@ reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutat
 
 // Match the portable bounded-read contract: a short read is a successful
 // initialized prefix, not a promise to fill the caller's entire buffer.
-machine windows_filesystem_read_all(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult
+machine windows_filesystem_read_all(path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> IoResult
 reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation
 {
     transition count <= buffer.length {
         true -> block acquire(path, buffer, count),
         false -> (IoResult::Error { kind: ErrorKind::InvalidInput })
     }
-    machine acquire(path: @[u8] in Path, buffer: @mutable [u8], count: u64) -> IoResult {
+    machine acquire(path: @[u8] in |paths|::Path, buffer: @mutable [u8], count: u64) -> IoResult {
         let acquired: OpenResult = block windows_filesystem_open(path);
         transition acquired {
             OpenResult::Error { kind } -> (IoResult::Error { kind: kind }),
