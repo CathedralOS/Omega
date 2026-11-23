@@ -3,7 +3,7 @@
 // build scope calls the dep's product machine through the build edge while
 // the product scope calls it through the product edge.
 
-use kit;
+use {kit}/generated.omg as kit;
 
 machine build(builder: @mutable Build)
 suspends
@@ -16,13 +16,15 @@ suspends
     dependency\with_alias(@mutable kit_dependency_2, "kit");
     let kit_registration_2: DependencyRegistration = Build::dependency(builder, kit_dependency_2);
     suspend Build::prepare_dependency(builder, kit_registration);
-    let observed: i32 = kit\value();
+    let observed: i32 = |kit|::value();
     transition observed == 7 {
         true -> done(),
-        _ -> wrong()
+        _ -> wrong(builder)
     }
     machine done() {
     }
-    machine wrong() {
+    machine wrong(builder: @mutable Build) {
+        let check: RequiredOutput = BuildOutput::require(@mutable builder.output, "generated-value.txt");
+        BuildOutput::fail(@mutable builder.output, check, "generated value must return 7");
     }
 }

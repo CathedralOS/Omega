@@ -1,34 +1,31 @@
-// Required-output retry recovery: the first `complete` runs while the
-// writer is still live, so the evaluator hands the obligation and file
-// custody back as `OutputCompletion::Retry`. The retry path then seals the
-// writer, includes the staged source, and completes for real — the
-// success direction of the custody loop, not the pinned failure.
+// Complete once with the writer open. The Retry branch closes the writer,
+// publishes the captured source bytes, and settles the output obligation.
 
 machine build(builder: @mutable Build) {
     Build::package(builder, "retry_kernel");
     let template: BuildPath = BuildSource::resolve(@builder.source, "template.txt");
     let reader: i32 = BuildSource::open(@builder.source, template, 0);
-    let mutable bytes: [u8; 38];
-    _ = BuildSource::read(@builder.source, reader, @mutable bytes[..], 38);
+    let mutable bytes: [u8; 71];
+    _ = BuildSource::read(@builder.source, reader, @mutable bytes[..], 71);
     let _closed_reader: i32 = BuildSource::close(@builder.source, reader);
     let obligation: RequiredOutput = BuildOutput::require(@mutable builder.output, "generated.omg");
     let generated: BuildPath = BuildOutput::resolve(@builder.output, "generated.omg");
     let writer: i32 = BuildOutput::create(@mutable builder.output, generated, 0);
     _ = BuildOutput::write(@mutable builder.output, writer, @bytes[..]);
     let first: OutputCompletion = BuildOutput::complete(@mutable builder.output, obligation, generated);
-    settle_first(builder, first, writer, generated);
+    settle_first(builder, first, writer, @bytes[..]);
 }
 
-machine settle_first(builder: @mutable Build, completion: OutputCompletion, writer: i32, generated: BuildPath) {
+machine settle_first(builder: @mutable Build, completion: OutputCompletion, writer: i32, source: @[u8]) {
     transition completion {
         OutputCompletion::Sealed { receipt } -> sealed(builder),
-        OutputCompletion::Retry { obligation, file } -> reseal(builder, obligation, file, writer)
+        OutputCompletion::Retry { obligation, file } -> reseal(builder, obligation, file, writer, source)
     }
     machine sealed(builder: @mutable Build) {
     }
-    machine reseal(builder: @mutable Build, obligation: RequiredOutput, file: BuildPath, writer: i32) {
+    machine reseal(builder: @mutable Build, obligation: RequiredOutput, file: BuildPath, writer: i32, source: @[u8]) {
         let _sealed: i32 = BuildOutput::close(@mutable builder.output, writer);
-        BuildOutput::include_source(@mutable builder.output, file);
+        Build::include_source(builder, "generated.omg", source);
         let second: OutputCompletion = BuildOutput::complete(@mutable builder.output, obligation, file);
         settle_second(builder, second);
     }

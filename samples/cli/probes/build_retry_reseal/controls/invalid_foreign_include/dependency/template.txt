@@ -1,1 +1,0 @@
-pub machine generated_value() -> i32 { 7 }

@@ -135,6 +135,7 @@ pub struct SourceImport {
     pub ordinal: usize,
     pub span: source_text::Span,
     pub target: SourceImportTarget,
+    pub only_product_operands: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, record_storage::Record)]
@@ -202,7 +203,7 @@ impl ParsedSourceBatch {
                                         );
                                         (span, SourceImportTarget::Namespace(members.iter().map(|name| name.as_str(syntax).to_owned()).collect()))
                                     }
-                                    UseItem::File { root, components, alias, span } => {
+                                    UseItem::File { root, components, alias, span, .. } => {
                                         let mut path = String::new();
                                         for name in syntax.items.identifier_path_members(*components) {
                                             if !path.is_empty() { path.push('/'); }
@@ -216,7 +217,8 @@ impl ParsedSourceBatch {
                                         })
                                     }
                                 };
-                                Some(SourceImport { ordinal: unit.import_root_range.start + offset, span, target })
+                                let only_product_operands = matches!(import, UseItem::File { only_product_operands: true, .. });
+                                Some(SourceImport { only_product_operands, ordinal: unit.import_root_range.start + offset, span, target })
                             }
                             _ => None,
                         })

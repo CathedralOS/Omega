@@ -410,8 +410,10 @@ impl PreparedBuildExecution {
         if let Some(filesystem) = completed.filesystem {
             observations.retain_filesystem_effects(filesystem)?;
         }
+        observations.retain_source_publications(completed.output.sources, &self.account)?;
         observations.retain_build_log(
             completed
+                .output
                 .log
                 .publish(&self.account)
                 .map_err(|reason| self.refuse(&reason))?,
@@ -421,7 +423,7 @@ impl PreparedBuildExecution {
         if artifact_only && observation_summary.required_output_settlements().is_empty() {
             return Err(self.refuse("artifact-only Build requires at least one completed output"));
         }
-        let generated_sources = observation_summary.select_generated_sources(&self.machine.name)?;
+        let generated_sources = observation_summary.generated_sources().to_vec();
         let usage = *self
             .account
             .snapshot()

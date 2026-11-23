@@ -49,7 +49,18 @@ use review_evidence::record::SemanticBindingReviewCandidate;
 use semantic_vocabulary::PackageKeyIdentity;
 
 const RECORD_MAGIC: &[u8; 8] = b"OMGCREV\x01";
-const RECORD_VERSION: u16 = 21;
+const INLINE_SOURCE_RECORD_VERSION: u16 = 21;
+const RECORD_VERSION: u16 = 22;
+
+fn record_version(observation: Option<&package_compilation::BuildObservationSummary>) -> u16 {
+    if observation.is_some_and(|summary| {
+        summary.schema_version() == package_compilation::BUILD_OBSERVATION_SCHEMA_VERSION
+    }) {
+        RECORD_VERSION
+    } else {
+        INLINE_SOURCE_RECORD_VERSION
+    }
+}
 const RECORD_SEQUENCES_LIMIT: u64 = 1 << 20;
 
 fn cursor_bool(cursor: &mut ObservationCursor<'_>) -> Option<bool> {
@@ -687,7 +698,7 @@ fn recover_dependency_binding(
     ))
 }
 
-fn encode_build_handoff(bundle: &PackageBuildHandoff, out: &mut Vec<u8>) {
+fn encode_build_handoff(bundle: &PackageBuildHandoff, version: u16, out: &mut Vec<u8>) {
     encode_identity(bundle.package(), out);
     out.push(purpose_tag(bundle.purpose()));
     encode_target(bundle.target(), out);
@@ -711,10 +722,13 @@ fn encode_build_handoff(bundle: &PackageBuildHandoff, out: &mut Vec<u8>) {
         out.push(purpose_tag(binding.purpose()));
     }
     out.extend_from_slice(&bundle.source_consumption_commitment().digest());
-    push_count_u64(out, bundle.sources().len());
-    for source in bundle.sources() {
-        push_framed(out, source.relative_path());
-        push_framed(out, source.bytes());
+    // Current reviews keep the source bytes once, in the generating Build's observation.
+    if version == INLINE_SOURCE_RECORD_VERSION {
+        push_count_u64(out, bundle.sources().len());
+        for source in bundle.sources() {
+            push_framed(out, source.relative_path());
+            push_framed(out, source.bytes());
+        }
     }
     push_framed(
         out,
@@ -726,7 +740,11 @@ fn encode_build_handoff(bundle: &PackageBuildHandoff, out: &mut Vec<u8>) {
     push_framed(out, &encode(bundle));
 }
 
-fn recover_build_handoff(cursor: &mut ObservationCursor<'_>) -> Option<PackageBuildHandoff> {
+fn recover_build_handoff(
+    cursor: &mut ObservationCursor<'_>,
+    version: u16,
+    sources: &[build_output::PackageGeneratedSource],
+) -> Option<PackageBuildHandoff> {
     let package = recover_identity(cursor)?;
     let purpose = recover_purpose(cursor)?;
     let target = recover_target(cursor)?;
@@ -740,14 +758,16 @@ fn recover_build_handoff(cursor: &mut ObservationCursor<'_>) -> Option<PackageBu
             .ok()?;
     let commitment =
         PackageSourceConsumptionCommitment::from_retained_digest(cursor_digest(cursor)?);
-    let sources = cursor_vec(cursor, |cursor| {
-        let relative_path = cursor.framed()?.to_vec();
-        let bytes = cursor.framed()?;
-        Some(build_output::PackageGeneratedSource::from_retained_parts(
-            relative_path,
-            bytes.into(),
-        ))
-    })?;
+    if version == INLINE_SOURCE_RECORD_VERSION {
+        if usize::try_from(cursor.u64()?).ok()? != sources.len() {
+            return None;
+        }
+        for source in sources {
+            if cursor.framed()? != source.relative_path() || cursor.framed()? != source.bytes() {
+                return None;
+            }
+        }
+    }
     let (selections, observation) = decode_package_provider_selections(cursor.framed()?)?;
     let handoff = PackageBuildHandoff::from_checked(
         package,
@@ -756,7 +776,7 @@ fn recover_build_handoff(cursor: &mut ObservationCursor<'_>) -> Option<PackageBu
         build_execution_profile,
         dependency_closure,
         commitment,
-        sources,
+        sources.to_vec(),
     )
     .with_retained_provider_selections(selections, observation)
     .ok()?;
@@ -869,8 +889,15 @@ pub(super) fn encode_record(
     {
         candidate.service_schema().validate_calling_applications()?;
     }
+    let observation = review.build_observation_summary.as_ref();
+    if review.build_handoff.sources()
+        != observation.map_or(&[][..], |summary| summary.generated_sources())
+    {
+        return Err("package source handoff differs from its Build publications");
+    }
+    let version = record_version(observation);
     out.extend_from_slice(RECORD_MAGIC);
-    push_encoded(out, RECORD_VERSION.to_le_bytes());
+    push_encoded(out, version.to_le_bytes());
     out.extend_from_slice(&review.package_identity.digest());
     encode_string(&review.name, out);
     out.extend_from_slice(&review.lineage);
@@ -911,7 +938,7 @@ pub(super) fn encode_record(
     for candidate in &review.semantic_binding_candidates {
         encode_candidate(candidate, out);
     }
-    encode_build_handoff(&review.build_handoff, out);
+    encode_build_handoff(&review.build_handoff, version, out);
     push_framed(out, &review.policy_bytes);
     push_count_u64(out, review.facts.consumed_units.len());
     for unit in &review.facts.consumed_units {
@@ -948,7 +975,8 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
     if cursor.bytes(8)? != RECORD_MAGIC {
         return None;
     }
-    if cursor.u16()? != RECORD_VERSION {
+    let version = cursor.u16()?;
+    if !matches!(version, INLINE_SOURCE_RECORD_VERSION | RECORD_VERSION) {
         return None;
     }
     let package_identity = recover_identity(&mut cursor)?;
@@ -972,7 +1000,15 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
     })?;
     let semantic_bindings = cursor_vec(&mut cursor, recover_binding)?;
     let semantic_binding_candidates = cursor_vec(&mut cursor, recover_candidate)?;
-    let build_handoff = recover_build_handoff(&mut cursor)?;
+    let observation = build_observation_summary.as_ref();
+    if version != record_version(observation) {
+        return None;
+    }
+    let build_handoff = recover_build_handoff(
+        &mut cursor,
+        version,
+        observation.map_or(&[][..], |summary| summary.generated_sources()),
+    )?;
     let original_observation = build_observation_summary
         .as_ref()
         .map(|summary| summary.identity().digest());
@@ -1086,9 +1122,7 @@ mod tests {
                 vec![1, 0],
             ),
             (
-                ConsumedSourceUnitKind::PackageGenerated(
-                    source_provenance::DependencyScope::Build,
-                ),
+                ConsumedSourceUnitKind::PackageGenerated(source_provenance::DependencyScope::Build),
                 Some(package),
                 None,
                 vec![1, 1],
@@ -1160,8 +1194,7 @@ mod tests {
         assert!(recover_component_description(&mut ObservationCursor::new(&bytes)).is_none());
     }
 
-    #[test]
-    fn review_record_roundtrip_refuses_retired_versions_and_corruption() {
+    fn empty_review() -> CachedCompiledReview {
         let package = PackageKeyIdentity::from_digest([1; 32]).expect("package identity");
         let commitment = PackageSourceConsumptionCommitment::from_retained_digest([2; 32]);
         let profile = target::TargetProfile::ALL[0];
@@ -1172,7 +1205,7 @@ mod tests {
             Vec::new(),
         )
         .expect("single-package closure");
-        let review = CachedCompiledReview {
+        CachedCompiledReview {
             package_identity: package,
             name: "review_codec".to_owned(),
             lineage: [3; 32],
@@ -1203,12 +1236,81 @@ mod tests {
                 target_entry_candidate: None,
             },
             policy_canonical_bytes: 3,
-        };
-        fn signed(mut payload: Vec<u8>) -> Vec<u8> {
-            let digest: [u8; 32] = crate::digest_encoder::content_identity(&payload);
-            payload.extend_from_slice(&digest);
-            payload
         }
+    }
+
+    fn signed(mut payload: Vec<u8>) -> Vec<u8> {
+        let digest: [u8; 32] = crate::digest_encoder::content_identity(&payload);
+        payload.extend_from_slice(&digest);
+        payload
+    }
+
+    #[test]
+    fn a_cached_review_reads_the_generated_source_once_from_its_build() {
+        let mut review = empty_review();
+        let scope = package_compilation::prepare_filesystem_scope(
+            std::path::Path::new("build.omg"),
+            None,
+            None,
+            &Default::default(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        let limits =
+            evaluation_contracts::BuildEvaluationSponsorLimits::new(128, 1, 1, 1, 4, 128, 4, 128)
+                .unwrap();
+        let sponsor = evaluation_accounting::BuildEvaluationSponsor::new(limits);
+        let account = sponsor
+            .begin_invocation(sponsor.measurement(), 128)
+            .unwrap();
+        let mut publications = package_compilation::BuildSourcePublications::default();
+        let path = b"generated/start.omg";
+        let contents = b"public machine generated_start() {}";
+        publications.publish(&account, path, contents).unwrap();
+        let mut captured = package_compilation::CapturedBuildObservations::new(&scope);
+        captured
+            .retain_source_publications(publications, &account)
+            .unwrap();
+        let observed = captured.settle(false, "build").unwrap();
+        let sources = observed.generated_sources().to_vec();
+        review.build_observation_summary = Some(observed);
+        assert!(encode_record(&review, &mut Vec::new()).is_err());
+        review.build_handoff = PackageBuildHandoff::from_checked(
+            review.package_identity,
+            review.purpose,
+            review.target,
+            review.build_execution_profile,
+            review.build_handoff.dependency_closure().clone(),
+            review.facts.source_consumption_commitment,
+            sources,
+        );
+        let mut payload = Vec::new();
+        encode_record(&review, &mut payload).unwrap();
+        assert_eq!(
+            payload
+                .windows(contents.len())
+                .filter(|window| *window == contents)
+                .count(),
+            1
+        );
+        let reopened = decode_record(&signed(payload.clone())).unwrap();
+        assert_eq!(
+            reopened.build_handoff.sources(),
+            reopened
+                .build_observation_summary
+                .unwrap()
+                .generated_sources()
+        );
+        payload[8..10].copy_from_slice(&INLINE_SOURCE_RECORD_VERSION.to_le_bytes());
+        assert!(decode_record(&signed(payload)).is_none());
+    }
+
+    #[test]
+    fn review_record_roundtrip_refuses_retired_versions_and_corruption() {
+        let review = empty_review();
         let mut payload = Vec::new();
         encode_record(&review, &mut payload).expect("review encodes");
         let encoded = signed(payload.clone());
@@ -1221,7 +1323,7 @@ mod tests {
         let mut inconsistent = Vec::new();
         encode_record(&wrong_occurrence, &mut inconsistent).unwrap();
         assert!(decode_record(&signed(inconsistent)).is_none());
-        for retired_version in 1u16..RECORD_VERSION {
+        for retired_version in 1u16..INLINE_SOURCE_RECORD_VERSION {
             let mut retired = payload.clone();
             retired[8..10].copy_from_slice(&retired_version.to_le_bytes());
             assert!(decode_record(&signed(retired)).is_none());

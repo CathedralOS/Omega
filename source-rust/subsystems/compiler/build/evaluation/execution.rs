@@ -31,13 +31,12 @@ pub use package_compilation::build_execution::{
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutput, BuildFilesystemLogicalHandleOutputSource,
     BuildFilesystemOperationAttempt, BuildFilesystemOperationResult, BuildFilesystemProvider,
-    BuildFilesystemRoot, BuildIncludedSourceHandoff, BuildMachineFilesystemScope,
-    BuildNamedInputInventory, BuildObservationIdentity, BuildObservationSummary,
-    BuildRequiredOutputSettlement, BuildSnapshotCapture, BuildSnapshotRequest,
-    RestrictedBuildRequest, prepare_filesystem_scope,
+    BuildFilesystemRoot, BuildMachineFilesystemScope, BuildNamedInputInventory,
+    BuildObservationIdentity, BuildObservationSummary, BuildRequiredOutputSettlement,
+    BuildSnapshotCapture, BuildSnapshotRequest, RestrictedBuildRequest, prepare_filesystem_scope,
 };
-pub use source_compiler::publication::ProducedBuildProvider;
 pub use source_compiler::WireCompatibilityDemand;
+pub use source_compiler::publication::ProducedBuildProvider;
 pub use target::{ApplicationIdentifier, HostedApplicationIntent};
 
 pub use source_compiler::RootBinding;

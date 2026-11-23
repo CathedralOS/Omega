@@ -1,5 +1,5 @@
 /*
-Project, dependency, and log host requests from an admitted Terminal Build.
+Project requests, logs and generated source from an admitted Terminal Build.
 
 Source production authenticates protocol declarations and exact call sites, and
 each activation authenticates its original compiler-issued `Build` receiver (or
@@ -18,6 +18,8 @@ use build_declarations::{
     BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName, WorkspaceMemberPath,
 };
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
+mod output;
+pub(crate) use output::BuildRequestOutput;
 use source_compiler::publication::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation as Operation, TerminalBuildRequests,
 };
@@ -48,7 +50,7 @@ pub struct TerminalBuildRequestHost {
     account: Option<EvaluationInvocationAccount>,
     requests: Mutex<Vec<IssuedBuildRequest>>,
     registrations: Mutex<Registrations>,
-    log: Mutex<BuildLog>,
+    output: Mutex<BuildRequestOutput>,
     original_log: Option<TerminalStructuralValue>,
 }
 
@@ -75,14 +77,11 @@ struct Registrations {
     completed_preparation: bool,
 }
 
-/// What the request host of a suspended stage hands to the host of the next
-/// stage of the same activation (`source-to-psi/driver/compile_build/waits`): every
-/// registration issued so far, so later registrations keep counting from
-/// them, and the log written so far. A live registration's marker follows
-/// the value saved in its checked continuation home.
+/// Registrations, log lines and source publications survive a dependency wait.
+/// Each live registration still names the marker in the resumed program.
 pub(crate) struct CarriedRequests {
     registrations: Registrations,
-    log: BuildLog,
+    output: BuildRequestOutput,
 }
 
 impl Registrations {
@@ -99,22 +98,6 @@ pub struct BuildDependencyPreparation {
     pub purpose: DependencyPurpose,
     /// Position among the activation's issued requests of `purpose`.
     pub request_ordinal: usize,
-}
-
-#[derive(Default)]
-pub(crate) struct BuildLog {
-    bytes: Vec<u8>,
-    storage: Vec<EvaluationStorageLease>, // Retained until normal-return settlement publishes `bytes`.
-}
-
-impl BuildLog {
-    pub(crate) fn publish(self, account: &EvaluationInvocationAccount) -> Result<Vec<u8>, String> {
-        let bytes = u64::try_from(self.bytes.len()).map_err(|_| "Build log size overflowed")?;
-        account
-            .charge_result_custody(u64::from(bytes != 0), bytes)
-            .map_err(|error| error.to_string())?;
-        Ok(self.bytes)
-    }
 }
 
 impl TerminalBuildRequestHost {
@@ -139,7 +122,7 @@ impl TerminalBuildRequestHost {
             account: account.cloned(),
             requests: Mutex::new(Vec::new()),
             registrations: Mutex::new(Registrations::default()),
-            log: Mutex::new(BuildLog::default()),
+            output: Mutex::default(),
             original_log,
         }))
     }
@@ -213,9 +196,10 @@ impl TerminalBuildRequestHost {
         if registrations.awaiting.is_some() {
             return Err("a Build stage ended while it awaited a dependency preparation".into());
         }
+        let output = self.take_output()?;
         Ok(CarriedRequests {
             registrations: std::mem::take(&mut *registrations),
-            log: self.take_log()?,
+            output,
         })
     }
 
@@ -231,19 +215,25 @@ impl TerminalBuildRequestHost {
             .registrations
             .lock()
             .map_err(|_| REGISTRATIONS_POISONED)?;
-        let mut log = self.log.lock().map_err(|_| "Build log lock was poisoned")?;
-        if !registrations.issued.is_empty() || !log.bytes.is_empty() {
+        let mut output = self.output()?;
+        if !registrations.issued.is_empty() || !output.is_empty() {
             return Err("a Build stage adopts earlier requests before it runs".into());
         }
         *registrations = carried.registrations;
         registrations.completed_preparation = false;
-        *log = carried.log;
+        *output = carried.output;
         Ok(())
     }
 
-    pub(crate) fn take_log(&self) -> Result<BuildLog, String> {
-        let mut log = self.log.lock().map_err(|_| "Build log lock was poisoned")?;
-        Ok(std::mem::take(&mut *log))
+    fn output(&self) -> Result<std::sync::MutexGuard<'_, BuildRequestOutput>, &'static str> {
+        self.output
+            .lock()
+            .map_err(|_| "Build request output lock was poisoned")
+    }
+
+    pub(crate) fn take_output(&self) -> Result<BuildRequestOutput, String> {
+        let mut output = self.output()?;
+        Ok(std::mem::take(&mut *output))
     }
 }
 
@@ -254,7 +244,8 @@ pub(crate) fn build_facet(
 ) -> Result<TerminalStructuralValue, String> {
     let module = artifact.module();
     let declaration = module
-        .types.structural_types
+        .types
+        .structural_types
         .iter()
         .find(|declaration| declaration.id == original.structural_type)
         .ok_or("Build receiver lost its declaration")?;
@@ -420,40 +411,12 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                     "build logging requires the activation's compiler-issued BuildLog facet",
                 ));
             }
-            let appended = bytes
-                .len()
-                .checked_add(1)
-                .ok_or_else(|| refuse("Build log size overflowed"))?;
-            let count = u64::try_from(appended).map_err(|_| refuse("Build log size overflowed"))?;
-            let storage = self
-                .host
-                .account
-                .as_ref()
-                .map(|account| {
-                    let storage = account.reserve_site(0, 1, count)?;
-                    account.charge_build_log_bytes(count)?;
-                    Ok::<_, evaluation_contracts::EvaluationAccountingError>(storage)
-                })
-                .transpose()
-                .map_err(|error| {
-                    TerminalEffectRejection::new(format!("Build log accounting: {error}"))
-                })?;
-            let mut log = self
-                .host
+            self.host
+                .output()
+                .map_err(TerminalEffectRejection::new)?
                 .log
-                .lock()
-                .map_err(|_| refuse("Build log lock was poisoned"))?;
-            log.bytes
-                .try_reserve(appended)
-                .map_err(|_| refuse("Build log allocation was refused"))?;
-            if let Some(storage) = storage {
-                log.storage
-                    .try_reserve(1)
-                    .map_err(|_| refuse("Build log reservation allocation was refused"))?;
-                log.storage.push(storage);
-            }
-            log.bytes.extend_from_slice(bytes);
-            log.bytes.push(b'\n');
+                .append_line(bytes, self.host.account.as_ref())
+                .map_err(TerminalEffectRejection::new)?;
             return Ok(TerminalEffectResult::Unit);
         }
         if call.action == Operation::PrepareDependency {
@@ -487,6 +450,28 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
                 "project requests require the original compiler-issued Build receiver",
             ));
         }
+        if call.action == Operation::PublishSource {
+            let [None, Some(name), Some(source)] = byte_sequence_arguments.as_slice() else {
+                return Err(refuse(
+                    "Build source publication requires a filename and source bytes",
+                ));
+            };
+            if !arguments.is_empty() {
+                return Err(refuse(
+                    "Build source publication does not accept scalar arguments",
+                ));
+            }
+            let account = self.host.account.as_ref().ok_or_else(|| {
+                refuse("Build source publication requires the activation's evaluation account")
+            })?;
+            self.host
+                .output()
+                .map_err(TerminalEffectRejection::new)?
+                .sources
+                .publish(account, name, source)
+                .map_err(TerminalEffectRejection::new)?;
+            return Ok(TerminalEffectResult::Unit);
+        }
         let text = |position: usize| -> Result<&str, TerminalEffectRejection> {
             let bytes = byte_sequence_arguments
                 .get(position)
@@ -508,7 +493,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             Operation::Package | Operation::Application | Operation::Member => (0, 2),
             Operation::PathDependency => (2, 3),
             Operation::GitDependency => (3, 5),
-            Operation::LogLine | Operation::PrepareDependency => {
+            Operation::LogLine | Operation::PrepareDependency | Operation::PublishSource => {
                 return Err(refuse("Build request did not complete its host request"));
             }
         };
@@ -582,7 +567,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
         let project_name =
             |value: &str| ProjectName::parse(copy(value)?).map_err(TerminalEffectRejection::new);
         let request = match call.action {
-            Operation::LogLine | Operation::PrepareDependency => {
+            Operation::LogLine | Operation::PrepareDependency | Operation::PublishSource => {
                 return Err(refuse("Build request did not complete its host request"));
             }
             Operation::Package => BuildRequest::Package(project_name(text(1)?)?),

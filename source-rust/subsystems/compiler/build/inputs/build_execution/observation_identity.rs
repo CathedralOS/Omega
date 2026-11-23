@@ -87,13 +87,15 @@ impl BuildObservationSummary {
                     .source_content_commitment(),
             );
         }
-        digest.u64(
-            u64::try_from(self.included_source_handoffs().len())
-                .expect("included-source handoff count fits u64"),
-        );
-        for handoff in self.included_source_handoffs() {
-            digest.bytes(handoff.relative_path());
-            digest.u64(handoff.filesystem_attempt_ordinal());
+        digest.u64(self.generated_sources.len() as u64);
+        for (index, source) in self.generated_sources.iter().enumerate() {
+            digest.bytes(source.relative_path());
+            if let Some(ordinals) = &self.staged_source_ordinals {
+                digest.u64(ordinals[index]);
+            } else {
+                digest.u64(source.bytes().len() as u64);
+                digest.raw(&source.digest());
+            }
         }
         digest.u64(
             u64::try_from(self.required_output_settlements().len())
