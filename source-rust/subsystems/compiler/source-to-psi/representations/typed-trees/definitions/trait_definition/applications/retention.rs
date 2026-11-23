@@ -216,7 +216,9 @@ impl RetainedTraitScope {
         retained.formation_owner(self.argument_owner);
         for frame in program.trait_application_frames.span_or_empty(self.frames) {
             retained.declaration_description_dependency(frame.declaration);
-            if !frame.arguments.is_empty() || !frame.lifetimes.is_empty() {
+            if frame.argument_owner != self.argument_owner
+                && (!frame.arguments.is_empty() || !frame.lifetimes.is_empty())
+            {
                 retained.formation_owner(frame.argument_owner);
             }
             for binding in program
