@@ -901,6 +901,10 @@ impl Program<'_> {
                     ));
                 }
             } else {
+                // A field can introduce this domain into a generic check form
+                // before any direct declaration read. Check its source range
+                // operator when its byte predicate enters the form.
+                self.declared_predicates(machine, definition)?;
                 self.byte_domains.push(row);
             }
             self.admitted_declarations.include(source.declaration);

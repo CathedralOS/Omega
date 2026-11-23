@@ -184,9 +184,19 @@ fn refused(source: &str, detail: &str) {
 fn atomic_events_reject_plain_cells_illegal_orderings_and_mismatched_widths() {
     // An ordinary integer has no selected atomic member. Supply ordinary value
     // arguments so an unbound contextual ordering cannot mask that refusal.
-    refused(
-        "data Cell { value: u32; } machine build_entry() { let cell: Cell; cell.value.store(1, 0u32); }",
-        "call selected by its receiver's type",
+    let plain = "data Cell { value: u32; } machine build_entry() { let cell: Cell; cell.value.store(1, 0u32); }";
+    let verdict = super::build_purpose::judge_build(plain).unwrap();
+    let RouteVerdict::Rejected { violations, .. } = verdict else {
+        panic!("plain storage has no atomic store member: {verdict:?}");
+    };
+    assert!(
+        violations.iter().any(|violation| {
+            violation.statement.contains("this call has no visible declaration in its source scope")
+                && violation.site.is_some_and(|site| {
+                    plain.get(site.span.start..site.span.end) == Some("store")
+                })
+        }),
+        "{violations:?}"
     );
     malformed_ordering(
         "data Cell { value: AtomicU32; } machine build_entry() { let cell: Cell; cell.value.store(1, Receive); }",
