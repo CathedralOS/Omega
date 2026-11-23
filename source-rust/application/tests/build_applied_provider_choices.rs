@@ -58,7 +58,9 @@ fn check_package(name: &str, build: &str, files: &[(&str, &str)]) -> (bool, Stri
     std::fs::create_dir_all(&package).expect("staged package directory");
     std::fs::create_dir_all(&program).expect("staged program directory");
     for (file, source) in files {
-        std::fs::write(package.join(file), source).expect("staged package source");
+        let path = package.join(file);
+        std::fs::create_dir_all(path.parent().unwrap()).expect("staged source directory");
+        std::fs::write(path, source).expect("staged package source");
     }
     std::fs::write(package.join("build.omg"), build).expect("staged package Build");
     std::fs::write(program.join("main.omg"), "machine main() { }\n").expect("staged program");
@@ -143,6 +145,7 @@ fn a_package_selects_its_slot_and_provider_from_separate_files() {
 use provider.omg;
 machine build(builder: @mutable Build) {
     Build::package(builder, "reading");
+    let kit_registration: DependencyRegistration = Build::dependency(builder, dependency\from_source(Source::Path { location: "kit" }));
     Build::select_provider::<|slot|::Reading, |provider|::Selected>(builder, linux_x86_64);
 }"#,
         &[
@@ -153,8 +156,10 @@ machine build(builder: @mutable Build) {
             ),
             (
                 "provider.omg",
-                "use slot.omg; Selected satisfies |slot|::Reading { machine total() -> u64 { 42 } }",
+                "use slot.omg; use {kit}/math.omg as math; Selected satisfies |slot|::Reading { machine total() -> u64 { |math|::answer() } }",
             ),
+            ("kit/build.omg", r#"machine build(builder: @mutable Build) { Build::package(builder, "kit"); }"#),
+            ("kit/math.omg", "public machine answer() -> u64 { 42 }"),
         ],
     );
     assert!(compiled, "{stderr}");

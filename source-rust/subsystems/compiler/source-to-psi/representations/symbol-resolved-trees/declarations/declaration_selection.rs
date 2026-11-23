@@ -75,7 +75,7 @@ mod build_selection_origin {
 }
 
 mod product {
-    use super::BuildOperation;
+    use super::{BuildOperation, ProductOperandRole};
     use semantic_vocabulary::source_selections::{
         CompositionMode, NativeBindingProducer, ProductTarget,
     };
@@ -116,16 +116,16 @@ mod product {
                 Self::Exclusion(_) => true,
                 Self::Declaration(request) => matches!(
                     request.operation,
-                    super::BuildOperation::ProviderSelection
-                        | super::BuildOperation::RepresentationSelection
-                        | super::BuildOperation::NativeBinding
-                        | super::BuildOperation::ServiceExclusion
-                        | super::BuildOperation::BoundaryAcceptance
-                        | super::BuildOperation::ServiceAudit
-                        | super::BuildOperation::AssumedBindingContract
-                        | super::BuildOperation::WireCompatibilityRequest
-                        | super::BuildOperation::TestGroupRegistration
-                        | super::BuildOperation::TestGroupService
+                    BuildOperation::ProviderSelection
+                        | BuildOperation::RepresentationSelection
+                        | BuildOperation::NativeBinding
+                        | BuildOperation::ServiceExclusion
+                        | BuildOperation::BoundaryAcceptance
+                        | BuildOperation::ServiceAudit
+                        | BuildOperation::AssumedBindingContract
+                        | BuildOperation::WireCompatibilityRequest
+                        | BuildOperation::TestGroupRegistration
+                        | BuildOperation::TestGroupService
                 ),
                 Self::Entry(_) | Self::ProviderReadiness(_) => false,
             }
@@ -225,89 +225,6 @@ mod product {
         pub selecting_machine: source_text::SourceSpan,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-    pub enum ProductOperandRole {
-        BoundarySubject,
-        RootGrantSubject,
-        Provider,
-        Requirement,
-        // An ordinary (non-boundary) trait machine requirement: the exact
-        // identity a test group registers (wiki/spec/build/testing.md).
-        TestRequirement,
-        Data,
-        Representation,
-        WireCompatibilityFact,
-        Formal,
-        Field,
-    }
-
-    impl BuildOperation {
-        pub const fn product_operand_role(self, position: usize) -> Option<ProductOperandRole> {
-            use ProductOperandRole as Role;
-            match (self, position) {
-                (Self::ProviderSelection, 0) | (Self::ServiceExclusion | Self::ServiceAudit, 0) => {
-                    Some(Role::BoundarySubject)
-                }
-                (Self::ProviderSelection, 1) => Some(Role::Provider),
-                (Self::BoundaryAcceptance, 0) => Some(Role::RootGrantSubject),
-                (Self::ParameterDescription, 0) => Some(Role::Formal),
-                (Self::FieldDescription, 0) => Some(Role::Field),
-                (Self::AssumedBindingContract, 0 | 1) | (Self::NativeBinding, 0) => {
-                    Some(Role::Requirement)
-                }
-                (Self::TestGroupRegistration | Self::TestGroupService, 0) => {
-                    Some(Role::TestRequirement)
-                }
-                (Self::TestGroupService, 1) => Some(Role::BoundarySubject),
-                (Self::RepresentationSelection, 0) | (Self::WireCompatibilityRequest, 0..=3) => {
-                    Some(Role::Data)
-                }
-                (Self::RepresentationSelection, 1) => Some(Role::Representation),
-                (Self::WireCompatibilityRequest, 4..) => Some(Role::WireCompatibilityFact),
-                _ => None,
-            }
-        }
-
-        pub const fn product_operand_count_valid(self, count: usize) -> bool {
-            match self {
-                Self::NativeBinding | Self::ParameterDescription | Self::FieldDescription => {
-                    count == 1
-                }
-                Self::ProviderSelection
-                | Self::RepresentationSelection
-                | Self::AssumedBindingContract
-                | Self::TestGroupService => count == 2,
-                Self::ServiceExclusion
-                | Self::ServiceAudit
-                | Self::BoundaryAcceptance
-                | Self::TestGroupRegistration => count == 1,
-                Self::WireCompatibilityRequest => count >= 5,
-                _ => false,
-            }
-        }
-
-        // The checked recording call must agree with the authored request.
-        // Keep its ordinary operands beside its name so preparation and
-        // validation cannot admit a different Product operation's protocol.
-        pub const fn product_recording_operation(
-            self,
-        ) -> Option<(
-            language_core::build_protocol::SelectionProtocolOperation,
-            usize,
-        )> {
-            use language_core::build_protocol::SelectionProtocolOperation as Protocol;
-            match self {
-                Self::NativeBinding => Some((Protocol::BindNative, 3)),
-                Self::ParameterDescription => Some((Protocol::DescribeParameter, 0)),
-                Self::FieldDescription => Some((Protocol::DescribeField, 0)),
-                Self::ProviderSelection => Some((Protocol::SelectProvider, 3)),
-                operation if operation.selects_product_declarations() => {
-                    Some((Protocol::Select, 1))
-                }
-                _ => None,
-            }
-        }
-    }
 
     #[derive(Debug, Clone, PartialEq, Eq, record_storage::Record)]
     pub struct ProductDeclarationRequest {
@@ -939,7 +856,7 @@ pub use product::{
     BuildSelectionRequest, DescribedProductEntry, DescribedProductProvider, DescribedProductSchema,
     EnumExclusionRequest, ExclusionVocabulary, ExecutedBuildSelection, ExecutedEnumExclusion,
     ExecutedNativeBinding, ExecutedProductSelection, ProductEntryBinding,
-    ProductDeclarationOperand, ProductDeclarationRequest, ProductOperandRole,
+    ProductDeclarationOperand, ProductDeclarationRequest,
     ProviderReadinessRequest, RootBindingOperand, RootBindingRequest, RootBindingSelection,
 };
 
@@ -1047,30 +964,8 @@ impl CollectionMeasure {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, record_storage::Record)]
-pub enum BuildOperation {
-    ProviderReadiness,
-    ProviderSelection,
-    AssumedBindingContract,
-    RepresentationSelection,
-    ServiceExclusion,
-    ServiceAudit,
-    OptimizationSelection,
-    OptimizationReportRequest,
-    BoundaryAcceptance,
-    WireCompatibilityRequest,
-    IncludedSourceHandoff,
-    LogWriteLine,
-    NativeBinding,
-    // `builder.tests.group<Requirement>()` (wiki/spec/build/testing.md): one
-    // exact trait machine requirement registered as a test group.
-    TestGroupRegistration,
-    // `builder.tests.service<Group, Slot>()` (wiki/spec/build/testing.md): a
-    // registered group's runner-supplied backing for one exact service slot.
-    TestGroupService,
-    ParameterDescription,
-    FieldDescription,
-}
+pub use language_core::build_operations::{BuildOperation, ProductOperandRole};
+
 pub fn is_unresolved_provider_selection_call(
     target: &str,
     target_symbol: symbols::SymbolHandle,
@@ -1079,119 +974,48 @@ pub fn is_unresolved_provider_selection_call(
         && !target_symbol.is_valid()
 }
 
-impl BuildOperation {
-    /// The operations authored on the Build's `tests` facet
-    /// (`builder.tests.group<…>()`, `builder.tests.service<…>()`), which that
-    /// facet, not the Build value, authorizes.
-    pub const fn uses_tests_facet(self) -> bool {
-        matches!(self, Self::TestGroupRegistration | Self::TestGroupService)
-    }
-    pub const fn has_designated_operands(self) -> bool {
-        self.selects_product_declarations() || matches!(self, Self::ProviderReadiness)
-    }
-    pub const fn selects_product_declarations(self) -> bool {
-        matches!(
-            self,
-            Self::ProviderSelection
-                | Self::NativeBinding
-                | Self::ServiceExclusion
-                | Self::ServiceAudit
-                | Self::BoundaryAcceptance
-                | Self::WireCompatibilityRequest
-                | Self::RepresentationSelection
-                | Self::AssumedBindingContract
-                | Self::TestGroupRegistration
-                | Self::TestGroupService
-        )
-    }
-
-    pub const ALL: [Self; 15] = [
-        Self::ProviderReadiness,
-        Self::ProviderSelection,
-        Self::AssumedBindingContract,
-        Self::RepresentationSelection,
-        Self::ServiceExclusion,
-        Self::ServiceAudit,
-        Self::OptimizationSelection,
-        Self::OptimizationReportRequest,
-        Self::BoundaryAcceptance,
-        Self::WireCompatibilityRequest,
-        Self::IncludedSourceHandoff,
-        Self::LogWriteLine,
-        Self::NativeBinding,
-        Self::TestGroupRegistration,
-        Self::TestGroupService,
-    ];
-
-    pub const fn authored_spelling(self) -> &'static str {
-        match self {
-            Self::ParameterDescription => "reflect::parameter",
-            Self::FieldDescription => "reflect::field",
-            Self::NativeBinding => "bind",
-            Self::ProviderReadiness => "await_provider",
-            Self::ProviderSelection => "select_provider",
-            Self::AssumedBindingContract => "assume_binding_contract",
-            Self::RepresentationSelection => "select_representation",
-            Self::ServiceExclusion => "exclude_service",
-            Self::ServiceAudit => "audit_service",
-            Self::OptimizationSelection => "enable",
-            Self::OptimizationReportRequest => "emit_report",
-            Self::BoundaryAcceptance => "accept_boundary",
-            Self::WireCompatibilityRequest => "require_wire_compatibility",
-            Self::IncludedSourceHandoff => "include_source",
-            Self::LogWriteLine => "write_line",
-            Self::TestGroupRegistration => "group",
-            Self::TestGroupService => "service",
-        }
-    }
-
-    pub fn from_call_target(target: &str) -> Option<Self> {
-        Self::ALL
-            .into_iter()
-            .find(|operation| operation.authored_spelling() == target)
-    }
-
-    pub const fn intrinsic(self) -> AuthoredDeclarationSelectionIntrinsic {
-        match self {
-            Self::ParameterDescription => {
-                AuthoredDeclarationSelectionIntrinsic::BuildParameterDescription
+impl From<BuildOperation> for AuthoredDeclarationSelectionIntrinsic {
+    fn from(operation: BuildOperation) -> Self {
+        match operation {
+            BuildOperation::ParameterDescription => {
+                Self::BuildParameterDescription
             }
-            Self::FieldDescription => AuthoredDeclarationSelectionIntrinsic::BuildFieldDescription,
-            Self::NativeBinding => AuthoredDeclarationSelectionIntrinsic::BuildNativeBinding,
-            Self::ProviderReadiness => {
-                AuthoredDeclarationSelectionIntrinsic::BuildProviderReadiness
+            BuildOperation::FieldDescription => Self::BuildFieldDescription,
+            BuildOperation::NativeBinding => Self::BuildNativeBinding,
+            BuildOperation::ProviderReadiness => {
+                Self::BuildProviderReadiness
             }
-            Self::ProviderSelection => {
-                AuthoredDeclarationSelectionIntrinsic::BuildProviderSelection
+            BuildOperation::ProviderSelection => {
+                Self::BuildProviderSelection
             }
-            Self::AssumedBindingContract => {
-                AuthoredDeclarationSelectionIntrinsic::BuildAssumedBindingContract
+            BuildOperation::AssumedBindingContract => {
+                Self::BuildAssumedBindingContract
             }
-            Self::RepresentationSelection => {
-                AuthoredDeclarationSelectionIntrinsic::BuildRepresentationSelection
+            BuildOperation::RepresentationSelection => {
+                Self::BuildRepresentationSelection
             }
-            Self::ServiceExclusion => AuthoredDeclarationSelectionIntrinsic::BuildServiceExclusion,
-            Self::ServiceAudit => AuthoredDeclarationSelectionIntrinsic::BuildServiceAudit,
-            Self::OptimizationSelection => {
-                AuthoredDeclarationSelectionIntrinsic::BuildOptimizationSelection
+            BuildOperation::ServiceExclusion => Self::BuildServiceExclusion,
+            BuildOperation::ServiceAudit => Self::BuildServiceAudit,
+            BuildOperation::OptimizationSelection => {
+                Self::BuildOptimizationSelection
             }
-            Self::OptimizationReportRequest => {
-                AuthoredDeclarationSelectionIntrinsic::BuildOptimizationReportRequest
+            BuildOperation::OptimizationReportRequest => {
+                Self::BuildOptimizationReportRequest
             }
-            Self::BoundaryAcceptance => {
-                AuthoredDeclarationSelectionIntrinsic::BuildBoundaryAcceptance
+            BuildOperation::BoundaryAcceptance => {
+                Self::BuildBoundaryAcceptance
             }
-            Self::WireCompatibilityRequest => {
-                AuthoredDeclarationSelectionIntrinsic::BuildWireCompatibilityRequest
+            BuildOperation::WireCompatibilityRequest => {
+                Self::BuildWireCompatibilityRequest
             }
-            Self::IncludedSourceHandoff => {
-                AuthoredDeclarationSelectionIntrinsic::BuildIncludedSourceHandoff
+            BuildOperation::IncludedSourceHandoff => {
+                Self::BuildIncludedSourceHandoff
             }
-            Self::LogWriteLine => AuthoredDeclarationSelectionIntrinsic::BuildLogWriteLine,
-            Self::TestGroupRegistration => {
-                AuthoredDeclarationSelectionIntrinsic::BuildTestGroupRegistration
+            BuildOperation::LogWriteLine => Self::BuildLogWriteLine,
+            BuildOperation::TestGroupRegistration => {
+                Self::BuildTestGroupRegistration
             }
-            Self::TestGroupService => AuthoredDeclarationSelectionIntrinsic::BuildTestGroupService,
+            BuildOperation::TestGroupService => Self::BuildTestGroupService,
         }
     }
 }

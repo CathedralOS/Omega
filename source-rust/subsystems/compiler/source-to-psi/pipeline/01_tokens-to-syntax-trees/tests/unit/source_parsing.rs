@@ -320,8 +320,13 @@ fn a_file_used_for_a_product_entry_can_also_be_used_as_build_code() {
     let text = r#"
 use main.omg as app;
 use helper.omg as helper;
+use slot.omg;
+use provider.omg;
+use local.omg;
 machine build(builder: @mutable Build) {
     Build::bind(builder, |helper|::Entry, |app|::main);
+    Build::select_provider::<|slot|::Reading, |provider|::Selected>(builder);
+    Helpers::select_provider::<|local|::Reader>(builder);
     |helper|::configure(builder);
 }"#;
     let mut trees = SyntaxTrees::new(SourceId(1));
@@ -333,7 +338,10 @@ machine build(builder: @mutable Build) {
         }
         _ => None,
     }).collect::<Vec<_>>();
-    assert_eq!(imports, [("app", true), ("helper", false)]);
+    assert_eq!(imports, [
+        ("app", true), ("helper", false), ("slot", true),
+        ("provider", true), ("local", false),
+    ]);
 }
 
 #[test]
