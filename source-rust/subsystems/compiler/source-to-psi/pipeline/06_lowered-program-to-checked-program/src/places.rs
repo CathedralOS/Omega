@@ -2337,6 +2337,64 @@ impl<'a> Storage<'a> {
         Ok(())
     }
 
+    /// Whether every leaf of an element shares the array's storage. A
+    /// reference, view or independently managed value keeps its own checks.
+    /// Permission to retire descriptors does not mean a value contains one.
+    /// The field types determine that.
+    fn inline_array_element(
+        &self,
+        element: StructuralTypeId,
+        concerns: Construct,
+        known: &mut Vec<Option<bool>>,
+    ) -> Checked<bool> {
+        let declaration = self.declaration(element, concerns)?;
+        if !declaration.is_copyable()
+            || declaration.owns_linear_claim
+            || declaration.nominal_cleanup.is_some()
+            || declaration.quotient_carrier.is_some()
+        {
+            return Ok(false);
+        }
+        if matches!(declaration.shape, StructuralTypeShape::PrimitiveScalar(_)) {
+            return Ok(true);
+        }
+        let slot = index(element.get());
+        if slot >= known.len() {
+            known.resize(slot + 1, None);
+        }
+        if let Some(inline) = known[slot] {
+            return Ok(inline);
+        }
+        // An inline cycle cannot supply a finite element. Shared subtypes
+        // reuse the completed answer when another field names them.
+        known[slot] = Some(false);
+        let inline = match &declaration.shape {
+            StructuralTypeShape::Record {
+                storage: terminal_psi::StructuralRecordStorage::Packed,
+                ..
+            }
+            | StructuralTypeShape::Sum { .. } => {
+                for field in declaration.shape.fields() {
+                    match field.field_type {
+                        StructuralFieldType::Scalar(_) if !field.relevance.is_erased() => {}
+                        StructuralFieldType::Structural(nested)
+                            if !field.relevance.is_erased()
+                                && self.inline_array_element(nested, concerns, known)? => {}
+                        _ => return Ok(false),
+                    }
+                }
+                true
+            }
+            StructuralTypeShape::FixedArray {
+                element: nested,
+                length: terminal_psi::ArrayExtent::Literal(_),
+            } => self.inline_array_element(*nested, concerns, known)?,
+            _ => false,
+        };
+        known[slot] = Some(inline);
+        Ok(inline)
+    }
+
     fn leaves_of(
         &self,
         structural_type: StructuralTypeId,
@@ -2371,13 +2429,10 @@ impl<'a> Storage<'a> {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
             } => {
-                // Each element is inline and has no independent access or
-                // descriptor to resolve. One whole supply establishes them all.
+                // A whole supply covers every inline field and tag. Reading
+                // a selected payload still requires the case at that use.
                 if *length > 1
-                    && matches!(
-                        self.declaration(*element, concerns)?.shape,
-                        StructuralTypeShape::PrimitiveScalar(_)
-                    )
+                    && self.inline_array_element(*element, concerns, &mut Vec::new())?
                     && established_array(at)
                 {
                     return Ok(());
@@ -8364,13 +8419,26 @@ mod observation_tests {
 
     #[test]
     fn whole_array_initialization_preserves_partial_vacancies_and_aliasing() {
-        let input = storage_fixture(
+        check_partial_array_storage(
             "machine entry(cells: @mutable [u64; 4], spare: @mutable [u64; 4], index: u64) -> u64 requires index < 4 {
                 cells[1] = 5;
                 cells[index] = 7;
                 cells[2]
             }",
         );
+        check_partial_array_storage(
+            "data Kind [copy] { case Empty; case Entry(value: u64); }
+             data Cell [copy] { kind: Kind; value: u64; }
+             machine entry(cells: @mutable [Cell; 4], spare: @mutable [Cell; 4], index: u64) -> u64 requires index < 4 {
+                 cells[1].value = 5;
+                 cells[index].value = 7;
+                 cells[2].value
+             }",
+        );
+    }
+
+    fn check_partial_array_storage(source: &str) {
+        let input = storage_fixture(source);
         let module = &input.module;
         let machine = module
             .machines
@@ -8415,13 +8483,24 @@ mod observation_tests {
             root: machine.structural_parameters[0].place,
             segments: Vec::new(),
         };
+        // Whole storage proves the contents of the scalar or record array at
+        // once. The field-level checks below still see a later vacancy.
+        let mut checked_arrays = Vec::new();
+        let leaves = storage
+            .leaves(&array, Construct::Machine, |place| {
+                checked_arrays.push(place.clone());
+                true
+            })
+            .unwrap();
+        assert_eq!(checked_arrays.as_slice(), std::slice::from_ref(&array));
+        assert!(leaves.is_empty());
         let stores: Vec<_> = storage
             .log
             .iter()
             .enumerate()
             .filter_map(|(index, row)| {
                 (row.destination.root == array.root
-                    && row.destination.segments.len() == 1
+                    && !row.destination.segments.is_empty()
                     && matches!(row.stored, Stored::Value(_)))
                 .then_some(index)
             })
@@ -8454,10 +8533,8 @@ mod observation_tests {
 
         // One cell is moved out. A write through another evaluated index
         // cannot re-establish all cells of the array unless it names that cell.
-        let moved = Lineage {
-            root: array.root,
-            segments: vec![Segment::FixedIndex(1)],
-        };
+        let mut moved = storage.log[*first].destination.clone();
+        moved.segments[0] = Segment::FixedIndex(1);
         storage.log[*first].backing = Backing::direct(moved.clone());
         storage.log[*first].destination = moved.clone();
         storage.log[*first].stored = Stored::Vacated;
