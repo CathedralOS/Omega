@@ -2400,7 +2400,13 @@ impl<'a> Lowering<'a> {
                 let (root, path, place, _) = continuing!(self.capture_place(expression));
                 // A reference into this copy can outlive the call that borrows it.
                 // Normal owned-root cleanup retires its storage.
-                Ok(Reached::Value(Located { root, place, path, record, fresh: false }))
+                Ok(Reached::Value(Located {
+                    root,
+                    place,
+                    path,
+                    record,
+                    fresh: false,
+                }))
             }
             ExpressionKind::Zero => {
                 let (root, place) = self.establish_zeroed(value_type, expression.source)?;

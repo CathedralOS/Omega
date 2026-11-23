@@ -139,14 +139,25 @@ impl<'t> Program<'t> {
         id: MachineId,
         expression: ExpressionHandle,
     ) -> Checked<&'t ExpressionNode> {
-        if !expression.is_valid() {
+        let value = self
+            .selected_constant_value(id, expression)?
+            .unwrap_or(expression);
+        Ok(self.typed.expression_table.expression(value))
+    }
+
+    fn selected_constant_value(
+        &self,
+        id: MachineId,
+        expression: ExpressionHandle,
+    ) -> Checked<Option<ExpressionHandle>> {
+        let table = &self.typed.expression_table;
+        if !table.expression_is_valid(expression) {
             return Err(refuse(
                 id,
                 Construct::Machine,
                 Unserved::Expression("missing expression"),
             ));
         }
-        let table = &self.typed.expression_table;
         let node = table.expression(expression);
         if let ExpressionNode::Name(path) = node
             && let Some(constant) = self.typed.named_const_declaration(path)
@@ -159,9 +170,9 @@ impl<'t> Program<'t> {
                     Unserved::Expression("evaluated constant has no materialized initializer"),
                 ));
             }
-            return Ok(table.expression(constant.materialized_initializer));
+            return Ok(Some(constant.materialized_initializer));
         }
-        Ok(node)
+        Ok(None)
     }
 
 /// Reads the term at an erased position: an `[erased]` local's
@@ -945,18 +956,13 @@ impl<'t> Program<'t> {
         if access == Access::Read {
             return self.expression(id, slots, target, expected);
         }
-        if self
-            .typed
-            .expression_const_declaration(target)
-            .map_err(|detail| refuse(id, Construct::Machine, Unserved::Expression(detail)))?
-            .is_some()
-        {
+        if self.selected_constant_value(id, target)?.is_some() {
             let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
             if access != Access::Borrow {
                 return Err(reject(
                     id,
                     source,
-                    "a constant has no writable storage to borrow",
+                    "a constant has no writable storage",
                 ));
             }
             // Each use borrows its own materialized copy. Fields and indices
