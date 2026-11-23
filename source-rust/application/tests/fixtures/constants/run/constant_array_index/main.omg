@@ -1,0 +1,15 @@
+// Expected exit: 0
+const BYTES: [u8; 3] = [11u8, 17u8, 23u8];
+
+machine read(position: u64) -> u8
+requires position < 3u64
+crashes none
+{ BYTES[position] }
+
+machine main() crashes Trap {
+    transition read(0u64) == 11u8 && read(2u64) == 23u8 {
+        true -> done(), false -> bad()
+    }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

@@ -16,36 +16,16 @@
 
 mod support;
 
-use platform_custody::temporary_directory::TemporaryDirectory;
+#[path = "support/program.rs"]
+mod program;
+use program::invoke;
 use std::path::PathBuf;
-use std::process::{Command, Output, Stdio};
 
 fn fixture(tier: &str) -> PathBuf {
     support::repository_root()
         .join("source-rust/application/tests/fixtures/constants")
         .join(tier)
         .join("computed_array_extent")
-}
-
-/// Run `omega` on a copy of the fixture's one source file, so nothing the
-/// compiler writes lands in the checkout.
-fn invoke(source: &str, arguments: &[&str]) -> (Output, String) {
-    let scratch = TemporaryDirectory::create("computed-array-extent", false).unwrap();
-    std::fs::write(scratch.path().join("main.omg"), source).unwrap();
-    let output = Command::new(env!("CARGO_BIN_EXE_omega"))
-        .args(arguments)
-        .arg("main.omg")
-        .current_dir(scratch.path())
-        .stdin(Stdio::null())
-        .output()
-        .expect("the compiler runs on the fixture");
-    let report = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    eprintln!("{report}");
-    (output, report)
 }
 
 #[test]
