@@ -135,19 +135,16 @@ fn stage_adapter_operations(project: &Project, library: &Path) {
     }
 }
 
-fn build(dependency: bool) -> String {
-    let std = support::repository_root().join("source/library/std");
-    let dependency = if dependency {
-        format!(
-            "let std_registration: DependencyRegistration = Build::dependency(builder, dependency\\from_source(Source::Path {{ location: \"{}\" }}));",
-            std.to_string_lossy().replace('\\', "/")
-        )
-    } else {
-        String::new()
-    };
-    format!(
-        "machine build(builder: @mutable Build) {{\nBuild::application(builder, \"portable_filesystem_values\");\n{dependency}\nBuild::bind(builder, windows_x86_64\\ProgramEntry, main);\nBuild::bind(builder, linux_x86_64\\ProgramEntry, main);\nBuild::bind(builder, linux_arm64\\ProgramEntry, main);\nBuild::bind(builder, macos_arm64\\ProgramEntry, main);\n}}\n"
-    )
+fn build() -> String {
+    r#"machine build(builder: @mutable Build) {
+Build::application(builder, "portable_filesystem_values");
+Build::bind(builder, windows_x86_64\ProgramEntry, main);
+Build::bind(builder, linux_x86_64\ProgramEntry, main);
+Build::bind(builder, linux_arm64\ProgramEntry, main);
+Build::bind(builder, macos_arm64\ProgramEntry, main);
+}
+"#
+    .to_owned()
 }
 
 #[test]
@@ -173,7 +170,7 @@ fn windows_adapter_values_preserve_counts_timestamps_and_whole_names() {
     let main = include_str!("fixtures/filesystem/run/windows_adapter_values/main.omg");
     project.write("main.omg", main);
     stage_adapter_operations(&project, &library);
-    project.write("build.omg", &build(false));
+    project.write("build.omg", &build());
     both_zero(project.observe(&["run", "--both"], "build.omg"));
 
     // Only the requested extent changes: the same copy must refuse byte 766.
@@ -195,23 +192,12 @@ fn windows_adapter_values_preserve_counts_timestamps_and_whole_names() {
 
 #[test]
 fn portable_filesystem_public_calls_preserve_neighboring_bytes() {
+    // The fixture's own Build declares its standard-library edge. The program
+    // runs in a scratch directory, where it creates and removes its files.
+    let build = support::repository_root()
+        .join("source-rust/application/tests/fixtures/filesystem/run/public_values/build.omg");
     let project = Project::new("public");
-    project.write(
-        "main.omg",
-        include_str!("fixtures/filesystem/run/public_values/main.omg"),
-    );
-    project.write("build.omg", &build(true));
-    both_zero(project.observe(
-        &[
-            "run",
-            "--both",
-            "--build-input",
-            "main.omg",
-            "--build-input",
-            "build.omg",
-        ],
-        "build.omg",
-    ));
+    both_zero(project.observe(&["run", "--both"], &build));
 }
 
 // This rule checks POSIX mode bits and consumes its input directory.
