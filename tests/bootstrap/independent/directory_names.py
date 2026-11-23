@@ -845,7 +845,7 @@ def nominal_array_cases(encode):
         return encode(packages, dependencies, sources, 0, b"main", paths=paths)
 
     # Compile the unedited declaration and reach both ends of its four-MiB field.
-    definitions = (ROOT / "source/application/construction/main.omg").read_bytes()
+    definitions = (ROOT / "source/application/construction/input.omg").read_bytes()
     storage = declaration(definitions, b"data ConstructionInput {")
     caller = b"""machine main()->u8{
     let mutable a:ConstructionInput;
