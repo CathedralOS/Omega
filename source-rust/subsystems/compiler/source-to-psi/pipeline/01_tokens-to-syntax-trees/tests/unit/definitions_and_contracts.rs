@@ -731,14 +731,13 @@ fn parses_evidence_lane_on_named_transition_without_dropping_it() {
         .state(parsed.items.state_handles(machine.states)[0]);
     let transition =
         &crate::tests::dispatch(&parsed, parsed.items.statements(state.statements)[0]).arms[0];
-    let syntax_trees::statement::TransitionTargetNode::Named {
-        evidence_arguments, ..
-    } = parsed.statements.transition_target(transition.target)
+    let syntax_trees::statement::TransitionTargetNode::Named(expression) =
+        parsed.statements.transition_target(transition.target)
     else {
         panic!("expected named transition target");
     };
     assert_eq!(
-        evidence_arguments
+        parsed.expressions.call(*expression).evidence_arguments
             .iter()
             .map(|name| name.as_str(&parsed))
             .collect::<Vec<_>>(),

@@ -44,12 +44,7 @@ impl AuthoredAssembly {
                     AssemblyOperands::Transition(target) => {
                         use crate::statement::TransitionTargetNode;
                         match trees.statements.transition_target(*target) {
-                            TransitionTargetNode::Value(value) => visit(*value),
-                            TransitionTargetNode::Named { arguments, .. } => {
-                                for &operand in trees.statements.expression_handles(*arguments) {
-                                    visit(operand);
-                                }
-                            }
+                            TransitionTargetNode::Named(value) | TransitionTargetNode::Value(value) => visit(*value),
                             TransitionTargetNode::Terminal => {}
                         }
                     }

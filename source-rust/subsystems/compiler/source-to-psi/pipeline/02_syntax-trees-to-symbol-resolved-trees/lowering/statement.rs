@@ -594,20 +594,14 @@ mod statement_nodes {
         unconditional: bool,
     ) -> Result<TransitionTarget, Diagnostic> {
         match syntax_trees.statements.transition_target(target) {
-            TransitionTargetNode::Named {
-                callee,
-                operational_acknowledgement,
-                path,
-                arguments,
-                evidence_arguments,
-                source_span,
-            } => {
-                let callee = lower_statement_expression(lowerer, syntax_trees, *callee)?;
+            TransitionTargetNode::Named(expression) => {
+                let call = syntax_trees.expressions.call(*expression);
+                let callee = lower_statement_expression(lowerer, syntax_trees, call.callee)?;
                 let arguments = lower_statement_expressions(
-                    lowerer,
-                    syntax_trees,
-                    syntax_trees.statements.expression_handles(*arguments),
+                    lowerer, syntax_trees, syntax_trees.expressions.expression_handles(call.arguments),
                 )?;
+                let receiver = syntax_trees.expression_identifier_path(call.receiver)
+                    .expect("a named transition has a static receiver path");
                 for offset in 0..if unconditional { arguments.count() } else { 0 } {
                     let argument =
                         expression_table(lowerer).expression_handles(arguments)[offset as usize];
@@ -629,16 +623,13 @@ mod statement_nodes {
                     storage: NamedTransitionTargetStorage {
                         callee,
                         unresolved_name: Default::default(),
-                        operational_acknowledgement: *operational_acknowledgement,
+                        operational_acknowledgement: call.operational_acknowledgement,
                         path: lower_statement_path_members(
-                            lowerer,
-                            syntax_trees,
-                            syntax_trees.statements.identifier_path_members(*path),
+                            lowerer, syntax_trees, receiver.into_iter().chain([&call.target]),
                         ),
                         arguments,
-                        evidence_arguments: lower_names(syntax_trees, evidence_arguments)
-                            .into_boxed_slice(),
-                        source_span: *source_span,
+                        evidence_arguments: lower_names(syntax_trees, &call.evidence_arguments).into_boxed_slice(),
+                        source_span: call.target.source_span(),
                         authored_call_selection: None,
                     },
                 }))

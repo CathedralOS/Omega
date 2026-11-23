@@ -251,20 +251,9 @@ mod static_operands {
                     );
                     for target in transition.targets() {
                         match syntax.statements.transition_target(target) {
-                            syntax_trees::statement::TransitionTargetNode::Value(value) => {
+                            syntax_trees::statement::TransitionTargetNode::Named(value)
+                            | syntax_trees::statement::TransitionTargetNode::Value(value) => {
                                 collect_expression_handles(syntax, *value, &mut target_expressions)
-                            }
-                            syntax_trees::statement::TransitionTargetNode::Named {
-                                arguments,
-                                ..
-                            } => {
-                                for value in syntax.statements.expression_handles(*arguments) {
-                                    collect_expression_handles(
-                                        syntax,
-                                        *value,
-                                        &mut target_expressions,
-                                    );
-                                }
                             }
                             _ => {}
                         }

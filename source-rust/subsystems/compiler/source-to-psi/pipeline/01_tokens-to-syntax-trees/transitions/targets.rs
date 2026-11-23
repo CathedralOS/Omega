@@ -4,7 +4,6 @@ use crate::expressions::parse::parse_expression_handle;
 use crate::expressions::postfix::parse_postfix_expression_handle;
 use crate::token_input::cursor::{Input, ParseResult};
 use crate::transitions::guards::{DestructureBindings, rewrite_destructure_guard_expression};
-use arena::HandleSpan;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
@@ -82,28 +81,7 @@ fn classify_transition_target_handle(
                 && let Some(receiver) = syntax_trees.expression_identifier_path(call.receiver)
                 && receiver.len() <= 1 =>
         {
-            let owner = receiver.first().copied().cloned();
-            let target = call.target.clone();
-            let callee = call.callee;
-            let operational_acknowledgement = call.operational_acknowledgement;
-            let evidence_arguments = call.evidence_arguments.clone();
-            let arguments = syntax_trees.copy_expression_handles_to_statement_table(call.arguments);
-            let mut path = HandleSpan::empty();
-            for member in owner.into_iter().chain([target.clone()]) {
-                path.push_contiguous(
-                    syntax_trees
-                        .statements
-                        .append_identifier_path_member(member),
-                );
-            }
-            TransitionTargetNode::Named {
-                callee,
-                operational_acknowledgement,
-                path,
-                arguments,
-                evidence_arguments,
-                source_span: target.source_span(),
-            }
+            TransitionTargetNode::Named(expression)
         }
         _ => TransitionTargetNode::Value(expression),
     };

@@ -1254,12 +1254,7 @@ mod expressions {
                 }
                 for target in transition.targets() {
                     match syntax.tables.statements.transition_target(target) {
-                        TransitionTargetNode::Named { arguments, .. } => {
-                            for argument in syntax.tables.statements.expression_handles(*arguments)
-                            {
-                                collect_expression_handles(syntax, *argument, handles);
-                            }
-                        }
+                        TransitionTargetNode::Named(value) |
                         TransitionTargetNode::Value(value) => {
                             collect_expression_handles(syntax, *value, handles)
                         }

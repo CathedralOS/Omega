@@ -199,11 +199,10 @@ fn terminal_acknowledgements_preserve_named_and_parenthesized_call_forms() {
         let transition =
             &crate::tests::dispatch(&parsed, parsed.items.statements(state.statements)[0]).arms[0];
         match parsed.statements.transition_target(transition.target) {
-            syntax_trees::statement::TransitionTargetNode::Named {
-                operational_acknowledgement,
-                evidence_arguments,
-                ..
-            } if named => {
+            syntax_trees::statement::TransitionTargetNode::Named(expression) if named => {
+                let call = parsed.expressions.call(*expression);
+                let operational_acknowledgement = call.operational_acknowledgement;
+                let evidence_arguments = &call.evidence_arguments;
                 assert_eq!(
                     operational_acknowledgement.acknowledges_block, block_marker,
                     "{target}"
@@ -263,13 +262,11 @@ fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordi
             &crate::tests::dispatch(&parsed, parsed.items.statements(state.statements)[0]).arms[0];
         let target_node = parsed.statements.transition_target(transition.target);
         if named {
-            let syntax_trees::statement::TransitionTargetNode::Named {
-                evidence_arguments, ..
-            } = target_node
+            let syntax_trees::statement::TransitionTargetNode::Named(expression) = target_node
             else {
                 panic!("state/namespace target changed: {target}");
             };
-            assert_eq!(evidence_arguments[0].as_str(&parsed), "proof");
+            assert_eq!(parsed.expressions.call(*expression).evidence_arguments[0].as_str(&parsed), "proof");
         } else {
             let syntax_trees::statement::TransitionTargetNode::Value(expression) = target_node
             else {

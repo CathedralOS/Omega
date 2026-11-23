@@ -329,26 +329,15 @@ fn suspending_arm(
     syntax: &SyntaxTrees,
     target: syntax_trees::statement::TransitionTargetHandle,
 ) -> Option<Span> {
-    match syntax.statements.transition_target(target) {
-        syntax_trees::statement::TransitionTargetNode::Named {
-            operational_acknowledgement,
-            path,
-            ..
-        } if operational_acknowledgement.acknowledges_suspend => syntax
-            .statements
-            .identifier_path_members(*path)
-            .last()
-            .map(|name| name.source_span().span),
-        syntax_trees::statement::TransitionTargetNode::Value(value) => {
-            let ExpressionNode::Call(call) = syntax.expressions.expression(*value) else {
-                return None;
-            };
-            call.operational_acknowledgement
-                .acknowledges_suspend
-                .then(|| call.target.source_span().span)
-        }
-        _ => None,
-    }
+    let value = match syntax.statements.transition_target(target) {
+        syntax_trees::statement::TransitionTargetNode::Named(value)
+        | syntax_trees::statement::TransitionTargetNode::Value(value) => *value,
+        syntax_trees::statement::TransitionTargetNode::Terminal => return None,
+    };
+    let ExpressionNode::Call(call) = syntax.expressions.expression(value) else {
+        return None;
+    };
+    call.operational_acknowledgement.acknowledges_suspend.then(|| call.target.source_span().span)
 }
 
 /// The authored operation name in a top-level dependency preparation.

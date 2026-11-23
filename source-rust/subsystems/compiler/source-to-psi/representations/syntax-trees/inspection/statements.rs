@@ -599,29 +599,22 @@ fn snapshot_transition_target(
     target: &TransitionTargetNode,
 ) -> TransitionTargetSnapshot {
     match target {
-        TransitionTargetNode::Named {
-            operational_acknowledgement,
-            path,
-            arguments,
-            evidence_arguments,
-            ..
-        } => TransitionTargetSnapshot::Named {
-            path: snapshot_identifier_slice(
-                syntax_trees,
-                syntax_trees.statements.identifier_path_members(*path),
-            ),
-            arguments: syntax_trees
-                .statements
-                .expression_handles(*arguments)
-                .iter()
-                .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
-                .collect(),
-            evidence_arguments: snapshot_identifier_slice(syntax_trees, evidence_arguments),
-            acknowledgement_synthesized: operational_acknowledgement.origin
-                == language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
-            acknowledges_suspend: operational_acknowledgement.acknowledges_suspend,
-            acknowledges_block: operational_acknowledgement.acknowledges_block,
-        },
+        TransitionTargetNode::Named(expression) => {
+            let call = syntax_trees.expressions.call(*expression);
+            let receiver = syntax_trees.expression_identifier_path(call.receiver)
+                .expect("a named transition has a static receiver path");
+            TransitionTargetSnapshot::Named {
+                path: receiver.into_iter().chain([&call.target])
+                    .map(|name| snapshot_identifier(syntax_trees, name)).collect(),
+                arguments: syntax_trees.expressions.expression_handles(call.arguments)
+                    .iter().map(|handle| snapshot_expression_handle(syntax_trees, *handle)).collect(),
+                evidence_arguments: snapshot_identifier_slice(syntax_trees, &call.evidence_arguments),
+                acknowledgement_synthesized: call.operational_acknowledgement.origin
+                    == language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                acknowledges_suspend: call.operational_acknowledgement.acknowledges_suspend,
+                acknowledges_block: call.operational_acknowledgement.acknowledges_block,
+            }
+        }
         TransitionTargetNode::Value(expression) => TransitionTargetSnapshot::Value {
             expression: snapshot_expression_handle(syntax_trees, *expression),
         },
