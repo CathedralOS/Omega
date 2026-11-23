@@ -51,9 +51,9 @@ Delete it when that task closes or its plan carries these findings.
 6. **Do first.** Build toward the core library, not the samples. It needs no
    level binder, no `core\Squash` and no value-indexed family, but every law
    in `core/nat.omg` is an induction over the recursive `data Nat`. Give
-   stage 05 one term reader and the two term forms `Proposition` lacks
-   (application of a declaration, and `Id` at a type), proved first on a law
-   cited over an abstract type. Then make a plain `data` a kernel type and a
+   stage 05 one term reader and the term forms `Proposition` lacks
+   (application of a declaration, `Id` at a type, constructor, projection),
+   proved first on a law cited over an abstract type. Then make a plain `data` a kernel type and a
    law machine an induction, with the deleted fixture
    `pass/proofs/ring_law_conformance` and its rejected twin as the customer.
    See [plan order](#plan-order).
@@ -107,7 +107,7 @@ Old files, all under `omega-rust/psi/compilation/`:
 | `proof/src/derivation_store.rs` | 299 | #2823 |
 | `validation/src/proof_contracts_core.rs` | 11,591 | #2823 |
 | `validation/src/quotients.rs` | 8,175 | #2823 |
-| `validation/src/contract_entailment.rs` | 92,926 | #2823; see [the deleted Identity prover](#the-deleted-identity-prover) |
+| `validation/src/contract_entailment.rs` | 92,926 | #2823; see [the whole deletion](#the-whole-deletion) |
 | `validation/src/float_and_mathematical_contracts.rs` | 3,771 | #2823 |
 | `proof/src/lemmas.rs`, `boundary.rs`, rest of `lib.rs` | 377, 213, 815 | #2911 (`c3dd18abe600`); they had no callers at `cea9cdcde460^` |
 
@@ -215,32 +215,125 @@ The old checker never called `mathematical_declarations` (only `pub mod` at
 04/05 and the review-evidence crate. So nothing in `checker.rs` is needed for
 R1-R3.
 
-## The deleted Identity prover
+## The whole deletion
 
-The first version of this audit did not read
-`validation/src/contract_entailment.rs`, the largest file #2823 deleted. It
-held the code that decided whether a `core\Identity` law holds, so it is the
-larger part of what the library's laws lost.
+#2823 deleted 861,818 lines, and the first versions of this audit had read
+about 3% of them. This section covers all of it. Two crates are 79% of the
+deletion: the old checking stage (`05_typed-trees-to-checked-trees`, 343,475
+lines) and `validation` (336,630 lines). Across those two crates the proof
+kernel is referenced on 13 lines. A program was accepted when no check
+pushed an error, and each check was the old compiler's own yes or no.
+`validation/src/lib.rs:6-7` said so: "Successful validation is a source
+judgment, not a portable proof certificate."
 
-| Module | Lines | What it did |
-| --- | --- | --- |
-| `structural_judgment` | 37,507 | `StructuralJudge`: decided equalities between structural terms by rewriting. Its parts include `identity_normalization` (1,216), `data_identity` (1,031), `identity_elimination` (336), `algebraic_identity` (322), `constructor_identity` (263), `induction_values` (154) and `runtime_induction` (101). |
-| `law_conformance` | 2,788 | checked that a satisfier's proved `ensures` backs the law its trait declares |
-| `citations` | 865 | made a cited machine's guarantee available to the caller |
-| `inductive_judgment` | 510 | induction over a `data` value |
-| `quotient_congruence` | 220 | congruence for quotient relations |
+Three properties hold in every part that was read. Together they are the
+case for the deletion, and the list of things the rebuild must not repeat.
 
-`structural_judgment` contains no reference to proof admission, `ProofNode`
-or a certificate, and its judgments return `bool` (for example
-`ring_rearranged_equal`, `:47961`). So the old compiler accepted these laws
-on a rewriting procedure, not on evidence the kernel checked. That is the
-same fault as the range checker's interval fallback, and it justifies the
-deletion by the same standard. Whether another stage re-checked those
-results with the kernel was not determined.
+1. **The verdict was the code's own judgment.** The two crates have about 640
+   functions that return `bool`. The contract prover returned
+   `Proven`, `Refuted` or `Unknown` from its own rewriting. `ProofNode` and
+   `verify_obligation` appear nowhere in either crate.
+2. **Text identified values.** Arithmetic atoms were strings such as
+   `format!("\0call-result:{expression:?}")`. Structural terms named a
+   parameter as `Variable(String)` and anything else as `Opaque(String)`,
+   and two `Opaque` terms were equal when their display text was equal
+   (`contract_entailment.rs:81552-81556`). Index facts were pairs of labels
+   from `display_name`, which `checks_ranges.rs` calls 85 times. Names
+   decided meaning: a rank proof looked for a `data` named `"Nat"` with cases
+   `"Succ"` and `"Zero"` (`contract_entailment.rs:23838, 23898`).
+3. **One rule was written once per placement.** The same delivery checks
+   were called separately for an assignment, a local initializer, a return
+   value, a call argument and a construction field. Scalar plans carried a
+   role with 31 placement variants. `contract_entailment.rs` had three
+   expression-to-term builders (`structural_term`, `callee_term_leaf`,
+   `bound_contract_term`) and twelve visitors that each asked one question
+   of the same walk. Today's stage 05 has thirteen term readers; it is the
+   same fault.
 
-It also means there is nothing to port. The mathematical kernel already has
-what these proofs are made of (`W`, `IndW`, `Id`, `IdElim`); what is missing
-is the path from source to those terms and a producer of the proof term.
+### By part
+
+"Read" is the share read in full; every module of every part was at least
+outlined (name, signatures, leading comment) and counted by search.
+
+| Part | Lines | What it did | How it decided | Read |
+| --- | --- | --- | --- | --- |
+| `validation/src/contract_entailment.rs` | 92,926 | An integer prover over polynomials (`Engine`), a judge over structural terms (`StructuralJudge`), and about forty client modules that each put one kind of question to them: call requirements, citations, induction, law conformance, rank descent, content conservation | `Proven` / `Refuted` / `Unknown`; no kernel | about 60% |
+| Old stage: contract checks (`checks_contracts*.rs`) | 37,588 | Each call's `requires` and each exit's `ensures` | A clause passed when any one of an ordered list of routines returned true: 24 route call sites for a call's `requires` and about 40 leaf procedures beneath them. Many compared rendered text; `checks_contracts_calls.rs:2005` says "Contract comparison is currently label-based" | 36% |
+| Old stage: ranges and termination | 29,415 | Index and subslice bounds; rank descent; termination summaries | Label-keyed fact tables; three tiers of rank proof | about 40% |
+| `validation/src/arithmetic_domains.rs` | 27,042 | Interval analysis: overflow, division, shift, cast, narrowing | Intervals in a map keyed by place-path text; an unknown bound produced no diagnostic (`:795`) | 22% |
+| `validation`: proof contracts, quotients, float and mathematical contracts, domains | 39,724 | Proposition `ensures`, erased bindings, `embed`, quotient formation and `lift`/`define`, domain membership, invariant windows on `data ... requires` | Sets of rendered labels; structural matching of theorem shapes | 29% to 72% by file |
+| Rest of `validation` | about 177,000 | Calls and write frames (`calls.rs`, 45,408), custody of references, places, traits, recasts, effects | 895 `Diagnostic::error` sites, 888 `bool` functions | 5% |
+| Rest of the old stage | 275,560 | Facts in force at each point, borrows, ownership counting, and executable plans for lowering | Diagnostics; one output record, `CheckFacts`, with 55 fields | outline and samples |
+| `proof/src` | 24,187 | The mathematical elaborator and range checker [above](#the-deleted-elaborator-by-capability) | The only part that called the kernel | read |
+| Build-time evaluation, `checked-trees`, stage 04, review evidence, provider planning, stages 07 and 08 | about 145,000 | Compile-time evaluation, the old checker's output format, preparation, package review records | Consumers of the old checker's output | outline and samples |
+
+In all about 130,000 lines were read in full, 15% of the deletion. The
+low-coverage rows are ownership, borrowing, layout and lowering, which this
+task does not rebuild.
+
+### What the old proof code could do
+
+These are capabilities, not code to restore. Each is stated with where it
+lived and what it corresponds to in the kernel, because the kernel already
+has a term for each.
+
+| Capability | Where it lived | How it worked | In the kernel |
+| --- | --- | --- | --- |
+| A called machine's body as a term | `unfold_application`, `contract_entailment.rs:83747-84007` | One state, matching arity, no active identical application; walked statements, tried transitions in order, aborted on a guard it could not decide; depth 32 | a definition and conversion |
+| Case split on a `data` value | `judge_case` (`:48739`), `match_paths` (`:62851`) | One path per arm, assuming the arm's case; excluding every other case proved the last | the W eliminator |
+| Induction | driver `:92309-92577`, `inductive_judgment` `:16631-17140` | Per arm, each call of the machine on itself whose `requires` held gave its `ensures` as a hypothesis. Descent was checked by a separate recursion check | `IndW` |
+| Citing a lemma | `citations` `:9517-10381` | The lemma's `ensures` was instantiated at the call's arguments after its `requires` were judged there. It was trusted because the lemma was checked "in this same validation batch" (`:9838-9842`) | application of a proved declaration |
+| Equality of `data` values | `judge_equation` (`:85192`), `data_identity` (`:49677`) | Same constructor compared field by field; different constructors refuted; then rewriting through established equalities, at most 64 forms a side | `Id`, `IdElim`, constructor injectivity |
+| A satisfier proves its trait's law | `law_conformance` `:17141-19928` | One-way pattern match of the satisfier's proved `ensures` against the law, with the trait's operation names replaced by the satisfier's machines; "compiling means proven" (`:19670`) | the satisfier's proof has the law's type |
+| Rearranging by algebra laws | `algebraic_identity` `:47928-48249`, `licenses` `:57471-59048` | A machine earned a license when its trait's `ensures` had the shape of commutativity, associativity or distributivity; goals were then compared as polynomials of at most 64 monomials | rewriting with the laws as equalities |
+| Quotients | `validation/src/quotients.rs` | Formation needed a sealed `Equivalence` conformance; `lift` and `define` needed a theorem machine whose contract had the expected congruence shape, matched structurally | `QuotientFamily` |
+| Integer goals | `Engine`, `:6013-7678` | Polynomial normal form, substitution of hypothesis equalities, difference bounds, intervals for division, shifts and bitwise results | stage 06's prover and its certificates |
+
+The judge's term type, `StructuralTerm` (`:80504-80601`), had 20 variants.
+Four of them are the general forms that today's `Proposition` lacks:
+`Identity { carrier, left, right }`, `Application { target, arguments }`,
+`Constructor` and `Projection`. Real programs needed all four, so L2 below
+takes all four.
+
+One route in the old compiler did reach the kernel. For a theorem machine
+with erased family evidence, the elaborator built a kernel term, and
+`validation` accepted the machine's `ensures` when that row existed
+(`float_and_mathematical_contracts.rs:2372-2389`). The old output format
+carried what the kernel needs: `CheckedMathematicalSignature { arena,
+declarations }`, `CheckedIndexedTheorem { term, ty, assumption_closure }`
+and `CheckedIdentityFormation`. Today's three empty Terminal Psi slots are
+their successors. Laws over plain `data`, such as every law in
+`core/nat.omg`, did not take that route; `StructuralJudge` decided them.
+
+### What accepted without proof
+
+The readers recorded more than a hundred sites; these are the kinds, with
+one example each. None was traced to a wrong acceptance of a real program.
+
+| Kind | Example |
+| --- | --- |
+| A clause deferred as an obligation and the call recorded as decided | `checks_contracts_calls.rs:3447-3514` |
+| A declared type trusted after the fact about it was invalidated | `checks_contracts_calls.rs:3728-3783` |
+| An `ensures` that is structurally equal to a `requires` recorded as proven | `contract_entailment.rs:92599-92604` |
+| A failed lookup that skips the check | `validate_loan_handbacks`, `contract_entailment.rs:21657-21750` |
+| A narrowing store reported only when both interval bounds are known | `arithmetic_domains.rs:795` |
+| An unknown goal that yields neither a proof nor a diagnostic | `contract_entailment.rs:92819-92833` |
+
+### What this changes in the plan
+
+- **The fault this audit found in today's stage 05 is the old compiler's
+  fault at smaller scale**, so L1 is the main repair, not a refinement.
+- **L2 takes four forms, not two**: application, `Id` at a type, constructor
+  and projection.
+- **There are two kinds of goal and both need evidence.** Integer goals go
+  to stage 06's existing prover. Equality goals over terms need a producer
+  that does what the old judge did (unfold, split by case, use the
+  inductive hypothesis and the cited lemmas, close by congruence) and
+  returns a kernel term.
+- **Search needs budgets.** Every limit in the old judge (depth 32, 64 forms,
+  8,192 work units) answered `Unknown` when exhausted, never yes. Keep that.
+- **Rearranging by algebra laws is its own later step.** `core/nat.omg`
+  cites its lemmas one by one and does not need it.
 
 ## How a clause becomes a proof term today
 
@@ -318,13 +411,13 @@ checked against the code but not built.
 | # | Change | What it removes | Measure |
 | --- | --- | --- | --- |
 | L1 | **One term reader in stage 05.** One function reads an expression into a term at every position. `ClauseScope` supplies only what each name denotes there (a formal, the entry snapshot for `old`, the result, a field of the value being built). | the position axis: a term form served once is served in every clause, domain predicate, definition body and erased argument | readers per term form: 1; refusals that name a position: 0 |
-| L2 | **Two general term forms.** Add an application of a published declaration to argument terms, and `Id` at a type. The existing scalar, integer and float forms stay as the cases the arithmetic rules work on. | the operand axis: Identity for every type (C5), a call to a machine with no body, a definition with binders (C1) and a quotient relation (C10) become the same two forms, with one reader, one prover route (reflexivity, symmetry, transitivity, congruence) and one translation to the kernel | equality forms a new type needs: 0 |
+| L2 | **Four general term forms.** Add an application of a published declaration to argument terms, `Id` at a type, a constructor of a `data` case applied to its fields, and a projection of a field from a term. These are the four forms the old judge's term type had and `Proposition` lacks. The existing scalar, integer and float forms stay as the cases the arithmetic rules work on. | the operand axis: Identity for every type (C5), a call to a machine with no body, a definition with binders (C1) and a quotient relation (C10) become the same four forms, with one reader, one prover route (reflexivity, symmetry, transitivity, congruence, constructor injectivity) and one translation to the kernel | equality forms a new type needs: 0 |
 | L3 | **One signature table in Terminal Psi** in place of the three per-construct slots, written by stage 05 and checked once by stage 06 with `check_signature`. This answers open question 3. | a table and a wire reader per construct | writers per declaration kind: 1 |
 | L4 | **Stage 06 reads `MathematicalCoreDecision`** and reports how many accepted certificates the mathematical kernel did not judge, per obligation kind. Close the nine shapes or refuse them. | a second basis of trust that nobody measures | accepted without the kernel's judgment: 0 |
 | L5 | **Typed identities in `ProofTerm`** in place of `type_identity: String`. | decisions keyed on text | text keys in `ProofTerm`: 0 |
 
 L1 and L2 replace R1's separate routes for definitions, Identity and
-quotient formation. Build the single reader for the two new forms first, so
+quotient formation. Build the single reader for the new forms first, so
 they work at every position from the start, then move each existing form
 into it and delete the reader it came from in the same change. That avoids
 both rewriting 6,705 working lines at once and adding the new forms to
@@ -369,7 +462,7 @@ It also names call congruence for comparisons: repeated pure comparisons with
 the same operation and unchanged arguments have the same Boolean denotation
 ([contracts.md#equality-bridges-and-comparison-facts](../../spec/proofs/contracts.md#equality-bridges-and-comparison-facts)).
 The [proofs lane plan](proofs_evidence_lane.md) lists this as slice 10;
-change L2 above serves it and Identity with the same two forms.
+change L2 above serves it and Identity with two of its four forms.
 
 ### The deleted corpus
 
@@ -482,7 +575,7 @@ there adds a case per construct, take the rule here instead.
 
 | Step | Build | Owner | First customers |
 | --- | --- | --- | --- |
-| 1 | L1 and L2 on an abstract type: the single term reader, serving an application of a declaration and `Id` at a type in every clause position. Stage 06 proves such a goal from cited equalities by reflexivity, symmetry, transitivity and congruence, as a kernel term. No `data`, no induction. | stage 05, lowered program, stage 06, kernel translation | one new pair: a generic machine over a `CommutativeSemiring<T>` that cites `add_comm` and relies on the Identity, and a twin that relies on it without the citation |
+| 1 | L1 and L2 on an abstract type: the single term reader, serving an application of a declaration and `Id` at a type in every clause position (constructor and projection arrive with step 2). Stage 06 proves such a goal from cited equalities by reflexivity, symmetry, transitivity and congruence, as a kernel term. No `data`, no induction. | stage 05, lowered program, stage 06, kernel translation | one new pair: a generic machine over a `CommutativeSemiring<T>` that cites `add_comm` and relies on the Identity, and a twin that relies on it without the citation |
 | 2 | A plain `data` as a kernel type with its constructors as terms (R2 without indices); a machine defined by cases on one parameter as a kernel function; a law machine as an induction (R3); L3, so these declarations are published once and checked once with `check_signature`. The proof producer normalizes both sides with the kernel, then closes the goal by congruence over the cited equalities and the inductive hypothesis. | stages 05 and 06, Terminal Psi | `pass/proofs/ring_law_conformance` and `fail/proofs/ring_law_unproven_rejected`, recovered from `f4c7a70beb^` beside the owning test |
 | 3 | `core/nat.omg` checked in full as a validation subject | stages 05 and 06 | its eleven `satisfies CommutativeSemiring<Nat>` machines |
 | 4 | The rest of R1: definitions with binders and `boundary let` as declarations in the same signature | stage 05, stage 06 | `cauchy.omg`, `rat.omg`, `int.omg`, `extent.omg:219` |
@@ -493,8 +586,8 @@ there adds a case per construct, take the rule here instead.
 
 Step 1 is small on purpose. [Check on the lowered form](check_on_lowered_form.md#lane-order)
 says not to spread a new representation before one checked end-to-end route
-works, so the two term forms are proved on the case with no `data` and no
-induction before step 2 leans on them.
+works, so the first two term forms are proved on the case with no `data` and
+no induction before step 2 leans on them.
 
 Step 2 carries the main risk. The kernel encodes a `data` as a W type, and
 the old elaborator needed budget tests for its indexed-vector terms
