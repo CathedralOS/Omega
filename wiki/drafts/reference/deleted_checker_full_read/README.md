@@ -7,7 +7,10 @@ does not have to be paid for twice. The findings that matter are carried in
 delete this directory when that audit is deleted.
 
 The deletion was cut into 137 slices of about 8,000 lines. One reader took
-each slice, read it in order, and wrote one report.
+each slice, read it in order, and wrote one report. Every slice has a
+report, and the coverage logs account for all 875,311 lines in the slices.
+Two reports (080, 116) abbreviate file names in their logs; their ranges are
+complete.
 
 | Path | What it holds |
 | --- | --- |
